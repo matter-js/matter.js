@@ -278,6 +278,18 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
     function createChoice(param: Conformance.Ast.Choice): DynamicNode {
         const compiled = compile(param.expr);
 
+        // If the wrapped expression is statically disallowed or nonconformant (e.g. "[FEATURE].x+" where
+        // FEATURE is not supported), this member is never actually part of choice group "name" for this
+        // instance.  The outer gate excludes it entirely, so it must not contribute to, or be constrained
+        // by, the group's cardinality requirement.  Without this, a choice group whose gating condition is
+        // never met still demands "at least one of these fields" from fields that aren't even legal to set.
+        if (isStatic(compiled)) {
+            const staticCompiled = asConformance(compiled);
+            if (staticCompiled.code === Code.Nonconformant || staticCompiled.code === Code.Disallowed) {
+                return compiled;
+            }
+        }
+
         const name = param.name;
         const template: ValidationLocation.Choice = {
             count: 0,
@@ -290,23 +302,30 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
             code: Code.Evaluate,
 
             evaluate: (value, options) => {
-                // Update choice definitions.  This is supplied by the struct validator.  If we're only validating a
-                // single field then choices aren't available so the choice is ignored
-                const choices = options?.choices;
-                let choice;
-                if (choices) {
-                    choice = choices[name];
-                    if (!choice) {
-                        choice = choices[name] = { ...template };
-                    }
-                    if (value !== undefined) {
-                        choice.count++;
+                const result = evaluateNode(compiled, value, options);
+
+                // Only register/count this member if its own gating condition actually resolves to
+                // something applicable for this instance.  A member whose condition is not met at runtime
+                // (e.g. "[FEATURE]" evaluates false) is not part of the choice group's cardinality
+                // requirement either -- mirrors the static check above for conditions only resolvable at
+                // runtime.
+                const resolved = asConformance(result);
+                if (resolved.code !== Code.Nonconformant && resolved.code !== Code.Disallowed) {
+                    // Update choice definitions.  This is supplied by the struct validator.  If we're only
+                    // validating a single field then choices aren't available so the choice is ignored
+                    const choices = options?.choices;
+                    if (choices) {
+                        let choice = choices[name];
+                        if (!choice) {
+                            choice = choices[name] = { ...template };
+                        }
+                        if (value !== undefined) {
+                            choice.count++;
+                        }
                     }
                 }
 
-                // The status of the subexpression is not relevant for the choice.  If conformance fails then it doesn't
-                // matter if we count the choice or not
-                return evaluateNode(compiled, value, options);
+                return result;
             },
         };
     }

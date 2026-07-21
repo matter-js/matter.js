@@ -449,6 +449,27 @@ const AllTests = Tests({
                     },
                 },
             ),
+
+            "gated by disabled feature": Tests(
+                Features({ F: "Foo" }),
+                Fields({ name: "Test1", conformance: "[F].a+" }, { name: "Test2", conformance: "[F].a+" }),
+                {
+                    "allows omission if feature disabled": {},
+
+                    "requires one field if feature enabled": {
+                        supports: ["foo"],
+                        error: {
+                            type: ConformanceError,
+                            message: 'Validating Test: Conformance choice "a": Too few fields present (0 of min 1)',
+                        },
+                    },
+
+                    "allows one field if feature enabled": {
+                        supports: ["foo"],
+                        record: { test1: 1234 },
+                    },
+                },
+            ),
         }),
 
         "enum values": Tests(
