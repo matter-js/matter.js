@@ -115,19 +115,37 @@ describe("ThermostatBehavior", () => {
             await node.close();
         });
 
-        it("rejects when the coupled limit cannot be moved within its absolute bounds", async () => {
+        it("pins the written limit back when the coupled limit cannot move within its absolute bounds", async () => {
             const { node, device } = await createAutoThermo({
                 maxCoolSetpointLimit: 3000,
                 absMaxCoolSetpointLimit: 3000,
                 maxHeatSetpointLimit: 2800,
             });
 
-            // requiredCool = 2900 + 200 = 3100 > absMaxCool 3000 -> unresolvable
-            await expect(device.set({ thermostat: { maxHeatSetpointLimit: 2900 } })).rejectedWith(
-                /ConstraintError|deadband|absMaxCool/i,
-            );
+            // Requested maxHeat=2900 would need maxCool=3100 > absMaxCool 3000; instead maxCool pins to 3000 and
+            // maxHeat is pulled back to 2800 to preserve the deadband (CHIP FixUserLimitDeadband fallback).
+            await device.set({ thermostat: { maxHeatSetpointLimit: 2900 } });
 
+            expect(device.state.thermostat.maxCoolSetpointLimit).equals(3000);
             expect(device.state.thermostat.maxHeatSetpointLimit).equals(2800);
+
+            await node.close();
+        });
+
+        it("nudges the coupled setpoint to preserve the deadband when a limit write clamps a setpoint", async () => {
+            const { node, device } = await createAutoThermo({
+                occupiedHeatingSetpoint: 1410,
+                occupiedCoolingSetpoint: 1610,
+            });
+
+            // Lower maxCool onto minCool; the cooling setpoint clamps to 1600 and heating is nudged down to keep the
+            // 200 deadband (CHIP FixRange).
+            await device.set({ thermostat: { maxCoolSetpointLimit: 1600 } });
+
+            const { occupiedCoolingSetpoint, occupiedHeatingSetpoint, maxCoolSetpointLimit } = device.state.thermostat;
+            expect(maxCoolSetpointLimit).equals(1600);
+            expect(occupiedCoolingSetpoint).lessThanOrEqual(1600);
+            expect(occupiedCoolingSetpoint - occupiedHeatingSetpoint).greaterThanOrEqual(200);
 
             await node.close();
         });

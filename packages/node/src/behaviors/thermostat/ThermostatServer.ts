@@ -655,32 +655,28 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     }
 
     #assertUnoccupiedCoolingSetpointChanging(setpoint: number, _old: number, context: ActionContext) {
-        this.#assertSetpointWithinLimits("Cool", "Unoccupied", setpoint);
-        this.#assertSetpointDeadband("Cooling", setpoint);
-        // Only ensure Deadband and preset adjustment when the value is written directly (not changed via a command)
-        if (!this.#isCommandContext(context)) {
-            this.#ensureSetpointDeadband("Cooling", "unoccupied", setpoint);
-
-            if (this.features.presets && this.state.activePresetHandle !== null && !this.occupied) {
-                this.agent.asLocalActor(() => {
-                    this.state.activePresetHandle = null;
-                });
-            }
+        const direct = !this.#isCommandContext(context);
+        if (direct) {
+            this.#assertSetpointWithinLimits("Cool", "Unoccupied", setpoint);
+        }
+        this.#reconcileSetpoints(new Set(["unoccupiedCoolingSetpoint"]));
+        if (direct && this.features.presets && this.state.activePresetHandle !== null && !this.occupied) {
+            this.agent.asLocalActor(() => {
+                this.state.activePresetHandle = null;
+            });
         }
     }
 
     #assertUnoccupiedHeatingSetpointChanging(setpoint: number, _old: number, context: ActionContext) {
-        this.#assertSetpointWithinLimits("Heat", "Unoccupied", setpoint);
-        this.#assertSetpointDeadband("Heating", setpoint);
-        // Only ensure Deadband and preset adjustment when the value is written directly (not changed via a command)
-        if (!this.#isCommandContext(context)) {
-            this.#ensureSetpointDeadband("Heating", "unoccupied", setpoint);
-
-            if (this.features.presets && this.state.activePresetHandle !== null && !this.occupied) {
-                this.agent.asLocalActor(() => {
-                    this.state.activePresetHandle = null;
-                });
-            }
+        const direct = !this.#isCommandContext(context);
+        if (direct) {
+            this.#assertSetpointWithinLimits("Heat", "Unoccupied", setpoint);
+        }
+        this.#reconcileSetpoints(new Set(["unoccupiedHeatingSetpoint"]));
+        if (direct && this.features.presets && this.state.activePresetHandle !== null && !this.occupied) {
+            this.agent.asLocalActor(() => {
+                this.state.activePresetHandle = null;
+            });
         }
     }
 
@@ -690,16 +686,12 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
 
     #assertMaxCoolSetpointLimitChanging(max: number) {
         this.#assertLimitWithinAbs("Cool", max);
-        this.#ensureLimitOrdering("Cool", "max", max);
-        this.#ensureLimitDeadband("Cool", "max", max);
-        this.#clampSetpointsIntoLimits();
+        this.#reconcileSetpoints(new Set(["maxCoolSetpointLimit"]));
     }
 
     #assertMinCoolSetpointLimitChanging(min: number) {
         this.#assertLimitWithinAbs("Cool", min);
-        this.#ensureLimitOrdering("Cool", "min", min);
-        this.#ensureLimitDeadband("Cool", "min", min);
-        this.#clampSetpointsIntoLimits();
+        this.#reconcileSetpoints(new Set(["minCoolSetpointLimit"]));
     }
 
     #assertAbsMinCoolSetpointLimitChanging(absMin: number) {
@@ -712,16 +704,12 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
 
     #assertMaxHeatSetpointLimitChanging(max: number) {
         this.#assertLimitWithinAbs("Heat", max);
-        this.#ensureLimitOrdering("Heat", "max", max);
-        this.#ensureLimitDeadband("Heat", "max", max);
-        this.#clampSetpointsIntoLimits();
+        this.#reconcileSetpoints(new Set(["maxHeatSetpointLimit"]));
     }
 
     #assertMinHeatSetpointLimitChanging(min: number) {
         this.#assertLimitWithinAbs("Heat", min);
-        this.#ensureLimitOrdering("Heat", "min", min);
-        this.#ensureLimitDeadband("Heat", "min", min);
-        this.#clampSetpointsIntoLimits();
+        this.#reconcileSetpoints(new Set(["minHeatSetpointLimit"]));
     }
 
     #assertAbsMinHeatSetpointLimitChanging(absMin: number) {
@@ -729,32 +717,28 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     }
 
     #assertOccupiedCoolingSetpointChanging(setpoint: number, _old: number, context: ActionContext) {
-        this.#assertSetpointWithinLimits("Cool", "Occupied", setpoint);
-        this.#assertSetpointDeadband("Cooling", setpoint);
-        // Only ensure Deadband and preset adjustment when the value is written directly (not changed via a command)
-        if (!this.#isCommandContext(context)) {
-            this.#ensureSetpointDeadband("Cooling", "occupied", setpoint);
-
-            if (this.features.presets && this.state.activePresetHandle !== null && this.occupied) {
-                this.agent.asLocalActor(() => {
-                    this.state.activePresetHandle = null;
-                });
-            }
+        const direct = !this.#isCommandContext(context);
+        if (direct) {
+            this.#assertSetpointWithinLimits("Cool", "Occupied", setpoint);
+        }
+        this.#reconcileSetpoints(new Set(["occupiedCoolingSetpoint"]));
+        if (direct && this.features.presets && this.state.activePresetHandle !== null && this.occupied) {
+            this.agent.asLocalActor(() => {
+                this.state.activePresetHandle = null;
+            });
         }
     }
 
     #assertOccupiedHeatingSetpointChanging(setpoint: number, _old: number, context: ActionContext) {
-        this.#assertSetpointWithinLimits("Heat", "Occupied", setpoint);
-        this.#assertSetpointDeadband("Heating", setpoint);
-        // Only ensure Deadband and preset adjustment when the value is written directly (not changed via a command)
-        if (!this.#isCommandContext(context)) {
-            this.#ensureSetpointDeadband("Heating", "occupied", setpoint);
-
-            if (this.features.presets && this.state.activePresetHandle !== null && this.occupied) {
-                this.agent.asLocalActor(() => {
-                    this.state.activePresetHandle = null;
-                });
-            }
+        const direct = !this.#isCommandContext(context);
+        if (direct) {
+            this.#assertSetpointWithinLimits("Heat", "Occupied", setpoint);
+        }
+        this.#reconcileSetpoints(new Set(["occupiedHeatingSetpoint"]));
+        if (direct && this.features.presets && this.state.activePresetHandle !== null && this.occupied) {
+            this.agent.asLocalActor(() => {
+                this.state.activePresetHandle = null;
+            });
         }
     }
 
@@ -908,55 +892,6 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     }
 
     /**
-     * Attempts to ensure that a change to the heating/cooling setpoint maintains the deadband with the cooling/heating
-     * setpoint by adjusting the cooling setpoint
-     */
-    #ensureSetpointDeadband(scope: "Heating" | "Cooling", type: "occupied" | "unoccupied", value: number) {
-        if (!this.features.autoMode) {
-            // Only validated when AutoMode feature is enabled
-            return;
-        }
-
-        const otherType = scope === "Heating" ? "Cooling" : "Heating";
-        const deadband = this.setpointDeadBand;
-        const otherSetpoint = otherType === "Heating" ? this.heatingSetpoint : this.coolingSetpoint; // current
-        const otherLimit = otherType === "Heating" ? this.heatSetpointMinimum : this.coolSetpointMaximum;
-        if (otherType === "Cooling") {
-            const minValidSetpoint = value + deadband;
-            logger.debug(
-                `Ensuring deadband for ${type}${otherType}Setpoint, min valid setpoint is ${minValidSetpoint}`,
-            );
-            if (otherSetpoint >= minValidSetpoint) {
-                // The current cooling setpoint doesn't violate the deadband
-                return;
-            }
-            if (minValidSetpoint > otherLimit) {
-                throw new StatusResponse.ConstraintErrorError(
-                    `Cannot adjust cooling setpoint to maintain deadband, would exceed max cooling setpoint (${otherLimit})`,
-                );
-            }
-            logger.debug(`Adjusting ${type}${otherType}Setpoint to ${minValidSetpoint} to maintain deadband`);
-            this.state[`${type}${otherType}Setpoint`] = minValidSetpoint;
-        } else {
-            const maxValidSetpoint = value - deadband;
-            logger.debug(
-                `Ensuring deadband for ${type}${otherType}Setpoint, max valid setpoint is ${maxValidSetpoint}`,
-            );
-            if (otherSetpoint <= maxValidSetpoint) {
-                // The current heating setpoint doesn't violate the deadband
-                return;
-            }
-            if (maxValidSetpoint < otherLimit) {
-                throw new StatusResponse.ConstraintErrorError(
-                    `Cannot adjust heating setpoint to maintain deadband, would exceed min heating setpoint (${otherLimit})`,
-                );
-            }
-            logger.debug(`Adjusting ${type}${otherType}Setpoint to ${maxValidSetpoint} to maintain deadband`);
-            this.state[`${type}${otherType}Setpoint`] = maxValidSetpoint;
-        }
-    }
-
-    /**
      * A written user setpoint limit outside its own mode's absolute range is a hard CONSTRAINT_ERROR (CHIP
      * `ChangeLimits`); everything else is accepted and reconciled.
      */
@@ -971,105 +906,211 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         }
     }
 
-    /**
-     * Restore min <= max ordering after a user limit write by moving the coupled (unwritten) limit to meet the
-     * written one (CHIP `FixUserLimits`): a min written above max raises max, a max written below min lowers min.
-     */
-    #ensureLimitOrdering(scope: "Heat" | "Cool", bound: "min" | "max", value: number) {
-        if (bound === "min") {
-            const max = this.state[`max${scope}SetpointLimit`];
-            if (max !== undefined && value > max) {
-                this.state[`max${scope}SetpointLimit`] = value;
-            }
-        } else {
-            const min = this.state[`min${scope}SetpointLimit`];
-            if (min !== undefined && value < min) {
-                this.state[`min${scope}SetpointLimit`] = value;
-            }
-        }
+    /** Absolute [min, max] for a mode, falling back to the Matter defaults when unset. */
+    #absLimits(scope: "Heat" | "Cool") {
+        const defaults = scope === "Heat" ? this.#heatDefaults : this.#coolDefaults;
+        return {
+            min: this.state[`absMin${scope}SetpointLimit`] ?? defaults.absMin,
+            max: this.state[`absMax${scope}SetpointLimit`] ?? defaults.absMax,
+        };
+    }
+
+    /** Effective user limit: the override if set, else the corresponding absolute bound (CHIP OptionalSetpoint). */
+    #userLimit(scope: "Heat" | "Cool", bound: "min" | "max") {
+        const abs = this.#absLimits(scope);
+        return this.state[`${bound}${scope}SetpointLimit`] ?? (bound === "min" ? abs.min : abs.max);
     }
 
     /**
-     * When an AutoMode user setpoint limit change would violate the deadband against the coupled limit, adjust the
-     * coupled limit by the minimum amount to permit the write (Thermostat cluster spec §4.3.11.15-18). Only when the
-     * coupled limit cannot be moved within its absolute bounds is CONSTRAINT_ERROR returned.
+     * Mirror of CHIP `Setpoints::Valid()`: the invariant that {@link #reconcileSetpoints} restores. Checks, per
+     * supported mode, that absolute and user limits are ordered and nested and that setpoints sit within the user
+     * limits; and, with AutoMode, that heat/cool limits and setpoints maintain the deadband.
      */
-    #ensureLimitDeadband(scope: "Heat" | "Cool", bound: "min" | "max", value: number) {
-        if (!this.features.autoMode) {
-            return;
-        }
-        const deadband = this.setpointDeadBand;
-        if (scope === "Heat") {
-            const currentCool = bound === "min" ? this.coolSetpointMinimum : this.coolSetpointMaximum;
-            const requiredCool = value + deadband;
-            if (currentCool >= requiredCool) {
-                return;
+    #setpointsValid(): boolean {
+        const dead = this.setpointDeadBand;
+        for (const scope of ["Heat", "Cool"] as const) {
+            if (scope === "Heat" ? !this.features.heating : !this.features.cooling) {
+                continue;
             }
-            const absMaxCool = this.state.absMaxCoolSetpointLimit ?? this.#coolDefaults.absMax;
-            if (requiredCool > absMaxCool) {
-                throw new StatusResponse.ConstraintErrorError(
-                    `${bound}HeatSetpointLimit (${value}) plus minSetpointDeadBand (${deadband}) exceeds absMaxCoolSetpointLimit (${absMaxCool})`,
-                );
+            const abs = this.#absLimits(scope);
+            if (abs.min > abs.max) {
+                return false;
             }
-            this.state[`${bound}CoolSetpointLimit`] = requiredCool;
-        } else {
-            const currentHeat = bound === "min" ? this.heatSetpointMinimum : this.heatSetpointMaximum;
-            const requiredHeat = value - deadband;
-            if (currentHeat <= requiredHeat) {
-                return;
+            const min = this.#userLimit(scope, "min");
+            const max = this.#userLimit(scope, "max");
+            if (min > max || min < abs.min || max > abs.max) {
+                return false;
             }
-            const absMinHeat = this.state.absMinHeatSetpointLimit ?? this.#heatDefaults.absMin;
-            if (requiredHeat < absMinHeat) {
-                throw new StatusResponse.ConstraintErrorError(
-                    `${bound}CoolSetpointLimit (${value}) minus minSetpointDeadBand (${deadband}) is below absMinHeatSetpointLimit (${absMinHeat})`,
-                );
-            }
-            this.state[`${bound}HeatSetpointLimit`] = requiredHeat;
-        }
-    }
-
-    /**
-     * After a user limit changes, clamp the occupied/unoccupied setpoints back inside the new limits. Writing an
-     * out-of-range setpoint re-triggers its own reactor, which re-applies the deadband against the coupled setpoint.
-     */
-    #clampSetpointsIntoLimits() {
-        for (const type of ["occupied", "unoccupied"] as const) {
-            for (const scope of ["Heat", "Cool"] as const) {
-                const attr = `${type}${scope}ingSetpoint` as const;
-                const current = this.state[attr];
-                if (current === undefined) {
+            for (const type of ["occupied", "unoccupied"] as const) {
+                if (type === "unoccupied" && !this.features.occupancy) {
                     continue;
                 }
-                const clamped = this.#clampSetpointToLimits(scope, current);
-                if (clamped !== current) {
-                    this.state[attr] = clamped;
+                const value = this.state[`${type}${scope}ingSetpoint`];
+                if (value !== undefined && (value < min || value > max)) {
+                    return false;
                 }
+            }
+        }
+        if (this.features.autoMode) {
+            if (this.#userLimit("Cool", "max") - this.#userLimit("Heat", "max") < dead) {
+                return false;
+            }
+            if (this.#userLimit("Cool", "min") - this.#userLimit("Heat", "min") < dead) {
+                return false;
+            }
+            for (const type of ["occupied", "unoccupied"] as const) {
+                if (type === "unoccupied" && !this.features.occupancy) {
+                    continue;
+                }
+                const heat = this.state[`${type}HeatingSetpoint`];
+                const cool = this.state[`${type}CoolingSetpoint`];
+                if (heat !== undefined && cool !== undefined && cool - heat < dead) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Single-pass reconciliation of the setpoint/limit invariants after a write, mirroring CHIP `Setpoints::Fix()`
+     * (Thermostat cluster spec §4.3.11.15-18): user-limit ordering, then AutoMode limit deadband, then setpoint range
+     * and deadband. Adjustments move the coupled (unwritten) value; when they cannot be resolved within the absolute
+     * bounds the state stays invalid and CONSTRAINT_ERROR is raised. `changed` holds the state key(s) the client
+     * touched so the reconciliation preserves the client's intent and moves the other side.
+     */
+    #reconcileSetpoints(changed: Set<string>) {
+        if (this.#setpointsValid()) {
+            return;
+        }
+        if (this.features.heating) {
+            this.#fixUserLimits("Heat", changed);
+        }
+        if (this.features.cooling) {
+            this.#fixUserLimits("Cool", changed);
+        }
+        if (this.features.autoMode) {
+            this.#fixLimitDeadband("max", changed);
+            this.#fixLimitDeadband("min", changed);
+        }
+        this.#fixSetpointRange("occupied", changed);
+        if (this.features.occupancy) {
+            this.#fixSetpointRange("unoccupied", changed);
+        }
+        if (!this.#setpointsValid()) {
+            throw new StatusResponse.ConstraintErrorError(
+                "Thermostat setpoints could not be reconciled within the configured limits",
+            );
+        }
+    }
+
+    /** CHIP `FixUserLimits`: pull user limits inside the absolute range, then repair min <= max ordering. */
+    #fixUserLimits(scope: "Heat" | "Cool", changed: Set<string>) {
+        const abs = this.#absLimits(scope);
+        if (abs.min > abs.max) {
+            return;
+        }
+        const minKey = `min${scope}SetpointLimit` as const;
+        const maxKey = `max${scope}SetpointLimit` as const;
+        const min = this.state[minKey];
+        if (min !== undefined && (min < abs.min || min > abs.max)) {
+            this.state[minKey] = abs.min;
+        }
+        const max = this.state[maxKey];
+        if (max !== undefined && (max < abs.min || max > abs.max)) {
+            this.state[maxKey] = abs.max;
+        }
+        if (this.#userLimit(scope, "min") > this.#userLimit(scope, "max")) {
+            if (changed.has(minKey) && this.state[maxKey] !== undefined) {
+                this.state[maxKey] = this.#userLimit(scope, "min");
+            } else if (changed.has(maxKey) && this.state[minKey] !== undefined) {
+                this.state[minKey] = this.#userLimit(scope, "max");
             }
         }
     }
 
     /**
-     * Checks to see if it's possible to adjust the heating/cooling setpoint to preserve a given deadband if the
-     * cooling/heating setpoint is changed
+     * CHIP `FixUserLimitDeadband`: restore `cool - heat >= deadband` for a limit pair by moving the coupled
+     * (unwritten) mode's limit; if that would leave the coupled mode's absolute range, pin it to the bound and pull
+     * the written mode's limit back instead.
      */
-    #assertSetpointDeadband(type: "Heating" | "Cooling", value: number) {
-        if (!this.features.autoMode) {
-            // Only validated when AutoMode feature is enabled
+    #fixLimitDeadband(bound: "min" | "max", changed: Set<string>) {
+        const dead = this.setpointDeadBand;
+        const heat = this.#userLimit("Heat", bound);
+        const cool = this.#userLimit("Cool", bound);
+        if (cool - heat >= dead) {
             return;
         }
+        const heatKey = `${bound}HeatSetpointLimit` as const;
+        const coolKey = `${bound}CoolSetpointLimit` as const;
+        const absCool = this.#absLimits("Cool");
+        const absHeat = this.#absLimits("Heat");
+        if (changed.has("minHeatSetpointLimit") || changed.has("maxHeatSetpointLimit")) {
+            const newCool = heat + dead;
+            if (newCool >= absCool.min && newCool <= absCool.max) {
+                this.state[coolKey] = newCool;
+            } else {
+                const pinned = bound === "min" ? absCool.min : absCool.max;
+                this.state[coolKey] = pinned;
+                this.state[heatKey] = pinned - dead;
+            }
+        } else if (changed.has("minCoolSetpointLimit") || changed.has("maxCoolSetpointLimit")) {
+            const newHeat = cool - dead;
+            if (newHeat >= absHeat.min && newHeat <= absHeat.max) {
+                this.state[heatKey] = newHeat;
+            } else {
+                const pinned = bound === "min" ? absHeat.min : absHeat.max;
+                this.state[heatKey] = pinned;
+                this.state[coolKey] = pinned + dead;
+            }
+        }
+    }
 
-        const deadband = this.setpointDeadBand;
-        const otherValue = type === "Heating" ? this.coolSetpointMaximum : this.heatSetpointMinimum;
+    /**
+     * CHIP `FixRange`: clamp a setpoint range back inside the (possibly changed) user limits, then restore the
+     * AutoMode setpoint deadband by moving the coupled setpoint; if that leaves the user limits, pin it to the user
+     * limit and pull the touched setpoint back instead.
+     */
+    #fixSetpointRange(type: "occupied" | "unoccupied", changed: Set<string>) {
+        const dead = this.setpointDeadBand;
+        const heatKey = `${type}HeatingSetpoint` as const;
+        const coolKey = `${type}CoolingSetpoint` as const;
+        const uHeatMin = this.#userLimit("Heat", "min");
+        const uHeatMax = this.#userLimit("Heat", "max");
+        const uCoolMin = this.#userLimit("Cool", "min");
+        const uCoolMax = this.#userLimit("Cool", "max");
 
-        // No error is reported but the value is adjusted accordingly.
-        if (type === "Heating" && value + deadband > otherValue) {
-            throw new StatusResponse.ConstraintErrorError(
-                `HeatingSetpoint (${value}) plus deadband (${deadband}) exceeds CoolingSetpoint (${otherValue})`,
-            );
-        } else if (type === "Cooling" && value - deadband < otherValue) {
-            throw new StatusResponse.ConstraintErrorError(
-                `CoolingSetpoint (${value}) minus deadband (${deadband}) is less than HeatingSetpoint (${otherValue})`,
-            );
+        if (this.features.heating && this.state[heatKey] !== undefined) {
+            this.state[heatKey] = cropValueRange(this.state[heatKey], uHeatMin, uHeatMax);
+        }
+        if (this.features.cooling && this.state[coolKey] !== undefined) {
+            this.state[coolKey] = cropValueRange(this.state[coolKey], uCoolMin, uCoolMax);
+        }
+
+        if (!this.features.autoMode) {
+            return;
+        }
+        const heat = this.state[heatKey];
+        const cool = this.state[coolKey];
+        if (heat === undefined || cool === undefined || cool - heat >= dead) {
+            return;
+        }
+        if (changed.has(heatKey) || changed.has("minHeatSetpointLimit") || changed.has("maxHeatSetpointLimit")) {
+            const newCool = heat + dead;
+            if (newCool >= uCoolMin && newCool <= uCoolMax) {
+                this.state[coolKey] = newCool;
+            } else {
+                this.state[coolKey] = uCoolMax;
+                this.state[heatKey] = uCoolMax - dead;
+            }
+        } else if (changed.has(coolKey) || changed.has("minCoolSetpointLimit") || changed.has("maxCoolSetpointLimit")) {
+            const newHeat = cool - dead;
+            if (newHeat >= uHeatMin && newHeat <= uHeatMax) {
+                this.state[heatKey] = newHeat;
+            } else {
+                this.state[heatKey] = uHeatMin;
+                this.state[coolKey] = uHeatMin + dead;
+            }
         }
     }
 
