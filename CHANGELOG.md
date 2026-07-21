@@ -11,8 +11,19 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/general
+    - Fix: `Heap` now stores each item at most once and maintains its position index eagerly, so deleting an item added after an earlier deletion works reliably
+
 - @matter/node
+    - Enhancement: Custom server session intervals (idle/active interval, active threshold) are now configurable via `sessions.intervals`
     - Fix: Optimize Cluster data updates when structures change for ClientNodes
+    - Fix: Prevent subscriptions from being activated on a closing session
+
+- @matter/protocol
+    - Enhancement: Connect to a newly discovered address as soon as it supersedes the previously cached address instead of waiting out the connection retry delay
+    - Fix: Ensure the commissioning failsafe timer stays within the device's maximum cumulative failsafe
+    - Fix: Parallel PASE commissioning now uses the won session immediately instead of blocking on losing attempts' cleanup, which could let the won session expire at the device failsafe before use
+    - Fix: A device dropped during parallel PASE for invalid credentials no longer accepts a slower successful attempt on another of its addresses
 
 ## 0.17.6 (2026-07-16)
 

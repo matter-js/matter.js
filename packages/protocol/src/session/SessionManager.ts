@@ -324,10 +324,11 @@ export class SessionManager {
         if (parameters.activeThreshold !== undefined) {
             assertActiveThreshold(parameters.activeThreshold);
         }
-        this.#sessionParameters = {
-            ...this.#sessionParameters,
-            ...parameters,
-        };
+        for (const [key, value] of Object.entries(parameters)) {
+            if (value !== undefined) {
+                (this.#sessionParameters as Record<string, unknown>)[key] = value;
+            }
+        }
     }
 
     /**

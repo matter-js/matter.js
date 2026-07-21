@@ -119,10 +119,14 @@ export async function CommissioningConnection(
                 if (session === null) {
                     return null;
                 }
-                if (winner !== undefined || abort.aborted) {
-                    // We lost the overall race — close this session to avoid leaking a PASE channel.
+                // deviceAc fired ⇒ this device was dropped for invalid credentials, so a late success on
+                // another of its addresses must not win.
+                if (winner !== undefined || abort.aborted || deviceAc.signal.aborted) {
+                    // Close this session so we don't leak a PASE channel.  A credential drop fires only
+                    // deviceAc (not the outer abort), so use the composed signal's reason — abort.reason
+                    // would be empty and lose the real cause.
                     session
-                        .initiateForceClose({ cause: asError(abort.reason ?? new Error("commissioning race lost")) })
+                        .initiateForceClose({ cause: asError(signal.reason ?? new Error("commissioning race lost")) })
                         .catch(e => {
                             logger.warn("Error closing losing PASE session:", asError(e));
                         });
@@ -141,7 +145,7 @@ export async function CommissioningConnection(
                         // Wrong passcode — all addresses of this device will fail identically; cancel them now.
                         logger.info(`Dropping device ${candidate.device.deviceIdentifier} due to invalid credentials`);
                         lastNonRetryableError = asErr;
-                        deviceAc.abort();
+                        deviceAc.abort(asErr);
                         pool.markInvalidCredentials(candidate.deviceKey);
                     } else if (causedBy(asErr, NoResponseTimeoutError, TransientPeerCommunicationError, NetworkError)) {
                         lastError = asErr;
@@ -150,7 +154,7 @@ export async function CommissioningConnection(
                         );
                     } else {
                         // Non-retryable error — preserve original type for caller.
-                        abort.abort();
+                        abort.abort(asErr);
                         lastNonRetryableError = asErr;
                     }
                 }
@@ -176,14 +180,17 @@ export async function CommissioningConnection(
             await abort.race(...pending);
         }
 
-        // Wait for losers to run their cleanup (send InvalidParam, close any orphan session).  Every attempt
-        // resolves to null by construction (see launchAttempt's .catch → return null), so allSettled never
-        // rejects here and needs no guard.
-        await MatterAggregateError.allSettled([...pending]);
-
         if (winner !== undefined) {
+            // Do NOT await loser cleanup: a loser stuck in an abort-unresponsive MRP wait would age the won
+            // session past the device pairing failsafe, killing it before commissioning uses it.
+            MatterAggregateError.allSettled([...pending]).catch(error =>
+                logger.warn("Error during losing PASE attempt cleanup:", asError(error)),
+            );
             return winner;
         }
+
+        // No winner — wait for every attempt to settle so we report the most specific failure below.
+        await MatterAggregateError.allSettled([...pending]);
         if (lastNonRetryableError !== undefined) {
             throw lastNonRetryableError;
         }

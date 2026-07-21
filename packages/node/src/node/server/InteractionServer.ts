@@ -739,8 +739,9 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         );
 
         // When an error occurs while sending the response, the subscription is not yet active and will be cleaned up by GC
-        subscription.activate();
-        this.#counters.totalSubscriptionsEstablished++;
+        if (subscription.activate()) {
+            this.#counters.totalSubscriptionsEstablished++;
+        }
     }
 
     #initiateSubscriptionExchange(addressOrSession: PeerAddress | Session, protocolId: number) {
@@ -858,20 +859,21 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 readContext,
                 true, // Do not send status responses because we simulate that the subscription is still established
             );
-            subscription.activate();
-            this.#counters.totalSubscriptionsEstablished++;
+            if (subscription.activate()) {
+                this.#counters.totalSubscriptionsEstablished++;
 
-            logger.notice(
-                `Subscription successfully reestablished`,
-                Mark.OUTBOUND,
-                exchange.via,
-                exchange.diagnostics,
-                Diagnostic.dict({
-                    ...Subscription.diagnosticOf(subscriptionId),
-                    timing: `${Duration.format(minIntervalFloor)} - ${Duration.format(maxIntervalCeiling)} => ${Duration.format(subscription.maxInterval)}`,
-                    sendInterval: Duration.format(subscription.sendInterval),
-                }),
-            );
+                logger.notice(
+                    `Subscription successfully reestablished`,
+                    Mark.OUTBOUND,
+                    exchange.via,
+                    exchange.diagnostics,
+                    Diagnostic.dict({
+                        ...Subscription.diagnosticOf(subscriptionId),
+                        timing: `${Duration.format(minIntervalFloor)} - ${Duration.format(maxIntervalCeiling)} => ${Duration.format(subscription.maxInterval)}`,
+                        sendInterval: Duration.format(subscription.sendInterval),
+                    }),
+                );
+            }
         } catch (error) {
             await subscription.close(); // Cleanup
             throw error;

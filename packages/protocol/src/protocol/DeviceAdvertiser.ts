@@ -358,7 +358,10 @@ export class DeviceAdvertiser {
             return;
         }
 
-        const icd = this.#icdAdvertisementProvider?.(fabric);
+        // An ICD-managed fabric governs its own advertised intervals (a LIT ICD deliberately omits SII); only otherwise
+        // do the node's session intervals apply.
+        const { idleInterval, activeInterval, activeThreshold } = this.#context.sessions.sessionParameters;
+        const intervals = this.#icdAdvertisementProvider?.(fabric) ?? { idleInterval, activeInterval, activeThreshold };
 
         for (const advertiser of this.#advertisers) {
             if (event === "startup") {
@@ -370,7 +373,7 @@ export class DeviceAdvertiser {
             }
 
             advertiser.advertise(
-                ServiceDescription.Operational({ fabric, tcp: this.#context.supportedTransports, ...icd }),
+                ServiceDescription.Operational({ fabric, tcp: this.#context.supportedTransports, ...intervals }),
                 event,
             );
         }
