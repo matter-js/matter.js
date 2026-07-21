@@ -689,13 +689,15 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     }
 
     #assertMaxCoolSetpointLimitChanging(max: number) {
-        this.#assertUserSetpointLimits("CoolSetpointLimit", { max });
+        this.#assertLimitWithinAbs("Cool", max);
+        this.#ensureLimitOrdering("Cool", "max", max);
         this.#ensureLimitDeadband("Cool", "max", max);
         this.#clampSetpointsIntoLimits();
     }
 
     #assertMinCoolSetpointLimitChanging(min: number) {
-        this.#assertUserSetpointLimits("CoolSetpointLimit", { min });
+        this.#assertLimitWithinAbs("Cool", min);
+        this.#ensureLimitOrdering("Cool", "min", min);
         this.#ensureLimitDeadband("Cool", "min", min);
         this.#clampSetpointsIntoLimits();
     }
@@ -709,13 +711,15 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     }
 
     #assertMaxHeatSetpointLimitChanging(max: number) {
-        this.#assertUserSetpointLimits("HeatSetpointLimit", { max });
+        this.#assertLimitWithinAbs("Heat", max);
+        this.#ensureLimitOrdering("Heat", "max", max);
         this.#ensureLimitDeadband("Heat", "max", max);
         this.#clampSetpointsIntoLimits();
     }
 
     #assertMinHeatSetpointLimitChanging(min: number) {
-        this.#assertUserSetpointLimits("HeatSetpointLimit", { min });
+        this.#assertLimitWithinAbs("Heat", min);
+        this.#ensureLimitOrdering("Heat", "min", min);
         this.#ensureLimitDeadband("Heat", "min", min);
         this.#clampSetpointsIntoLimits();
     }
@@ -949,6 +953,39 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             }
             logger.debug(`Adjusting ${type}${otherType}Setpoint to ${maxValidSetpoint} to maintain deadband`);
             this.state[`${type}${otherType}Setpoint`] = maxValidSetpoint;
+        }
+    }
+
+    /**
+     * A written user setpoint limit outside its own mode's absolute range is a hard CONSTRAINT_ERROR (CHIP
+     * `ChangeLimits`); everything else is accepted and reconciled.
+     */
+    #assertLimitWithinAbs(scope: "Heat" | "Cool", value: number) {
+        const defaults = scope === "Heat" ? this.#heatDefaults : this.#coolDefaults;
+        const absMin = this.state[`absMin${scope}SetpointLimit`] ?? defaults.absMin;
+        const absMax = this.state[`absMax${scope}SetpointLimit`] ?? defaults.absMax;
+        if (value < absMin || value > absMax) {
+            throw new StatusResponse.ConstraintErrorError(
+                `${scope}SetpointLimit (${value}) must be within absolute limits [${absMin}, ${absMax}]`,
+            );
+        }
+    }
+
+    /**
+     * Restore min <= max ordering after a user limit write by moving the coupled (unwritten) limit to meet the
+     * written one (CHIP `FixUserLimits`): a min written above max raises max, a max written below min lowers min.
+     */
+    #ensureLimitOrdering(scope: "Heat" | "Cool", bound: "min" | "max", value: number) {
+        if (bound === "min") {
+            const max = this.state[`max${scope}SetpointLimit`];
+            if (max !== undefined && value > max) {
+                this.state[`max${scope}SetpointLimit`] = value;
+            }
+        } else {
+            const min = this.state[`min${scope}SetpointLimit`];
+            if (min !== undefined && value < min) {
+                this.state[`min${scope}SetpointLimit`] = value;
+            }
         }
     }
 

@@ -84,6 +84,22 @@ describe("ThermostatBehavior", () => {
             await node.close();
         });
 
+        it("raises the coupled max limit when a min limit is written above it (ordering repair)", async () => {
+            const { node, device } = await createAutoThermo({
+                minHeatSetpointLimit: 700,
+                maxHeatSetpointLimit: 710,
+                occupiedHeatingSetpoint: 700,
+                occupiedCoolingSetpoint: 1600,
+            });
+
+            await device.set({ thermostat: { minHeatSetpointLimit: 1000 } });
+
+            expect(device.state.thermostat.minHeatSetpointLimit).equals(1000);
+            expect(device.state.thermostat.maxHeatSetpointLimit).equals(1000);
+
+            await node.close();
+        });
+
         it("clamps a setpoint back inside the limits when a limit write crosses it", async () => {
             const { node, device } = await createAutoThermo({
                 occupiedHeatingSetpoint: 1400,
