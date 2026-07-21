@@ -690,24 +690,14 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
 
     #assertMaxCoolSetpointLimitChanging(max: number) {
         this.#assertUserSetpointLimits("CoolSetpointLimit", { max });
-        if (this.features.autoMode) {
-            if (max < this.heatSetpointMaximum + this.setpointDeadBand) {
-                throw new StatusResponse.ConstraintErrorError(
-                    `maxCoolSetpointLimit (${max}) must be greater than or equal to maxHeatSetpointLimit (${this.heatSetpointMaximum}) plus minSetpointDeadBand (${this.setpointDeadBand})`,
-                );
-            }
-        }
+        this.#ensureLimitDeadband("Cool", "max", max);
+        this.#clampSetpointsIntoLimits();
     }
 
     #assertMinCoolSetpointLimitChanging(min: number) {
         this.#assertUserSetpointLimits("CoolSetpointLimit", { min });
-        if (this.features.autoMode) {
-            if (min < this.heatSetpointMinimum + this.setpointDeadBand) {
-                throw new StatusResponse.ConstraintErrorError(
-                    `minCoolSetpointLimit (${min}) must be greater than or equal to minHeatSetpointLimit (${this.heatSetpointMinimum}) plus minSetpointDeadBand (${this.setpointDeadBand})`,
-                );
-            }
-        }
+        this.#ensureLimitDeadband("Cool", "min", min);
+        this.#clampSetpointsIntoLimits();
     }
 
     #assertAbsMinCoolSetpointLimitChanging(absMin: number) {
@@ -720,24 +710,14 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
 
     #assertMaxHeatSetpointLimitChanging(max: number) {
         this.#assertUserSetpointLimits("HeatSetpointLimit", { max });
-        if (this.features.autoMode) {
-            if (max > this.coolSetpointMaximum - this.setpointDeadBand) {
-                throw new StatusResponse.ConstraintErrorError(
-                    `maxHeatSetpointLimit (${max}) must be less than or equal to maxCoolSetpointLimit (${this.coolSetpointMaximum}) minus minSetpointDeadBand (${this.setpointDeadBand})`,
-                );
-            }
-        }
+        this.#ensureLimitDeadband("Heat", "max", max);
+        this.#clampSetpointsIntoLimits();
     }
 
     #assertMinHeatSetpointLimitChanging(min: number) {
         this.#assertUserSetpointLimits("HeatSetpointLimit", { min });
-        if (this.features.autoMode) {
-            if (min > this.coolSetpointMinimum - this.setpointDeadBand) {
-                throw new StatusResponse.ConstraintErrorError(
-                    `minHeatSetpointLimit (${min}) must be less than or equal to minCoolSetpointLimit (${this.state.minCoolSetpointLimit}) minus minSetpointDeadBand (${this.setpointDeadBand})`,
-                );
-            }
-        }
+        this.#ensureLimitDeadband("Heat", "min", min);
+        this.#clampSetpointsIntoLimits();
     }
 
     #assertAbsMinHeatSetpointLimitChanging(absMin: number) {
@@ -969,6 +949,65 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             }
             logger.debug(`Adjusting ${type}${otherType}Setpoint to ${maxValidSetpoint} to maintain deadband`);
             this.state[`${type}${otherType}Setpoint`] = maxValidSetpoint;
+        }
+    }
+
+    /**
+     * When an AutoMode user setpoint limit change would violate the deadband against the coupled limit, adjust the
+     * coupled limit by the minimum amount to permit the write (Thermostat cluster spec §4.3.11.15-18). Only when the
+     * coupled limit cannot be moved within its absolute bounds is CONSTRAINT_ERROR returned.
+     */
+    #ensureLimitDeadband(scope: "Heat" | "Cool", bound: "min" | "max", value: number) {
+        if (!this.features.autoMode) {
+            return;
+        }
+        const deadband = this.setpointDeadBand;
+        if (scope === "Heat") {
+            const currentCool = bound === "min" ? this.coolSetpointMinimum : this.coolSetpointMaximum;
+            const requiredCool = value + deadband;
+            if (currentCool >= requiredCool) {
+                return;
+            }
+            const absMaxCool = this.state.absMaxCoolSetpointLimit ?? this.#coolDefaults.absMax;
+            if (requiredCool > absMaxCool) {
+                throw new StatusResponse.ConstraintErrorError(
+                    `${bound}HeatSetpointLimit (${value}) plus minSetpointDeadBand (${deadband}) exceeds absMaxCoolSetpointLimit (${absMaxCool})`,
+                );
+            }
+            this.state[`${bound}CoolSetpointLimit`] = requiredCool;
+        } else {
+            const currentHeat = bound === "min" ? this.heatSetpointMinimum : this.heatSetpointMaximum;
+            const requiredHeat = value - deadband;
+            if (currentHeat <= requiredHeat) {
+                return;
+            }
+            const absMinHeat = this.state.absMinHeatSetpointLimit ?? this.#heatDefaults.absMin;
+            if (requiredHeat < absMinHeat) {
+                throw new StatusResponse.ConstraintErrorError(
+                    `${bound}CoolSetpointLimit (${value}) minus minSetpointDeadBand (${deadband}) is below absMinHeatSetpointLimit (${absMinHeat})`,
+                );
+            }
+            this.state[`${bound}HeatSetpointLimit`] = requiredHeat;
+        }
+    }
+
+    /**
+     * After a user limit changes, clamp the occupied/unoccupied setpoints back inside the new limits. Writing an
+     * out-of-range setpoint re-triggers its own reactor, which re-applies the deadband against the coupled setpoint.
+     */
+    #clampSetpointsIntoLimits() {
+        for (const type of ["occupied", "unoccupied"] as const) {
+            for (const scope of ["Heat", "Cool"] as const) {
+                const attr = `${type}${scope}ingSetpoint` as const;
+                const current = this.state[attr];
+                if (current === undefined) {
+                    continue;
+                }
+                const clamped = this.#clampSetpointToLimits(scope, current);
+                if (clamped !== current) {
+                    this.state[attr] = clamped;
+                }
+            }
         }
     }
 
