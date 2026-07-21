@@ -71,47 +71,50 @@ const networkId = Bytes.fromHex("6574682D617070");
 /**
  * Create a Matter ServerNode, which contains the Root Endpoint and all relevant data and configuration
  */
-const server = await ServerNode.create(
-    ServerNode.RootEndpoint.with(
+// Generated device definitions lag the device type revisions the IDM-10.6 test harness expects.
+const RootEndpointType = {
+    ...ServerNode.RootEndpoint.with(
         // The Groupcast Listener feature generates auxiliary ACL entries, which requires the Auxiliary feature
         AccessControlServer.with("Extension", "Auxiliary"),
         GroupcastServer.with("Listener", "Sender", "PerGroup"),
         NetworkCommissioningServer.with("EthernetNetworkInterface"),
     ),
-    {
-        id: uniqueId,
+    deviceRevision: 5,
+};
 
-        network: {
-            port,
-        },
+const server = await ServerNode.create(RootEndpointType, {
+    id: uniqueId,
 
-        commissioning: {
-            passcode,
-            discriminator,
-        },
-
-        productDescription: {
-            name: deviceName,
-            deviceType: AggregatorEndpoint.deviceType,
-        },
-
-        basicInformation: {
-            vendorName,
-            vendorId: VendorId(vendorId),
-            nodeLabel: productName,
-            productName,
-            productLabel: productName,
-            productId,
-            serialNumber: `matterjs-${uniqueId}`,
-            uniqueId,
-        },
-        networkCommissioning: {
-            maxNetworks: 1,
-            interfaceEnabled: true,
-            networks: [{ networkId: networkId, connected: true }],
-        },
+    network: {
+        port,
     },
-);
+
+    commissioning: {
+        passcode,
+        discriminator,
+    },
+
+    productDescription: {
+        name: deviceName,
+        deviceType: AggregatorEndpoint.deviceType,
+    },
+
+    basicInformation: {
+        vendorName,
+        vendorId: VendorId(vendorId),
+        nodeLabel: productName,
+        productName,
+        productLabel: productName,
+        productId,
+        serialNumber: `matterjs-${uniqueId}`,
+        uniqueId,
+    },
+    networkCommissioning: {
+        maxNetworks: 1,
+        interfaceEnabled: true,
+        networks: [{ networkId: networkId, connected: true }],
+    },
+});
 
 const aggregator = new Endpoint(AggregatorEndpoint, { id: "aggregator", number: 1 });
 await server.add(aggregator);
@@ -119,39 +122,45 @@ await server.add(aggregator);
 // --- Endpoint 2: OnOff Light ---
 
 const onOffName = `OnOff Light`;
-const onOffEndpoint = new Endpoint(OnOffLightDevice.with(BridgedDeviceBasicInformationServer), {
-    id: `onoff`,
-    number: 2,
-    bridgedDeviceBasicInformation: {
-        nodeLabel: onOffName,
-        productName: onOffName,
-        productLabel: onOffName,
-        serialNumber: `node-matter-${uniqueId}-1`,
-        reachable: true,
-        configurationVersion: 1,
+const onOffEndpoint = new Endpoint(
+    { ...OnOffLightDevice.with(BridgedDeviceBasicInformationServer), deviceRevision: 4 },
+    {
+        id: `onoff`,
+        number: 2,
+        bridgedDeviceBasicInformation: {
+            nodeLabel: onOffName,
+            productName: onOffName,
+            productLabel: onOffName,
+            serialNumber: `node-matter-${uniqueId}-1`,
+            reachable: true,
+            configurationVersion: 1,
+        },
     },
-});
+);
 await aggregator.add(onOffEndpoint);
 
 // --- Endpoint 3: Dimmable Light ---
 
 const dimmableName = `Dimmable Light`;
-const dimmableEndpoint = new Endpoint(DimmableLightDevice.with(BridgedDeviceBasicInformationServer), {
-    id: `dimmable`,
-    number: 3,
-    bridgedDeviceBasicInformation: {
-        nodeLabel: dimmableName,
-        productName: dimmableName,
-        productLabel: dimmableName,
-        serialNumber: `node-matter-${uniqueId}-2`,
-        reachable: true,
-        configurationVersion: 1,
+const dimmableEndpoint = new Endpoint(
+    { ...DimmableLightDevice.with(BridgedDeviceBasicInformationServer), deviceRevision: 4 },
+    {
+        id: `dimmable`,
+        number: 3,
+        bridgedDeviceBasicInformation: {
+            nodeLabel: dimmableName,
+            productName: dimmableName,
+            productLabel: dimmableName,
+            serialNumber: `node-matter-${uniqueId}-2`,
+            reachable: true,
+            configurationVersion: 1,
+        },
+        levelControl: {
+            minLevel: 1,
+            maxLevel: 254,
+        },
     },
-    levelControl: {
-        minLevel: 1,
-        maxLevel: 254,
-    },
-});
+);
 await aggregator.add(dimmableEndpoint);
 
 // --- Endpoint 4: Contact Sensor (BooleanState with ChangeEvent feature) ---
