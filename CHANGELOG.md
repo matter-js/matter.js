@@ -28,6 +28,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `endpoints.size` no longer double-counts the root endpoint
     - Fix: Optimize Cluster data updates when structures change for ClientNodes
     - Fix: Prevent subscriptions from being activated on a closing session
+    - Fix: Thermostat adjusts the coupled setpoint limit to preserve the AutoMode deadband instead of rejecting the write
 
 - @matter/types
     - Feature: Added the `ClusterLookup` namespace for cluster/attribute/command/event name↔id resolution (optional `MatterModel` for custom clusters)
