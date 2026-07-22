@@ -6,7 +6,7 @@
 
 import { Environment, RuntimeService } from "@matter/main";
 import { Subject } from "@matter/testing";
-import { AllClustersTestInstance } from "../src/AllClustersTestInstance.js";
+import { AllClustersNoGroupcastTestInstance, AllClustersTestInstance } from "../src/AllClustersTestInstance.js";
 import { AllDevicesTestInstance } from "../src/AllDevicesTestInstance.js";
 import { BridgeTestInstance } from "../src/BridgeTestInstance.js";
 import { DeviceTestInstanceConstructor } from "../src/GenericTestApp.js";
@@ -43,6 +43,7 @@ export function App(implementation: DeviceTestInstanceConstructor<NodeTestInstan
 }
 
 export const AllClustersApp = App(AllClustersTestInstance);
+export const AllClustersNoGroupcastApp = App(AllClustersNoGroupcastTestInstance);
 export const AllDevicesApp = App(AllDevicesTestInstance);
 export const BridgeApp = App(BridgeTestInstance);
 export const TvApp = App(TvTestInstance);
@@ -53,6 +54,7 @@ export const LitIcdApp = App(IcdTestInstance);
 // CHIP_/_APP affixes, lower-kebab-case) → factory. When a python test descriptor names an
 // app via chip header `app: ${FOO_APP}`, the framework dispatches to the matching factory.
 chip.subjectFor("all-clusters", AllClustersApp);
+chip.subjectFor("all-clusters-no-groupcast", AllClustersNoGroupcastApp);
 chip.subjectFor("all-devices", AllDevicesApp);
 chip.subjectFor("bridge", BridgeApp);
 chip.subjectFor("tv", TvApp);

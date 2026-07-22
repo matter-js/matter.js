@@ -18,6 +18,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Custom server session intervals (idle/active interval, active threshold) are now configurable via `sessions.intervals`
     - Fix: Optimize Cluster data updates when structures change for ClientNodes
     - Fix: Prevent subscriptions from being activated on a closing session
+    - Fix: Thermostat adjusts the coupled setpoint limit to preserve the AutoMode deadband instead of rejecting the write
+    - Fix: Choice conformance no longer requires a member gated by an inapplicable condition (e.g. `[ICTL].b+` when the feature is unsupported)
+    - Fix: Support the `!=` (not-equal) operator in value conformance expressions
+    - Fix: Ensure `FabricAuthority` is fully constructed before it is used in the WebRTC Transport Requestor, OTA Software Update Provider and Software Update clusters
+
+- @matter/nodejs
+    - Fix: Ensure the namespace directory exists before the `sqlite` storage driver opens the database
 
 - @matter/protocol
     - Enhancement: Connect to a newly discovered address as soon as it supersedes the previously cached address instead of waiting out the connection retry delay
