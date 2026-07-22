@@ -961,7 +961,9 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                     if (data.kind !== "cmd-response" && data.kind !== "cmd-status") {
                         continue;
                     }
-                    const accessAllowed = data.kind === "cmd-response" || data.status === Status.Success;
+                    // Per Groupcast spec §11.27.7.6.3 AccessAllowed reflects the access-control outcome only, not
+                    // whether the command succeeded. Access-denied wildcard paths are dropped before dispatch (the
+                    // no-dispatch branch below handles that), so any emitted response/status means access was allowed.
                     this.#context.sessions.emitGroupMessage({
                         result: Groupcast.GroupcastTestResult.Success,
                         fabric,
@@ -971,7 +973,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                         endpointId: data.path.endpointId,
                         clusterId: requestPath?.clusterId ?? data.path.clusterId,
                         elementId: requestPath?.commandId ?? data.path.commandId,
-                        accessAllowed,
+                        accessAllowed: true,
                     });
                     emitted = true;
                 }
