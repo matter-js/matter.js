@@ -9,6 +9,7 @@ import {
     type DataNamespace,
     FilesystemStorageDriver,
     fromJson,
+    Logger,
     type StorageDriver,
     StorageTransaction,
     type SupportedStorageTypes,
@@ -22,6 +23,8 @@ import { SqliteStorageDriverError } from "./SqliteStorageDriverError.js";
 import type { DatabaseCreator, DatabaseLike, SafeUint8Array, SqlRunnable } from "./SqliteTypes.js";
 import { SqliteTransaction as Transaction } from "./SqliteTypes.js";
 import { buildContextKeyLog, buildContextKeyPair, buildContextPath, escapeGlob } from "./SqliteUtil.js";
+
+const logger = new Logger("SqliteStorageDriver");
 
 /**
  * Type of Key-Value store table
@@ -296,7 +299,11 @@ export class SqliteStorageDriver extends FilesystemStorageDriver implements Clon
             }
             this.isInitialized = true;
         } catch (error) {
-            await this.close();
+            try {
+                await this.close();
+            } catch (closeError) {
+                logger.warn("Failed to release storage after initialization error", closeError);
+            }
             throw error;
         }
     }
