@@ -23,6 +23,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Support the `!=` (not-equal) operator in value conformance expressions
     - Fix: Ensure `FabricAuthority` is fully constructed before it is used in the WebRTC Transport Requestor, OTA Software Update Provider and Software Update clusters
 
+- @matter/nodejs
+    - Fix: Ensure the namespace directory exists before the `sqlite` storage driver opens the database
+
 - @matter/protocol
     - Enhancement: Connect to a newly discovered address as soon as it supersedes the previously cached address instead of waiting out the connection retry delay
     - Fix: Ensure the commissioning failsafe timer stays within the device's maximum cumulative failsafe
