@@ -62,6 +62,10 @@ runs:
         cd connectedhomeip
         scripts/checkout_submodules.py --shallow --platform linux
 
+    - name: Patch chiptest CancellableQueue lost-wakeup
+      shell: bash
+      run: node support/chip-testing/patched-chip-scripts/patch-cancellable-queue.mjs
+
     - name: Cache Python Environments files
       id: cache-env
       uses: actions/cache@v5
