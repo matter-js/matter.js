@@ -14,7 +14,8 @@ import {
     type SupportedStorageTypes,
     toJson,
 } from "@matter/general";
-import { resolve } from "node:path";
+import { mkdir } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 
 import { platformDatabaseCreator } from "./SqlitePlatform.js";
 import { SqliteStorageDriverError } from "./SqliteStorageDriverError.js";
@@ -282,6 +283,10 @@ export class SqliteStorageDriver extends FilesystemStorageDriver implements Clon
             throw new SqliteStorageDriverError("initialize", this.tableName, "Storage already initialized!");
         }
         if (!this.#databaseCreator) {
+            if (this.dbPath !== SqliteStorageDriver.memoryPath) {
+                // DatabaseSync does not create missing parents, so the namespace directory must exist first
+                await mkdir(dirname(this.dbPath), { recursive: true });
+            }
             this.#openDatabase(await platformDatabaseCreator());
         }
         await super.initialize();

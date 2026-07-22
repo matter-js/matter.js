@@ -22,6 +22,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Choice conformance no longer requires a member gated by an inapplicable condition (e.g. `[ICTL].b+` when the feature is unsupported)
     - Fix: Support the `!=` (not-equal) operator in value conformance expressions
 
+- @matter/nodejs
+    - Fix: Ensure the namespace directory exists before the `sqlite` storage driver opens the database
+
 - @matter/protocol
     - Enhancement: Connect to a newly discovered address as soon as it supersedes the previously cached address instead of waiting out the connection retry delay
     - Fix: Ensure the commissioning failsafe timer stays within the device's maximum cumulative failsafe
