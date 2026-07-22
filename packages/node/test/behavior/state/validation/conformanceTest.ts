@@ -531,6 +531,34 @@ const AllTests = Tests({
                     },
                 },
             ),
+
+            // A choice group whose members are all gated by an unsupported feature must not apply: omission is
+            // allowed, a set value is still disallowed, and the "at least one" rule only holds once enabled
+            "feature-gated group": Tests(
+                Features({ F: "Foo" }),
+                Fields({ name: "Test1", conformance: "[F].a+" }, { name: "Test2", conformance: "[F].a+" }),
+                {
+                    "allows omission if feature disabled": {},
+
+                    "disallows field if feature disabled": {
+                        record: { test1: 1234 },
+                        error: disallowed("[F].a+", "test1"),
+                    },
+
+                    "allows one field if feature enabled": {
+                        supports: ["foo"],
+                        record: { test1: 1234 },
+                    },
+
+                    "requires one field if feature enabled": {
+                        supports: ["foo"],
+                        error: {
+                            type: ConformanceError,
+                            message: 'Validating Test: Conformance choice "a": Too few fields present (0 of min 1)',
+                        },
+                    },
+                },
+            ),
         }),
 
         "enum values": Tests(

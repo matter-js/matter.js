@@ -272,11 +272,23 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
      *
      * Choice conformance is only relevant when validating multiple properties on the same cluster or struct.
      *
-     * Compiling a choice always results in a RuntimeNode that updates the count in options.choice.  If a property is
-     * validated individually then choice is irrelevant and the node does not affect conformance.
+     * A choice whose gating expression is applicable compiles to a RuntimeNode that updates the count in
+     * options.choices.  If a property is validated individually then choice is irrelevant and the node does not affect
+     * conformance.  When the gating expression is statically non-applicable the wrapped static node is returned as-is
+     * so the member neither joins nor constrains the group.
      */
     function createChoice(param: Conformance.Ast.Choice): DynamicNode {
         const compiled = compile(param.expr);
+
+        // A member whose gating expression is non-applicable must neither join nor constrain the choice group, else
+        // the group's cardinality is enforced against a field that cannot exist here.  Static gate: defer to the
+        // field's own conformance, which disallows the value.
+        if (isStatic(compiled)) {
+            const { code } = asConformance(compiled);
+            if (code === Code.Nonconformant || code === Code.Disallowed) {
+                return compiled;
+            }
+        }
 
         const name = param.name;
         const template: ValidationLocation.Choice = {
@@ -290,23 +302,25 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
             code: Code.Evaluate,
 
             evaluate: (value, options) => {
+                const result = evaluateNode(compiled, value, options);
+
+                // Same invariant for a gate only resolvable at runtime: skip the group when the condition is false.
+                const { code } = asConformance(result);
+                if (code === Code.Nonconformant || code === Code.Disallowed) {
+                    return result;
+                }
+
                 // Update choice definitions.  This is supplied by the struct validator.  If we're only validating a
                 // single field then choices aren't available so the choice is ignored
                 const choices = options?.choices;
-                let choice;
                 if (choices) {
-                    choice = choices[name];
-                    if (!choice) {
-                        choice = choices[name] = { ...template };
-                    }
+                    const choice = (choices[name] ??= { ...template });
                     if (value !== undefined) {
                         choice.count++;
                     }
                 }
 
-                // The status of the subexpression is not relevant for the choice.  If conformance fails then it doesn't
-                // matter if we count the choice or not
-                return evaluateNode(compiled, value, options);
+                return result;
             },
         };
     }
