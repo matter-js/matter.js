@@ -289,11 +289,16 @@ export class SqliteStorageDriver extends FilesystemStorageDriver implements Clon
             }
             this.#openDatabase(await platformDatabaseCreator());
         }
-        await super.initialize();
-        if (this.clearOnInit) {
-            this.#database.prepare(`DELETE FROM ${this.tableName}`).run();
+        try {
+            await super.initialize();
+            if (this.clearOnInit) {
+                this.#database.prepare(`DELETE FROM ${this.tableName}`).run();
+            }
+            this.isInitialized = true;
+        } catch (error) {
+            await this.close();
+            throw error;
         }
-        this.isInitialized = true;
     }
 
     public clone(): StorageDriver {

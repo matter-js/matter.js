@@ -289,15 +289,18 @@ describe("StorageDrivers", () => {
 
     if (supportsSqlite()) {
         it("sqlite driver opens when the parent directory does not exist yet", async () => {
-            const path = resolve(TEST_STORAGE_LOCATION, "fresh", "nested", "storage.db");
-            const storage = new SqliteStorageDriver({ namespaceOrPath: path });
+            const freshRoot = resolve(TEST_STORAGE_LOCATION, "fresh");
+            await rm(freshRoot, { recursive: true, force: true });
+            const storage: StorageDriver = new SqliteStorageDriver({
+                namespaceOrPath: resolve(freshRoot, "nested", "storage.db"),
+            });
             await storage.initialize();
             try {
-                storage.set(CONTEXTx1, "key", "value");
-                assert.equal(storage.get(CONTEXTx1, "key"), "value");
+                await storage.set(CONTEXTx1, "key", "value");
+                assert.equal(await storage.get(CONTEXTx1, "key"), "value");
             } finally {
                 await storage.close();
-                await rm(resolve(TEST_STORAGE_LOCATION, "fresh"), { recursive: true, force: true });
+                await rm(freshRoot, { recursive: true, force: true });
             }
         });
     }
