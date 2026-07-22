@@ -182,7 +182,7 @@ export class SoftwareUpdateManager extends Behavior {
         // For now let's just provide update functionality when we are the fabric owner
         // In theory we could also claim that for any other fabric but could conflict with the main controller of
         // the fabric that then also claims being "the one provider".
-        const fabricAuthority = this.env.get(FabricAuthority);
+        const fabricAuthority = await this.env.load(FabricAuthority);
         const ownFabric = fabricAuthority.fabrics[0];
         if (!ownFabric) {
             // Can only happen if the SoftwareUpdateManager is used without any commissioned nodes
