@@ -21,6 +21,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Thermostat adjusts the coupled setpoint limit to preserve the AutoMode deadband instead of rejecting the write
     - Fix: Choice conformance no longer requires a member gated by an inapplicable condition (e.g. `[ICTL].b+` when the feature is unsupported)
     - Fix: Support the `!=` (not-equal) operator in value conformance expressions
+    - Fix: Ensure `FabricAuthority` is fully constructed before it is used in the WebRTC Transport Requestor, OTA Software Update Provider and Software Update clusters
 
 - @matter/nodejs
     - Fix: Ensure the namespace directory exists before the `sqlite` storage driver opens the database
