@@ -490,6 +490,45 @@ describe("GroupcastServer", () => {
             expect(auxiliaryAcl?.filter(e => e.fabricIndex === fi)).to.have.length(1);
         });
 
+        it("keeps the feature-aware mcastAddrPolicy default on a legacy-only group", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+
+            // Legacy configuration (Groups cluster / direct GKM writes), never joined via Groupcast, so it has no
+            // groupProperties entry yet.
+            await node.online({ exchange, command: true }, async agent => {
+                const gkm = agent.get(GroupKeyManagementServer);
+                gkm.state.groupTable = [
+                    {
+                        groupId: GroupId(0x0400),
+                        endpoints: [EndpointNumber(1)],
+                        groupName: "Legacy",
+                        fabricIndex: fi,
+                    },
+                ];
+            });
+            await MockTime.yield3();
+            expect(node.stateOf(GroupcastServer).groupProperties.find(p => p.groupId === 0x0400)).equal(undefined);
+
+            // configureAuxiliaryAcl is a Listener feature command — cast to access it
+            await node.online({ exchange, command: true }, agent =>
+                (
+                    agent.get(GroupcastServer) as unknown as {
+                        configureAuxiliaryAcl: (r: Groupcast.ConfigureAuxiliaryAclRequest) => void;
+                    }
+                ).configureAuxiliaryAcl({ groupId: GroupId(0x0400), useAuxiliaryAcl: true }),
+            );
+
+            // The newly created groupProperties entry must match the PerGroup-capable derive default, not IanaAddr
+            const membership = node.stateOf(GroupcastServer).membership.find(m => m.groupId === 0x0400);
+            expect(membership?.mcastAddrPolicy).equal(Groupcast.MulticastAddrPolicy.PerGroup);
+
+            const props = node.stateOf(GroupcastServer).groupProperties.find(p => p.groupId === 0x0400);
+            expect(props?.mcastAddrPolicy).equal(Groupcast.MulticastAddrPolicy.PerGroup);
+        });
+
         it("rejects the Listener feature when AccessControl lacks the Auxiliary feature", async () => {
             const endpointType = MockServerNode.RootEndpoint.with(
                 GroupcastServer.with("Listener", "Sender", "PerGroup"),

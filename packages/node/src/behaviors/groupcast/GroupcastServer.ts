@@ -535,14 +535,7 @@ export class GroupcastServer extends GroupcastBase {
                 groupId,
                 ...lnFields,
                 keySetId: keyEntry?.groupKeySetId ?? UNMAPPED_KEYSET_ID,
-                // Legacy-only groups (groupTable, no groupProperties) keep the former #migrate default: PerGroup when
-                // PerGroupAddr is enabled, else IanaAddr.  Plain IanaAddr would move them off their ff35 per-group
-                // address on PGA-capable devices.
-                mcastAddrPolicy:
-                    props?.mcastAddrPolicy ??
-                    (this.features.perGroup
-                        ? Groupcast.MulticastAddrPolicy.PerGroup
-                        : Groupcast.MulticastAddrPolicy.IanaAddr),
+                mcastAddrPolicy: props?.mcastAddrPolicy ?? this.#defaultMcastAddrPolicy(),
                 fabricIndex,
             });
         }
@@ -685,6 +678,14 @@ export class GroupcastServer extends GroupcastBase {
         this.state.usedMcastAddrCount = this.#computeUsedMcastAddrCount(this.state.membership);
     }
 
+    /**
+     * Default multicast address policy for a group with no explicit policy: PerGroup on PerGroupAddr-capable
+     * devices (so legacy groups stay on their ff35 per-group address), else IanaAddr.
+     */
+    #defaultMcastAddrPolicy(): Groupcast.MulticastAddrPolicy {
+        return this.features.perGroup ? Groupcast.MulticastAddrPolicy.PerGroup : Groupcast.MulticastAddrPolicy.IanaAddr;
+    }
+
     /** Insert or update a {@link GroupcastServer.GroupPropertiesEntry}, applying only the given fields. */
     #upsertGroupProperties(
         fabricIndex: FabricIndex,
@@ -699,7 +700,7 @@ export class GroupcastServer extends GroupcastBase {
             props.push({
                 fabricIndex,
                 groupId,
-                mcastAddrPolicy: changes.mcastAddrPolicy ?? Groupcast.MulticastAddrPolicy.IanaAddr,
+                mcastAddrPolicy: changes.mcastAddrPolicy ?? this.#defaultMcastAddrPolicy(),
                 hasAuxiliaryAcl: changes.hasAuxiliaryAcl ?? false,
             });
         }
