@@ -7,7 +7,7 @@
 import { AccessControlServer } from "#behaviors/access-control";
 import { GroupKeyManagementServer } from "#behaviors/group-key-management";
 import { GroupcastServer } from "#behaviors/groupcast";
-import { deepCopy, Environment, ipv6ToBytes } from "@matter/general";
+import { deepCopy, Environment, ipv6ToBytes, MockNetwork, Network } from "@matter/general";
 import { AccessLevel } from "@matter/model";
 import { FabricManager, IANA_GROUPCAST_MULTICAST_ADDRESS, SessionManager } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, GroupId, MATTER_EPOCH_OFFSET_US, NodeId } from "@matter/types";
@@ -18,6 +18,13 @@ import { MockServerNode } from "../../node/mock-server-node.js";
 /** Root endpoint type with GroupcastServer (Listener+Sender+PerGroup), GKM (GCAST feature) and auxiliary ACLs. */
 const GroupcastRootEndpoint = MockServerNode.RootEndpoint.with(
     GroupcastServer.with("Listener", "Sender", "PerGroup"),
+    GroupKeyManagementServer.with("Groupcast"),
+    AccessControlServer.with("Extension", "Auxiliary"),
+);
+
+/** Root endpoint without the PerGroupAddr feature: every group defaults to the shared IanaAddr policy. */
+const IanaOnlyRootEndpoint = MockServerNode.RootEndpoint.with(
+    GroupcastServer.with("Listener", "Sender"),
     GroupKeyManagementServer.with("Groupcast"),
     AccessControlServer.with("Extension", "Auxiliary"),
 );
@@ -1161,6 +1168,54 @@ describe("GroupcastServer", () => {
             await MockTime.yield3();
 
             expect(realFabric.groups.multicastAddressFor(GroupId(0x0001))).equal(IANA_GROUPCAST_MULTICAST_ADDRESS);
+        });
+    });
+
+    describe("order-independent multicast rebind", () => {
+        it("rebinds a listener group's actual multicast membership to the applied policy after a full reload", async () => {
+            const environment = new Environment("test");
+            const node = await MockServerNode.createOnline(IanaOnlyRootEndpoint, {
+                id: "groupcast-i1-reload",
+                device: undefined,
+                environment,
+            });
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+
+            const realFabric = node.env.get(FabricManager).for(fi);
+            // The address this group resolves to before any policy is applied (Groups.ts's per-group default),
+            // captured before joinGroup so reading it has no side effect on the (not yet existing) membership.
+            const defaultAddress = realFabric.groups.multicastAddressFor(GroupId(0x0001));
+            expect(defaultAddress).not.equal(IANA_GROUPCAST_MULTICAST_ADDRESS);
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0001),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            const network = node.env.get(Network) as MockNetwork;
+            expect(network.isMemberOf(IANA_GROUPCAST_MULTICAST_ADDRESS)).equal(true);
+            expect(network.isMemberOf(defaultAddress)).equal(false);
+
+            await node.close();
+
+            const reloaded = await MockServerNode.createOnline(IanaOnlyRootEndpoint, {
+                id: "groupcast-i1-reload",
+                device: undefined,
+                environment,
+            });
+
+            const reloadedNetwork = reloaded.env.get(Network) as MockNetwork;
+            expect(reloadedNetwork.isMemberOf(IANA_GROUPCAST_MULTICAST_ADDRESS)).equal(true);
+            expect(reloadedNetwork.isMemberOf(defaultAddress)).equal(false);
+
+            await reloaded.close();
         });
     });
 

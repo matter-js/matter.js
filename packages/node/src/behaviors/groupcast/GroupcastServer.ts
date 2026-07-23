@@ -251,17 +251,15 @@ export class GroupcastServer extends GroupcastBase {
             policy === Groupcast.MulticastAddrPolicy.PerGroup ? "perGroupId" : "ianaAddr",
         );
 
+        let keepsSenderOnly = false;
         if (this.features.listener) {
             const existing = gkm.state.groupTable.find(g => g.fabricIndex === fabricIndex && g.groupId === groupId);
             // Snapshot: removeEndpoint mutates the live groupTable endpoints array, which would corrupt this loop.
             const existingEndpoints = [...(existing?.endpoints ?? [])];
             const groupName = existing?.groupName ?? "";
             const target = replaceEndpoints ? endpoints : [...new Set([...existingEndpoints, ...endpoints])];
-            if (target.length === 0 && existingEndpoints.length > 0) {
-                // Replacing a listener's endpoints with none keeps the group sender-only; mark so the offline
-                // groupTable$Changed prune fired by the removeEndpoint calls below leaves this retained entry alone.
-                this.internal.retainedSenderOnly.add(`${fabricIndex}:${groupId}`);
-            }
+            // Replacing a listener's endpoints with none keeps the group sender-only.
+            keepsSenderOnly = target.length === 0 && existingEndpoints.length > 0;
             for (const ep of existingEndpoints) {
                 if (!target.includes(ep)) {
                     gkm.removeEndpoint(fabric, ep, groupId);
@@ -280,6 +278,12 @@ export class GroupcastServer extends GroupcastBase {
         });
 
         this.#deriveMembership();
+
+        // Marked only once the method is committing successfully, so a throw earlier in this method never leaves
+        // a leaked mark for the offline groupTable$Changed prune to wrongly consume later.
+        if (keepsSenderOnly) {
+            this.internal.retainedSenderOnly.add(`${fabricIndex}:${groupId}`);
+        }
 
         /* The GroupKeyManagement GroupcastAdoption attribute is not supported by the default server:
         gkm.setGroupcastAdopted(fabricIndex, true);
@@ -325,6 +329,7 @@ export class GroupcastServer extends GroupcastBase {
         const currentEndpoints = entry.endpoints ?? [];
         let removedEndpoints: EndpointNumber[];
         let entryRemoved = false;
+        let keepsSenderOnly = false;
 
         if (!requestedEndpoints || requestedEndpoints.length === 0) {
             // No specific endpoints specified → remove entire entry
@@ -338,9 +343,8 @@ export class GroupcastServer extends GroupcastBase {
             if (remainingEndpoints.length === 0 && !this.features.sender) {
                 entryRemoved = true;
             } else if (remainingEndpoints.length === 0 && removedEndpoints.length > 0) {
-                // Intentionally kept sender-only (spec kKeepGroupIfEmpty). Mark so the offline groupTable$Changed
-                // prune fired by the removeEndpoint calls below leaves this retained entry alone.
-                this.internal.retainedSenderOnly.add(`${fabricIndex}:${groupId}`);
+                // Intentionally kept sender-only (spec kKeepGroupIfEmpty).
+                keepsSenderOnly = true;
             }
         }
 
@@ -353,6 +357,12 @@ export class GroupcastServer extends GroupcastBase {
         }
 
         this.#deriveMembership();
+
+        // Marked only once the method is committing successfully, so a throw earlier in this method never leaves
+        // a leaked mark for the offline groupTable$Changed prune to wrongly consume later.
+        if (keepsSenderOnly) {
+            this.internal.retainedSenderOnly.add(`${fabricIndex}:${groupId}`);
+        }
 
         return { groupId, endpoints: removedEndpoints };
     }
