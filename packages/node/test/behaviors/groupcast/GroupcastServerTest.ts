@@ -72,6 +72,59 @@ describe("GroupcastServer", () => {
             expect(realFabric.groups.multicastAddressFor(GroupId(0x0001))).equal("ff05::fa");
         });
 
+        it("records groupProperties flags", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+
+            await node.online({ exchange: fabricExchange(fi), command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0102),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            const entry = node.stateOf(GroupcastServer).groupProperties.find(p => p.groupId === 0x0102);
+            expect(entry).not.equals(undefined);
+            expect(entry!.fabricIndex).equals(fi);
+            expect(entry!.mcastAddrPolicy).equals(Groupcast.MulticastAddrPolicy.IanaAddr);
+            expect(entry!.hasAuxiliaryAcl).equals(false);
+        });
+
+        it("does not overwrite hasAuxiliaryAcl on a plain re-join", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0102),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    useAuxiliaryAcl: true,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            // Re-join without useAuxiliaryAcl must not reset the flag to its default
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0102),
+                    endpoints: [EndpointNumber(2)],
+                    keySetId: 1,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            const entry = node.stateOf(GroupcastServer).groupProperties.find(p => p.groupId === 0x0102);
+            expect(entry!.hasAuxiliaryAcl).equals(true);
+        });
+
         it("rejects groups with invalid IDs (0 and > 0xFFF7)", async () => {
             await using node = await createGroupcastNode();
             const fabric = await node.addFabric();
@@ -247,6 +300,29 @@ describe("GroupcastServer", () => {
             expect(node.stateOf(GroupcastServer).membership).to.have.length(0);
         });
 
+        it("removes groupProperties entry", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi);
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0102),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).leaveGroup({ groupId: GroupId(0x0102) }),
+            );
+
+            expect(node.stateOf(GroupcastServer).groupProperties.some(p => p.groupId === 0x0102)).equals(false);
+        });
+
         it("leaves all groups of the fabric with the wildcard group id", async () => {
             await using node = await createGroupcastNode();
             const fabric = await node.addFabric();
@@ -273,6 +349,7 @@ describe("GroupcastServer", () => {
 
             expect(response.groupId).equal(GroupId.NO_GROUP_ID);
             expect(node.stateOf(GroupcastServer).membership).to.have.length(0);
+            expect(node.stateOf(GroupcastServer).groupProperties).to.have.length(0);
             expect(realFabric.groups.groupKeyIdMap.size).equal(0);
             expect(realFabric.groups.endpoints.size).equal(0);
         });
@@ -399,6 +476,9 @@ describe("GroupcastServer", () => {
 
             const membership = node.stateOf(GroupcastServer).membership;
             expect(membership[0].hasAuxiliaryAcl).true;
+
+            const props = node.stateOf(GroupcastServer).groupProperties.find(p => p.groupId === 0x0001);
+            expect(props!.hasAuxiliaryAcl).true;
 
             // Verify the provider observable has the correct entries (plain JS object, no context needed)
             const gcastInternal = node.agentFor({ session: { fabricIndex: fi } as any } as any).get(GroupcastServer)

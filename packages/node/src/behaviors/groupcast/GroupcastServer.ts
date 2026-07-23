@@ -292,6 +292,10 @@ export class GroupcastServer extends GroupcastBase {
         this.#updateUsedMcastAddrCount();
         this.#syncFabricGroups(this.env.get(FabricManager).for(fabricIndex));
         this.#emitAuxAcl();
+        this.#upsertGroupProperties(fabricIndex, groupId, {
+            mcastAddrPolicy: policy,
+            ...(useAuxiliaryAcl !== undefined ? { hasAuxiliaryAcl: useAuxiliaryAcl } : {}),
+        });
 
         /* The GroupKeyManagement GroupcastAdoption attribute is not supported by the default server:
         const gkm = this.agent.get(GroupKeyManagementServer);
@@ -318,6 +322,9 @@ export class GroupcastServer extends GroupcastBase {
             this.#updateUsedMcastAddrCount();
             this.#syncFabricGroups(this.env.get(FabricManager).for(fabricIndex), removedGroupIds);
             this.#emitAuxAcl();
+            for (const removedGroupId of removedGroupIds) {
+                this.#removeGroupProperties(fabricIndex, removedGroupId);
+            }
             return { groupId: GroupId.NO_GROUP_ID, endpoints: [] };
         }
 
@@ -361,6 +368,9 @@ export class GroupcastServer extends GroupcastBase {
         this.#updateUsedMcastAddrCount();
         this.#syncFabricGroups(this.env.get(FabricManager).for(fabricIndex), entryRemoved ? [groupId] : undefined);
         this.#emitAuxAcl();
+        if (entryRemoved) {
+            this.#removeGroupProperties(fabricIndex, groupId);
+        }
 
         return { groupId, endpoints: removedEndpoints };
     }
@@ -404,6 +414,7 @@ export class GroupcastServer extends GroupcastBase {
         membership[entryIdx] = { ...membership[entryIdx], hasAuxiliaryAcl: useAuxiliaryAcl };
         this.state.membership = membership;
         this.#emitAuxAcl();
+        this.#upsertGroupProperties(fabricIndex, groupId, { hasAuxiliaryAcl: useAuxiliaryAcl });
     }
 
     override groupcastTesting(request: Groupcast.GroupcastTestingRequest) {
@@ -775,6 +786,33 @@ export class GroupcastServer extends GroupcastBase {
     /** Recompute and update the UsedMcastAddrCount attribute. */
     #updateUsedMcastAddrCount() {
         this.state.usedMcastAddrCount = this.#computeUsedMcastAddrCount(this.state.membership);
+    }
+
+    /** Insert or update a {@link GroupcastServer.GroupPropertiesEntry}, applying only the given fields. */
+    #upsertGroupProperties(
+        fabricIndex: FabricIndex,
+        groupId: GroupId,
+        changes: { mcastAddrPolicy?: Groupcast.MulticastAddrPolicy; hasAuxiliaryAcl?: boolean },
+    ) {
+        const props = deepCopy(this.state.groupProperties);
+        const idx = props.findIndex(p => p.fabricIndex === fabricIndex && p.groupId === groupId);
+        if (idx >= 0) {
+            props[idx] = { ...props[idx], ...changes };
+        } else {
+            props.push({
+                fabricIndex,
+                groupId,
+                mcastAddrPolicy: changes.mcastAddrPolicy ?? Groupcast.MulticastAddrPolicy.IanaAddr,
+                hasAuxiliaryAcl: changes.hasAuxiliaryAcl ?? false,
+            });
+        }
+        this.state.groupProperties = props;
+    }
+
+    #removeGroupProperties(fabricIndex: FabricIndex, groupId: GroupId) {
+        this.state.groupProperties = this.state.groupProperties.filter(
+            p => !(p.fabricIndex === fabricIndex && p.groupId === groupId),
+        );
     }
 
     /** Remove all state for a departed fabric. */
