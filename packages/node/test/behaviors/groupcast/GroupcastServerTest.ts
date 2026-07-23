@@ -636,17 +636,16 @@ describe("GroupcastServer", () => {
             );
             expect(node.stateOf(AccessControlServer).auxiliaryAcl?.filter(e => e.fabricIndex === fi)).to.have.length(1);
 
-            // Legacy Groups commands operate on the GKM group table; removal must ripple into Membership + aux ACLs.
-            // With the Sender feature enabled the entry survives as sender-only, matching leaveGroup.
+            // Legacy Groups commands operate on the GKM group table; emptying a group's endpoints there fully
+            // deletes it from Membership (CHIP kDeleteGroupIfEmpty for the legacy/external path) and drops its
+            // auxiliary ACLs. Sender-only survival is reserved for groupcast leaveGroup, not external removal.
             await node.online({ exchange, command: true }, async agent => {
                 agent.get(GroupKeyManagementServer).state.groupTable = [];
             });
             await MockTime.yield3();
 
             const remaining = node.stateOf(GroupcastServer).membership.filter(m => m.fabricIndex === fi);
-            expect(remaining).to.have.length(1);
-            expect([...(remaining[0].endpoints ?? [])]).deep.equal([]);
-            expect(remaining[0].keySetId).equal(1);
+            expect(remaining).to.have.length(0);
             expect(node.stateOf(AccessControlServer).auxiliaryAcl?.filter(e => e.fabricIndex === fi)).to.have.length(0);
         });
 
@@ -852,6 +851,126 @@ describe("GroupcastServer", () => {
             );
             const realFabric = node.env.get(FabricManager).for(fi);
             expect(realFabric.groups.endpoints.has(GroupId(0x0103))).equal(false);
+        });
+    });
+
+    describe("legacy removal prune", () => {
+        it("legacy RemoveAllGroups fully removes a groupcast listener group", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+            const realFabric = node.env.get(FabricManager).for(fi);
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0103),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    useAuxiliaryAcl: true,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+            expect(node.stateOf(AccessControlServer).auxiliaryAcl?.filter(e => e.fabricIndex === fi)).to.have.length(1);
+
+            // Groups.RemoveAllGroups on endpoint 1 removes it from every group via gkm.removeEndpoint.
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupKeyManagementServer).removeEndpoint(realFabric, EndpointNumber(1)),
+            );
+            await MockTime.yield3();
+
+            const gc = node.stateOf(GroupcastServer);
+            expect(gc.membership.some(m => m.groupId === 0x0103)).equals(false);
+            expect(gc.groupProperties.some(p => p.groupId === 0x0103)).equals(false);
+            expect(
+                node.stateOf(AccessControlServer).auxiliaryAcl?.some(e => e.subjects?.includes(NodeId(BigInt(0x0103)))),
+            ).equals(false);
+        });
+
+        it("legacy RemoveAllGroups does not touch a sender-only group", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+            const realFabric = node.env.get(FabricManager).for(fi);
+
+            // Sender-only join: empty endpoints (allowed with the Sender feature); never enters the GKM group table
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0104),
+                    endpoints: [],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0103),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupKeyManagementServer).removeEndpoint(realFabric, EndpointNumber(1)),
+            );
+            await MockTime.yield3();
+
+            const gc = node.stateOf(GroupcastServer);
+            expect(gc.membership.some(m => m.groupId === 0x0104)).equals(true);
+            expect(gc.membership.some(m => m.groupId === 0x0103)).equals(false);
+        });
+
+        it("PROBE leaveGroup sender-only conversion survives the offline reactor", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0106),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            // Explicit leave of the only endpoint: with the Sender feature the entry is meant to survive sender-only.
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).leaveGroup({ groupId: GroupId(0x0106), endpoints: [EndpointNumber(1)] }),
+            );
+            await MockTime.yield3();
+
+            const gc = node.stateOf(GroupcastServer);
+            expect(gc.membership.some(m => m.groupId === 0x0106)).equals(true);
+        });
+
+        it("removes groupProperties when the owning fabric departs", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0105),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+            expect(node.stateOf(GroupcastServer).groupProperties.some(p => p.fabricIndex === fi)).equals(true);
+
+            await fabric.delete();
+            await MockTime.yield3();
+
+            expect(node.stateOf(GroupcastServer).groupProperties.some(p => p.fabricIndex === fi)).equals(false);
         });
     });
 

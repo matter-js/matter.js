@@ -31,6 +31,7 @@ import {
 } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, GroupId, NodeId, Status, StatusResponseError } from "@matter/types";
 import { AccessControl as AccessControlTypes } from "@matter/types/clusters/access-control";
+import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import { Groupcast } from "@matter/types/clusters/groupcast";
 import { GroupcastBehavior } from "./GroupcastBehavior.js";
 
@@ -142,7 +143,7 @@ export class GroupcastServer extends GroupcastBase {
         // reactors run offline because they update the read-only Membership attribute, which the triggering remote
         // actor (a GKM attribute write) is not authorized to touch.
         const gkmEvents = this.endpoint.eventsOf(GroupKeyManagementServer);
-        this.reactTo(gkmEvents.groupTable$Changed, this.#deriveMembership, { offline: true });
+        this.reactTo(gkmEvents.groupTable$Changed, this.#handleGroupTableChanged, { offline: true });
         this.reactTo(gkmEvents.groupKeyMap$Changed, this.#deriveMembership, { offline: true });
 
         // React to fabricUnderTest changes to dynamically subscribe/unsubscribe from group message events.
@@ -256,6 +257,11 @@ export class GroupcastServer extends GroupcastBase {
             const existingEndpoints = [...(existing?.endpoints ?? [])];
             const groupName = existing?.groupName ?? "";
             const target = replaceEndpoints ? endpoints : [...new Set([...existingEndpoints, ...endpoints])];
+            if (target.length === 0 && existingEndpoints.length > 0) {
+                // Replacing a listener's endpoints with none keeps the group sender-only; mark so the offline
+                // groupTable$Changed prune fired by the removeEndpoint calls below leaves this retained entry alone.
+                this.internal.retainedSenderOnly.add(`${fabricIndex}:${groupId}`);
+            }
             for (const ep of existingEndpoints) {
                 if (!target.includes(ep)) {
                     gkm.removeEndpoint(fabric, ep, groupId);
@@ -331,6 +337,10 @@ export class GroupcastServer extends GroupcastBase {
             // disappears otherwise, matching the derived-membership existence rule.
             if (remainingEndpoints.length === 0 && !this.features.sender) {
                 entryRemoved = true;
+            } else if (remainingEndpoints.length === 0) {
+                // Intentionally kept sender-only (spec kKeepGroupIfEmpty). Mark so the offline groupTable$Changed
+                // prune fired by the removeEndpoint calls below leaves this retained entry alone.
+                this.internal.retainedSenderOnly.add(`${fabricIndex}:${groupId}`);
             }
         }
 
@@ -501,6 +511,37 @@ export class GroupcastServer extends GroupcastBase {
 
     #handleFabricDeleted(fabric: Fabric) {
         this.#cleanupFabric(fabric.fabricIndex);
+    }
+
+    /**
+     * React to external GKM groupTable changes (legacy Groups cluster commands, direct attribute writes) and
+     * re-derive Membership.  A group present in the OLD table but absent from the NEW one lost all its endpoints; per
+     * CHIP kDeleteGroupIfEmpty its groupProperties are pruned so it is fully deleted rather than lingering as a
+     * phantom sender-only entry.  Genuine sender-only joins never had a groupTable entry, so they are never in
+     * oldTable and always survive.
+     */
+    #handleGroupTableChanged(
+        newTable: GroupKeyManagement.GroupInfoMap[],
+        oldTable: GroupKeyManagement.GroupInfoMap[],
+        context?: ActionContext,
+    ) {
+        const present = new Set(newTable.map(g => `${g.fabricIndex}:${g.groupId}`));
+        const retained = this.internal.retainedSenderOnly;
+        const toPrune = oldTable.filter(g => {
+            const key = `${g.fabricIndex}:${g.groupId}`;
+            if (present.has(key)) {
+                return false;
+            }
+            // A groupcast command that emptied this group asked to keep it sender-only (spec kKeepGroupIfEmpty);
+            // consume the mark so a later external removal of the same group still deletes it.
+            return !retained.delete(key);
+        });
+        if (toPrune.length) {
+            this.state.groupProperties = this.state.groupProperties.filter(
+                p => !toPrune.some(r => r.fabricIndex === p.fabricIndex && r.groupId === p.groupId),
+            );
+        }
+        this.#deriveMembership(undefined, undefined, context);
     }
 
     /**
@@ -738,6 +779,14 @@ export namespace GroupcastServer {
 
         /** Active subscription handler on SessionManager.groupMessage while fabricUnderTest is set. */
         groupMessageHandler?: (info: GroupMessageEventInfo) => void;
+
+        /**
+         * `fabricIndex:groupId` keys of groups a groupcast command intentionally kept as sender-only while emptying
+         * their endpoints.  The groupTable$Changed prune consumes these so it deletes only externally-emptied groups
+         * (legacy RemoveAllGroups = kDeleteGroupIfEmpty), never a spec-compliant sender-only survivor
+         * (LeaveGroup with the Sender feature = kKeepGroupIfEmpty).
+         */
+        retainedSenderOnly = new Set<string>();
     }
 
     /** A single persisted {@link GroupcastServer.State.groupProperties} entry. */
