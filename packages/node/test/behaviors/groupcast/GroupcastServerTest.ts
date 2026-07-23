@@ -1308,7 +1308,9 @@ describe("GroupcastServer", () => {
             const exchange = fabricExchange(fi, AccessLevel.Administer);
 
             // Legacy configuration (Groups.AddGroup / direct GKM writes): never joined via Groupcast, so it has
-            // no groupProperties entry and must derive purely from the GKM tables.
+            // no groupProperties entry and must derive purely from the GKM tables. Unlike the "keeps the
+            // feature-aware mcastAddrPolicy default on a legacy-only group" test below, no Groupcast command is
+            // ever called here, so this is the only test exercising #deriveMembership's props===undefined path.
             await node.online({ exchange, command: true }, async agent => {
                 const gkm = agent.get(GroupKeyManagementServer);
                 gkm.state.groupTable = [
@@ -1324,7 +1326,7 @@ describe("GroupcastServer", () => {
             expect(m).not.equals(undefined);
             // Fixture has the PerGroupAddr feature, so the feature-aware default is PerGroup, not IanaAddr.
             expect(m!.mcastAddrPolicy).equals(Groupcast.MulticastAddrPolicy.PerGroup);
-            expect(m!.hasAuxiliaryAcl ?? false).equals(false);
+            expect(m!.hasAuxiliaryAcl).equals(false);
         });
 
         it("groupcast group with unmapped key persists across reload", async () => {
@@ -1391,7 +1393,20 @@ describe("GroupcastServer", () => {
                 }),
             );
 
-            // A second group, removed via the external/legacy path before reload; must not reappear afterward.
+            // A survivor with IanaAddr policy: PerGroup and "no policy at all" compute the same ff35 address
+            // (Groups.ts multicastAddress only special-cases an explicit "ianaAddr" policy), so without this
+            // group the address check below couldn't distinguish real on-load policy re-application from a
+            // no-op.
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0205),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            // A group removed via the external/legacy path before reload; must not reappear afterward.
             await node.online({ exchange, command: true }, agent =>
                 agent.get(GroupcastServer).joinGroup({
                     groupId: GroupId(0x0204),
@@ -1413,14 +1428,22 @@ describe("GroupcastServer", () => {
                     .map(([groupId, endpoints]) => [groupId, [...endpoints].sort()]);
 
             const endpointsBefore = snapshotEndpoints(fi);
-            const addressBefore = node.env.get(FabricManager).for(fi).groups.multicastAddressFor(GroupId(0x0203));
+            const perGroupAddressBefore = node.env
+                .get(FabricManager)
+                .for(fi)
+                .groups.multicastAddressFor(GroupId(0x0203));
+            const ianaAddressBefore = node.env.get(FabricManager).for(fi).groups.multicastAddressFor(GroupId(0x0205));
             const auxAclBefore = deepCopy(
                 node.stateOf(AccessControlServer).auxiliaryAcl?.filter(e => e.fabricIndex === fi) ?? [],
             );
 
             // Guard the reload comparison below against a vacuous empty-vs-empty pass.
-            expect(endpointsBefore).deep.equal([[0x0203, [1, 2]]]);
-            expect(addressBefore).to.match(/^ff35:/i);
+            expect(endpointsBefore).deep.equal([
+                [0x0203, [1, 2]],
+                [0x0205, [1]],
+            ]);
+            expect(perGroupAddressBefore).to.match(/^ff35:/i);
+            expect(ianaAddressBefore).equal(IANA_GROUPCAST_MULTICAST_ADDRESS);
             expect(auxAclBefore).to.have.length(1);
 
             await node.close();
@@ -1436,7 +1459,10 @@ describe("GroupcastServer", () => {
                 .map(([groupId, endpoints]) => [groupId, [...endpoints].sort()]);
             expect(endpointsAfter).deep.equal(endpointsBefore);
             expect(reloaded.env.get(FabricManager).for(fi).groups.multicastAddressFor(GroupId(0x0203))).equal(
-                addressBefore,
+                perGroupAddressBefore,
+            );
+            expect(reloaded.env.get(FabricManager).for(fi).groups.multicastAddressFor(GroupId(0x0205))).equal(
+                ianaAddressBefore,
             );
             expect(
                 reloaded.stateOf(AccessControlServer).auxiliaryAcl?.filter(e => e.fabricIndex === fi) ?? [],
