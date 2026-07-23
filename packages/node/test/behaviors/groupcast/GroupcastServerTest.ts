@@ -924,7 +924,7 @@ describe("GroupcastServer", () => {
             expect(gc.membership.some(m => m.groupId === 0x0103)).equals(false);
         });
 
-        it("PROBE leaveGroup sender-only conversion survives the offline reactor", async () => {
+        it("leaveGroup keeps a Sender-feature group as sender-only after emptying its endpoints", async () => {
             await using node = await createGroupcastNode();
             const fabric = await node.addFabric();
             const fi = fabric.fabricIndex;
@@ -948,6 +948,51 @@ describe("GroupcastServer", () => {
 
             const gc = node.stateOf(GroupcastServer);
             expect(gc.membership.some(m => m.groupId === 0x0106)).equals(true);
+        });
+
+        it("a no-op leaveGroup on an already sender-only group does not leak a stale retained mark", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+
+            // Create a genuine sender-only group: JoinGroup with an empty endpoint list.
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0107),
+                    endpoints: [],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            // No-op removal: the group already has no endpoints, so this must not plant a retained-sender-only
+            // mark (the group table never changes and the offline prune never runs to consume it).
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).leaveGroup({ groupId: GroupId(0x0107), endpoints: [EndpointNumber(9)] }),
+            );
+
+            // Turn it into a real listener.
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0107),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            // External/legacy removal (direct GKM group table write) must fully delete the group. A leaked mark
+            // from the earlier no-op would be wrongly consumed here and keep it alive as a phantom.
+            await node.online({ exchange, command: true }, async agent => {
+                agent.get(GroupKeyManagementServer).state.groupTable = [];
+            });
+            await MockTime.yield3();
+
+            const gc = node.stateOf(GroupcastServer);
+            expect(gc.membership.some(m => m.groupId === 0x0107 && m.fabricIndex === fi)).equals(false);
+            expect(gc.groupProperties.some(p => p.groupId === 0x0107 && p.fabricIndex === fi)).equals(false);
         });
 
         it("removes groupProperties when the owning fabric departs", async () => {

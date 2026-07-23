@@ -337,7 +337,7 @@ export class GroupcastServer extends GroupcastBase {
             // disappears otherwise, matching the derived-membership existence rule.
             if (remainingEndpoints.length === 0 && !this.features.sender) {
                 entryRemoved = true;
-            } else if (remainingEndpoints.length === 0) {
+            } else if (remainingEndpoints.length === 0 && removedEndpoints.length > 0) {
                 // Intentionally kept sender-only (spec kKeepGroupIfEmpty). Mark so the offline groupTable$Changed
                 // prune fired by the removeEndpoint calls below leaves this retained entry alone.
                 this.internal.retainedSenderOnly.add(`${fabricIndex}:${groupId}`);
@@ -757,6 +757,12 @@ export class GroupcastServer extends GroupcastBase {
     /** Remove all Groupcast-owned state for a departed fabric and re-derive Membership. */
     #cleanupFabric(fabricIndex: FabricIndex) {
         this.state.groupProperties = this.state.groupProperties.filter(p => p.fabricIndex !== fabricIndex);
+        // A FabricIndex can be reused by a later fabric; purge marks so none leak across that reuse.
+        for (const key of [...this.internal.retainedSenderOnly]) {
+            if (key.startsWith(`${fabricIndex}:`)) {
+                this.internal.retainedSenderOnly.delete(key);
+            }
+        }
         this.#deriveMembership();
     }
 
