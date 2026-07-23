@@ -221,7 +221,7 @@ export class SoftwareUpdateManager extends Behavior {
      */
     async #initializeUpdateCheck() {
         try {
-            await this.#checkAvailableUpdates();
+            await this.checkForUpdates();
         } catch (error) {
             logger.notice(`Error during initial OTA update check:`, error);
         }
@@ -230,7 +230,7 @@ export class SoftwareUpdateManager extends Behavior {
         this.internal.checkForUpdateTimer = Time.getPeriodicTimer(
             "checkAvailableUpdates",
             this.state.updateCheckInterval,
-            this.callback(this.#checkAvailableUpdates),
+            this.callback(this.checkForUpdates),
         ).start();
     }
 
@@ -381,8 +381,12 @@ export class SoftwareUpdateManager extends Behavior {
         }
     }
 
-    /** Triggered by a Timer to call the update with different parameters */
-    async #checkAvailableUpdates() {
+    /**
+     * Check all commissioned peers for available updates and purge stored updates that are no longer needed.
+     *
+     * Runs automatically on a periodic timer but may also be invoked directly to force an immediate check.
+     */
+    async checkForUpdates() {
         await this.queryUpdates({ includeStoredUpdates: true });
         await this.#cleanupObsoleteUpdates();
     }
