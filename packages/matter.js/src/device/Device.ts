@@ -15,6 +15,8 @@ import { Endpoint, EndpointOptions } from "./Endpoint.js";
 /**
  * Temporary used device class for paired devices until we added a layer to choose the right specialized device class
  * based on the device classes and features of the paired device
+ *
+ * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
  */
 export class PairedDevice extends Endpoint {
     /**
@@ -24,6 +26,7 @@ export class PairedDevice extends Endpoint {
      * @param definition DeviceTypeDefinitions of the paired device as reported by the device
      * @param clusters Clusters of the paired device as reported by the device
      * @param endpointId Endpoint ID of the paired device as reported by the device
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     constructor(
         endpoint: NodeEndpoint,
@@ -40,10 +43,14 @@ export class PairedDevice extends Endpoint {
 
 /**
  * Root endpoint of a device. This is used internally and not needed to be instanced by the user.
+ *
+ * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
  */
 export class RootEndpoint extends Endpoint {
     /**
      * Create a new RootEndpoint instance. This is automatically instanced by the CommissioningServer class.
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     constructor(endpoint: NodeEndpoint) {
         super(endpoint, [getDeviceTypeDefinitionFromModelByCode(RootNodeDt.id)!], { endpointId: EndpointNumber(0) });
@@ -53,6 +60,7 @@ export class RootEndpoint extends Endpoint {
      * Add a cluster client to the root endpoint. This is mainly used internally and not needed to be called by the user.
      *
      * @param cluster ClusterClient object to add
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     addRootClusterClient(cluster: ClusterClientObj) {
         this.addClusterClient(cluster);
@@ -62,6 +70,7 @@ export class RootEndpoint extends Endpoint {
      * Get a cluster client from the root endpoint. This is mainly used internally and not needed to be called by the user.
      *
      * @param cluster ClusterClient to get or undefined if not existing
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     getRootClusterClient<const N extends ClusterType.Concrete>(cluster: N): ClusterClientObj<N["Typing"]> | undefined;
     getRootClusterClient(cluster: ClusterType.Concrete): ClusterClientObj | undefined {
@@ -75,6 +84,8 @@ export class RootEndpoint extends Endpoint {
 
 /**
  * Base class for all devices. This class should be extended by all devices.
+ *
+ * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
  */
 export class Device extends Endpoint {
     protected commandHandler = new NamedHandler<any>();
@@ -85,6 +96,7 @@ export class Device extends Endpoint {
      * @param endpoint Underlying ClientEndpoint instance
      * @param definition DeviceTypeDefinitions of the device
      * @param options Optional endpoint options
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     constructor(endpoint: NodeEndpoint, definition: DeviceTypeDefinition, options: EndpointOptions = {}) {
         if (definition.deviceClass === DeviceClasses.Node) {
@@ -99,6 +111,7 @@ export class Device extends Endpoint {
      *
      * @param command Command name to add a handler for
      * @param handler Handler function to be executed when the command is received
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     addCommandHandler(command: never, handler: HandlerFunction) {
         this.commandHandler.addHandler(command, handler);
@@ -110,6 +123,7 @@ export class Device extends Endpoint {
      *
      * @param command Command name to remove the handler from
      * @param handler Handler function to be removed
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     removeCommandHandler(command: never, handler: HandlerFunction) {
         this.commandHandler.removeHandler(command, handler);

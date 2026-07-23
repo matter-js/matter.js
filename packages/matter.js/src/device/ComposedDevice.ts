@@ -11,6 +11,8 @@ import { Endpoint, EndpointOptions } from "./Endpoint.js";
 /**
  * A ComposedDevice is a special endpoint that allows to combine multiple sub devices and expose this as one device
  * (e.g. a fan and a light).
+ *
+ * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
  */
 export class ComposedDevice extends Endpoint {
     /**
@@ -20,6 +22,7 @@ export class ComposedDevice extends Endpoint {
      * @param definition DeviceTypeDefinitions of the composed device
      * @param devices Array with devices that should be combined into one device that are directly added.
      * @param options Optional Endpoint options
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     constructor(
         endpoint: NodeEndpoint,
@@ -34,6 +37,7 @@ export class ComposedDevice extends Endpoint {
     /**
      * Add a sub-device to the composed device.
      * @param device Device instance to add
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     addDevice(device: Device) {
         this.addChildEndpoint(device);
@@ -43,6 +47,7 @@ export class ComposedDevice extends Endpoint {
      * Get all sub-devices of the composed device.
      *
      * @returns Array with all sub-devices
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     getDevices() {
         return this.getChildEndpoints();
@@ -50,6 +55,8 @@ export class ComposedDevice extends Endpoint {
 
     /**
      * Verify that the required clusters exists on the device.
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     override verifyRequiredClusters() {
         // TODO find out what to really check here and how ... most likely we need to verify that the added sub devices

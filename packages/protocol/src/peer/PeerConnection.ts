@@ -7,6 +7,7 @@
 import type { Message } from "#codec/MessageCodec.js";
 import { DiscoveryData } from "#common/Scanner.js";
 import type { ExchangeManager } from "#protocol/ExchangeManager.js";
+import { MRP } from "#protocol/MRP.js";
 import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
 import { CaseClient } from "#session/case/CaseClient.js";
 import type { NodeSession } from "#session/NodeSession.js";
@@ -531,6 +532,9 @@ export async function PeerConnection(
                 unsecuredSession,
                 network,
                 peerAdditionalMrpDelay,
+                SECURE_CHANNEL_PROTOCOL_ID,
+                undefined,
+                PeerConnection.establishmentUnresponsiveDetector(() => peer.establishmentUnresponsive.emit()),
             );
 
             info(
@@ -800,6 +804,25 @@ export namespace PeerConnection {
         handleError?: (error: Error) => Duration | void;
     }
 
+    /**
+     * Observes an establishment exchange's per-(re)transmission count and invokes {@link onUnresponsive} once the
+     * peer has failed to ack within the MRP budget ({@link MRP.MAX_TRANSMISSIONS}).  The latch re-arms whenever the
+     * count returns to zero, so a fresh message cycle or attempt can signal again.
+     */
+    export function establishmentUnresponsiveDetector(
+        onUnresponsive: () => void,
+    ): (retransmissionCount: number) => void {
+        let signaled = false;
+        return retransmissionCount => {
+            if (retransmissionCount === 0) {
+                signaled = false;
+            } else if (retransmissionCount > MRP.MAX_TRANSMISSIONS && !signaled) {
+                signaled = true;
+                onUnresponsive();
+            }
+        };
+    }
+
     export function createExchange(
         peer: Peer,
         exchanges: ExchangeManager,
@@ -808,6 +831,7 @@ export namespace PeerConnection {
         peerAdditionalMrpDelay?: Duration,
         protocol = SECURE_CHANNEL_PROTOCOL_ID,
         addressOverride?: ServerAddressUdp,
+        onRetransmit?: (retransmissionCount: number) => void,
     ) {
         return exchanges.initiateExchangeForSession(session, protocol, {
             onSend,
@@ -824,6 +848,7 @@ export namespace PeerConnection {
                 // beneficial to *not* do so when the network is congested
                 peer.service.status.isReachable = false;
             }
+            onRetransmit?.(retransmission);
         }
 
         function onReceive() {

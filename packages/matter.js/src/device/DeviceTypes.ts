@@ -10,6 +10,8 @@ import { ClusterId, DeviceTypeId } from "@matter/types";
 
 /**
  * General device classification categories.
+ *
+ * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
  */
 export enum DeviceClasses {
     /** Node device type. */
@@ -66,6 +68,7 @@ export enum DeviceClasses {
     BridgedPowerSourceInfo = "BridgedPowerSourceInfo",
 }
 
+/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
 export interface DeviceTypeDefinition {
     name: string;
     code: DeviceTypeId;
@@ -79,6 +82,7 @@ export interface DeviceTypeDefinition {
     unknown: boolean;
 }
 
+/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
 export const DeviceTypeDefinition = ({
     name,
     code,
@@ -120,6 +124,7 @@ export const DeviceTypeDefinition = ({
  */
 export const DeviceTypes: { [key: string]: DeviceTypeDefinition } = {};
 
+/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
 export const UnknownDeviceType = (code: number, revision: number) =>
     DeviceTypeDefinition({
         code,
@@ -137,6 +142,7 @@ export function getDeviceTypeDefinitionByCode(code: number): DeviceTypeDefinitio
 /** Cache of all device types dynamically generated from model. */
 const DynamicDeviceType: { [key: string]: DeviceTypeDefinition } = {};
 
+/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
 export function getDeviceTypeDefinitionFromModelByCode(code: number): DeviceTypeDefinition | undefined {
     if (DynamicDeviceType[code] !== undefined) {
         return DynamicDeviceType[code];

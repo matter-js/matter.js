@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Identify } from "@matter/types/clusters";
+import { IdentifyClient } from "@matter/node/behaviors/identify";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
+import { awaitSeeded } from "../util/awaitSeeded.js";
 
 export default function commands(theNode: MatterNode) {
     return {
@@ -34,17 +35,20 @@ export default function commands(theNode: MatterNode) {
 
         handler: async (argv: any) => {
             const { nodeId, time = 10, endpointId } = argv;
+            const nodes = await theNode.connectAndGetNodes(nodeId);
+            for (const node of nodes) {
+                await awaitSeeded(node);
+            }
             await theNode.iterateNodeDevices(
-                await theNode.connectAndGetNodes(nodeId),
+                nodes,
                 async (device, node) => {
-                    const identifyCluster = device.getClusterClient(Identify);
-                    if (identifyCluster === undefined) {
+                    if (device.number === 0 || !device.behaviors.has(IdentifyClient)) {
                         return;
                     }
-                    console.log("Invoke Identify for", node.nodeId.toString());
-                    await identifyCluster.identify({ identifyTime: time });
+                    console.log("Invoke Identify for", node.peerAddress?.nodeId.toString());
+                    await device.act(agent => agent.get(IdentifyClient).identify({ identifyTime: time }));
                 },
-                endpointId,
+                endpointId !== undefined ? [endpointId] : undefined,
             );
         },
     };

@@ -18,34 +18,56 @@ import {
 } from "@matter/types";
 import { DecodedEventData } from "./DecodedDataReport.js";
 
+/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
 export interface AttributeClientObj<T = any> {
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     readonly id: AttributeId;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     readonly attribute: ClusterType.Attribute<T>;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     readonly name: string;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     readonly endpointId: EndpointNumber | undefined;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     readonly clusterId: ClusterId;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     readonly fabricScoped: boolean;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     set(value: T, dataVersion?: number): Promise<void>;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     getLocal(): T | undefined;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get(requestFromRemote?: boolean, isFabricFiltered?: boolean): Promise<T | undefined>;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     subscribe(
         minIntervalFloorSeconds: number,
         maxIntervalCeilingSeconds: number,
         knownDataVersion?: number,
         isFabricFiltered?: boolean,
     ): Promise<{ maxInterval: number }>;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     update(value: T): void;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     addListener(listener: (newValue: T) => void): void;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     removeListener(listener: (newValue: T) => void): void;
 }
 
+/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
 export interface EventClientObj<T> {
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     readonly id: EventId;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     readonly event: ClusterType.Event<T>;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     readonly name: string;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     readonly endpointId: EndpointNumber | undefined;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     readonly clusterId: ClusterId;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get(minimumEventNumber?: EventNumber, isFabricFiltered?: boolean): Promise<DecodedEventData<T>[] | undefined>;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     subscribe(
         minIntervalFloorSeconds: Duration,
         maxIntervalCeilingSeconds: Duration,
@@ -53,8 +75,11 @@ export interface EventClientObj<T> {
         minimumEventNumber?: EventNumber,
         isFabricFiltered?: boolean,
     ): Promise<{ maxInterval: number }>;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     update(newEvent: DecodedEventData<T>): void;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     addListener(listener: (newValue: DecodedEventData<T>) => void): void;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     removeListener(listener: (newValue: DecodedEventData<T>) => void): void;
 }
 
@@ -62,23 +87,35 @@ export interface EventClientObj<T> {
 
 /**
  * Command options shared by all client command invocations.
+ *
+ * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
  */
 export interface ClientCommandOptions {
-    /** Send this command as a timed request also when not required. Default timeout are 10 seconds. */
+    /**
+     * Send this command as a timed request also when not required. Default timeout are 10 seconds.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     asTimedRequest?: boolean;
 
-    /** Override the request timeout when the command is sent as times request. Default are 10s. */
+    /**
+     * Override the request timeout when the command is sent as times request. Default are 10s.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     timedRequestTimeout?: Duration;
 
     /**
      * Expected processing time on the device side for this command.
      * useExtendedFailSafeMessageResponseTimeout is ignored if this value is set.
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     expectedProcessingTime?: Duration;
 
     /**
      * Use the extended fail-safe message response timeout of 30 seconds. Use this for all commands
      * executed during an activated FailSafe context!
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     useExtendedFailSafeMessageResponseTimeout?: boolean;
 }
@@ -175,6 +212,8 @@ type ClientCommandsRecord<C> = ClientCommands<C> & Record<string, (...args: any[
 
 /**
  * Strongly typed interface of a cluster client.
+ *
+ * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
  */
 export type ClusterClientObj<N extends ClusterTyping = ClusterTyping> = {
     id: ClusterId;
@@ -209,6 +248,7 @@ export type ClusterClientObj<N extends ClusterTyping = ClusterTyping> = {
     ClientEventSubscribers<N["Events"]> &
     ClientEventListeners<N["Events"]>;
 
+/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
 export type ClusterClientObjInternal = ClusterClientObj & {
     /**
      * Trigger an attribute update. This is mainly used internally and not needed to be called by the user.

@@ -15,6 +15,7 @@ import { InstanceDiscovery } from "#behavior/system/controller/discovery/Instanc
 import { PaseDiscovery } from "#behavior/system/controller/discovery/PaseDiscovery.js";
 import { IcdClient } from "#behavior/system/icd/IcdClient.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
+import { NetworkServer } from "#behavior/system/network/NetworkServer.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { BridgedDeviceBasicInformationClient } from "#behaviors/bridged-device-basic-information";
 import { IcdManagementClient } from "#behaviors/icd-management";
@@ -26,6 +27,7 @@ import { ClientGroup } from "#node/ClientGroup.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import {
+    Bytes,
     CancelablePromise,
     Diagnostic,
     Duration,
@@ -43,16 +45,21 @@ import {
     UninitializedDependencyError,
 } from "@matter/general";
 import {
+    ClientInteraction,
     ClientSubscriptionHandler,
     ClientSubscriptions,
     CommissioningError,
+    DiscoveryData,
+    FabricAuthority,
     FabricManager,
+    Invoke,
     Peer,
     PeerAddress,
     PeerLeftError,
     SessionManager,
 } from "@matter/protocol";
-import { FabricIndex } from "@matter/types";
+import { FabricIndex, NodeId, Status } from "@matter/types";
+import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { ClientNode } from "../ClientNode.js";
 import type { ServerNode } from "../ServerNode.js";
 import { ClientNodeFactory } from "./ClientNodeFactory.js";
@@ -74,6 +81,8 @@ export class Peers extends EndpointContainer<ClientNode> {
     #mutex = new Mutex(this);
     #closed = false;
     #commissioning = new Set<ClientNode>();
+    #instrumented = new WeakSet<ClientNode>();
+    #bridgedInstrumented = new WeakSet<Endpoint>();
 
     constructor(owner: ServerNode) {
         super(owner);
@@ -124,15 +133,17 @@ export class Peers extends EndpointContainer<ClientNode> {
     }
 
     async #nodeOnline() {
-        for (const peer of this) {
-            if (!peer.lifecycle.isCommissioned || peer.maybeStateOf("network")?.isDisabled) {
-                continue;
-            }
-            try {
-                await peer.start();
-            } catch (e) {
-                MatterError.accept(e);
-                logger.warn(`Error starting peer ${peer}:`, e);
+        if (this.owner.stateOf(NetworkServer).autoStartCommissionedPeers) {
+            for (const peer of this) {
+                if (!peer.lifecycle.isCommissioned || peer.maybeStateOf("network")?.isDisabled) {
+                    continue;
+                }
+                try {
+                    await peer.start();
+                } catch (e) {
+                    MatterError.accept(e);
+                    logger.warn(`Error starting peer ${peer}:`, e);
+                }
             }
         }
         this.#manageExpiration();
@@ -169,7 +180,7 @@ export class Peers extends EndpointContainer<ClientNode> {
      * Find a specific commissionable node and commission.
      */
     commission(options: CommissioningDiscovery.Options) {
-        return new CommissioningDiscovery(this.owner as ServerNode, options);
+        return new CommissioningDiscovery(this.owner, options);
     }
 
     /**
@@ -179,7 +190,135 @@ export class Peers extends EndpointContainer<ClientNode> {
      * performs the commissioning flow, or for raw PASE channel establishment.
      */
     pase(options: PaseDiscovery.Options) {
-        return new PaseDiscovery(this.owner as ServerNode, options);
+        return new PaseDiscovery(this.owner, options);
+    }
+
+    /**
+     * Complete a commissioning another commissioner started and handed off before the operational (CASE) step
+     * (see {@link CommissioningClient.CommissioningOptions.finalizeCommissioning}).  Operationally discovers and
+     * connects the node, sends {@link GeneralCommissioning} `CommissioningComplete` to disarm the failsafe and
+     * finalize, reads the node's structure and (unless `autoSubscribe` is false) subscribes — exactly as
+     * {@link commission} does, so the peer is seeded rather than a blind commissioned node — then registers it.
+     * `discoveryData` (from the hand-off) seeds operational discovery; `options` mirror the matching
+     * {@link commission} options.  Throws {@link CommissioningError} and removes the peer entry if discovery,
+     * connection, or `CommissioningComplete` fails.
+     */
+    async completeCommissioning(
+        nodeId: NodeId,
+        discoveryData?: DiscoveryData,
+        options?: Pick<
+            CommissioningClient.CommissioningOptions,
+            "autoSubscribe" | "defaultSubscription" | "autoStateInitialize"
+        >,
+    ): Promise<ClientNode> {
+        // Split commissioning can only finalize over THE fabric the initiating commissioner established (the one the
+        // device's NOC belongs to).  Require it to already exist rather than auto-creating an empty fabric, which would
+        // mask a misconfigured controller that can never succeed.  Match by CA root certificate, as FabricAuthority does.
+        const fabricAuthority = await this.owner.env.load(FabricAuthority);
+        const fabric = fabricAuthority.fabrics.find(f => Bytes.areEqual(f.rootCert, fabricAuthority.ca.rootCert));
+        if (fabric === undefined) {
+            throw new ImplementationError(
+                `Cannot complete commissioning for ${nodeId}: the controller does not hold the shared fabric it must be finalized on (import it first)`,
+            );
+        }
+
+        const address = fabric.addressOf(nodeId);
+
+        // forAddress() below returns the existing node for an already-commissioned address rather than creating one,
+        // and the catch block deletes that node on any failure (including a non-throwing CommissioningComplete
+        // errorCode). Without this guard a second completeCommissioning() call for the same peer — e.g. a duplicate
+        // hand-off or a retry — would resolve to the live peer and could delete it. Must check before forAddress()
+        // since that call sets peerAddress, which flips lifecycle.isCommissioned true immediately.
+        const existing = this.get(address);
+        if (existing?.lifecycle.isCommissioned) {
+            throw new ImplementationError(`${existing} is already commissioned`);
+        }
+
+        // Both-or-nothing: persist the fabric before forAddress() durably writes the node, so a persist failure aborts
+        // cleanly and never leaves a node referencing an unpersisted fabric.
+        await fabric.persist();
+
+        const node = await this.forAddress(address);
+
+        // Serialize like commission() so parallel finalize attempts on the same node cannot both send
+        // CommissioningComplete (the loser races on device failsafe state and would delete the winner's node).
+        return this.runCommissioning(node, async () => {
+            try {
+                if (discoveryData !== undefined) {
+                    // forAddress() already bound the live Peer (CommissioningClient#bindPeer fires as soon as
+                    // peerAddress is set), snapshotting an empty descriptor.  Seed the Peer directly so operational
+                    // discovery sees it; writing CommissioningClient.descriptor only updates state that nothing
+                    // re-reads.
+                    node.env.get(Peer).descriptor.discoveryData = discoveryData;
+                }
+
+                // Mirror commission()'s post-commission setup so start() reads the node's structure (latching
+                // `seeded`) and, unless opted out, establishes the sustained subscription — otherwise the finalized
+                // peer would be commissioned but blind, and `lifecycle.seeded` would never emit.
+                await node.act(agent => {
+                    const network = agent.get(NetworkClient);
+                    network.state.defaultSubscription = options?.defaultSubscription;
+                    network.state.autoSubscribe = options?.autoSubscribe !== false;
+                    network.state.autoStateInitialize = options?.autoStateInitialize;
+                    network.internal.isNewlyCommissioned = true;
+                });
+
+                await node.start();
+
+                // Low-level invoke so the finalize round-trip gets the extended failsafe response timeout, exactly as
+                // ControllerCommissioningFlow does; the generated command method cannot pass invoke options.
+                const invoke = Invoke({
+                    commands: [
+                        Invoke.ConcreteCommandRequest({
+                            endpoint: node,
+                            cluster: GeneralCommissioning,
+                            command: "commissioningComplete",
+                            fields: undefined,
+                        }),
+                    ],
+                    useExtendedFailSafeMessageResponseTimeout: true,
+                });
+
+                let response: GeneralCommissioning.CommissioningCompleteResponse | undefined;
+                for await (const chunk of (node.interaction as ClientInteraction).invoke(invoke)) {
+                    for (const entry of chunk) {
+                        if (entry.kind === "cmd-status" && entry.status !== Status.Success) {
+                            throw new CommissioningError(
+                                `CommissioningComplete failed for ${nodeId}: status ${entry.status}`,
+                            );
+                        }
+                        if (entry.kind === "cmd-response") {
+                            // DecodedCommandResponse.data is `any`; CommissioningComplete answers with errorCode/debugText.
+                            response = entry.data as GeneralCommissioning.CommissioningCompleteResponse;
+                        }
+                    }
+                }
+
+                if (response === undefined) {
+                    throw new CommissioningError(`CommissioningComplete for ${nodeId} returned no response`);
+                }
+                if (response.errorCode !== GeneralCommissioning.CommissioningError.Ok) {
+                    throw new CommissioningError(
+                        `CommissioningComplete failed for ${nodeId}: ${response.errorCode} ${response.debugText}`,
+                    );
+                }
+            } catch (error) {
+                // lifecycle.isCommissioned flips true the moment forAddress() sets peerAddress, before start() or
+                // CommissioningComplete run, so any failure up to this point (thrown or via CommissioningError above)
+                // would otherwise leave a phantom commissioned-looking node behind.  Once CommissioningComplete
+                // returns Ok below, the device has genuinely disarmed its failsafe and joined the fabric, so a
+                // failure persisting that fact locally must NOT delete the node.
+                try {
+                    await node.delete();
+                } catch (deleteError) {
+                    logger.warn(`Error deleting ${node} after failed commissioning completion:`, deleteError);
+                }
+                throw error;
+            }
+
+            await node.setStateOf(CommissioningClient, { commissionedAt: Time.nowMs });
+            return node;
+        });
     }
 
     /**
@@ -221,14 +360,20 @@ export class Peers extends EndpointContainer<ClientNode> {
         return this.owner.env.get(ClientStructureEvents).clusterInstalled(type);
     }
 
+    /** Commissioned operational peers. Excludes commissionable discoveries and group nodes. */
+    get commissioned(): ClientNode[] {
+        return [...this].filter(node => node.nodeType === "client" && node.lifecycle.isCommissioned);
+    }
+
     /**
-     * Emits when fixed attributes
+     * Look up a peer by numeric/string id or {@link PeerAddress}. A {@link PeerAddress} matches the commissioned
+     * peer whose {@link CommissioningClient} peer address equals it; otherwise the container's id lookup is used.
      */
     override get(id: number | string | PeerAddress) {
         if (typeof id !== "string" && typeof id !== "number") {
             const address = PeerAddress(id);
             for (const node of this) {
-                if (node.behaviors.active.some(({ id }) => id === "commissioning")) {
+                if (node.behaviors.active.some(behavior => behavior.id === "commissioning")) {
                     const nodeAddress = node.maybeStateOf("commissioning")?.peerAddress as PeerAddress | undefined;
                     if (nodeAddress !== undefined && PeerAddress.is(nodeAddress, address)) {
                         return node;
@@ -482,10 +627,46 @@ export class Peers extends EndpointContainer<ClientNode> {
             return;
         }
 
+        // clusterInstalled re-emits per node (endpoint-install, cluster-add, structure rebuilds), so register the
+        // device-event handlers below once per node to avoid duplicate side effects on repeat emits.
+        if (this.#instrumented.has(node)) {
+            this.#evaluateSeeded(node);
+            return;
+        }
+        this.#instrumented.add(node);
+
         node.eventsOf(type).leave?.on(({ fabricIndex }) => this.#onLeave(node, fabricIndex));
         node.eventsOf(type).shutDown?.on(() => this.#onShutdown(node));
         node.eventsOf(type).startUp?.on(() => this.#onStartUp(node));
         node.eventsOf(type).configurationVersion$Changed?.on(() => node.lifecycle.configurationVersionChanged.emit());
+
+        this.#evaluateSeeded(node);
+        if (!node.lifecycle.isSeeded) {
+            // Self-disposing: removes itself once seeding latches so no dead listener persists for the node's
+            // remaining lifetime.  Safe to call off() from within this callback because Observable#emit iterates a
+            // snapshot of its observers.
+            const onChanged = () => {
+                this.#evaluateSeeded(node);
+                if (node.lifecycle.isSeeded) {
+                    node.lifecycle.changed.off(onChanged);
+                }
+            };
+            node.lifecycle.changed.on(onChanged);
+        }
+    }
+
+    /**
+     * A node is seeded once its structure has been read at least once: BasicInformation is present and at least one
+     * endpoint beyond the root is present.  Re-evaluated on BasicInformation install and on any endpoint tree change.
+     */
+    #evaluateSeeded(node: ClientNode) {
+        if (node.lifecycle.isSeeded) {
+            return;
+        }
+        if (node.maybeStateOf(BasicInformationClient) === undefined || node.endpoints.size <= 1) {
+            return;
+        }
+        node.lifecycle.markSeeded(LocalActorContext.ReadOnly);
     }
 
     /**
@@ -493,6 +674,12 @@ export class Peers extends EndpointContainer<ClientNode> {
      * through the same endpoint lifecycle event used for the node's `BasicInformation`.
      */
     #instrumentBridgedConfigurationVersion(endpoint: Endpoint, type: typeof BridgedDeviceBasicInformationClient) {
+        // clusterInstalled re-emits per endpoint; register once
+        if (this.#bridgedInstrumented.has(endpoint)) {
+            return;
+        }
+        this.#bridgedInstrumented.add(endpoint);
+
         endpoint
             .eventsOf(type)
             .configurationVersion$Changed?.on(() => endpoint.lifecycle.configurationVersionChanged.emit());
@@ -538,7 +725,7 @@ export class Peers extends EndpointContainer<ClientNode> {
             // The reason is that we saw such cases and should prevent discarding a node directly after commissioning.
             // This solution still has some holes that could prevent removing nodes automatically, but best-effort
             // variant for now until we know how often that happens in practice.
-            if (!node.act(agent => agent.get(NetworkClient).subscriptionActive)) {
+            if (!(await node.act(agent => agent.get(NetworkClient).subscriptionActive))) {
                 logger.info(
                     "Leave event for peer",
                     Diagnostic.strong(node.id),
@@ -565,7 +752,7 @@ export class Peers extends EndpointContainer<ClientNode> {
 
         // Ignore shutdown events received during initial subscription establishment as they may be stale events
         // from before the device was restarted.  This mirrors the same guard in #onLeave.
-        if (!node.act(agent => agent.get(NetworkClient).subscriptionActive)) {
+        if (!(await node.act(agent => agent.get(NetworkClient).subscriptionActive))) {
             logger.debug(
                 "Shutdown event for peer",
                 Diagnostic.strong(node.id),
@@ -595,7 +782,7 @@ export class Peers extends EndpointContainer<ClientNode> {
 
         // Ignore startup events received during the initial subscription establishment
         // as they may be stale events from before the device was restarted.
-        if (!node.act(agent => agent.get(NetworkClient).subscriptionActive)) {
+        if (!(await node.act(agent => agent.get(NetworkClient).subscriptionActive))) {
             logger.debug(
                 "Startup event for peer",
                 Diagnostic.strong(node.id),
@@ -629,19 +816,15 @@ class Factory extends ClientNodeFactory {
     create(options: ClientNode.Options, peerAddress?: PeerAddress) {
         let node: ClientNode;
         if (peerAddress !== undefined && PeerAddress.isGroup(peerAddress)) {
-            if (options.id === undefined) {
-                options.id = `group${++this.#groupIdCounter}`;
-            }
             node = new ClientGroup({
                 ...options,
+                id: options.id ?? `group${++this.#groupIdCounter}`,
                 owner: this.#owner.owner,
             });
         } else {
-            if (options.id === undefined) {
-                options.id = this.#owner.owner.env.get(ServerNodeStore).clientStores.allocateId();
-            }
             node = new ClientNode({
                 ...options,
+                id: options.id ?? this.#owner.owner.env.get(ServerNodeStore).clientStores.allocateId(),
                 owner: this.#owner.owner,
             });
         }
