@@ -970,8 +970,10 @@ export class ControllerCommissioningFlow {
     }
 
     /**
-     * Recognise transport-level failures of `connectNetwork` that indicate the device has stopped
-     * responding on the commissioning channel — typically because it moved to the operational network.
+     * Recognise transport-level failures on the commissioning channel that indicate the device has
+     * stopped responding — typically because it moved to the operational network.  Some devices drop
+     * the channel the moment their operational network is configured (on `addOrUpdate*Network` or the
+     * follow-up networks read), others only on `connectNetwork`.
      *
      * Device-returned `NetworkingStatus != Success` is NOT a transport error; those are real
      * spec-level failures (bad credentials, unknown network, etc.) and must surface normally.
@@ -981,7 +983,7 @@ export class ControllerCommissioningFlow {
      * with a more specific cause ({@link PeerUnresponsiveError} from MRP timeouts,
      * {@link BleDisconnectedError} from BLE loss) that `causedBy` already matches.
      */
-    #isConnectNetworkTransportError(error: unknown) {
+    #isCommissioningChannelDrop(error: unknown) {
         return causedBy(
             error,
             BleDisconnectedError, // also matches BleChannelClosedError subclass
@@ -991,13 +993,13 @@ export class ControllerCommissioningFlow {
     }
 
     /**
-     * Respond to a transport-level `connectNetwork` failure by treating the device as non-concurrent:
-     * stop the periodic failsafe re-arm timer (BLE is gone anyway) and flip the flag so
-     * `#reconnectWithDevice` takes the non-concurrent path.
+     * Respond to a commissioning-channel drop by treating the device as non-concurrent: stop the
+     * periodic failsafe re-arm timer (BLE is gone anyway) and flip the flag so `#reconnectWithDevice`
+     * takes the non-concurrent path straight to operational discovery.
      */
-    #handleConnectNetworkTransportError(error: unknown) {
+    #handleCommissioningChannelDrop(error: unknown) {
         logger.warn(
-            "connectNetwork did not complete on the commissioning channel — assuming device is non-concurrent, proceeding to CASE",
+            "Commissioning channel dropped while configuring the operational network — assuming device is non-concurrent, proceeding to CASE",
             Diagnostic.errorMessage(asError(error)),
         );
         this.collectedCommissioningData.supportsConcurrentConnection = false;
@@ -1006,14 +1008,36 @@ export class ControllerCommissioningFlow {
     }
 
     /**
+     * Run a network-configuration interaction that may cause the device to leave the commissioning
+     * channel and classify the outcome.
+     *
+     * - `transportFailure: true` means the channel dropped (BLE/MRP gone); the flag has already been
+     *   flipped by {@link #handleCommissioningChannelDrop} and the caller should return
+     *   {@link CommissioningStepResultCode.Success} so the flow falls through into the non-concurrent
+     *   CASE reconnect path.
+     * - `transportFailure: false` carries the action's result for the caller to validate.
+     *
+     * Non-transport errors (real spec failures) propagate unchanged.
+     */
+    async #withCommissioningChannelDropFallback<T>(
+        action: () => Promise<T>,
+    ): Promise<{ transportFailure: true } | { transportFailure: false; value: T }> {
+        try {
+            return { transportFailure: false, value: await action() };
+        } catch (error) {
+            if (!this.#isCommissioningChannelDrop(error)) throw error;
+            this.#handleCommissioningChannelDrop(error);
+            return { transportFailure: true };
+        }
+    }
+
+    /**
      * Issue `NetworkCommissioning.connectNetwork` for the given network and classify the outcome.
      *
-     * - `transportFailure: true` means the invoke threw a transport-level error (BLE/MRP gone).
-     *   The caller should return {@link CommissioningStepResultCode.Success} so the flow falls
-     *   through into the non-concurrent CASE reconnect path — the failsafe flag has already
-     *   been flipped by {@link #handleConnectNetworkTransportError}.
-     * - `transportFailure: false` carries the device's actual response and is the caller's job
-     *   to validate ({@link NetworkCommissioning.NetworkCommissioningStatus}, debug text, etc).
+     * - `transportFailure: true` means the channel dropped mid-connect; the caller returns Success to
+     *   fall through into the non-concurrent CASE reconnect path.
+     * - `transportFailure: false` carries the device's actual response and is the caller's job to
+     *   validate ({@link NetworkCommissioning.NetworkCommissioningStatus}, debug text, etc).
      *
      * Shared between the WiFi and Thread paths so the try/catch + ensureFailsafe dance lives in
      * one place and both media stay in lockstep.
@@ -1023,8 +1047,8 @@ export class ControllerCommissioningFlow {
         connectMaxTimeSeconds: number,
     ): Promise<{ transportFailure: true } | { transportFailure: false; networkingStatus: number; debugText?: string }> {
         await this.#ensureFailsafeTimerFor(this.#connectNetworkFailsafeTime(connectMaxTimeSeconds));
-        try {
-            const { networkingStatus, debugText } = await this.#invokeCommand(
+        const result = await this.#withCommissioningChannelDropFallback(() =>
+            this.#invokeCommand(
                 {
                     endpoint: RootEndpointNumber,
                     cluster: NetworkCommissioning,
@@ -1037,13 +1061,13 @@ export class ControllerCommissioningFlow {
                 {
                     expectedProcessingTime: Seconds(connectMaxTimeSeconds),
                 },
-            );
-            return { transportFailure: false, networkingStatus, debugText };
-        } catch (error) {
-            if (!this.#isConnectNetworkTransportError(error)) throw error;
-            this.#handleConnectNetworkTransportError(error);
+            ),
+        );
+        if (result.transportFailure) {
             return { transportFailure: true };
         }
+        const { networkingStatus, debugText } = result.value;
+        return { transportFailure: false, networkingStatus, debugText };
     }
 
     async #resetFailsafeTimer() {
@@ -1625,57 +1649,69 @@ export class ControllerCommissioningFlow {
             }
         }
 
-        const {
-            networkingStatus: addNetworkingStatus,
-            debugText: addDebugText,
-            networkIndex,
-        } = await this.#invokeCommand(
-            {
-                endpoint: RootEndpointNumber,
-                cluster: NetworkCommissioning,
-                command: "addOrUpdateWiFiNetwork",
-                fields: {
-                    ssid,
-                    credentials,
-                    breadcrumb: this.lastBreadcrumb++,
-                },
-            },
-            {
-                useExtendedFailSafeMessageResponseTimeout: true,
-            },
-        );
+        // The device may drop the (BLE) commissioning channel the moment its network is configured,
+        // before connectNetwork — and once it is gone the failsafe can no longer be re-armed. Arm the
+        // full connect + CASE reconnect window up front so an early drop still leaves time to reconnect.
+        await this.#ensureFailsafeTimerFor(this.#connectNetworkFailsafeTime(connectMaxTimeSeconds));
 
-        if (addNetworkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
-            throw new WifiNetworkSetupFailedError(
-                `Commissionee failed to add WiFi network "${this.commissioningOptions.wifiNetwork.wifiSsid}"${addDebugText ? `: ${addDebugText}` : ""}${wifiScanFailureHint !== undefined ? ` (${wifiScanFailureHint} - verify network name and availability)` : ""}`,
-            );
-        }
-        if (networkIndex === undefined) {
-            throw new WifiNetworkSetupFailedError(`Commissionee did not return network index`);
-        }
-        logger.debug(
-            `Commissionee added WiFi network ${this.commissioningOptions.wifiNetwork.wifiSsid} with network index ${networkIndex}`,
-        );
-
-        const [updatedNetworks] = await this.#readConcreteAttributeValues(
-            Read(
-                Read.Attribute({
+        const wifiNetwork = this.commissioningOptions.wifiNetwork;
+        const addResult = await this.#withCommissioningChannelDropFallback(async () => {
+            const {
+                networkingStatus: addNetworkingStatus,
+                debugText: addDebugText,
+                networkIndex,
+            } = await this.#invokeCommand(
+                {
                     endpoint: RootEndpointNumber,
                     cluster: NetworkCommissioning,
-                    attributes: ["networks"],
-                }),
-            ),
-        );
-        if (updatedNetworks[networkIndex] === undefined) {
-            throw new WifiNetworkSetupFailedError(`Commissionee did not return network with index ${networkIndex}`);
+                    command: "addOrUpdateWiFiNetwork",
+                    fields: {
+                        ssid,
+                        credentials,
+                        breadcrumb: this.lastBreadcrumb++,
+                    },
+                },
+                {
+                    useExtendedFailSafeMessageResponseTimeout: true,
+                },
+            );
+
+            if (addNetworkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
+                throw new WifiNetworkSetupFailedError(
+                    `Commissionee failed to add WiFi network "${wifiNetwork.wifiSsid}"${addDebugText ? `: ${addDebugText}` : ""}${wifiScanFailureHint !== undefined ? ` (${wifiScanFailureHint} - verify network name and availability)` : ""}`,
+                );
+            }
+            if (networkIndex === undefined) {
+                throw new WifiNetworkSetupFailedError(`Commissionee did not return network index`);
+            }
+            logger.debug(`Commissionee added WiFi network ${wifiNetwork.wifiSsid} with network index ${networkIndex}`);
+
+            const [updatedNetworks] = await this.#readConcreteAttributeValues(
+                Read(
+                    Read.Attribute({
+                        endpoint: RootEndpointNumber,
+                        cluster: NetworkCommissioning,
+                        attributes: ["networks"],
+                    }),
+                ),
+            );
+            if (updatedNetworks[networkIndex] === undefined) {
+                throw new WifiNetworkSetupFailedError(`Commissionee did not return network with index ${networkIndex}`);
+            }
+            return updatedNetworks[networkIndex];
+        });
+        if (addResult.transportFailure) {
+            return {
+                code: CommissioningStepResultCode.Success,
+                breadcrumb: this.lastBreadcrumb,
+            };
         }
-        const { networkId, connected } = updatedNetworks[networkIndex];
+
+        const { networkId, connected } = addResult.value;
         if (connected) {
             this.collectedCommissioningData.successfullyConnectedToNetwork = true;
             logger.debug(
-                `Commissionee is already connected to WiFi network ${
-                    this.commissioningOptions.wifiNetwork.wifiSsid
-                } (networkId ${Bytes.toHex(networkId)})`,
+                `Commissionee is already connected to WiFi network ${wifiNetwork.wifiSsid} (networkId ${Bytes.toHex(networkId)})`,
             );
             return {
                 code: CommissioningStepResultCode.Success,
@@ -1818,55 +1854,72 @@ export class ControllerCommissioningFlow {
             }
         }
 
-        const {
-            networkingStatus: addNetworkingStatus,
-            debugText: addDebugText,
-            networkIndex,
-        } = await this.#invokeCommand(
-            {
-                endpoint: RootEndpointNumber,
-                cluster: NetworkCommissioning,
-                command: "addOrUpdateThreadNetwork",
-                fields: {
-                    operationalDataset: Bytes.fromHex(this.commissioningOptions.threadNetwork.operationalDataset),
-                    breadcrumb: this.lastBreadcrumb++,
-                },
-            },
-            {
-                useExtendedFailSafeMessageResponseTimeout: true,
-            },
-        );
+        // The device may drop the (BLE) commissioning channel the moment its network is configured,
+        // before connectNetwork — and once it is gone the failsafe can no longer be re-armed. Arm the
+        // full connect + CASE reconnect window up front so an early drop still leaves time to reconnect.
+        await this.#ensureFailsafeTimerFor(this.#connectNetworkFailsafeTime(connectMaxTimeSeconds));
 
-        if (addNetworkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
-            throw new ThreadNetworkSetupFailedError(
-                `Commissionee failed to add Thread network: status=${NetworkCommissioning.NetworkCommissioningStatus[addNetworkingStatus]} (${addNetworkingStatus})${addDebugText ? `, ${addDebugText}` : ""}${threadScanFailureHint !== undefined ? ` (${threadScanFailureHint} - verify network name and availability)` : ""}`,
-            );
-        }
-        if (networkIndex === undefined) {
-            throw new ThreadNetworkSetupFailedError(`Commissionee did not return network index`);
-        }
-        logger.debug(
-            `Commissionee added Thread network ${networkName ?? "via operational dataset"} with network index ${networkIndex}`,
-        );
-
-        const [updatedNetworks] = await this.#readConcreteAttributeValues(
-            Read(
-                Read.Attribute({
+        const threadNetwork = this.commissioningOptions.threadNetwork;
+        const addResult = await this.#withCommissioningChannelDropFallback(async () => {
+            const {
+                networkingStatus: addNetworkingStatus,
+                debugText: addDebugText,
+                networkIndex,
+            } = await this.#invokeCommand(
+                {
                     endpoint: RootEndpointNumber,
                     cluster: NetworkCommissioning,
-                    attributes: ["networks"],
-                }),
-            ),
-        );
+                    command: "addOrUpdateThreadNetwork",
+                    fields: {
+                        operationalDataset: Bytes.fromHex(threadNetwork.operationalDataset),
+                        breadcrumb: this.lastBreadcrumb++,
+                    },
+                },
+                {
+                    useExtendedFailSafeMessageResponseTimeout: true,
+                },
+            );
 
-        if (updatedNetworks[networkIndex] === undefined) {
-            throw new ThreadNetworkSetupFailedError(`Commissionee did not return network with index ${networkIndex}`);
+            if (addNetworkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
+                throw new ThreadNetworkSetupFailedError(
+                    `Commissionee failed to add Thread network: status=${NetworkCommissioning.NetworkCommissioningStatus[addNetworkingStatus]} (${addNetworkingStatus})${addDebugText ? `, ${addDebugText}` : ""}${threadScanFailureHint !== undefined ? ` (${threadScanFailureHint} - verify network name and availability)` : ""}`,
+                );
+            }
+            if (networkIndex === undefined) {
+                throw new ThreadNetworkSetupFailedError(`Commissionee did not return network index`);
+            }
+            logger.debug(
+                `Commissionee added Thread network ${networkName ?? "via operational dataset"} with network index ${networkIndex}`,
+            );
+
+            const [updatedNetworks] = await this.#readConcreteAttributeValues(
+                Read(
+                    Read.Attribute({
+                        endpoint: RootEndpointNumber,
+                        cluster: NetworkCommissioning,
+                        attributes: ["networks"],
+                    }),
+                ),
+            );
+            if (updatedNetworks[networkIndex] === undefined) {
+                throw new ThreadNetworkSetupFailedError(
+                    `Commissionee did not return network with index ${networkIndex}`,
+                );
+            }
+            return updatedNetworks[networkIndex];
+        });
+        if (addResult.transportFailure) {
+            return {
+                code: CommissioningStepResultCode.Success,
+                breadcrumb: this.lastBreadcrumb,
+            };
         }
-        const { networkId, connected } = updatedNetworks[networkIndex];
+
+        const { networkId, connected } = addResult.value;
         if (connected) {
             logger.debug(
                 `Commissionee is already connected to Thread network ${
-                    this.commissioningOptions.threadNetwork.networkName ?? "via operational dataset"
+                    threadNetwork.networkName ?? "via operational dataset"
                 } (networkId ${Bytes.toHex(networkId)})`,
             );
             return {
