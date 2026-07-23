@@ -13,3 +13,5 @@ isolated-*.log
 /.caude/
 .claude/
 docs/plans/
+.device-*/
+.matter-shell-*/
