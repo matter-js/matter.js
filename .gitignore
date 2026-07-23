@@ -15,3 +15,5 @@ isolated-*.log
 docs/plans/
 .device-*/
 .matter-shell-*/
+docs/superpowers/
+support/chip-testing/.matter-test.json.test
