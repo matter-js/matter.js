@@ -383,6 +383,35 @@ describe("ClientNode", () => {
         expect(nodeIds).contains(NodeId(2));
     });
 
+    it("rejects an explicit node ID already held by a restored peer after a restart", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const usedNodeId = [...controller.peers][0].peerAddress!.nodeId;
+
+        // *** RESTART controller ***
+        await site.close();
+        const controllerB = await site.addNode(undefined, { id: "controller1", index: 1 });
+        expect(controllerB.peers.size).equals(1);
+
+        const device = await site.addDevice({ commissioning: { discriminator: 999, passcode: 22223333 } });
+
+        const discovered = await MockTime.resolve(
+            controllerB.peers.discover({ longDiscriminator: 999, timeout: Seconds(30) }),
+            { macrotasks: true },
+        );
+        const candidate = discovered[0];
+        expect(candidate).not.undefined;
+
+        // Wrong passcode: the conflict must be reported before PASE, proving the restored peer's ID is seen as in use
+        await MockTime.resolve(
+            expect(candidate.commission({ passcode: 11112222, discriminator: 999, nodeId: usedNodeId })).rejectedWith(
+                /already in use/i,
+            ),
+        );
+
+        expect(device.state.commissioning.commissioned).equals(false);
+    });
+
     it("rejects node-level commissioning without known addresses", async () => {
         await using site = new MockSite();
         const { controller, device } = await site.addUncommissionedPair();
