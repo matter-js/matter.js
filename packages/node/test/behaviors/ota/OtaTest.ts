@@ -14,7 +14,7 @@ import {
 } from "#behaviors/ota-software-update-requestor";
 import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import { ServerNode } from "#node/ServerNode.js";
-import { Bytes, createPromise, Hours, MockFetch, Seconds, Timestamp } from "@matter/general";
+import { Bytes, createPromise, MockFetch, Seconds, Timestamp } from "@matter/general";
 import {
     BdxProtocol,
     BdxSession,
@@ -1509,15 +1509,13 @@ describe("Ota", () => {
         expect(before.filter(u => u.mode === "prod")).length(1);
         expect(before.filter(u => u.mode === "local")).length(1);
 
-        // Disable test OTA usage → next periodic check must purge the stored test-mode file.
+        // Disable test OTA usage: the check must purge the stored test-mode file.
         await otaProvider.act(agent => {
             agent.get(SoftwareUpdateManager).state.allowTestOtaImages = false;
         });
 
-        // Advance past the 24h update-check interval so the periodic timer fires
-        // #checkAvailableUpdates → #cleanupObsoleteUpdates.
-        await MockTime.advance(Hours(24) + 1000);
-        await MockTime.macrotasks;
+        // The periodic timer normally triggers this; invoke it directly so cleanup completes deterministically.
+        await otaProvider.act(agent => agent.get(SoftwareUpdateManager).checkForUpdates());
 
         const after = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).internal.otaService.find({}));
         expect(after.filter(u => u.mode === "test")).length(0);

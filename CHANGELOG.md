@@ -15,6 +15,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `Heap` now stores each item at most once and maintains its position index eagerly, so deleting an item added after an earlier deletion works reliably
 
 - @matter/node
+    - Enhancement: `SoftwareUpdateManager.checkForUpdates()` forces an immediate OTA update check and cleanup of obsolete stored updates
     - Enhancement: Custom server session intervals (idle/active interval, active threshold) are now configurable via `sessions.intervals`
     - Fix: Optimize Cluster data updates when structures change for ClientNodes
     - Fix: Prevent subscriptions from being activated on a closing session
