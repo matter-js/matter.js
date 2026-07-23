@@ -7,7 +7,7 @@
 import { AccessControlServer } from "#behaviors/access-control";
 import { GroupKeyManagementServer } from "#behaviors/group-key-management";
 import { GroupcastServer } from "#behaviors/groupcast";
-import { ipv6ToBytes } from "@matter/general";
+import { Environment, ipv6ToBytes } from "@matter/general";
 import { AccessLevel } from "@matter/model";
 import { FabricManager, IANA_GROUPCAST_MULTICAST_ADDRESS, SessionManager } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, GroupId, MATTER_EPOCH_OFFSET_US, NodeId } from "@matter/types";
@@ -956,6 +956,40 @@ describe("GroupcastServer", () => {
             expect(events[1].groupId).equal(undefined);
             expect(events[1].sourceIpAddress).deep.equal(ipv6ToBytes("fe80::1"));
             expect(events[1].destinationIpAddress).deep.equal(ipv6ToBytes(IANA_GROUPCAST_MULTICAST_ADDRESS));
+        });
+    });
+
+    describe("persistence", () => {
+        it("persists groupProperties across reload", async () => {
+            const environment = new Environment("test");
+            const node = await MockServerNode.createOnline(GroupcastRootEndpoint, {
+                id: "groupcast-persistence",
+                device: undefined,
+                environment,
+            });
+            const fabric = await node.addFabric();
+
+            await node.online({ command: true }, agent => {
+                agent.get(GroupcastServer).state.groupProperties = [
+                    {
+                        fabricIndex: fabric.fabricIndex,
+                        groupId: GroupId(0x0101),
+                        mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                        hasAuxiliaryAcl: false,
+                    },
+                ];
+            });
+
+            await node.close();
+
+            const reloaded = await MockServerNode.createOnline(GroupcastRootEndpoint, {
+                id: "groupcast-persistence",
+                device: undefined,
+                environment,
+            });
+            expect(reloaded.stateOf(GroupcastServer).groupProperties).length(1);
+            expect(reloaded.stateOf(GroupcastServer).groupProperties[0].groupId).equals(0x0101);
+            await reloaded.close();
         });
     });
 });

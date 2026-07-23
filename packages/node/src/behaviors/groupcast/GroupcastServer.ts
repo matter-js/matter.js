@@ -20,7 +20,7 @@ import {
     Time,
     Timer,
 } from "@matter/general";
-import { AccessLevel, DataModelPath } from "@matter/model";
+import { AccessLevel, DataModelPath, DatatypeElement, FieldElement } from "@matter/model";
 import {
     AccessControl,
     assertRemoteActor,
@@ -54,6 +54,40 @@ function toIpv6EventAddress(ip: string | undefined) {
     return isIPv6(address) ? ipv6ToBytes(address) : undefined;
 }
 
+const GroupcastBase = GroupcastBehavior;
+
+// GroupProperties persists per-group policy metadata (excluding Membership's KeySetId/Endpoints fields) so a later
+// derivation step can rebuild Membership from this state alone. Has no numeric attribute id, so it stays
+// server-only and is never enumerated or wire-encoded as a cluster attribute.
+const groupPropertiesStructFS = DatatypeElement(
+    { name: "GroupPropertiesStruct", type: "struct" },
+    FieldElement({ name: "GroupId", id: 0x0, type: "group-id", access: "F", conformance: "M", constraint: "min 1" }),
+    FieldElement({
+        name: "McastAddrPolicy",
+        id: 0x1,
+        type: "MulticastAddrPolicyEnum",
+        access: "F",
+        conformance: "M",
+        default: 0,
+    }),
+    FieldElement({ name: "HasAuxiliaryAcl", id: 0x2, type: "bool", access: "F", conformance: "M" }),
+    FieldElement({ name: "FabricIndex", id: 0xfe, type: "FabricIndex", conformance: "M" }),
+);
+const schema = GroupcastBase.schema.extend(
+    {},
+    groupPropertiesStructFS,
+    FieldElement(
+        {
+            name: "groupProperties",
+            type: "list",
+            quality: "N",
+            access: "RW F",
+            conformance: "M",
+        },
+        FieldElement({ name: "entry", type: "GroupPropertiesStruct" }),
+    ),
+);
+
 /**
  * This is the default server implementation of {@link GroupcastBehavior}.
  *
@@ -67,8 +101,10 @@ function toIpv6EventAddress(ip: string | undefined) {
  *   with `hasAuxiliaryAcl=true`. AccessControlServer calls back to collect entries when needed.
  * - Migrates legacy group data from the Groups cluster on startup.
  */
-export class GroupcastServer extends GroupcastBehavior {
+export class GroupcastServer extends GroupcastBase {
     declare internal: GroupcastServer.Internal;
+    declare readonly state: GroupcastServer.State;
+    static override readonly schema = schema;
 
     /** Timer for GroupcastTesting auto-disable. */
     #testingTimer?: Timer;
@@ -825,6 +861,14 @@ export namespace GroupcastServer {
         groupMessageHandler?: (info: GroupMessageEventInfo) => void;
     }
 
+    /** A single persisted {@link GroupcastServer.State.groupProperties} entry. */
+    export type GroupPropertiesEntry = {
+        fabricIndex: FabricIndex;
+        groupId: GroupId;
+        mcastAddrPolicy: Groupcast.MulticastAddrPolicy;
+        hasAuxiliaryAcl: boolean;
+    };
+
     /** Default state overrides for GroupcastServer. */
     export class State extends GroupcastBehavior.State {
         /**
@@ -835,5 +879,8 @@ export namespace GroupcastServer {
         override maxMembershipCount = 44;
         /** Implementation-defined maximum multicast address count (min 1 per spec). */
         override maxMcastAddrCount = 44;
+
+        /** Persisted per-group policy metadata. Unused until a later task derives Membership from this state. */
+        groupProperties: GroupPropertiesEntry[] = new Array<GroupPropertiesEntry>();
     }
 }
