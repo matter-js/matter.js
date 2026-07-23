@@ -351,6 +351,38 @@ describe("ClientNode", () => {
         expect(controllerB.peers.get("device")).not.undefined;
     });
 
+    it("assigns an unused node ID when commissioning after a restart with existing peers", async () => {
+        await using site = new MockSite();
+
+        // Commission a first device, which receives node ID 1
+        const { controller } = await site.addCommissionedPair();
+        expect(controller.peers.size).equals(1);
+        expect([...controller.peers][0].state.commissioning.peerAddress?.nodeId).equals(NodeId(1));
+
+        // *** RESTART controller ***
+        await site.close();
+        const controllerB = await site.addNode(undefined, { id: "controller1", index: 1 });
+        expect(controllerB.peers.size).equals(1);
+
+        // Commission a second device without an explicit node ID.  The allocator must skip the restored
+        // peer's node ID rather than offer it and later reject it as already commissioned.
+        const device2 = await site.addDevice();
+        const controllerCrypto = controllerB.env.get(Crypto) as MockCrypto;
+        const device2Crypto = device2.env.get(Crypto) as MockCrypto;
+        controllerCrypto.entropic = device2Crypto.entropic = true;
+
+        const { passcode, discriminator } = device2.state.commissioning;
+        await MockTime.resolve(controllerB.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
+            macrotasks: true,
+        });
+        controllerCrypto.entropic = device2Crypto.entropic = false;
+
+        expect(controllerB.peers.size).equals(2);
+        const nodeIds = [...controllerB.peers].map(n => n.state.commissioning.peerAddress?.nodeId);
+        expect(nodeIds).contains(NodeId(1));
+        expect(nodeIds).contains(NodeId(2));
+    });
+
     it("rejects node-level commissioning without known addresses", async () => {
         await using site = new MockSite();
         const { controller, device } = await site.addUncommissionedPair();
@@ -1406,7 +1438,13 @@ describe("ClientNode", () => {
             expect(typeof state).equals("object");
             expect((state as Val.Struct)[1]).equals("hello");
             expect((state as Val.Struct).attr$1).equals("hello");
-            expect((state as Val.Struct).attr$14).deep.equals(optList); // Attribute 20
+            expect((state as Val.Struct)[20]).deep.equals(optList); // by numeric attribute ID
+            expect((state as Val.Struct).attr$14).deep.equals(optList); // by name (ID 20 = 0x14)
+
+            const stateById = (peer.state as Record<number, Val.Struct>)[0x1234_fc01];
+            expect(typeof stateById).equals("object");
+            expect(stateById[20]).deep.equals(optList);
+            expect(stateById.attr$14).deep.equals(optList);
         }
     });
 
