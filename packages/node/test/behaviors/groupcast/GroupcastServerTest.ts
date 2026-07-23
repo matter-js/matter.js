@@ -1039,6 +1039,90 @@ describe("GroupcastServer", () => {
         });
     });
 
+    describe("derived membership", () => {
+        it("derives Membership from groupProperties + GKM tables", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0102),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 3,
+                    key: TEST_KEY,
+                    useAuxiliaryAcl: true,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            const m = node.stateOf(GroupcastServer).membership.find(x => x.groupId === 0x0102);
+            expect(m).not.equals(undefined);
+            expect(m!.endpoints).deep.equals([EndpointNumber(1)]);
+            expect(m!.keySetId).equals(3);
+            expect(m!.hasAuxiliaryAcl).equals(true);
+            expect(m!.mcastAddrPolicy).equals(Groupcast.MulticastAddrPolicy.IanaAddr);
+        });
+
+        it("Membership survives reload via derived sources", async () => {
+            const environment = new Environment("test");
+            const node = await MockServerNode.createOnline(GroupcastRootEndpoint, {
+                id: "groupcast-derive-reload",
+                device: undefined,
+                environment,
+            });
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0102),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 3,
+                    key: TEST_KEY,
+                    useAuxiliaryAcl: true,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+            const before = node.stateOf(GroupcastServer).membership;
+            await node.close();
+
+            const reloaded = await MockServerNode.createOnline(GroupcastRootEndpoint, {
+                id: "groupcast-derive-reload",
+                device: undefined,
+                environment,
+            });
+            expect(reloaded.stateOf(GroupcastServer).membership).deep.equals(before);
+            await reloaded.close();
+        });
+
+        it("Membership$Changed fires on join", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+
+            let fired = false;
+            node.eventsOf(GroupcastServer).membership$Changed.on(() => {
+                fired = true;
+            });
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0001),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            expect(fired).equals(true);
+        });
+    });
+
     describe("persistence", () => {
         it("persists groupProperties across reload", async () => {
             const environment = new Environment("test");
