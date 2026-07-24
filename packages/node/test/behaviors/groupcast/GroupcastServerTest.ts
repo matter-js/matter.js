@@ -1219,6 +1219,36 @@ describe("GroupcastServer", () => {
         });
     });
 
+    describe("shutdown cleanup", () => {
+        it("drops joined multicast memberships on shutdown so the socket can close", async () => {
+            const environment = new Environment("test");
+            const node = await MockServerNode.createOnline(IanaOnlyRootEndpoint, {
+                id: "groupcast-shutdown-drop",
+                device: undefined,
+                environment,
+            });
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+
+            await node.online({ exchange: fabricExchange(fi, AccessLevel.Administer), command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0001),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            const network = node.env.get(Network) as MockNetwork;
+            expect(network.isMemberOf(IANA_GROUPCAST_MULTICAST_ADDRESS)).equal(true);
+
+            // A Node dgram socket left with active multicast memberships can hang on close(); shutdown must drop them.
+            await node.close();
+            expect(network.isMemberOf(IANA_GROUPCAST_MULTICAST_ADDRESS)).equal(false);
+        });
+    });
+
     describe("groupcastTesting events", () => {
         it("derives multicast destination and source addresses for testing events", async () => {
             await using node = await createGroupcastNode();
