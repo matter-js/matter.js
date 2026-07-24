@@ -204,11 +204,27 @@ export class ServerGroupNetworking {
         observers.on(fabric.groups.multicastPolicy.deleted, rebind);
     }
 
-    close() {
+    async close() {
         this.#construction.close();
         this.#observers.close();
         this.#fabricObservers.forEach(observer => observer.close());
-        this.#activeGroupMemberships.clear();
         this.#fabricObservers.clear();
+
+        // Leave every joined multicast group before the shared UDP socket is torn down.  A Node dgram socket left
+        // with active memberships can hang on close(), which would block the runtime shutdown from completing.
+        const addresses = new Set<string>();
+        for (const memberships of this.#activeGroupMemberships.values()) {
+            for (const address of memberships.values()) {
+                addresses.add(address);
+            }
+        }
+        this.#activeGroupMemberships.clear();
+        for (const address of addresses) {
+            try {
+                await this.#udpInterface.dropMembership(address);
+            } catch (error) {
+                logger.debug(`Error dropping multicast membership ${address} during close`, error);
+            }
+        }
     }
 }
