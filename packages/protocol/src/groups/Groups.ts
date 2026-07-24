@@ -28,8 +28,8 @@ export class Groups {
 
     /**
      * Per-group multicast address policy (Groupcast cluster, Matter 1.6). Defaults to PerGroupId when not set.
-     * A {@link BasicMap} so consumers (e.g. multicast socket membership) can react to policy changes via its
-     * added/changed/deleted observables, independent of {@link endpointMap} add/remove ordering.
+     * A {@link BasicMap} so multicast-membership consumers can rebind on a policy change independent of
+     * {@link endpointMap} ordering.
      */
     readonly #groupMulticastPolicy = new BasicMap<GroupId, GroupMulticastPolicy>();
 

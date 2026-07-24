@@ -139,10 +139,8 @@ export class ServerGroupNetworking {
      */
     async #rebindGroupMembership(groupId: GroupId, fabric: Fabric) {
         const fabricIndex = fabric.fabricIndex;
-        // BasicMap emits added/changed/deleted before committing the mutation to the underlying Map (see Map.ts),
-        // so both the resolved address and the currently-joined address must be read AFTER a one-microtask yield
-        // that lets the emitting set()/delete() commit.  Reading live state post-yield also lets back-to-back
-        // policy changes for the same group converge without a redundant rebind.
+        // Yield first: the policy map emits its change event before committing the value, so a synchronous read
+        // would see the stale address.  The yield also collapses back-to-back changes into one rebind.
         await Promise.resolve();
         const memberships = this.#activeGroupMemberships.get(fabricIndex);
         const oldAddress = memberships?.get(groupId);

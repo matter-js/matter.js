@@ -244,8 +244,8 @@ export class GroupcastServer extends GroupcastBase {
         const gkm = this.agent.get(GroupKeyManagementServer);
         const fabric = this.env.get(FabricManager).for(fabricIndex);
 
-        // The multicast policy must be in place before endpoints are written: the endpoint map update triggers
-        // ServerGroupNetworking to bind the multicast address via multicastAddressFor, which reads the policy map.
+        // Set the policy before writing endpoints so the endpoint-driven multicast bind uses the right address up
+        // front and avoids a follow-up rebind (correctness no longer depends on this order — see #rebindGroupMembership).
         fabric.groups.setGroupMulticastPolicy(
             groupId,
             policy === Groupcast.MulticastAddrPolicy.PerGroup ? "perGroupId" : "ianaAddr",
