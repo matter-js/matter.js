@@ -337,3 +337,14 @@ async function getConfiguration() {
         bridgedInfoConfigVersionTimerEnabled,
     };
 }
+
+/**
+ * To correctly tear down the server we can use server.close().
+ */
+process.on("SIGINT", () => {
+    // Clean up on CTRL-C
+    server
+        .close()
+        .then(() => process.exit(0))
+        .catch(err => console.error(err));
+});
