@@ -13,4 +13,8 @@ isolated-*.log
 /.caude/
 .claude/
 docs/plans/
+.device-*/
+.matter-shell-*/
+docs/superpowers/
+support/chip-testing/.matter-test.json.test
 examples/device-sve-bridge/.sve/

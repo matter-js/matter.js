@@ -26,8 +26,12 @@ export class Groups {
     /** Operational variant of the group table, maps group Ids to a list of enabled endpoints. */
     readonly endpointMap = new BasicMap<GroupId, EndpointNumber[]>();
 
-    /** Per-group multicast address policy (Groupcast cluster, Matter 1.6). Defaults to PerGroupId when not set. */
-    readonly #groupMulticastPolicy = new Map<GroupId, GroupMulticastPolicy>();
+    /**
+     * Per-group multicast address policy (Groupcast cluster, Matter 1.6). Defaults to PerGroupId when not set.
+     * A {@link BasicMap} so multicast-membership consumers can rebind on a policy change independent of
+     * {@link endpointMap} ordering.
+     */
+    readonly #groupMulticastPolicy = new BasicMap<GroupId, GroupMulticastPolicy>();
 
     constructor(fabric: Fabric, keySets: KeySets<OperationalKeySet>) {
         this.#fabric = fabric;
@@ -73,6 +77,11 @@ export class Groups {
                 mappedKeySetId !== undefined && this.#keySets.containsOperationalKey(mappedKeySetId, operationalKey),
             endpoints: this.endpointMap.get(id) ?? [],
         });
+    }
+
+    /** The per-group multicast address policy map; see {@link #groupMulticastPolicy}. */
+    get multicastPolicy(): BasicMap<GroupId, GroupMulticastPolicy> {
+        return this.#groupMulticastPolicy;
     }
 
     /** Sets the multicast address policy for a specific group (Groupcast cluster, Matter 1.6). */

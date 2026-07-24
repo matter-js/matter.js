@@ -7,7 +7,7 @@
 import { AccessControlServer } from "#behaviors/access-control";
 import { GroupKeyManagementServer } from "#behaviors/group-key-management";
 import { GroupcastServer } from "#behaviors/groupcast";
-import { ipv6ToBytes } from "@matter/general";
+import { deepCopy, Environment, ipv6ToBytes, MockNetwork, Network } from "@matter/general";
 import { AccessLevel } from "@matter/model";
 import { FabricManager, IANA_GROUPCAST_MULTICAST_ADDRESS, SessionManager } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, GroupId, MATTER_EPOCH_OFFSET_US, NodeId } from "@matter/types";
@@ -18,6 +18,13 @@ import { MockServerNode } from "../../node/mock-server-node.js";
 /** Root endpoint type with GroupcastServer (Listener+Sender+PerGroup), GKM (GCAST feature) and auxiliary ACLs. */
 const GroupcastRootEndpoint = MockServerNode.RootEndpoint.with(
     GroupcastServer.with("Listener", "Sender", "PerGroup"),
+    GroupKeyManagementServer.with("Groupcast"),
+    AccessControlServer.with("Extension", "Auxiliary"),
+);
+
+/** Root endpoint without the PerGroupAddr feature: every group defaults to the shared IanaAddr policy. */
+const IanaOnlyRootEndpoint = MockServerNode.RootEndpoint.with(
+    GroupcastServer.with("Listener", "Sender"),
     GroupKeyManagementServer.with("Groupcast"),
     AccessControlServer.with("Extension", "Auxiliary"),
 );
@@ -70,6 +77,59 @@ describe("GroupcastServer", () => {
 
             // IANA multicast policy applied
             expect(realFabric.groups.multicastAddressFor(GroupId(0x0001))).equal("ff05::fa");
+        });
+
+        it("records groupProperties flags", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+
+            await node.online({ exchange: fabricExchange(fi), command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0102),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            const entry = node.stateOf(GroupcastServer).groupProperties.find(p => p.groupId === 0x0102);
+            expect(entry).not.equals(undefined);
+            expect(entry!.fabricIndex).equals(fi);
+            expect(entry!.mcastAddrPolicy).equals(Groupcast.MulticastAddrPolicy.IanaAddr);
+            expect(entry!.hasAuxiliaryAcl).equals(false);
+        });
+
+        it("does not overwrite hasAuxiliaryAcl on a plain re-join", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0102),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    useAuxiliaryAcl: true,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            // Re-join without useAuxiliaryAcl must not reset the flag to its default
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0102),
+                    endpoints: [EndpointNumber(2)],
+                    keySetId: 1,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            const entry = node.stateOf(GroupcastServer).groupProperties.find(p => p.groupId === 0x0102);
+            expect(entry!.hasAuxiliaryAcl).equals(true);
         });
 
         it("rejects groups with invalid IDs (0 and > 0xFFF7)", async () => {
@@ -247,6 +307,29 @@ describe("GroupcastServer", () => {
             expect(node.stateOf(GroupcastServer).membership).to.have.length(0);
         });
 
+        it("removes groupProperties entry", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi);
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0102),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).leaveGroup({ groupId: GroupId(0x0102) }),
+            );
+
+            expect(node.stateOf(GroupcastServer).groupProperties.some(p => p.groupId === 0x0102)).equals(false);
+        });
+
         it("leaves all groups of the fabric with the wildcard group id", async () => {
             await using node = await createGroupcastNode();
             const fabric = await node.addFabric();
@@ -273,6 +356,7 @@ describe("GroupcastServer", () => {
 
             expect(response.groupId).equal(GroupId.NO_GROUP_ID);
             expect(node.stateOf(GroupcastServer).membership).to.have.length(0);
+            expect(node.stateOf(GroupcastServer).groupProperties).to.have.length(0);
             expect(realFabric.groups.groupKeyIdMap.size).equal(0);
             expect(realFabric.groups.endpoints.size).equal(0);
         });
@@ -400,6 +484,9 @@ describe("GroupcastServer", () => {
             const membership = node.stateOf(GroupcastServer).membership;
             expect(membership[0].hasAuxiliaryAcl).true;
 
+            const props = node.stateOf(GroupcastServer).groupProperties.find(p => p.groupId === 0x0001);
+            expect(props!.hasAuxiliaryAcl).true;
+
             // Verify the provider observable has the correct entries (plain JS object, no context needed)
             const gcastInternal = node.agentFor({ session: { fabricIndex: fi } as any } as any).get(GroupcastServer)
                 .internal as unknown as { auxAcl: { value: unknown[] } };
@@ -408,6 +495,45 @@ describe("GroupcastServer", () => {
             // Verify the synthetic entry propagated into AccessControlServer state
             const auxiliaryAcl = node.stateOf(AccessControlServer).auxiliaryAcl;
             expect(auxiliaryAcl?.filter(e => e.fabricIndex === fi)).to.have.length(1);
+        });
+
+        it("keeps the feature-aware mcastAddrPolicy default on a legacy-only group", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+
+            // Legacy configuration (Groups cluster / direct GKM writes), never joined via Groupcast, so it has no
+            // groupProperties entry yet.
+            await node.online({ exchange, command: true }, async agent => {
+                const gkm = agent.get(GroupKeyManagementServer);
+                gkm.state.groupTable = [
+                    {
+                        groupId: GroupId(0x0400),
+                        endpoints: [EndpointNumber(1)],
+                        groupName: "Legacy",
+                        fabricIndex: fi,
+                    },
+                ];
+            });
+            await MockTime.yield3();
+            expect(node.stateOf(GroupcastServer).groupProperties.find(p => p.groupId === 0x0400)).equal(undefined);
+
+            // configureAuxiliaryAcl is a Listener feature command — cast to access it
+            await node.online({ exchange, command: true }, agent =>
+                (
+                    agent.get(GroupcastServer) as unknown as {
+                        configureAuxiliaryAcl: (r: Groupcast.ConfigureAuxiliaryAclRequest) => void;
+                    }
+                ).configureAuxiliaryAcl({ groupId: GroupId(0x0400), useAuxiliaryAcl: true }),
+            );
+
+            // The newly created groupProperties entry must match the PerGroup-capable derive default, not IanaAddr
+            const membership = node.stateOf(GroupcastServer).membership.find(m => m.groupId === 0x0400);
+            expect(membership?.mcastAddrPolicy).equal(Groupcast.MulticastAddrPolicy.PerGroup);
+
+            const props = node.stateOf(GroupcastServer).groupProperties.find(p => p.groupId === 0x0400);
+            expect(props?.mcastAddrPolicy).equal(Groupcast.MulticastAddrPolicy.PerGroup);
         });
 
         it("rejects the Listener feature when AccessControl lacks the Auxiliary feature", async () => {
@@ -517,17 +643,16 @@ describe("GroupcastServer", () => {
             );
             expect(node.stateOf(AccessControlServer).auxiliaryAcl?.filter(e => e.fabricIndex === fi)).to.have.length(1);
 
-            // Legacy Groups commands operate on the GKM group table; removal must ripple into Membership + aux ACLs.
-            // With the Sender feature enabled the entry survives as sender-only, matching leaveGroup.
+            // Legacy Groups commands operate on the GKM group table; emptying a group's endpoints there fully
+            // deletes it from Membership (CHIP kDeleteGroupIfEmpty for the legacy/external path) and drops its
+            // auxiliary ACLs. Sender-only survival is reserved for groupcast leaveGroup, not external removal.
             await node.online({ exchange, command: true }, async agent => {
                 agent.get(GroupKeyManagementServer).state.groupTable = [];
             });
             await MockTime.yield3();
 
             const remaining = node.stateOf(GroupcastServer).membership.filter(m => m.fabricIndex === fi);
-            expect(remaining).to.have.length(1);
-            expect([...(remaining[0].endpoints ?? [])]).deep.equal([]);
-            expect(remaining[0].keySetId).equal(1);
+            expect(remaining).to.have.length(0);
             expect(node.stateOf(AccessControlServer).auxiliaryAcl?.filter(e => e.fabricIndex === fi)).to.have.length(0);
         });
 
@@ -736,6 +861,171 @@ describe("GroupcastServer", () => {
         });
     });
 
+    describe("legacy removal prune", () => {
+        it("legacy RemoveAllGroups fully removes a groupcast listener group", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+            const realFabric = node.env.get(FabricManager).for(fi);
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0103),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    useAuxiliaryAcl: true,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+            expect(node.stateOf(AccessControlServer).auxiliaryAcl?.filter(e => e.fabricIndex === fi)).to.have.length(1);
+
+            // Groups.RemoveAllGroups on endpoint 1 removes it from every group via gkm.removeEndpoint.
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupKeyManagementServer).removeEndpoint(realFabric, EndpointNumber(1)),
+            );
+            await MockTime.yield3();
+
+            const gc = node.stateOf(GroupcastServer);
+            expect(gc.membership.some(m => m.groupId === 0x0103)).equals(false);
+            expect(gc.groupProperties.some(p => p.groupId === 0x0103)).equals(false);
+            expect(
+                node.stateOf(AccessControlServer).auxiliaryAcl?.some(e => e.subjects?.includes(NodeId(BigInt(0x0103)))),
+            ).equals(false);
+        });
+
+        it("legacy RemoveAllGroups does not touch a sender-only group", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+            const realFabric = node.env.get(FabricManager).for(fi);
+
+            // Sender-only join: empty endpoints (allowed with the Sender feature); never enters the GKM group table
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0104),
+                    endpoints: [],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0103),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupKeyManagementServer).removeEndpoint(realFabric, EndpointNumber(1)),
+            );
+            await MockTime.yield3();
+
+            const gc = node.stateOf(GroupcastServer);
+            expect(gc.membership.some(m => m.groupId === 0x0104)).equals(true);
+            expect(gc.membership.some(m => m.groupId === 0x0103)).equals(false);
+        });
+
+        it("leaveGroup keeps a Sender-feature group as sender-only after emptying its endpoints", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0106),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            // Explicit leave of the only endpoint: with the Sender feature the entry is meant to survive sender-only.
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).leaveGroup({ groupId: GroupId(0x0106), endpoints: [EndpointNumber(1)] }),
+            );
+            await MockTime.yield3();
+
+            const gc = node.stateOf(GroupcastServer);
+            expect(gc.membership.some(m => m.groupId === 0x0106)).equals(true);
+        });
+
+        it("a no-op leaveGroup on an already sender-only group does not leak a stale retained mark", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+
+            // Create a genuine sender-only group: JoinGroup with an empty endpoint list.
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0107),
+                    endpoints: [],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            // No-op removal: the group already has no endpoints, so this must not plant a retained-sender-only
+            // mark (the group table never changes and the offline prune never runs to consume it).
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).leaveGroup({ groupId: GroupId(0x0107), endpoints: [EndpointNumber(9)] }),
+            );
+
+            // Turn it into a real listener.
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0107),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            // External/legacy removal (direct GKM group table write) must fully delete the group. A leaked mark
+            // from the earlier no-op would be wrongly consumed here and keep it alive as a phantom.
+            await node.online({ exchange, command: true }, async agent => {
+                agent.get(GroupKeyManagementServer).state.groupTable = [];
+            });
+            await MockTime.yield3();
+
+            const gc = node.stateOf(GroupcastServer);
+            expect(gc.membership.some(m => m.groupId === 0x0107 && m.fabricIndex === fi)).equals(false);
+            expect(gc.groupProperties.some(p => p.groupId === 0x0107 && p.fabricIndex === fi)).equals(false);
+        });
+
+        it("removes groupProperties when the owning fabric departs", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0105),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+            expect(node.stateOf(GroupcastServer).groupProperties.some(p => p.fabricIndex === fi)).equals(true);
+
+            await fabric.delete();
+            await MockTime.yield3();
+
+            expect(node.stateOf(GroupcastServer).groupProperties.some(p => p.fabricIndex === fi)).equals(false);
+        });
+    });
+
     describe("per-fabric quota", () => {
         it("rejects exceeding quota when another fabric is below quota", async () => {
             await using node = await createGroupcastNode();
@@ -881,6 +1171,54 @@ describe("GroupcastServer", () => {
         });
     });
 
+    describe("order-independent multicast rebind", () => {
+        it("rebinds a listener group's actual multicast membership to the applied policy after a full reload", async () => {
+            const environment = new Environment("test");
+            const node = await MockServerNode.createOnline(IanaOnlyRootEndpoint, {
+                id: "groupcast-i1-reload",
+                device: undefined,
+                environment,
+            });
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+
+            const realFabric = node.env.get(FabricManager).for(fi);
+            // The address this group resolves to before any policy is applied (Groups.ts's per-group default),
+            // captured before joinGroup so reading it has no side effect on the (not yet existing) membership.
+            const defaultAddress = realFabric.groups.multicastAddressFor(GroupId(0x0001));
+            expect(defaultAddress).not.equal(IANA_GROUPCAST_MULTICAST_ADDRESS);
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0001),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            const network = node.env.get(Network) as MockNetwork;
+            expect(network.isMemberOf(IANA_GROUPCAST_MULTICAST_ADDRESS)).equal(true);
+            expect(network.isMemberOf(defaultAddress)).equal(false);
+
+            await node.close();
+
+            const reloaded = await MockServerNode.createOnline(IanaOnlyRootEndpoint, {
+                id: "groupcast-i1-reload",
+                device: undefined,
+                environment,
+            });
+
+            const reloadedNetwork = reloaded.env.get(Network) as MockNetwork;
+            expect(reloadedNetwork.isMemberOf(IANA_GROUPCAST_MULTICAST_ADDRESS)).equal(true);
+            expect(reloadedNetwork.isMemberOf(defaultAddress)).equal(false);
+
+            await reloaded.close();
+        });
+    });
+
     describe("groupcastTesting events", () => {
         it("derives multicast destination and source addresses for testing events", async () => {
             await using node = await createGroupcastNode();
@@ -956,6 +1294,295 @@ describe("GroupcastServer", () => {
             expect(events[1].groupId).equal(undefined);
             expect(events[1].sourceIpAddress).deep.equal(ipv6ToBytes("fe80::1"));
             expect(events[1].destinationIpAddress).deep.equal(ipv6ToBytes(IANA_GROUPCAST_MULTICAST_ADDRESS));
+        });
+    });
+
+    describe("derived membership", () => {
+        it("derives Membership from groupProperties + GKM tables", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0102),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 3,
+                    key: TEST_KEY,
+                    useAuxiliaryAcl: true,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            const m = node.stateOf(GroupcastServer).membership.find(x => x.groupId === 0x0102);
+            expect(m).not.equals(undefined);
+            expect(m!.endpoints).deep.equals([EndpointNumber(1)]);
+            expect(m!.keySetId).equals(3);
+            expect(m!.hasAuxiliaryAcl).equals(true);
+            expect(m!.mcastAddrPolicy).equals(Groupcast.MulticastAddrPolicy.IanaAddr);
+        });
+
+        it("Membership survives reload via derived sources", async () => {
+            const environment = new Environment("test");
+            const node = await MockServerNode.createOnline(GroupcastRootEndpoint, {
+                id: "groupcast-derive-reload",
+                device: undefined,
+                environment,
+            });
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0102),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 3,
+                    key: TEST_KEY,
+                    useAuxiliaryAcl: true,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+            const before = node.stateOf(GroupcastServer).membership;
+            await node.close();
+
+            const reloaded = await MockServerNode.createOnline(GroupcastRootEndpoint, {
+                id: "groupcast-derive-reload",
+                device: undefined,
+                environment,
+            });
+            expect(reloaded.stateOf(GroupcastServer).membership).deep.equals(before);
+            await reloaded.close();
+        });
+
+        it("legacy-only group appears in Membership with default flags", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+
+            // Legacy configuration (Groups.AddGroup / direct GKM writes): never joined via Groupcast, so it has
+            // no groupProperties entry and must derive purely from the GKM tables. Unlike the "keeps the
+            // feature-aware mcastAddrPolicy default on a legacy-only group" test below, no Groupcast command is
+            // ever called here, so this is the only test exercising #deriveMembership's props===undefined path.
+            await node.online({ exchange, command: true }, async agent => {
+                const gkm = agent.get(GroupKeyManagementServer);
+                gkm.state.groupTable = [
+                    { groupId: GroupId(0x0201), endpoints: [EndpointNumber(1)], groupName: "Legacy", fabricIndex: fi },
+                ];
+                gkm.state.groupKeyMap = [{ groupId: GroupId(0x0201), groupKeySetId: 5, fabricIndex: fi }];
+            });
+            await MockTime.yield3();
+
+            expect(node.stateOf(GroupcastServer).groupProperties.some(p => p.groupId === 0x0201)).equals(false);
+
+            const m = node.stateOf(GroupcastServer).membership.find(x => x.groupId === 0x0201);
+            expect(m).not.equals(undefined);
+            // Fixture has the PerGroupAddr feature, so the feature-aware default is PerGroup, not IanaAddr.
+            expect(m!.mcastAddrPolicy).equals(Groupcast.MulticastAddrPolicy.PerGroup);
+            expect(m!.hasAuxiliaryAcl).equals(false);
+        });
+
+        it("groupcast group with unmapped key persists across reload", async () => {
+            const environment = new Environment("test");
+            const node = await MockServerNode.createOnline(GroupcastRootEndpoint, {
+                id: "groupcast-unmapped-reload",
+                device: undefined,
+                environment,
+            });
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0202),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            // Sever the GroupKeyMap link before reload: the entry must survive with the unmapped sentinel.
+            await node.online({ exchange, command: true }, async agent => {
+                agent.get(GroupKeyManagementServer).state.groupKeyMap = [];
+            });
+            await MockTime.yield3();
+            expect(node.stateOf(GroupcastServer).membership.find(m => m.groupId === 0x0202)?.keySetId).equal(0xffff);
+
+            await node.close();
+
+            const reloaded = await MockServerNode.createOnline(GroupcastRootEndpoint, {
+                id: "groupcast-unmapped-reload",
+                device: undefined,
+                environment,
+            });
+            const m = reloaded.stateOf(GroupcastServer).membership.find(x => x.groupId === 0x0202);
+            expect(m).not.equals(undefined);
+            expect(m!.keySetId).equals(0xffff);
+            await reloaded.close();
+        });
+
+        it("networking and auxiliary ACLs reconstruct identically after reload", async () => {
+            const environment = new Environment("test");
+            const node = await MockServerNode.createOnline(GroupcastRootEndpoint, {
+                id: "groupcast-networking-reload",
+                device: undefined,
+                environment,
+            });
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+
+            // Listener group with an auxiliary ACL and a PerGroup address, kept across reload.
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0203),
+                    endpoints: [EndpointNumber(1), EndpointNumber(2)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    useAuxiliaryAcl: true,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.PerGroup,
+                }),
+            );
+
+            // A survivor with IanaAddr policy: PerGroup and "no policy at all" compute the same ff35 address
+            // (Groups.ts multicastAddress only special-cases an explicit "ianaAddr" policy), so without this
+            // group the address check below couldn't distinguish real on-load policy re-application from a
+            // no-op.
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0205),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            // A group removed via the external/legacy path before reload; must not reappear afterward.
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0204),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+            // Mirrors the real Groups.RemoveAllGroups path: removeEndpoint keeps fabric.groups.endpoints in sync.
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupKeyManagementServer).removeEndpoint(fabric, EndpointNumber(1), GroupId(0x0204)),
+            );
+            await MockTime.yield3();
+            expect(node.stateOf(GroupcastServer).membership.some(m => m.groupId === 0x0204)).equals(false);
+
+            const snapshotEndpoints = (fabricIndex: FabricIndex) =>
+                [...node.env.get(FabricManager).for(fabricIndex).groups.endpoints.entries()]
+                    .sort(([a], [b]) => a - b)
+                    .map(([groupId, endpoints]) => [groupId, [...endpoints].sort()]);
+
+            const endpointsBefore = snapshotEndpoints(fi);
+            const perGroupAddressBefore = node.env
+                .get(FabricManager)
+                .for(fi)
+                .groups.multicastAddressFor(GroupId(0x0203));
+            const ianaAddressBefore = node.env.get(FabricManager).for(fi).groups.multicastAddressFor(GroupId(0x0205));
+            const auxAclBefore = deepCopy(
+                node.stateOf(AccessControlServer).auxiliaryAcl?.filter(e => e.fabricIndex === fi) ?? [],
+            );
+
+            // Guard the reload comparison below against a vacuous empty-vs-empty pass.
+            expect(endpointsBefore).deep.equal([
+                [0x0203, [1, 2]],
+                [0x0205, [1]],
+            ]);
+            expect(perGroupAddressBefore).to.match(/^ff35:/i);
+            expect(ianaAddressBefore).equal(IANA_GROUPCAST_MULTICAST_ADDRESS);
+            expect(auxAclBefore).to.have.length(1);
+
+            await node.close();
+
+            const reloaded = await MockServerNode.createOnline(GroupcastRootEndpoint, {
+                id: "groupcast-networking-reload",
+                device: undefined,
+                environment,
+            });
+
+            const endpointsAfter = [...reloaded.env.get(FabricManager).for(fi).groups.endpoints.entries()]
+                .sort(([a], [b]) => a - b)
+                .map(([groupId, endpoints]) => [groupId, [...endpoints].sort()]);
+            expect(endpointsAfter).deep.equal(endpointsBefore);
+            expect(reloaded.env.get(FabricManager).for(fi).groups.multicastAddressFor(GroupId(0x0203))).equal(
+                perGroupAddressBefore,
+            );
+            expect(reloaded.env.get(FabricManager).for(fi).groups.multicastAddressFor(GroupId(0x0205))).equal(
+                ianaAddressBefore,
+            );
+            expect(
+                reloaded.stateOf(AccessControlServer).auxiliaryAcl?.filter(e => e.fabricIndex === fi) ?? [],
+            ).deep.equal(auxAclBefore);
+            expect(reloaded.stateOf(GroupcastServer).membership.some(m => m.groupId === 0x0204)).equals(false);
+
+            await reloaded.close();
+        });
+
+        it("Membership$Changed fires on join", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+
+            let fired = false;
+            node.eventsOf(GroupcastServer).membership$Changed.on(() => {
+                fired = true;
+            });
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0001),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            expect(fired).equals(true);
+        });
+    });
+
+    describe("persistence", () => {
+        it("persists groupProperties across reload", async () => {
+            const environment = new Environment("test");
+            const node = await MockServerNode.createOnline(GroupcastRootEndpoint, {
+                id: "groupcast-persistence",
+                device: undefined,
+                environment,
+            });
+            const fabric = await node.addFabric();
+
+            await node.online({ command: true }, agent => {
+                agent.get(GroupcastServer).state.groupProperties = [
+                    {
+                        fabricIndex: fabric.fabricIndex,
+                        groupId: GroupId(0x0101),
+                        mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                        hasAuxiliaryAcl: false,
+                    },
+                ];
+            });
+
+            await node.close();
+
+            const reloaded = await MockServerNode.createOnline(GroupcastRootEndpoint, {
+                id: "groupcast-persistence",
+                device: undefined,
+                environment,
+            });
+            expect(reloaded.stateOf(GroupcastServer).groupProperties).length(1);
+            expect(reloaded.stateOf(GroupcastServer).groupProperties[0].groupId).equals(0x0101);
+            await reloaded.close();
         });
     });
 });
