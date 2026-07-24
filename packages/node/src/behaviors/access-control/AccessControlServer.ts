@@ -667,6 +667,7 @@ export class AccessControlServer extends AccessControlBase {
         this.internal.delayedAclData.delete(fabricIndex);
         this.internal.aclUpdateDelayed.delete(fabricIndex);
         if (updateDelayed && delayedData !== undefined) {
+            logger.info("Applying delayed ACL update for fabricIndex", fabricIndex);
             this.env.get(FabricManager).for(fabricIndex).accessControl.aclList = [
                 ...delayedData,
                 ...this.#auxiliaryAclFor(fabricIndex),
