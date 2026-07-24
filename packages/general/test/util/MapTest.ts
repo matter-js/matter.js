@@ -66,4 +66,22 @@ describe("BasicMap", () => {
 
         expect(events).deep.equal([["a", 1]]);
     });
+
+    it("emits deleted for every entry on clear", () => {
+        const map = new BasicMap<string, number>();
+        map.set("a", 1);
+        map.set("b", 2);
+        const events = new Array<[string, number]>();
+        map.deleted.on((key, value) => {
+            events.push([key, value]);
+        });
+
+        map.clear();
+
+        expect(events).deep.equal([
+            ["a", 1],
+            ["b", 2],
+        ]);
+        expect(map.size).equal(0);
+    });
 });

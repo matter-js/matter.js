@@ -25,6 +25,7 @@ import {
     DataReport,
     DataReportPayloadIterator,
     ExchangeManager,
+    GroupSession,
     InteractionRecipient,
     InteractionServerMessenger,
     InvokeRequest,
@@ -41,6 +42,7 @@ import {
     Session,
     SessionManager,
     SessionType,
+    Subject,
     SubscribeRequest,
     Subscription,
     TimedRequest,
@@ -945,40 +947,69 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         if (isGroupSession) {
             const rawGroupId = message.packetHeader.destGroupId;
             const groupId = rawGroupId !== undefined ? GroupId(rawGroupId) : undefined;
-            const fabric = exchange.session.associatedFabric;
+            const session = exchange.session;
+            const fabric = session.associatedFabric;
+            // Inbound group sessions have no channel, so source/destination come from the session itself
+            const groupSession = GroupSession.is(session) ? session : undefined;
+            const destIp = groupSession?.multicastAddress;
+            const sourceIp = groupSession?.receivedFrom;
+            // The event's ClusterID/ElementID reflect the request; cmd-response paths carry the response command id
+            const requestPath = invokeRequests[0]?.commandPath;
             let emitted = false;
             for await (const chunk of results) {
                 for (const data of chunk) {
                     if (data.kind !== "cmd-response" && data.kind !== "cmd-status") {
                         continue;
                     }
-                    const accessAllowed = data.kind === "cmd-response" || data.status === Status.Success;
+                    // Emitted => access allowed (denied paths are dropped, see below); AccessAllowed is the
+                    // access-control outcome, not command success (Groupcast spec §11.27.7.6.3).
                     this.#context.sessions.emitGroupMessage({
                         result: Groupcast.GroupcastTestResult.Success,
                         fabric,
                         groupId,
+                        sourceIp,
+                        destIp,
                         endpointId: data.path.endpointId,
-                        clusterId: data.path.clusterId,
-                        elementId: data.path.commandId,
-                        accessAllowed,
+                        clusterId: requestPath?.clusterId ?? data.path.clusterId,
+                        elementId: requestPath?.commandId ?? data.path.commandId,
+                        accessAllowed: true,
                     });
                     emitted = true;
                 }
             }
-            // If wildcard expansion produced no dispatches (all paths filtered out by ACL or no
-            // endpoint mappings for the group), still emit one event per requested invoke path so
-            // observers see the message arrived. FailedAuth + accessAllowed=false signals denial.
             if (!emitted) {
-                for (const { commandPath } of invokeRequests) {
+                const subject = groupSession?.subjectFor(message);
+                if (subject !== undefined && Subject.isGroup(subject) && !subject.hasValidMapping) {
+                    // The authenticating key is not the one mapped for the group: improperly authenticated per
+                    // core§11.27.7.6.3, reported without the unauthenticated group id
                     this.#context.sessions.emitGroupMessage({
                         result: Groupcast.GroupcastTestResult.FailedAuth,
                         fabric,
-                        groupId,
-                        endpointId: commandPath.endpointId,
-                        clusterId: commandPath.clusterId,
-                        elementId: commandPath.commandId,
-                        accessAllowed: false,
+                        sourceIp,
+                        destIp,
                     });
+                } else {
+                    // Wildcard expansion produced no dispatches.  Still emit one event per requested invoke path so
+                    // observers see the message arrived: the message was authenticated and processed, so per
+                    // core§11.27.7.6.3 the result is Success.  When the group has receiving endpoints the expansion
+                    // was filtered by access control (AccessAllowed=false); without endpoints no access evaluation
+                    // took place and the field is omitted.
+                    const memberEndpoints = groupId !== undefined ? fabric.groups.endpoints.get(groupId) : undefined;
+                    const accessAllowed =
+                        memberEndpoints !== undefined && memberEndpoints.length > 0 ? false : undefined;
+                    for (const { commandPath } of invokeRequests) {
+                        this.#context.sessions.emitGroupMessage({
+                            result: Groupcast.GroupcastTestResult.Success,
+                            fabric,
+                            groupId,
+                            sourceIp,
+                            destIp,
+                            endpointId: commandPath.endpointId,
+                            clusterId: commandPath.clusterId,
+                            elementId: commandPath.commandId,
+                            accessAllowed,
+                        });
+                    }
                 }
             }
             return;

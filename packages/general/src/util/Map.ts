@@ -42,6 +42,15 @@ export class BasicMap<K, V> extends Map<K, V> implements ObservableMap<K, V> {
         return super.delete(key);
     }
 
+    override clear(): void {
+        if (this.#deleted !== undefined) {
+            for (const [key, value] of this.entries()) {
+                this.#deleted.emit(key, value);
+            }
+        }
+        super.clear();
+    }
+
     get added() {
         if (this.#added === undefined) {
             this.#added = Observable();

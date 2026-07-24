@@ -100,6 +100,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Bind the WebSocket/web server to loopback (127.0.0.1) by default instead of all interfaces; added a `--webAddress` option to choose the listen address
 
 - @matter/protocol
+    - Feature: Groupcast support (Matter 1.6.1): group session handling for multicast send and receive including Groupcast testing events
     - Feature: ICD Check-In protocol: CheckInMessage codec with counter-validation and replay protection, Check-In sender, and controller-side peer wakefulness scheduling
     - Enhancement: Worst-case MRP response-time now accounts for the sender's fixed-backoff/additional-delay pad
     - Enhancement: WiFi peers now use a dedicated network profile with a 1s additive MRP retransmission margin, selected by operational medium for dual-stack nodes

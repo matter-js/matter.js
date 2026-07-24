@@ -21,5 +21,10 @@ describe("ACE", () => {
     );
 
     chip("ACE/*");
+
+    // run1 = all-clusters (groupcast path), run2 = all-clusters-no-groupcast (legacy Groups path),
+    // run3 = all-devices on-off-light + --groupcast (groupcast path).
     chip("ACE/*/run1");
+    chip("ACE/*/run2");
+    chip("ACE/*/run3");
 });

@@ -4,31 +4,90 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ActionContext } from "#behavior/context/ActionContext.js";
 import { AccessControlServer } from "#behaviors/access-control";
 import { GroupKeyManagementServer } from "#behaviors/group-key-management";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
-import { Bytes, deepCopy, ImplementationError, Logger, ObservableValue, Seconds, Time, Timer } from "@matter/general";
-import { AccessLevel, DataModelPath } from "@matter/model";
+import {
+    Bytes,
+    deepCopy,
+    ImplementationError,
+    ipv6ToBytes,
+    isIPv6,
+    Logger,
+    ObservableValue,
+    Seconds,
+    SynchronousTransactionConflictError,
+    Time,
+    Timer,
+} from "@matter/general";
+import { AccessLevel, DataModelPath, DatatypeElement, FieldElement } from "@matter/model";
 import {
     AccessControl,
     assertRemoteActor,
     Fabric,
     FabricManager,
     GroupMessageEventInfo,
+    IANA_GROUPCAST_MULTICAST_ADDRESS,
     SessionManager,
 } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, GroupId, NodeId, Status, StatusResponseError } from "@matter/types";
 import { AccessControl as AccessControlTypes } from "@matter/types/clusters/access-control";
+import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import { Groupcast } from "@matter/types/clusters/groupcast";
 import { GroupcastBehavior } from "./GroupcastBehavior.js";
 
 const logger = Logger.get("GroupcastServer");
 
-/** Membership.KeySetId sentinel indicating the referenced key set no longer exists in GKM. */
+/** Membership.KeySetId sentinel indicating the group has no usable GroupKeyMap link in GKM. */
 const UNMAPPED_KEYSET_ID = 0xffff;
 
-/** TODO: remove once the Groupcast cluster leaves provisional state in the Matter specification. */
-const GROUPCAST_IS_PROVISIONAL = true;
+/**
+ * Converts an IP address string to the 16-byte ipv6adr representation of the GroupcastTesting event, stripping any
+ * IPv6 zone suffix ("%eth0").  Returns undefined for non-IPv6 input (e.g. a group message received via IPv4).
+ */
+function toIpv6EventAddress(ip: string | undefined) {
+    if (ip === undefined) {
+        return undefined;
+    }
+    const zoneIndex = ip.indexOf("%");
+    const address = zoneIndex === -1 ? ip : ip.substring(0, zoneIndex);
+    return isIPv6(address) ? ipv6ToBytes(address) : undefined;
+}
+
+const GroupcastBase = GroupcastBehavior;
+
+// GroupProperties persists per-group policy metadata (excluding Membership's KeySetId/Endpoints fields) so a later
+// derivation step can rebuild Membership from this state alone. Has no numeric attribute id, so it stays
+// server-only and is never enumerated or wire-encoded as a cluster attribute.
+const groupPropertiesStructFS = DatatypeElement(
+    { name: "GroupPropertiesStruct", type: "struct" },
+    FieldElement({ name: "GroupId", id: 0x0, type: "group-id", access: "F", conformance: "M", constraint: "min 1" }),
+    FieldElement({
+        name: "McastAddrPolicy",
+        id: 0x1,
+        type: "MulticastAddrPolicyEnum",
+        access: "F",
+        conformance: "M",
+        default: 0,
+    }),
+    FieldElement({ name: "HasAuxiliaryAcl", id: 0x2, type: "bool", access: "F", conformance: "M" }),
+    FieldElement({ name: "FabricIndex", id: 0xfe, type: "FabricIndex", conformance: "M" }),
+);
+const schema = GroupcastBase.schema.extend(
+    {},
+    groupPropertiesStructFS,
+    FieldElement(
+        {
+            name: "groupProperties",
+            type: "list",
+            quality: "N",
+            access: "RW F",
+            conformance: "M",
+        },
+        FieldElement({ name: "entry", type: "GroupPropertiesStruct" }),
+    ),
+);
 
 /**
  * This is the default server implementation of {@link GroupcastBehavior}.
@@ -37,60 +96,60 @@ const GROUPCAST_IS_PROVISIONAL = true;
  * Use {@link GroupcastServer.with} to enable the desired features (e.g. "Listener", "Sender").
  *
  * Key behaviors:
- * - Manages per-fabric group membership (persistent).
- * - Drives {@link FabricGroups} with group-to-key-set mappings and multicast address policy.
+ * - Derives the Membership attribute from its single-owner sources (groupProperties + GKM groupTable/groupKeyMap);
+ *   legacy Groups cluster groups appear automatically via their groupTable entries.
+ * - Drives {@link FabricGroups} multicast address policy from the derived membership.
  * - Registers an {@link AccessControlServer.AuxAclObservable} to supply synthetic ACL entries for groups
  *   with `hasAuxiliaryAcl=true`. AccessControlServer calls back to collect entries when needed.
- * - On first use by a fabric, marks the fabric as "GroupcastAdopted" in GKM, making GroupKeyMap read-only.
- * - Migrates legacy group data from the Groups cluster on startup.
  */
-export class GroupcastServer extends GroupcastBehavior {
+export class GroupcastServer extends GroupcastBase {
     declare internal: GroupcastServer.Internal;
+    declare readonly state: GroupcastServer.State;
+    static override readonly schema = schema;
 
     /** Timer for GroupcastTesting auto-disable. */
     #testingTimer?: Timer;
 
     override initialize() {
-        // TODO: remove this guard once the Groupcast cluster leaves provisional state in the Matter specification
-        if (GROUPCAST_IS_PROVISIONAL) {
-            throw new ImplementationError(
-                "The Groupcast cluster is provisional in Matter 1.6. Do not add it to a node.",
-            );
-        }
-
         const lifecycle = this.endpoint.lifecycle as NodeLifecycle;
         this.reactTo(lifecycle.online, this.#online);
     }
 
     async #online() {
+        const acl = this.agent.get(AccessControlServer);
+
+        // Spec core§11.27.7.1.5: a Listener generates AuxiliaryACL entries in the AccessControl cluster, which
+        // requires the Auxiliary feature.  Without it the synthetic entries would grant access that the node does not
+        // advertise and clients cannot inspect.
+        if (this.features.listener && !acl.features.auxiliary) {
+            throw new ImplementationError(
+                'The Groupcast Listener feature requires the AccessControl Auxiliary feature. Use AccessControlServer.with("Extension", "Auxiliary").',
+            );
+        }
+
         // Register the aux ACL observable with AccessControlServer so it can subscribe for updates
-        this.agent.get(AccessControlServer).registerAuxAclProvider(this.internal.auxAcl);
+        acl.registerAuxAclProvider(this.internal.auxAcl);
 
         const fabrics = this.env.get(FabricManager);
 
-        // Sync FabricGroups for all existing fabrics
-        for (const fabric of fabrics) {
-            this.#syncFabricGroups(fabric);
-        }
+        // Membership is a derived-overwrite cache: fabric-scoping keeps it persisted, but #deriveMembership rebuilds
+        // it from its sources on every input change, so the stored copy is never authoritative and cannot diverge.
+        this.#deriveMembership();
 
-        // Migrate legacy Groups cluster data to Groupcast Membership
-        await this.#migrate();
+        // Keep in sync as fabrics are added, replaced or removed.  A replaced fabric gets a fresh Groups instance,
+        // so the multicast address policies must be re-applied from the derived membership.
+        this.reactTo(fabrics.events.added, this.#handleFabricChanged, { offline: true });
+        this.reactTo(fabrics.events.replaced, this.#handleFabricChanged, { offline: true });
+        this.reactTo(fabrics.events.deleted, this.#handleFabricDeleted, { offline: true });
 
-        // Reconcile key sets that may have been removed via GKM somehow
-        this.#reconcileUnmappedKeys();
-
-        // Update the derived state once after all sync/migration is done
-        this.#updateUsedMcastAddrCount();
-        this.#emitAuxAcl();
-
-        // Keep in sync as fabrics are added or removed
-        this.reactTo(fabrics.events.added, this.#handleFabricAdded);
-        this.reactTo(fabrics.events.deleted, this.#handleFabricDeleted);
-
-        // When GKM key sets are removed, groupKeyMap is also cleaned up — use that as trigger
-        // to reconcile membership entries whose key set no longer exists (mark as UNMAPPED_KEYSET_ID)
+        // GKM owns endpoints (groupTable) and keySetId (groupKeyMap); any external change to either (e.g. legacy
+        // Groups cluster commands or direct attribute writes) must re-derive Membership and its auxiliary ACLs.  A
+        // fabric removal clears both attributes in one cascade, firing both reactors against the same groupcast.state:
+        // #deriveNow derives inline while the lock is free but defers to an async-locked derive the moment it is not,
+        // so the second reactor in a cascade never conflicts synchronously.
         const gkmEvents = this.endpoint.eventsOf(GroupKeyManagementServer);
-        this.reactTo(gkmEvents.groupKeyMap$Changed, this.#reconcileUnmappedKeys);
+        this.reactTo(gkmEvents.groupTable$Changed, this.#handleGroupTableChanged, { offline: true });
+        this.reactTo(gkmEvents.groupKeyMap$Changed, this.#handleGroupKeyMapChanged, { offline: true });
 
         // React to fabricUnderTest changes to dynamically subscribe/unsubscribe from group message events.
         // While no fabric is under test, SessionManager.groupMessage emits are a no-op (no listeners).
@@ -160,28 +219,10 @@ export class GroupcastServer extends GroupcastBehavior {
 
         await this.#applyKeySet(fabricIndex, keySetId, key);
 
-        const membership = deepCopy(this.state.membership);
-        const existingIdx = membership.findIndex(m => m.groupId === groupId && m.fabricIndex === fabricIndex);
+        const membership = this.state.membership;
+        const isNew = !membership.some(m => m.groupId === groupId && m.fabricIndex === fabricIndex);
 
-        if (existingIdx >= 0) {
-            // Update existing group membership
-            const existing = membership[existingIdx];
-            const lnFields = this.features.listener
-                ? {
-                      endpoints: replaceEndpoints
-                          ? endpoints
-                          : [...new Set([...(existing.endpoints ?? []), ...endpoints])],
-                      hasAuxiliaryAcl: useAuxiliaryAcl ?? existing.hasAuxiliaryAcl,
-                  }
-                : {};
-            membership[existingIdx] = {
-                ...existing,
-                ...lnFields,
-                keySetId,
-                mcastAddrPolicy: policy,
-            };
-        } else {
-            // New group: check capacity limits
+        if (isNew) {
             const fabricMemberships = membership.filter(m => m.fabricIndex === fabricIndex);
             const perFabricLimit = Math.floor(this.state.maxMembershipCount / 2);
             if (fabricMemberships.length >= perFabricLimit) {
@@ -193,38 +234,63 @@ export class GroupcastServer extends GroupcastBehavior {
 
             // Check MaxMcastAddrCount for new multicast address allocation
             if (policy === Groupcast.MulticastAddrPolicy.PerGroup) {
-                const currentUsed = this.#computeUsedMcastAddrCount(membership);
-                if (currentUsed >= this.state.maxMcastAddrCount) {
+                if (this.#computeUsedMcastAddrCount(membership) >= this.state.maxMcastAddrCount) {
                     throw new StatusResponseError("MaxMcastAddrCount limit reached", Status.ResourceExhausted);
                 }
             } else if (policy === Groupcast.MulticastAddrPolicy.IanaAddr) {
                 // IanaAddr pool counts as 1 address; only check if pool not yet allocated
                 const hasIanaAddr = membership.some(m => m.mcastAddrPolicy === Groupcast.MulticastAddrPolicy.IanaAddr);
-                if (!hasIanaAddr) {
-                    const currentUsed = this.#computeUsedMcastAddrCount(membership);
-                    if (currentUsed >= this.state.maxMcastAddrCount) {
-                        throw new StatusResponseError("MaxMcastAddrCount limit reached", Status.ResourceExhausted);
-                    }
+                if (!hasIanaAddr && this.#computeUsedMcastAddrCount(membership) >= this.state.maxMcastAddrCount) {
+                    throw new StatusResponseError("MaxMcastAddrCount limit reached", Status.ResourceExhausted);
                 }
             }
-
-            const lnFields = this.features.listener ? { endpoints, hasAuxiliaryAcl: useAuxiliaryAcl ?? false } : {};
-            membership.push({
-                groupId,
-                ...lnFields,
-                keySetId,
-                mcastAddrPolicy: policy,
-                fabricIndex,
-            });
         }
 
-        this.state.membership = membership;
-        this.#updateUsedMcastAddrCount();
-        this.#syncFabricGroups(this.env.get(FabricManager).for(fabricIndex));
-        this.#emitAuxAcl();
-
-        /* Provisional in Matter 1.6.0:
         const gkm = this.agent.get(GroupKeyManagementServer);
+        const fabric = this.env.get(FabricManager).for(fabricIndex);
+
+        // Set the policy before writing endpoints so the endpoint-driven multicast bind uses the right address up
+        // front and avoids a follow-up rebind (correctness no longer depends on this order — see #rebindGroupMembership).
+        fabric.groups.setGroupMulticastPolicy(
+            groupId,
+            policy === Groupcast.MulticastAddrPolicy.PerGroup ? "perGroupId" : "ianaAddr",
+        );
+
+        let keepsSenderOnly = false;
+        if (this.features.listener) {
+            const existing = gkm.state.groupTable.find(g => g.fabricIndex === fabricIndex && g.groupId === groupId);
+            // Snapshot: removeEndpoint mutates the live groupTable endpoints array, which would corrupt this loop.
+            const existingEndpoints = [...(existing?.endpoints ?? [])];
+            const groupName = existing?.groupName ?? "";
+            const target = replaceEndpoints ? endpoints : [...new Set([...existingEndpoints, ...endpoints])];
+            // Replacing a listener's endpoints with none keeps the group sender-only.
+            keepsSenderOnly = target.length === 0 && existingEndpoints.length > 0;
+            for (const ep of existingEndpoints) {
+                if (!target.includes(ep)) {
+                    gkm.removeEndpoint(fabric, ep, groupId);
+                }
+            }
+            for (const ep of target) {
+                gkm.addEndpointForGroup(fabric, groupId, ep, groupName);
+            }
+        }
+
+        this.#setGroupKeyMapping(fabric, fabricIndex, groupId, keySetId);
+
+        this.#upsertGroupProperties(fabricIndex, groupId, {
+            mcastAddrPolicy: policy,
+            ...(useAuxiliaryAcl !== undefined ? { hasAuxiliaryAcl: useAuxiliaryAcl } : {}),
+        });
+
+        this.#deriveMembership();
+
+        // Marked only once the method is committing successfully, so a throw earlier in this method never leaves
+        // a leaked mark for the offline groupTable$Changed prune to wrongly consume later.
+        if (keepsSenderOnly) {
+            this.internal.retainedSenderOnly.add(`${fabricIndex}:${groupId}`);
+        }
+
+        /* The GroupKeyManagement GroupcastAdoption attribute is not supported by the default server:
         gkm.setGroupcastAdopted(fabricIndex, true);
         */
     }
@@ -234,56 +300,74 @@ export class GroupcastServer extends GroupcastBehavior {
         const fabricIndex = this.context.session.associatedFabric.fabricIndex;
         const { groupId, endpoints: requestedEndpoints } = request;
 
+        const gkm = this.agent.get(GroupKeyManagementServer);
+        const fabric = this.env.get(FabricManager).for(fabricIndex);
+
         // GroupID 0 = wildcard: leave ALL groups for this fabric
         if (groupId === GroupId.NO_GROUP_ID) {
-            const fabricMemberships = this.state.membership.filter(m => m.fabricIndex === fabricIndex);
-            if (fabricMemberships.length === 0) {
+            const removedGroupIds = this.state.membership
+                .filter(m => m.fabricIndex === fabricIndex)
+                .map(m => m.groupId);
+            if (removedGroupIds.length === 0) {
                 throw new StatusResponseError("No groups to leave", Status.NotFound);
             }
-            this.state.membership = this.state.membership.filter(m => m.fabricIndex !== fabricIndex);
-            this.#updateUsedMcastAddrCount();
-            this.#syncFabricGroups(this.env.get(FabricManager).for(fabricIndex));
-            this.#emitAuxAcl();
+            const removed = new Set<GroupId>(removedGroupIds);
+            for (const removedGroupId of removedGroupIds) {
+                const table = gkm.state.groupTable.find(
+                    g => g.fabricIndex === fabricIndex && g.groupId === removedGroupId,
+                );
+                for (const ep of [...(table?.endpoints ?? [])]) {
+                    gkm.removeEndpoint(fabric, ep, removedGroupId);
+                }
+                this.#removeGroupProperties(fabricIndex, removedGroupId);
+            }
+            this.#removeGroupKeyMappings(fabric, fabricIndex, removed);
+            this.#deriveMembership();
             return { groupId: GroupId.NO_GROUP_ID, endpoints: [] };
         }
 
-        const membership = deepCopy(this.state.membership);
-        const entryIdx = membership.findIndex(m => m.groupId === groupId && m.fabricIndex === fabricIndex);
-
-        if (entryIdx < 0) {
+        const entry = this.state.membership.find(m => m.groupId === groupId && m.fabricIndex === fabricIndex);
+        if (entry === undefined) {
             throw new StatusResponseError(`Group ${groupId} not found`, Status.NotFound);
         }
 
-        const entry = membership[entryIdx];
+        const currentEndpoints = entry.endpoints ?? [];
         let removedEndpoints: EndpointNumber[];
+        let entryRemoved = false;
+        let keepsSenderOnly = false;
 
         if (!requestedEndpoints || requestedEndpoints.length === 0) {
             // No specific endpoints specified → remove entire entry
-            removedEndpoints = entry.endpoints ?? [];
-            membership.splice(entryIdx, 1);
+            removedEndpoints = [...currentEndpoints];
+            entryRemoved = true;
         } else {
-            const currentEndpoints = entry.endpoints ?? [];
             removedEndpoints = requestedEndpoints.filter(ep => currentEndpoints.includes(ep));
             const remainingEndpoints = currentEndpoints.filter(ep => !requestedEndpoints.includes(ep));
-
-            if (remainingEndpoints.length === 0) {
-                if (this.features.sender) {
-                    // SD feature enabled: keep entry as sender-only (omit endpoints when LN absent)
-                    const { endpoints: _omit, ...entryWithoutEndpoints } = entry;
-                    membership[entryIdx] = this.features.listener ? { ...entry, endpoints: [] } : entryWithoutEndpoints;
-                } else {
-                    // LN-only: remove the entry entirely
-                    membership.splice(entryIdx, 1);
-                }
-            } else {
-                membership[entryIdx] = { ...entry, endpoints: remainingEndpoints };
+            // A listener entry losing all endpoints survives as sender-only when the Sender feature is enabled and
+            // disappears otherwise, matching the derived-membership existence rule.
+            if (remainingEndpoints.length === 0 && !this.features.sender) {
+                entryRemoved = true;
+            } else if (remainingEndpoints.length === 0 && removedEndpoints.length > 0) {
+                // Intentionally kept sender-only (spec kKeepGroupIfEmpty).
+                keepsSenderOnly = true;
             }
         }
 
-        this.state.membership = membership;
-        this.#updateUsedMcastAddrCount();
-        this.#syncFabricGroups(this.env.get(FabricManager).for(fabricIndex));
-        this.#emitAuxAcl();
+        for (const ep of removedEndpoints) {
+            gkm.removeEndpoint(fabric, ep, groupId);
+        }
+        if (entryRemoved) {
+            this.#removeGroupKeyMappings(fabric, fabricIndex, new Set([groupId]));
+            this.#removeGroupProperties(fabricIndex, groupId);
+        }
+
+        this.#deriveMembership();
+
+        // Marked only once the method is committing successfully, so a throw earlier in this method never leaves
+        // a leaked mark for the offline groupTable$Changed prune to wrongly consume later.
+        if (keepsSenderOnly) {
+            this.internal.retainedSenderOnly.add(`${fabricIndex}:${groupId}`);
+        }
 
         return { groupId, endpoints: removedEndpoints };
     }
@@ -298,18 +382,15 @@ export class GroupcastServer extends GroupcastBehavior {
             this.#requireAdmin();
         }
 
-        const membership = deepCopy(this.state.membership);
-        const entryIdx = membership.findIndex(m => m.groupId === groupId && m.fabricIndex === fabricIndex);
-
-        if (entryIdx < 0) {
+        if (!this.state.membership.some(m => m.groupId === groupId && m.fabricIndex === fabricIndex)) {
             throw new StatusResponseError(`Group ${groupId} not found`, Status.NotFound);
         }
 
         await this.#applyKeySet(fabricIndex, keySetId, key);
 
-        membership[entryIdx] = { ...membership[entryIdx], keySetId };
-        this.state.membership = membership;
-        this.#syncFabricGroups(this.env.get(FabricManager).for(fabricIndex));
+        this.#setGroupKeyMapping(this.env.get(FabricManager).for(fabricIndex), fabricIndex, groupId, keySetId);
+
+        this.#deriveMembership();
     }
 
     configureAuxiliaryAcl(request: Groupcast.ConfigureAuxiliaryAclRequest) {
@@ -317,16 +398,12 @@ export class GroupcastServer extends GroupcastBehavior {
         const fabricIndex = this.context.session.associatedFabric.fabricIndex;
         const { groupId, useAuxiliaryAcl } = request;
 
-        const membership = deepCopy(this.state.membership);
-        const entryIdx = membership.findIndex(m => m.groupId === groupId && m.fabricIndex === fabricIndex);
-
-        if (entryIdx < 0) {
+        if (!this.state.membership.some(m => m.groupId === groupId && m.fabricIndex === fabricIndex)) {
             throw new StatusResponseError(`Group ${groupId} not found`, Status.NotFound);
         }
 
-        membership[entryIdx] = { ...membership[entryIdx], hasAuxiliaryAcl: useAuxiliaryAcl };
-        this.state.membership = membership;
-        this.#emitAuxAcl();
+        this.#upsertGroupProperties(fabricIndex, groupId, { hasAuxiliaryAcl: useAuxiliaryAcl });
+        this.#deriveMembership();
     }
 
     override groupcastTesting(request: Groupcast.GroupcastTestingRequest) {
@@ -394,115 +471,283 @@ export class GroupcastServer extends GroupcastBehavior {
     }
 
     #onGroupMessage(info: GroupMessageEventInfo) {
-        // Only emit for the fabric under test
-        if (info.fabric === undefined || info.fabric.fabricIndex !== this.state.fabricUnderTest) {
+        const fabricUnderTest = this.state.fabricUnderTest;
+        if (fabricUnderTest === FabricIndex.NO_FABRIC) {
             return;
         }
+
+        // Authenticated messages report only for the fabric under test.  Decode failures are unauthenticated
+        // (no fabric) and are reported on the fabric under test per the GroupcastTesting spec.
+        if (info.fabric !== undefined && info.fabric.fabricIndex !== fabricUnderTest) {
+            return;
+        }
+
+        // The datagram destination is not available from the socket, so derive the multicast group address the
+        // message was received on from the group id (the header group id for unauthenticated failures).  An unknown
+        // group's datagram can only have arrived via the shared IANA address, since per-group addresses are joined
+        // per known group.
+        let destIp = info.destIp;
+        const groupIdForAddress = info.groupId ?? info.headerGroupId;
+        if (destIp === undefined && groupIdForAddress !== undefined) {
+            const known = this.state.membership.some(
+                m => m.fabricIndex === fabricUnderTest && m.groupId === groupIdForAddress,
+            );
+            const fabrics = this.env.get(FabricManager);
+            if (known && fabrics.has(fabricUnderTest)) {
+                destIp = fabrics.for(fabricUnderTest).groups.multicastAddressFor(groupIdForAddress);
+            } else {
+                destIp = IANA_GROUPCAST_MULTICAST_ADDRESS;
+            }
+        }
+        // Without any group knowledge (privacy-obfuscated header and no authenticating key set) the IANA address
+        // remains the only plausible arrival address
+        destIp ??= IANA_GROUPCAST_MULTICAST_ADDRESS;
+
         this.events.groupcastTesting?.emit(
             {
+                sourceIpAddress: toIpv6EventAddress(info.sourceIp),
+                destinationIpAddress: toIpv6EventAddress(destIp),
                 groupId: info.groupId,
                 endpointId: info.endpointId,
                 clusterId: info.clusterId,
                 elementId: info.elementId,
                 accessAllowed: info.accessAllowed,
                 groupcastTestResult: info.result,
-                fabricIndex: info.fabric.fabricIndex,
+                fabricIndex: fabricUnderTest,
             },
             this.context,
         );
     }
 
-    /** Sync the FabricGroups instance for a fabric from the current Membership state. */
-    #handleFabricAdded(fabric: Fabric) {
-        this.#syncFabricGroups(fabric);
-    }
-
     #handleFabricDeleted(fabric: Fabric) {
-        this.#cleanupFabric(fabric.fabricIndex);
+        this.internal.pendingFabricCleanups.add(fabric.fabricIndex);
+        this.#deriveNow();
     }
 
-    #syncFabricGroups(fabric: Fabric) {
-        const fabricIndex = fabric.fabricIndex;
-        const fabricMemberships = this.state.membership.filter(m => m.fabricIndex === fabricIndex);
+    /** The fabric add/replace events carry no writer context, so this derive emits its aux ACL without an admin. */
+    #handleFabricChanged() {
+        this.#deriveNow();
+    }
 
-        // Set per-group multicast address policies BEFORE updating groupKeyIdMap. The latter triggers
-        // ServerGroupNetworking to bind the multicast address via multicastAddressFor, which reads the
-        // policy map - so the policy must be in place first or it falls back to PerGroupId-derived.
-        for (const m of fabricMemberships) {
-            const policy = m.mcastAddrPolicy === Groupcast.MulticastAddrPolicy.PerGroup ? "perGroupId" : "ianaAddr";
-            fabric.groups.setGroupMulticastPolicy(m.groupId, policy);
-        }
-
-        // Rebuild group→keySet map
-        const groupKeyIdMap = new Map<GroupId, number>();
-        for (const m of fabricMemberships) {
-            groupKeyIdMap.set(m.groupId, m.keySetId);
-        }
-        fabric.groups.groupKeyIdMap = groupKeyIdMap;
-
-        // Mirror Membership mappings into GKM GroupKeyMap so the attribute read reflects them.
-        // Data dependency: Groupcast owns the group→keySet relationship; GroupKeyMap must reflect it.
-        // GKM's per-fabric cap (maxGroupsPerFabric) and Groupcast's per-fabric cap (floor(maxMembershipCount/2))
-        // must stay aligned so the mirror never exceeds the GKM validator.
-        const gkm = this.agent.get(GroupKeyManagementServer);
-        const otherFabricsMap = gkm.state.groupKeyMap.filter(e => e.fabricIndex !== fabricIndex);
-        const mappings = fabricMemberships
-            .filter(m => m.keySetId !== UNMAPPED_KEYSET_ID)
-            .map(m => ({ groupId: m.groupId, groupKeySetId: m.keySetId, fabricIndex }));
-        gkm.state.groupKeyMap = [...otherFabricsMap, ...mappings];
-
-        // Mirror Membership endpoints to GKM GroupTable (spec attribute) and FabricGroups.endpoints
-        // (runtime dispatch lookup used by InteractionServer for wildcard group commands).
-        const otherFabricsTable = gkm.state.groupTable.filter(e => e.fabricIndex !== fabricIndex);
-        const tableEntries = fabricMemberships
-            .filter(m => m.endpoints !== undefined && m.endpoints.length > 0)
-            .map(m => ({
-                groupId: m.groupId,
-                endpoints: [...m.endpoints!],
-                groupName: "",
-                fabricIndex,
-            }));
-        gkm.state.groupTable = [...otherFabricsTable, ...tableEntries];
-
-        const previousGroupIds = new Set(fabric.groups.endpoints.keys());
-        for (const m of fabricMemberships) {
-            const eps = m.endpoints ?? [];
-            if (eps.length > 0) {
-                fabric.groups.endpoints.set(m.groupId, [...eps]);
-            } else {
-                fabric.groups.endpoints.delete(m.groupId);
-            }
-            previousGroupIds.delete(m.groupId);
-        }
-        for (const gid of previousGroupIds) {
-            fabric.groups.endpoints.delete(gid);
-        }
+    #handleGroupKeyMapChanged(
+        _newMap: GroupKeyManagement.GroupKeyMap[],
+        _oldMap: GroupKeyManagement.GroupKeyMap[],
+        context?: ActionContext,
+    ) {
+        this.#deriveNow(context);
     }
 
     /**
-     * Mark membership entries as unmapped (KeySetId=UNMAPPED_KEYSET_ID) when their referenced key set no longer exists in GKM.
-     * Runs at startup to reconcile state after potential GKM KeySetRemove operations.
+     * React to external GKM groupTable changes (legacy Groups cluster commands, direct attribute writes).  A group
+     * present in the OLD table but absent from the NEW one lost all its endpoints; per CHIP kDeleteGroupIfEmpty it must
+     * be fully deleted rather than lingering as a phantom sender-only entry.  The out-transition is recorded before
+     * deriving so a deferred derive still applies it (a cascade discards the losing reactor's oldTable).  Genuine
+     * sender-only joins never had a groupTable entry, so they are never in oldTable and always survive.
      */
-    #reconcileUnmappedKeys() {
-        const gkmState = this.endpoint.stateOf(GroupKeyManagementServer);
-        const membership = this.state.membership;
-        let dirty = false;
+    #handleGroupTableChanged(
+        newTable: GroupKeyManagement.GroupInfoMap[],
+        oldTable: GroupKeyManagement.GroupInfoMap[],
+        context?: ActionContext,
+    ) {
+        const present = new Set(newTable.map(g => `${g.fabricIndex}:${g.groupId}`));
+        for (const g of oldTable) {
+            const key = `${g.fabricIndex}:${g.groupId}`;
+            if (!present.has(key)) {
+                this.internal.pendingTableRemovals.add(key);
+            }
+        }
+        this.#deriveNow(context);
+    }
 
-        for (const m of membership) {
-            if (m.keySetId !== UNMAPPED_KEYSET_ID && m.keySetId !== 0) {
-                const exists = gkmState.groupKeySets.some(
-                    ks => ks.fabricIndex === m.fabricIndex && ks.groupKeySetId === m.keySetId,
-                );
-                if (!exists) {
-                    m.keySetId = UNMAPPED_KEYSET_ID;
-                    dirty = true;
+    /**
+     * Derive membership from a reactor.  A single trigger takes the groupcast.state lock synchronously and derives
+     * inline so callers observe the result on the same tick.  A fabric removal clears both GKM attributes in one
+     * cascade, so the second (and later) reactors find the lock held: rather than throwing a synchronous conflict they
+     * hand off to the debounced async-locked {@link #scheduleDerive}, which reruns once the lock frees.  All pruning
+     * intent is recorded in the pending sets first, so whichever path runs applies it.
+     */
+    #deriveNow(actorContext?: ActionContext) {
+        const transaction = this.context.transaction;
+        try {
+            transaction.addResourcesSync(this);
+            transaction.beginSync();
+        } catch (error) {
+            SynchronousTransactionConflictError.accept(error);
+            this.#scheduleDerive();
+            return;
+        }
+        // State writes use this reactor's own locked transaction; the writer's online context is passed through only so
+        // the emitted AuxiliaryAccessUpdated event names the administering node.  A deferred derive (see #scheduleDerive)
+        // runs after that context is gone and emits with no admin.
+        this.#applyPendingAndDerive(actorContext ?? this.context);
+    }
+
+    /**
+     * Deferred derive for a contended cascade: acquire the groupcast.state lock asynchronously (waiting for the current
+     * holder instead of throwing) and rerun the pending prune plus derive exactly once, coalescing every trigger that
+     * arrives before the lock is held.
+     */
+    #scheduleDerive() {
+        if (this.internal.derivePending) {
+            return;
+        }
+        this.internal.derivePending = true;
+
+        let derive;
+        try {
+            derive = this.endpoint.act("groupcast-derive", async agent => {
+                const self = agent.get(GroupcastServer);
+                self.context.transaction.addResourcesSync(self);
+                await self.context.transaction.begin();
+                // Cleared only once the lock is held: a trigger arriving during the same cascade is coalesced into this
+                // run, while a genuinely later change reschedules.
+                self.internal.derivePending = false;
+                self.#applyPendingAndDerive(self.context);
+            });
+        } catch (error) {
+            // endpoint.act asserts the endpoint is active synchronously, so it can throw during teardown; resetting the
+            // flag here keeps a live node's derivation from wedging permanently.
+            this.internal.derivePending = false;
+            logger.error("Failed to schedule groupcast membership derivation", error);
+            return;
+        }
+
+        Promise.resolve(derive).catch(error => {
+            this.internal.derivePending = false;
+            logger.error("Failed to derive groupcast membership", error);
+        });
+    }
+
+    /**
+     * Apply the pruning accumulated by the reactors, then rebuild membership.  Departed fabrics drop all their
+     * groupProperties and retained-sender-only marks; externally emptied groups drop their groupProperties unless a
+     * groupcast command marked them sender-only (spec kKeepGroupIfEmpty), consuming the mark so a later external
+     * removal still deletes them.  A group re-added before this runs is left untouched.
+     */
+    #applyPendingAndDerive(context: ActionContext) {
+        const fabricCleanups = this.internal.pendingFabricCleanups;
+        const tableRemovals = this.internal.pendingTableRemovals;
+
+        // Marks consumed alongside a prune.  The non-transactional intent (pending sets + these marks) is only cleared
+        // after #deriveMembership returns, so a throw there rolls back the groupProperties/membership writes AND leaves
+        // the intent intact for the next trigger to retry.
+        const marksToConsume = new Set<string>();
+
+        if (fabricCleanups.size) {
+            this.state.groupProperties = this.state.groupProperties.filter(p => !fabricCleanups.has(p.fabricIndex));
+            // A FabricIndex can be reused by a later fabric; purge marks so none leak across that reuse.
+            for (const key of this.internal.retainedSenderOnly) {
+                if (fabricCleanups.has(FabricIndex(Number(key.split(":")[0])))) {
+                    marksToConsume.add(key);
                 }
             }
         }
 
-        if (dirty) {
-            this.state.membership = [...membership];
+        if (tableRemovals.size) {
+            const gkm = this.agent.get(GroupKeyManagementServer);
+            const present = new Set(gkm.state.groupTable.map(g => `${g.fabricIndex}:${g.groupId}`));
+            const retained = this.internal.retainedSenderOnly;
+            const toPrune = new Set<string>();
+            for (const key of tableRemovals) {
+                if (present.has(key)) {
+                    continue;
+                }
+                // A groupcast command that emptied this group asked to keep it sender-only (spec kKeepGroupIfEmpty);
+                // consume the mark so a later external removal of the same group still deletes it.
+                if (retained.has(key)) {
+                    marksToConsume.add(key);
+                    continue;
+                }
+                toPrune.add(key);
+            }
+            if (toPrune.size) {
+                this.state.groupProperties = this.state.groupProperties.filter(
+                    p => !toPrune.has(`${p.fabricIndex}:${p.groupId}`),
+                );
+            }
         }
+
+        this.#deriveMembership(context);
+
+        if (fabricCleanups.size) {
+            this.internal.pendingFabricCleanups = new Set<FabricIndex>();
+        }
+        if (tableRemovals.size) {
+            this.internal.pendingTableRemovals = new Set<string>();
+        }
+        for (const key of marksToConsume) {
+            this.internal.retainedSenderOnly.delete(key);
+        }
+    }
+
+    /**
+     * Rebuild the derived {@link Groupcast.Membership} list from its single-owner persisted sources: groupProperties
+     * (existence + flags), GKM groupTable (endpoints) and GKM groupKeyMap (keySetId).  A group is a member iff it is
+     * present in groupProperties (a groupcast join) or groupTable (legacy/shared endpoints); groupKeyMap alone does
+     * not create membership.  Idempotent and writes no GKM state, so the source-change reactors cannot feed back.
+     */
+    #deriveMembership(context?: ActionContext) {
+        const gkm = this.agent.get(GroupKeyManagementServer);
+        const previousKeys = this.state.membership.map(m => ({ fabricIndex: m.fabricIndex, groupId: m.groupId }));
+        const next = new Array<Groupcast.Membership>();
+
+        const byKey = new Map<string, { fabricIndex: FabricIndex; groupId: GroupId }>();
+        for (const p of this.state.groupProperties) {
+            byKey.set(`${p.fabricIndex}:${p.groupId}`, { fabricIndex: p.fabricIndex, groupId: p.groupId });
+        }
+        for (const g of gkm.state.groupTable) {
+            byKey.set(`${g.fabricIndex}:${g.groupId}`, { fabricIndex: g.fabricIndex, groupId: g.groupId });
+        }
+
+        for (const { fabricIndex, groupId } of byKey.values()) {
+            const props = this.state.groupProperties.find(p => p.fabricIndex === fabricIndex && p.groupId === groupId);
+            const table = gkm.state.groupTable.find(g => g.fabricIndex === fabricIndex && g.groupId === groupId);
+            const keyEntry = gkm.state.groupKeyMap.find(k => k.fabricIndex === fabricIndex && k.groupId === groupId);
+            // Copy: the entry must not alias GKM's live groupTable array, which addEndpointForGroup/removeEndpoint mutate.
+            const endpoints = table ? [...table.endpoints] : [];
+            const lnFields = this.features.listener
+                ? { endpoints, hasAuxiliaryAcl: props?.hasAuxiliaryAcl ?? false }
+                : {};
+            next.push({
+                groupId,
+                ...lnFields,
+                keySetId: keyEntry?.groupKeySetId ?? UNMAPPED_KEYSET_ID,
+                mcastAddrPolicy: props?.mcastAddrPolicy ?? this.#defaultMcastAddrPolicy(),
+                fabricIndex,
+            });
+        }
+
+        this.state.membership = next;
+        this.#updateUsedMcastAddrCount();
+        this.#applyPoliciesAndAuxAcl(previousKeys, next, context ?? this.context);
+    }
+
+    /**
+     * Apply the multicast address policy of each derived membership entry to its fabric's FabricGroups, drop the
+     * policy of groups no longer present, and re-emit the auxiliary ACL entries.  Reproduces the policy/aux-ACL
+     * portions of the former OUT mirror; it never writes GKM groupTable/groupKeyMap.
+     */
+    #applyPoliciesAndAuxAcl(
+        previousKeys: { fabricIndex: FabricIndex; groupId: GroupId }[],
+        next: Groupcast.Membership[],
+        context: ActionContext,
+    ) {
+        const fabrics = this.env.get(FabricManager);
+        for (const m of next) {
+            if (!fabrics.has(m.fabricIndex)) {
+                continue;
+            }
+            const policy = m.mcastAddrPolicy === Groupcast.MulticastAddrPolicy.PerGroup ? "perGroupId" : "ianaAddr";
+            fabrics.for(m.fabricIndex).groups.setGroupMulticastPolicy(m.groupId, policy);
+        }
+        const present = new Set(next.map(m => `${m.fabricIndex}:${m.groupId}`));
+        for (const { fabricIndex, groupId } of previousKeys) {
+            if (present.has(`${fabricIndex}:${groupId}`) || !fabrics.has(fabricIndex)) {
+                continue;
+            }
+            fabrics.for(fabricIndex).groups.removeGroupMulticastPolicy(groupId);
+        }
+        this.#emitAuxAcl(context);
     }
 
     /**
@@ -527,26 +772,69 @@ export class GroupcastServer extends GroupcastBehavior {
         }
     }
 
-    /** Recompute auxiliary ACL entries and emit them via the observable so AccessControlServer updates. */
-    #emitAuxAcl() {
+    /**
+     * Write a group→keySet mapping to the persisted GroupKeyMap attribute (source for the derived KeySetId) and the
+     * operational fabric key-id map (runtime group-message decryption).  The operational map is set synchronously
+     * here because GroupKeyManagement's own reactor updates it only on a later tick.
+     */
+    #setGroupKeyMapping(fabric: Fabric, fabricIndex: FabricIndex, groupId: GroupId, keySetId: number) {
+        const gkm = this.agent.get(GroupKeyManagementServer);
+        gkm.state.groupKeyMap = [
+            ...gkm.state.groupKeyMap.filter(e => !(e.fabricIndex === fabricIndex && e.groupId === groupId)),
+            { groupId, groupKeySetId: keySetId, fabricIndex },
+        ];
+        this.#syncOperationalKeyMap(fabric, fabricIndex, gkm);
+    }
+
+    /** Remove group→keySet mappings for the given groups from the persisted attribute and the operational map. */
+    #removeGroupKeyMappings(fabric: Fabric, fabricIndex: FabricIndex, groupIds: Set<GroupId>) {
+        const gkm = this.agent.get(GroupKeyManagementServer);
+        gkm.state.groupKeyMap = gkm.state.groupKeyMap.filter(
+            e => e.fabricIndex !== fabricIndex || !groupIds.has(e.groupId),
+        );
+        this.#syncOperationalKeyMap(fabric, fabricIndex, gkm);
+    }
+
+    /**
+     * Rebuild the fabric's operational key-id map from the persisted GroupKeyMap (the source of truth), so unmapped
+     * groups are excluded.  Done synchronously because GroupKeyManagement's own reactor updates it only on a later
+     * tick, whereas commands and group-message decryption need it immediately.
+     */
+    #syncOperationalKeyMap(fabric: Fabric, fabricIndex: FabricIndex, gkm: GroupKeyManagementServer) {
+        fabric.groups.groupKeyIdMap = new Map<GroupId, number>(
+            gkm.state.groupKeyMap.filter(e => e.fabricIndex === fabricIndex).map(e => [e.groupId, e.groupKeySetId]),
+        );
+    }
+
+    /**
+     * Recompute auxiliary ACL entries and emit them via the observable so AccessControlServer updates.  The context
+     * identifies the administrating actor in the AuxiliaryAccessUpdated event; pass the triggering context when the
+     * recomputation runs in an offline reactor.
+     */
+    #emitAuxAcl(context: ActionContext = this.context) {
         if (!this.endpoint.behaviors.has(AccessControlServer)) return;
-        const entries: AccessControlTypes.AccessControlEntry[] = this.state.membership
-            .filter(m => m.hasAuxiliaryAcl)
-            .map(m => ({
+        // Auxiliary entries grant Operate per listener endpoint (core§11.27.10); sender-only memberships get none
+        const entries = new Array<AccessControlTypes.AccessControlEntry>();
+        for (const m of this.state.membership) {
+            const { endpoints } = m;
+            if (!m.hasAuxiliaryAcl || endpoints === undefined || endpoints.length === 0) {
+                continue;
+            }
+            entries.push({
                 privilege: AccessControlTypes.AccessControlEntryPrivilege.Operate,
                 authMode: AccessControlTypes.AccessControlEntryAuthMode.Group,
                 subjects: [NodeId(BigInt(m.groupId))],
-                targets:
-                    m.endpoints?.map(ep => ({
-                        cluster: null,
-                        endpoint: ep,
-                        deviceType: null,
-                    })) ?? null,
+                targets: endpoints.map(ep => ({
+                    cluster: null,
+                    endpoint: ep,
+                    deviceType: null,
+                })),
                 auxiliaryType: AccessControlTypes.AccessControlAuxiliaryType.Groupcast,
                 fabricIndex: m.fabricIndex,
-            }));
+            });
+        }
 
-        this.internal.auxAcl.emit(entries, this.context);
+        this.internal.auxAcl.emit(entries, context);
     }
 
     /**
@@ -567,67 +855,39 @@ export class GroupcastServer extends GroupcastBehavior {
         this.state.usedMcastAddrCount = this.#computeUsedMcastAddrCount(this.state.membership);
     }
 
-    /** Remove all state for a departed fabric. */
-    #cleanupFabric(fabricIndex: FabricIndex) {
-        this.state.membership = this.state.membership.filter(m => m.fabricIndex !== fabricIndex);
-        this.#updateUsedMcastAddrCount();
-        this.#emitAuxAcl();
+    /**
+     * Default multicast address policy for a group with no explicit policy: PerGroup on PerGroupAddr-capable
+     * devices (so legacy groups stay on their ff35 per-group address), else IanaAddr.
+     */
+    #defaultMcastAddrPolicy(): Groupcast.MulticastAddrPolicy {
+        return this.features.perGroup ? Groupcast.MulticastAddrPolicy.PerGroup : Groupcast.MulticastAddrPolicy.IanaAddr;
     }
 
-    /**
-     * Migrate legacy group data from the GKM groupTable into Groupcast Membership entries.
-     * Only migrates fabrics that have existing GKM groups but no Membership entries yet.
-     * Legacy groups are assigned PerGroup multicast policy for backwards compatibility.
-     */
-    async #migrate() {
-        const fabrics = this.env.get(FabricManager);
-        const gkmState = this.endpoint.stateOf(GroupKeyManagementServer);
-        let migrated = false;
-
-        for (const fabric of fabrics) {
-            const fi = fabric.fabricIndex;
-            const hasMembership = this.state.membership.some(m => m.fabricIndex === fi);
-            if (hasMembership) continue; // already has Groupcast membership
-
-            const fabricGroups = gkmState.groupTable.filter(g => g.fabricIndex === fi);
-            if (fabricGroups.length === 0) continue; // no legacy groups
-
-            logger.info(`Migrating ${fabricGroups.length} legacy group(s) for fabric ${fi} to Groupcast`);
-
-            const newEntries: Groupcast.Membership[] = fabricGroups.map(group => {
-                const keyMapping = gkmState.groupKeyMap.find(m => m.fabricIndex === fi && m.groupId === group.groupId);
-                // Use PerGroup policy for legacy compat only if PGA feature is enabled
-                const mcastAddrPolicy = this.features.perGroup
-                    ? Groupcast.MulticastAddrPolicy.PerGroup
-                    : Groupcast.MulticastAddrPolicy.IanaAddr;
-                const lnFields = this.features.listener
-                    ? {
-                          endpoints: group.endpoints.filter(ep => ep !== EndpointNumber(0)),
-                          hasAuxiliaryAcl: false,
-                      }
-                    : {};
-                return {
-                    groupId: group.groupId,
-                    ...lnFields,
-                    keySetId: keyMapping?.groupKeySetId ?? 0,
-                    mcastAddrPolicy,
-                    fabricIndex: fi,
-                };
+    /** Insert or update a {@link GroupcastServer.GroupPropertiesEntry}, applying only the given fields. */
+    #upsertGroupProperties(
+        fabricIndex: FabricIndex,
+        groupId: GroupId,
+        changes: { mcastAddrPolicy?: Groupcast.MulticastAddrPolicy; hasAuxiliaryAcl?: boolean },
+    ) {
+        const props = deepCopy(this.state.groupProperties);
+        const idx = props.findIndex(p => p.fabricIndex === fabricIndex && p.groupId === groupId);
+        if (idx >= 0) {
+            props[idx] = { ...props[idx], ...changes };
+        } else {
+            props.push({
+                fabricIndex,
+                groupId,
+                mcastAddrPolicy: changes.mcastAddrPolicy ?? this.#defaultMcastAddrPolicy(),
+                hasAuxiliaryAcl: changes.hasAuxiliaryAcl ?? false,
             });
-
-            this.state.membership = [...this.state.membership, ...newEntries];
-            this.#syncFabricGroups(fabric);
-            /* Provisional in Matter 1.6.0:
-            const gkm = this.agent.get(GroupKeyManagementServer);
-            gkm.setGroupcastAdopted(fi, true);
-            */
-            migrated = true;
         }
+        this.state.groupProperties = props;
+    }
 
-        if (migrated) {
-            this.#updateUsedMcastAddrCount();
-            logger.info("Groupcast migration complete");
-        }
+    #removeGroupProperties(fabricIndex: FabricIndex, groupId: GroupId) {
+        this.state.groupProperties = this.state.groupProperties.filter(
+            p => !(p.fabricIndex === fabricIndex && p.groupId === groupId),
+        );
     }
 
     override async [Symbol.asyncDispose]() {
@@ -649,7 +909,35 @@ export namespace GroupcastServer {
 
         /** Active subscription handler on SessionManager.groupMessage while fabricUnderTest is set. */
         groupMessageHandler?: (info: GroupMessageEventInfo) => void;
+
+        /**
+         * `fabricIndex:groupId` keys of groups a groupcast command intentionally kept as sender-only while emptying
+         * their endpoints.  The groupTable$Changed prune consumes these so it deletes only externally-emptied groups
+         * (legacy RemoveAllGroups = kDeleteGroupIfEmpty), never a spec-compliant sender-only survivor
+         * (LeaveGroup with the Sender feature = kKeepGroupIfEmpty).
+         */
+        retainedSenderOnly = new Set<string>();
+
+        /** True while a debounced derive is scheduled but has not yet acquired the groupcast.state lock. */
+        derivePending = false;
+
+        /**
+         * `fabricIndex:groupId` keys of groups that left the GKM groupTable, awaiting the debounced derive's
+         * kDeleteGroupIfEmpty prune.  Accumulated because coalescing discards each event's oldTable.
+         */
+        pendingTableRemovals = new Set<string>();
+
+        /** Fabric indices of departed fabrics whose Groupcast-owned state the debounced derive must drop. */
+        pendingFabricCleanups = new Set<FabricIndex>();
     }
+
+    /** A single persisted {@link GroupcastServer.State.groupProperties} entry. */
+    export type GroupPropertiesEntry = {
+        fabricIndex: FabricIndex;
+        groupId: GroupId;
+        mcastAddrPolicy: Groupcast.MulticastAddrPolicy;
+        hasAuxiliaryAcl: boolean;
+    };
 
     /** Default state overrides for GroupcastServer. */
     export class State extends GroupcastBehavior.State {
@@ -661,5 +949,8 @@ export namespace GroupcastServer {
         override maxMembershipCount = 44;
         /** Implementation-defined maximum multicast address count (min 1 per spec). */
         override maxMcastAddrCount = 44;
+
+        /** Persisted per-group existence + policy metadata; the authoritative source for the derived Membership. */
+        groupProperties: GroupPropertiesEntry[] = new Array<GroupPropertiesEntry>();
     }
 }
