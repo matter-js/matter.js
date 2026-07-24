@@ -15,6 +15,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `Heap` now stores each item at most once and maintains its position index eagerly, so deleting an item added after an earlier deletion works reliably
 
 - @matter/node
+    - Enhancement: `SoftwareUpdateManager.checkForUpdates()` forces an immediate OTA update check and cleanup of obsolete stored updates
     - Enhancement: Custom server session intervals (idle/active interval, active threshold) are now configurable via `sessions.intervals`
     - Fix: Optimize Cluster data updates when structures change for ClientNodes
     - Fix: Prevent subscriptions from being activated on a closing session
@@ -22,6 +23,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Choice conformance no longer requires a member gated by an inapplicable condition (e.g. `[ICTL].b+` when the feature is unsupported)
     - Fix: Support the `!=` (not-equal) operator in value conformance expressions
     - Fix: Ensure `FabricAuthority` is fully constructed before it is used in the WebRTC Transport Requestor, OTA Software Update Provider and Software Update clusters
+    - Fix: Consider existing node IDs when determining the next node ID to commission
 
 - @matter/nodejs
     - Fix: Ensure the namespace directory exists before the `sqlite` storage driver opens the database
@@ -31,6 +33,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensure the commissioning failsafe timer stays within the device's maximum cumulative failsafe
     - Fix: Parallel PASE commissioning now uses the won session immediately instead of blocking on losing attempts' cleanup, which could let the won session expire at the device failsafe before use
     - Fix: A device dropped during parallel PASE for invalid credentials no longer accepts a slower successful attempt on another of its addresses
+    - Fix: Extend the handling of non-compliant devices that drop the commissioning connection when network details are added (`AddOrUpdateWiFi`/`AddOrUpdateThread`), not only on `ConnectNetwork`, treating them as non-concurrent and proceeding directly to operational discovery
 
 ## 0.17.6 (2026-07-16)
 
