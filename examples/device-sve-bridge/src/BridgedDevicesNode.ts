@@ -114,6 +114,10 @@ const server = await ServerNode.create(RootEndpointType, {
         interfaceEnabled: true,
         networks: [{ networkId: networkId, connected: true }],
     },
+    groupcast: {
+        maxMembershipCount: 10,
+        maxMcastAddrCount: 10,
+    },
 });
 
 const aggregator = new Endpoint(AggregatorEndpoint, { id: "aggregator", number: 1 });
