@@ -6,7 +6,9 @@
 
 import { AccessControlServer } from "#behaviors/access-control";
 import { GroupKeyManagementServer } from "#behaviors/group-key-management";
-import { GroupcastServer } from "#behaviors/groupcast";
+import { GroupcastClient, GroupcastServer } from "#behaviors/groupcast";
+import { GroupsClient } from "#behaviors/groups";
+import { ServerNode } from "#node/ServerNode.js";
 import {
     deepCopy,
     Diagnostic,
@@ -24,6 +26,7 @@ import { EndpointNumber, FabricIndex, GroupId, MATTER_EPOCH_OFFSET_US, NodeId } 
 import { Groupcast } from "@matter/types/clusters/groupcast";
 import { MockExchange } from "../../node/mock-exchange.js";
 import { MockServerNode } from "../../node/mock-server-node.js";
+import { MockSite } from "../../node/mock-site.js";
 
 /** Root endpoint type with GroupcastServer (Listener+Sender+PerGroup), GKM (GCAST feature) and auxiliary ACLs. */
 const GroupcastRootEndpoint = MockServerNode.RootEndpoint.with(
@@ -1671,6 +1674,46 @@ describe("GroupcastServer", () => {
             expect(reloaded.stateOf(GroupcastServer).groupProperties).length(1);
             expect(reloaded.stateOf(GroupcastServer).groupProperties[0].groupId).equals(0x0101);
             await reloaded.close();
+        });
+    });
+
+    describe("AuxiliaryAccessUpdated admin (CASE session)", () => {
+        // Reproduces ACE 1.6: a legacy Groups.RemoveAllGroups over CASE empties a groupcast listener group, and the
+        // resulting AuxiliaryAccessUpdated must name the administering node.  Groupcast only reacts to the groupTable
+        // change offline (no direct groupcast command runs), so the admin can only reach the event if the writer's
+        // online context is threaded through the derive.
+        it("names the administering node when legacy RemoveAllGroups empties a listener group", async () => {
+            const GroupcastRoot = ServerNode.RootEndpoint.with(
+                GroupcastServer.with("Listener", "Sender", "PerGroup"),
+                GroupKeyManagementServer.with("Groupcast"),
+                AccessControlServer.with("Extension", "Auxiliary"),
+            );
+
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({ device: { type: GroupcastRoot } });
+            const peer = controller.peers.get("peer1")!;
+
+            await MockTime.resolve(
+                peer.commandsOf(GroupcastClient).joinGroup({
+                    groupId: GroupId(0x0101),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    useAuxiliaryAcl: true,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            const admins = new Array<NodeId | null>();
+            device.eventsOf(AccessControlServer).auxiliaryAccessUpdated?.on(payload => {
+                admins.push(payload.adminNodeId);
+            });
+
+            await MockTime.resolve(peer.endpoints.for(1).commandsOf(GroupsClient).removeAllGroups());
+
+            const [fabric] = [...device.env.get(FabricManager)];
+            expect(admins.length).least(1);
+            expect(admins.every(a => a === fabric.rootNodeId)).true;
         });
     });
 });
