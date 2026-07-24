@@ -7,7 +7,17 @@
 import { AccessControlServer } from "#behaviors/access-control";
 import { GroupKeyManagementServer } from "#behaviors/group-key-management";
 import { GroupcastServer } from "#behaviors/groupcast";
-import { deepCopy, Environment, ipv6ToBytes, MockNetwork, Network } from "@matter/general";
+import {
+    deepCopy,
+    Diagnostic,
+    Environment,
+    ipv6ToBytes,
+    LogDestination,
+    Logger,
+    LogLevel,
+    MockNetwork,
+    Network,
+} from "@matter/general";
 import { AccessLevel } from "@matter/model";
 import { FabricManager, IANA_GROUPCAST_MULTICAST_ADDRESS, SessionManager } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, GroupId, MATTER_EPOCH_OFFSET_US, NodeId } from "@matter/types";
@@ -1022,6 +1032,54 @@ describe("GroupcastServer", () => {
             await fabric.delete();
             await MockTime.yield3();
 
+            expect(node.stateOf(GroupcastServer).groupProperties.some(p => p.fabricIndex === fi)).equals(false);
+        });
+
+        it("removes a fabric with joined groups without a transaction conflict", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            // A surviving second fabric keeps the fabric-scoped data sanitizer active: removing the last fabric skips
+            // the purge entirely, so the conflicting groupTable+groupKeyMap cascade only fires with a survivor present.
+            await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+
+            // A listener group populates both GKM groupTable (endpoints) and groupKeyMap (keySetId), so removing the
+            // fabric clears both in one cascade and fans out to every membership-derivation trigger at once.
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0108),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    useAuxiliaryAcl: true,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+            expect(node.stateOf(GroupcastServer).membership.some(m => m.fabricIndex === fi)).equals(true);
+
+            // Reactor errors are only logged (never thrown to the caller), so capture them to make the conflict fail.
+            const conflicts = new Array<string>();
+            Logger.destinations.capture = LogDestination({
+                add(message: Diagnostic.Message) {
+                    if (message.level >= LogLevel.ERROR) {
+                        const text = String(message.values.join(" "));
+                        if (text.includes("synchronously") || text.includes("SynchronousTransactionConflict")) {
+                            conflicts.push(text);
+                        }
+                    }
+                },
+            });
+
+            try {
+                await fabric.delete();
+                await MockTime.yield3();
+            } finally {
+                delete Logger.destinations.capture;
+            }
+
+            expect(conflicts, `unexpected transaction conflict: ${conflicts[0]}`).to.have.length(0);
+            expect(node.stateOf(GroupcastServer).membership.some(m => m.fabricIndex === fi)).equals(false);
             expect(node.stateOf(GroupcastServer).groupProperties.some(p => p.fabricIndex === fi)).equals(false);
         });
     });

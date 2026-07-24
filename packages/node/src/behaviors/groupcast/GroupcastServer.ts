@@ -14,8 +14,10 @@ import {
     ImplementationError,
     ipv6ToBytes,
     isIPv6,
+    Logger,
     ObservableValue,
     Seconds,
+    SynchronousTransactionConflictError,
     Time,
     Timer,
 } from "@matter/general";
@@ -34,6 +36,8 @@ import { AccessControl as AccessControlTypes } from "@matter/types/clusters/acce
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import { Groupcast } from "@matter/types/clusters/groupcast";
 import { GroupcastBehavior } from "./GroupcastBehavior.js";
+
+const logger = Logger.get("GroupcastServer");
 
 /** Membership.KeySetId sentinel indicating the group has no usable GroupKeyMap link in GKM. */
 const UNMAPPED_KEYSET_ID = 0xffff;
@@ -134,17 +138,18 @@ export class GroupcastServer extends GroupcastBase {
 
         // Keep in sync as fabrics are added, replaced or removed.  A replaced fabric gets a fresh Groups instance,
         // so the multicast address policies must be re-applied from the derived membership.
-        this.reactTo(fabrics.events.added, this.#handleFabricAdded);
-        this.reactTo(fabrics.events.replaced, this.#handleFabricAdded);
-        this.reactTo(fabrics.events.deleted, this.#handleFabricDeleted);
+        this.reactTo(fabrics.events.added, this.#deriveNow, { offline: true });
+        this.reactTo(fabrics.events.replaced, this.#deriveNow, { offline: true });
+        this.reactTo(fabrics.events.deleted, this.#handleFabricDeleted, { offline: true });
 
         // GKM owns endpoints (groupTable) and keySetId (groupKeyMap); any external change to either (e.g. legacy
-        // Groups cluster commands or direct attribute writes) must re-derive Membership and its auxiliary ACLs.  The
-        // reactors run offline because they update the read-only Membership attribute, which the triggering remote
-        // actor (a GKM attribute write) is not authorized to touch.
+        // Groups cluster commands or direct attribute writes) must re-derive Membership and its auxiliary ACLs.  A
+        // fabric removal clears both attributes in one cascade, firing both reactors against the same groupcast.state:
+        // #deriveNow derives inline while the lock is free but defers to an async-locked derive the moment it is not,
+        // so the second reactor in a cascade never conflicts synchronously.
         const gkmEvents = this.endpoint.eventsOf(GroupKeyManagementServer);
         this.reactTo(gkmEvents.groupTable$Changed, this.#handleGroupTableChanged, { offline: true });
-        this.reactTo(gkmEvents.groupKeyMap$Changed, this.#deriveMembership, { offline: true });
+        this.reactTo(gkmEvents.groupKeyMap$Changed, this.#deriveNow, { offline: true });
 
         // React to fabricUnderTest changes to dynamically subscribe/unsubscribe from group message events.
         // While no fabric is under test, SessionManager.groupMessage emits are a no-op (no listeners).
@@ -514,44 +519,145 @@ export class GroupcastServer extends GroupcastBase {
         );
     }
 
-    /** Re-apply multicast policies for a newly added or replaced fabric (its FabricGroups instance is fresh). */
-    #handleFabricAdded(_fabric: Fabric) {
-        this.#deriveMembership();
-    }
-
     #handleFabricDeleted(fabric: Fabric) {
-        this.#cleanupFabric(fabric.fabricIndex);
+        this.internal.pendingFabricCleanups.add(fabric.fabricIndex);
+        this.#deriveNow();
     }
 
     /**
-     * React to external GKM groupTable changes (legacy Groups cluster commands, direct attribute writes) and
-     * re-derive Membership.  A group present in the OLD table but absent from the NEW one lost all its endpoints; per
-     * CHIP kDeleteGroupIfEmpty its groupProperties are pruned so it is fully deleted rather than lingering as a
-     * phantom sender-only entry.  Genuine sender-only joins never had a groupTable entry, so they are never in
-     * oldTable and always survive.
+     * React to external GKM groupTable changes (legacy Groups cluster commands, direct attribute writes).  A group
+     * present in the OLD table but absent from the NEW one lost all its endpoints; per CHIP kDeleteGroupIfEmpty it must
+     * be fully deleted rather than lingering as a phantom sender-only entry.  The out-transition is recorded before
+     * deriving so a deferred derive still applies it (a cascade discards the losing reactor's oldTable).  Genuine
+     * sender-only joins never had a groupTable entry, so they are never in oldTable and always survive.
      */
-    #handleGroupTableChanged(
-        newTable: GroupKeyManagement.GroupInfoMap[],
-        oldTable: GroupKeyManagement.GroupInfoMap[],
-        context?: ActionContext,
-    ) {
+    #handleGroupTableChanged(newTable: GroupKeyManagement.GroupInfoMap[], oldTable: GroupKeyManagement.GroupInfoMap[]) {
         const present = new Set(newTable.map(g => `${g.fabricIndex}:${g.groupId}`));
-        const retained = this.internal.retainedSenderOnly;
-        const toPrune = oldTable.filter(g => {
+        for (const g of oldTable) {
             const key = `${g.fabricIndex}:${g.groupId}`;
-            if (present.has(key)) {
-                return false;
+            if (!present.has(key)) {
+                this.internal.pendingTableRemovals.add(key);
             }
-            // A groupcast command that emptied this group asked to keep it sender-only (spec kKeepGroupIfEmpty);
-            // consume the mark so a later external removal of the same group still deletes it.
-            return !retained.delete(key);
-        });
-        if (toPrune.length) {
-            this.state.groupProperties = this.state.groupProperties.filter(
-                p => !toPrune.some(r => r.fabricIndex === p.fabricIndex && r.groupId === p.groupId),
-            );
         }
-        this.#deriveMembership(undefined, undefined, context);
+        this.#deriveNow();
+    }
+
+    /**
+     * Derive membership from a reactor.  A single trigger takes the groupcast.state lock synchronously and derives
+     * inline so callers observe the result on the same tick.  A fabric removal clears both GKM attributes in one
+     * cascade, so the second (and later) reactors find the lock held: rather than throwing a synchronous conflict they
+     * hand off to the debounced async-locked {@link #scheduleDerive}, which reruns once the lock frees.  All pruning
+     * intent is recorded in the pending sets first, so whichever path runs applies it.
+     */
+    #deriveNow() {
+        const transaction = this.context.transaction;
+        try {
+            transaction.addResourcesSync(this);
+            transaction.beginSync();
+        } catch (error) {
+            SynchronousTransactionConflictError.accept(error);
+            this.#scheduleDerive();
+            return;
+        }
+        this.#applyPendingAndDerive(this.context);
+    }
+
+    /**
+     * Deferred derive for a contended cascade: acquire the groupcast.state lock asynchronously (waiting for the current
+     * holder instead of throwing) and rerun the pending prune plus derive exactly once, coalescing every trigger that
+     * arrives before the lock is held.
+     */
+    #scheduleDerive() {
+        if (this.internal.derivePending) {
+            return;
+        }
+        this.internal.derivePending = true;
+
+        let derive;
+        try {
+            derive = this.endpoint.act("groupcast-derive", async agent => {
+                const self = agent.get(GroupcastServer);
+                self.context.transaction.addResourcesSync(self);
+                await self.context.transaction.begin();
+                // Cleared only once the lock is held: a trigger arriving during the same cascade is coalesced into this
+                // run, while a genuinely later change reschedules.
+                self.internal.derivePending = false;
+                self.#applyPendingAndDerive(self.context);
+            });
+        } catch (error) {
+            // endpoint.act asserts the endpoint is active synchronously, so it can throw during teardown; resetting the
+            // flag here keeps a live node's derivation from wedging permanently.
+            this.internal.derivePending = false;
+            logger.error("Failed to schedule groupcast membership derivation", error);
+            return;
+        }
+
+        Promise.resolve(derive).catch(error => {
+            this.internal.derivePending = false;
+            logger.error("Failed to derive groupcast membership", error);
+        });
+    }
+
+    /**
+     * Apply the pruning accumulated by the reactors, then rebuild membership.  Departed fabrics drop all their
+     * groupProperties and retained-sender-only marks; externally emptied groups drop their groupProperties unless a
+     * groupcast command marked them sender-only (spec kKeepGroupIfEmpty), consuming the mark so a later external
+     * removal still deletes them.  A group re-added before this runs is left untouched.
+     */
+    #applyPendingAndDerive(context: ActionContext) {
+        const fabricCleanups = this.internal.pendingFabricCleanups;
+        const tableRemovals = this.internal.pendingTableRemovals;
+
+        // Marks consumed alongside a prune.  The non-transactional intent (pending sets + these marks) is only cleared
+        // after #deriveMembership returns, so a throw there rolls back the groupProperties/membership writes AND leaves
+        // the intent intact for the next trigger to retry.
+        const marksToConsume = new Set<string>();
+
+        if (fabricCleanups.size) {
+            this.state.groupProperties = this.state.groupProperties.filter(p => !fabricCleanups.has(p.fabricIndex));
+            // A FabricIndex can be reused by a later fabric; purge marks so none leak across that reuse.
+            for (const key of this.internal.retainedSenderOnly) {
+                if (fabricCleanups.has(FabricIndex(Number(key.split(":")[0])))) {
+                    marksToConsume.add(key);
+                }
+            }
+        }
+
+        if (tableRemovals.size) {
+            const gkm = this.agent.get(GroupKeyManagementServer);
+            const present = new Set(gkm.state.groupTable.map(g => `${g.fabricIndex}:${g.groupId}`));
+            const retained = this.internal.retainedSenderOnly;
+            const toPrune = new Set<string>();
+            for (const key of tableRemovals) {
+                if (present.has(key)) {
+                    continue;
+                }
+                // A groupcast command that emptied this group asked to keep it sender-only (spec kKeepGroupIfEmpty);
+                // consume the mark so a later external removal of the same group still deletes it.
+                if (retained.has(key)) {
+                    marksToConsume.add(key);
+                    continue;
+                }
+                toPrune.add(key);
+            }
+            if (toPrune.size) {
+                this.state.groupProperties = this.state.groupProperties.filter(
+                    p => !toPrune.has(`${p.fabricIndex}:${p.groupId}`),
+                );
+            }
+        }
+
+        this.#deriveMembership(context);
+
+        if (fabricCleanups.size) {
+            this.internal.pendingFabricCleanups = new Set<FabricIndex>();
+        }
+        if (tableRemovals.size) {
+            this.internal.pendingTableRemovals = new Set<string>();
+        }
+        for (const key of marksToConsume) {
+            this.internal.retainedSenderOnly.delete(key);
+        }
     }
 
     /**
@@ -560,7 +666,7 @@ export class GroupcastServer extends GroupcastBase {
      * present in groupProperties (a groupcast join) or groupTable (legacy/shared endpoints); groupKeyMap alone does
      * not create membership.  Idempotent and writes no GKM state, so the source-change reactors cannot feed back.
      */
-    #deriveMembership(_value?: unknown, _oldValue?: unknown, context?: ActionContext) {
+    #deriveMembership(context?: ActionContext) {
         const gkm = this.agent.get(GroupKeyManagementServer);
         const previousKeys = this.state.membership.map(m => ({ fabricIndex: m.fabricIndex, groupId: m.groupId }));
         const next = new Array<Groupcast.Membership>();
@@ -764,18 +870,6 @@ export class GroupcastServer extends GroupcastBase {
         );
     }
 
-    /** Remove all Groupcast-owned state for a departed fabric and re-derive Membership. */
-    #cleanupFabric(fabricIndex: FabricIndex) {
-        this.state.groupProperties = this.state.groupProperties.filter(p => p.fabricIndex !== fabricIndex);
-        // A FabricIndex can be reused by a later fabric; purge marks so none leak across that reuse.
-        for (const key of [...this.internal.retainedSenderOnly]) {
-            if (key.startsWith(`${fabricIndex}:`)) {
-                this.internal.retainedSenderOnly.delete(key);
-            }
-        }
-        this.#deriveMembership();
-    }
-
     override async [Symbol.asyncDispose]() {
         this.#testingTimer?.stop();
         this.#testingTimer = undefined;
@@ -803,6 +897,18 @@ export namespace GroupcastServer {
          * (LeaveGroup with the Sender feature = kKeepGroupIfEmpty).
          */
         retainedSenderOnly = new Set<string>();
+
+        /** True while a debounced derive is scheduled but has not yet acquired the groupcast.state lock. */
+        derivePending = false;
+
+        /**
+         * `fabricIndex:groupId` keys of groups that left the GKM groupTable, awaiting the debounced derive's
+         * kDeleteGroupIfEmpty prune.  Accumulated because coalescing discards each event's oldTable.
+         */
+        pendingTableRemovals = new Set<string>();
+
+        /** Fabric indices of departed fabrics whose Groupcast-owned state the debounced derive must drop. */
+        pendingFabricCleanups = new Set<FabricIndex>();
     }
 
     /** A single persisted {@link GroupcastServer.State.groupProperties} entry. */
