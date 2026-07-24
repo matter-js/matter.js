@@ -138,8 +138,8 @@ export class GroupcastServer extends GroupcastBase {
 
         // Keep in sync as fabrics are added, replaced or removed.  A replaced fabric gets a fresh Groups instance,
         // so the multicast address policies must be re-applied from the derived membership.
-        this.reactTo(fabrics.events.added, this.#deriveNow, { offline: true });
-        this.reactTo(fabrics.events.replaced, this.#deriveNow, { offline: true });
+        this.reactTo(fabrics.events.added, this.#handleFabricChanged, { offline: true });
+        this.reactTo(fabrics.events.replaced, this.#handleFabricChanged, { offline: true });
         this.reactTo(fabrics.events.deleted, this.#handleFabricDeleted, { offline: true });
 
         // GKM owns endpoints (groupTable) and keySetId (groupKeyMap); any external change to either (e.g. legacy
@@ -149,7 +149,7 @@ export class GroupcastServer extends GroupcastBase {
         // so the second reactor in a cascade never conflicts synchronously.
         const gkmEvents = this.endpoint.eventsOf(GroupKeyManagementServer);
         this.reactTo(gkmEvents.groupTable$Changed, this.#handleGroupTableChanged, { offline: true });
-        this.reactTo(gkmEvents.groupKeyMap$Changed, this.#deriveNow, { offline: true });
+        this.reactTo(gkmEvents.groupKeyMap$Changed, this.#handleGroupKeyMapChanged, { offline: true });
 
         // React to fabricUnderTest changes to dynamically subscribe/unsubscribe from group message events.
         // While no fabric is under test, SessionManager.groupMessage emits are a no-op (no listeners).
@@ -524,6 +524,19 @@ export class GroupcastServer extends GroupcastBase {
         this.#deriveNow();
     }
 
+    /** The fabric add/replace events carry no writer context, so this derive emits its aux ACL without an admin. */
+    #handleFabricChanged() {
+        this.#deriveNow();
+    }
+
+    #handleGroupKeyMapChanged(
+        _newMap: GroupKeyManagement.GroupKeyMap[],
+        _oldMap: GroupKeyManagement.GroupKeyMap[],
+        context?: ActionContext,
+    ) {
+        this.#deriveNow(context);
+    }
+
     /**
      * React to external GKM groupTable changes (legacy Groups cluster commands, direct attribute writes).  A group
      * present in the OLD table but absent from the NEW one lost all its endpoints; per CHIP kDeleteGroupIfEmpty it must
@@ -531,7 +544,11 @@ export class GroupcastServer extends GroupcastBase {
      * deriving so a deferred derive still applies it (a cascade discards the losing reactor's oldTable).  Genuine
      * sender-only joins never had a groupTable entry, so they are never in oldTable and always survive.
      */
-    #handleGroupTableChanged(newTable: GroupKeyManagement.GroupInfoMap[], oldTable: GroupKeyManagement.GroupInfoMap[]) {
+    #handleGroupTableChanged(
+        newTable: GroupKeyManagement.GroupInfoMap[],
+        oldTable: GroupKeyManagement.GroupInfoMap[],
+        context?: ActionContext,
+    ) {
         const present = new Set(newTable.map(g => `${g.fabricIndex}:${g.groupId}`));
         for (const g of oldTable) {
             const key = `${g.fabricIndex}:${g.groupId}`;
@@ -539,7 +556,7 @@ export class GroupcastServer extends GroupcastBase {
                 this.internal.pendingTableRemovals.add(key);
             }
         }
-        this.#deriveNow();
+        this.#deriveNow(context);
     }
 
     /**
@@ -549,7 +566,7 @@ export class GroupcastServer extends GroupcastBase {
      * hand off to the debounced async-locked {@link #scheduleDerive}, which reruns once the lock frees.  All pruning
      * intent is recorded in the pending sets first, so whichever path runs applies it.
      */
-    #deriveNow() {
+    #deriveNow(actorContext?: ActionContext) {
         const transaction = this.context.transaction;
         try {
             transaction.addResourcesSync(this);
@@ -559,7 +576,10 @@ export class GroupcastServer extends GroupcastBase {
             this.#scheduleDerive();
             return;
         }
-        this.#applyPendingAndDerive(this.context);
+        // State writes use this reactor's own locked transaction; the writer's online context is passed through only so
+        // the emitted AuxiliaryAccessUpdated event names the administering node.  A deferred derive (see #scheduleDerive)
+        // runs after that context is gone and emits with no admin.
+        this.#applyPendingAndDerive(actorContext ?? this.context);
     }
 
     /**

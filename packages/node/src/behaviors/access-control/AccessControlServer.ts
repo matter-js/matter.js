@@ -459,7 +459,10 @@ export class AccessControlServer extends AccessControlBase {
      */
     registerAuxAclProvider(observable: AccessControlServer.AuxAclObservable) {
         this.internal.auxiliaryAclProviders.add(observable);
-        this.reactTo(observable, this.callback(this.#onProviderAuxAclChanged));
+        // Offline: the auxiliaryAcl state write runs in its own transaction rather than re-opening the provider's
+        // already-committed one during postCommit.  The administering node is still taken from the passed context,
+        // which offline reactors receive as an argument.
+        this.reactTo(observable, this.callback(this.#onProviderAuxAclChanged, { offline: true }));
         // Sync initial value without emitting events (node is still initializing)
         if (observable.value?.length) {
             this.#syncAuxAcl(false);
