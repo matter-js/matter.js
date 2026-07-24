@@ -7,6 +7,7 @@
 import { Fabric } from "#fabric/Fabric.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import { SessionParameters } from "#index.js";
+import { DuplicateMessageError } from "#protocol/MessageReceptionState.js";
 import { SessionManager } from "#session/SessionManager.js";
 import {
     b$,
@@ -295,6 +296,106 @@ describe("SessionManager", () => {
             fabric.groups.removeGroupKeySet(1);
             const after = await sessionManager.groupDataMessageCounter.getIncrementedCounter();
             expect(after).greaterThan(before);
+        });
+
+        const keySet = (groupKeySetId: number, epochKey0: Bytes) => ({
+            groupKeySetId,
+            groupKeySecurityPolicy: 0,
+            epochKey0,
+            epochStartTime0: 1,
+            epochKey1: null,
+            epochStartTime1: null,
+            epochKey2: null,
+            epochStartTime2: null,
+            groupKeyMulticastPolicy: 0,
+        });
+
+        it("forgets group message reception state when its key set is removed so a reused key re-syncs", async () => {
+            const crypto = new StandardCrypto();
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            const fabricManager = new FabricManager(crypto);
+            await fabricManager.construction.ready;
+            const fabric = groupFabric(crypto, new StorageContext(storage, ["fabric"]));
+            fabricManager.addFabric(fabric);
+
+            const epochKey = b$`000102030405060708090a0b0c0d0e0f`;
+            await fabric.groups.setFromGroupKeySet(keySet(1, epochKey));
+
+            const source = NodeId(2);
+            const operationalKey = fabric.groups.keySets.get("groupKeySetId", 1)!.operationalEpochKey0;
+
+            // Advance the replay window; a lower counter on the retained state is then a replay.
+            fabric.groups.messaging.receptionStateFor(source, operationalKey).updateMessageCounter(1000);
+            expect(() =>
+                fabric.groups.messaging.receptionStateFor(source, operationalKey).updateMessageCounter(500),
+            ).throws(DuplicateMessageError);
+
+            // Remove and re-provision the identical epoch key (same derived operational key).
+            fabric.groups.removeGroupKeySet(1);
+            await fabric.groups.setFromGroupKeySet(keySet(1, epochKey));
+            const reusedKey = fabric.groups.keySets.get("groupKeySetId", 1)!.operationalEpochKey0;
+            expect(Bytes.toHex(reusedKey)).equals(Bytes.toHex(operationalKey));
+
+            // The fresh window syncs on the first (lower) counter instead of rejecting it as a replay.
+            expect(() =>
+                fabric.groups.messaging.receptionStateFor(source, reusedKey).updateMessageCounter(500),
+            ).not.throws();
+        });
+
+        it("keeps reception state until the last key set sharing an operational key is removed", async () => {
+            const crypto = new StandardCrypto();
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            const fabricManager = new FabricManager(crypto);
+            await fabricManager.construction.ready;
+            const fabric = groupFabric(crypto, new StorageContext(storage, ["fabric"]));
+            fabricManager.addFabric(fabric);
+
+            const epochKey = b$`000102030405060708090a0b0c0d0e0f`;
+            await fabric.groups.setFromGroupKeySet(keySet(1, epochKey));
+            await fabric.groups.setFromGroupKeySet(keySet(2, epochKey));
+
+            const source = NodeId(2);
+            const operationalKey = fabric.groups.keySets.get("groupKeySetId", 1)!.operationalEpochKey0;
+            fabric.groups.messaging.receptionStateFor(source, operationalKey).updateMessageCounter(1000);
+
+            // One of two key sets shares the derived key, so its reception window must survive this removal.
+            fabric.groups.removeGroupKeySet(1);
+            expect(() =>
+                fabric.groups.messaging.receptionStateFor(source, operationalKey).updateMessageCounter(500),
+            ).throws(DuplicateMessageError);
+
+            // Removing the last referencing key set forgets it.
+            fabric.groups.removeGroupKeySet(2);
+            expect(() =>
+                fabric.groups.messaging.receptionStateFor(source, operationalKey).updateMessageCounter(500),
+            ).not.throws();
+        });
+
+        it("forgets the previous operational key when a key set is rewritten with a new epoch key", async () => {
+            const crypto = new StandardCrypto();
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            const fabricManager = new FabricManager(crypto);
+            await fabricManager.construction.ready;
+            const fabric = groupFabric(crypto, new StorageContext(storage, ["fabric"]));
+            fabricManager.addFabric(fabric);
+
+            const epochA = b$`000102030405060708090a0b0c0d0e0f`;
+            const epochB = b$`0f0e0d0c0b0a09080706050403020100`;
+            await fabric.groups.setFromGroupKeySet(keySet(1, epochA));
+
+            const source = NodeId(2);
+            const operationalA = fabric.groups.keySets.get("groupKeySetId", 1)!.operationalEpochKey0;
+            fabric.groups.messaging.receptionStateFor(source, operationalA).updateMessageCounter(1000);
+
+            // In-place rewrite with a different epoch key drops key A, so its window must be forgotten.
+            await fabric.groups.setFromGroupKeySet(keySet(1, epochB));
+
+            expect(() =>
+                fabric.groups.messaging.receptionStateFor(source, operationalA).updateMessageCounter(500),
+            ).not.throws();
         });
     });
 

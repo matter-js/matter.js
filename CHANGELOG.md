@@ -34,6 +34,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Parallel PASE commissioning now uses the won session immediately instead of blocking on losing attempts' cleanup, which could let the won session expire at the device failsafe before use
     - Fix: A device dropped during parallel PASE for invalid credentials no longer accepts a slower successful attempt on another of its addresses
     - Fix: Extend the handling of non-compliant devices that drop the commissioning connection when network details are added (`AddOrUpdateWiFi`/`AddOrUpdateThread`), not only on `ConnectNetwork`, treating them as non-concurrent and proceeding directly to operational discovery
+    - Fix: Clear group message reception (replay) state when a group key set is removed or rewritten, so valid messages are not rejected as replays after a key set is re-provisioned with a reused epoch key
 
 ## 0.17.6 (2026-07-16)
 

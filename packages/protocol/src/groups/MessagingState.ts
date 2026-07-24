@@ -87,4 +87,13 @@ export class MessagingState {
         }
         return receptionState;
     }
+
+    /**
+     * Discards the replay-protection reception state for an operational key.  Called when the key's key set is removed
+     * so that a later key set reusing the same epoch key starts a fresh counter window and its first message
+     * re-synchronizes instead of being rejected as a replay against the removed key's high-water counter.
+     */
+    forgetReceptionState(operationalKey: Bytes) {
+        this.#messageDataReceptionState.delete(Bytes.toHex(operationalKey));
+    }
 }
