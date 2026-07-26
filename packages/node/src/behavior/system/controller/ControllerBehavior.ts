@@ -16,6 +16,7 @@ import {
     SharedEnvironmentServices,
     TransportSet,
 } from "@matter/general";
+import { MatterModel } from "@matter/model";
 import {
     Ble,
     ClientSubscriptions,
@@ -58,6 +59,11 @@ export class ControllerBehavior extends Behavior {
         }
 
         const node = Node.forEndpoint(this.endpoint);
+
+        // Publish the controller's model so auto-created peer nodes inherit it via the environment
+        if (this.state.matter !== undefined) {
+            node.env.set(MatterModel, this.state.matter);
+        }
 
         // Configure discovery transports
         if (this.state.ip === undefined) {
@@ -297,5 +303,13 @@ export namespace ControllerBehavior {
          * Case Authenticated Tags to be used to commission and connect to devices.
          */
         caseAuthenticatedTags?: CaseAuthenticatedTag[] = undefined;
+
+        /**
+         * Model of Matter semantics used for peers commissioned or discovered by this controller.
+         *
+         * Supply a model extended with custom or manufacturer-specific clusters (see {@link MatterModel.extended}) so
+         * their attributes and commands resolve to real names instead of synthetic `attr$…`/`command$…` identifiers.
+         */
+        matter?: MatterModel = undefined;
     }
 }

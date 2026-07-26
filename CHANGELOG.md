@@ -14,7 +14,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/general
     - Fix: `Heap` now stores each item at most once and maintains its position index eagerly, so deleting an item added after an earlier deletion works reliably
 
+- @matter/model
+    - Enhancement: `MatterModel.withClusters()` returns a copy of a model with clusters added or replaced by ID
+
 - @matter/node
+    - Enhancement: Controllers accept a custom Matter model via the `matter` option so a commissioned peer's custom or extended cluster elements resolve to real names instead of synthetic `attr$…`/`command$…` identifiers
     - Enhancement: `SoftwareUpdateManager.checkForUpdates()` forces an immediate OTA update check and cleanup of obsolete stored updates
     - Enhancement: Custom server session intervals (idle/active interval, active threshold) are now configurable via `sessions.intervals`
     - Fix: Optimize Cluster data updates when structures change for ClientNodes
