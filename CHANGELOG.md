@@ -11,26 +11,32 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/model
+    - Enhancement: `FeatureSelectionErrors()` assesses a cluster's selected features against the conformance of its FeatureMap
+    - Fix: A cluster's own feature table no longer enables features
+
+- @matter/node
+    - Enhancement: Adding a server cluster to an endpoint fails when its selected features violate the conformance of its FeatureMap
+    - Fix: Default server exports no longer inherit the features their base implementation enables internally
+    - Fix: `ClusterBehavior.with()` rejects a feature the cluster does not define
+    - Fix: A LongIdleTimeSupport ICD must select CheckInProtocolSupport and UserActiveModeTrigger
+    - Fix: `EnergyEvseServer` selects the mandatory ChargingPreferences feature
+
+## 0.17.7 (2026-07-27)
+
 - @matter/general
     - Fix: `Heap` now stores each item at most once and maintains its position index eagerly, so deleting an item added after an earlier deletion works reliably
 
 - @matter/model
     - Enhancement: `MatterModel.withClusters()` returns a copy of a model with clusters added or replaced by ID
-    - Enhancement: `FeatureSelectionErrors()` assesses a cluster's selected features against the conformance of its FeatureMap
-    - Fix: A cluster's own feature table no longer enables features
 
 - @matter/node
     - Enhancement: Controllers accept a custom Matter model via the `matter` option so a commissioned peer's custom or extended cluster elements resolve to real names instead of synthetic `attr$…`/`command$…` identifiers
     - Enhancement: `SoftwareUpdateManager.checkForUpdates()` forces an immediate OTA update check and cleanup of obsolete stored updates
     - Enhancement: Custom server session intervals (idle/active interval, active threshold) are now configurable via `sessions.intervals`
-    - Enhancement: Adding a server cluster to an endpoint fails when its selected features violate the conformance of its FeatureMap
     - Fix: Optimize Cluster data updates when structures change for ClientNodes
     - Fix: Prevent subscriptions from being activated on a closing session
     - Fix: Thermostat adjusts the coupled setpoint limit to preserve the AutoMode deadband instead of rejecting the write
-    - Fix: Default server exports no longer inherit the features their base implementation enables internally
-    - Fix: `ClusterBehavior.with()` rejects a feature the cluster does not define
-    - Fix: A LongIdleTimeSupport ICD must select CheckInProtocolSupport and UserActiveModeTrigger
-    - Fix: `EnergyEvseServer` selects the mandatory ChargingPreferences feature
     - Fix: Choice conformance no longer requires a member gated by an inapplicable condition (e.g. `[ICTL].b+` when the feature is unsupported)
     - Fix: Support the `!=` (not-equal) operator in value conformance expressions
     - Fix: Ensure `FabricAuthority` is fully constructed before it is used in the WebRTC Transport Requestor, OTA Software Update Provider and Software Update clusters
