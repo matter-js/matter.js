@@ -32,7 +32,6 @@ import {
     DeviceClassification,
     FeatureMap,
     GeneratedCommandList,
-    Matter,
     type FeatureBitmap,
 } from "@matter/model";
 import { ReadScope, Val, type Read, type ReadResult } from "@matter/protocol";
@@ -689,6 +688,7 @@ export class ClientStructure {
                 if (this.#commandFactory) {
                     shape.commandFactory = this.#commandFactory;
                 }
+                shape.matter = this.#node.matter;
                 const behaviorType = PeerBehavior(shape);
 
                 if (endpoint.lifecycle.isInstalled) {
@@ -730,7 +730,7 @@ export class ClientStructure {
                 }
 
                 let isApp = false;
-                const model = Matter.deviceTypes(dt.deviceType);
+                const model = this.#node.matter.deviceTypes(dt.deviceType);
                 if (model !== undefined) {
                     isApp = DeviceClassification.isApplication(model.classification);
                 }
@@ -917,7 +917,7 @@ export class ClientStructure {
         }
 
         // Try to resolve by looking up the cluster model by capitalized behavior name (e.g. "onOff" → "OnOff")
-        const clusterModel = Matter.clusters(capitalize(behaviorId));
+        const clusterModel = this.#node.matter.clusters(capitalize(behaviorId));
         if (clusterModel) {
             return this.#clusterFor(endpoint, clusterModel.id as ClusterId);
         }

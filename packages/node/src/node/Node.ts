@@ -25,6 +25,7 @@ import {
     ImplementationError,
     Logger,
 } from "@matter/general";
+import { Matter, MatterModel } from "@matter/model";
 import { Interactable } from "@matter/protocol";
 import type { EndpointNumber } from "@matter/types";
 import { RootEndpoint } from "../endpoints/root.js";
@@ -85,6 +86,14 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
 
     override get env() {
         return this.#environment;
+    }
+
+    /**
+     * Model of Matter semantics understood by this node.  Defaults to the standard model; client nodes may narrow or
+     * extend it so remote clusters resolve to real element names.
+     */
+    get matter(): MatterModel {
+        return Matter;
     }
 
     /**
