@@ -13,7 +13,11 @@ import { LIT_CONFIG } from "./icd-helpers.js";
 import { MockServerNode } from "./mock-server-node.js";
 
 const RootWithLitIcd = MockServerNode.RootEndpoint.with(
-    IcdManagementServer.with(IcdManagement.Feature.CheckInProtocolSupport, IcdManagement.Feature.LongIdleTimeSupport),
+    IcdManagementServer.with(
+        IcdManagement.Feature.CheckInProtocolSupport,
+        IcdManagement.Feature.LongIdleTimeSupport,
+        IcdManagement.Feature.UserActiveModeTrigger,
+    ),
 );
 
 describe("ServerSubscription", () => {

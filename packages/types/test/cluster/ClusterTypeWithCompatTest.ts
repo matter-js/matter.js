@@ -75,10 +75,22 @@ describe("ClusterType.Cluster.with() compat shim", () => {
         expect(selected.Cluster.supportedFeatures).equal(selected.supportedFeatures);
     });
 
-    it("produces a fresh clone per call", () => {
-        const a = PowerSource.Cluster.with(PowerSource.Feature.Battery);
-        const b = PowerSource.Cluster.with(PowerSource.Feature.Battery);
+    // Consumers cache behavior types against namespace identity, so a clone per call would defeat them
+    it("produces one clone per feature selection", () => {
+        expect(PowerSource.Cluster.with(PowerSource.Feature.Battery)).equal(
+            PowerSource.Cluster.with(PowerSource.Feature.Battery),
+        );
 
-        expect(a).not.equal(b);
+        expect(PowerSource.Cluster.with(PowerSource.Feature.Battery, PowerSource.Feature.Rechargeable)).equal(
+            PowerSource.Cluster.with(PowerSource.Feature.Rechargeable, PowerSource.Feature.Battery),
+        );
+    });
+
+    it("produces distinct clones for distinct feature selections", () => {
+        expect(PowerSource.Cluster.with(PowerSource.Feature.Battery)).not.equal(
+            PowerSource.Cluster.with(PowerSource.Feature.Wired),
+        );
+
+        expect(PowerSource.Cluster.with(PowerSource.Feature.Battery)).not.equal(PowerSource.Cluster);
     });
 });

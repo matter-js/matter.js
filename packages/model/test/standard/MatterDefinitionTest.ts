@@ -58,4 +58,18 @@ describe("MatterDefinition", () => {
         }
         expect(offenders).deep.equal([]);
     });
+
+    // A cluster's own feature table never enables a feature.  Feature selection comes from device type requirements or
+    // an explicit implementation decision, so the standard model must not carry the spec's feature fallback values
+    it("enables no cluster feature by default", () => {
+        const offenders = new Array<string>();
+        for (const cluster of instantiate().clusters) {
+            for (const feature of cluster.features) {
+                if (feature.default !== undefined) {
+                    offenders.push(`${cluster.name}.${feature.name}`);
+                }
+            }
+        }
+        expect(offenders).deep.equal([]);
+    });
 });

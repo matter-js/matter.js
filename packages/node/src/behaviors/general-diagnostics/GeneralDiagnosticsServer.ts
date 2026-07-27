@@ -7,6 +7,7 @@
 import type { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import { NetworkRuntime } from "#behavior/system/network/NetworkRuntime.js";
 import type { ServerNetworkRuntime } from "#behavior/system/network/ServerNetworkRuntime.js";
+import { BasicInformationBehavior } from "#behaviors/basic-information";
 import { NetworkCommissioningServer } from "#behaviors/network-commissioning";
 import { TimeSynchronizationBehavior } from "#behaviors/time-synchronization";
 import type { Endpoint } from "#endpoint/Endpoint.js";
@@ -32,7 +33,15 @@ import {
 } from "@matter/general";
 import { FieldElement, Specification } from "@matter/model";
 import { assertRemoteActor, MdnsService, SessionManager, Val } from "@matter/protocol";
-import { CommandId, FabricIndex, Status, StatusResponseError, TlvInvokeResponse, TlvOfModel } from "@matter/types";
+import {
+    CommandId,
+    DEFAULT_MAX_PATHS_PER_INVOKE,
+    FabricIndex,
+    Status,
+    StatusResponseError,
+    TlvInvokeResponse,
+    TlvOfModel,
+} from "@matter/types";
 import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 import { GeneralDiagnosticsBehavior } from "./GeneralDiagnosticsBehavior.js";
 
@@ -94,6 +103,26 @@ export class GeneralDiagnosticsServer extends Base {
         this.maybeReactTo(this.events.activeRadioFaults$Changed, this.#triggerActiveRadioFaultsChangedEvent);
 
         this.maybeReactTo(this.events.activeNetworkFaults$Changed, this.#triggerActiveNetworkFaultsChangedEvent);
+    }
+
+    /**
+     * DataModelTest is only mandatory above a maxPathsPerInvoke of one, so a node that accepts a single path may drop
+     * it.  We implement the feature's commands regardless so leaving it enabled is harmless.
+     */
+    #reportUnnecessaryDataModelTest() {
+        if (!this.features.dataModelTest) {
+            return;
+        }
+
+        const maxPathsPerInvoke =
+            this.endpoint.maybeStateOf(BasicInformationBehavior)?.maxPathsPerInvoke ?? DEFAULT_MAX_PATHS_PER_INVOKE;
+        if (maxPathsPerInvoke !== 1) {
+            return;
+        }
+
+        logger.info(
+            "The DataModelTest feature is enabled but is only required when maxPathsPerInvoke is greater than 1; disable it with GeneralDiagnosticsServer.with() if you do not want to advertise it",
+        );
     }
 
     #validateTestEnabledKey(enableKey: Bytes) {
@@ -303,6 +332,8 @@ export class GeneralDiagnosticsServer extends Base {
     }
 
     async #online() {
+        this.#reportUnnecessaryDataModelTest();
+
         this.events.bootReason.emit(
             { bootReason: this.state.bootReason ?? GeneralDiagnostics.BootReason.Unspecified },
             this.context,

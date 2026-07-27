@@ -12,7 +12,7 @@ import type { Endpoint } from "#endpoint/Endpoint.js";
 import type { Agent } from "#endpoint/index.js";
 import type { SupportedElements } from "#endpoint/properties/Behaviors.js";
 import { camelize, ImplementationError, MaybePromise, ObserverGroup } from "@matter/general";
-import { ClusterModel, CommandModel, FeatureSet, FieldValue, Schema } from "@matter/model";
+import { ClusterModel, CommandModel, FeatureSelectionErrors, FeatureSet, FieldValue, Schema } from "@matter/model";
 import { Val } from "@matter/protocol";
 import { AttributeId, CommandId } from "@matter/types";
 import { Behavior } from "../Behavior.js";
@@ -22,6 +22,11 @@ import { BehaviorBacking } from "./BehaviorBacking.js";
 const NoElements = new Set<string>();
 
 export class FeatureMismatchError extends ImplementationError {}
+
+/**
+ * Thrown when a cluster's selected features violate the conformance of its FeatureMap.
+ */
+export class FeatureSelectionError extends ImplementationError {}
 
 /**
  * This class backs the server implementation of a behavior.
@@ -144,8 +149,17 @@ export class ServerBehaviorBacking extends BehaviorBacking {
         globals.acceptedCommandList = acceptedIds.sort((a, b) => a - b);
         globals.generatedCommandList = [...generatedIds].sort((a, b) => a - b);
 
-        // Validate the feature map
         if (schema.tag === "cluster") {
+            // Validate the feature selection.  We cannot do this when the behavior type is created because the
+            // library's own exports intentionally leave the choice to the application
+            const selectionErrors = FeatureSelectionErrors(schema);
+            if (selectionErrors.length) {
+                throw new FeatureSelectionError(
+                    `Feature selection for ${behavior} is invalid; use ${behavior.type.name}.with("FeatureName") to select features: ${selectionErrors.join("; ")}`,
+                );
+            }
+
+            // Validate the feature map
             const { supportedFeatures, featureMap } = Schema(behavior.type) as ClusterModel;
             const { featuresSupported, featuresAvailable } = FeatureSet.normalize(
                 featureMap,

@@ -168,20 +168,37 @@ function installLazyProperties(ns: object, model: ClusterModel) {
         // Returns a shallow prototype-based clone of the namespace with `supportedFeatures` set.  Feature
         // selection has no other runtime effect (attribute maps are not culled by conformance).
         // @deprecated Removal tracked for 0.18.
-        lazy("with", () => (...features: string[]) => {
-            const clone = Object.create(ns) as Record<string, unknown>;
-            const supportedFeatures: Record<string, true> = {};
-            for (const feature of features) {
+        lazy("with", () => {
+            // One clone per selection.  Consumers key caches on namespace identity, so a fresh object per call would
+            // defeat them
+            const clones = new Map<string, object>();
+
+            return (...features: string[]) => {
                 // Feature enum values are PascalCase; SupportedFeatures keys are camelCase.
-                supportedFeatures[feature.charAt(0).toLowerCase() + feature.slice(1)] = true;
-            }
-            clone.supportedFeatures = Object.freeze(supportedFeatures);
-            // Preserve the `Cluster`/`Complete` self-reference invariant on the clone; prototype-chain lookup would
-            // otherwise resolve these to the source namespace and drop the `supportedFeatures` marker.  Must use
-            // defineProperty because the inherited props are non-writable (installed via lazy() with no `writable`).
-            Object.defineProperty(clone, "Cluster", { value: clone, enumerable: true, configurable: true });
-            Object.defineProperty(clone, "Complete", { value: clone, enumerable: true, configurable: true });
-            return clone;
+                const names = features.map(feature => feature.charAt(0).toLowerCase() + feature.slice(1)).sort();
+
+                const key = names.join(",");
+                const existing = clones.get(key);
+                if (existing) {
+                    return existing;
+                }
+
+                const clone = Object.create(ns) as Record<string, unknown>;
+                const supportedFeatures: Record<string, true> = {};
+                for (const name of names) {
+                    supportedFeatures[name] = true;
+                }
+                clone.supportedFeatures = Object.freeze(supportedFeatures);
+                // Preserve the `Cluster`/`Complete` self-reference invariant on the clone; prototype-chain lookup would
+                // otherwise resolve these to the source namespace and drop the `supportedFeatures` marker.  Must use
+                // defineProperty because the inherited props are non-writable (installed via lazy() with no `writable`).
+                Object.defineProperty(clone, "Cluster", { value: clone, enumerable: true, configurable: true });
+                Object.defineProperty(clone, "Complete", { value: clone, enumerable: true, configurable: true });
+
+                clones.set(key, clone);
+
+                return clone;
+            };
         });
     }
 

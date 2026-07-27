@@ -21,9 +21,9 @@ export const LevelControl = Cluster(
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
-        Field({ name: "OO", conformance: "O", constraint: "0", default: 1, title: "OnOff" }),
-        Field({ name: "LT", conformance: "O", constraint: "1", default: 0, title: "Lighting" }),
-        Field({ name: "FQ", conformance: "P", constraint: "2", default: 0, title: "Frequency" })
+        Field({ name: "OO", conformance: "O", constraint: "0", title: "OnOff" }),
+        Field({ name: "LT", conformance: "O", constraint: "1", title: "Lighting" }),
+        Field({ name: "FQ", conformance: "P", constraint: "2", title: "Frequency" })
     ),
 
     Attribute({

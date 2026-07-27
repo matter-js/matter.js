@@ -154,9 +154,10 @@ const INSTRUCTION_REQUIRED_TRIGGER_HINTS = [
  * ## Long Idle Time (LITS)
  *
  * Enable LITS with `IcdManagementServer.with(IcdManagement.Feature.CheckInProtocolSupport,
- * IcdManagement.Feature.LongIdleTimeSupport)` — CIP is mandatory under LITS and `.with` replaces (does not augment)
- * the feature set, so both must be listed. The mandatory `operatingMode` attribute has no spec-defined default and
- * must be configured by the application (initialization throws otherwise); set it to
+ * IcdManagement.Feature.LongIdleTimeSupport, IcdManagement.Feature.UserActiveModeTrigger)` — CIP and UAT are mandatory
+ * under LITS and `.with` replaces (does not augment) the feature set, so all three must be listed. The mandatory
+ * `operatingMode` attribute has no spec-defined default and must be configured by the application (initialization
+ * throws otherwise); set it to
  * {@link IcdManagement.OperatingMode.Sit} unless the device starts in LIT. DSLS devices may additionally call
  * {@link setOperatingMode} to switch SIT↔LIT at runtime.
  *

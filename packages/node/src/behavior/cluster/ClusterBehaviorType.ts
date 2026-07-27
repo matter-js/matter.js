@@ -80,7 +80,7 @@ export function ClusterBehaviorType({
     const useCache = name === undefined;
 
     if (useCache) {
-        const cached = ClusterBehaviorCache.get(base, schema, forClient);
+        const cached = ClusterBehaviorCache.get(base, schema, namespace, forClient);
         if (cached) {
             return cached;
         }
@@ -146,7 +146,7 @@ export function ClusterBehaviorType({
     schema.finalize();
 
     if (useCache) {
-        ClusterBehaviorCache.set(base, schema, type);
+        ClusterBehaviorCache.set(base, schema, namespace, type, forClient);
     }
 
     return type as ClusterBehavior.Type;
@@ -419,77 +419,63 @@ function schemaForId(id: number) {
  * We cache schema for clusters configured for certain features.  This in turn enables the RootSupervisor cache which
  * keys off of the schema.
  */
-const configuredSchemaCache = new Map<Schema.Cluster, Record<string, Schema.Cluster>>();
+const configuredSchemaCache = new WeakMap<Schema.Cluster, Record<string, Schema.Cluster>>();
+
+/**
+ * Schema that differ from another only by feature selection cache against that schema, so a selection reapplied to a
+ * variant converges on the original object rather than minting a third.
+ */
+const featureVariantOrigin = new WeakMap<Schema.Cluster, Schema.Cluster>();
 
 /**
  * Ensure the supported features enumerated by schema align with a namespace's feature selection.
  */
 function syncFeatures(schema: Schema.Cluster, namespace: object | undefined) {
-    // Determine features from namespace's supportedFeatures or schema
-    let incomingFeatures: FeatureSet;
-
     const nsSupportedFeatures = (namespace as { supportedFeatures?: Record<string, boolean> } | undefined)
         ?.supportedFeatures;
-    if (nsSupportedFeatures) {
-        incomingFeatures = new FeatureSet(nsSupportedFeatures);
-    } else {
-        // No feature override — use schema's defaults
+    if (nsSupportedFeatures === undefined) {
         return schema;
     }
 
-    if (incomingFeatures.is(schema.supportedFeatures)) {
-        return schema;
-    }
-
-    // If we have cached this version of the cluster, return the cached schema
-    const featureKey = [...incomingFeatures].sort().join(",");
-    let schemaBucket = configuredSchemaCache.get(schema);
-    if (schemaBucket === undefined) {
-        schemaBucket = {};
-        configuredSchemaCache.set(schema, schemaBucket);
-    } else {
-        if (featureKey in schemaBucket) {
-            return schemaBucket[featureKey];
-        }
-    }
-
-    // New schema
-    schema = schema.clone();
-    schema.supportedFeatures = incomingFeatures;
-
-    // Cache
-    schemaBucket[featureKey] = schema;
-
-    return schema;
+    return syncFeaturesFromSet(schema, featureSetFor(schema, new FeatureSet(nsSupportedFeatures)));
 }
 
 /**
  * Apply a feature selection to a schema.  If `features` is `true`, all elements are included regardless of
- * conformance ("complete" mode).  Otherwise, maps feature names to the schema's FeatureSet short codes.
+ * conformance ("complete" mode).
  */
 function applyFeatureSelection(schema: Schema.Cluster, features: readonly string[] | true): Schema.Cluster {
-    if (features === true) {
-        // "Complete" mode — clone schema and mark all features as supported
-        const featureSet = new FeatureSet();
-        for (const feature of (schema as ClusterModel).features) {
-            featureSet.add(feature.name);
-        }
-        return syncFeaturesFromSet(schema, featureSet);
-    }
+    const names = features === true ? (schema as ClusterModel).features.map(feature => feature.name) : features;
 
-    // Map user-facing feature names to schema short codes
-    const featureSet = new FeatureSet();
+    return syncFeaturesFromSet(schema, featureSetFor(schema, names));
+}
+
+/**
+ * Map feature names to a schema's FeatureSet short codes.  Accepts short code, title or camelized title so selections
+ * expressed against the cluster namespace, the {@link ClusterBehavior.features} flags or the schema all resolve.
+ */
+function featureSetFor(schema: Schema.Cluster, names: Iterable<string>) {
     const model = schema as ClusterModel;
-    for (const name of features) {
-        for (const feature of model.features) {
-            if ((feature.title ?? feature.name) === name || feature.name === name) {
-                featureSet.add(feature.name);
-                break;
-            }
+    const featureSet = new FeatureSet();
+
+    for (const name of names) {
+        const feature = model.features.find(feature => {
+            const title = feature.title ?? feature.name;
+            return feature.name === name || title === name || camelize(title) === name;
+        });
+
+        if (feature === undefined) {
+            throw new ImplementationError(
+                `${model.name} has no feature "${name}"; known features are ${model.features
+                    .map(feature => feature.title ?? feature.name)
+                    .join(", ")}`,
+            );
         }
+
+        featureSet.add(feature.name);
     }
 
-    return syncFeaturesFromSet(schema, featureSet);
+    return featureSet;
 }
 
 /**
@@ -500,20 +486,26 @@ function syncFeaturesFromSet(schema: Schema.Cluster, featureSet: FeatureSet): Sc
         return schema;
     }
 
+    const origin = featureVariantOrigin.get(schema) ?? schema;
+    if (featureSet.is(origin.supportedFeatures)) {
+        return origin;
+    }
+
     const featureKey = [...featureSet].sort().join(",");
-    let schemaBucket = configuredSchemaCache.get(schema);
+    let schemaBucket = configuredSchemaCache.get(origin);
     if (schemaBucket === undefined) {
         schemaBucket = {};
-        configuredSchemaCache.set(schema, schemaBucket);
+        configuredSchemaCache.set(origin, schemaBucket);
     } else if (featureKey in schemaBucket) {
         return schemaBucket[featureKey];
     }
 
-    schema = schema.clone();
-    schema.supportedFeatures = featureSet;
-    schemaBucket[featureKey] = schema;
+    const variant = origin.clone();
+    variant.supportedFeatures = featureSet;
+    schemaBucket[featureKey] = variant;
+    featureVariantOrigin.set(variant, origin);
 
-    return schema;
+    return variant;
 }
 
 /**
