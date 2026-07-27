@@ -9,13 +9,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
-## 0.17.7 (2026-07-27)
-
-- @matter/general
-    - Fix: `Heap` now stores each item at most once and maintains its position index eagerly, so deleting an item added after an earlier deletion works reliably
-
-- @matter/model
-    - Enhancement: `MatterModel.withClusters()` returns a copy of a model with clusters added or replaced by ID
+## __WORK IN PROGRESS__
 
 - @matter/node
     - Feature: Added `ServerNode.peers.commissioned` returning the commissioned `ClientNode`s
@@ -26,11 +20,27 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Added `openBasicCommissioningWindow`/`openEnhancedCommissioningWindow` on `CommissioningClient`/`ClientNode` to open a commissioning window on a commissioned peer
     - Feature: Added split/delegated commissioning — `CommissioningClient.CommissioningOptions.finalizeCommissioning` plus `ServerNode.peers.completeCommissioning(nodeId, discoveryData?, options?)`
     - Feature: Added `NetworkServer.autoStartCommissionedPeers` (default true) to opt out of auto-starting commissioned peers when the node goes online
+    - Adjustment: A node with commissioning disabled (e.g. a controller) now binds an ephemeral operational port instead of the standard Matter port (5540) when `NetworkServer.port` is unset; commissionable nodes still default to 5540 and an explicit port is always honored
+    - Fix: `endpoints.size` no longer double-counts the root endpoint
+
+- @matter/types
+    - Feature: Added the `ClusterLookup` namespace for cluster/attribute/command/event name↔id resolution (optional `MatterModel` for custom clusters)
+
+- @project-chip/matter.js
+    - Deprecation: The legacy controller/device API (CommissioningController, PairedNode, Device/Endpoint/Aggregator, cluster clients) is officially deprecated and will be removed in 0.19; migrate to @matter/node
+
+## 0.17.7 (2026-07-27)
+
+- @matter/general
+    - Fix: `Heap` now stores each item at most once and maintains its position index eagerly, so deleting an item added after an earlier deletion works reliably
+
+- @matter/model
+    - Enhancement: `MatterModel.withClusters()` returns a copy of a model with clusters added or replaced by ID
+
+- @matter/node
     - Enhancement: Controllers accept a custom Matter model via the `matter` option so a commissioned peer's custom or extended cluster elements resolve to real names instead of synthetic `attr$…`/`command$…` identifiers
     - Enhancement: `SoftwareUpdateManager.checkForUpdates()` forces an immediate OTA update check and cleanup of obsolete stored updates
     - Enhancement: Custom server session intervals (idle/active interval, active threshold) are now configurable via `sessions.intervals`
-    - Adjustment: A node with commissioning disabled (e.g. a controller) now binds an ephemeral operational port instead of the standard Matter port (5540) when `NetworkServer.port` is unset; commissionable nodes still default to 5540 and an explicit port is always honored
-    - Fix: `endpoints.size` no longer double-counts the root endpoint
     - Fix: Optimize Cluster data updates when structures change for ClientNodes
     - Fix: Prevent subscriptions from being activated on a closing session
     - Fix: Thermostat adjusts the coupled setpoint limit to preserve the AutoMode deadband instead of rejecting the write
@@ -42,9 +52,6 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/nodejs
     - Fix: Ensure the namespace directory exists before the `sqlite` storage driver opens the database
-
-- @matter/types
-    - Feature: Added the `ClusterLookup` namespace for cluster/attribute/command/event name↔id resolution (optional `MatterModel` for custom clusters)
 
 - @matter/protocol
     - Enhancement: Connect to a newly discovered address as soon as it supersedes the previously cached address instead of waiting out the connection retry delay
@@ -59,9 +66,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Mock timers implement the `Timer.interval` accessor, so assignments take effect on the next start, reads no longer return `undefined` and out-of-range intervals are rejected as in production
     - Fix: Mock timers report `isPeriodic` correctly and restart instead of double-arming when started while running
     - Fix: `MockTime.advance()` fails with a diagnostic instead of spinning when a timer rearms without letting mock time advance
-
-- @project-chip/matter.js
-    - Deprecation: The legacy controller/device API (CommissioningController, PairedNode, Device/Endpoint/Aggregator, cluster clients) is officially deprecated and will be removed in 0.19; migrate to @matter/node
 
 ## 0.17.6 (2026-07-16)
 
