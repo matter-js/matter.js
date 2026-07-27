@@ -37,7 +37,7 @@ export class ServerGroupNetworking {
             if (this.#activeGroupMemberships.has(fabric.fabricIndex)) {
                 throw new InternalError("Group transport interfaces already initialized for this fabric.");
             }
-            for (const groupId of fabric.groups.groupKeyIdMap.keys()) {
+            for (const groupId of fabric.groups.endpoints.keys()) {
                 await this.#addGroupMembership(groupId, fabric);
             }
 
@@ -72,14 +72,14 @@ export class ServerGroupNetworking {
             this.#registerFabricGroupObserver(fabric);
 
             // Sync (add or remove as needed) by new group configuration
-            const { groupKeyIdMap } = fabric.groups;
-            for (const groupId of groupKeyIdMap.keys()) {
+            const { endpoints } = fabric.groups;
+            for (const groupId of endpoints.keys()) {
                 await this.#addGroupMembership(groupId, fabric);
             }
             const memberships = this.#activeGroupMemberships.get(fabricIndex) ?? new Map<GroupId, string>();
             if (memberships.size !== 0) {
                 for (const groupId of memberships.keys()) {
-                    if (!groupKeyIdMap.has(groupId)) {
+                    if (!endpoints.has(groupId)) {
                         await this.#dropGroupMembership(groupId, fabric);
                     }
                 }
@@ -95,15 +95,17 @@ export class ServerGroupNetworking {
         }
         const address = fabric.groups.multicastAddressFor(groupId);
         // Only join the multicast group if no other group in this fabric already uses the same address
-        // (multiple IanaAddr groups all share ff05::fa)
-        if (!Array.from(memberships.values()).includes(address)) {
+        // (multiple IanaAddr groups all share ff05::fa).  Reserve the address before awaiting so concurrent adds
+        // in the same synchronous batch do not double-join.
+        const needsJoin = !this.#otherGroupUsesAddress(memberships, address, groupId);
+        memberships.set(groupId, address);
+        this.#activeGroupMemberships.set(fabricIndex, memberships);
+        if (needsJoin) {
             logger.debug(
                 `Adding membership for group ${groupId} on fabric ${fabric.fabricId} (index ${fabricIndex}) with address ${address}`,
             );
             await this.#udpInterface.addMembership(address);
         }
-        memberships.set(groupId, address);
-        this.#activeGroupMemberships.set(fabricIndex, memberships);
     }
 
     async #dropGroupMembership(groupId: GroupId, fabric: Fabric) {
@@ -114,10 +116,11 @@ export class ServerGroupNetworking {
         }
         // Use the stored address (safer than re-deriving, policy may have changed)
         const address = memberships.get(groupId) ?? fabric.groups.multicastAddressFor(groupId);
+        const stillUsed = this.#otherGroupUsesAddress(memberships, address, groupId);
         memberships.delete(groupId);
         // Only leave the multicast group if no other group in this fabric still uses the same address
         // (multiple IanaAddr groups all share ff05::fa)
-        if (!Array.from(memberships.values()).includes(address)) {
+        if (!stillUsed) {
             logger.debug(
                 `Dropping membership for group ${groupId} on fabric ${fabric.fabricId} (index ${fabricIndex}) with address ${address}`,
             );
@@ -126,6 +129,52 @@ export class ServerGroupNetworking {
         if (!memberships.size) {
             this.#activeGroupMemberships.delete(fabricIndex);
         }
+    }
+
+    /**
+     * React to a change of a group's multicast address policy.  Endpoint restore (GKM) and policy application
+     * (Groupcast) can run in either order on reload/fabric-replace, so a group's bound address can go stale
+     * regardless of which side reacts first; this rebinds it whenever the resolved address no longer matches
+     * what is actually joined.
+     */
+    async #rebindGroupMembership(groupId: GroupId, fabric: Fabric) {
+        const fabricIndex = fabric.fabricIndex;
+        // Yield first: the policy map emits its change event before committing the value, so a synchronous read
+        // would see the stale address.  The yield also collapses back-to-back changes into one rebind.
+        await Promise.resolve();
+        const memberships = this.#activeGroupMemberships.get(fabricIndex);
+        const oldAddress = memberships?.get(groupId);
+        if (memberships === undefined || oldAddress === undefined) {
+            return;
+        }
+        const newAddress = fabric.groups.multicastAddressFor(groupId);
+        if (newAddress === oldAddress) {
+            return;
+        }
+
+        const stillUsedOld = this.#otherGroupUsesAddress(memberships, oldAddress, groupId);
+        const alreadyJoinedNew = this.#otherGroupUsesAddress(memberships, newAddress, groupId);
+        memberships.set(groupId, newAddress);
+
+        logger.debug(
+            `Rebinding group ${groupId} on fabric ${fabric.fabricId} (index ${fabricIndex}) from ${oldAddress} to ${newAddress}`,
+        );
+        if (!stillUsedOld) {
+            await this.#udpInterface.dropMembership(oldAddress);
+        }
+        if (!alreadyJoinedNew) {
+            await this.#udpInterface.addMembership(newAddress);
+        }
+    }
+
+    /** Whether any group other than {@link excludeGroupId} in {@link memberships} still resolves to {@link address}. */
+    #otherGroupUsesAddress(memberships: Map<GroupId, string>, address: string, excludeGroupId: GroupId) {
+        for (const [id, mappedAddress] of memberships) {
+            if (id !== excludeGroupId && mappedAddress === address) {
+                return true;
+            }
+        }
+        return false;
     }
 
     #observersForFabric(fabricIndex: FabricIndex) {
@@ -140,20 +189,42 @@ export class ServerGroupNetworking {
     #registerFabricGroupObserver(fabric: Fabric) {
         const fabricIndex = fabric.fabricIndex;
 
+        // Multicast membership follows group existence (groups with endpoints to receive for), not key availability:
+        // a group whose key mapping was removed still receives datagrams so Groupcast testing can report NoAvailableKey
         const observers = this.#observersForFabric(fabricIndex);
-        observers.on(
-            fabric.groups.groupKeyIdMap.added,
-            async groupId => await this.#addGroupMembership(groupId, fabric),
-        );
+        observers.on(fabric.groups.endpoints.added, async groupId => await this.#addGroupMembership(groupId, fabric));
 
-        observers.on(fabric.groups.groupKeyIdMap.deleted, async groupId => this.#dropGroupMembership(groupId, fabric));
+        observers.on(fabric.groups.endpoints.deleted, async groupId => this.#dropGroupMembership(groupId, fabric));
+
+        // A group's resolved address can change independent of endpoint add/remove (e.g. Groupcast applying its
+        // policy after GKM has already restored endpoints on reload/fabric-replace).
+        const rebind = async (groupId: GroupId) => this.#rebindGroupMembership(groupId, fabric);
+        observers.on(fabric.groups.multicastPolicy.added, rebind);
+        observers.on(fabric.groups.multicastPolicy.changed, rebind);
+        observers.on(fabric.groups.multicastPolicy.deleted, rebind);
     }
 
-    close() {
+    async close() {
         this.#construction.close();
         this.#observers.close();
         this.#fabricObservers.forEach(observer => observer.close());
-        this.#activeGroupMemberships.clear();
         this.#fabricObservers.clear();
+
+        // Leave every joined multicast group before the shared UDP socket is torn down.  A Node dgram socket left
+        // with active memberships can hang on close(), which would block the runtime shutdown from completing.
+        const addresses = new Set<string>();
+        for (const memberships of this.#activeGroupMemberships.values()) {
+            for (const address of memberships.values()) {
+                addresses.add(address);
+            }
+        }
+        this.#activeGroupMemberships.clear();
+        for (const address of addresses) {
+            try {
+                await this.#udpInterface.dropMembership(address);
+            } catch (error) {
+                logger.debug(`Error dropping multicast membership ${address} during close`, error);
+            }
+        }
     }
 }

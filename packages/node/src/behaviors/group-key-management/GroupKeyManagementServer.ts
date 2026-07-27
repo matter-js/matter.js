@@ -15,13 +15,23 @@ import {
     hasRemoteActor,
     IPK_DEFAULT_EPOCH_START_TIME,
 } from "@matter/protocol";
-import { EndpointNumber, FabricIndex, GroupId, Status, StatusResponseError } from "@matter/types";
+import {
+    EndpointNumber,
+    FabricIndex,
+    GroupId,
+    MATTER_EPOCH_OFFSET_US,
+    Status,
+    StatusResponseError,
+} from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import { GroupKeyManagementBehavior } from "./GroupKeyManagementBehavior.js";
 
 const logger = Logger.get("GroupKeyManagementServer");
 
 const MAX_64BIT_TIME = BigInt("0xffffffffffffffff");
+
+/** Per core§11.27.7.1.4 a Groupcast-created GroupKeySet has EpochStartTime0=1 (internal times are unix-epoch based). */
+const GROUPCAST_KEY_EPOCH_START_TIME = MATTER_EPOCH_OFFSET_US + BigInt(1);
 
 const GroupKeyManagementBase = GroupKeyManagementBehavior;
 
@@ -58,13 +68,6 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
     override initialize() {
         if (this.features.cacheAndSync) {
             throw new ImplementationError("The CacheAndSync feature is provisional. Do not use it.");
-        }
-
-        // TODO: remove this guard once the Groupcast feature leaves provisional state in the Matter specification
-        if (this.features.groupcast) {
-            throw new ImplementationError(
-                "The Groupcast feature of GroupKeyManagement is provisional in Matter 1.6. Do not enable it.",
-            );
         }
 
         // Validate the state
@@ -139,7 +142,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             this.#updateGroupKeyMap(this.state.groupKeyMap);
         }
         if (this.state.groupTable.length) {
-            // Restore the runtime endpoint map, which group command dispatch expands over
+            // Restore the runtime endpoint map, which drives the UDP multicast memberships
             for (const { fabricIndex, groupId, endpoints } of this.state.groupTable) {
                 if (fabrics.has(fabricIndex)) {
                     fabrics.for(fabricIndex).groups.endpoints.set(groupId, [...endpoints]);
@@ -168,11 +171,17 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             );
         }
         if (this.state.groupTable.length) {
-            // Initialize the group table for the fabric
+            // Initialize the group table for the fabric.  Diff instead of clear+refill: endpoint map events drive
+            // the UDP multicast memberships, a blind rebuild would leave and rejoin every group address.
             const groupTable = this.state.groupTable.filter(
                 ({ fabricIndex: entryIndex }) => entryIndex === fabricIndex,
             );
-            fabric.groups.endpoints.clear();
+            const targetGroupIds = new Set(groupTable.map(({ groupId }) => groupId));
+            for (const groupId of fabric.groups.endpoints.keys()) {
+                if (!targetGroupIds.has(groupId)) {
+                    fabric.groups.endpoints.delete(groupId);
+                }
+            }
             for (const entry of groupTable) {
                 fabric.groups.endpoints.set(entry.groupId, entry.endpoints);
             }
@@ -568,7 +577,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
     /**
      * Creates a new GroupKeySet for a Groupcast group key, bypassing normal KeySetWrite validation.
      * Used by GroupcastServer when JoinGroup or UpdateGroupKey is called with a `key` parameter.
-     * The key set uses TrustFirst policy and epochStartTime0=IPK_DEFAULT_EPOCH_START_TIME (Matter epoch zero = Jan 1, 2000).
+     * The key set uses TrustFirst policy and EpochStartTime0=1 as required by core§11.27.7.1.4.
      *
      * @returns true on success, throws if the key set already exists or resources are exhausted
      */
@@ -585,7 +594,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             groupKeySetId: keySetId,
             groupKeySecurityPolicy: GroupKeyManagement.GroupKeySecurityPolicy.TrustFirst,
             epochKey0,
-            epochStartTime0: IPK_DEFAULT_EPOCH_START_TIME, // Matter epoch zero
+            epochStartTime0: GROUPCAST_KEY_EPOCH_START_TIME,
             epochKey1: null,
             epochStartTime1: null,
             epochKey2: null,
@@ -624,8 +633,8 @@ export namespace GroupKeyManagementServer {
         override maxGroupsPerFabric = 22; // The Minimum would be 4. Aligned with Groupcast quota=floor(44/2).
 
         /**
-         * Per-fabric Groupcast adoption state (provisional Matter 1.6 GCAST feature).  Only present when the Groupcast
-         * feature is enabled; the default server rejects it while provisional.
+         * Per-fabric Groupcast adoption state.  Only present when the Groupcast feature is enabled and the optional
+         * GroupcastAdoption attribute is defined; the default server never populates it.
          */
         declare groupcastAdoption?: GroupKeyManagement.GroupcastAdoption[];
     }

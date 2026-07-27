@@ -81,8 +81,8 @@ export class GroupsServer extends GroupsBase {
         return act(this.context.session.associatedFabric, gkm);
     }
 
-    // Groups cluster rev 5: management commands return INVALID_IN_STATE for Groupcast-adopted fabrics.  Inert while
-    // the Groupcast feature is provisional (groupcastAdoption is never populated), guarded in GroupKeyManagementServer.
+    // Groups cluster rev 5: management commands return INVALID_IN_STATE for Groupcast-adopted fabrics.  Inert with the
+    // default GroupKeyManagementServer, which does not support the GroupcastAdoption attribute (never populated).
     #isGroupcastAdopted(fabricIndex: FabricIndex): boolean {
         const groupcastAdoption = this.#rootEndpoint.stateOf(GroupKeyManagementServer).groupcastAdoption;
         if (!groupcastAdoption) {

@@ -34,8 +34,15 @@ import { SessionManager } from "./SessionManager.js";
 
 /** Thrown by {@link GroupSession.decode} when no installed key can be a candidate for the received group message. */
 export class GroupSessionNoKeyError extends MatterFlowError {
-    constructor(message = "No key candidate found for group session decryption") {
+    /**
+     * Group id of the message, when a key set decrypted it successfully but is not usable because no group maps to it.
+     * The id is authenticated in that case, so Groupcast testing may report it.
+     */
+    readonly groupId?: GroupId;
+
+    constructor(message = "No key candidate found for group session decryption", groupId?: GroupId) {
         super(message);
+        this.groupId = groupId;
     }
 }
 
@@ -98,6 +105,12 @@ export class GroupSession extends SecureSession {
     }
 
     /**
+     * Source IP address of the most recently received datagram on this session.  Inbound group sessions have no
+     * channel, so the receive path records this for Groupcast testing event reporting.
+     */
+    receivedFrom?: string;
+
+    /**
      * Create an outbound group session.
      */
     static async create(options: {
@@ -144,18 +157,13 @@ export class GroupSession extends SecureSession {
         return SessionType.Group;
     }
 
-    /*
-     * TODO: enable once clarified with CHIP SDK developers.
-     *
-     * The Matter spec requires group multicasts to be sent with privacy enabled — Core Specification, Secure Channel,
-     * "Sending a group message": the Security Flags "SHALL have only the P Flag set". The CHIP SDK does not set the
-     * privacy flag when sending group messages, so we keep it off to match the dominant implementation until the
-     * spec/SDK divergence is resolved. Enabling it passes the full CHIP controller test suite (interop verified).
-     *
-     * override get usePrivacy() {
-     *     return true;
-     * }
+    /**
+     * Core Specification, Secure Channel, "Sending a group message": the Security Flags SHALL have the P Flag set, so
+     * group multicasts are always sent privacy-enhanced.
      */
+    override get usePrivacy() {
+        return true;
+    }
 
     get fabric(): Fabric {
         return this.#fabric;
@@ -289,37 +297,36 @@ export class GroupSession extends SecureSession {
         }
 
         const sessionId = header.sessionId;
-        const keys = new Array<{ key: Bytes; privacyKey?: Bytes; keySetId: number; fabric: Fabric }>();
+        const mappedKeys = new Array<{ key: Bytes; privacyKey?: Bytes; keySetId: number; fabric: Fabric }>();
+        const unmappedKeys = new Array<{ key: Bytes; privacyKey?: Bytes; keySetId: number; fabric: Fabric }>();
         for (const fabric of fabrics) {
             const sessions = fabric.groups.sessions.get(sessionId);
             if (sessions?.length) {
                 for (const session of sessions) {
-                    keys.push({ ...session, fabric });
+                    // A key set is only usable for group communication while a group maps to it in GroupKeyMap.
+                    // Unmapped key sets do not participate in decryption; they only recover the group id for
+                    // Groupcast testing when nothing is usable.
+                    if (fabric.groups.isKeySetMapped(session.keySetId)) {
+                        mappedKeys.push({ ...session, fabric });
+                    } else {
+                        unmappedKeys.push({ ...session, fabric });
+                    }
                 }
             }
-        }
-        if (keys.length === 0) {
-            throw new GroupSessionNoKeyError();
         }
 
         const messageFlags = Bytes.of(aad)[0];
         const mic = Bytes.of(applicationPayload).slice(-CRYPTO_AEAD_MIC_LENGTH_BYTES);
 
-        let message: DecodedMessage | undefined;
-        let key: Bytes | undefined;
-        let privacyKey: Bytes | undefined;
-        let fabric: Fabric | undefined;
-        let keySetId: number | undefined;
-        let sourceNodeId: NodeId | undefined;
-        let found = false;
-        for (const candidate of keys) {
+        /** Deobfuscates the header (when privacy is active) and decrypts with the candidate's key. */
+        const tryDecrypt = (candidate: { key: Bytes; privacyKey?: Bytes; keySetId: number; fabric: Fabric }) => {
             try {
                 let packetHeader = header;
                 let decryptAad = aad;
                 if (header.hasPrivacyEnhancements) {
                     if (privacyHeader === undefined || candidate.privacyKey === undefined) {
                         logger.debug(`No privacy key for group session candidate ${candidate.keySetId}, skipping`);
-                        continue;
+                        return undefined;
                     }
                     const privacyNonce = MessagePrivacy.buildNonce(sessionId, mic);
                     const deobfuscated = MessagePrivacy.obfuscate(
@@ -343,7 +350,7 @@ export class GroupSession extends SecureSession {
                     packetHeader.messageId,
                     packetHeader.sourceNodeId,
                 );
-                message = MessageCodec.decodePayload({
+                const message = MessageCodec.decodePayload({
                     header: packetHeader,
                     applicationPayload: candidate.fabric.crypto.decrypt(
                         candidate.key,
@@ -352,18 +359,50 @@ export class GroupSession extends SecureSession {
                         decryptAad,
                     ),
                 });
-                key = candidate.key;
-                privacyKey = candidate.privacyKey;
-                keySetId = candidate.keySetId;
-                fabric = candidate.fabric;
-                sourceNodeId = packetHeader.sourceNodeId;
-                found = true;
-                break;
+                return { message, packetHeader };
             } catch (error) {
                 // A wrong key (including a wrong privacy key, whose garbage header yields a different nonce) fails AEAD
                 // decryption; skip to the next candidate. Genuine parse errors on an authenticated payload propagate.
                 CryptoDecryptError.accept(error);
             }
+        };
+
+        /** Group id of the message when an unusable key set authenticates it, for Groupcast testing reporting. */
+        const unmappedGroupId = () => {
+            for (const candidate of unmappedKeys) {
+                const decrypted = tryDecrypt(candidate);
+                if (decrypted?.packetHeader.destGroupId !== undefined) {
+                    return GroupId(decrypted.packetHeader.destGroupId);
+                }
+            }
+        };
+
+        // Matching the CHIP SDK, only mapped key sets count as available: without any, the result is "no key found",
+        // even if an unmapped key set could authenticate the message
+        if (mappedKeys.length === 0) {
+            throw new GroupSessionNoKeyError(undefined, unmappedGroupId());
+        }
+
+        let message: DecodedMessage | undefined;
+        let key: Bytes | undefined;
+        let privacyKey: Bytes | undefined;
+        let fabric: Fabric | undefined;
+        let keySetId: number | undefined;
+        let sourceNodeId: NodeId | undefined;
+        let found = false;
+        for (const candidate of mappedKeys) {
+            const decrypted = tryDecrypt(candidate);
+            if (decrypted === undefined) {
+                continue;
+            }
+            message = decrypted.message;
+            key = candidate.key;
+            privacyKey = candidate.privacyKey;
+            keySetId = candidate.keySetId;
+            fabric = candidate.fabric;
+            sourceNodeId = decrypted.packetHeader.sourceNodeId;
+            found = true;
+            break;
         }
         if (!found || !message || !key || keySetId === undefined || !fabric || sourceNodeId === undefined) {
             throw new GroupSessionDecodeError();

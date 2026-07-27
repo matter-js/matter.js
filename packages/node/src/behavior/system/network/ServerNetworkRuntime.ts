@@ -436,7 +436,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
             await this.owner.prepareRuntimeShutdown();
         }
 
-        this.#groupNetworking?.close();
+        await this.#groupNetworking?.close();
         this.#groupNetworking = undefined;
 
         // Now all sessions are closed, so we wait for Advertiser to be gone
