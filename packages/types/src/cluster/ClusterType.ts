@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, capitalize, decamelize } from "@matter/general";
+import { camelize, capitalize, decamelize, ImplementationError } from "@matter/general";
 import type { AttributeModel, CommandModel, EventModel } from "@matter/model";
 import { ClusterModel, ClusterModifier, GeneratorScope, GLOBAL_IDS, Metatype, ValueModel } from "@matter/model";
 import { StatusResponseError } from "../common/StatusResponseError.js";
@@ -173,12 +173,23 @@ function installLazyProperties(ns: object, model: ClusterModel) {
             // defeat them
             const clones = new Map<string, object>();
 
+            // Keys derive from the selection, so an unvalidated name would grow the map without bound
+            const selectable = new Set(model.features.map(feature => camelize(feature.title ?? feature.name)));
+
             return (...features: string[]) => {
                 // Feature enum values are PascalCase; SupportedFeatures keys are camelCase.  Selection is a set, so
                 // deduplicate before keying
                 const names = [
                     ...new Set(features.map(feature => feature.charAt(0).toLowerCase() + feature.slice(1))),
                 ].sort();
+
+                for (const name of names) {
+                    if (!selectable.has(name)) {
+                        throw new ImplementationError(
+                            `${model.name} has no feature "${name}"; known features are ${[...selectable].join(", ")}`,
+                        );
+                    }
+                }
 
                 const key = names.join(",");
                 const existing = clones.get(key);

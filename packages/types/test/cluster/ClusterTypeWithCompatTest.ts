@@ -90,6 +90,12 @@ describe("ClusterType.Cluster.with() compat shim", () => {
         );
     });
 
+    it("rejects a feature the cluster does not define", () => {
+        expect(() => (PowerSource.Cluster.with as (...features: string[]) => unknown)("Batery")).throws(
+            /no feature "batery"/,
+        );
+    });
+
     it("produces distinct clones for distinct feature selections", () => {
         expect(PowerSource.Cluster.with(PowerSource.Feature.Battery)).not.equal(
             PowerSource.Cluster.with(PowerSource.Feature.Wired),
