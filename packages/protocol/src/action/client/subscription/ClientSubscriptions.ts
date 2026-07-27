@@ -245,7 +245,7 @@ export class ClientSubscriptions implements Lifetime.Owner {
                 if (timeoutAt === undefined) {
                     // Set timeout time
                     timeoutAt = subscription.timeoutAt = Timestamp(now + subscription.timeout);
-                } else if (timeoutAt < now) {
+                } else if (timeoutAt <= now) {
                     // Timeout
                     subscription.timedOut();
                     continue;

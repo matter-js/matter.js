@@ -35,6 +35,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A device dropped during parallel PASE for invalid credentials no longer accepts a slower successful attempt on another of its addresses
     - Fix: Extend the handling of non-compliant devices that drop the commissioning connection when network details are added (`AddOrUpdateWiFi`/`AddOrUpdateThread`), not only on `ConnectNetwork`, treating them as non-concurrent and proceeding directly to operational discovery
     - Fix: Clear group message reception (replay) state when a group key set is removed or rewritten, so valid messages are not rejected as replays after a key set is re-provisioned with a reused epoch key
+    - Fix: A subscription reaching its timeout at the current instant now expires instead of rescheduling a zero-length timeout repeatedly
+
+- @matter/testing
+    - Fix: Mock timers implement the `Timer.interval` accessor, so assignments take effect on the next start, reads no longer return `undefined` and out-of-range intervals are rejected as in production
+    - Fix: Mock timers report `isPeriodic` correctly and restart instead of double-arming when started while running
+    - Fix: `MockTime.advance()` fails with a diagnostic instead of spinning when a timer rearms without letting mock time advance
 
 ## 0.17.6 (2026-07-16)
 
