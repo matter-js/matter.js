@@ -53,12 +53,12 @@
         "esbuild": "^0.28.1",
         "express": "^5.2.1",
         "mocha": "^11.7.6",
-        "playwright": "^1.61.1",
+        "playwright": "^1.62.0",
         "trace-unhandled": "^2.0.1",
         "wtfnode": "^0.10.1",
         "xml2js": "^0.6.2",
         "yaml": "^2.9.0",
-        "yargs": "^18.0.0"
+        "yargs": "^18.1.0"
     },
     "devDependencies": {
         "typescript": "~6.0.3",
