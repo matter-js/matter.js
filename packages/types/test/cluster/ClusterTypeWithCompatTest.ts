@@ -84,6 +84,10 @@ describe("ClusterType.Cluster.with() compat shim", () => {
         expect(PowerSource.Cluster.with(PowerSource.Feature.Battery, PowerSource.Feature.Rechargeable)).equal(
             PowerSource.Cluster.with(PowerSource.Feature.Rechargeable, PowerSource.Feature.Battery),
         );
+
+        expect(PowerSource.Cluster.with(PowerSource.Feature.Battery, PowerSource.Feature.Battery)).equal(
+            PowerSource.Cluster.with(PowerSource.Feature.Battery),
+        );
     });
 
     it("produces distinct clones for distinct feature selections", () => {

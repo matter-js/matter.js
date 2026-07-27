@@ -174,8 +174,11 @@ function installLazyProperties(ns: object, model: ClusterModel) {
             const clones = new Map<string, object>();
 
             return (...features: string[]) => {
-                // Feature enum values are PascalCase; SupportedFeatures keys are camelCase.
-                const names = features.map(feature => feature.charAt(0).toLowerCase() + feature.slice(1)).sort();
+                // Feature enum values are PascalCase; SupportedFeatures keys are camelCase.  Selection is a set, so
+                // deduplicate before keying
+                const names = [
+                    ...new Set(features.map(feature => feature.charAt(0).toLowerCase() + feature.slice(1))),
+                ].sort();
 
                 const key = names.join(",");
                 const existing = clones.get(key);
