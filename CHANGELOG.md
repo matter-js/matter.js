@@ -28,6 +28,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Support the `!=` (not-equal) operator in value conformance expressions
     - Fix: Ensure `FabricAuthority` is fully constructed before it is used in the WebRTC Transport Requestor, OTA Software Update Provider and Software Update clusters
     - Fix: Consider existing node IDs when determining the next node ID to commission
+    - Fix: Determine the network medium of nodes without a Network Commissioning cluster from the WiFi or Thread Network Diagnostics cluster on their root endpoint
 
 - @matter/nodejs
     - Fix: Ensure the namespace directory exists before the `sqlite` storage driver opens the database
