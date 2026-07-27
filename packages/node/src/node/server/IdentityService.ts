@@ -8,7 +8,7 @@ import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js
 import { IndexBehavior } from "#behavior/system/index/IndexBehavior.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { ImplementationError } from "@matter/general";
-import { PeerAddress } from "@matter/protocol";
+import { PeerAddress, PeerSet } from "@matter/protocol";
 
 /**
  * Thrown when there is a endpoint ID or number conflict.
@@ -60,16 +60,20 @@ export class IdentityService {
 
     /**
      * Detect whether a peer address is currently assigned to a peer.
+     *
+     * {@link PeerSet} is the source of truth for commissioned peers; the reservation set only covers the controller's
+     * own node IDs and addresses reserved for an in-flight commissioning.
      */
     peerAddressInUse(address: PeerAddress) {
-        return this.#reservedPeerAddresses.has(PeerAddress(address));
+        address = PeerAddress(address);
+        return this.#reservedPeerAddresses.has(address) || !!this.#node.env.maybeGet(PeerSet)?.has(address);
     }
 
     /**
      * Mark a peer address as in use.
      */
     reservePeerAddress(address: PeerAddress) {
-        this.#reservedPeerAddresses.add(address);
+        this.#reservedPeerAddresses.add(PeerAddress(address));
     }
 
     /**

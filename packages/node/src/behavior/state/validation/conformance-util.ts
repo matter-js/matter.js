@@ -173,6 +173,7 @@ export function createLogicalBinaryEvaluator(
 
 const ComparisonOperators: Record<string, BinaryOperator<{}>> = {
     [Conformance.Operator.EQ]: (a, b) => a === b,
+    [Conformance.Operator.NE]: (a, b) => a !== b,
     [Conformance.Operator.GT]: (a, b) => a > b,
     [Conformance.Operator.GTE]: (a, b) => a >= b,
     [Conformance.Operator.LT]: (a, b) => a < b,

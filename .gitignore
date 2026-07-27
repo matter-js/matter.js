@@ -13,6 +13,7 @@ isolated-*.log
 /.caude/
 .claude/
 docs/plans/
-
-# Local planning/SDD scratch (never committed)
+.device-*/
+.matter-shell-*/
 docs/superpowers/
+support/chip-testing/.matter-test.json.test

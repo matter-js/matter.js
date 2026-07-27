@@ -47,7 +47,7 @@ const logger = Logger.get("ClientNode");
  * you invoke {@link commissioned}.
  */
 export class ClientNode extends Node<ClientNode.RootEndpoint> {
-    #matter: MatterModel;
+    #matter?: MatterModel;
     #interaction?: ClientNodeInteraction;
     #blockInteractions = false;
     #cachedPeerAddress?: PeerAddress;
@@ -69,7 +69,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         this.env.set(Node, this);
         this.env.set(ClientNode, this);
 
-        this.#matter = options.matter ?? Matter;
+        this.#matter = options.matter;
     }
 
     override readonly nodeType: "client" | "group" = "client";
@@ -79,8 +79,8 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
      *
      * Matter elements missing from this model will not support all functionality.
      */
-    get matter() {
-        return this.#matter;
+    override get matter(): MatterModel {
+        return this.#matter ?? this.env.maybeGet(MatterModel) ?? Matter;
     }
 
     override get lifecycle(): ClientNodeLifecycle {

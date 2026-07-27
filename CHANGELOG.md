@@ -14,6 +14,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/general
     - Fix: `Heap` now stores each item at most once and maintains its position index eagerly, so deleting an item added after an earlier deletion works reliably
 
+- @matter/model
+    - Enhancement: `MatterModel.withClusters()` returns a copy of a model with clusters added or replaced by ID
+
 - @matter/node
     - Feature: Added `ServerNode.peers.commissioned` returning the commissioned `ClientNode`s
     - Feature: Added `ClientNode.disable()`/`enable()` to persistently disable/enable a commissioned peer
@@ -23,12 +26,22 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Added `openBasicCommissioningWindow`/`openEnhancedCommissioningWindow` on `CommissioningClient`/`ClientNode` to open a commissioning window on a commissioned peer
     - Feature: Added split/delegated commissioning — `CommissioningClient.CommissioningOptions.finalizeCommissioning` plus `ServerNode.peers.completeCommissioning(nodeId, discoveryData?, options?)`
     - Feature: Added `NetworkServer.autoStartCommissionedPeers` (default true) to opt out of auto-starting commissioned peers when the node goes online
+    - Enhancement: Controllers accept a custom Matter model via the `matter` option so a commissioned peer's custom or extended cluster elements resolve to real names instead of synthetic `attr$…`/`command$…` identifiers
+    - Enhancement: `SoftwareUpdateManager.checkForUpdates()` forces an immediate OTA update check and cleanup of obsolete stored updates
     - Enhancement: Custom server session intervals (idle/active interval, active threshold) are now configurable via `sessions.intervals`
     - Adjustment: A node with commissioning disabled (e.g. a controller) now binds an ephemeral operational port instead of the standard Matter port (5540) when `NetworkServer.port` is unset; commissionable nodes still default to 5540 and an explicit port is always honored
     - Fix: `endpoints.size` no longer double-counts the root endpoint
     - Fix: Optimize Cluster data updates when structures change for ClientNodes
     - Fix: Prevent subscriptions from being activated on a closing session
     - Fix: Thermostat adjusts the coupled setpoint limit to preserve the AutoMode deadband instead of rejecting the write
+    - Fix: Choice conformance no longer requires a member gated by an inapplicable condition (e.g. `[ICTL].b+` when the feature is unsupported)
+    - Fix: Support the `!=` (not-equal) operator in value conformance expressions
+    - Fix: Ensure `FabricAuthority` is fully constructed before it is used in the WebRTC Transport Requestor, OTA Software Update Provider and Software Update clusters
+    - Fix: Consider existing node IDs when determining the next node ID to commission
+    - Fix: Determine the network medium of nodes without a Network Commissioning cluster from the WiFi or Thread Network Diagnostics cluster on their root endpoint
+
+- @matter/nodejs
+    - Fix: Ensure the namespace directory exists before the `sqlite` storage driver opens the database
 
 - @matter/types
     - Feature: Added the `ClusterLookup` namespace for cluster/attribute/command/event name↔id resolution (optional `MatterModel` for custom clusters)
@@ -38,6 +51,14 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensure the commissioning failsafe timer stays within the device's maximum cumulative failsafe
     - Fix: Parallel PASE commissioning now uses the won session immediately instead of blocking on losing attempts' cleanup, which could let the won session expire at the device failsafe before use
     - Fix: A device dropped during parallel PASE for invalid credentials no longer accepts a slower successful attempt on another of its addresses
+    - Fix: Extend the handling of non-compliant devices that drop the commissioning connection when network details are added (`AddOrUpdateWiFi`/`AddOrUpdateThread`), not only on `ConnectNetwork`, treating them as non-concurrent and proceeding directly to operational discovery
+    - Fix: Clear group message reception (replay) state when a group key set is removed or rewritten, so valid messages are not rejected as replays after a key set is re-provisioned with a reused epoch key
+    - Fix: A subscription reaching its timeout at the current instant now expires instead of rescheduling a zero-length timeout repeatedly
+
+- @matter/testing
+    - Fix: Mock timers implement the `Timer.interval` accessor, so assignments take effect on the next start, reads no longer return `undefined` and out-of-range intervals are rejected as in production
+    - Fix: Mock timers report `isPeriodic` correctly and restart instead of double-arming when started while running
+    - Fix: `MockTime.advance()` fails with a diagnostic instead of spinning when a timer rearms without letting mock time advance
 
 - @project-chip/matter.js
     - Deprecation: The legacy controller/device API (CommissioningController, PairedNode, Device/Endpoint/Aggregator, cluster clients) is officially deprecated and will be removed in 0.19; migrate to @matter/node

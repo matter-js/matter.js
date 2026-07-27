@@ -105,7 +105,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
     }
 
     async #nodeOnline() {
-        const fabricAuthority = this.env.get(FabricAuthority);
+        const fabricAuthority = await this.env.load(FabricAuthority);
         const ownFabric = fabricAuthority.fabrics[0];
         if (!ownFabric) {
             // Can only happen if the SoftwareUpdateManager is used without any commissioned nodes

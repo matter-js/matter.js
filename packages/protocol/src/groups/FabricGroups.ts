@@ -124,6 +124,7 @@ export class FabricGroups {
      */
     async setFromGroupKeySet(groupKeySet: GroupKeySet) {
         const { epochKey0, epochKey1, epochKey2 } = groupKeySet;
+        const previousEntry = this.#keySets.get("groupKeySetId", groupKeySet.groupKeySetId);
 
         if (epochKey0 === null) {
             throw new MatterFlowError("EpochKey0 must be set"); // checked before, but to make typing happy
@@ -169,6 +170,11 @@ export class FabricGroups {
                     ? await this.#keySets.sessionIdFromKey(this.#fabric.crypto, operationalEpochKey2)
                     : null,
         });
+        // An in-place rewrite that changes epoch keys drops the previous operational keys; forget their reception state
+        // (unless still referenced) so a later key set reusing a dropped epoch key re-synchronizes on its first message.
+        if (previousEntry !== undefined) {
+            this.#forgetUnreferencedReceptionState(previousEntry);
+        }
     }
 
     /** Removes a group key set by its id. */
@@ -176,6 +182,36 @@ export class FabricGroups {
         if (groupKeySetId === 0) {
             throw new InternalError("Cannot remove the group key set 0.");
         }
-        return this.#keySets.delete("groupKeySetId", groupKeySetId);
+        const removedEntry = this.#keySets.get("groupKeySetId", groupKeySetId);
+        const deleted = this.#keySets.delete("groupKeySetId", groupKeySetId);
+        if (removedEntry !== undefined) {
+            this.#forgetUnreferencedReceptionState(removedEntry);
+        }
+        return deleted;
+    }
+
+    /**
+     * Forget the group message replay-protection state for a departing key set's operational keys, unless a remaining
+     * key set still derives the same key — duplicate epoch keys share one reception window, so it must survive until the
+     * last referencing key set is gone.
+     */
+    #forgetUnreferencedReceptionState(formerEntry: OperationalKeySet) {
+        const stillReferenced = new Set<string>();
+        for (const keySet of this.#keySets) {
+            for (const key of [keySet.operationalEpochKey0, keySet.operationalEpochKey1, keySet.operationalEpochKey2]) {
+                if (key !== null) {
+                    stillReferenced.add(Bytes.toHex(key));
+                }
+            }
+        }
+        for (const key of [
+            formerEntry.operationalEpochKey0,
+            formerEntry.operationalEpochKey1,
+            formerEntry.operationalEpochKey2,
+        ]) {
+            if (key !== null && !stillReferenced.has(Bytes.toHex(key))) {
+                this.#messagingState.forgetReceptionState(key);
+            }
+        }
     }
 }
