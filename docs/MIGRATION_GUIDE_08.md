@@ -6,7 +6,7 @@ cluster definitions and this has now been enhanced for all device types. Additio
 implemented also needed to be adjusted and was enhanced with a very flexible way to choose the wanted cluster features.
 
 This means that developers need to adjust their code to use the new classes and concepts introduced by this change. The
-former Device building API (pre 0.8, called "Legacy") was deprecated with 0.8 and removed in 0.13, so this document is
+former Device building API (pre 0.8, called "Legacy") was deprecated in 0.8 and removed in 0.13, so this document is
 only relevant when migrating code that still targets a matter.js version before 0.13.
 
 The legacy Controller API (`CommissioningController`, `PairedNode` and the surrounding classes of the
