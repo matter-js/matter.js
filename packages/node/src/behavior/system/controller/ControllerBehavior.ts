@@ -307,7 +307,7 @@ export namespace ControllerBehavior {
         /**
          * Model of Matter semantics used for peers commissioned or discovered by this controller.
          *
-         * Supply a model extended with custom or manufacturer-specific clusters (see {@link MatterModel.extended}) so
+         * Supply a model extended with custom or manufacturer-specific clusters (see {@link MatterModel.withClusters}) so
          * their attributes and commands resolve to real names instead of synthetic `attr$…`/`command$…` identifiers.
          */
         matter?: MatterModel = undefined;

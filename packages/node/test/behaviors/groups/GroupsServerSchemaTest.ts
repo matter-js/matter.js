@@ -11,6 +11,7 @@ import {
     CommandId,
     EndpointNumber,
     Status,
+    TlvEnum,
     TlvField,
     TlvInvokeResponseData,
     TlvObject,
@@ -28,7 +29,7 @@ const TlvAddGroupRequest = TlvObject({
 });
 
 const TlvAddGroupResponse = TlvObject({
-    status: TlvField(0, TlvUInt16),
+    status: TlvField(0, TlvEnum<Status>()),
     groupId: TlvField(1, TlvUInt16),
 });
 
