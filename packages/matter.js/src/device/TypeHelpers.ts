@@ -6,6 +6,9 @@
 
 import { ClusterClientObj, ClusterClientObjInternal } from "#cluster/client/ClusterClientTypes.js";
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export function asClusterClientInternal(obj: ClusterClientObj): ClusterClientObjInternal {
     if (obj._type !== "ClusterClient") {
         throw new Error("Object is not a ClusterClientObj instance.");

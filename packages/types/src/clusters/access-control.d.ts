@@ -1297,12 +1297,12 @@ export declare namespace AccessControl {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link AccessControl}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link AccessControl}.
      */
     export const Cluster: ClusterType.WithCompat<typeof AccessControl, AccessControl>;
 
     /**
-     * @deprecated Use {@link AccessControl}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link AccessControl}.
      */
     export const Complete: typeof AccessControl;
 
@@ -1310,7 +1310,7 @@ export declare namespace AccessControl {
 }
 
 /**
- * @deprecated Use {@link AccessControl}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link AccessControl}.
  */
 export declare const AccessControlCluster: typeof AccessControl;
 

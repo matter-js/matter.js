@@ -500,12 +500,12 @@ export declare namespace AdministratorCommissioning {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link AdministratorCommissioning}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link AdministratorCommissioning}.
      */
     export const Cluster: ClusterType.WithCompat<typeof AdministratorCommissioning, AdministratorCommissioning>;
 
     /**
-     * @deprecated Use {@link AdministratorCommissioning}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link AdministratorCommissioning}.
      */
     export const Complete: typeof AdministratorCommissioning;
 
@@ -513,7 +513,7 @@ export declare namespace AdministratorCommissioning {
 }
 
 /**
- * @deprecated Use {@link AdministratorCommissioning}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link AdministratorCommissioning}.
  */
 export declare const AdministratorCommissioningCluster: typeof AdministratorCommissioning;
 

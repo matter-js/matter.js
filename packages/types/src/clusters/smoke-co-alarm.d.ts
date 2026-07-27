@@ -915,12 +915,12 @@ export declare namespace SmokeCoAlarm {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link SmokeCoAlarm}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link SmokeCoAlarm}.
      */
     export const Cluster: ClusterType.WithCompat<typeof SmokeCoAlarm, SmokeCoAlarm>;
 
     /**
-     * @deprecated Use {@link SmokeCoAlarm}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link SmokeCoAlarm}.
      */
     export const Complete: typeof SmokeCoAlarm;
 
@@ -928,7 +928,7 @@ export declare namespace SmokeCoAlarm {
 }
 
 /**
- * @deprecated Use {@link SmokeCoAlarm}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link SmokeCoAlarm}.
  */
 export declare const SmokeCoAlarmCluster: typeof SmokeCoAlarm;
 

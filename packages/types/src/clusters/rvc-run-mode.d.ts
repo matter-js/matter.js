@@ -399,12 +399,12 @@ export declare namespace RvcRunMode {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link RvcRunMode}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link RvcRunMode}.
      */
     export const Cluster: ClusterType.WithCompat<typeof RvcRunMode, RvcRunMode>;
 
     /**
-     * @deprecated Use {@link RvcRunMode}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link RvcRunMode}.
      */
     export const Complete: typeof RvcRunMode;
 
@@ -412,7 +412,7 @@ export declare namespace RvcRunMode {
 }
 
 /**
- * @deprecated Use {@link RvcRunMode}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link RvcRunMode}.
  */
 export declare const RvcRunModeCluster: typeof RvcRunMode;
 

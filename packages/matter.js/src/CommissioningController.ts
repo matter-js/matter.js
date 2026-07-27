@@ -77,6 +77,9 @@ function discoveryKey(
     return JSON.stringify({ id: identifierData, caps: discoveryCapabilities });
 }
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export async function runDiscoverCommissionableDevices(
     node: ServerNode,
     identifierData: CommissionableDeviceIdentifiers,
@@ -113,6 +116,9 @@ export async function runDiscoverCommissionableDevices(
     }
 }
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export function cancelDiscoverCommissionableDevices(
     identifierData: CommissionableDeviceIdentifiers,
     discoveryCapabilities: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap> | undefined,
@@ -125,6 +131,9 @@ export function cancelDiscoverCommissionableDevices(
 // TODO decline using setRoot*Cluster
 // TODO Decline cluster access after announced/paired
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export type ControllerEnvironmentOptions = {
     /**
      * Environment to register the node with on start()
@@ -139,6 +148,8 @@ export type ControllerEnvironmentOptions = {
 
 /**
  * Constructor options for the CommissioningController class
+ *
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export type CommissioningControllerOptions = CommissioningControllerNodeOptions & {
     /**
@@ -238,6 +249,8 @@ export type CommissioningControllerOptions = CommissioningControllerNodeOptions 
 /**
  * Configuration for performing discovery + commissioning in one step.
  * Kept in the legacy matter.js package; new code uses {@link CommissioningDiscovery.Options} directly.
+ *
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export interface DiscoveryAndCommissioningOptions extends CommissioningOptions {
     /** Discovery related options. */
@@ -275,14 +288,22 @@ export interface DiscoveryAndCommissioningOptions extends CommissioningOptions {
     };
 }
 
-/** Options needed to commission a new node */
+/**
+ * Options needed to commission a new node
+ *
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export type NodeCommissioningOptions = CommissioningControllerNodeOptions & {
     commissioning: Omit<DiscoveryAndCommissioningOptions, "fabric" | "discovery" | "passcode">;
     discovery: DiscoveryAndCommissioningOptions["discovery"];
     passcode: number;
 };
 
-/** Controller class to commission and connect multiple nodes into one fabric. */
+/**
+ * Controller class to commission and connect multiple nodes into one fabric.
+ *
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export class CommissioningController {
     #crypto: Crypto;
     #started = false;
@@ -557,7 +578,7 @@ export class CommissioningController {
         }
     }
 
-    /** @deprecated Use PairedNode.disconnect() instead */
+    /** @deprecated Scheduled for removal in 0.19.  Use PairedNode.disconnect() instead */
     async disconnectNode(nodeId: NodeId, force = false) {
         const node = this.#pairedNodeForNodeId(nodeId);
         if (node === undefined && !force) {
@@ -592,7 +613,7 @@ export class CommissioningController {
      * This call is not blocking and returns an initialized PairedNode instance. The connection or reconnection
      * happens in the background. Please monitor the state of the node to see if the connection was successful.
      *
-     * @deprecated Use getNode() instead and call PairedNode.connect() or PairedNode.disconnect() as needed.
+     * @deprecated Scheduled for removal in 0.19.  Use getNode() instead and call PairedNode.connect() or PairedNode.disconnect() as needed.
      */
     connectNode(nodeId: NodeId, connectOptions?: CommissioningControllerNodeOptions, allowUnknownNode = false) {
         return this.#createPairedNode(nodeId, connectOptions, allowUnknownNode);
@@ -683,7 +704,7 @@ export class CommissioningController {
      * Connects to all paired nodes.
      * After connection the endpoint data of the device is analyzed and an object structure is created.
      *
-     * @deprecated Use getCommissionedNodes() to get the list of nodes and getNode(nodeId) instead and call PairedNode.connect() or PairedNode.disconnect() as needed.
+     * @deprecated Scheduled for removal in 0.19.  Use getCommissionedNodes() to get the list of nodes and getNode(nodeId) instead and call PairedNode.connect() or PairedNode.disconnect() as needed.
      */
     async connect(connectOptions?: CommissioningControllerNodeOptions) {
         const controller = this.#assertControllerIsStarted();
@@ -741,7 +762,7 @@ export class CommissioningController {
 
     /**
      * Returns the PairedNode instance for a given node id, if this node is connected.
-     * @deprecated Use getNode() instead
+     * @deprecated Scheduled for removal in 0.19.  Use getNode() instead
      */
     getPairedNode(nodeId: NodeId) {
         return this.#pairedNodeForNodeId(nodeId);

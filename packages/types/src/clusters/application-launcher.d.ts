@@ -458,12 +458,12 @@ export declare namespace ApplicationLauncher {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link ApplicationLauncher}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ApplicationLauncher}.
      */
     export const Cluster: ClusterType.WithCompat<typeof ApplicationLauncher, ApplicationLauncher>;
 
     /**
-     * @deprecated Use {@link ApplicationLauncher}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ApplicationLauncher}.
      */
     export const Complete: typeof ApplicationLauncher;
 
@@ -471,7 +471,7 @@ export declare namespace ApplicationLauncher {
 }
 
 /**
- * @deprecated Use {@link ApplicationLauncher}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link ApplicationLauncher}.
  */
 export declare const ApplicationLauncherCluster: typeof ApplicationLauncher;
 

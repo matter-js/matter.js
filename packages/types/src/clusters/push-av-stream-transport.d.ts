@@ -1371,12 +1371,12 @@ export declare namespace PushAvStreamTransport {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link PushAvStreamTransport}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link PushAvStreamTransport}.
      */
     export const Cluster: ClusterType.WithCompat<typeof PushAvStreamTransport, PushAvStreamTransport>;
 
     /**
-     * @deprecated Use {@link PushAvStreamTransport}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link PushAvStreamTransport}.
      */
     export const Complete: typeof PushAvStreamTransport;
 
@@ -1384,7 +1384,7 @@ export declare namespace PushAvStreamTransport {
 }
 
 /**
- * @deprecated Use {@link PushAvStreamTransport}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link PushAvStreamTransport}.
  */
 export declare const PushAvStreamTransportCluster: typeof PushAvStreamTransport;
 

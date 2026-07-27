@@ -1042,12 +1042,12 @@ export declare namespace Channel {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link Channel}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Channel}.
      */
     export const Cluster: ClusterType.WithCompat<typeof Channel, Channel>;
 
     /**
-     * @deprecated Use {@link Channel}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Channel}.
      */
     export const Complete: typeof Channel;
 
@@ -1055,7 +1055,7 @@ export declare namespace Channel {
 }
 
 /**
- * @deprecated Use {@link Channel}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link Channel}.
  */
 export declare const ChannelCluster: typeof Channel;
 

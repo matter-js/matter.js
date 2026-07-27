@@ -149,7 +149,7 @@ export interface SessionManagerContext {
     /**
      * This is an arbitrary contextual object attached to sessions used for compatibility with legacy APIs.
      *
-     * @deprecated
+     * @deprecated Scheduled for removal in 0.19 with the legacy controller API.
      */
     owner?: unknown;
 }
@@ -352,7 +352,7 @@ export class SessionManager {
     }
 
     /**
-     * @deprecated
+     * @deprecated Scheduled for removal in 0.19 with the legacy controller API.
      */
     get owner() {
         return this.#context.owner;

@@ -420,12 +420,12 @@ export declare namespace MicrowaveOvenControl {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link MicrowaveOvenControl}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link MicrowaveOvenControl}.
      */
     export const Cluster: ClusterType.WithCompat<typeof MicrowaveOvenControl, MicrowaveOvenControl>;
 
     /**
-     * @deprecated Use {@link MicrowaveOvenControl}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link MicrowaveOvenControl}.
      */
     export const Complete: typeof MicrowaveOvenControl;
 
@@ -433,7 +433,7 @@ export declare namespace MicrowaveOvenControl {
 }
 
 /**
- * @deprecated Use {@link MicrowaveOvenControl}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link MicrowaveOvenControl}.
  */
 export declare const MicrowaveOvenControlCluster: typeof MicrowaveOvenControl;
 

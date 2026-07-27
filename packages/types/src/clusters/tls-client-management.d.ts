@@ -383,12 +383,12 @@ export declare namespace TlsClientManagement {
     export const commands: ClusterType.CommandObjects<Commands>;
 
     /**
-     * @deprecated Use {@link TlsClientManagement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link TlsClientManagement}.
      */
     export const Cluster: typeof TlsClientManagement;
 
     /**
-     * @deprecated Use {@link TlsClientManagement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link TlsClientManagement}.
      */
     export const Complete: typeof TlsClientManagement;
 
@@ -396,7 +396,7 @@ export declare namespace TlsClientManagement {
 }
 
 /**
- * @deprecated Use {@link TlsClientManagement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link TlsClientManagement}.
  */
 export declare const TlsClientManagementCluster: typeof TlsClientManagement;
 

@@ -267,12 +267,12 @@ export declare namespace MediaInput {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link MediaInput}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link MediaInput}.
      */
     export const Cluster: ClusterType.WithCompat<typeof MediaInput, MediaInput>;
 
     /**
-     * @deprecated Use {@link MediaInput}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link MediaInput}.
      */
     export const Complete: typeof MediaInput;
 
@@ -280,7 +280,7 @@ export declare namespace MediaInput {
 }
 
 /**
- * @deprecated Use {@link MediaInput}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link MediaInput}.
  */
 export declare const MediaInputCluster: typeof MediaInput;
 

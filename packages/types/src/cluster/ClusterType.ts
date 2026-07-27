@@ -90,7 +90,7 @@ const cache = new WeakMap<ClusterModel, object>();
  * feature enum, error classes, plus lazy getters for `attributes`, `commands`, `events`, `features`, `Cluster`,
  * and `Complete`.
  *
- * @deprecated Use ClusterType with a ClusterModel instead.
+ * @deprecated Scheduled for removal in 0.19.  Use ClusterType with a ClusterModel instead.
  */
 export function ClusterType<const T extends RetiredClusterType.Options>(
     options: T,
@@ -167,7 +167,7 @@ function installLazyProperties(ns: object, model: ClusterModel) {
         // Compat shim for pre-PR #3466 call sites: `PowerSource.Cluster.with(Feature.X, Feature.Y)`.
         // Returns a shallow prototype-based clone of the namespace with `supportedFeatures` set.  Feature
         // selection has no other runtime effect (attribute maps are not culled by conformance).
-        // @deprecated Removal tracked for 0.18.
+        // @deprecated Removal tracked for 0.19.
         lazy("with", () => (...features: string[]) => {
             const clone = Object.create(ns) as Record<string, unknown>;
             const supportedFeatures: Record<string, true> = {};
@@ -330,15 +330,15 @@ export namespace ClusterType {
     /**
      * Compat layer for pre-PR #3466 call sites that pin features via `Cluster.with(...)`.  Returns the namespace
      * shape with a `with()` method that shifts `Typing.SupportedFeatures`.  Feature selection has no further runtime
-     * effect; the shim exists only to keep existing call sites typing correctly during the 0.17 → 0.18 migration.
+     * effect; the shim exists only to keep existing call sites typing correctly during the 0.17 → 0.19 migration.
      *
-     * @deprecated Scheduled for removal in 0.18.  New code should type the cluster via
+     * @deprecated Scheduled for removal in 0.19.  New code should type the cluster via
      * {@link WithSupportedFeatures} directly.
      */
     export type WithCompat<NS, T extends ClusterTyping> = NS & {
         /**
          * @deprecated Feature selection is a typing-only compat shim for pre-PR #3466 call sites.
-         * Scheduled for removal in 0.18.  Prefer typing the cluster via {@link WithSupportedFeatures} directly.
+         * Scheduled for removal in 0.19.  Prefer typing the cluster via {@link WithSupportedFeatures} directly.
          */
         with<const F extends readonly (T extends { Features: infer All extends string } ? All : never)[]>(
             ...features: F
@@ -554,12 +554,12 @@ export namespace ClusterType {
     }
 
     /**
-     * @deprecated Provided for compatibility with external consumers.
+     * @deprecated Provided for compatibility with external consumers.  Scheduled for removal in 0.19.
      */
     export type AttributeValues<T> = RetiredClusterType.AttributeValues<T>;
 
     /**
-     * @deprecated Provided for compatibility with external consumers.
+     * @deprecated Provided for compatibility with external consumers.  Scheduled for removal in 0.19.
      */
     export type CommandsOf<T> = RetiredClusterType.CommandsOf<T>;
 }

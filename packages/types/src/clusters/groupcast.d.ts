@@ -935,12 +935,12 @@ export declare namespace Groupcast {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link Groupcast}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Groupcast}.
      */
     export const Cluster: ClusterType.WithCompat<typeof Groupcast, Groupcast>;
 
     /**
-     * @deprecated Use {@link Groupcast}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Groupcast}.
      */
     export const Complete: typeof Groupcast;
 
@@ -948,7 +948,7 @@ export declare namespace Groupcast {
 }
 
 /**
- * @deprecated Use {@link Groupcast}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link Groupcast}.
  */
 export declare const GroupcastCluster: typeof Groupcast;
 

@@ -3671,12 +3671,12 @@ export declare namespace Thermostat {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link Thermostat}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Thermostat}.
      */
     export const Cluster: ClusterType.WithCompat<typeof Thermostat, Thermostat>;
 
     /**
-     * @deprecated Use {@link Thermostat}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Thermostat}.
      */
     export const Complete: typeof Thermostat;
 
@@ -3684,7 +3684,7 @@ export declare namespace Thermostat {
 }
 
 /**
- * @deprecated Use {@link Thermostat}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link Thermostat}.
  */
 export declare const ThermostatCluster: typeof Thermostat;
 

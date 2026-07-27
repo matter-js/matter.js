@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, GeneratedClass, ImplementationError, isObject } from "@matter/general";
+import { camelize, GeneratedClass, isObject } from "@matter/general";
 import type { Schema } from "@matter/model";
 import { Access, ElementTag, FieldValue, Metatype, ValueModel } from "@matter/model";
 import { AccessControl, PhantomReferenceError, SchemaImplementationError, Val } from "@matter/protocol";
@@ -18,19 +18,12 @@ import { NameResolver } from "../NameResolver.js";
 import type { ValReference } from "../ValReference.js";
 import { PrimitiveManager } from "./PrimitiveManager.js";
 
-const AUTHORIZE_READ = Symbol("authorize-read");
-
 /**
  * Internal view of struct.
  */
 interface Struct extends Val.Struct {
     [Internal.session]: ValueSupervisor.Session;
     [Internal.reference]: ValReference<Val.Struct>;
-
-    /**
-     * Direct read authorization.
-     */
-    [AUTHORIZE_READ](attributeId: number): void;
 }
 
 /**
@@ -47,26 +40,12 @@ export function StructManager(owner: RootSupervisor, schema: Schema): ValueSuper
         // [Symbol.toStringTag]: {
         //     value: name,
         // },
-
         // TODO - makes Mocha diffs pretty useless.  Best fix is probably customized diff but leaving out for now
         // toString: {
         //     value() {
         //         return serialize(this);
         //     }
         // },
-
-        // AUTHORIZE_READ is effectively a protected method, see StructManager.assertDirectReadAuthorized below
-        [AUTHORIZE_READ]: {
-            value(this: Struct, attributeId: number) {
-                const access = propertyAccessControls[attributeId];
-
-                if (access === undefined) {
-                    throw new ImplementationError(`Direct read of unknown property ${attributeId}`);
-                }
-
-                access.authorizeRead(this[Internal.session], this[Internal.reference].location);
-            },
-        },
     } as PropertyDescriptorMap;
 
     /**
@@ -74,7 +53,6 @@ export function StructManager(owner: RootSupervisor, schema: Schema): ValueSuper
      */
     const instanceDescriptors = {} as PropertyDescriptorMap;
 
-    const propertyAccessControls = {} as Record<number, AccessControl>;
     let hasFabricIndex = false;
     const isCluster = schema.tag === ElementTag.Cluster;
 
@@ -82,12 +60,11 @@ export function StructManager(owner: RootSupervisor, schema: Schema): ValueSuper
     for (const member of owner.membersOf(schema)) {
         const name = member.propertyName;
 
-        const { access, descriptor } = configureProperty(owner, member);
+        const { descriptor } = configureProperty(owner, member);
 
         instanceDescriptors[name] = descriptor;
         if (member.id !== undefined) {
             prototypeDescriptors[member.id] = { ...descriptor, enumerable: false };
-            propertyAccessControls[member.id] = access;
         }
 
         if (member.name === "FabricIndex") {
@@ -147,25 +124,6 @@ export function StructManager(owner: RootSupervisor, schema: Schema): ValueSuper
         reference.owner = new Wrapper(reference, session);
         return reference.owner;
     };
-}
-
-export namespace StructManager {
-    /**
-     * If a struct is referenced as a whole, fields for which the session are unauthorized are simply omitted.
-     *
-     * This function instead throws an error for unauthorized access.  It must be invoked before direct property reads.
-     *
-     * @deprecated remove with old API
-     *
-     * @param struct a managed struct
-     * @param attributeId the AttributeId to read
-     */
-    export function assertDirectReadAuthorized(struct: Val.Struct, attributeId: number) {
-        if (!(struct as Struct)?.[AUTHORIZE_READ]) {
-            throw new ImplementationError("Cannot authorize read of unmanaged value");
-        }
-        return (struct as Struct)[AUTHORIZE_READ](attributeId);
-    }
 }
 
 function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {

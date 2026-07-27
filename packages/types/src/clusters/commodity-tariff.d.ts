@@ -1288,12 +1288,12 @@ export declare namespace CommodityTariff {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link CommodityTariff}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link CommodityTariff}.
      */
     export const Cluster: ClusterType.WithCompat<typeof CommodityTariff, CommodityTariff>;
 
     /**
-     * @deprecated Use {@link CommodityTariff}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link CommodityTariff}.
      */
     export const Complete: typeof CommodityTariff;
 
@@ -1301,7 +1301,7 @@ export declare namespace CommodityTariff {
 }
 
 /**
- * @deprecated Use {@link CommodityTariff}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link CommodityTariff}.
  */
 export declare const CommodityTariffCluster: typeof CommodityTariff;
 

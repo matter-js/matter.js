@@ -38,9 +38,8 @@ export abstract class TlvSchema<T> extends Schema<T> implements TlvSchema<T> {
      * Reverse-maps this TLV schema to model element fields.
      *
      * Used for old ClusterType() compatibility — converts TLV-carrying descriptors back to model elements.
-     * Remove when ClusterType compat layer is dropped.
      *
-     * @deprecated
+     * @deprecated Scheduled for removal in 0.19 when the ClusterType compat layer is dropped.
      */
     get element(): TlvSchema.Element | undefined {
         return undefined;
@@ -90,7 +89,7 @@ export namespace TlvSchema {
      *
      * Sufficient to construct a {@link FieldElement} or {@link ValueElement}.
      *
-     * @deprecated Part of old ClusterType() compat layer.
+     * @deprecated Part of old ClusterType() compat layer.  Scheduled for removal in 0.19.
      */
     export interface Element {
         type?: string;

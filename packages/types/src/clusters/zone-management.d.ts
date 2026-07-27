@@ -841,12 +841,12 @@ export declare namespace ZoneManagement {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link ZoneManagement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ZoneManagement}.
      */
     export const Cluster: ClusterType.WithCompat<typeof ZoneManagement, ZoneManagement>;
 
     /**
-     * @deprecated Use {@link ZoneManagement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ZoneManagement}.
      */
     export const Complete: typeof ZoneManagement;
 
@@ -854,7 +854,7 @@ export declare namespace ZoneManagement {
 }
 
 /**
- * @deprecated Use {@link ZoneManagement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link ZoneManagement}.
  */
 export declare const ZoneManagementCluster: typeof ZoneManagement;
 

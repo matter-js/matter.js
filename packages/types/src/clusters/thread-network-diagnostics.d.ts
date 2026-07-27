@@ -1720,12 +1720,12 @@ export declare namespace ThreadNetworkDiagnostics {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link ThreadNetworkDiagnostics}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ThreadNetworkDiagnostics}.
      */
     export const Cluster: ClusterType.WithCompat<typeof ThreadNetworkDiagnostics, ThreadNetworkDiagnostics>;
 
     /**
-     * @deprecated Use {@link ThreadNetworkDiagnostics}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ThreadNetworkDiagnostics}.
      */
     export const Complete: typeof ThreadNetworkDiagnostics;
 
@@ -1733,7 +1733,7 @@ export declare namespace ThreadNetworkDiagnostics {
 }
 
 /**
- * @deprecated Use {@link ThreadNetworkDiagnostics}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link ThreadNetworkDiagnostics}.
  */
 export declare const ThreadNetworkDiagnosticsCluster: typeof ThreadNetworkDiagnostics;
 

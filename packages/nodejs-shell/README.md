@@ -37,7 +37,7 @@ Please note the extra `--` to separate the npm parameters from the shell paramet
 ## matter.js v0.11 Storage adjustment!
 In matter.js 0.11 we adjusted the storage to the new environment based one. This means that by default the storage is in the user directory in .matter/shell-XX where XX is the nodeNum you provided as parameter. You can adjust the storage base location with "--storage-path=..." as parameter.
 
-Before matter.js 0.13 it was possible to use a former storage with "--legacyStorage" and the storage will be in the .matter-shell-XX directory in the local directory as before. This option was removed in matter,js 0.13.
+Before matter.js 0.13 it was possible to use a former storage with "--legacyStorage" and the storage will be in the .matter-shell-XX directory in the local directory as before. This option was removed in matter.js 0.13.
 To manually convert a storage you can follow the following steps. The described steps assume ./.matter-shell-XX is the old storage and ~/.matter/shell-XX is the new storage location.
 
 * Stop the shell

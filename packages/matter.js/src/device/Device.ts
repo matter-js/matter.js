@@ -15,6 +15,8 @@ import { Endpoint, EndpointOptions } from "./Endpoint.js";
 /**
  * Temporary used device class for paired devices until we added a layer to choose the right specialized device class
  * based on the device classes and features of the paired device
+ *
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export class PairedDevice extends Endpoint {
     /**
@@ -40,6 +42,8 @@ export class PairedDevice extends Endpoint {
 
 /**
  * Root endpoint of a device. This is used internally and not needed to be instanced by the user.
+ *
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export class RootEndpoint extends Endpoint {
     /**
@@ -75,6 +79,8 @@ export class RootEndpoint extends Endpoint {
 
 /**
  * Base class for all devices. This class should be extended by all devices.
+ *
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export class Device extends Endpoint {
     protected commandHandler = new NamedHandler<any>();
