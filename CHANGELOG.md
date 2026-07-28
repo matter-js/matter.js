@@ -15,8 +15,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Opening a namespace whose `driver.json` names an unregistered storage driver now throws `NoProviderError` instead of silently opening the existing data with a mismatched driver
 
 - @matter/nodejs
-    - Fix: Ensure that `--storage-clear`/`MATTER_STORAGE_CLEAR` is honored again and clears the storage on start
     - Breaking: `FileStorageDriver`'s constructor no longer accepts a `clear` argument; clearing is handled by `StorageService`
+    - Fix: Ensure that `--storage-clear`/`MATTER_STORAGE_CLEAR` is honored again and clears the storage on start
 
 - @matter/react-native
     - Fix: The `storage.clear` variable now clears the storage on start as it does on Node.js

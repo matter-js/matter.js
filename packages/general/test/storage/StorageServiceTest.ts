@@ -64,9 +64,8 @@ describe("StorageService", () => {
     // packages/nodejs/test/storage/StorageMigrationTest.ts's "StorageService clearOnFirstOpen" describe.
     describe("clearOnFirstOpen", () => {
         it(`clears an existing real "memory" KV namespace (smoke test)`, async () => {
-            // MemoryStorageDriver.create() always returns a fresh, empty instance, so this only proves the
-            // clearAll(["memory"]) call site doesn't error — the meaningful "data actually gone" proof for the
-            // #openSimple code path is the "persistent (web-storage-style) driver" test below.
+            // MemoryStorageDriver.create() returns a fresh, empty instance either way, so this only exercises the
+            // clearAll([]) call site; the "persistent (web-storage-style) driver" test below proves data is gone.
             storageService.clearOnFirstOpen = true;
 
             const manager = await storageService.open("clear-memory-ns");
