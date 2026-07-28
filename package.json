@@ -114,7 +114,7 @@
         "@memlab/cli@2.0.4": true,
         "@serialport/bindings-cpp@12.0.1": true,
         "@stoprocent/bleno@0.12.5": true,
-        "@stoprocent/bluetooth-hci-socket@2.2.8": true,
+        "@stoprocent/bluetooth-hci-socket@2.3.0": true,
         "@stoprocent/noble@2.5.10": true,
         "usb@2.18.0": true,
         "fsevents@2.3.2": true
