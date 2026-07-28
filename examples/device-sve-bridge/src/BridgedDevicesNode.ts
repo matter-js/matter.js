@@ -25,6 +25,7 @@ import {
     Time,
     VendorId,
 } from "@matter/main";
+import { GroupKeyManagementServer } from "@matter/main/behaviors";
 import { AccessControlServer } from "@matter/main/behaviors/access-control";
 import { BasicInformationServer } from "@matter/main/behaviors/basic-information";
 import { BooleanStateServer } from "@matter/main/behaviors/boolean-state";
@@ -77,6 +78,7 @@ const RootEndpointType = {
         // The Groupcast Listener feature generates auxiliary ACL entries, which requires the Auxiliary feature
         AccessControlServer.with("Extension", "Auxiliary"),
         GroupcastServer.with("Listener", "Sender", "PerGroup"),
+        GroupKeyManagementServer.with("Groupcast"),
         NetworkCommissioningServer.with("EthernetNetworkInterface"),
     ),
     deviceRevision: 5,
