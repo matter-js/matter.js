@@ -9,6 +9,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+- @matter/nodejs-ble
+    - Enhancement: BLE disconnect logs now include the noble disconnect reason with its HCI status text
+
 ## 0.17.7 (2026-07-27)
 
 - @matter/general
