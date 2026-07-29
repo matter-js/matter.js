@@ -7,6 +7,7 @@
 import { MdnsService } from "#mdns/MdnsService.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
+import type { NodeSession } from "#session/NodeSession.js";
 import { Session } from "#session/Session.js";
 import { SessionManager } from "#session/SessionManager.js";
 import {
@@ -29,7 +30,6 @@ import {
     RetrySchedule,
     ServerAddressIp,
 } from "@matter/general";
-import { FabricIndex } from "@matter/types";
 import { NetworkProfiles } from "./NetworkProfile.js";
 import { Peer } from "./Peer.js";
 import { PeerConnection } from "./PeerConnection.js";
@@ -91,7 +91,8 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             join: name => this.#lifetime.join(name),
         };
 
-        this.#peers.added.on(peer => {
+        this.#observers.on(this.#peers.added, peer => {
+            // Scoped to the peer's own observable, so it needs no cleanup of ours
             peer.sessions.deleted.on(() => {
                 if (!peer.sessions.size) {
                     this.#disconnected.emit(peer);
@@ -99,24 +100,27 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             });
         });
 
-        this.#sessions.sessions.added.on(session => {
-            if (session.peerAddress.fabricIndex === FabricIndex.NO_FABRIC || session.isClosed) {
-                return;
-            }
+        this.#observers.on(this.#sessions.sessions.added, session => this.#adoptSession(session));
 
-            this.addKnownPeer({
-                address: session.peerAddress,
-                operationalAddress: operationalAddressOf(session),
-            });
-        });
+        // Sessions may predate us: nothing guarantees we are instantiated before the node establishes its first
+        // operational session
+        for (const session of this.#sessions.sessions) {
+            this.#adoptSession(session);
+        }
+    }
 
-        this.#observers.on(this.#sessions.sessions.added, session => {
-            if (session.fabric === undefined) {
-                return;
-            }
+    /**
+     * Associate an operational session with its peer, creating the peer if we do not know it yet.
+     */
+    #adoptSession(session: NodeSession) {
+        if (session.fabric === undefined || session.isClosed) {
+            return;
+        }
 
-            this.for(session.peerAddress).sessions.add(session);
-        });
+        this.addKnownPeer({
+            address: session.peerAddress,
+            operationalAddress: operationalAddressOf(session),
+        }).sessions.add(session);
     }
 
     set exchanges(exchanges: ExchangeManager | undefined) {

@@ -9,6 +9,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+- @matter/protocol
+    - Fix: The peer's medium-specific MRP retransmission margin now applies to peer-initiated exchanges (e.g. subscription data reports, BDX transfers) and to exchanges created without peer context
+
 ## 0.17.7 (2026-07-27)
 
 - @matter/general

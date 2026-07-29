@@ -269,6 +269,8 @@ describe("MessageExchange", () => {
             localAdditionalMrpDelay: Duration;
             localFixedMrpBackoff?: Duration;
             peerAdditionalMrpDelay?: Duration;
+            sessionPeerAdditionalMrpDelay?: Duration;
+            peerInitiated?: boolean;
             network?: NetworkProfile;
         }): Promise<{ additionalDelay?: Duration; fixedBackoff?: Duration }> {
             // MRP only engages on unreliable transports; the default mock channel is reliable.
@@ -288,19 +290,26 @@ describe("MessageExchange", () => {
                 throw new NetworkError("captured");
             };
 
-            const exchange = MessageExchange.initiate(
-                {
-                    session,
-                    localSessionParameters: SessionParameters(SessionParameters.defaults),
-                    localAdditionalMrpDelay: options.localAdditionalMrpDelay,
-                    localFixedMrpBackoff: options.localFixedMrpBackoff ?? Millis(0),
-                    async peerLost() {},
-                    retry() {},
-                },
-                1,
-                SECURE_CHANNEL_PROTOCOL_ID,
-                { network: options.network, peerAdditionalMrpDelay: options.peerAdditionalMrpDelay },
-            );
+            if (options.sessionPeerAdditionalMrpDelay !== undefined) {
+                session.peerAdditionalMrpDelayResolver = () => options.sessionPeerAdditionalMrpDelay;
+            }
+
+            const context = {
+                session,
+                localSessionParameters: SessionParameters(SessionParameters.defaults),
+                localAdditionalMrpDelay: options.localAdditionalMrpDelay,
+                localFixedMrpBackoff: options.localFixedMrpBackoff ?? Millis(0),
+                async peerLost() {},
+                retry() {},
+            };
+            const exchangeOptions = {
+                network: options.network,
+                peerAdditionalMrpDelay: options.peerAdditionalMrpDelay,
+            };
+
+            const exchange = options.peerInitiated
+                ? MessageExchange.fromInitialMessage(context, fakeInboundMessage(), exchangeOptions)
+                : MessageExchange.initiate(context, 1, SECURE_CHANNEL_PROTOCOL_ID, exchangeOptions);
 
             await expect(exchange.send(1, Bytes.empty, { requiresAck: true })).to.be.rejectedWith("captured");
             return captured;
@@ -331,6 +340,35 @@ describe("MessageExchange", () => {
                 localAdditionalMrpDelay: Millis(0),
                 peerAdditionalMrpDelay: undefined,
                 network: unlimitedThrottle(),
+            });
+
+            expect(captured.additionalDelay).equals(Millis(0));
+        });
+
+        it("applies the session's peer margin to peer-initiated exchanges", async () => {
+            const captured = await captureAdditionalDelay({
+                localAdditionalMrpDelay: Millis(0),
+                sessionPeerAdditionalMrpDelay: Seconds(1.5),
+                peerInitiated: true,
+            });
+
+            expect(captured.additionalDelay).equals(Seconds(1.5));
+        });
+
+        it("applies the session's peer margin to initiated exchanges without an explicit margin", async () => {
+            const captured = await captureAdditionalDelay({
+                localAdditionalMrpDelay: Millis(0),
+                sessionPeerAdditionalMrpDelay: Seconds(1.5),
+            });
+
+            expect(captured.additionalDelay).equals(Seconds(1.5));
+        });
+
+        it("prefers the explicit peer margin over the session's", async () => {
+            const captured = await captureAdditionalDelay({
+                localAdditionalMrpDelay: Millis(0),
+                peerAdditionalMrpDelay: Millis(0),
+                sessionPeerAdditionalMrpDelay: Seconds(1.5),
             });
 
             expect(captured.additionalDelay).equals(Millis(0));

@@ -1046,7 +1046,10 @@ export class MessageExchange {
 
     /** Amplified backoff addition applied to our sends: the larger of our own and the peer's network-profile delay. */
     get #sendAdditionalDelay() {
-        return Duration.max(this.#context.localAdditionalMrpDelay, this.#peerAdditionalMrpDelay ?? Millis(0));
+        return Duration.max(
+            this.#context.localAdditionalMrpDelay,
+            this.#peerAdditionalMrpDelay ?? this.session.peerAdditionalMrpDelay ?? Millis(0),
+        );
     }
 
     /**
@@ -1111,6 +1114,9 @@ export namespace MessageExchange {
         /**
          * Additive MRP retransmission margin for the peer's network medium.  Sourced independently of
          * {@link network} so concurrency overrides cannot strip the medium-correct margin (e.g. thread's).
+         *
+         * Overrides {@link Session.peerAdditionalMrpDelay}, which supplies the margin for exchanges created without
+         * this option (notably peer-initiated ones).
          */
         peerAdditionalMrpDelay?: Duration;
 
