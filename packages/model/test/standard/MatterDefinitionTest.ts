@@ -59,14 +59,15 @@ describe("MatterDefinition", () => {
         expect(offenders).deep.equal([]);
     });
 
-    // A cluster's own feature table never enables a feature.  Feature selection comes from device type requirements or
-    // an explicit implementation decision, so the standard model must not carry the spec's feature fallback values
-    it("enables no cluster feature by default", () => {
+    // Feature selection is the application's, so a cluster selects nothing of its own accord.  The exception is a
+    // feature the specification makes unconditionally mandatory, which offers no choice
+    it("selects only unconditionally mandatory features", () => {
         const offenders = new Array<string>();
         for (const cluster of instantiate().clusters) {
-            for (const feature of cluster.features) {
-                if (feature.default !== undefined) {
-                    offenders.push(`${cluster.name}.${feature.name}`);
+            for (const name of cluster.supportedFeatures) {
+                const feature = cluster.features.find(feature => feature.name === name)!;
+                if (!feature.effectiveConformance.isMandatory) {
+                    offenders.push(`${cluster.name}.${name}`);
                 }
             }
         }

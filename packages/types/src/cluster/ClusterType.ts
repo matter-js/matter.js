@@ -6,7 +6,15 @@
 
 import { camelize, capitalize, decamelize, ImplementationError } from "@matter/general";
 import type { AttributeModel, CommandModel, EventModel } from "@matter/model";
-import { ClusterModel, ClusterModifier, GeneratorScope, GLOBAL_IDS, Metatype, ValueModel } from "@matter/model";
+import {
+    ClusterModel,
+    ClusterModifier,
+    FeatureSet,
+    GeneratorScope,
+    GLOBAL_IDS,
+    Metatype,
+    ValueModel,
+} from "@matter/model";
 import { StatusResponseError } from "../common/StatusResponseError.js";
 import type { AttributeId } from "../datatype/AttributeId.js";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -164,34 +172,33 @@ function installLazyProperties(ns: object, model: ClusterModel) {
             return Object.freeze(result);
         });
 
-        // Compat shim for pre-PR #3466 call sites: `PowerSource.Cluster.with(Feature.X, Feature.Y)`.
-        // Returns a shallow prototype-based clone of the namespace with `supportedFeatures` set.  Feature
-        // selection has no other runtime effect (attribute maps are not culled by conformance).
+        // Compat shim for pre-PR #3466 call sites: `PowerSource.Cluster.with(Feature.X, Feature.Y)`.  Returns a
+        // shallow prototype-based clone of the namespace with `supportedFeatures` set.  The namespace's own element
+        // maps are not culled; the selection takes effect when a behavior derives its schema from the namespace.
         // @deprecated Removal tracked for 0.18.
         lazy("with", () => {
-            // One clone per selection.  Consumers key caches on namespace identity, so a fresh object per call would
-            // defeat them
+            // ClusterBehaviorCache keys on namespace identity, so returning a clone per call would defeat it.  One
+            // clone per selection is load-bearing rather than an optimization
             const clones = new Map<string, object>();
 
-            // Keys derive from the selection, so an unvalidated name would grow the map without bound
-            const selectable = new Set(model.features.map(feature => camelize(feature.title ?? feature.name)));
-
             return (...features: string[]) => {
-                // Feature enum values are PascalCase; SupportedFeatures keys are camelCase.  Selection is a set, so
-                // deduplicate before keying
-                const names = [
-                    ...new Set(features.map(feature => feature.charAt(0).toLowerCase() + feature.slice(1))),
-                ].sort();
+                // Resolve live: the model may gain features after this property installs.  Unresolved names would also
+                // grow the clone cache without bound
+                const all = model.features;
+                const { features: resolved, unresolved } = FeatureSet.resolve(all, features);
 
-                for (const name of names) {
-                    if (!selectable.has(name)) {
-                        throw new ImplementationError(
-                            `${model.name} has no feature "${name}"; known features are ${[...selectable].join(", ")}`,
-                        );
-                    }
+                if (unresolved.length) {
+                    throw new ImplementationError(
+                        `${model.name} has no feature ${unresolved.map(name => `"${name}"`).join(", ")}; known features are ${FeatureSet.titlesOf(all).join(", ")}`,
+                    );
                 }
 
-                const key = names.join(",");
+                // SupportedFeatures keys are the camelized title
+                const names = [...resolved].map(code =>
+                    camelize(all.find(feature => feature.name === code)!.title ?? code),
+                );
+
+                const key = names.sort().join(",");
                 const existing = clones.get(key);
                 if (existing) {
                     return existing;
@@ -208,6 +215,9 @@ function installLazyProperties(ns: object, model: ClusterModel) {
                 // defineProperty because the inherited props are non-writable (installed via lazy() with no `writable`).
                 Object.defineProperty(clone, "Cluster", { value: clone, enumerable: true, configurable: true });
                 Object.defineProperty(clone, "Complete", { value: clone, enumerable: true, configurable: true });
+
+                // Holders share this object, so a write by one would otherwise corrupt it for every other
+                Object.freeze(clone);
 
                 clones.set(key, clone);
 
@@ -360,8 +370,8 @@ export namespace ClusterType {
 
     /**
      * Compat layer for pre-PR #3466 call sites that pin features via `Cluster.with(...)`.  Returns the namespace
-     * shape with a `with()` method that shifts `Typing.SupportedFeatures`.  Feature selection has no further runtime
-     * effect; the shim exists only to keep existing call sites typing correctly during the 0.17 → 0.18 migration.
+     * shape with a `with()` method that shifts `Typing.SupportedFeatures`.  The shim exists to keep existing call
+     * sites typing correctly during the 0.17 → 0.18 migration.
      *
      * @deprecated Scheduled for removal in 0.18.  New code should type the cluster via
      * {@link WithSupportedFeatures} directly.

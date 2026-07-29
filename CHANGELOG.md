@@ -12,15 +12,21 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/model
-    - Enhancement: `FeatureSelectionErrors()` assesses a cluster's selected features against the conformance of its FeatureMap
-    - Fix: A cluster's own feature table no longer enables features
+    - Enhancement: `FeatureSelectionErrors()` assesses a cluster's selected features against the combinations its FeatureMap conformance disallows
+    - Enhancement: `FeatureSet.resolve()` resolves a feature short code, title or camelized title to a short code
+    - Fix: A cluster's feature table no longer selects features; a feature the specification makes unconditionally mandatory is always selected
+    - Fix: Feature selection records against `operationalIsSupported` so a feature's `default` conveys only the specification's fallback value
+    - Fix: A feature mandated by any of several alternatives, such as `DoorLock.User`, is now reported as required
 
 - @matter/node
+    - Breaking: Default server exports no longer inherit the features their base implementation enables internally. `ColorControlServer`, `DoorLockServer`, `ElectricalEnergyMeasurementServer`, `LevelControlServer`, `ModeSelectServer`, `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer` and `WindowCoveringServer` now select no features. Select the features your device supports with `.with(...)`; `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer`, `WindowCoveringServer` and `ElectricalEnergyMeasurementServer` now require a selection to be added to an endpoint at all. The `DoorLockDevice`, `SpeakerDevice` and `ModeSelectDevice` device types alias these exports, so their clusters also select no features and advertise a different FeatureMap. Verify the feature set of every device you compose. Persisted cluster state resets once for affected devices because it is keyed by feature selection
+    - Breaking: A LongIdleTimeSupport ICD must select CheckInProtocolSupport and UserActiveModeTrigger
+    - Breaking: A node that accepts more than one path per invoke must select the General Diagnostics DataModelTest feature
     - Enhancement: Adding a server cluster to an endpoint fails when its selected features violate the conformance of its FeatureMap
-    - Fix: Default server exports no longer inherit the features their base implementation enables internally
     - Fix: `ClusterBehavior.with()` rejects a feature the cluster does not define
-    - Fix: A LongIdleTimeSupport ICD must select CheckInProtocolSupport and UserActiveModeTrigger
-    - Fix: `EnergyEvseServer` selects the mandatory ChargingPreferences feature
+
+- @matter/types
+    - Fix: `Cluster.with()` rejects a feature the cluster does not define and returns one frozen namespace per selection
 
 ## 0.17.7 (2026-07-27)
 

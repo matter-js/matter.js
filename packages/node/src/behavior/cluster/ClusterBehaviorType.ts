@@ -5,7 +5,14 @@
  */
 
 import { Events, OfflineEvent, OnlineEvent, QuietEvent } from "#behavior/Events.js";
-import { AsyncObservable, camelize, EventEmitter, GeneratedClass, ImplementationError } from "@matter/general";
+import {
+    AsyncObservable,
+    camelize,
+    describeList,
+    EventEmitter,
+    GeneratedClass,
+    ImplementationError,
+} from "@matter/general";
 import {
     ClassSemantics,
     ClusterModel,
@@ -72,12 +79,18 @@ export function ClusterBehaviorType({
         schema = syncFeatures(schema, namespace);
     }
 
+    // A feature the specification mandates without condition is not a selection.  We support it in our own
+    // implementations; for a peer we defer to the features it reports
+    if (!forClient) {
+        schema = selectUnconditionalFeatures(schema);
+    }
+
     // Construct namespace from schema if not provided
     if (!namespace) {
         namespace = ClusterType(schema);
     }
 
-    const useCache = name === undefined;
+    const useCache = name === undefined && commandFactory === undefined;
 
     if (useCache) {
         const cached = ClusterBehaviorCache.get(base, schema, namespace, forClient);
@@ -451,31 +464,34 @@ function applyFeatureSelection(schema: Schema.Cluster, features: readonly string
 }
 
 /**
- * Map feature names to a schema's FeatureSet short codes.  Accepts short code, title or camelized title so selections
- * expressed against the cluster namespace, the {@link ClusterBehavior.features} flags or the schema all resolve.
+ * Map feature names to a schema's FeatureSet short codes.
  */
 function featureSetFor(schema: Schema.Cluster, names: Iterable<string>) {
     const model = schema as ClusterModel;
-    const featureSet = new FeatureSet();
+    const { features } = model;
+    const { features: resolved, unresolved } = FeatureSet.resolve(features, names);
 
-    for (const name of names) {
-        const feature = model.features.find(feature => {
-            const title = feature.title ?? feature.name;
-            return feature.name === name || title === name || camelize(title) === name;
-        });
-
-        if (feature === undefined) {
-            throw new ImplementationError(
-                `${model.name} has no feature "${name}"; known features are ${model.features
-                    .map(feature => feature.title ?? feature.name)
-                    .join(", ")}`,
-            );
-        }
-
-        featureSet.add(feature.name);
+    if (unresolved.length) {
+        throw new ImplementationError(
+            `${model.name} has no feature ${describeList("and", ...unresolved.map(name => `"${name}"`))}; known features are ${FeatureSet.titlesOf(features).join(", ")}`,
+        );
     }
 
-    return featureSet;
+    return resolved;
+}
+
+/**
+ * Ensure features the specification mandates without condition are selected.
+ */
+function selectUnconditionalFeatures(schema: Schema.Cluster) {
+    const unconditional = (schema as ClusterModel).unconditionalFeatures;
+    if (!unconditional.size) {
+        return schema;
+    }
+
+    const selection = new FeatureSet([...schema.supportedFeatures, ...unconditional]);
+
+    return syncFeaturesFromSet(schema, selection);
 }
 
 /**
@@ -513,9 +529,10 @@ function syncFeaturesFromSet(schema: Schema.Cluster, featureSet: FeatureSet): Sc
  */
 function computeFeatureFlags(schema: ClusterModel): Record<string, boolean> {
     const flags: Record<string, boolean> = {};
+    const supported = schema.supportedFeatures;
     for (const child of schema.featureMap.children) {
         const key = camelize(child.title ?? child.name);
-        flags[key] = schema.supportedFeatures.has(child.name);
+        flags[key] = supported.has(child.name);
     }
     return flags;
 }

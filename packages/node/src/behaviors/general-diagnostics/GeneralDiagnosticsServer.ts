@@ -106,23 +106,29 @@ export class GeneralDiagnosticsServer extends Base {
     }
 
     /**
-     * DataModelTest is only mandatory above a maxPathsPerInvoke of one, so a node that accepts a single path may drop
-     * it.  We implement the feature's commands regardless so leaving it enabled is harmless.
+     * DataModelTest is mandatory above a maxPathsPerInvoke of one.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 11.12.4.1
+     * @throws {@link ImplementationError} if the feature is absent above a maxPathsPerInvoke of one
      */
-    #reportUnnecessaryDataModelTest() {
-        if (!this.features.dataModelTest) {
-            return;
-        }
-
+    #assertDataModelTest() {
         const maxPathsPerInvoke =
             this.endpoint.maybeStateOf(BasicInformationBehavior)?.maxPathsPerInvoke ?? DEFAULT_MAX_PATHS_PER_INVOKE;
-        if (maxPathsPerInvoke !== 1) {
+
+        if (!this.features.dataModelTest) {
+            if (maxPathsPerInvoke > 1) {
+                throw new ImplementationError(
+                    `The DataModelTest feature is mandatory with a maxPathsPerInvoke of ${maxPathsPerInvoke}; select it with GeneralDiagnosticsServer.with("DataModelTest") or set maxPathsPerInvoke to 1`,
+                );
+            }
             return;
         }
 
-        logger.info(
-            "The DataModelTest feature is enabled but is only required when maxPathsPerInvoke is greater than 1; disable it with GeneralDiagnosticsServer.with() if you do not want to advertise it",
-        );
+        if (maxPathsPerInvoke === 1) {
+            logger.info(
+                "The DataModelTest feature is enabled but is only required when maxPathsPerInvoke is greater than 1; disable it with GeneralDiagnosticsServer.with() if you do not want to advertise it",
+            );
+        }
     }
 
     #validateTestEnabledKey(enableKey: Bytes) {
@@ -332,7 +338,7 @@ export class GeneralDiagnosticsServer extends Base {
     }
 
     async #online() {
-        this.#reportUnnecessaryDataModelTest();
+        this.#assertDataModelTest();
 
         this.events.bootReason.emit(
             { bootReason: this.state.bootReason ?? GeneralDiagnostics.BootReason.Unspecified },
@@ -443,6 +449,10 @@ export namespace GeneralDiagnosticsServer {
         deviceTestEnableKey: Bytes = new Uint8Array(16).fill(0);
 
         [Val.properties](endpoint: Endpoint, session: ValueSupervisor.Session) {
+            // Invoked on the underlying state, so read our own values from here.  Reading them via the endpoint would
+            // require naming this behavior's type, and a type naming features the application did not select is absent
+            const state = this;
+
             return {
                 /**
                  * Report uptime
@@ -478,7 +488,7 @@ export namespace GeneralDiagnosticsServer {
                         Time.nowMs,
                     ).duration;
 
-                    const timeAsOfLastUpdate = endpoint.stateOf(GeneralDiagnosticsServer).totalOperationalHoursCounter;
+                    const timeAsOfLastUpdate = state.totalOperationalHoursCounter;
 
                     const totalOperationalTime = Millis(timeAsOfLastUpdate + timeSinceLastUpdate);
 

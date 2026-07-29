@@ -91,8 +91,9 @@ describe("ClusterType.Cluster.with() compat shim", () => {
     });
 
     it("rejects a feature the cluster does not define", () => {
+        // The message must echo the caller's own spelling and list features as the caller names them
         expect(() => (PowerSource.Cluster.with as (...features: string[]) => unknown)("Batery")).throws(
-            /no feature "batery"/,
+            'PowerSource has no feature "Batery"; known features are Wired, Battery, Rechargeable, Replaceable',
         );
     });
 

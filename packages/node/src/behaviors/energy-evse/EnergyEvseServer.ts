@@ -4,10 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { EnergyEvse } from "@matter/types/clusters/energy-evse";
+/*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
+
 import { EnergyEvseBehavior } from "./EnergyEvseBehavior.js";
 
 /**
  * This is the default server implementation of {@link EnergyEvseBehavior}.
  */
-export class EnergyEvseServer extends EnergyEvseBehavior.with(EnergyEvse.Feature.ChargingPreferences) {}
+export class EnergyEvseServer extends EnergyEvseBehavior {}

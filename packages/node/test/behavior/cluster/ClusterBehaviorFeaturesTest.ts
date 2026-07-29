@@ -26,7 +26,6 @@ import { MockEndpointType } from "../mock-behavior.js";
 const INTENTIONALLY_ENABLED: Record<string, string[]> = {
     AccessControlServer: ["extension"],
     BooleanStateServer: ["changeEvent"],
-    EnergyEvseServer: ["chargingPreferences"],
     GeneralDiagnosticsServer: ["dataModelTest"],
     GroupsServer: ["groupNames"],
     IcdManagementServer: ["checkInProtocolSupport"],
@@ -141,12 +140,10 @@ describe("cluster behavior feature selection", () => {
     });
 
     describe("published behaviors", () => {
-        it("LevelControl enables nothing, including the OnOff feature the spec assigns a fallback of 1", () => {
-            expect(LevelControl.schema.features.map(feature => feature.default)).deep.equals([
-                undefined,
-                undefined,
-                undefined,
-            ]);
+        it("LevelControl enables nothing, though the spec assigns OnOff a fallback of 1", () => {
+            // The model carries the specification's fallback; it conveys no selection
+            expect(LevelControl.schema.features.find(feature => feature.name === "OO")?.default).equals(1);
+
             expect(enabledFeaturesOf(LevelControlBehavior)).deep.equals([]);
             expect(enabledFeaturesOf(LevelControlServer)).deep.equals([]);
         });
@@ -200,7 +197,7 @@ describe("cluster behavior feature selection", () => {
 
             expect(
                 await causeChainOf(MockEndpoint.create(MockEndpointType.with(PowerSourceServer), { powerSource })),
-            ).match(/select exactly 1 of Wired, Battery \(0 selected\)/);
+            ).match(/select at least one of Wired or Battery/);
 
             expect(
                 await causeChainOf(
@@ -214,7 +211,7 @@ describe("cluster behavior feature selection", () => {
                         },
                     }),
                 ),
-            ).match(/select exactly 1 of Wired, Battery \(2 selected\)/);
+            ).match(/features Wired and Battery cannot be selected together/);
 
             const endpoint = await MockEndpoint.create(MockEndpointType.with(PowerSourceServer.with("Wired")), {
                 powerSource: { ...powerSource, wiredCurrentType: 0 },
@@ -226,6 +223,8 @@ describe("cluster behavior feature selection", () => {
             const unexpected = new Array<string>();
 
             for (const [name, type] of Object.entries(behaviors)) {
+                // A *BaseServer carries the features its default logic implements so subclasses may override the
+                // corresponding methods.  It is an extension point, not an endpoint-ready export
                 if (typeof type !== "function" || name.endsWith("BaseServer")) {
                     continue;
                 }
@@ -235,7 +234,13 @@ describe("cluster behavior feature selection", () => {
                     continue;
                 }
 
-                const expected = (INTENTIONALLY_ENABLED[name] ?? []).map(feature => camelize(feature)).sort();
+                const mandatory = schema.features
+                    .filter(feature => feature.effectiveConformance.isMandatory)
+                    .map(feature => camelize(feature.title ?? feature.name));
+
+                const expected = [...new Set([...(INTENTIONALLY_ENABLED[name] ?? []), ...mandatory])]
+                    .map(feature => camelize(feature))
+                    .sort();
                 const actual = enabledFeaturesOf(type as { features: Record<string, boolean> });
 
                 if (actual.join(",") !== expected.join(",")) {

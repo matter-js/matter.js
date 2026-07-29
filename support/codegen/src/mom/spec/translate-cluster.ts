@@ -22,6 +22,7 @@ import { ClusterReference, SpecReference, Table } from "./spec-types.js";
 import { accessModifierOf, translateDatatype, translateFields, translateValueChildren } from "./translate-datatype.js";
 import { Alias, Details, Optional, translateRecordsToMatter, translateTable } from "./translate-table.js";
 import {
+    CompactStr,
     ConformanceCode,
     Identifier,
     Integer,
@@ -264,6 +265,9 @@ function translateMetadata(definition: ClusterReference, children: Array<Cluster
 
             // Must define after title which uses the name column
             name: Alias(UpperIdentifier, "code"),
+
+            // We let Model handle translation to the proper type
+            default: Optional(Alias(CompactStr, "def", "fallback")),
         });
 
         for (const record of records) {
