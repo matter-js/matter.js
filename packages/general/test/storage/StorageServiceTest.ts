@@ -7,6 +7,7 @@
 import { Environment } from "#environment/Environment.js";
 import { Filesystem } from "#fs/Filesystem.js";
 import { MockFilesystem } from "#fs/MockFilesystem.js";
+import { NoProviderError } from "#MatterError.js";
 import { DatafileRoot } from "#storage/DatafileRoot.js";
 import { MemoryBlobStorageDriver } from "#storage/MemoryBlobStorageDriver.js";
 import { MemoryStorageDriver } from "#storage/MemoryStorageDriver.js";
@@ -192,6 +193,51 @@ describe("StorageService", () => {
             expect(await nsDir.file("some-blob-file").exists()).equal(true);
             const descriptorText = await nsDir.file("driver.json").readAllText();
             expect(JSON.parse(descriptorText).type).equal("blob");
+        });
+
+        it("rejects an unregistered KV driver before wiping", async () => {
+            const mockFs = new MockFilesystem();
+            env.set(Filesystem, mockFs);
+            storageService.registerDriver(WalStorageDriver);
+            storageService.defaultDriver = "wal";
+            storageService.configuredDriver = "waal";
+
+            const ns = "clear-bad-driver-ns";
+            const nsDir = mockFs.directory(ns);
+
+            const existing = await WalStorageDriver.create(new DatafileRoot(nsDir), { kind: "wal" });
+            await existing.set(["ctx"], "key", "stale-value");
+            await existing.close();
+            await nsDir.file("driver.json").write(JSON.stringify({ kind: "wal", type: "kv" }));
+
+            storageService.clearOnFirstOpen = true;
+
+            await expect(storageService.open(ns)).rejectedWith(NoProviderError);
+
+            storageService.configuredDriver = undefined;
+            storageService.clearOnFirstOpen = false;
+
+            const manager = await storageService.open(ns);
+            expect(await manager.createContext("ctx").get("key")).equal("stale-value");
+            await manager.close();
+        });
+
+        it("rejects an unregistered blob driver before wiping", async () => {
+            const mockFs = new MockFilesystem();
+            env.set(Filesystem, mockFs);
+            storageService.registerBlobDriver({ id: "memory-blob", create: () => new MemoryBlobStorageDriver() });
+            storageService.defaultBlobDriver = "memory-blob";
+            storageService.configuredBlobDriver = "memory-blobb";
+
+            const ns = "clear-bad-blob-driver-ns";
+            const nsDir = mockFs.directory(ns);
+            await nsDir.file("existing-blob").write("blob-bytes");
+
+            storageService.clearOnFirstOpen = true;
+
+            await expect(storageService.openBlobStorage(ns)).rejectedWith(NoProviderError);
+
+            expect(await nsDir.file("existing-blob").exists()).equal(true);
         });
 
         it("does not wipe a filesystem namespace on a later reopen", async () => {

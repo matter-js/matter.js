@@ -208,8 +208,13 @@ export class StorageService {
             let descriptor: StorageDriver.Descriptor;
 
             if (this.#needsClear(cacheKey)) {
+                const kind = this.#configuredDriver ?? this.#defaultDriver;
+
+                // Reject an unregistered driver before the wipe, or a misconfigured id destroys the data it fails on
+                this.#driverFor(kind);
+
                 clearLock = await this.#clearFilesystemNamespace(root, cacheKey, "kv");
-                descriptor = { kind: this.#configuredDriver ?? this.#defaultDriver, type: "kv" };
+                descriptor = { kind, type: "kv" };
             } else {
                 // Detect existing driver
                 let detected = await this.#readDescriptor(dir);
@@ -249,11 +254,7 @@ export class StorageService {
                 }
             }
 
-            const targetKind = descriptor.kind;
-            const impl = this.#drivers.get(targetKind);
-            if (!impl) {
-                throw new NoProviderError(`No storage driver registered for "${targetKind}"`);
-            }
+            const impl = this.#driverFor(descriptor.kind);
 
             // Preinitialize
             if (impl.preinitialize) {
@@ -291,11 +292,7 @@ export class StorageService {
         const targetKind = this.#configuredDriver ?? this.#defaultDriver;
         const descriptor: StorageDriver.Descriptor = { kind: targetKind, type: "kv" };
 
-        const impl = this.#drivers.get(targetKind);
-        if (!impl) {
-            throw new NoProviderError(`No storage driver registered for "${targetKind}"`);
-        }
-
+        const impl = this.#driverFor(targetKind);
         const storage = await impl.create(dataNs, descriptor);
 
         try {
@@ -389,8 +386,13 @@ export class StorageService {
             let descriptor: BlobStorageDriver.Descriptor;
 
             if (this.#needsClear(cacheKey)) {
+                const kind = this.#configuredBlobDriver ?? this.#defaultBlobDriver;
+
+                // Reject an unregistered driver before the wipe, or a misconfigured id destroys the data it fails on
+                this.#blobDriverFor(kind);
+
                 clearLock = await this.#clearFilesystemNamespace(root, cacheKey, "blob");
-                descriptor = { kind: this.#configuredBlobDriver ?? this.#defaultBlobDriver, type: "blob" };
+                descriptor = { kind, type: "blob" };
             } else {
                 // Detect existing blob driver from driver.json
                 let detected = await this.#readDescriptor(dir);
@@ -425,10 +427,7 @@ export class StorageService {
             }
 
             const targetKind = descriptor.kind;
-            const impl = this.#blobDrivers.get(targetKind);
-            if (!impl) {
-                throw new NoProviderError(`No blob storage driver registered for "${targetKind}"`);
-            }
+            const impl = this.#blobDriverFor(targetKind);
 
             if (impl.preinitialize) {
                 const fs = this.#environment.get(Filesystem);
@@ -462,10 +461,7 @@ export class StorageService {
 
     async #openBlobSimple(cacheKey: string, dataNs: DataNamespace): Promise<BlobStorageHandle> {
         const targetBlobKind = this.#configuredBlobDriver ?? this.#defaultBlobDriver;
-        const impl = this.#blobDrivers.get(targetBlobKind);
-        if (!impl) {
-            throw new NoProviderError(`No blob storage driver registered for "${targetBlobKind}"`);
-        }
+        const impl = this.#blobDriverFor(targetBlobKind);
 
         const descriptor: BlobStorageDriver.Descriptor = { kind: targetBlobKind, type: "blob" };
         const storage = await impl.create(dataNs, descriptor);
@@ -517,6 +513,22 @@ export class StorageService {
                 available: this.#drivers.size > 0,
             }),
         ];
+    }
+
+    #driverFor(kind: string) {
+        const impl = this.#drivers.get(kind);
+        if (impl === undefined) {
+            throw new NoProviderError(`No storage driver registered for "${kind}"`);
+        }
+        return impl;
+    }
+
+    #blobDriverFor(kind: string) {
+        const impl = this.#blobDrivers.get(kind);
+        if (impl === undefined) {
+            throw new NoProviderError(`No blob storage driver registered for "${kind}"`);
+        }
+        return impl;
     }
 
     /**
