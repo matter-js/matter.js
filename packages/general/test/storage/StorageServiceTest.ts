@@ -11,6 +11,7 @@ import { NoProviderError } from "#MatterError.js";
 import { DatafileRoot } from "#storage/DatafileRoot.js";
 import { MemoryBlobStorageDriver } from "#storage/MemoryBlobStorageDriver.js";
 import { MemoryStorageDriver } from "#storage/MemoryStorageDriver.js";
+import { StorageError } from "#storage/StorageDriver.js";
 import { StorageService } from "#storage/StorageService.js";
 import { WalStorageDriver } from "#storage/wal/WalStorageDriver.js";
 
@@ -60,6 +61,38 @@ describe("StorageService", () => {
         await manager2.close();
     });
 
+    it("does not reuse a driver whose open failed", async () => {
+        class UnclearableDriver extends MemoryStorageDriver {
+            override clearAll(): void {
+                throw new StorageError("simulated clear failure");
+            }
+        }
+
+        const created = new Array<UnclearableDriver>();
+        storageService.registerDriver({
+            id: "unclearable",
+            create() {
+                const driver = new UnclearableDriver();
+                driver.initialize();
+                created.push(driver);
+                return driver;
+            },
+        });
+        storageService.defaultDriver = "unclearable";
+        storageService.clearOnFirstOpen = true;
+
+        await expect(storageService.open("unclearable-ns")).rejectedWith(StorageError);
+
+        storageService.clearOnFirstOpen = false;
+        const manager = await storageService.open("unclearable-ns");
+
+        // A second driver proves the failed open left no cache entry behind for this one to adopt
+        expect(created.length).equal(2);
+        await manager.createContext("ctx").set("key", "value");
+        expect(await manager.createContext("ctx").get("key")).equal("value");
+        await manager.close();
+    });
+
     // Covers the general-package-registered "memory" and "wal" KV/blob drivers. "file"/"sqlite" KV and
     // "file"/"dir"/"wal" blob drivers are nodejs-specific and covered in
     // packages/nodejs/test/storage/StorageMigrationTest.ts's "StorageService clearOnFirstOpen" describe.
@@ -90,15 +123,15 @@ describe("StorageService", () => {
             storageService.defaultDriver = "persistent";
 
             const manager1 = await storageService.open("clear-ns");
-            manager1.createContext("ctx").set("key", "stale-value");
-            expect(manager1.createContext("ctx").get("key")).equal("stale-value");
+            await manager1.createContext("ctx").set("key", "stale-value");
+            expect(await manager1.createContext("ctx").get("key")).equal("stale-value");
             await manager1.close();
 
             storageService.clearOnFirstOpen = true;
 
             const manager2 = await storageService.open("clear-ns");
             expect(await manager2.createContext("ctx").has("key")).equal(false);
-            manager2.createContext("ctx").set("key", "fresh-value");
+            await manager2.createContext("ctx").set("key", "fresh-value");
             await manager2.close();
 
             // Namespace was already cleared once in this process — reopening must not wipe "fresh-value"

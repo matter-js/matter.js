@@ -276,11 +276,7 @@ export class StorageService {
                 await manager.initialize();
                 return manager;
             } catch (e) {
-                try {
-                    await storage.close();
-                } catch (closeError) {
-                    logger.warn("Error closing storage after failed initialization:", closeError);
-                }
+                await this.#discardFailedDriver(cacheKey, storage);
                 throw e;
             }
         } finally {
@@ -305,11 +301,7 @@ export class StorageService {
 
             return manager;
         } catch (e) {
-            try {
-                await storage.close();
-            } catch (closeError) {
-                logger.warn("Error closing storage after failed initialization:", closeError);
-            }
+            await this.#discardFailedDriver(cacheKey, storage);
             throw e;
         }
     }
@@ -513,6 +505,20 @@ export class StorageService {
                 available: this.#drivers.size > 0,
             }),
         ];
+    }
+
+    /**
+     * Close a driver whose open failed.  The cache entry must go first, or a later open adopts the closed driver.
+     */
+    async #discardFailedDriver(cacheKey: string, storage: StorageDriver) {
+        if (this.#openDrivers.get(cacheKey)?.driver === storage) {
+            this.#openDrivers.delete(cacheKey);
+        }
+        try {
+            await storage.close();
+        } catch (closeError) {
+            logger.warn("Error closing storage after failed initialization:", closeError);
+        }
     }
 
     #driverFor(kind: string) {
