@@ -13,6 +13,7 @@
 
 import { Bytes, Timer } from "@matter/general";
 import {
+    Behavior,
     Endpoint,
     Environment,
     LogDestination,
@@ -31,6 +32,7 @@ import { BasicInformationServer } from "@matter/main/behaviors/basic-information
 import { BooleanStateServer } from "@matter/main/behaviors/boolean-state";
 import { BridgedDeviceBasicInformationServer } from "@matter/main/behaviors/bridged-device-basic-information";
 import { GroupcastServer } from "@matter/main/behaviors/groupcast";
+import { IdentifyServer } from "@matter/main/behaviors/identify";
 import { NetworkCommissioningServer } from "@matter/main/behaviors/network-commissioning";
 import { OccupancySensingServer } from "@matter/main/behaviors/occupancy-sensing";
 import { ContactSensorDevice } from "@matter/main/devices/contact-sensor";
@@ -172,11 +174,21 @@ const dimmableEndpoint = new Endpoint(
 );
 await aggregator.add(dimmableEndpoint);
 
+// Sensor endpoints leave the optional Identify.TriggerEffect command unimplemented so it stays out of
+// their AcceptedCommandList. The light endpoints (2 and 3) keep the default IdentifyServer.
+class IdentifyWithoutTriggerEffect extends IdentifyServer {
+    override triggerEffect = Behavior.unimplemented;
+}
+
 // --- Endpoint 4: Contact Sensor (BooleanState with ChangeEvent feature) ---
 
 const contactName = `Contact Sensor`;
 const contactEndpoint = new Endpoint(
-    ContactSensorDevice.with(BridgedDeviceBasicInformationServer, BooleanStateServer.with("ChangeEvent")),
+    ContactSensorDevice.with(
+        BridgedDeviceBasicInformationServer,
+        BooleanStateServer.with("ChangeEvent"),
+        IdentifyWithoutTriggerEffect,
+    ),
     {
         id: `contact`,
         number: 4,
@@ -202,6 +214,7 @@ const occupancyEndpoint = new Endpoint(
     OccupancySensorDevice.with(
         BridgedDeviceBasicInformationServer,
         OccupancySensingServer.with("PhysicalContact", "OccupancyEvent"),
+        IdentifyWithoutTriggerEffect,
     ),
     {
         id: `occupancy`,
