@@ -120,6 +120,9 @@ const server = await ServerNode.create(RootEndpointType, {
         maxMembershipCount: 10,
         maxMcastAddrCount: 10,
     },
+    groupKeyManagement: {
+        groupcastAdoption: undefined,
+    },
 });
 
 const aggregator = new Endpoint(AggregatorEndpoint, { id: "aggregator", number: 1 });
@@ -280,6 +283,8 @@ if (bridgedInfoConfigVersionTimerEnabled) {
     timers.push(timer);
     logger.info("BridgedDeviceBasicInformation configurationVersion 30-seconds bump timer enabled");
 }
+
+logger.info(server);
 
 await server.start();
 
