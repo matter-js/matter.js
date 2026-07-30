@@ -9,6 +9,17 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+- @matter/model
+    - Breaking: A provisional element is no longer mandatory; conformance following a `P` describes the conformance intended once the element leaves provisional state
+
+- @matter/types
+    - Breaking: Provisional cluster elements are now typed as optional rather than always present
+
+- @matter/node
+    - Breaking: Provisional elements are no longer implemented by default; supply a state value or use `ClusterBehavior.enable()` to implement one
+
 ## 0.17.7 (2026-07-27)
 
 - @matter/general
