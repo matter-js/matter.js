@@ -165,6 +165,7 @@ export class SoftwareUpdateManager extends Behavior {
         await this.internal.otaService.construction;
 
         this.reactTo(rootNode.lifecycle.online, this.#nodeOnline);
+        this.reactTo(rootNode.lifecycle.goingOffline, this.#nodeGoingOffline);
         if (rootNode.lifecycle.isOnline) {
             await this.#nodeOnline();
         }
@@ -174,6 +175,7 @@ export class SoftwareUpdateManager extends Behavior {
     }
 
     async #nodeOnline() {
+        this.internal.suppressUpdates = false;
         if (this.internal.announcements !== undefined) {
             await this.internal.announcements.close();
             this.internal.announcements = undefined;
@@ -202,6 +204,10 @@ export class SoftwareUpdateManager extends Behavior {
             delay,
             this.callback(this.#initializeUpdateCheck),
         ).start();
+    }
+
+    #nodeGoingOffline() {
+        this.internal.suppressUpdates = true;
     }
 
     #updateAnnouncementSettings() {
@@ -481,7 +487,7 @@ export class SoftwareUpdateManager extends Behavior {
         // Collect all client nodes and their versions, so we only need to check each version once
         const updateDetails = new Map<string, CollectedNodesUpdateInfo>();
         for (const peer of rootNode.peers) {
-            if (this.internal.closed) {
+            if (this.internal.suppressUpdates) {
                 return [];
             }
             if (peerToCheck !== undefined && peerToCheck !== peer) {
@@ -512,7 +518,7 @@ export class SoftwareUpdateManager extends Behavior {
 
         const peersWithUpdates = new Array<{ peerAddress: PeerAddress; info: SoftwareUpdateInfo }>();
         for (const infos of updateDetails.values()) {
-            if (this.internal.closed) {
+            if (this.internal.suppressUpdates) {
                 return [];
             }
             try {
@@ -550,7 +556,7 @@ export class SoftwareUpdateManager extends Behavior {
             includeStoredUpdates,
             isProduction: this.state.allowTestOtaImages ? undefined : true,
         });
-        if (!updateDetails || this.internal.closed) {
+        if (!updateDetails || this.internal.suppressUpdates) {
             return [];
         }
         const fd = await this.internal.otaService.downloadUpdate(updateDetails);
@@ -589,7 +595,7 @@ export class SoftwareUpdateManager extends Behavior {
                     consent.peerAddress.fabricIndex === peerAddress.fabricIndex &&
                     consent.peerAddress.nodeId === peerAddress.nodeId,
             );
-            if (this.internal.closed) {
+            if (this.internal.suppressUpdates) {
                 break;
             }
             if (hasConsent) {
@@ -791,7 +797,7 @@ export class SoftwareUpdateManager extends Behavior {
      * monitor for stalled updates.
      */
     #triggerQueuedUpdate() {
-        if (this.internal.closed) {
+        if (this.internal.suppressUpdates) {
             return;
         }
         const now = Time.nowMs;
@@ -850,7 +856,7 @@ export class SoftwareUpdateManager extends Behavior {
      * The node usually calls queryImage as a result of this when it processes the announcement.
      */
     async #triggerUpdateOnNode(entry: UpdateQueueEntry) {
-        if (this.internal.announcements == undefined) {
+        if (this.internal.announcements === undefined) {
             logger.info(`Not yet initialized with peers, can not trigger update on node`, entry.peerAddress);
             return;
         }
@@ -1082,9 +1088,7 @@ export class SoftwareUpdateManager extends Behavior {
      * messages, and triggers the necessary events.
      */
     onOtaStatusChange(peerAddress: PeerAddress, status: OtaUpdateStatus, toVersion?: number) {
-        if (this.internal.closed) {
-            // A post-dispose Applying would otherwise re-arm the already-disposed armer whose observers are
-            // closed, leaving an entry that never gets a grace timer nor self-cleans.
+        if (this.internal.suppressUpdates) {
             return;
         }
         peerAddress = PeerAddress(peerAddress);
@@ -1145,7 +1149,7 @@ export class SoftwareUpdateManager extends Behavior {
     }
 
     override async [Symbol.asyncDispose]() {
-        this.internal.closed = true;
+        this.internal.suppressUpdates = true;
         this.internal.checkForUpdateTimer?.stop();
         this.internal.updateQueueTimer?.stop();
         await this.internal.announcements?.close();
@@ -1200,7 +1204,7 @@ export namespace SoftwareUpdateManager {
 
         rebootResubscribeArmer?: RebootResubscribeArmer;
 
-        closed = false;
+        suppressUpdates = false;
     }
 
     export class Events extends EventEmitter {
