@@ -181,7 +181,7 @@ nodes ota check 5000 --local
 ```
 
 Options:
-- `--mode <prod|test>`: Specify DCL mode - production (default) or test
+- `--mode <auto|prod|test|both>`: DCL instances to query. `auto` (default) follows the `config ota-test-images` setting: production only, or production plus test when test images are enabled
 - `--local`: Include locally stored update files when checking for updates
 
 The command will display information about available updates including version, file size, and download URL.
@@ -197,7 +197,7 @@ nodes ota download 5000 --local
 ```
 
 Options:
-- `--mode <prod|test>`: Specify DCL mode - production (default) or test
+- `--mode <auto|prod|test|both>`: DCL instances to query. `auto` (default) follows the `config ota-test-images` setting: production only, or production plus test when test images are enabled
 - `--force`: Force re-download even if the update is already cached locally
 - `--local`: Consider locally cached updates when checking for available updates (before downloading)
 
@@ -213,7 +213,7 @@ nodes ota apply 5000 --force
 ```
 
 Options:
-- `--mode <prod|test>`: Specify DCL mode - production (default) or test
+- `--mode <auto|prod|test|both>`: DCL instances to query. `auto` (default) follows the `config ota-test-images` setting: production only, or production plus test when test images are enabled
 - `--force`: Force download even if update is already stored locally
 - `--local`: Apply update from locally stored files instead of downloading from DCL
 
@@ -277,6 +277,19 @@ Options:
 - `--vendor <vid>`: Delete all OTA files for a vendor
 - `--product <pid>`: Delete specific product (requires --vendor)
 - `--mode <prod|test>`: Specify DCL mode - production (default) or test
+
+#### Download an OTA image for a vendor/product/version
+
+Use `ota download <vendor-id> <product-id> <software-version>` to query the DCL for an update newer than the given software version and download it into local storage. Unlike `nodes ota download` this needs no commissioned node.
+
+```
+ota download 0xfff1 0x8000 1
+ota download 0xfff1 0x8000 1 --mode test
+```
+
+Options:
+- `--mode <auto|prod|test|both>`: DCL instances to query. `auto` (default) follows the `config ota-test-images` setting: production only, or production plus test when test images are enabled
+- `--local`: Include locally stored update files in the search
 
 #### Copy OTA image to filesystem
 

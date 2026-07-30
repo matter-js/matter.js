@@ -12,6 +12,7 @@ import { basename, dirname, extname, join } from "node:path";
 import { Readable } from "node:stream";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
+import { resolveDclMode, withDclModeOption } from "./ota-dcl-mode.js";
 
 /**
  * Parse a hex string to a number, handling optional 0x prefix.
@@ -554,48 +555,43 @@ export default function commands(theNode: MatterNode) {
                     "download <vendor-id> <product-id> <software-version>",
                     "Check DCL for OTA updates matching the given vendor/product/version and download them",
                     yargs => {
-                        return yargs
-                            .positional("vendor-id", {
-                                describe: "Vendor ID (hex, e.g., 0xFFF1 or FFF1)",
-                                type: "string",
-                                demandOption: true,
-                            })
-                            .positional("product-id", {
-                                describe: "Product ID (hex, e.g., 0x8000 or 8000)",
-                                type: "string",
-                                demandOption: true,
-                            })
-                            .positional("software-version", {
-                                describe: "Current software version (decimal number)",
-                                type: "number",
-                                demandOption: true,
-                            })
-                            .option("mode", {
-                                describe: "DCL mode (prod or test)",
-                                type: "string",
-                                choices: ["prod", "test", "both"],
-                                default: "prod",
-                            })
-                            .option("local", {
-                                describe: "Include local update files in search",
-                                type: "boolean",
-                                default: false,
-                            });
+                        return withDclModeOption(
+                            yargs
+                                .positional("vendor-id", {
+                                    describe: "Vendor ID (hex, e.g., 0xFFF1 or FFF1)",
+                                    type: "string",
+                                    demandOption: true,
+                                })
+                                .positional("product-id", {
+                                    describe: "Product ID (hex, e.g., 0x8000 or 8000)",
+                                    type: "string",
+                                    demandOption: true,
+                                })
+                                .positional("software-version", {
+                                    describe: "Current software version (decimal number)",
+                                    type: "number",
+                                    demandOption: true,
+                                }),
+                        ).option("local", {
+                            describe: "Include local update files in search",
+                            type: "boolean",
+                            default: false,
+                        });
                     },
                     async argv => {
                         const { vendorId: vendorIdStr, productId: productIdStr, softwareVersion, mode, local } = argv;
+                        const { label: dclMode, isProduction } = resolveDclMode(theNode, mode);
 
                         await theNode.start();
 
                         const vendorId = parseHexId(vendorIdStr, "vendor");
                         const productId = parseHexId(productIdStr, "product");
-                        const isProduction = mode === "prod" ? true : mode === "test" ? false : undefined;
 
                         console.log(`Checking DCL for OTA updates...`);
                         console.log(`  Vendor ID: ${Diagnostic.hex(vendorId as VendorId, 4).toUpperCase()}`);
                         console.log(`  Product ID: ${Diagnostic.hex(productId, 4).toUpperCase()}`);
                         console.log(`  Current Software Version: ${softwareVersion}`);
-                        console.log(`  DCL Mode: ${mode}\n`);
+                        console.log(`  DCL Mode: ${dclMode}\n`);
 
                         const updateInfo = await (
                             await theNode.otaService()
