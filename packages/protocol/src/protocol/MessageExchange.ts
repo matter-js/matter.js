@@ -1116,8 +1116,8 @@ export namespace MessageExchange {
          * Additive MRP retransmission margin for the peer's network medium.  Sourced independently of
          * {@link network} so concurrency overrides cannot strip the medium-correct margin (e.g. thread's).
          *
-         * Overrides {@link Session.peerAdditionalMrpDelay}, which supplies the margin for exchanges created without
-         * this option (notably peer-initiated ones).
+         * Overrides {@link Session.peerMrpMargins}, which supplies the margin for exchanges created without this
+         * option (notably peer-initiated ones).
          */
         peerAdditionalMrpDelay?: Duration;
 

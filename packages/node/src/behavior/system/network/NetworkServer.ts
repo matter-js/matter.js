@@ -116,9 +116,6 @@ export namespace NetworkServer {
         delayAfterUnhandledError?: Duration;
 
         @field(duration)
-        minimumTimeBetweenMrpKicks?: Duration;
-
-        @field(duration)
         kickThrottleInterval?: Duration;
 
         @field(uint16)
@@ -185,21 +182,21 @@ export namespace NetworkServer {
         icdLit?: LimitsConfig;
     }
 
-    type Undeclared<Source, Config> = Exclude<keyof Source, keyof Config>;
-    type Declares<_Undeclared extends never> = unknown;
+    type Mismatched<A, B> = Exclude<keyof A, keyof B> | Exclude<keyof B, keyof A>;
+    type SameFields<_Mismatched extends never> = unknown;
 
     /**
      * The config classes above restate their source's fields because {@link field} needs real property declarations,
-     * and `implements Partial<Source>` does not catch a field they fail to declare.  This does: growing a source type
-     * breaks the build here, naming the undeclared field, until the config class exposes it.
+     * and `implements Partial<Source>` catches neither a field they fail to declare nor one the source has dropped.
+     * This does: either divergence breaks the build here, naming the offending field.
      */
-    export type ConfigCoversItsSource = [
-        Declares<Undeclared<PeerTimingParameters, TimingConfig>>,
-        Declares<Undeclared<PeerTimingParameters["kickRestartCooldown"], KickRestartCooldownConfig>>,
-        Declares<Undeclared<PeerTimingParameters["addressChangeProbeCooldown"], AddressChangeProbeCooldownConfig>>,
-        Declares<Undeclared<NetworkProfiles.ConcreteLimits, ConcreteLimitsConfig>>,
-        Declares<Undeclared<NetworkProfiles.Limits, LimitsConfig>>,
-        Declares<Undeclared<NetworkProfiles.Templates, ProfilesConfig>>,
+    export type ConfigMatchesItsSource = [
+        SameFields<Mismatched<PeerTimingParameters, TimingConfig>>,
+        SameFields<Mismatched<PeerTimingParameters["kickRestartCooldown"], KickRestartCooldownConfig>>,
+        SameFields<Mismatched<PeerTimingParameters["addressChangeProbeCooldown"], AddressChangeProbeCooldownConfig>>,
+        SameFields<Mismatched<NetworkProfiles.ConcreteLimits, ConcreteLimitsConfig>>,
+        SameFields<Mismatched<NetworkProfiles.Limits, LimitsConfig>>,
+        SameFields<Mismatched<NetworkProfiles.Templates, ProfilesConfig>>,
     ];
 
     export class State extends NetworkBehavior.State {
