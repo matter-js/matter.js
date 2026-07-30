@@ -1089,6 +1089,8 @@ export class SoftwareUpdateManager extends Behavior {
      */
     onOtaStatusChange(peerAddress: PeerAddress, status: OtaUpdateStatus, toVersion?: number) {
         if (this.internal.suppressUpdates) {
+            // A post-dispose Applying would otherwise re-arm the already-disposed armer whose observers are
+            // closed, leaving an entry that never gets a grace timer nor self-cleans.
             return;
         }
         peerAddress = PeerAddress(peerAddress);
