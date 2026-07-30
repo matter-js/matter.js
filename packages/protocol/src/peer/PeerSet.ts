@@ -15,6 +15,7 @@ import {
     AsyncObservable,
     BasicSet,
     ChannelType,
+    DeepPartial,
     DnssdNames,
     Environment,
     Environmental,
@@ -226,7 +227,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         return this.#peerContext.timing;
     }
 
-    set timing(timing: Partial<PeerTimingParameters>) {
+    set timing(timing: DeepPartial<PeerTimingParameters>) {
         this.#peerContext.timing = PeerTimingParameters(timing);
     }
 

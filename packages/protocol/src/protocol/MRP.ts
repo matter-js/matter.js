@@ -6,8 +6,26 @@
 
 import { SessionParameters } from "#session/SessionParameters.js";
 import { ChannelType, Duration, MatterFlowError, Millis, Seconds } from "@matter/general";
+import { BDX_PROTOCOL_ID } from "@matter/types";
 
 export namespace MRP {
+    /**
+     * Additive retransmission margins for a network, by traffic class.  Bulk transfer sustains many round trips over
+     * the same path, so it tolerates — and on a constrained medium needs — a different margin than normal messaging.
+     */
+    export interface Margins {
+        messaging: Duration;
+        bdx: Duration;
+    }
+
+    /** Selects the margin a protocol's traffic belongs to. */
+    export function marginFor(margins: Margins | undefined, protocolId: number) {
+        if (margins === undefined) {
+            return undefined;
+        }
+        return protocolId === BDX_PROTOCOL_ID ? margins.bdx : margins.messaging;
+    }
+
     /**
      * The maximum number of transmission attempts for a given reliable message. The sender MAY choose this value as it
      * sees fit.

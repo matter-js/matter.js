@@ -40,6 +40,30 @@ describe("NetworkProfiles", () => {
             expect(profiles.get("unknown").additionalMrpDelay).equals(Seconds(1.5));
         });
 
+        it("bdx defaults to the messaging margin", () => {
+            const profiles = new NetworkProfiles();
+            expect(profiles.get("wifi").bdxAdditionalMrpDelay).equals(Seconds(1));
+            expect(profiles.get("fast").bdxAdditionalMrpDelay).equals(Millis(0));
+            expect(profiles.get("conservative").bdxAdditionalMrpDelay).equals(Seconds(1.5));
+        });
+
+        it("thread sets bdx independently of its messaging margin", () => {
+            const profiles = new NetworkProfiles();
+            const thread = profiles.get("thread");
+            expect(thread.additionalMrpDelay).equals(Seconds(1.5));
+            expect(thread.bdxAdditionalMrpDelay).equals(Millis(0));
+            expect(thread.connect?.bdxAdditionalMrpDelay).equals(Millis(0));
+            expect(thread.probeAddress?.bdxAdditionalMrpDelay).equals(Millis(0));
+        });
+
+        it("a configured bdx margin overrides the default", () => {
+            const profiles = new NetworkProfiles();
+            profiles.defaults = { wifi: { bdxAdditionalMrpDelay: Seconds(3) } };
+            const wifi = profiles.get("wifi");
+            expect(wifi.additionalMrpDelay).equals(Seconds(1));
+            expect(wifi.bdxAdditionalMrpDelay).equals(Seconds(3));
+        });
+
         it("connect and probe sub-profiles inherit the parent additive delay", () => {
             const profiles = new NetworkProfiles();
             const conservative = profiles.get("conservative");

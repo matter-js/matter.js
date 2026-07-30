@@ -13,7 +13,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/protocol
     - Fix: The peer's medium-specific MRP retransmission margin now applies to peer-initiated exchanges (e.g. subscription data reports) and to exchanges created without peer context
-    - Change: BDX exchanges use a fixed MRP retransmission margin instead of the peer's medium-specific one
+    - Enhancement: Network profiles carry a separate `bdxAdditionalMrpDelay` for bulk transfer; thread applies no additional margin to BDX
+    - Fix: Grouped `PeerTimingParameters` (`kickRestartCooldown`, `addressChangeProbeCooldown`) merge field-wise, so overriding one member keeps its siblings
+
+- @matter/node
+    - Enhancement: `network.profiles` accepts `bdxAdditionalMrpDelay`, and `network.timing` accepts the kick and address-change parameters
 
 ## 0.17.7 (2026-07-27)
 

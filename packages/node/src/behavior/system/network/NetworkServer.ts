@@ -5,7 +5,7 @@
  */
 
 import { ServerSubscriptionConfig } from "#node/server/ServerSubscription.js";
-import { Duration, Logger, Minutes } from "@matter/general";
+import { DeepPartial, Duration, Logger, Minutes } from "@matter/general";
 import { duration, field, uint16 } from "@matter/model";
 import { Ble, FabricManager, NetworkProfiles, PeerTimingParameters } from "@matter/protocol";
 import { DiscoveryCapabilitiesBitmap, TypeFromPartialBitSchema } from "@matter/types";
@@ -78,7 +78,25 @@ export namespace NetworkServer {
         declare runtime: ServerNetworkRuntime;
     }
 
-    export class TimingConfig implements Partial<PeerTimingParameters> {
+    export class KickRestartCooldownConfig implements Partial<PeerTimingParameters["kickRestartCooldown"]> {
+        @field(duration)
+        addressChange?: Duration;
+
+        @field(duration)
+        connect?: Duration;
+    }
+
+    export class AddressChangeProbeCooldownConfig implements Partial<
+        PeerTimingParameters["addressChangeProbeCooldown"]
+    > {
+        @field(duration)
+        minimum?: Duration;
+
+        @field(duration)
+        maximum?: Duration;
+    }
+
+    export class TimingConfig implements DeepPartial<PeerTimingParameters> {
         @field(duration)
         defaultConnectionTimeout?: Duration;
 
@@ -99,6 +117,24 @@ export namespace NetworkServer {
 
         @field(duration)
         minimumTimeBetweenMrpKicks?: Duration;
+
+        @field(duration)
+        kickThrottleInterval?: Duration;
+
+        @field(uint16)
+        kickMinRetransmissions?: number;
+
+        @field(duration)
+        kickMinRestartSaving?: Duration;
+
+        @field(KickRestartCooldownConfig)
+        kickRestartCooldown?: KickRestartCooldownConfig;
+
+        @field(duration)
+        addressChangeStabilizationDelay?: Duration;
+
+        @field(AddressChangeProbeCooldownConfig)
+        addressChangeProbeCooldown?: AddressChangeProbeCooldownConfig;
     }
 
     export class ConcreteLimitsConfig implements Partial<NetworkProfiles.ConcreteLimits> {
@@ -113,6 +149,9 @@ export namespace NetworkServer {
 
         @field(duration)
         additionalMrpDelay?: Duration;
+
+        @field(duration)
+        bdxAdditionalMrpDelay?: Duration;
     }
 
     export class LimitsConfig extends ConcreteLimitsConfig {
@@ -145,6 +184,23 @@ export namespace NetworkServer {
         @field(LimitsConfig)
         icdLit?: LimitsConfig;
     }
+
+    type Undeclared<Source, Config> = Exclude<keyof Source, keyof Config>;
+    type Declares<_Undeclared extends never> = unknown;
+
+    /**
+     * The config classes above restate their source's fields because {@link field} needs real property declarations,
+     * and `implements Partial<Source>` does not catch a field they fail to declare.  This does: growing a source type
+     * breaks the build here, naming the undeclared field, until the config class exposes it.
+     */
+    export type ConfigCoversItsSource = [
+        Declares<Undeclared<PeerTimingParameters, TimingConfig>>,
+        Declares<Undeclared<PeerTimingParameters["kickRestartCooldown"], KickRestartCooldownConfig>>,
+        Declares<Undeclared<PeerTimingParameters["addressChangeProbeCooldown"], AddressChangeProbeCooldownConfig>>,
+        Declares<Undeclared<NetworkProfiles.ConcreteLimits, ConcreteLimitsConfig>>,
+        Declares<Undeclared<NetworkProfiles.Limits, LimitsConfig>>,
+        Declares<Undeclared<NetworkProfiles.Templates, ProfilesConfig>>,
+    ];
 
     export class State extends NetworkBehavior.State {
         listeningAddressIpv4?: string = undefined;

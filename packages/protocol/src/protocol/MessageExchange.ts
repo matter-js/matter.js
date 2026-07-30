@@ -46,7 +46,6 @@ import {
     Timestamp,
 } from "@matter/general";
 import {
-    BDX_PROTOCOL_ID,
     GroupId,
     NodeId,
     SECURE_CHANNEL_PROTOCOL_ID,
@@ -59,9 +58,6 @@ import { MessageChannel } from "./MessageChannel.js";
 import { MRP } from "./MRP.js";
 
 const logger = Logger.get("MessageExchange");
-
-/** Additional MRP delay for BDX exchanges, whoever initiated them. */
-const BDX_ADDITIONAL_MRP_DELAY = Millis(0);
 
 export type ExchangeLogContext = Record<string, unknown>;
 
@@ -1049,18 +1045,12 @@ export class MessageExchange {
     }
 
     /**
-     * Amplified backoff addition applied to our sends: the larger of our own and the peer's network-profile delay.
-     * BDX instead uses a fixed margin regardless of medium.
+     * Amplified backoff addition applied to our sends: the larger of our own and the peer's network-profile delay for
+     * this exchange's traffic class.
      */
     get #sendAdditionalDelay() {
-        if (this.#protocolId === BDX_PROTOCOL_ID) {
-            return BDX_ADDITIONAL_MRP_DELAY;
-        }
-
-        return Duration.max(
-            this.#context.localAdditionalMrpDelay,
-            this.#peerAdditionalMrpDelay ?? this.session.peerAdditionalMrpDelay ?? Millis(0),
-        );
+        const peerMargin = this.#peerAdditionalMrpDelay ?? MRP.marginFor(this.session.peerMrpMargins, this.#protocolId);
+        return Duration.max(this.#context.localAdditionalMrpDelay, peerMargin ?? Millis(0));
     }
 
     /**
