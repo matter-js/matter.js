@@ -125,6 +125,9 @@ const server = await ServerNode.create(RootEndpointType, {
     groupKeyManagement: {
         groupcastAdoption: undefined,
     },
+    operationalCredentials: {
+        supportedFabrics: 10,
+    },
 });
 
 const aggregator = new Endpoint(AggregatorEndpoint, { id: "aggregator", number: 1 });
