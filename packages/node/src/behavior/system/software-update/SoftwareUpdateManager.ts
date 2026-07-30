@@ -206,8 +206,14 @@ export class SoftwareUpdateManager extends Behavior {
         ).start();
     }
 
-    #nodeGoingOffline() {
+    async #nodeGoingOffline() {
         this.internal.suppressUpdates = true;
+        this.internal.checkForUpdateTimer?.stop();
+
+        // Announcements run on their own timers and write to peers, so the suppression flag alone does not stop them.
+        // #nodeOnline installs a fresh instance.
+        await this.internal.announcements?.close();
+        this.internal.announcements = undefined;
     }
 
     #updateAnnouncementSettings() {
@@ -1206,7 +1212,8 @@ export namespace SoftwareUpdateManager {
 
         rebootResubscribeArmer?: RebootResubscribeArmer;
 
-        suppressUpdates = false;
+        /** Raised whenever the node is not online, so update work cannot start before the first online transition. */
+        suppressUpdates = true;
     }
 
     export class Events extends EventEmitter {
