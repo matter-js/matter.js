@@ -1,5 +1,21 @@
 # GitHub Copilot Instructions for matter.js
 
+This file describes the architecture, build system and testing of this repository. The rules that
+apply to every change — comments, typing, error handling, async, and the verification gate — live
+in [CLAUDE.md](../CLAUDE.md) (`AGENTS.md` is a symlink to it). Read both.
+
+## AI policy
+
+This project follows the [Open Home Foundation AI Policy](../AI_POLICY.md).
+Autonomous contributions are not accepted: a human must review, understand,
+and be able to explain every change before it is submitted. Do not open
+issues or pull requests autonomously, and do not post comments on behalf of
+a user without their review.
+
+Additionally in this repository: never submit a bug report, root-cause claim,
+or fix whose justification is an analysis without the complete raw log file it
+is derived from.
+
 ## Project Overview
 
 matter.js is a comprehensive TypeScript implementation of the Matter/Thread smart home protocol. This is a monorepo containing multiple packages that work together to provide Matter protocol support for JavaScript/TypeScript applications.
@@ -18,20 +34,29 @@ matter.js is a comprehensive TypeScript implementation of the Matter/Thread smar
 
 - `@matter/nodejs` - Node.js platform implementation
 - `@matter/nodejs-ble` - Bluetooth Low Energy support for Node.js
+- `@matter/nodejs-ws` - WebSocket network transport for Node.js
 - `@matter/nodejs-shell` - Interactive shell for Matter operations
+- `@matter/react-native` - React Native platform implementation
 
 ### Application Packages
 
 - `@matter/main` - Main entry point package
-- `@matter/examples` - Example applications and devices
+- `@matter/examples-*` - Example applications and devices, one package per example in `examples/`
 - `@matter/create` - Project scaffolding tool
+- `@matter/cli-tool` - Scriptable command line interface
+- `@matter/mqtt` - MQTT bridge
+- `@matter/thread-br-client` - Thread border router client
 - `@project-chip/matter.js` - Legacy compatibility package
 
 ### Development Tools
 
-- `packages/tools` - Build system, documentation generation, project management
+- `@matter/testing` - Test runner (`matter-test`) and test infrastructure
 - `support/codegen` - Code generation from Matter specifications
 - `support/chip-testing` - Integration with Project CHIP/connectedhomeip for testing
+- `support/models` - Pre-parsed Matter models and local model overrides
+
+Build tooling lives outside this repository in the `@nacho-iot/js-tools` dependency, which
+provides the `nacho-build` and `nacho-run` commands.
 
 ## Code Generation System
 
@@ -62,8 +87,8 @@ This project heavily uses code generation:
 
 - Core abstraction for endpoint functionality in `@matter/node`
 - Extend `Behavior` class for cluster implementations
-- Use `@behavior` decorator for registration
-- File pattern: `src/behaviors/[cluster-name]/[ClusterName]Behavior.ts`
+- File pattern: `src/behaviors/[cluster-name]/[ClusterName]{Behavior,Server,Client}.ts`
+- `loader.behavior(name)` / `loader.server(name)` load them dynamically in either module format
 
 ### Environment and ServerNode
 
@@ -93,31 +118,33 @@ This project heavily uses code generation:
 
 - Extensive use of TypeScript generics and conditional types
 - **IMPORTANT**: Requires at least `"strictNullChecks": true` or preferably `"strict": true`
-- Base TypeScript configuration in `packages/tools/tsc/tsconfig.base.json` uses `"strict": true`
+- Base TypeScript configuration in `tsc/tsconfig.base.json` (repository root) uses `"strict": true`
 - Schema validation with `Schema` classes
 
 ## CLI Tools and Examples
 
 ### Available CLI Tools
 
-- `nacho-build` - Build packages and documentation
-- `nacho-run` - Execute TypeScript files with automatic transpilation and source maps
-- `matter-test` - Run tests across workspace packages
-- `matter-create` - Scaffolding tool for new Matter.js projects
-- `matter-version` - Version management tool
+- `nacho-build` - Build packages and documentation (from `@nacho-iot/js-tools`)
+- `nacho-run` - Execute TypeScript files with automatic transpilation and source maps (from `@nacho-iot/js-tools`)
+- `matter-test` - Run tests across workspace packages (from `@matter/testing`)
+- `matter-create` - Scaffolding tool for new Matter.js projects (from `@matter/create`)
+- `nacho-build version` - Version management (exposed as `npm run version`)
 
 ### Example Applications
 
 The repository includes ready-to-run example applications:
 
 ```bash
-npm run matter-device       # Simple on/off device
-npm run matter-bridge       # Bridge with multiple devices
-npm run matter-composeddevice # Composed device example
-npm run matter-multidevice  # Multiple device example
-npm run matter-controller   # Controller example
-npm run shell              # Interactive Matter shell
+npm run matter-device            # Simple on/off device (alias of device-onoff)
+npm run matter-bridge            # Bridge with multiple devices
+npm run device-composed-wc-light # Composed device example
+npm run device-multiple-onoff    # Multiple device example
+npm run matter-controller        # Controller example
+npm run shell                    # Interactive Matter shell
 ```
+
+`package.json` in the repository root holds the full list of example scripts.
 
 ### Running Examples
 
@@ -156,7 +183,8 @@ nacho-run examples/controller/src/ControllerNode.ts
 ### Project References
 
 - All packages use TypeScript project references
-- Managed automatically by build tools in `packages/tools/src/building/tsconfig.ts`
+- `nacho-build` maintains the `references` in each `tsconfig.json` automatically and otherwise
+  preserves manual edits; `nacho-build configure` rewrites them with defaults
 - Incremental compilation via `"composite": true`
 - Separate configs for lib, app, and test builds
 
@@ -164,10 +192,10 @@ nacho-run examples/controller/src/ControllerNode.ts
 
 ### Project Structure
 
-- Monorepo managed with custom build tools in `packages/tools`
-- Use `nacho-build` command for building packages (via node_modules/.bin/)
-- Custom `nacho-run` for executing TypeScript files with source maps
-- Custom `matter-test` for running tests across packages
+- Monorepo managed with the `nacho-build` tooling from the `@nacho-iot/js-tools` dependency
+- Use `nacho-build` for building packages (via node_modules/.bin/)
+- `nacho-run` executes TypeScript files with source maps
+- `matter-test` from `@matter/testing` runs tests across packages
 - Support for ESM and CommonJS outputs
 - TypeScript project references for incremental builds
 
@@ -185,14 +213,16 @@ nacho-build           # Direct build tool (via node_modules/.bin/nacho-build)
 
 Code generation is handled through TypeScript files in `support/codegen/src/`:
 
+Use the root npm scripts — they pass the flags each generator needs:
+
 ```bash
-# Run code generation scripts with nacho-run
-nacho-run support/codegen/src/generate-spec.ts        # Generate from Matter spec
-nacho-run support/codegen/src/generate-clusters.ts    # Generate cluster definitions
-nacho-run support/codegen/src/generate-endpoints.ts   # Generate endpoint definitions
-nacho-run support/codegen/src/generate-forwards.ts    # Generate forward exports
-nacho-run support/codegen/src/generate-model.ts       # Generate data models
-nacho-run support/codegen/src/generate-vscode.ts      # Generate VS Code configuration
+npm run generate-spec        # Generate from Matter spec
+npm run generate-chip        # Generate from connectedhomeip definitions
+npm run generate-model       # Generate data models
+npm run generate-clusters    # Generate cluster definitions
+npm run generate-endpoints   # Generate endpoint definitions
+npm run generate-forwards    # Generate forward exports
+npm run generate-vscode      # Generate VS Code configuration
 ```
 
 ## Testing Patterns
@@ -200,7 +230,8 @@ nacho-run support/codegen/src/generate-vscode.ts      # Generate VS Code configu
 ### Unit Tests
 
 - Use custom `matter-test` framework (not Jest directly)
-- Test files: `*.test.ts` alongside source files
+- Test files live in each package's `test/` directory, mirroring `src/`, and match
+  `test/**/*{.test,Test}.ts`
 - Run tests with `npm run test` or `matter-test -w`
 - Mock external dependencies, especially platform-specific code
 - Tests are run for ESM, CJS, and web (when Playwright is installed) module formats
@@ -239,16 +270,17 @@ Options:
 ### Integration Tests
 
 - Device commissioning and interaction tests in `support/tests`
-- Use `@matter/examples` for test scenarios
+- The example packages in `examples/` serve as test scenarios
 - CHIP tool integration for interoperability testing
 - Located in `support/chip-testing` package
 
 ### Running Tests
 
 ```bash
-npm run test           # Run all tests in workspace
-matter-test -w         # Run tests with workspace scanning
-matter-test <package>  # Run tests for specific package
+npm run test                      # Run all tests in workspace (matter-test -w)
+matter-test -w                    # Same: run ESM, CJS and web tests
+npm test -- -p packages/<name>    # Run tests for one package only
+matter-test cjs -p packages/node  # One module format for one package
 ```
 
 ## Coding Guidelines

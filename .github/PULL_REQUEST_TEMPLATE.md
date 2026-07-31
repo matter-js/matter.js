@@ -3,6 +3,11 @@
   issue first with all the details (including the log, see below), and wait for a
   maintainer response before writing any code. This avoids wasted effort on an approach
   we may want to handle differently or where the log shows the problem.
+
+  AI tools are welcome, but you are responsible for *fully* understanding the code you
+  submit and for being able to explain it in your own words. Autonomously created pull
+  requests are not accepted. Please follow our AI policy:
+  https://github.com/matter-js/matter.js/blob/main/AI_POLICY.md
 -->
 
 ## Type of change
@@ -39,6 +44,7 @@
 
 ## Checklist
 
+- [ ] I understand the code I am submitting and can explain how it works ([AI policy](https://github.com/matter-js/matter.js/blob/main/AI_POLICY.md))
 - [ ] Tests added or updated to cover the change
 - [ ] `npm test` passes
 - [ ] `npm run format-verify` and `npm run lint` pass
