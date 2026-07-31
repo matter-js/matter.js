@@ -11,6 +11,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/node
+    - Fix: `IdentifyServer` no longer offers the optional `TriggerEffect` command unless the command is implemented or the device type requires it; `IdentifyServer.enable({ commands: { triggerEffect: true } })`, `IdentifyServer.alter({ commands: { triggerEffect: { optional: false } } })` and an override of `suppressTriggerEffect()` also offer it
+
 - @matter/nodejs-ble
     - Enhancement: BLE disconnect logs now include the noble disconnect reason with its HCI status text
 
