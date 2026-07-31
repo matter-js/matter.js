@@ -374,7 +374,8 @@ def load_python():
                 steps = instance.get_defined_test_steps(test_method_name)
                 if steps:
                     props["members"] = list(map(lambda step: {
-                        "name": step.test_plan_number,
+                        # Numbered steps (self.step(1)) arrive as ints but descriptor names index a virtual filesystem
+                        "name": str(step.test_plan_number),
                         "kind": "step",
                         "description": step.description,
                     }, steps))
