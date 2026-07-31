@@ -693,12 +693,12 @@ export class ServerSubscription implements Subscription {
         });
     }
 
-    async #flush(flushViaSession?: Session) {
+    async #flush(flushViaSession?: Session, currentExchange?: MessageExchange) {
         this.#sendDelayTimer.stop();
         if (this.#outstandingAttributeUpdates !== undefined || this.#outstandingEventsMinNumber !== undefined) {
             logger.debug(`Flushing subscription ${this.idStr}${this.#isClosed ? " (for closing)" : ""}`);
             this.#triggerSendUpdate(true, flushViaSession);
-            if (this.#currentUpdatePromise) {
+            if (this.#currentUpdatePromise && !this.#isSendingOn(currentExchange)) {
                 using _waiting = this.#lifetime?.join("waiting on flush");
                 await this.#currentUpdatePromise;
             }
@@ -708,21 +708,32 @@ export class ServerSubscription implements Subscription {
     /**
      * Closes the subscription and flushes all outstanding data updates if requested.
      */
-    async close(flushViaSession?: Session) {
+    async close(flushViaSession?: Session, currentExchange?: MessageExchange) {
         if (this.#isClosed) {
             return;
         }
         this.#isClosed = true;
 
-        await this.#cancel(flushViaSession);
+        await this.#cancel(flushViaSession, currentExchange);
 
-        if (this.#currentUpdatePromise) {
+        if (this.#currentUpdatePromise && !this.#isSendingOn(currentExchange)) {
             using _waiting = this.#lifetime?.closing()?.join("waiting on update");
             await this.#currentUpdatePromise;
         }
     }
 
-    async #cancel(flushViaSession?: Session) {
+    /**
+     * Whether our in-flight update is sending on {@link currentExchange}, which makes that update this close's own
+     * caller: a failed send reports the failure while still on the sending stack, and the resulting teardown lands
+     * back here.  Waiting for the update would then wait for ourselves.
+     *
+     * Such an update observes {@link #isClosed} and unwinds on its own.
+     */
+    #isSendingOn(currentExchange?: MessageExchange) {
+        return currentExchange !== undefined && currentExchange === this.#currentSendExchange;
+    }
+
+    async #cancel(flushViaSession?: Session, currentExchange?: MessageExchange) {
         const closing = this.#lifetime?.closing();
 
         this.#sendUpdatesActivated = false;
@@ -731,7 +742,7 @@ export class ServerSubscription implements Subscription {
 
         if (flushViaSession !== undefined) {
             using _flushing = closing?.join("flushing");
-            await this.#flush(flushViaSession);
+            await this.#flush(flushViaSession, currentExchange);
         }
 
         this.#updateTimer.stop();

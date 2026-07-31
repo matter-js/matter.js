@@ -108,11 +108,11 @@ export class NodeSession extends SecureSession {
             ...config,
             setActiveTimestamp: true, // We always set the active timestamp for Secure sessions
             // Can be changed to a PersistedMessageCounter if we implement session storage
-            messageCounter: new MessageCounter(crypto, async () => {
+            messageCounter: new MessageCounter(crypto, async currentExchange => {
                 // Secure Session Message Counter
                 // Expire/End the session before the counter rolls over
                 await this.initiateClose(async () => {
-                    await this.closeSubscriptions(true);
+                    await this.closeSubscriptions(true, currentExchange);
                 });
             }),
             messageReceptionState: new MessageReceptionStateEncryptedWithoutRollover(0),
@@ -269,10 +269,10 @@ export class NodeSession extends SecureSession {
         return this.#fabric;
     }
 
-    override async closeSubscriptions(flush = false) {
+    override async closeSubscriptions(flush = false, currentExchange?: MessageExchange) {
         const subscriptions = [...this.#subscriptions]; // get all values because subscriptions will remove themselves when cancelled
         for (const subscription of subscriptions) {
-            await subscription.close(flush ? this : undefined);
+            await subscription.close(flush ? this : undefined, currentExchange);
         }
         return subscriptions.length;
     }

@@ -573,8 +573,8 @@ export class MessageExchange {
         let packetHeader: PacketHeader;
         if (this.session.type === SessionType.Unicast) {
             const messageId = isStandaloneAck
-                ? await this.session.getIncrementedMessageCounter() // Standalone acks always need to be sendable
-                : await abort.attempt(this.session.getIncrementedMessageCounter());
+                ? await this.session.getIncrementedMessageCounter(this) // Standalone acks always need to be sendable
+                : await abort.attempt(this.session.getIncrementedMessageCounter(this));
             if (messageId === undefined) {
                 return;
             }
@@ -601,7 +601,7 @@ export class MessageExchange {
             if (destGroupId === 0) {
                 throw new InternalError(`Invalid GroupId extracted from NodeId ${peerNodeId}`);
             }
-            const messageId = await abort.attempt(this.session.getIncrementedMessageCounter());
+            const messageId = await abort.attempt(this.session.getIncrementedMessageCounter(this));
             if (messageId === undefined) {
                 return;
             }

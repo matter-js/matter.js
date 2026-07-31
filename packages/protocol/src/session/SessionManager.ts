@@ -12,6 +12,7 @@ import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
 import { PeerShutdownError } from "#peer/PeerCommunicationError.js";
 import { PeerLossContext } from "#peer/PeerLossContext.js";
 import { SessionClosedError } from "#protocol/errors.js";
+import type { MessageExchange } from "#protocol/MessageExchange.js";
 import { GroupSession, GroupSessionDecodeError, GroupSessionNoKeyError } from "#session/GroupSession.js";
 import {
     BasicSet,
@@ -556,8 +557,8 @@ export class SessionManager {
     /**
      * Removes all Peer sessions and closes subscriptions.
      */
-    async handlePeerLoss(address: PeerAddress, cause: Error, asOf?: Timestamp) {
-        return await this.#handlePeerLoss({ address, asOf: asOf ?? Time.nowMs, cause });
+    async handlePeerLoss(address: PeerAddress, cause: Error, asOf?: Timestamp, currentExchange?: MessageExchange) {
+        return await this.#handlePeerLoss({ address, asOf: asOf ?? Time.nowMs, cause, currentExchange });
     }
 
     async #handlePeerLoss(

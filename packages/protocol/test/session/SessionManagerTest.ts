@@ -7,6 +7,7 @@
 import { Fabric } from "#fabric/Fabric.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import { SessionParameters } from "#index.js";
+import type { MessageExchange } from "#protocol/MessageExchange.js";
 import { DuplicateMessageError } from "#protocol/MessageReceptionState.js";
 import { SessionManager } from "#session/SessionManager.js";
 import {
@@ -198,6 +199,42 @@ describe("SessionManager", () => {
 
             const result = sessionManager.maybeSessionFor(PEER_ADDRESS);
             expect(result).to.equal(sessionB);
+        });
+
+        it("conveys the initiating exchange when reporting peer loss", async () => {
+            const PEER_NODE_ID = NodeId(0x1234n);
+            const PEER_ADDRESS = { fabricIndex: FabricIndex(0), nodeId: PEER_NODE_ID };
+
+            const session = await sessionManager.createSecureSession({
+                id: 0x0100,
+                fabric: undefined,
+                peerNodeId: PEER_NODE_ID,
+                peerSessionId: 0x0001,
+                sharedSecret: DUMMY_BYTEARRAY,
+                salt: DUMMY_BYTEARRAY,
+                isInitiator: true,
+                isResumption: false,
+            });
+
+            const currentExchange = {} as MessageExchange;
+            const received = new Array<MessageExchange | undefined>();
+            session.subscriptions.add({
+                subscriptionId: 1,
+                isCanceledByPeer: false,
+                async handlePeerCancel() {},
+                async close(_flushViaSession, exchange) {
+                    received.push(exchange);
+                },
+            });
+
+            await sessionManager.handlePeerLoss(
+                PEER_ADDRESS,
+                new Error("unresponsive"),
+                Timestamp(Number.MAX_SAFE_INTEGER),
+                currentExchange,
+            );
+
+            expect(received[0]).equals(currentExchange);
         });
     });
 

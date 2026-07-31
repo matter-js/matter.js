@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { MessageExchange } from "#protocol/MessageExchange.js";
 import { Session } from "#session/Session.js";
 import { hex } from "@matter/general";
 
@@ -18,7 +19,11 @@ export interface Subscription {
     // TODO - these should reside in a server-specific interface
     isCanceledByPeer: boolean;
     handlePeerCancel(): Promise<void>;
-    close(flushViaSession?: Session): Promise<void>;
+    /**
+     * @param currentExchange the exchange whose send triggered this close, if any.  A subscription sending on that
+     * exchange must not wait for its own in-flight update to settle — the update is the caller.
+     */
+    close(flushViaSession?: Session, currentExchange?: MessageExchange): Promise<void>;
 }
 
 export namespace Subscription {

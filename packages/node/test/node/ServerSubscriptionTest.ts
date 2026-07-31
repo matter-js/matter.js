@@ -6,7 +6,7 @@
 
 import { IcdManagementServer } from "#behaviors/icd-management";
 import { ServerSubscription, ServerSubscriptionConfig } from "#node/server/ServerSubscription.js";
-import { DataReadQueue, Millis, Seconds } from "@matter/general";
+import { DataReadQueue, Millis, NoResponseTimeoutError, Seconds } from "@matter/general";
 import { MessageExchange, NodeSession } from "@matter/protocol";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { LIT_CONFIG } from "./icd-helpers.js";
@@ -178,6 +178,44 @@ describe("ServerSubscription", () => {
 
         expect(exchangeCloseThrew).is.true;
         expect(subscription.isCanceledByPeer).is.true;
+        expect([...session.subscriptions]).is.empty;
+
+        await MockTime.resolve(node.close());
+    });
+
+    it("completes session force-close triggered from inside an in-flight update", async () => {
+        const node = await MockServerNode.createOnline();
+
+        let subscription!: ServerSubscription;
+        let forceClose: Promise<void> | undefined;
+
+        // Mirrors MessageExchange.send(): the failing send reports the failure while still on the sending stack, and
+        // the resulting teardown closes this subscription while its update is in flight
+        const reportExchange = {
+            maxPayloadSize: 1200,
+            async send() {
+                forceClose = (subscription.session as NodeSession).handlePeerLoss({
+                    cause: new NoResponseTimeoutError("Simulated missing ack"),
+                    currentExchange: reportExchange,
+                });
+                await forceClose;
+                throw new NoResponseTimeoutError("Simulated missing ack");
+            },
+            async close() {},
+        } as unknown as MessageExchange;
+
+        subscription = await createSubscription(node, () => reportExchange);
+
+        const session = subscription.session as NodeSession;
+        subscription.activate();
+
+        // Fire the 100 ms send timer + 50 ms delay timer so the keepalive update starts
+        await MockTime.advance(200);
+
+        expect(forceClose).is.not.undefined;
+        await MockTime.resolve(forceClose!);
+
+        expect(session.isClosing).is.true;
         expect([...session.subscriptions]).is.empty;
 
         await MockTime.resolve(node.close());

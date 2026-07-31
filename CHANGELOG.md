@@ -14,6 +14,12 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/nodejs-ble
     - Enhancement: BLE disconnect logs now include the noble disconnect reason with its HCI status text
 
+- @matter/node
+    - Fix: Closing a session from the stack of an in-flight subscription report no longer deadlocks the session in its closing state, where it declined every further exchange
+
+- @matter/protocol
+    - Fix: Peer loss reported for a commissioned peer now conveys the exchange that failed, so subscriptions sending on it do not wait for themselves
+
 ## 0.17.7 (2026-07-27)
 
 - @matter/general

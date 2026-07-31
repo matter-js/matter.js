@@ -5,6 +5,7 @@
  */
 
 import { Construction, Crypto, InternalError, StorageContext, asyncNew } from "@matter/general";
+import type { MessageExchange } from "./MessageExchange.js";
 
 /** Maximum 32 bit counter value. Per Matter spec the counter wraps from 0xFFFFFFFF to 0. */
 export const MAX_COUNTER_VALUE_32BIT = 0xffffffff;
@@ -52,7 +53,7 @@ export class MessageCounter {
      */
     constructor(
         crypto: Crypto,
-        protected readonly onRollover?: () => Promise<void>,
+        protected readonly onRollover?: (currentExchange?: MessageExchange) => Promise<void>,
 
         // Counter is a 28 bit random number plus 1
         protected readonly rolloverInfoDifference = ROLLOVER_INFO_DIFFERENCE,
@@ -60,7 +61,7 @@ export class MessageCounter {
         this.messageCounter = (crypto.randomUint32 >>> 4) + 1;
     }
 
-    async getIncrementedCounter() {
+    async getIncrementedCounter(currentExchange?: MessageExchange) {
         this.messageCounter++;
         if (this.messageCounter > MAX_COUNTER_VALUE_32BIT) {
             if (this.onRollover !== undefined) {
@@ -72,7 +73,7 @@ export class MessageCounter {
             this.onRollover !== undefined &&
             this.messageCounter === MAX_COUNTER_VALUE_32BIT - this.rolloverInfoDifference
         ) {
-            await this.onRollover();
+            await this.onRollover(currentExchange);
         }
         return this.messageCounter;
     }
@@ -158,8 +159,8 @@ export class PersistedMessageCounter extends MessageCounter {
         await this.storageContext.set(this.storageKey, this.#reserved);
     }
 
-    override async getIncrementedCounter() {
-        const counter = await super.getIncrementedCounter();
+    override async getIncrementedCounter(currentExchange?: MessageExchange) {
+        const counter = await super.getIncrementedCounter(currentExchange);
         if (this.#reserve === undefined) {
             await this.storageContext.set(this.storageKey, counter);
         } else if (counter >= this.#reserved || counter < this.#reserved - this.#reserve) {
