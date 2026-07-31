@@ -11,6 +11,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/nodejs-ble
+    - Enhancement: BLE disconnect logs now include the noble disconnect reason with its HCI status text
+
 - @matter/nodejs-shell
     - Fix: `nodes ota check|download|apply` and `ota download` now default to a `--mode auto` that follows the `config ota-test-images` setting instead of always querying the production DCL only
     - Fix: `config ota-test-images set` applies immediately instead of requiring a shell restart

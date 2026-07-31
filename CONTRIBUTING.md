@@ -1,287 +1,148 @@
-# Contributing to Matter (formerly Project CHIP)
+# Contributing to matter.js
 
-Want to contribute? Great! First, read this page (including the small print at
-the end). By submitting a pull request, you represent that you have the right to
-license your contribution to the Connectivity Standards Alliance and the
-community, and agree by submitting the patch that your contributions are
-licensed under the [Apache 2.0 license](./LICENSE). Before submitting the pull
-request, please make sure you have tested your changes and that they follow the
-project guidelines for contributing code.
+Want to help out? Great. matter.js is part of the [Open Home Foundation](https://www.openhomefoundation.org/).
 
-# Contributing as an Open Source Contributor
+By submitting a pull request you represent that you have the right to license your
+contribution under the [Apache 2.0 license](./LICENSE) of this repository.
 
-As an open source contributor you can report bugs and request features in the
-[Issue Tracker](https://github.com/project-chip/connectedhomeip/issues), as well
-as contribute bug fixes and features that do not impact Matter specification as
-a pull request. For example: ports of Matter to add APIs to alternative
-programming languages (e.g. Java, JS), hardware ports, or an optimized
-implementation of existing functionality. For features that impact the
-specification, please join Matter work group within the Connectivity Standards
-Alliance. The requirements to become an open source contributor of the
-[Matter Repository](https://github.com/project-chip/connectedhomeip) are:
+matter.js implements the Matter specification; it does not define it. Changes that would
+require a change to the specification itself belong in the Matter working group of the
+[Connectivity Standards Alliance](https://csa-iot.org/), not here.
 
--   Agree to the [Code of Conduct](./CODE_OF_CONDUCT.md)
--   Agree to the [License](./LICENSE)
--   Have signed the
-    [Matter Working Group CLA](https://gist.github.com/clapre/65aa9fc63981da765039e0bb7e8701be)
+# AI policy
 
-# Contributing as a Connectivity Standards Alliance Matter Working Group Member
+This project follows the
+[Open Home Foundation AI Policy](./AI_POLICY.md). In short: AI tools are
+welcome as an aid, but you must fully understand and be able to explain every
+change you submit. Contributions made by autonomous agents — issues, pull
+requests, or comments posted without human review — are not accepted.
 
-As a participant of the Connectivity Standards Alliance Matter Working Group,
-you can attend Working Group meetings, propose changes to the Matter
-specification, and contribute code for approved updates to the specification.
-The requirements to become a member of the
-[Matter Repository](https://github.com/project-chip/connectedhomeip) are:
+In particular, for this repository: an AI-produced root-cause analysis is not a
+substitute for the raw log it was derived from. Attach the log.
 
--   Must be a [Participant member](http://www.zigbeealliance.org/join) or higher
-    of the Connectivity Standards Alliance
--   Must be a Matter Working Group member
--   Have signed the Alliance Matter Working Group CLA
--   Have approval from your company's official approver
+If you work with an AI coding agent, point it at [CLAUDE.md](./CLAUDE.md)
+(`AGENTS.md` is a symlink to the same file) — it carries the rules that apply to
+every change, and [.github/copilot-instructions.md](./.github/copilot-instructions.md)
+describes the repository layout and build system.
 
-# Bugs
+# Questions and discussion
 
-If you find a bug in the source code, you can help us by
-[submitting a GitHub Issue](https://github.com/matter-js/matter.js/issues/new).
-The best bug reports provide a detailed description of the issue and
-step-by-step instructions for predictably reproducing the issue. Even better,
-you can
-[submit a Pull Request](https://github.com/matter-js/matter.js/blob/master/CONTRIBUTING.md#submitting-a-pull-request)
-with a fix.
+For usage questions, ideas and general discussion use the
+[Discussions](https://github.com/matter-js/matter.js/discussions) in this repository, or the
+"Matter Integrators" [Discord server](https://discord.gg/ujmRNrhDuW). Please do not open an
+issue for a question.
 
-# New Features
+# Reporting bugs
 
-You can request a new feature by
-[submitting an Idea in Discussions](https://github.com/matter-js/matter.js/discussions/categories/ideas).
-If you would like to implement a new feature, please consider the scope of the
-new feature:
+Report defects through the
+[issue templates](https://github.com/matter-js/matter.js/issues/new/choose).
 
--   _Large feature_: first
-    [submit an Idea in Discussions](https://github.com/matter-js/matter.js/discussions/categories/ideas)
-    and communicate your proposal so that the community can review and provide
-    feedback. Getting early feedback will help ensure your implementation work
-    is accepted by the community. This will also allow us to better coordinate
-    our efforts and minimize duplicated effort.
--   _Small feature_: can be implemented and directly
-    [submitted as a Pull Request](https://github.com/matter-js/matter.js/blob/master/CONTRIBUTING.md#submitting-a-pull-request).
+**A report without a complete log file is not actionable.** Any description of behavior — and
+especially any analysis of behavior or of log output, whether written by you or by an AI tool —
+must be backed by a complete log attached as a file. Enable verbose logging
+(`MATTER_LOG_LEVEL=debug` or `--log-level=debug`), reproduce the problem, then attach the
+resulting log. A few quoted lines are not enough; we need the surrounding context to reproduce
+your analysis.
 
-# Contributing Code
+Your own analysis and a proposed fix are welcome on top of that — the log is what lets us verify
+them.
 
-Matter follows the "Fork-and-Pull" model for accepting contributions.
+# Requesting features
 
-### Initial Setup
+Request a feature through the
+[issue templates](https://github.com/matter-js/matter.js/issues/new/choose), or start with an
+[Idea in Discussions](https://github.com/matter-js/matter.js/discussions/categories/ideas) if the
+scope is large. Early feedback on a large feature avoids wasted work and duplicated effort. Small,
+self-contained features can go straight to a pull request.
 
-Setup your GitHub fork and continuous-integration services:
+If the request comes from something matter.js currently cannot do or does wrong, attach a log
+showing the current behavior.
 
-1. Fork the [Matter.js repository](https://github.com/matter-js/matter.js)
-   by clicking "Fork" on the web UI.
+# Development setup
 
-2. All contributions must pass all checks and reviews to be accepted.
-
-Setup your local development environment:
+matter.js uses the "fork and pull request" model. Fork the repository on GitHub, then:
 
 ```bash
 # Clone your fork
-git clone git@github.com:<username>/matter.git
+git clone git@github.com:<username>/matter.js.git
+cd matter.js
 
 # Configure upstream alias
 git remote add upstream git@github.com:matter-js/matter.js.git
+
+# Install dependencies and build — always from the repository root
+npm install
 ```
 
-### Submitting a Pull Request
+This is an npm workspaces monorepo. Never run `npm install` inside a package directory: it breaks
+workspace hoisting and produces a wrong `node_modules` layout, even when the `package.json` you
+changed lives in `packages/`.
 
-#### Branch
+See the [README](./README.md#extending-and-contributing-to-matterjs) for platform prerequisites,
+and [.github/copilot-instructions.md](./.github/copilot-instructions.md) for the repository
+layout, code generation and build system.
 
-For each new feature, create a working branch:
+# Making a change
+
+Create a working branch off `main`:
 
 ```bash
-# Create a working branch for your new feature
-git branch --track <branch-name> origin/master
-
-# Checkout the branch
+git branch --track <branch-name> origin/main
 git checkout <branch-name>
 ```
 
-#### Create Commits
+Keep it current with upstream so that merging stays a fast-forward:
 
 ```bash
-# Add each modified file you'd like to include in the commit
-git add <file1> <file2>
+git checkout main
+git pull upstream main
 
-# Create a commit
-git commit
-```
-
-This will open up a text editor where you can craft your commit message.
-
-#### Upstream Sync and Clean Up
-
-Prior to submitting your pull request, you might want to do a few things to
-clean up your branch and make it as simple as possible for the original
-repository's maintainer to test, accept, and merge your work.
-
-If any commits have been made to the upstream master branch, you should rebase
-your development branch so that merging it will be a simple fast-forward that
-won't require any conflict resolution work.
-
-```bash
-# Fetch upstream master and merge with your repository's master branch
-git checkout master
-git pull upstream master
-
-# If there were any new commits, rebase your development branch
 git checkout <branch-name>
-git rebase master
+git rebase main
 ```
 
-Now, it may be desirable to squash some of your smaller commits down into a
-small number of larger more cohesive commits. You can do this with an
-interactive rebase:
+Code conventions — comments, typing, error handling, async, logging — are documented in
+[CLAUDE.md](./CLAUDE.md). They apply to human and AI-assisted contributions alike.
+
+Add a `CHANGELOG.md` entry under the `## __WORK IN PROGRESS__` heading for anything user-visible.
+Keep it short: state the change.
+
+# Before opening a pull request
+
+Run the full gate from the repository root, in this order:
 
 ```bash
-# Rebase all commits on your development branch
-git checkout <branch-name>
-git rebase -i master
-```
-
-This will open up a text editor where you can specify which commits to squash.
-
-#### Run local Tests, Linting and Formatting
-
-Ideally you should run the continuous-integration tests locally before pushing:
-
-```bash
+npm run build-clean   # incremental caches can mask errors in dependent packages
+npm run format        # rewrites files in place
+npm run lint
 npm run test
 ```
 
-Same also for the linter and formatter:
+CI enforces build, formatting, linting and tests. Use these scripts rather than calling prettier,
+oxlint or the test runner directly.
+
+Tests are expected for behavior changes. If a change genuinely cannot be covered automatically,
+say so in the pull request and describe how you verified it manually.
+
+# Pull request and review
+
+Push your branch to your fork and open the pull request against `main`:
 
 ```bash
-npm run lint
-npm run format
-```
-
-#### Push and Test
-
-```bash
-# Checkout your branch
-git checkout <branch-name>
-
-# Push to your GitHub fork:
 git push origin <branch-name>
 ```
 
-This will trigger the continuous-integration checks. You can view the results in
-the respective services. Note that the integration checks will report failures
-on occasion.
+Fill in the pull request template completely — type of change, what it does and why, the backing
+log or linked issue for a fix, and the checklist.
 
-### Review Requirements
+A maintainer (see [CODEOWNERS](./CODEOWNERS)) reviews and merges once CI is green. Note that CI
+occasionally reports unrelated failures; if a job looks unrelated to your change, say so in the
+pull request rather than pushing speculative fixes.
 
-#### Documentation Best Practices
+Expect to answer questions about your change in your own words.
 
-matter.js right now do not use any documentation generator. We are working on it!
+# Documentation
 
-Matter uses Doxygen to markup (or markdown) all C, C++, Objective C, Objective
-C++, Perl, Python, and Java code. Read our
-[Doxygen Best Practices, Conventions, and Style](https://github.com/project-chip/connectedhomeip/blob/master/docs/style/DOXYGEN.adoc)
-
-#### Submit Pull Request
-
-Once you've validated the CI results, go to the page for your fork on GitHub,
-select your development branch, and click the pull request button. If you need
-to make any adjustments to your pull request, just push the updates to GitHub.
-Your pull request will automatically track the changes on your development
-branch and update.
-
-#### Merge Requirements
-
--   Github Workflows pass
--   Builds pass
--   Tests pass
--   Linting passes
--   Code style passes
-
-When can I merge? After these have been satisfied, a reviewer will merge the PR
-into master
-
-#### Documentation
-
-Documentation undergoes the same review process as code See the
-[Documentation Style Guide](https://github.com/project-chip/connectedhomeip/blob/master/docs/STYLE_GUIDE.md)
-for more information on how to author and format documentation for contribution.
-
-## Merge Processes
-
-Merges require at least 1 approvals from unique require-reviewers lists, and all
-CI tests passing.
-
-### Shorter Reviews
-
-Development Lead & Vice Leads can merge a change with fewer then the required
-approvals have been submitted.
-
-A separate "fast track" label will be created that will only require a single
-checkbox to be set, this label shall only be set by the Development Lead, and/or
-Vice Lead (unless they’re both unavailable, in which case a replacement can be
-temporarily appointed)
-
-"Day" here means "business day" (i.e. PRs on friday do not get fast-tracked
-faster).
-
-### Fast track types
-
-### Trivial changes
-
-Small changes or changes that do not affect the main functionality of the code
-can be fast tracked immediately. Examples:
-
--   Adding/removing documentation (.md files)
--   Adding tests (may include small reorganization/method adding/changes to
-    enable testability):
-    -   certification tests
-    -   stability tests
-    -   integration tests
-    -   functional tests
-    -   Test scripts
-    -   Additional tests following a pattern (e.g. YAML tests)
--   Adding/updating/fixing tooling to aid in development
--   Re-running code generation
--   Code readability refactors:
-    -   renaming enum/classes/structure members
-    -   moving constant header location
-    -   Obviously trivial build rule changes (e.g. adding missing files to build
-        rules)
-    -   Changing comments
-    -   Adding/removing includes (include what you need and only what you need
-        rules)
--   Pulling new third-party repo files
--   Platform vendors/maintainers adding platform features/logic/bug fixes to
-    their own platforms
--   Most changes to existing docker files (pulling new versions, reorganizing)
--   Most changes to new dockerfile version in workflows
-
-#### Fast track changes
-
-Larger functionality changes are allowed to be fast tracked with these
-requirements/restrictions:
-
--   Require at least 1 day to have passed since the creation of the PR
--   Require at least 1 checkmark from someone familiar with the code or problem
-    space
-    -   This requirement shall be dropped after a PR is 3 days old with stale or
-        no feedback.
--   Code is sufficiently covered by automated tests (or impossible to
-    automatically test with a very solid reason for this - e.g. changes to BLE
-    parameters cannot be automatically tested, but should have been manually
-    verified)
-
-Fast tracking these changes will involve resolving any obviously 'resolved'
-comments (judgment call here: were they replied to or addressed) and merging the
-change.
-
-Any "request for changes" marker will always be respected unless obviously
-resolved (i.e. author marked "requesting changes because of X and X was done in
-the PR")
-
--   This requirement shall be dropped after a PR is 3 days old with stale or no
-    feedback.
+Public APIs are documented with JSDoc, including `@see` references to the relevant Matter
+specification sections. The API documentation is generated from it with `npm run build-doc` and
+published for each release. Documentation changes go through the same review as code.
