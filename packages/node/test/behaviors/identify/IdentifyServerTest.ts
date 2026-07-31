@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { GlobalAttributeState } from "#behavior/cluster/ClusterState.js";
 import { IdentifyServer } from "#behaviors/identify";
 import { ContactSensorDevice } from "#devices/contact-sensor";
 import { OnOffLightDevice } from "#devices/on-off-light";
@@ -73,6 +72,24 @@ describe("IdentifyServer", () => {
             );
 
             expect(acceptedCommands(endpoint)).includes(Identify.commands.triggerEffect.id);
+
+            await node.close();
+        });
+
+        it("remains locally invocable when withdrawn", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: undefined });
+            const endpoint = await node.add(ContactSensorDevice);
+
+            expect(acceptedCommands(endpoint)).not.includes(Identify.commands.triggerEffect.id);
+
+            const effects = new Array<Identify.TriggerEffectRequest>();
+            endpoint.eventsOf(IdentifyServer).effectTriggered.on(effect => {
+                effects.push(effect);
+            });
+
+            await endpoint.act(agent => agent.get(IdentifyServer).triggerEffect(EFFECT));
+
+            expect(effects).deep.equals([EFFECT]);
 
             await node.close();
         });
@@ -147,7 +164,7 @@ describe("IdentifyServer", () => {
 });
 
 function acceptedCommands(endpoint: Endpoint) {
-    return (endpoint.stateOf(IdentifyServer) as unknown as GlobalAttributeState).acceptedCommandList;
+    return endpoint.globalsOf(IdentifyServer).acceptedCommandList;
 }
 
 async function invokeStatus(node: MockServerNode, fabric: Awaited<ReturnType<MockServerNode["addFabric"]>>) {
