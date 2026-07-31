@@ -13,6 +13,7 @@ During build, the Dockerfile stores this as /lib/test-descriptor.json.  The @mat
 runtime.
 """
 
+import ast
 import os
 import json
 import yaml
@@ -22,6 +23,7 @@ import inspect
 import importlib
 import re
 import shutil
+import textwrap
 from matter.testing.matter_testing import MatterBaseTest, MatterTestConfig
 from matter.testing.runner import generate_mobly_test_config
 
@@ -38,6 +40,18 @@ PYTHON_IGNORE_ARGS = [
     "--PICS",
     "--app-pipe",
 ]
+
+# CHIP APIs that commission a device.  We commission the subject ourselves and strip commissioning arguments from python
+# tests (see PYTHON_IGNORE_ARGS), so a test that commissions the DUT in setup_class instead needs a factory-fresh subject
+# and a setup code on the command line
+COMMISSIONING_APIS = [
+    "commission_device",
+    "CommissionOnNetwork",
+]
+
+# Commissioning calls that do not name this are for a helper device on another fabric (a bridged ICD, a
+# commissioner-control server) and say nothing about the state the DUT must start in
+DUT_ARGUMENT = "dut_node_id"
 
 # Somewhere in the code we run for test reflection CHIP decides to create a directory for the test name.  So execute in
 # /tmp/metadata-garbage and clean up when we're done
@@ -147,6 +161,38 @@ def parse_command_line(str: str):
 
     return args
 
+def commissions_dut_itself(test_class):
+    """Detect whether a python test commissions the DUT in setup_class.
+
+    Such tests must run against a factory-fresh subject rather than the pre-commissioned subject we share between tests.
+    We walk the MRO up to MatterBaseTest because the override may live in an intermediate base class.
+    """
+    for klass in test_class.__mro__:
+        if klass is MatterBaseTest:
+            break
+
+        setup_class = klass.__dict__.get("setup_class")
+        if setup_class is None:
+            continue
+
+        try:
+            source = textwrap.dedent(inspect.getsource(setup_class))
+            tree = ast.parse(source)
+        except (OSError, SyntaxError) as e:
+            sys.stderr.write(f"Error reading setup_class of {klass.__name__}: {e}\n")
+            continue
+
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+
+            callee = node.func
+            name = callee.attr if isinstance(callee, ast.Attribute) else getattr(callee, "id", None)
+            if name in COMMISSIONING_APIS and DUT_ARGUMENT in ast.unparse(node):
+                return True
+
+    return False
+
 def load_python():
     """ Load metadata from Python tests.  This requires a bit more fiddling because:
 
@@ -229,6 +275,8 @@ def load_python():
         # Instantiate the test for introspection purposes
         instance = test_class(mobly_test_config)
         all_test_methods = instance.get_existing_test_names()
+
+        self_commissioning = commissions_dut_itself(test_class)
 
         # Extract run information from the YAML header.  Much of this is encoded as command line arguments
         parsed_header = yaml.full_load("".join(header))
@@ -317,14 +365,14 @@ def load_python():
             except Exception as e:
                 sys.stderr.write(f"Error extracting PICS for {path}: {e}\n")
 
-            # Extract steps if present
+            if self_commissioning:
+                props["startUncommissioned"] = True
+
+            # Extract steps if present.  As with the description this needs the full method name
             steps = None
             try:
-                steps = instance.get_defined_test_steps(name)
+                steps = instance.get_defined_test_steps(test_method_name)
                 if steps:
-                    if not steps[0].is_commissioning:
-                        props["startUncommissioned"] = True
-
                     props["members"] = list(map(lambda step: {
                         "name": step.test_plan_number,
                         "kind": "step",
