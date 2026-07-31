@@ -119,6 +119,19 @@ When enabled, the certificate service will fetch:
 
 When disabled (default), only production certificates from DCL are fetched. Changes require restarting the shell to take effect.
 
+### OTA Test Images
+
+By default, the shell only offers OTA updates from the production DCL. To also consider the test DCL, use the `config ota-test-images` command:
+
+```
+config ota-test-images set true
+config ota-test-images set false
+config ota-test-images get
+config ota-test-images delete
+```
+
+The setting applies immediately, both to nodes requesting an update from the shell's OTA provider and to the `nodes ota check|download|apply` and `ota download` commands whose `--mode` is left at its `auto` default.
+
 ### Commission a device
 
 The shell supports discovery and also commissioning of devices. The commissioning process is based on the Matter SDK and uses the same commissioning process as the chip-tool. The commissioning process is started by the `commission pair` command.
@@ -238,29 +251,27 @@ Use `ota list` to list all OTA images currently stored locally with optional fil
 
 ```
 ota list
-ota list --vendor 0xfff1
-ota list --vendor 0xfff1 --product 0x8000
+ota list --vid 0xfff1
+ota list --vid 0xfff1 --pid 0x8000
 ota list --mode test
 ```
 
 Options:
-- `--vendor <vid>`: Filter by vendor ID (hex format like 0xFFF1 or decimal)
-- `--product <pid>`: Filter by product ID (hex format like 0x8000 or decimal) - requires --vendor
-- `--mode <prod|test>`: Filter by DCL mode (production or test)
+- `--vid <vendor-id>`: Filter by vendor ID (hex, e.g. `0xfff1` or `fff1`). Alias: `--vendor-id`
+- `--pid <product-id>`: Filter by product ID (hex, requires `--vid`). Alias: `--product-id`
+- `--mode <prod|test|local>`: Filter by storage mode - downloaded from the production or test DCL, or added locally
 
 #### Add OTA image to storage
 
-Use `ota add <file>` to import a local OTA image file into storage after validation.
+Use `ota add <file>` to import an OTA image into storage after validation.
 
 ```
 ota add /path/to/firmware.bin
-ota add /path/to/test-firmware.bin --mode test
+ota add file:///path/to/firmware.bin
+ota add https://example.org/firmware.bin
 ```
 
-Options:
-- `--mode <prod|test>`: Mark the OTA image as production (default) or test mode
-
-The command validates the OTA file format and extracts metadata before storing it.
+The command takes no options and accepts an absolute path, a `file://` URL or an `http(s)` URL. It validates the OTA file format, extracts the metadata and stores the image in `local` mode.
 
 #### Delete OTA images from storage
 
@@ -268,15 +279,18 @@ Use `ota delete` to remove OTA images from local storage.
 
 ```
 ota delete fff1-8000-prod
-ota delete --vendor 0xfff1
-ota delete --vendor 0xfff1 --product 0x8000 --mode test
+ota delete --vid 0xfff1
+ota delete --vid 0xfff1 --mode local
+ota delete --vid 0xfff1 --pid 0x8000 --mode test
 ```
 
+Either a keyname or `--vid` must be given.
+
 Options:
-- `<keyname>`: Delete specific OTA file by storage key
-- `--vendor <vid>`: Delete all OTA files for a vendor
-- `--product <pid>`: Delete specific product (requires --vendor)
-- `--mode <prod|test>`: Specify DCL mode - production (default) or test
+- `[keyname]`: Delete a specific OTA file by storage key. Cannot be combined with `--vid`
+- `--vid <vendor-id>`: Delete all stored OTA files for a vendor (hex, e.g. `0xfff1` or `fff1`). Alias: `--vendor-id`
+- `--pid <product-id>`: Restrict to one product (hex, requires `--vid`). Alias: `--product-id`
+- `--mode <prod|test|local>`: Storage mode of the images to delete - production (default), test, or locally added. Requires `--vid`
 
 #### Download an OTA image for a vendor/product/version
 
@@ -297,12 +311,12 @@ Use `ota copy` to export a stored OTA image to the filesystem.
 
 ```
 ota copy fff1-8000-prod /path/to/output.bin
-ota copy 0xfff1 0x8000 prod /path/to/output.bin
+ota copy 0xfff1 /path/to/output.bin --pid 0x8000 --mode prod
 ```
 
 Both forms are supported:
-- `ota copy <keyname> <target>`: Copy by storage key
-- `ota copy <vendor-id> <product-id> <mode> <target>`: Copy by vendor/product/mode
+- `ota copy <keyname> <target>`: copy by storage key
+- `ota copy <vendor-id> <target> --pid <product-id> --mode <prod|test|local>`: copy by vendor/product/mode. `--pid` and `--mode` must be given together
 
 If target is a directory, the source keyname is used as the filename.
 

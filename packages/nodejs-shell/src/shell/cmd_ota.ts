@@ -318,7 +318,7 @@ export default function commands(theNode: MatterNode) {
                     "Add an OTA image file to storage",
                     yargs => {
                         return yargs.positional("file", {
-                            describe: "Absolute path to the OTA image file",
+                            describe: "Absolute path, file:// URL or http(s) URL of the OTA image",
                             type: "string",
                             demandOption: true,
                         });
@@ -329,19 +329,23 @@ export default function commands(theNode: MatterNode) {
 
                         await theNode.start();
 
-                        if (filePath.startsWith("file://")) {
-                            filePath = filePath.slice(7); // Remove the "file://" prefix
-                        } else if (!filePath.startsWith("/")) {
-                            console.error("Error: File path must be absolute or start with file://");
-                            return;
+                        const isRemote = /^https?:\/\//i.test(filePath);
+                        if (!isRemote) {
+                            if (filePath.startsWith("file://")) {
+                                filePath = filePath.slice(7); // Remove the "file://" prefix
+                            } else if (!filePath.startsWith("/")) {
+                                console.error(
+                                    "Error: File path must be absolute, start with file:// or be an http(s) URL",
+                                );
+                                return;
+                            }
                         }
                         console.log(`Reading OTA image from: ${filePath}`);
 
                         // Create update info from the file (validates the file)
                         let localFile = false;
                         let updateInfo;
-                        if (filePath.toLowerCase().startsWith("https://")) {
-                            // Remote HTTPS file
+                        if (isRemote) {
                             updateInfo = await (await theNode.otaService()).createUpdateInfoFromFile(filePath);
                         } else {
                             // Local file - use stream
