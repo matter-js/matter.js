@@ -181,7 +181,7 @@ const GROUP_DATA_COUNTER_RESERVE = 1000;
 
 /** Thrown into a session closed because its peer exceeded {@link MAX_SESSIONS_PER_PEER}. */
 export class SessionEvictedError extends ClosedError {
-    constructor(message = "Session evicted; peer holds too many", options?: ErrorOptions) {
+    constructor(message = "Session evicted; peer holds too many sessions", options?: ErrorOptions) {
         super(message, options);
     }
 }

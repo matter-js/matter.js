@@ -136,8 +136,8 @@ export abstract class Session {
         return Timespan(this.activeTimestamp, Time.nowMs).duration < this.activeThreshold;
     }
 
-    getIncrementedMessageCounter(currentExchange?: MessageExchange) {
-        return this.messageCounter.getIncrementedCounter(currentExchange);
+    getIncrementedMessageCounter() {
+        return this.messageCounter.getIncrementedCounter();
     }
 
     updateMessageCounter(messageCounter: number, _sourceNodeId?: NodeId, _operationalKey?: Bytes) {

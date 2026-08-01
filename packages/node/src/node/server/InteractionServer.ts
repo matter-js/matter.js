@@ -79,7 +79,7 @@ const logger = Logger.get("InteractionServer");
 const MAX_READ_PATHS = 10_000;
 const MAX_SUBSCRIBE_PATHS = 10_000;
 
-// A controller decides for itself when its sessions are gone; failing to push a report is not evidence they are
+// A controller decides for itself when its sessions are gone; a report we cannot push does not prove they are
 const SUBSCRIPTION_EXCHANGE_OPTIONS: MessageExchange.Options = { suppressPeerLoss: true };
 
 export interface PeerSubscription {

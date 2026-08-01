@@ -27,9 +27,13 @@ import {
     Diagnostic,
     Duration,
     hex,
+    Instant,
     InternalError,
     Logger,
     MatterFlowError,
+    Mutex,
+    Time,
+    Timer,
 } from "@matter/general";
 import { CaseAuthenticatedTag, FabricIndex, GlobalFabricId, NodeId } from "@matter/types";
 import { SecureSession } from "./SecureSession.js";
@@ -55,6 +59,8 @@ export class NodeSession extends SecureSession {
     readonly supportsMRP = true;
     readonly type = SessionType.Unicast;
     readonly #closedByPeer = AsyncObservableValue();
+    #rolloverCloseTimer?: Timer;
+    readonly #rolloverClose = new Mutex(this);
     #isPeerLost = false;
 
     // TODO - remove this; subscriptions should be owned by the peer, not the session
@@ -108,13 +114,7 @@ export class NodeSession extends SecureSession {
             ...config,
             setActiveTimestamp: true, // We always set the active timestamp for Secure sessions
             // Can be changed to a PersistedMessageCounter if we implement session storage
-            messageCounter: new MessageCounter(crypto, async currentExchange => {
-                // Secure Session Message Counter
-                // Expire/End the session before the counter rolls over
-                await this.initiateClose(async () => {
-                    await this.closeSubscriptions(true, currentExchange);
-                });
-            }),
+            messageCounter: new MessageCounter(crypto, async () => this.#scheduleRolloverClose()),
             messageReceptionState: new MessageReceptionStateEncryptedWithoutRollover(0),
         });
 
@@ -337,7 +337,34 @@ export class NodeSession extends SecureSession {
         });
     }
 
+    /**
+     * Wind the session down before its message counter rolls over.
+     *
+     * The counter notifies 100,000 messages ahead, so this is preparation rather than an emergency.  It notifies on
+     * the stack of the send that consumed the counter, where closing would make the flush wait on that very send, so
+     * the close runs as its own task.
+     */
+    #scheduleRolloverClose() {
+        if (this.#rolloverCloseTimer !== undefined || this.isClosing) {
+            return;
+        }
+
+        logger.info(this.via, "Message counter nearing rollover, ending session");
+
+        this.#rolloverCloseTimer = Time.getTimer("session rollover close", Instant, () =>
+            this.#rolloverClose.run(async () => {
+                await this.initiateClose(async () => {
+                    await this.closeSubscriptions(true);
+                });
+            }),
+        ).start();
+    }
+
     protected override async close() {
+        this.#rolloverCloseTimer?.stop();
+        this.#rolloverCloseTimer = undefined;
+        await this.#rolloverClose;
+
         if (!this.#isPeerLost) {
             try {
                 await this.gracefulClose.emit();
