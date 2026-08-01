@@ -576,9 +576,8 @@ async function doOtaTestImages(
     const { action, value } = args;
     switch (action) {
         case "get":
-            const enabled = await theNode.Store.get<boolean>("AllowTestOtaImages", false);
             console.log(
-                `OTA test images: ${enabled ? "enabled (production + test DCL)" : "disabled (production DCL only)"}`,
+                `OTA test images: ${theNode.allowTestOtaImages ? "enabled (production + test DCL)" : "disabled (production DCL only)"}`,
             );
             break;
         case "set":
@@ -587,16 +586,14 @@ async function doOtaTestImages(
                 return;
             }
             const newValue = value === "true";
-            await theNode.Store.set("AllowTestOtaImages", newValue);
+            await theNode.setAllowTestOtaImages(newValue);
             console.log(
-                `OTA test images: ${newValue ? "enabled (production + test DCL)" : "disabled (production DCL only)"}. Please restart the shell for the changes to take effect.`,
+                `OTA test images: ${newValue ? "enabled (production + test DCL)" : "disabled (production DCL only)"}`,
             );
             break;
         case "delete":
-            await theNode.Store.delete("AllowTestOtaImages");
-            console.log(
-                `OTA test images setting reset to default (disabled). Please restart the shell for the changes to take effect.`,
-            );
+            await theNode.setAllowTestOtaImages();
+            console.log(`OTA test images setting reset to default (disabled)`);
             break;
     }
 }
