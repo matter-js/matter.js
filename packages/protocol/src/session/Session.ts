@@ -274,7 +274,7 @@ export abstract class Session {
     async initiateForceClose(context: PeerLossContext) {
         await this.initiateClose(async () => {
             if (!context.keepSubscriptions) {
-                await this.closeSubscriptions();
+                await this.closeSubscriptions(false, context.currentExchange);
             }
             for (const exchange of this.#exchanges) {
                 if (exchange === context.currentExchange) {
@@ -317,7 +317,7 @@ export abstract class Session {
         return !!this.#exchanges.size;
     }
 
-    async closeSubscriptions(_cancelledByPeer = false): Promise<number> {
+    async closeSubscriptions(_flush = false, _currentExchange?: MessageExchange): Promise<number> {
         return 0;
     }
 
