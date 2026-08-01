@@ -28,10 +28,10 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/protocol
     - Enhancement: `Subscription.isCanceledByPeer` is now `isTerminated`, covering both a peer cancellation and our own giving up
+    - Enhancement: `MessageExchange.Options.suppressPeerLoss` waives peer-loss inference for every operation on an exchange
     - Fix: Peer loss reported for a commissioned peer now conveys the exchange that failed
     - Fix: A session nearing message counter rollover now winds down as its own task instead of on the stack of the send that consumed the counter
     - Fix: A peer that keeps establishing sessions no longer accumulates them without bound; the least recently used beyond five are closed
-    - Enhancement: `MessageExchange.Options.suppressPeerLoss` waives peer-loss inference for every operation on an exchange
 
 ## 0.17.7 (2026-07-27)
 

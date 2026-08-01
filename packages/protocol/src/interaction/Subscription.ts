@@ -24,6 +24,7 @@ export interface Subscription {
     isTerminated: boolean;
 
     handlePeerCancel(): Promise<void>;
+
     /** @param currentExchange the exchange whose send triggered this close; a subscription sending on it must not wait for itself */
     close(flushViaSession?: Session, currentExchange?: MessageExchange): Promise<void>;
 }
