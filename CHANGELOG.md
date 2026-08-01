@@ -11,14 +11,25 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/node
+    - Fix: Closing a session from the stack of an in-flight subscription report no longer deadlocks the session in its closing state
+    - Fix: A subscription report that goes unanswered abandons the subscription instead of declaring the controller lost and closing every session with it
+    - Fix: Subscriptions now give up after repeated send failures; the check never matched the error MRP exhaustion raises
+    - Fix: Re-establishing former subscriptions stops for a peer that is unreachable instead of spending a full retransmission window on each of its subscriptions
+    - Fix: The exchange opened to re-establish a former subscription is now closed
+
 - @matter/nodejs-ble
     - Enhancement: BLE disconnect logs now include the noble disconnect reason with its HCI status text
 
-- @matter/node
-    - Fix: Closing a session from the stack of an in-flight subscription report no longer deadlocks the session in its closing state, where it declined every further exchange
+- @matter/nodejs-shell
+    - Fix: `nodes ota check|download|apply` and `ota download` now default to a `--mode auto` that follows the `config ota-test-images` setting instead of always querying the production DCL only
+    - Fix: `config ota-test-images set` applies immediately instead of requiring a shell restart
+    - Fix: `ota add` accepts `http(s)` URLs instead of rejecting them before its download path was reached
 
 - @matter/protocol
-    - Fix: Peer loss reported for a commissioned peer now conveys the exchange that failed, so subscriptions sending on it do not wait for themselves
+    - Fix: Peer loss reported for a commissioned peer now conveys the exchange that failed
+    - Fix: A peer that keeps establishing sessions no longer accumulates them without bound; the least recently active beyond five are closed
+    - Enhancement: `MessageExchange.Options.suppressPeerLoss` waives peer-loss inference for every operation on an exchange
 
 ## 0.17.7 (2026-07-27)
 

@@ -18,6 +18,7 @@ export interface Subscription {
 
     // TODO - these should reside in a server-specific interface
     isCanceledByPeer: boolean;
+
     handlePeerCancel(): Promise<void>;
     /**
      * @param currentExchange the exchange whose send triggered this close, if any.  A subscription sending on that

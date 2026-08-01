@@ -12,7 +12,6 @@ import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
 import { PeerShutdownError } from "#peer/PeerCommunicationError.js";
 import { PeerLossContext } from "#peer/PeerLossContext.js";
 import { SessionClosedError } from "#protocol/errors.js";
-import type { MessageExchange } from "#protocol/MessageExchange.js";
 import { GroupSession, GroupSessionDecodeError, GroupSessionNoKeyError } from "#session/GroupSession.js";
 import {
     BasicSet,
@@ -157,6 +156,19 @@ export interface SessionManagerContext {
 
 const ID_SPACE_UPPER_BOUND = 0xffff;
 
+/**
+ * Sessions retained per peer.
+ *
+ * A new CASE does not close the peer's previous sessions, and the ID-exhaustion fallback in
+ * {@link SessionManager.getNextAvailableSessionId} only triggers after 65535 of them.  Short of a TCP disconnect,
+ * which evicts everything bound to the connection, a peer that reconnects repeatedly would accumulate sessions
+ * without bound.
+ *
+ * CHIP bounds the equivalent pool globally at `CHIP_CONFIG_MAX_FABRICS * 3 + 2`; we bound per peer instead so one
+ * noisy peer cannot evict another's sessions.
+ */
+const MAX_SESSIONS_PER_PEER = 5;
+
 /** Storage key for the node-global Group Encrypted Data Message Counter in the session storage context. */
 const GROUP_DATA_COUNTER_KEY = "groupDataCounter";
 
@@ -170,6 +182,13 @@ const GROUP_DATA_COUNTER_RESERVE = 1000;
 /**
  * Thrown when communication terminates due node shutdown.
  */
+/** Thrown into a session closed because its peer exceeded {@link MAX_SESSIONS_PER_PEER}. */
+export class SessionEvictedError extends ClosedError {
+    constructor(message = "Session evicted; peer holds too many", options?: ErrorOptions) {
+        super(message, options);
+    }
+}
+
 export class ShutdownError extends ClosedError {
     constructor(message = "Local node shutdown", options?: ErrorOptions) {
         super(message, options);
@@ -204,6 +223,7 @@ export class SessionManager {
     readonly #construction: Construction<SessionManager>;
     readonly #observers = new ObserverGroup();
     readonly #subscriptionUpdateMutex = new Mutex(this);
+    readonly #sessionEvictionMutex = new Mutex(this);
     #idUpperBound = ID_SPACE_UPPER_BOUND;
 
     readonly #subscriptionsChanged = Observable<[session: NodeSession, subscription: Subscription]>();
@@ -223,6 +243,14 @@ export class SessionManager {
         // When fabric is removed, also remove the resumption record
         this.#observers.on(context.fabrics.events.deleting, async fabric => {
             await this.deleteResumptionRecordsForFabric(fabric);
+        });
+
+        this.#sessions.added.on(session => {
+            // We are the responder, so nothing else reclaims these: an initiator's sessions are swept by the peer
+            // loss its own traffic reports
+            if (!session.isInitiator) {
+                this.#sessionEvictionMutex.run(() => this.#evictExcessSessionsFor(session));
+            }
         });
 
         // Add subscription monitors to new node sessions
@@ -557,8 +585,48 @@ export class SessionManager {
     /**
      * Removes all Peer sessions and closes subscriptions.
      */
-    async handlePeerLoss(address: PeerAddress, cause: Error, asOf?: Timestamp, currentExchange?: MessageExchange) {
-        return await this.#handlePeerLoss({ address, asOf: asOf ?? Time.nowMs, cause, currentExchange });
+    async handlePeerLoss(address: PeerAddress, context: PeerLossContext) {
+        return await this.#handlePeerLoss({ ...context, address, asOf: context.asOf ?? Time.nowMs });
+    }
+
+    /**
+     * Close the peer's least recently active sessions once it exceeds {@link MAX_SESSIONS_PER_PEER}.
+     *
+     * Only sessions the peer established are eligible: ones we initiated are ours to manage, and the peer loss our
+     * own traffic reports already sweeps them.  {@link added} is excluded so a burst of new sessions cannot evict the
+     * one that prompted the check.
+     */
+    async #evictExcessSessionsFor(added: NodeSession) {
+        if (added.isPase || added.isClosing) {
+            return;
+        }
+
+        const address = added.peerAddress;
+        const peerSessions = this.#sessions.filter(
+            session => session !== added && !session.isInitiator && session.peerIs(address),
+        );
+
+        const excess = peerSessions.length + 1 - MAX_SESSIONS_PER_PEER;
+        if (excess <= 0) {
+            return;
+        }
+
+        // A session already closing still occupies a slot until it completes, so it counts above but must not be
+        // evicted again -- otherwise one that parks in deferredClose drops out of the count and the cap stops capping
+        const evictable = peerSessions
+            .filter(session => !session.isClosing)
+            .sort((a, b) => a.activeTimestamp - b.activeTimestamp);
+
+        for (let i = 0; i < Math.min(excess, evictable.length); i++) {
+            const session = evictable[i];
+            logger.info(
+                session.via,
+                `Closing least recently active session; ${PeerAddress(address)} exceeds ${MAX_SESSIONS_PER_PEER} sessions`,
+            );
+            // Force close rather than the graceful path: that sends CloseSession over MRP, and the eviction target is
+            // typically the peer we can no longer reach, so it would hold this mutex for a full retransmission window
+            await session.initiateForceClose({ cause: new SessionEvictedError() });
+        }
     }
 
     async #handlePeerLoss(
@@ -918,6 +986,7 @@ export class SessionManager {
         }
 
         await this.#subscriptionUpdateMutex;
+        await this.#sessionEvictionMutex;
 
         const context: PeerLossContext = { cause: new ShutdownError("Session closed by node shutdown") };
 

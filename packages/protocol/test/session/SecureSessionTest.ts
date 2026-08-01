@@ -83,8 +83,7 @@ describe("SecureSession", () => {
 
             await session.handlePeerLoss({ cause: new Error("unresponsive"), currentExchange });
 
-            // A subscription sending on this exchange must be able to recognize the teardown as its own doing.
-            // The later sweep in NodeSession.close() has no exchange; a real subscription is already closed by then.
+            // A subscription sending on this exchange must be able to recognize the teardown as its own doing
             expect(received[0]).equals(currentExchange);
         });
     });

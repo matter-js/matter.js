@@ -10,6 +10,7 @@ import { IcdManagementServer } from "#behaviors/icd-management";
 import type { ServerNode } from "#node/ServerNode.js";
 import {
     AsyncObservable,
+    causedBy,
     ClosedError,
     Diagnostic,
     Duration,
@@ -42,6 +43,7 @@ import {
     ReadResult,
     SessionClosedError,
     Subscription,
+    TransientPeerCommunicationError,
 } from "@matter/protocol";
 import {
     AttributeId,
@@ -540,15 +542,19 @@ export class ServerSubscription implements Subscription {
                     );
                     this.#sendNextUpdateImmediately = false;
                     if (
-                        error instanceof NoResponseTimeoutError ||
-                        error instanceof NetworkError ||
-                        error instanceof SessionClosedError
+                        causedBy(
+                            error,
+                            TransientPeerCommunicationError,
+                            NoResponseTimeoutError,
+                            NetworkError,
+                            SessionClosedError,
+                        )
                     ) {
-                        // Let's consider this subscription as dead and wait for a reconnect.  We handle as if the
-                        // controller cancelled
-                        using _messaging = updating?.join("canceling");
+                        // The session is left alone: failing to push reports says nothing about whether the
+                        // controller can still reach us, and recovery is its call regardless
+                        using _messaging = updating?.join("abandoning");
                         this.#isCanceledByPeer = true;
-                        await this.#cancel();
+                        await this.#closeFromUpdate();
                         break;
                     } else {
                         throw error;
@@ -723,11 +729,22 @@ export class ServerSubscription implements Subscription {
     }
 
     /**
-     * Whether our in-flight update is sending on {@link currentExchange}, which makes that update this close's own
-     * caller: a failed send reports the failure while still on the sending stack, and the resulting teardown lands
-     * back here.  Waiting for the update would then wait for ourselves.
+     * Close from within the update loop.
      *
-     * Such an update observes {@link #isClosed} and unwinds on its own.
+     * {@link close} waits for the in-flight update, which here is our own caller.  The loop terminates on return, so
+     * there is nothing left to wait for.
+     */
+    async #closeFromUpdate() {
+        if (this.#isClosed) {
+            return;
+        }
+        this.#isClosed = true;
+        await this.#cancel();
+    }
+
+    /**
+     * Whether our in-flight update is sending on the given exchange, which makes that update this close's own caller.
+     * Such an update observes {@link ServerSubscription.close} setting `#isClosed` and unwinds on its own.
      */
     #isSendingOn(currentExchange?: MessageExchange) {
         return currentExchange !== undefined && currentExchange === this.#currentSendExchange;
@@ -864,11 +881,12 @@ export class ServerSubscription implements Subscription {
             }
 
             using _canceling = lifetime?.join("canceling");
-            await this.#cancel();
+            await this.#closeFromUpdate();
         } finally {
-            this.#currentSendExchange = undefined;
             using _closing = lifetime?.join("closing messenger");
+            // Reset only after the close: it can still send, and #isSendingOn must recognise this exchange until then
             await messenger.close();
+            this.#currentSendExchange = undefined;
         }
         return true;
     }
