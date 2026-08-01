@@ -7,7 +7,7 @@ import { UnexpectedDataError } from "#MatterError.js";
 import { Bytes } from "./Bytes.js";
 
 export function isIPv4(ip: string) {
-    return ip.includes(".");
+    return ip.includes(".") && !ip.includes(":");
 }
 
 export function isIPv6(ip: string) {
