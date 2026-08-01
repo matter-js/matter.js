@@ -11,6 +11,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/general
+    - Fix: `isIPv4` no longer misclassifies a link-local IPv6 address as IPv4 when its zone index contains a dot, e.g. a Linux VLAN interface name like `eth0.100`
+
 - @matter/node
     - Fix: Closing a session from the stack of an in-flight subscription report no longer deadlocks the session in its closing state
     - Fix: A subscription report that goes unanswered abandons the subscription instead of declaring the controller lost and closing every session with it
