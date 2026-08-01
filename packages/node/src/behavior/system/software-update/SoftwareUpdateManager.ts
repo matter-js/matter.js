@@ -22,7 +22,6 @@ import {
     Hours,
     ImplementationError,
     InternalError,
-    Lifecycle,
     Logger,
     MatterError,
     Millis,
@@ -48,6 +47,7 @@ import {
     PeerAddressMap,
     RebootResubscribeArmer,
     SessionManager,
+    StorageScope,
 } from "@matter/protocol";
 import { VendorId } from "@matter/types";
 import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
@@ -173,6 +173,7 @@ export class SoftwareUpdateManager extends Behavior {
         rootNode.behaviors.require(DclBehavior);
         this.internal.otaService = rootNode.agentFor(this.context).get(DclBehavior).otaUpdateService;
         await this.internal.otaService.construction;
+        this.internal.otaStorageScope = this.internal.otaService.storage.scope;
 
         this.reactTo(rootNode.lifecycle.online, this.#nodeOnline);
         this.reactTo(rootNode.lifecycle.goingOffline, this.#nodeGoingOffline);
@@ -303,11 +304,11 @@ export class SoftwareUpdateManager extends Behavior {
     }
 
     #bdxSessionFor(peerAddress: PeerAddress) {
-        const otaService = this.internal.otaService;
-        if (otaService?.construction.status !== Lifecycle.Status.Active || !this.env.has(BdxProtocol)) {
+        const { otaStorageScope } = this.internal;
+        if (otaStorageScope === undefined || !this.env.has(BdxProtocol)) {
             return undefined;
         }
-        return this.env.get(BdxProtocol).sessionFor(peerAddress, otaService.storage.scope);
+        return this.env.get(BdxProtocol).sessionFor(peerAddress, otaStorageScope);
     }
 
     /**
@@ -1237,6 +1238,9 @@ export namespace SoftwareUpdateManager {
         consents = new Array<UpdateConsent>();
 
         otaService!: DclOtaUpdateService;
+
+        /** Scope of the OTA storage, captured so a lookup cannot depend on the service still being constructed. */
+        otaStorageScope?: StorageScope;
 
         checkForUpdateTimer!: Timer;
 

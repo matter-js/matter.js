@@ -15,10 +15,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: BLE disconnect logs now include the noble disconnect reason with its HCI status text
 
 - @matter/node
-    - Fix: OTA updates are no longer reset as stalled while their BDX transfer is still moving data
-    - Fix: the in-progress entry of an OTA download is no longer dropped while its BDX transfer is still running
-    - Fix: a BDX session opened for a retry within the same query cycle is tracked like the first one
     - Enhancement: `SoftwareUpdateManager.queuedUpdates` reports transferred bytes and transfer size of a running BDX transfer
+    - Fix: OTA updates are no longer reset as stalled while their BDX transfer is still moving data
+    - Fix: The in-progress entry of an OTA download is no longer dropped while its BDX transfer is still running
+    - Fix: A BDX session opened for a retry within the same query cycle is tracked like the first one
 
 - @matter/protocol
     - Enhancement: `BdxSession` exposes `transferredBytes` and `dataLength`
