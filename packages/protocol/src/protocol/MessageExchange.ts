@@ -514,11 +514,8 @@ export class MessageExchange {
     }
 
     /**
-     * Whether a failure on this exchange is evidence the peer is gone.
-     *
-     * Only when we have never heard from the peer on this exchange: a peer that answered earlier was reachable, so a
-     * later failure may be transient, and peer loss closes every session with it.  An exchange or operation may waive
-     * the inference entirely.
+     * Whether a failure here is evidence the peer is gone.  Only if we never heard from it on this exchange: one that
+     * answered earlier was reachable, and peer loss closes every session with it.
      */
     #reportsPeerLoss(suppressedForOperation?: boolean) {
         return !this.#suppressPeerLoss && suppressedForOperation !== true && this.#messageReceivedCounter === 0;
@@ -1123,10 +1120,7 @@ export namespace MessageExchange {
          */
         addressOverride?: ServerAddressUdp;
 
-        /**
-         * Waive peer-loss inference for every operation on this exchange.  Peer loss closes every session with the
-         * peer, so an exchange we open to a peer that drives its own recovery must set this.
-         */
+        /** Waive peer-loss inference here.  Required for exchanges to a peer that drives its own recovery. */
         suppressPeerLoss?: boolean;
     }
 

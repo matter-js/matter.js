@@ -18,18 +18,13 @@ export interface Subscription {
 
     // TODO - these should reside in a server-specific interface
     /**
-     * Whether the subscription ended for good and the peer must establish a new one.
-     *
-     * True when the peer cancelled and when we gave up delivering reports; false for a subscription torn down with
+     * Whether the subscription ended for good and the peer must establish a new one.  False for one torn down with
      * its session, which may still be re-established.
      */
     isTerminated: boolean;
 
     handlePeerCancel(): Promise<void>;
-    /**
-     * @param currentExchange the exchange whose send triggered this close, if any.  A subscription sending on that
-     * exchange must not wait for its own in-flight update to settle — the update is the caller.
-     */
+    /** @param currentExchange the exchange whose send triggered this close; a subscription sending on it must not wait for itself */
     close(flushViaSession?: Session, currentExchange?: MessageExchange): Promise<void>;
 }
 

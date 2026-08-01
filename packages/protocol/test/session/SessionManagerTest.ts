@@ -202,7 +202,7 @@ describe("SessionManager", () => {
             expect(result).to.equal(sessionB);
         });
 
-        it("closes the peer's least recently active session beyond the per-peer cap", async () => {
+        it("closes the peer's least recently used session beyond the per-peer cap", async () => {
             const PEER_NODE_ID = NodeId(0x1234n);
 
             const sessions = new Array<NodeSession>();
@@ -219,8 +219,8 @@ describe("SessionManager", () => {
                         isResumption: false,
                     }),
                 );
-                // Least-recently-active ordering decides who goes
-                sessions[i].activeTimestamp = Timestamp(1000 + i);
+                // Least-recently-used ordering decides who goes
+                sessions[i].timestamp = Timestamp(1000 + i);
             }
 
             await MockTime.yield3();
@@ -229,10 +229,10 @@ describe("SessionManager", () => {
             expect(sessions.slice(1).filter(session => session.isClosing)).is.empty;
         });
 
-        it("never evicts a session we initiated, even when it is the least recently active", async () => {
+        it("never evicts a session we initiated, even when it is the least recently used", async () => {
             const PEER_NODE_ID = NodeId(0x9abcn);
 
-            // Ours, and the oldest -- a naive least-recently-active sweep would take this one first
+            // Ours, and the oldest -- a naive least-recently-used sweep would take this one first
             const ours = await sessionManager.createSecureSession({
                 id: 0x0300,
                 fabric: undefined,
@@ -243,7 +243,7 @@ describe("SessionManager", () => {
                 isInitiator: true,
                 isResumption: false,
             });
-            ours.activeTimestamp = Timestamp(1);
+            ours.timestamp = Timestamp(1);
 
             const theirs = new Array<NodeSession>();
             for (let i = 0; i < 6; i++) {
@@ -259,7 +259,7 @@ describe("SessionManager", () => {
                         isResumption: false,
                     }),
                 );
-                theirs[i].activeTimestamp = Timestamp(1000 + i);
+                theirs[i].timestamp = Timestamp(1000 + i);
             }
 
             await MockTime.yield3();
@@ -286,7 +286,7 @@ describe("SessionManager", () => {
                         isResumption: false,
                     }),
                 );
-                sessions[i].activeTimestamp = Timestamp(1000 + i);
+                sessions[i].timestamp = Timestamp(1000 + i);
             }
 
             await MockTime.yield3();

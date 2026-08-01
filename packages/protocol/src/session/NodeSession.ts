@@ -338,11 +338,8 @@ export class NodeSession extends SecureSession {
     }
 
     /**
-     * Wind the session down before its message counter rolls over.
-     *
-     * The counter notifies 100,000 messages ahead, so this is preparation rather than an emergency.  It notifies on
-     * the stack of the send that consumed the counter, where closing would make the flush wait on that very send, so
-     * the close runs as its own task.
+     * Wind the session down before its message counter rolls over.  Notification arrives 100,000 messages ahead, on
+     * the stack of the send that consumed the counter, so closing there would make the flush wait on that send.
      */
     #scheduleRolloverClose() {
         if (this.#rolloverCloseTimer !== undefined || this.isClosing) {

@@ -729,12 +729,7 @@ export class ServerSubscription implements Subscription {
         }
     }
 
-    /**
-     * Close from within the update loop.
-     *
-     * {@link close} waits for the in-flight update, which here is our own caller.  The loop terminates on return, so
-     * there is nothing left to wait for.
-     */
+    /** Close from within the update loop, which {@link close} would wait on -- it is our own caller. */
     async #closeFromUpdate() {
         if (this.#isClosed) {
             return;
@@ -743,10 +738,7 @@ export class ServerSubscription implements Subscription {
         await this.#cancel();
     }
 
-    /**
-     * Whether our in-flight update is sending on the given exchange, which makes that update this close's own caller.
-     * Such an update observes {@link ServerSubscription.close} setting `#isClosed` and unwinds on its own.
-     */
+    /** Whether our in-flight update is sending on this exchange, making it this close's own caller. */
     #isSendingOn(currentExchange?: MessageExchange) {
         return currentExchange !== undefined && currentExchange === this.#currentSendExchange;
     }

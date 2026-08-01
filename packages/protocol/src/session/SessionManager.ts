@@ -157,15 +157,8 @@ export interface SessionManagerContext {
 const ID_SPACE_UPPER_BOUND = 0xffff;
 
 /**
- * Sessions retained per peer.
- *
- * A new CASE does not close the peer's previous sessions, and the ID-exhaustion fallback in
- * {@link SessionManager.getNextAvailableSessionId} only triggers after 65535 of them.  Short of a TCP disconnect,
- * which evicts everything bound to the connection, a peer that reconnects repeatedly would accumulate sessions
- * without bound.
- *
- * CHIP bounds the equivalent pool globally at `CHIP_CONFIG_MAX_FABRICS * 3 + 2`; we bound per peer instead so one
- * noisy peer cannot evict another's sessions.
+ * Sessions retained per peer.  A new CASE does not close the peer's previous sessions, so a peer that reconnects
+ * repeatedly accumulates them.  Per peer rather than global so one noisy peer cannot evict another's.
  */
 const MAX_SESSIONS_PER_PEER = 5;
 
@@ -473,19 +466,25 @@ export class SessionManager {
         return deletedCount > 0;
     }
 
+    /** The session with the least recent traffic among those {@link filter} accepts, if any. */
+    #leastRecentlyUsedSession(filter: (session: NodeSession) => boolean) {
+        let oldest: NodeSession | undefined;
+        for (const session of this.#sessions) {
+            if (filter(session) && (oldest === undefined || session.timestamp < oldest.timestamp)) {
+                oldest = session;
+            }
+        }
+        return oldest;
+    }
+
     findOldestInactiveSession() {
         this.#construction.assert();
 
-        let oldestSession: NodeSession | undefined = undefined;
-        for (const session of this.#sessions) {
-            if (!oldestSession || session.timestamp < oldestSession.timestamp) {
-                oldestSession = session;
-            }
-        }
-        if (oldestSession === undefined) {
+        const oldest = this.#leastRecentlyUsedSession(() => true);
+        if (oldest === undefined) {
             throw new MatterFlowError("No session found to close and all session ids are taken.");
         }
-        return oldestSession;
+        return oldest;
     }
 
     async getNextAvailableSessionId() {
@@ -602,27 +601,24 @@ export class SessionManager {
         }
 
         const address = added.peerAddress;
-        const peerSessions = this.#sessions.filter(
-            session => session !== added && !session.isInitiator && session.peerIs(address),
-        );
+        const claimsSlot = (session: NodeSession) =>
+            session !== added && !session.isInitiator && session.peerIs(address);
 
-        const excess = peerSessions.length + 1 - MAX_SESSIONS_PER_PEER;
-        if (excess <= 0) {
-            return;
-        }
+        // A session already closing still occupies a slot until it completes, so it counts here but is not evicted
+        // again -- otherwise one that parks in deferredClose drops out of the count and the cap stops capping
+        let excess = this.#sessions.filter(claimsSlot).length + 1 - MAX_SESSIONS_PER_PEER;
 
-        // A session already closing still occupies a slot until it completes, so it counts above but must not be
-        // evicted again -- otherwise one that parks in deferredClose drops out of the count and the cap stops capping
-        const evictable = peerSessions
-            .filter(session => !session.isClosing)
-            .sort((a, b) => a.activeTimestamp - b.activeTimestamp);
+        while (excess-- > 0) {
+            const session = this.#leastRecentlyUsedSession(s => claimsSlot(s) && !s.isClosing);
+            if (session === undefined) {
+                return;
+            }
 
-        for (let i = 0; i < Math.min(excess, evictable.length); i++) {
-            const session = evictable[i];
             logger.info(
                 session.via,
-                `Closing least recently active session; ${PeerAddress(address)} exceeds ${MAX_SESSIONS_PER_PEER} sessions`,
+                `Closing least recently used session; ${PeerAddress(address)} exceeds ${MAX_SESSIONS_PER_PEER} sessions`,
             );
+
             // Force close rather than the graceful path: that sends CloseSession over MRP, and the eviction target is
             // typically the peer we can no longer reach, so it would hold this mutex for a full retransmission window
             await session.initiateForceClose({ cause: new SessionEvictedError() });
