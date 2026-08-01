@@ -520,7 +520,11 @@ export class ExchangeManager implements Transport.Provider {
                 }
 
                 // Report peer loss to the session manager; this notifies all (relevant) sessions for the peer
-                await this.#sessions.handlePeerLoss(session.peerAddress, cause, createdAt);
+                await this.#sessions.handlePeerLoss(session.peerAddress, {
+                    cause,
+                    asOf: createdAt,
+                    currentExchange: exchange,
+                });
             },
 
             retry: number => this.#sessions.retry.emit(session, number),

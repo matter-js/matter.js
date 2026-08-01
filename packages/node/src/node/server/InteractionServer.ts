@@ -79,6 +79,9 @@ const logger = Logger.get("InteractionServer");
 const MAX_READ_PATHS = 10_000;
 const MAX_SUBSCRIBE_PATHS = 10_000;
 
+// A controller decides for itself when its sessions are gone; a report we cannot push does not prove they are
+const SUBSCRIPTION_EXCHANGE_OPTIONS: MessageExchange.Options = { suppressPeerLoss: true };
+
 export interface PeerSubscription {
     subscriptionId: number;
     peerAddress: PeerAddress;
@@ -745,8 +748,16 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
     #initiateSubscriptionExchange(addressOrSession: PeerAddress | Session, protocolId: number) {
         const exchange =
             addressOrSession instanceof Session
-                ? this.#context.exchangeManager.initiateExchangeForSession(addressOrSession, protocolId)
-                : this.#context.exchangeManager.initiateExchange(addressOrSession, protocolId);
+                ? this.#context.exchangeManager.initiateExchangeForSession(
+                      addressOrSession,
+                      protocolId,
+                      SUBSCRIPTION_EXCHANGE_OPTIONS,
+                  )
+                : this.#context.exchangeManager.initiateExchange(
+                      addressOrSession,
+                      protocolId,
+                      SUBSCRIPTION_EXCHANGE_OPTIONS,
+                  );
 
         // Count subscription report messages we push and the acks we receive in response
         this.#countExchangeMessages(exchange);
@@ -813,47 +824,50 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         }: PeerSubscription,
         session: NodeSession,
     ) {
-        const exchange = this.#context.exchangeManager.initiateExchange(session.peerAddress, INTERACTION_PROTOCOL_ID);
+        const exchange = this.#initiateSubscriptionExchange(session, INTERACTION_PROTOCOL_ID);
+        const messenger = new InteractionServerMessenger(exchange);
 
-        logger.info(
-            `Reestablish subscription`,
-            Mark.OUTBOUND,
-            exchange.via,
-            Diagnostic.dict({
-                ...Subscription.diagnosticOf(subscriptionId),
-                isFabricFiltered,
-                maxInterval: Duration.format(maxInterval),
-                sendInterval: Duration.format(sendInterval),
-            }),
-        );
-
-        const context: ServerSubscriptionContext = {
-            session,
-            node: this.#node,
-            initiateExchange: (addressOrSession, protocolId) =>
-                this.#initiateSubscriptionExchange(addressOrSession, protocolId),
-        };
-
-        const subscription = new ServerSubscription({
-            id: subscriptionId,
-            context,
-            request: {
-                attributeRequests,
-                eventRequests,
-                isFabricFiltered,
-                minIntervalFloorSeconds: Seconds.of(minIntervalFloor),
-                maxIntervalCeilingSeconds: Seconds.of(maxIntervalCeiling),
-            },
-            subscriptionOptions: this.#subscriptionConfig,
-            useAsMaxInterval: maxInterval,
-            useAsSendInterval: sendInterval,
-        });
-
-        const readContext = this.#prepareOnlineContext(exchange, undefined, isFabricFiltered);
+        let subscription: ServerSubscription | undefined;
         try {
+            logger.info(
+                `Reestablish subscription`,
+                Mark.OUTBOUND,
+                exchange.via,
+                Diagnostic.dict({
+                    ...Subscription.diagnosticOf(subscriptionId),
+                    isFabricFiltered,
+                    maxInterval: Duration.format(maxInterval),
+                    sendInterval: Duration.format(sendInterval),
+                }),
+            );
+
+            const context: ServerSubscriptionContext = {
+                session,
+                node: this.#node,
+                initiateExchange: (addressOrSession, protocolId) =>
+                    this.#initiateSubscriptionExchange(addressOrSession, protocolId),
+            };
+
+            subscription = new ServerSubscription({
+                id: subscriptionId,
+                context,
+                request: {
+                    attributeRequests,
+                    eventRequests,
+                    isFabricFiltered,
+                    minIntervalFloorSeconds: Seconds.of(minIntervalFloor),
+                    maxIntervalCeilingSeconds: Seconds.of(maxIntervalCeiling),
+                },
+                subscriptionOptions: this.#subscriptionConfig,
+                useAsMaxInterval: maxInterval,
+                useAsSendInterval: sendInterval,
+            });
+
+            const readContext = this.#prepareOnlineContext(exchange, undefined, isFabricFiltered);
+
             // Send initial data report to prime the subscription with initial data
             await subscription.sendInitialReport(
-                new InteractionServerMessenger(exchange),
+                messenger,
                 readContext,
                 true, // Do not send status responses because we simulate that the subscription is still established
             );
@@ -873,8 +887,15 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 );
             }
         } catch (error) {
-            await subscription.close(); // Cleanup
+            await subscription?.close(); // Cleanup
             throw error;
+        } finally {
+            // Reports use their own exchanges; leaving this one open blocks the session from ever closing gracefully
+            try {
+                await messenger.close();
+            } catch (error) {
+                logger.warn("Error closing subscription re-establishment exchange", error);
+            }
         }
         return subscription;
     }
