@@ -14,6 +14,15 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/nodejs-ble
     - Enhancement: BLE disconnect logs now include the noble disconnect reason with its HCI status text
 
+- @matter/node
+    - Fix: OTA updates are no longer reset as stalled while their BDX transfer is still moving data
+    - Fix: the in-progress entry of an OTA download is no longer dropped while its BDX transfer is still running
+    - Fix: a BDX session opened for a retry within the same query cycle is tracked like the first one
+    - Enhancement: `SoftwareUpdateManager.queuedUpdates` reports transferred bytes and transfer size of a running BDX transfer
+
+- @matter/protocol
+    - Enhancement: `BdxSession` exposes `transferredBytes` and `dataLength`
+
 - @matter/nodejs-shell
     - Fix: `nodes ota check|download|apply` and `ota download` now default to a `--mode auto` that follows the `config ota-test-images` setting instead of always querying the production DCL only
     - Fix: `config ota-test-images set` applies immediately instead of requiring a shell restart
