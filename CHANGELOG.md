@@ -27,6 +27,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `ota add` accepts `http(s)` URLs instead of rejecting them before its download path was reached
 
 - @matter/protocol
+    - Enhancement: `Subscription.isCanceledByPeer` is now `isTerminated`, covering both a peer cancellation and our own giving up
     - Fix: Peer loss reported for a commissioned peer now conveys the exchange that failed
     - Fix: A peer that keeps establishing sessions no longer accumulates them without bound; the least recently active beyond five are closed
     - Enhancement: `MessageExchange.Options.suppressPeerLoss` waives peer-loss inference for every operation on an exchange

@@ -82,7 +82,7 @@ describe("ServerSubscription", () => {
         });
     }
 
-    it("sets isCanceledByPeer and removes from session when peer cancels", async () => {
+    it("marks the subscription terminated and removes it from the session when the peer cancels", async () => {
         const node = await MockServerNode.createOnline();
 
         const subscription = await createSubscription(node, () => ({}) as any);
@@ -90,12 +90,12 @@ describe("ServerSubscription", () => {
 
         subscription.activate();
 
-        expect(subscription.isCanceledByPeer).is.false;
+        expect(subscription.isTerminated).is.false;
         expect([...session.subscriptions]).has.length(1);
 
         await subscription.handlePeerCancel();
 
-        expect(subscription.isCanceledByPeer).is.true;
+        expect(subscription.isTerminated).is.true;
         expect([...session.subscriptions]).is.empty;
 
         await MockTime.resolve(node.close());
@@ -202,7 +202,7 @@ describe("ServerSubscription", () => {
         await MockTime.resolve(subscription.handlePeerCancel());
 
         expect(exchangeCloseThrew).is.true;
-        expect(subscription.isCanceledByPeer).is.true;
+        expect(subscription.isTerminated).is.true;
         expect([...session.subscriptions]).is.empty;
 
         await MockTime.resolve(node.close());

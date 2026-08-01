@@ -54,7 +54,7 @@ describe("ExchangeManager", () => {
         const closedWith = new Array<MessageExchange | undefined>();
         session.subscriptions.add({
             subscriptionId: 1,
-            isCanceledByPeer: false,
+            isTerminated: false,
             async handlePeerCancel() {},
             async close(_flushViaSession, exchange) {
                 closedWith.push(exchange);

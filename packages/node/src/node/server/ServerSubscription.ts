@@ -132,7 +132,7 @@ export class ServerSubscription implements Subscription {
 
     #id: SubscriptionId;
     #isClosed = false;
-    #isCanceledByPeer = false;
+    #isTerminated = false;
     #request: Omit<SubscribeRequest, "interactionModelRevision" | "keepSubscriptions">;
     #cancelled = AsyncObservable<[subscription: Subscription]>();
     #maxInterval?: Duration;
@@ -208,8 +208,8 @@ export class ServerSubscription implements Subscription {
         return this.#context.session;
     }
 
-    get isCanceledByPeer() {
-        return this.#isCanceledByPeer;
+    get isTerminated() {
+        return this.#isTerminated;
     }
 
     get request() {
@@ -247,7 +247,8 @@ export class ServerSubscription implements Subscription {
     }
 
     async handlePeerCancel() {
-        this.#isCanceledByPeer = true;
+        logger.notice(`Subscription ${this.idStr} cancelled by peer`);
+        this.#isTerminated = true;
         // Force-close any in-flight send exchange so MRP retransmissions stop immediately.
         // Use try/finally so this.close() always runs even if the exchange close throws.
         try {
@@ -510,7 +511,7 @@ export class ServerSubscription implements Subscription {
                     this.#sendUpdateErrorCounter = 0;
                 }
             } catch (error) {
-                if (this.#isClosed || this.#isCanceledByPeer) {
+                if (this.#isClosed || this.#isTerminated) {
                     // No need to care about resubmissions when the server is closing or peer cancelled us
                     return;
                 }
@@ -537,8 +538,8 @@ export class ServerSubscription implements Subscription {
                         this.#outstandingEventsMinNumber = eventsMinNumber; // newer number are always higher, so we can just set it
                     }
                 } else {
-                    logger.info(
-                        `Sending update failed 3 times in a row, canceling subscription ${this.idStr} and let controller subscribe again.`,
+                    logger.notice(
+                        `Giving up on subscription ${this.idStr} after 3 failed updates; the controller must subscribe again`,
                     );
                     this.#sendNextUpdateImmediately = false;
                     if (
@@ -553,7 +554,7 @@ export class ServerSubscription implements Subscription {
                         // The session is left alone: failing to push reports says nothing about whether the
                         // controller can still reach us, and recovery is its call regardless
                         using _messaging = updating?.join("abandoning");
-                        this.#isCanceledByPeer = true;
+                        this.#isTerminated = true;
                         await this.#closeFromUpdate();
                         break;
                     } else {
@@ -873,8 +874,8 @@ export class ServerSubscription implements Subscription {
             }
         } catch (error) {
             if (StatusResponseError.is(error, Status.InvalidSubscription, Status.Failure)) {
-                logger.notice(`Subscription ${this.idStr} cancelled by peer`);
-                this.#isCanceledByPeer = true;
+                logger.notice(`Subscription ${this.idStr} reported invalid by peer`);
+                this.#isTerminated = true;
             } else {
                 StatusResponseError.accept(error);
                 logger.info(`Subscription ${this.idStr} update failed:`, error);

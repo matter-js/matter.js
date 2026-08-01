@@ -179,9 +179,6 @@ const GROUP_DATA_COUNTER_KEY = "groupDataCounter";
  */
 const GROUP_DATA_COUNTER_RESERVE = 1000;
 
-/**
- * Thrown when communication terminates due node shutdown.
- */
 /** Thrown into a session closed because its peer exceeded {@link MAX_SESSIONS_PER_PEER}. */
 export class SessionEvictedError extends ClosedError {
     constructor(message = "Session evicted; peer holds too many", options?: ErrorOptions) {
@@ -189,6 +186,9 @@ export class SessionEvictedError extends ClosedError {
     }
 }
 
+/**
+ * Thrown when communication terminates due to node shutdown.
+ */
 export class ShutdownError extends ClosedError {
     constructor(message = "Local node shutdown", options?: ErrorOptions) {
         super(message, options);

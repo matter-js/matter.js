@@ -313,7 +313,7 @@ describe("SessionManager", () => {
             const received = new Array<MessageExchange | undefined>();
             session.subscriptions.add({
                 subscriptionId: 1,
-                isCanceledByPeer: false,
+                isTerminated: false,
                 async handlePeerCancel() {},
                 async close(_flushViaSession, exchange) {
                     received.push(exchange);

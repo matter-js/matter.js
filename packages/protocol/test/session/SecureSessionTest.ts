@@ -74,7 +74,7 @@ describe("SecureSession", () => {
 
             session.subscriptions.add({
                 subscriptionId: 1,
-                isCanceledByPeer: false,
+                isTerminated: false,
                 async handlePeerCancel() {},
                 async close(_flushViaSession, exchange) {
                     received.push(exchange);

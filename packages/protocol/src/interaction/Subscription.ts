@@ -17,7 +17,13 @@ export interface Subscription {
     subscriptionId: SubscriptionId;
 
     // TODO - these should reside in a server-specific interface
-    isCanceledByPeer: boolean;
+    /**
+     * Whether the subscription ended for good and the peer must establish a new one.
+     *
+     * True when the peer cancelled and when we gave up delivering reports; false for a subscription torn down with
+     * its session, which may still be re-established.
+     */
+    isTerminated: boolean;
 
     handlePeerCancel(): Promise<void>;
     /**

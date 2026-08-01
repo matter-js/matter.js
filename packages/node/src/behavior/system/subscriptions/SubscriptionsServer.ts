@@ -173,7 +173,7 @@ export class SubscriptionsServer extends Behavior {
     }
 
     #subscriptionCancelled(subscription: Subscription): MaybePromise {
-        if (subscription.isCanceledByPeer && this.state.persistenceEnabled !== false) {
+        if (subscription.isTerminated && this.state.persistenceEnabled !== false) {
             const { subscriptionId: id } = subscription;
             const subscriptionIndex = this.state.subscriptions.findIndex(({ subscriptionId }) => id === subscriptionId);
             if (subscriptionIndex !== -1) {
