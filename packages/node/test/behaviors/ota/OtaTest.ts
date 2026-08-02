@@ -14,7 +14,7 @@ import {
 } from "#behaviors/ota-software-update-requestor";
 import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import { ServerNode } from "#node/ServerNode.js";
-import { Bytes, createPromise, MockFetch, Seconds, Timestamp } from "@matter/general";
+import { Bytes, createPromise, Minutes, MockFetch, Observable, Seconds, Timestamp } from "@matter/general";
 import {
     BdxProtocol,
     BdxSession,
@@ -987,6 +987,314 @@ describe("Ota", () => {
         const queue = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates);
         expect(queue).length(1);
         expect(queue[0].status).equals("queued");
+    }).timeout(10_000);
+
+    it("A running BDX transfer keeps a long download out of the stalled state", async () => {
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({
+            requestUserConsentForUpdate: false,
+            queryImage: false, // announcement is suppressed by the BDX guard, so the device never queries
+        });
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({
+            requestUserConsent: false,
+            announceOtaProvider: false,
+        });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        const peer1 = controller.peers.get("peer1")!;
+        const peerAddress = peer1.state.commissioning.peerAddress!;
+
+        const bdxSession = { peerAddress, transferredBytes: 0, dataLength: 6_000_000 };
+        await otaProvider.act(agent => {
+            const bdxProtocol = agent.get(SoftwareUpdateManager).env.get(BdxProtocol);
+            const originalSessionFor = bdxProtocol.sessionFor.bind(bdxProtocol);
+            bdxProtocol.sessionFor = (peer, scope) =>
+                PeerAddress.is(peer, peerAddress)
+                    ? (bdxSession as unknown as BdxSession)
+                    : originalSessionFor(peer, scope);
+        });
+
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .addUpdateConsent(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion),
+        );
+
+        // Simulate the state the download reaches: announced, image transfer running
+        await otaProvider.act(agent => {
+            agent.get(SoftwareUpdateManager).onOtaStatusChange(peerAddress, OtaUpdateStatus.Downloading);
+        });
+
+        // Well beyond the 15 minute progress timeout, with blocks arriving all the way
+        for (let minutes = 0; minutes < 30; minutes += 5) {
+            bdxSession.transferredBytes += 200_000;
+            await MockTime.advance(Minutes(5));
+        }
+
+        const queue = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates);
+        expect(queue).length(1);
+        expect(queue[0].status).equals("in-progress");
+        expect(queue[0].lastProgressStatus).equals(OtaUpdateStatus.Downloading);
+        expect(queue[0].bdxTransferredBytes).equals(1_200_000);
+        expect(queue[0].bdxDataLength).equals(6_000_000);
+
+        // Blocks that arrive between two queue checks also count for the reported status
+        await otaProvider.act(agent => {
+            const entry = agent.get(SoftwareUpdateManager).internal.updateQueue[0];
+            entry.lastProgressUpdateTime = Timestamp(MockTime.nowMs - Minutes(20));
+        });
+        bdxSession.transferredBytes += 200_000;
+        const polledQueue = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates);
+        expect(polledQueue[0].status).equals("in-progress");
+    }).timeout(10_000);
+
+    it("A retried BDX transfer counts as progress although its byte counter restarts", async () => {
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({
+            requestUserConsentForUpdate: false,
+            queryImage: false,
+        });
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({
+            requestUserConsent: false,
+            announceOtaProvider: false,
+        });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        const peer1 = controller.peers.get("peer1")!;
+        const peerAddress = peer1.state.commissioning.peerAddress!;
+
+        const bdxSession = { peerAddress, transferredBytes: 900_000, dataLength: 6_000_000 };
+        await otaProvider.act(agent => {
+            const bdxProtocol = agent.get(SoftwareUpdateManager).env.get(BdxProtocol);
+            const originalSessionFor = bdxProtocol.sessionFor.bind(bdxProtocol);
+            bdxProtocol.sessionFor = (peer, scope) =>
+                PeerAddress.is(peer, peerAddress)
+                    ? (bdxSession as unknown as BdxSession)
+                    : originalSessionFor(peer, scope);
+        });
+
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .addUpdateConsent(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion),
+        );
+        await otaProvider.act(agent => {
+            agent.get(SoftwareUpdateManager).onOtaStatusChange(peerAddress, OtaUpdateStatus.Downloading);
+        });
+
+        // The first attempt gets far enough for its counter to be recorded
+        await MockTime.advance(Minutes(5));
+
+        // It then fails and the requestor retries on a fresh session, which starts over. No status change reaches the
+        // manager in between — the provider stops listening after the first session of a query cycle.
+        bdxSession.transferredBytes = 0;
+        for (let minutes = 0; minutes < 25; minutes += 5) {
+            bdxSession.transferredBytes += 20_000;
+            await MockTime.advance(Minutes(5));
+        }
+
+        const queue = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates);
+        expect(queue).length(1);
+        expect(queue[0].status).equals("in-progress");
+        expect(queue[0].lastProgressStatus).equals(OtaUpdateStatus.Downloading);
+    }).timeout(10_000);
+
+    it("A running BDX transfer keeps its in-progress entry alive, including a session opened for a retry", async () => {
+        const data = { expectedOtaImage: Bytes.fromHex("") };
+        const { applyUpdatePromise, TestOtaRequestorServer } = InstrumentedOtaRequestorServer(
+            { requestUserConsent: false },
+            data,
+        );
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { otaImage, vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        data.expectedOtaImage = Bytes.of(otaImage.image);
+
+        const peer1 = controller.peers.get("peer1")!;
+        const peerAddress = peer1.state.commissioning.peerAddress!;
+
+        const inProgressDetails = await otaProvider.act(
+            agent => agent.get(OtaSoftwareUpdateProviderServer).internal.inProgressDetails,
+        );
+
+        // Write an aged timestamp from the first block and read it back a few blocks later: the entry carries a
+        // fresh timestamp only if the blocks in between refreshed it.
+        const agedTimestamp = Timestamp(MockTime.nowMs - Minutes(20));
+        let blocks = 0;
+        let timestampWhileTransferring: Timestamp | undefined;
+        await otaProvider.act(agent => {
+            agent
+                .get(SoftwareUpdateManager)
+                .env.get(BdxProtocol)
+                .sessionStarted.on((bdxSession: BdxSession) =>
+                    bdxSession.progressInfo.on(() => {
+                        const details = [...inProgressDetails.values()][0];
+                        if (details === undefined) {
+                            return;
+                        }
+                        blocks++;
+                        if (blocks === 1) {
+                            details.timestamp = agedTimestamp;
+                        } else if (blocks === 3) {
+                            timestampWhileTransferring = details.timestamp;
+                        }
+                    }),
+                );
+        });
+
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .forceUpdate(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion),
+        );
+
+        await MockTime.resolve(applyUpdatePromise);
+
+        expect(blocks).greaterThan(3);
+        expect(timestampWhileTransferring).greaterThan(agedTimestamp);
+
+        // A failed attempt is retried on a fresh session within the same query cycle, so the provider must still be
+        // listening after the first session of that cycle ended
+        const retrySession = {
+            peerAddress,
+            progressInfo: Observable<[bytesTransferred: number, totalBytesLength: number | undefined]>(),
+            progressFinished: Observable<[totalBytesTransferred: number]>(),
+            progressCancelled: Observable(),
+            closed: Observable(),
+        };
+        await otaProvider.act(agent => {
+            const server = agent.get(OtaSoftwareUpdateProviderServer);
+            agent
+                .get(SoftwareUpdateManager)
+                .env.get(BdxProtocol)
+                .sessionStarted.emit(retrySession as unknown as BdxSession, server.updateStorage.scope);
+        });
+
+        const retryDetails = [...inProgressDetails.values()][0];
+        expect(retryDetails?.lastState).equals(OtaUpdateStatus.Downloading);
+
+        retryDetails!.timestamp = agedTimestamp;
+        retrySession.progressInfo.emit(1024, 50_000);
+        expect(retryDetails!.timestamp).greaterThan(agedTimestamp);
+    }).timeout(10_000);
+
+    // Guards against treating the mere existence of a BDX session as progress; a full revert of the activity check
+    // also passes, since the entry then expires on the same tick.
+    it("An open BDX session that never transfers a block does not count as progress", async () => {
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({
+            requestUserConsentForUpdate: false,
+            queryImage: false,
+        });
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({
+            requestUserConsent: false,
+            announceOtaProvider: false,
+        });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        const peer1 = controller.peers.get("peer1")!;
+        const peerAddress = peer1.state.commissioning.peerAddress!;
+
+        // A session whose transfer flow is not negotiated yet reports 0 transferred bytes
+        const bdxSession = { peerAddress, transferredBytes: 0, dataLength: undefined };
+        await otaProvider.act(agent => {
+            const bdxProtocol = agent.get(SoftwareUpdateManager).env.get(BdxProtocol);
+            const originalSessionFor = bdxProtocol.sessionFor.bind(bdxProtocol);
+            bdxProtocol.sessionFor = (peer, scope) =>
+                PeerAddress.is(peer, peerAddress)
+                    ? (bdxSession as unknown as BdxSession)
+                    : originalSessionFor(peer, scope);
+        });
+
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .addUpdateConsent(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion),
+        );
+
+        await otaProvider.act(agent => {
+            agent.get(SoftwareUpdateManager).onOtaStatusChange(peerAddress, OtaUpdateStatus.Downloading);
+        });
+
+        // Just past the first timeout window — an open session must not have bought the entry another one
+        await MockTime.advance(Minutes(22));
+
+        const queue = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates);
+        expect(queue).length(1);
+        expect(queue[0].status).equals("queued");
+        expect(queue[0].lastProgressStatus).equals(OtaUpdateStatus.Unknown);
+    }).timeout(10_000);
+
+    // Characterization test: passes against the unmodified baseline as well. It guards the reset path itself, not
+    // the BDX activity check.
+    it("A BDX transfer that stops moving data is reset for retry", async () => {
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({
+            requestUserConsentForUpdate: false,
+            queryImage: false,
+        });
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({
+            requestUserConsent: false,
+            announceOtaProvider: false,
+        });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        const peer1 = controller.peers.get("peer1")!;
+        const peerAddress = peer1.state.commissioning.peerAddress!;
+
+        const bdxSession = { peerAddress, transferredBytes: 512_000, dataLength: 6_000_000 };
+        await otaProvider.act(agent => {
+            const bdxProtocol = agent.get(SoftwareUpdateManager).env.get(BdxProtocol);
+            const originalSessionFor = bdxProtocol.sessionFor.bind(bdxProtocol);
+            bdxProtocol.sessionFor = (peer, scope) =>
+                PeerAddress.is(peer, peerAddress)
+                    ? (bdxSession as unknown as BdxSession)
+                    : originalSessionFor(peer, scope);
+        });
+
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .addUpdateConsent(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion),
+        );
+
+        await otaProvider.act(agent => {
+            agent.get(SoftwareUpdateManager).onOtaStatusChange(peerAddress, OtaUpdateStatus.Downloading);
+        });
+
+        // The session stays open but no block arrives anymore
+        await MockTime.advance(Minutes(30));
+
+        const queue = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates);
+        expect(queue).length(1);
+        expect(queue[0].status).equals("queued");
+        expect(queue[0].lastProgressStatus).equals(OtaUpdateStatus.Unknown);
     }).timeout(10_000);
 
     it("queryImage Case A: stale in-progress entry with no BDX session → cleared, fresh queryImage proceeds", async () => {
