@@ -9,7 +9,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
-## __WORK IN PROGRESS__
+## 0.17.8 (2026-08-02)
 
 - @matter/general
     - Fix: `isIPv4` no longer misclassifies a link-local IPv6 address as IPv4 when its zone index contains a dot, e.g. a Linux VLAN interface name like `eth0.100`
