@@ -33,7 +33,7 @@
         "@matter/types": "*"
     },
     "optionalDependencies": {
-        "@stoprocent/bleno": "^0.12.5",
+        "@stoprocent/bleno": "^0.13.1",
         "@stoprocent/noble": "^2.5.10"
     },
     "engines": {
