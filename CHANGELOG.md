@@ -19,6 +19,42 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/node
     - Enhancement: `network.profiles` accepts `bdxAdditionalMrpDelay`, and `network.timing` accepts the kick and address-change parameters
 
+## 0.17.8 (2026-08-02)
+
+- @matter/general
+    - Fix: `isIPv4` no longer misclassifies a link-local IPv6 address as IPv4 when its zone index contains a dot, e.g. a Linux VLAN interface name like `eth0.100`
+
+- @matter/node
+    - Fix: Closing a session from the stack of an in-flight subscription report no longer deadlocks the session in its closing state
+    - Fix: A subscription report that goes unanswered abandons the subscription instead of declaring the controller lost and closing every session with it
+    - Fix: Subscriptions now give up after repeated send failures; the check never matched the error MRP exhaustion raises
+    - Fix: Re-establishing former subscriptions stops for a peer that is unreachable instead of spending a full retransmission window on each of its subscriptions
+    - Fix: The exchange opened to re-establish a former subscription is now closed
+
+- @matter/nodejs-ble
+    - Enhancement: BLE disconnect logs now include the noble disconnect reason with its HCI status text
+
+- @matter/node
+    - Enhancement: `SoftwareUpdateManager.queuedUpdates` reports transferred bytes and transfer size of a running BDX transfer
+    - Fix: OTA updates are no longer reset as stalled while their BDX transfer is still moving data
+    - Fix: The in-progress entry of an OTA download is no longer dropped while its BDX transfer is still running
+    - Fix: A BDX session opened for a retry within the same query cycle is tracked like the first one
+
+- @matter/protocol
+    - Enhancement: `BdxSession` exposes `transferredBytes` and `dataLength`
+
+- @matter/nodejs-shell
+    - Fix: `nodes ota check|download|apply` and `ota download` now default to a `--mode auto` that follows the `config ota-test-images` setting instead of always querying the production DCL only
+    - Fix: `config ota-test-images set` applies immediately instead of requiring a shell restart
+    - Fix: `ota add` accepts `http(s)` URLs instead of rejecting them before its download path was reached
+
+- @matter/protocol
+    - Enhancement: `Subscription.isCanceledByPeer` is now `isTerminated`, covering both a peer cancellation and our own giving up
+    - Enhancement: `MessageExchange.Options.suppressPeerLoss` waives peer-loss inference for every operation on an exchange
+    - Fix: Peer loss reported for a commissioned peer now conveys the exchange that failed
+    - Fix: A session nearing message counter rollover now winds down as its own task instead of on the stack of the send that consumed the counter
+    - Fix: A peer that keeps establishing sessions no longer accumulates them without bound; the least recently used beyond five are closed
+
 ## 0.17.7 (2026-07-27)
 
 - @matter/general

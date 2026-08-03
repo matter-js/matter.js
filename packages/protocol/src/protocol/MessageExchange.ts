@@ -103,7 +103,7 @@ export interface ExchangeSendOptions {
     /** Initial MRP retransmission time (default: calculated as by Matter specification) */
     initialRetransmissionTime?: Duration;
 
-    /** Suppress peer-loss reporting on send-failure so the session stays alive. Used by probing. */
+    /** Suppress peer-loss reporting for this send.  OR'd with {@link MessageExchange.Options.suppressPeerLoss}. */
     suppressPeerLoss?: boolean;
 }
 
@@ -119,7 +119,7 @@ export interface ExchangeReceiveOptions {
      */
     expectedProcessingTime?: Duration;
 
-    /** Suppress peer-loss reporting on receive failure so the session stays alive for further probing. */
+    /** Suppress peer-loss reporting for this receive.  OR'd with {@link MessageExchange.Options.suppressPeerLoss}. */
     suppressPeerLoss?: boolean;
 }
 
@@ -203,6 +203,7 @@ export class MessageExchange {
     #onReceive?: MessageExchange.ReceiveNotifier;
     readonly #addressOverride?: ServerAddressUdp;
     readonly #peerAdditionalMrpDelay?: Duration;
+    readonly #suppressPeerLoss: boolean;
     #receivedMessageToAck: Message | undefined;
     #receivedMessageAckTimer = Time.getTimer("ack receipt timeout", MRP.STANDALONE_ACK_TIMEOUT, () => {
         if (this.#receivedMessageToAck !== undefined) {
@@ -256,6 +257,7 @@ export class MessageExchange {
             network,
             peerAdditionalMrpDelay,
             addressOverride,
+            suppressPeerLoss = false,
         } = config;
 
         this.#context = context;
@@ -269,6 +271,7 @@ export class MessageExchange {
         this.#onReceive = onReceive;
         this.#addressOverride = addressOverride;
         this.#peerAdditionalMrpDelay = peerAdditionalMrpDelay;
+        this.#suppressPeerLoss = suppressPeerLoss;
 
         const { activeThreshold, activeInterval, idleInterval } = this.session.parameters;
 
@@ -499,12 +502,8 @@ export class MessageExchange {
         try {
             await this.#send(messageType, payload);
         } catch (e) {
-            // Only declare the peer as lost when this exchange has never received a response.  If we already
-            // exchanged messages, the peer was reachable, and the later send-failure may be transient — declaring
-            // peer loss would unnecessarily close sessions and tear down subscriptions.
             if (
-                !options.suppressPeerLoss &&
-                this.#messageReceivedCounter === 0 &&
+                this.#reportsPeerLoss(options.suppressPeerLoss) &&
                 causedBy(e, TransientPeerCommunicationError, TimeoutError, NetworkError)
             ) {
                 await this.#context.peerLost(this, asError(e));
@@ -512,6 +511,14 @@ export class MessageExchange {
 
             throw e;
         }
+    }
+
+    /**
+     * Whether a failure here is evidence the peer is gone.  Only if we never heard from it on this exchange: one that
+     * answered earlier was reachable, and peer loss closes every session with it.
+     */
+    #reportsPeerLoss(suppressedForOperation?: boolean) {
+        return !this.#suppressPeerLoss && suppressedForOperation !== true && this.#messageReceivedCounter === 0;
     }
 
     async #send(messageType: number, payload: Bytes, standaloneAckMessageId?: number) {
@@ -704,14 +711,7 @@ export class MessageExchange {
         try {
             return await this.#nextMessage(options);
         } catch (e) {
-            // Only declare the peer as lost when this exchange has never received a message.  Receiving at least
-            // one message confirms the peer was reachable; a later timeout waiting for the next message in a
-            // multi-message exchange should not be treated as permanent peer absence.
-            if (
-                !options?.suppressPeerLoss &&
-                this.#messageReceivedCounter === 0 &&
-                causedBy(e, TransientPeerCommunicationError)
-            ) {
+            if (this.#reportsPeerLoss(options?.suppressPeerLoss) && causedBy(e, TransientPeerCommunicationError)) {
                 await this.#context.peerLost(this, asError(e));
             }
 
@@ -1126,6 +1126,9 @@ export namespace MessageExchange {
          * instead of the session's default peer address.
          */
         addressOverride?: ServerAddressUdp;
+
+        /** Waive peer-loss inference here.  Required for exchanges to a peer that drives its own recovery. */
+        suppressPeerLoss?: boolean;
     }
 
     export interface Config extends Options {
