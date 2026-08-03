@@ -60,6 +60,7 @@ function fakeInboundMessage(overrides?: {
     messageType?: number;
     payload?: Bytes;
     ackedMessageId?: number;
+    requiresAck?: boolean;
 }): Message {
     return {
         packetHeader: { messageId: overrides?.messageId ?? 1 },
@@ -68,7 +69,7 @@ function fakeInboundMessage(overrides?: {
             messageType: overrides?.messageType ?? 1,
             exchangeId: 1,
             isInitiatorMessage: false,
-            requiresAck: false,
+            requiresAck: overrides?.requiresAck ?? false,
             ackedMessageId: overrides?.ackedMessageId,
         },
         payload: overrides?.payload ?? Bytes.empty,
@@ -142,7 +143,7 @@ describe("MessageExchange", () => {
             };
             const { exchange } = createExchange(session);
 
-            const sendPromise = exchange.send(1, Bytes.empty, { requiresAck: true });
+            const sendPromise = exchange.send(1, Bytes.empty);
             // Let the send progress past the async message counter into the await-ack state
             for (let i = 0; i < 10 && !exchange.hasUnackedMessage; i++) {
                 await MockTime.yield3();
@@ -154,6 +155,340 @@ describe("MessageExchange", () => {
             await sendPromise;
 
             expect(exchange.hasUnackedMessage).to.be.false;
+        });
+    });
+
+    describe("liveness kick on duplicate", () => {
+        before(() => {
+            MockTime.enable();
+            MockTime.forceMacrotasks = true;
+        });
+        after(() => {
+            MockTime.forceMacrotasks = false;
+        });
+
+        // Both intervals are 7s so the base is 7s whether or not the peer counts as active, which puts the raw backoff
+        // (7.7s at minimum) above the BDX cap — so the armed interval is exactly the 7.4s cap, and the margins below are
+        // deterministic rather than jitter-dependent.
+        const SLOW_PEER = { activeInterval: Seconds(7), idleInterval: Seconds(7), activeThreshold: Millis(200) };
+
+        /**
+         * Drives an exchange into the await-ack state, then delivers a duplicate of the message our pending send
+         * answered.  Reports what reached the wire afterwards.
+         */
+        async function sendThenDuplicate(options: {
+            protocolId?: number;
+            /** Time to let elapse between our send and the duplicate. */
+            gap: Duration;
+            sessionParameters?: Partial<SessionParameters>;
+            /** Deliver a duplicate of some other message instead of the one our send answered. */
+            unrelatedDuplicate?: boolean;
+            /** Consume retransmissions until only this many attempts remain before the budget is spent. */
+            drainToRemainingAttempts?: number;
+        }) {
+            const protocolId = options.protocolId ?? BDX_PROTOCOL_ID;
+            const channel = new ProtocolMocks.NetworkChannel({ index: 1 });
+            channel.isReliable = false; // engage MRP so the send awaits an ack
+            const session = new ProtocolMocks.NodeSession({
+                channel,
+                sessionParameters: options.sessionParameters ?? SLOW_PEER,
+            });
+
+            const payloadSends = new Array<number>();
+            let standaloneAcks = 0;
+            (session.channel as any).send = async (message: Message): Promise<void> => {
+                const { protocolId: sentProtocol, messageType } = message.payloadHeader;
+                if (SecureMessageType.isStandaloneAck(sentProtocol, messageType)) {
+                    standaloneAcks++;
+                } else {
+                    payloadSends.push(message.packetHeader.messageId);
+                }
+            };
+
+            const { exchange } = createExchange(session, protocolId);
+
+            // The peer message our send answers, so the pending message carries its id as ackedMessageId
+            const query = fakeInboundMessage({ messageId: 10, protocolId, requiresAck: true });
+            await exchange.onMessageReceived(query);
+
+            const sendPromise = exchange.send(1, Bytes.empty);
+            // Pump until the send has landed and armed its retransmission timer, not merely registered the pending ack
+            for (let i = 0; i < 20; i++) {
+                await MockTime.yield3();
+            }
+            expect(exchange.hasUnackedMessage).to.be.true;
+
+            if (options.drainToRemainingAttempts !== undefined) {
+                const target = MRP.MAX_TRANSMISSIONS - options.drainToRemainingAttempts;
+                for (let i = 0; i < 200 && exchange.retransmissionCount < target; i++) {
+                    await MockTime.advance(Seconds(8));
+                    await MockTime.yield3();
+                }
+                expect(exchange.retransmissionCount).equals(target);
+            }
+
+            const sendsBefore = payloadSends.length;
+            const acksBefore = standaloneAcks;
+
+            await MockTime.advance(options.gap);
+            await MockTime.yield3();
+
+            const duplicated = options.unrelatedDuplicate
+                ? fakeInboundMessage({ messageId: 99, protocolId, requiresAck: true })
+                : query;
+            await exchange.onMessageReceived(duplicated, true);
+            await MockTime.yield3();
+
+            const result = {
+                retransmissions: payloadSends.length - sendsBefore,
+                standaloneAcks: standaloneAcks - acksBefore,
+            };
+
+            // Ack so the send settles rather than dangling on the retransmission loop
+            await exchange.onMessageReceived(
+                fakeInboundMessage({ messageId: 11, protocolId, ackedMessageId: payloadSends[0] }),
+            );
+            // A drained exchange rejects with peer-unresponsive; either outcome is fine, we only need it settled
+            await Promise.allSettled([sendPromise]);
+
+            return result;
+        }
+
+        it("retransmits a BDX message when the peer re-asks for what it answers", async () => {
+            const { retransmissions } = await sendThenDuplicate({ gap: Millis(7100) });
+            expect(retransmissions).equals(1);
+        });
+
+        it("lets the retransmission carry the ack instead of sending a standalone one", async () => {
+            const { standaloneAcks } = await sendThenDuplicate({ gap: Millis(7100) });
+            expect(standaloneAcks).equals(0);
+        });
+
+        it("does not retransmit before the schedule's own cadence has elapsed", async () => {
+            const { retransmissions, standaloneAcks } = await sendThenDuplicate({ gap: Millis(6500) });
+            expect(retransmissions).equals(0);
+            expect(standaloneAcks).equals(1);
+        });
+
+        it("does not retransmit when the peer can stay awake for the remaining wait", async () => {
+            // A threshold above the wait the kick would cut means honouring the schedule costs nothing
+            const { retransmissions, standaloneAcks } = await sendThenDuplicate({
+                gap: Millis(7100),
+                sessionParameters: { ...SLOW_PEER, activeThreshold: Millis(500) },
+            });
+            expect(retransmissions).equals(0);
+            expect(standaloneAcks).equals(1);
+        });
+
+        it("acks rather than retransmitting once the retransmission budget is down to its last attempt", async () => {
+            const { retransmissions, standaloneAcks } = await sendThenDuplicate({
+                gap: Millis(7100),
+                drainToRemainingAttempts: 1,
+            });
+            expect(retransmissions).equals(0);
+            expect(standaloneAcks).equals(1);
+        });
+
+        it("does not retransmit for a non-BDX protocol", async () => {
+            const { retransmissions, standaloneAcks } = await sendThenDuplicate({
+                protocolId: SECURE_CHANNEL_PROTOCOL_ID,
+                gap: Millis(7100),
+            });
+            expect(retransmissions).equals(0);
+            expect(standaloneAcks).equals(1);
+        });
+
+        it("does not retransmit for a duplicate of an unrelated message", async () => {
+            const { retransmissions, standaloneAcks } = await sendThenDuplicate({
+                gap: Millis(7100),
+                unrelatedDuplicate: true,
+            });
+            expect(retransmissions).equals(0);
+            expect(standaloneAcks).equals(1);
+        });
+    });
+
+    describe("retransmission timers do not outlive their message", () => {
+        before(() => {
+            MockTime.enable();
+            MockTime.forceMacrotasks = true;
+        });
+        after(() => {
+            MockTime.forceMacrotasks = false;
+        });
+
+        it("stops retransmitting when the ack arrives while a transmission is in flight", async () => {
+            const channel = new ProtocolMocks.NetworkChannel({ index: 1 });
+            channel.isReliable = false;
+            const session = new ProtocolMocks.NodeSession({
+                channel,
+                sessionParameters: {
+                    activeInterval: Seconds(1),
+                    idleInterval: Seconds(1),
+                    activeThreshold: Seconds(4),
+                },
+            });
+
+            const payloadSends = new Array<number>();
+            let releaseSend: (() => void) | undefined;
+            (session.channel as any).send = async (message: Message): Promise<void> => {
+                const { protocolId, messageType } = message.payloadHeader;
+                if (SecureMessageType.isStandaloneAck(protocolId, messageType)) {
+                    return;
+                }
+                payloadSends.push(message.packetHeader.messageId);
+                // Hold the second transmission open so the ack lands while it is still in flight
+                if (payloadSends.length === 2) {
+                    await new Promise<void>(resolve => (releaseSend = resolve));
+                }
+            };
+
+            const { exchange } = createExchange(session);
+            const sendPromise = exchange.send(1, Bytes.empty);
+            for (let i = 0; i < 20; i++) {
+                await MockTime.yield3();
+            }
+
+            // Let the first retransmission start and block
+            for (let i = 0; i < 20 && releaseSend === undefined; i++) {
+                await MockTime.advance(Seconds(1));
+                await MockTime.yield3();
+            }
+            expect(payloadSends.length).equals(2);
+
+            // Ack while that transmission is still in flight, then let it complete
+            await exchange.onMessageReceived(fakeInboundMessage({ messageId: 11, ackedMessageId: payloadSends[0] }));
+            expect(exchange.hasUnackedMessage).to.be.false;
+            releaseSend?.();
+            await Promise.allSettled([sendPromise]);
+
+            // Nothing is pending any more, so no timer may resurrect the message
+            for (let i = 0; i < 10; i++) {
+                await MockTime.advance(Seconds(60));
+                await MockTime.yield3();
+            }
+            expect(payloadSends.length).equals(2);
+        });
+    });
+
+    describe("BDX retransmission interval cap", () => {
+        before(() => {
+            MockTime.enable();
+            MockTime.forceMacrotasks = true;
+        });
+        after(() => {
+            MockTime.forceMacrotasks = false;
+        });
+
+        /** Counts retransmissions of one ack-requiring message within `window`. */
+        async function retransmissionsWithin(options: {
+            protocolId: number;
+            window: Duration;
+            localAdditionalMrpDelay: Duration;
+            sessionParameters: Partial<SessionParameters>;
+        }) {
+            const channel = new ProtocolMocks.NetworkChannel({ index: 1 });
+            channel.isReliable = false;
+            const session = new ProtocolMocks.NodeSession({
+                channel,
+                sessionParameters: options.sessionParameters,
+            });
+
+            let payloadSends = 0;
+            let sentMessageId: number | undefined;
+            (session.channel as any).send = async (message: Message): Promise<void> => {
+                const { protocolId, messageType } = message.payloadHeader;
+                if (!SecureMessageType.isStandaloneAck(protocolId, messageType)) {
+                    payloadSends++;
+                    sentMessageId ??= message.packetHeader.messageId;
+                }
+            };
+
+            const exchange = MessageExchange.initiate(
+                {
+                    session,
+                    localSessionParameters: SessionParameters(SessionParameters.defaults),
+                    localAdditionalMrpDelay: options.localAdditionalMrpDelay,
+                    localFixedMrpBackoff: Millis(0),
+                    async peerLost() {},
+                    retry() {},
+                },
+                1,
+                options.protocolId,
+            );
+
+            const sendPromise = exchange.send(1, Bytes.empty);
+            for (let i = 0; i < 20; i++) {
+                await MockTime.yield3();
+            }
+            expect(payloadSends).equals(1);
+
+            for (let elapsed = 0; elapsed < options.window; elapsed += 500) {
+                await MockTime.advance(Millis(500));
+                await MockTime.yield3();
+            }
+            const retransmissions = payloadSends - 1;
+
+            // Ack so the send settles rather than dangling on the retransmission loop
+            await exchange.onMessageReceived(
+                fakeInboundMessage({ messageId: 11, protocolId: options.protocolId, ackedMessageId: sentMessageId }),
+            );
+            await Promise.allSettled([sendPromise]);
+
+            return retransmissions;
+        }
+
+        // A margin far beyond the cap, so an uncapped schedule cannot retransmit inside the window
+        const PADDED = { localAdditionalMrpDelay: Seconds(20) };
+        const FAST_PEER = { activeInterval: Millis(300), idleInterval: Millis(500), activeThreshold: Seconds(4) };
+
+        it("retransmits a BDX message within the peer's response budget", async () => {
+            // 30s budget / 4 retransmissions, less a margin for the last attempt to arrive = 7.4s per interval
+            expect(
+                await retransmissionsWithin({
+                    protocolId: BDX_PROTOCOL_ID,
+                    window: Seconds(8),
+                    sessionParameters: FAST_PEER,
+                    ...PADDED,
+                }),
+            ).equals(1);
+        });
+
+        it("leaves a non-BDX schedule uncapped", async () => {
+            expect(
+                await retransmissionsWithin({
+                    protocolId: SECURE_CHANNEL_PROTOCOL_ID,
+                    window: Seconds(8),
+                    sessionParameters: FAST_PEER,
+                    ...PADDED,
+                }),
+            ).equals(0);
+        });
+
+        it("caps a slow peer's idle cadence too, since a peer mid-transfer is not idle", async () => {
+            // An idle threshold of 0 keeps the peer nominally idle, so the schedule would otherwise use its 20s idle
+            // interval
+            const SLEEPY = { activeInterval: Millis(300), idleInterval: Seconds(20), activeThreshold: Millis(0) };
+            expect(
+                await retransmissionsWithin({
+                    protocolId: BDX_PROTOCOL_ID,
+                    window: Seconds(8),
+                    sessionParameters: SLEEPY,
+                    localAdditionalMrpDelay: Millis(0),
+                }),
+            ).equals(1);
+        });
+
+        it("leaves a non-BDX slow peer on its idle cadence", async () => {
+            const SLEEPY = { activeInterval: Millis(300), idleInterval: Seconds(20), activeThreshold: Millis(0) };
+            expect(
+                await retransmissionsWithin({
+                    protocolId: SECURE_CHANNEL_PROTOCOL_ID,
+                    window: Seconds(8),
+                    sessionParameters: SLEEPY,
+                    localAdditionalMrpDelay: Millis(0),
+                }),
+            ).equals(0);
         });
     });
 
@@ -177,7 +512,7 @@ describe("MessageExchange", () => {
             const before = exchange.lastActive;
 
             await MockTime.advance(2000);
-            await exchange.send(0, Bytes.empty, { requiresAck: false, disableMrpLogic: true });
+            await exchange.send(0, Bytes.empty, { suppressAck: true, disableMrpLogic: true });
 
             expect(exchange.lastActive).to.equal(before + 2000);
         });
@@ -232,7 +567,7 @@ describe("MessageExchange", () => {
             await exchange.send(
                 SecureMessageType.StatusReport,
                 new Uint8Array([0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00]),
-                { requiresAck: false, disableMrpLogic: true },
+                { suppressAck: true, disableMrpLogic: true },
             );
 
             expect(sentMessages.length).equals(1);
@@ -250,7 +585,7 @@ describe("MessageExchange", () => {
 
             // Use a BDX BlockQuery (opcode 0x10, shares value with StandaloneAck) to also guard
             // against accidentally treating it as a standalone-ack-style cross-protocol message.
-            await exchange.send(0x10, new Uint8Array([0x00]), { requiresAck: false, disableMrpLogic: true });
+            await exchange.send(0x10, new Uint8Array([0x00]), { suppressAck: true, disableMrpLogic: true });
 
             expect(sentMessages.length).equals(1);
             expect(sentMessages[0].payloadHeader.protocolId).equals(BDX_PROTOCOL_ID);
@@ -319,7 +654,7 @@ describe("MessageExchange", () => {
                 ? MessageExchange.fromInitialMessage(context, fakeInboundMessage({ protocolId }), exchangeOptions)
                 : MessageExchange.initiate(context, 1, protocolId, exchangeOptions);
 
-            await expect(exchange.send(1, Bytes.empty, { requiresAck: true })).to.be.rejectedWith("captured");
+            await expect(exchange.send(1, Bytes.empty)).to.be.rejectedWith("captured");
             return captured;
         }
 
