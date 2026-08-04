@@ -193,7 +193,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
 
             // We allow attribute/field name or id as key.  If name is present id is ignored
             const pk = this[Internal.reference].primaryKey;
-            let key = pk === "id" ? (id ?? name) : name;
+            let key = ManagedReference.keyFor(this[Internal.reference], name, id);
             let storedKey: undefined | number | string;
             if (key in this[Internal.reference].value) {
                 storedKey = key;
@@ -295,7 +295,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                     }
                 }
 
-                const key = this[Internal.reference].primaryKey === "id" ? (id ?? name) : name;
+                const key = ManagedReference.keyFor(this[Internal.reference], name, id);
                 if (key in struct) {
                     return struct[key];
                 }
@@ -337,9 +337,8 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
             let value;
 
             // Obtain the value.  Normally just struct[key] except in the case of Val.Dynamic
-            const pk = this[Internal.reference].primaryKey;
             const struct = this[Internal.reference].value;
-            const key = pk === "id" ? (id ?? name) : name;
+            const key = ManagedReference.keyFor(this[Internal.reference], name, id);
             if ((struct as Val.Dynamic)[Val.properties]) {
                 const properties = (struct as Val.Dynamic)[Val.properties](
                     this[Internal.reference].rootOwner,
@@ -350,15 +349,8 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 } else {
                     value = struct[name];
                 }
-            } else {
-                if (key in struct) {
-                    value = struct[key];
-                } else {
-                    const key2 = pk === "id" ? id : name;
-                    if (key2 !== undefined && key2 in struct) {
-                        value = struct[key2];
-                    }
-                }
+            } else if (key in struct) {
+                value = struct[key];
             }
 
             // Note that we only mask values that are unreadable.  This is appropriate when the parent object is

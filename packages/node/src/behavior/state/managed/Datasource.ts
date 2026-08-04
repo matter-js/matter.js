@@ -591,7 +591,7 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
  * both {@link ValReference} for managed access and {@link Transaction.Participant} for transactional commit/rollback.
  */
 class RootReference implements ValReference<Val.Struct>, Transaction.Participant {
-    primaryKey;
+    readonly primaryKey;
     subrefs?: Record<number | string, ValReference>;
     owner?: Val.Struct;
     supervisionConfig?: Supervision.Config;

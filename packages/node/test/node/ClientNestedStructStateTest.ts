@@ -7,22 +7,25 @@
 import { CommodityTariffClient, CommodityTariffServer } from "#behaviors/commodity-tariff";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { ServerNode } from "#node/ServerNode.js";
+import { CommodityTariff } from "@matter/types/clusters/commodity-tariff";
 import { MockSite } from "./mock-site.js";
 import { subscribedPeer } from "./node-helpers.js";
+
+const EUR = 978;
 
 const TARIFF_INFO = {
     tariffLabel: "Off-peak / peak",
     providerName: "Utility",
-    currency: { currency: 978, decimalPoints: 4 },
-    blockMode: 0,
+    currency: { currency: EUR, decimalPoints: 4 },
+    blockMode: CommodityTariff.BlockMode.NoBlock,
 };
 
-describe("client state for nested structs", () => {
+describe("Client State for Nested Structs", () => {
     before(() => {
         MockTime.init();
     });
 
-    it("retains a struct-valued field of a struct attribute", async () => {
+    it("reads a struct-valued field of a struct attribute", async () => {
         const TariffWithCurrency = CommodityTariffServer.with("Pricing").set({ tariffInfo: TARIFF_INFO });
 
         await using site = new MockSite();

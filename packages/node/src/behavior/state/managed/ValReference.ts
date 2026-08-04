@@ -54,9 +54,9 @@ export interface ValReference<T extends Val = Val> {
 
     /**
      * How this container keys its own members.  Only a datasource root may key by element ID; every nested container
-     * keys by property name, and list entries by index.
+     * keys by property name (list entries, by index).
      */
-    primaryKey: "id" | "name";
+    readonly primaryKey: "id" | "name";
 
     /**
      * The managed value that owns the reference.

@@ -13,7 +13,7 @@ import { ClusterModel, DataModelPath, FeatureMap, FeatureSet, FieldElement } fro
 import { ConstraintError, Val } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, NodeId } from "@matter/types";
 import { MockExchange } from "../../../../node/mock-exchange.js";
-import { aclEndpoint, fieldOf, TestStruct } from "./value-utils.js";
+import { aclEndpoint, TestStruct } from "./value-utils.js";
 
 export type Nested = {
     substruct: {
@@ -194,9 +194,8 @@ describe("StructManager", () => {
     });
 
     describe("id-keyed references", () => {
-        const INITIAL = { prim: "hi", nested: { foo: "bar" }, list: ["one"] };
+        const initialValue = () => ({ prim: "hi", nested: { foo: "bar" }, list: ["one"] });
 
-        // The "0" slot is the attribute ID a client mirror stores its values under; the value itself is name-keyed
         function testIdKeyed(
             actor: (vars: {
                 struct: TestStruct;
@@ -211,21 +210,22 @@ describe("StructManager", () => {
                         id: 0,
                         type: "struct",
                         children: [
-                            fieldOf("prim", { id: 0, type: "string" }),
-                            fieldOf("nested", {
+                            FieldElement({ name: "prim", id: 0, type: "string" }),
+                            FieldElement({
+                                name: "nested",
                                 id: 1,
                                 type: "struct",
                                 children: [FieldElement({ name: "foo", id: 0, type: "string" })],
                             }),
-                            fieldOf("list", {
-                                id: 2,
-                                type: "list",
-                                children: [FieldElement({ name: "entry", type: "string" })],
-                            }),
+                            FieldElement(
+                                { name: "list", id: 2, type: "list" },
+                                FieldElement({ name: "entry", type: "string" }),
+                            ),
                         ],
                     },
                 },
-                { 0: INITIAL },
+                // The "0" slot is the attribute ID a client mirror stores values under; the value itself is name-keyed
+                { 0: initialValue() },
                 "id",
             );
 
@@ -257,16 +257,39 @@ describe("StructManager", () => {
             await testIdKeyed(async ({ struct, cx, substruct }) => {
                 substruct.prim = "changed";
                 (substruct.nested as Val.Struct).foo = "changed too";
+                (substruct.list as Val.List)[0] = "two";
 
                 await cx.transaction.commit();
 
                 expect(struct.notifies).deep.equals([
                     {
                         index: "substruct",
-                        oldValue: INITIAL,
-                        newValue: { prim: "changed", nested: { foo: "changed too" }, list: ["one"] },
+                        oldValue: initialValue(),
+                        newValue: { prim: "changed", nested: { foo: "changed too" }, list: ["two"] },
                     },
                 ]);
+            });
+        });
+
+        // Characterization: a value present only under its property name resolves for a primitive member but not for a
+        // struct or list member, which read as absent.  Documents current behavior, not a desired asymmetry
+        it("resolves only primitive members of a value stored under property names", async () => {
+            const struct = TestStruct(
+                {
+                    prim: { id: 0, type: "string" },
+                    sub: {
+                        id: 1,
+                        type: "struct",
+                        children: [FieldElement({ name: "foo", id: 0, type: "string" })],
+                    },
+                },
+                { prim: "hi", sub: { foo: "bar" } },
+                "id",
+            );
+
+            await struct.online(TestContext(), ref => {
+                expect(ref.prim).equals("hi");
+                expect(ref.sub).undefined;
             });
         });
     });
