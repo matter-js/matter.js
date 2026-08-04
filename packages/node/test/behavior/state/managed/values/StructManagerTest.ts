@@ -9,7 +9,7 @@ import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { MaybePromise, MockCrypto } from "@matter/general";
-import { ClusterModel, DataModelPath, FeatureMap, FeatureSet, FieldElement } from "@matter/model";
+import { ClusterModel, DataModelPath, FeatureMap, FeatureSet, FieldElement, FieldModel } from "@matter/model";
 import { ConstraintError, Val } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, NodeId } from "@matter/types";
 import { MockExchange } from "../../../../node/mock-exchange.js";
@@ -65,6 +65,15 @@ const SchrödingersCat = new ClusterModel({
         { tag: "field", name: "Alive", type: "bool", constraint: "false", conformance: "[!LF]" },
     ],
 });
+
+/**
+ * A state class that supplies properties dynamically, as several server cluster implementations do.
+ */
+class DynamicState {
+    [Val.properties]() {
+        return {};
+    }
+}
 
 class SchrödingersCatsState {
     alive?: boolean;
@@ -290,6 +299,34 @@ describe("StructManager", () => {
             await struct.online(TestContext(), ref => {
                 expect(ref.prim).equals("hi");
                 expect(ref.sub).undefined;
+            });
+        });
+
+        it("reads members of a state class that supplies dynamic properties", async () => {
+            const datasource = Datasource({
+                entropy: MockCrypto(),
+                type: DynamicState,
+                supervisor: RootSupervisor.for(
+                    new FieldModel(
+                        FieldElement(
+                            { name: "Struct", type: "struct" },
+                            FieldElement({ name: "prim", id: 0, type: "string" }),
+                            FieldElement(
+                                { name: "sub", id: 1, type: "struct" },
+                                FieldElement({ name: "foo", id: 0, type: "string" }),
+                            ),
+                        ),
+                    ),
+                ),
+                location: { endpoint: EndpointNumber(1), path: new DataModelPath("DynamicState") },
+                primaryKey: "id",
+                store: { initialValues: { 0: "hi", 1: { foo: "bar" } }, set: async () => {} },
+            });
+
+            await LocalActorContext.act("test", cx => {
+                const state = datasource.reference(cx) as unknown as Val.Struct;
+                expect(state.prim).equals("hi");
+                expect(state.sub).deep.equals({ foo: "bar" });
             });
         });
     });

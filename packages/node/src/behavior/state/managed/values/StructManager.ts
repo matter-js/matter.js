@@ -347,7 +347,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 if (name in properties) {
                     value = properties[name];
                 } else {
-                    value = struct[name];
+                    value = struct[key];
                 }
             } else if (key in struct) {
                 value = struct[key];
