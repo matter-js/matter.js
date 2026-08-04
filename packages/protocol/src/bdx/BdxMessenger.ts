@@ -224,7 +224,7 @@ export class BdxMessenger {
     }
 
     /** Encodes and sends a Bdx StatusReport message with the given general and protocol status. */
-    async #sendStatusReport(generalStatus: GeneralStatusCode, protocolStatus: BdxStatusCode, requiresAck?: boolean) {
+    async #sendStatusReport(generalStatus: GeneralStatusCode, protocolStatus: BdxStatusCode) {
         await this.#exchange.send(
             SecureMessageType.StatusReport,
             BdxStatusMessage.encode({
@@ -232,7 +232,6 @@ export class BdxMessenger {
                 protocolStatus,
             }),
             {
-                requiresAck,
                 logContext: {
                     generalStatus: GeneralStatusCode[generalStatus] ?? Diagnostic.hex(generalStatus),
                     protocolStatus: BdxStatusCode[protocolStatus] ?? Diagnostic.hex(protocolStatus),

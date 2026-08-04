@@ -55,6 +55,7 @@ export abstract class Session {
     activeTimestamp: Timestamp = 0;
     abstract type: SessionType;
 
+    #peerAdditionalMrpDelay?: () => Duration | undefined;
     #closing = ObservableValue();
     #gracefulClose = AsyncObservable<[]>();
     readonly #exchanges = new Set<MessageExchange>();
@@ -197,6 +198,23 @@ export abstract class Session {
             supportedTransports,
             maxTcpMessageSize,
         };
+    }
+
+    /**
+     * Additive MRP retransmission margin for the peer's network medium, or undefined if the medium is unknown.
+     *
+     * Applies to every exchange on the session, including those the peer initiates.
+     */
+    get peerAdditionalMrpDelay(): Duration | undefined {
+        return this.#peerAdditionalMrpDelay?.();
+    }
+
+    /**
+     * Installs the resolver for {@link peerAdditionalMrpDelay}.  A resolver rather than a value because the peer's
+     * medium often becomes known (or changes, e.g. a new thread channel) only after the session exists.
+     */
+    set peerAdditionalMrpDelayResolver(resolver: () => Duration | undefined) {
+        this.#peerAdditionalMrpDelay = resolver;
     }
 
     /**

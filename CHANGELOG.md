@@ -9,6 +9,18 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+- @matter/protocol
+    - Enhancement: A BDX exchange retransmits its pending message early when a duplicate proves the peer is awake and still waiting for it
+    - Fix: The peer's medium-specific MRP retransmission margin now applies to peer-initiated exchanges (e.g. subscription data reports) and to exchanges created without peer context
+    - Fix: BDX retransmission intervals are capped so the whole MRP schedule fits inside the peer's BDX response budget, which acknowledgements do not extend; the peer's idle cadence does not raise the cap, since a peer holding an open exchange is in active mode
+    - Fix: A retransmission timer is no longer armed for a message that was acknowledged while an earlier transmission of it was still in flight, which left the timer running unreferenced
+    - Fix: Grouped `PeerTimingParameters` (`kickRestartCooldown`, `addressChangeProbeCooldown`) merge field-wise, so overriding one member keeps its siblings
+
+- @matter/node
+    - Enhancement: `network.timing` accepts the kick and address-change parameters
+
 ## 0.17.8 (2026-08-02)
 
 - @matter/general
