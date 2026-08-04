@@ -37,7 +37,14 @@ class CapturingStore implements Datasource.Store {
     }
 
     async set(_transaction: Transaction, values: Val.Struct) {
-        this.written = { ...this.written, ...values };
+        this.written ??= {};
+        for (const [key, value] of Object.entries(values)) {
+            if (value === undefined) {
+                delete this.written[key];
+            } else {
+                this.written[key] = value;
+            }
+        }
     }
 }
 
