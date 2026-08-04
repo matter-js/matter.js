@@ -329,7 +329,6 @@ export class NodeSession extends SecureSession {
     override addExchange(exchange: MessageExchange) {
         super.addExchange(exchange);
         exchange.closed.on(async () => {
-            this.exchanges.delete(exchange);
             if (this.deferredClose && !this.hasActiveExchanges) {
                 this.deferredClose = false;
                 await this.close();

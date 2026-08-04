@@ -193,6 +193,26 @@ export class ExchangeManager implements Transport.Provider {
     async #onMessage(channel: Channel<Bytes>, messageBytes: Bytes) {
         using _lifetime = this.#lifetime.join("receiving from", Diagnostic.strong(channel.name));
 
+        // An unsecured session created for an inbound message must not outlive that message unless a protocol handler
+        // adopts it (PASE and CASE do), otherwise any peer can grow the session table without authenticating
+        const inbound: { unsecuredSession?: UnsecuredSession } = {};
+        try {
+            await this.#receiveMessage(channel, messageBytes, inbound);
+        } finally {
+            const session = inbound.unsecuredSession;
+            if (session !== undefined && !session.isClosed && !session.isClosing && !session.hasActiveExchanges) {
+                // The transport owns the channel of an inbound message, so release it instead of closing it
+                await session.detachChannel()?.release();
+                await session.initiateClose();
+            }
+        }
+    }
+
+    async #receiveMessage(
+        channel: Channel<Bytes>,
+        messageBytes: Bytes,
+        inbound: { unsecuredSession?: UnsecuredSession },
+    ) {
         const packet = MessageCodec.decodePacket(messageBytes);
         const bytes = Bytes.of(messageBytes);
         const aad = bytes.slice(0, bytes.length - packet.applicationPayload.byteLength); // Header+Extensions
@@ -228,7 +248,7 @@ export class ExchangeManager implements Transport.Provider {
                         );
                         return;
                     }
-                    session = this.#sessions.createUnsecuredSession({
+                    session = inbound.unsecuredSession = this.#sessions.createUnsecuredSession({
                         channel,
                         initiatorNodeId,
                     });

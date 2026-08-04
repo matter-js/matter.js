@@ -17,6 +17,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: BDX retransmission intervals are capped so the whole MRP schedule fits inside the peer's BDX response budget, which acknowledgements do not extend; the peer's idle cadence does not raise the cap, since a peer holding an open exchange is in active mode
     - Fix: A retransmission timer is no longer armed for a message that was acknowledged while an earlier transmission of it was still in flight, which left the timer running unreferenced
     - Fix: Grouped `PeerTimingParameters` (`kickRestartCooldown`, `addressChangeProbeCooldown`) merge field-wise, so overriding one member keeps its siblings
+    - Fix: Ensure that an unsecured session created for an inbound message is discarded when no protocol handler adopts it
+    - Fix: Ensure that closed exchanges are removed from their session for all session types
+    - Fix: Ensure that a session releases its message channel when the transport owns the underlying channel, so the channel address observer of PASE, CASE and discarded inbound sessions is removed
+    - Fix: Ensure that the end of a session is logged also when its channel was detached before; channel detach is now logged as debug
 
 - @matter/node
     - Enhancement: `network.timing` accepts the kick and address-change parameters
