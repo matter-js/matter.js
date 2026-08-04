@@ -57,6 +57,7 @@ export abstract class Session {
 
     #peerAdditionalMrpDelay?: () => Duration | undefined;
     #closing = ObservableValue();
+    #ended = false;
     #gracefulClose = AsyncObservable<[]>();
     readonly #exchanges = new Set<MessageExchange>();
     protected deferredClose = false;
@@ -115,6 +116,7 @@ export abstract class Session {
 
     addExchange(exchange: MessageExchange) {
         this.#exchanges.add(exchange);
+        exchange.closed.once(() => this.deleteExchange(exchange));
     }
 
     deleteExchange(exchange: MessageExchange) {
@@ -294,7 +296,7 @@ export abstract class Session {
             if (!context.keepSubscriptions) {
                 await this.closeSubscriptions(false, context.currentExchange);
             }
-            for (const exchange of this.#exchanges) {
+            for (const exchange of [...this.#exchanges]) {
                 if (exchange === context.currentExchange) {
                     this.deferredClose = true;
                     continue;
@@ -342,7 +344,7 @@ export abstract class Session {
     detachChannel() {
         const channel = this.#channel;
         this.#channel = undefined;
-        logger.info(this.via, "Channel detached");
+        logger.debug(this.via, "Channel detached");
         return channel;
     }
 
@@ -352,6 +354,10 @@ export abstract class Session {
         if (this.#channel) {
             await this.#channel.close();
             this.#channel = undefined;
+        }
+
+        if (!this.#ended) {
+            this.#ended = true;
             logger.info(this.via, "Session ended");
         }
     }
