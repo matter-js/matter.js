@@ -378,7 +378,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 return value;
             }
 
-            const managed = this[Internal.reference].subrefs?.[name];
+            const managed = this[Internal.reference].subrefs?.[key];
             if (managed) {
                 return managed.owner;
             }
@@ -397,7 +397,6 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
             // Clone the container before write
             const ref = new ManagedReference(
                 this[Internal.reference],
-                pk,
                 name,
                 id,
                 assertWriteOk,

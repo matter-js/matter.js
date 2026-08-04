@@ -13,7 +13,7 @@ import { ClusterModel, DataModelPath, FeatureMap, FeatureSet, FieldElement } fro
 import { ConstraintError, Val } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, NodeId } from "@matter/types";
 import { MockExchange } from "../../../../node/mock-exchange.js";
-import { aclEndpoint, TestStruct } from "./value-utils.js";
+import { aclEndpoint, fieldOf, TestStruct } from "./value-utils.js";
 
 export type Nested = {
     substruct: {
@@ -190,6 +190,84 @@ describe("StructManager", () => {
 
             array = ref.array as { num: number; str: string }[];
             expect(array).deep.equals([...input, { num: 3, str: "baz" }]);
+        });
+    });
+
+    describe("id-keyed references", () => {
+        const INITIAL = { prim: "hi", nested: { foo: "bar" }, list: ["one"] };
+
+        // The "0" slot is the attribute ID a client mirror stores its values under; the value itself is name-keyed
+        function testIdKeyed(
+            actor: (vars: {
+                struct: TestStruct;
+                cx: ActionContext;
+                ref: Val.Struct;
+                substruct: Val.Struct;
+            }) => MaybePromise,
+        ) {
+            const struct = TestStruct(
+                {
+                    substruct: {
+                        id: 0,
+                        type: "struct",
+                        children: [
+                            fieldOf("prim", { id: 0, type: "string" }),
+                            fieldOf("nested", {
+                                id: 1,
+                                type: "struct",
+                                children: [FieldElement({ name: "foo", id: 0, type: "string" })],
+                            }),
+                            fieldOf("list", {
+                                id: 2,
+                                type: "list",
+                                children: [FieldElement({ name: "entry", type: "string" })],
+                            }),
+                        ],
+                    },
+                },
+                { 0: INITIAL },
+                "id",
+            );
+
+            return struct.online(TestContext(), (ref, cx) =>
+                actor({ struct, cx, ref, substruct: ref.substruct as Val.Struct }),
+            );
+        }
+
+        it("reads members of a name-keyed value", async () => {
+            await testIdKeyed(({ substruct }) => {
+                expect(substruct.nested).deep.equals({ foo: "bar" });
+                expect(substruct.list).deep.equals(["one"]);
+            });
+        });
+
+        it("reads a member two levels below the id-keyed value", async () => {
+            await testIdKeyed(({ substruct }) => {
+                expect((substruct.nested as Val.Struct).foo).equals("bar");
+            });
+        });
+
+        it("reuses the managed value for repeated reads", async () => {
+            await testIdKeyed(({ ref }) => {
+                expect(ref.substruct).equals(ref.substruct);
+            });
+        });
+
+        it("keeps names as keys when writing nested members", async () => {
+            await testIdKeyed(async ({ struct, cx, substruct }) => {
+                substruct.prim = "changed";
+                (substruct.nested as Val.Struct).foo = "changed too";
+
+                await cx.transaction.commit();
+
+                expect(struct.notifies).deep.equals([
+                    {
+                        index: "substruct",
+                        oldValue: INITIAL,
+                        newValue: { prim: "changed", nested: { foo: "changed too" }, list: ["one"] },
+                    },
+                ]);
+            });
         });
     });
 

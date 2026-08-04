@@ -53,7 +53,8 @@ export interface ValReference<T extends Val = Val> {
     refresh(): void;
 
     /**
-     * The key used for storage of attributes and struct properties.
+     * How this container keys its own members.  Only a datasource root may key by element ID; every nested container
+     * keys by property name, and list entries by index.
      */
     primaryKey: "id" | "name";
 
