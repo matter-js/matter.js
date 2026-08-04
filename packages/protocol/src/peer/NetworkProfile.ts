@@ -343,6 +343,7 @@ export namespace NetworkProfiles {
         exchanges: 4,
         delay: Millis(100),
         additionalMrpDelay: Seconds(1.5),
+        bdxAdditionalMrpDelay: Seconds(1.5),
 
         connect: {
             exchanges: 4,
@@ -356,12 +357,11 @@ export namespace NetworkProfiles {
     };
 
     export const defaults: Templates = {
-        unlimited: { exchanges: Infinity, additionalMrpDelay: Millis(0) },
-        icdLit: { exchanges: Infinity, additionalMrpDelay: Millis(0) },
-        fast: { exchanges: 200, additionalMrpDelay: Millis(0) },
-        wifi: { exchanges: 200, additionalMrpDelay: Seconds(1) },
-        // The explicit zero matters: omitting it would inherit conservative's messaging margin for BDX too
-        thread: { ...conservative, bdxAdditionalMrpDelay: Seconds(0) },
+        unlimited: { exchanges: Infinity, additionalMrpDelay: Millis(0), bdxAdditionalMrpDelay: Millis(0) },
+        icdLit: { exchanges: Infinity, additionalMrpDelay: Millis(0), bdxAdditionalMrpDelay: Millis(0) },
+        fast: { exchanges: 200, additionalMrpDelay: Millis(0), bdxAdditionalMrpDelay: Millis(0) },
+        wifi: { exchanges: 200, additionalMrpDelay: Seconds(1), bdxAdditionalMrpDelay: Seconds(1) },
+        thread: conservative,
         conservative,
         unknown: conservative,
     };
