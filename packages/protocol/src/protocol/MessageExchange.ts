@@ -1165,7 +1165,7 @@ export class MessageExchange {
      * this exchange's traffic class.
      */
     get #sendAdditionalDelay() {
-        const peerMargin = this.#peerAdditionalMrpDelay ?? MRP.marginFor(this.session.peerMrpMargins, this.#protocolId);
+        const peerMargin = this.#peerAdditionalMrpDelay ?? this.session.peerAdditionalMrpDelay;
         return Duration.max(this.#context.localAdditionalMrpDelay, peerMargin ?? Millis(0));
     }
 
@@ -1237,8 +1237,8 @@ export namespace MessageExchange {
          * Additive MRP retransmission margin for the peer's network medium.  Sourced independently of
          * {@link network} so concurrency overrides cannot strip the medium-correct margin (e.g. thread's).
          *
-         * Overrides {@link Session.peerMrpMargins}, which supplies the margin for exchanges created without this
-         * option (notably peer-initiated ones).
+         * Overrides {@link Session.peerAdditionalMrpDelay}, which supplies the margin for exchanges created without
+         * this option (notably peer-initiated ones).
          */
         peerAdditionalMrpDelay?: Duration;
 

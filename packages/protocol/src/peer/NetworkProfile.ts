@@ -5,7 +5,6 @@
  */
 
 import { PeerAddress } from "#peer/PeerAddress.js";
-import { MRP } from "#protocol/MRP.js";
 import {
     Diagnostic,
     Duration,
@@ -45,13 +44,6 @@ export interface ConcreteNetworkProfile {
      * with the local "own" profile margin via max at send time.
      */
     additionalMrpDelay: Duration;
-
-    /**
-     * {@link additionalMrpDelay} for bulk transfer (BDX) exchanges, which sustain many round trips over one path.
-     *
-     * Defaults to {@link additionalMrpDelay} so a profile that does not distinguish traffic classes behaves as before.
-     */
-    bdxAdditionalMrpDelay: Duration;
 }
 
 /**
@@ -146,28 +138,25 @@ export class NetworkProfiles {
         return this.configure(id, this.#defaults[id as keyof NetworkProfiles.Templates]);
     }
 
-    configure(id: string, limits: NetworkProfiles.Limits, parent?: MRP.Margins) {
-        const additionalMrpDelay = limits.additionalMrpDelay ?? parent?.messaging ?? Millis(0);
-        const bdxAdditionalMrpDelay = limits.bdxAdditionalMrpDelay ?? parent?.bdx ?? additionalMrpDelay;
+    configure(id: string, limits: NetworkProfiles.Limits, parentDelay?: Duration) {
+        const additionalMrpDelay = limits.additionalMrpDelay ?? parentDelay ?? Millis(0);
         const network: NetworkProfile = {
             id,
             semaphore: new Semaphore(`network semaphore ${id}`, limits.exchanges, limits.delay, limits.timeout),
             additionalMrpDelay,
-            bdxAdditionalMrpDelay,
         };
-        const inherited = { messaging: additionalMrpDelay, bdx: bdxAdditionalMrpDelay };
         if (limits.connect) {
             network.connect = this.configure(
                 `${id}:connect`,
                 { ...limits.connect, connect: undefined, probeAddress: undefined },
-                inherited,
+                additionalMrpDelay,
             );
         }
         if (limits.probeAddress) {
             network.probeAddress = this.configure(
                 `${id}:probe`,
                 { ...limits.probeAddress, connect: undefined, probeAddress: undefined },
-                inherited,
+                additionalMrpDelay,
             );
         }
         logger.info(
@@ -252,11 +241,6 @@ export namespace NetworkProfiles {
          * Additive MRP retransmission margin for this medium.  Defaults to 0 unless the template sets one.
          */
         additionalMrpDelay?: Duration;
-
-        /**
-         * {@link additionalMrpDelay} for bulk transfer (BDX) exchanges.  Defaults to {@link additionalMrpDelay}.
-         */
-        bdxAdditionalMrpDelay?: Duration;
     }
 
     /**
@@ -343,7 +327,6 @@ export namespace NetworkProfiles {
         exchanges: 4,
         delay: Millis(100),
         additionalMrpDelay: Seconds(1.5),
-        bdxAdditionalMrpDelay: Seconds(1.5),
 
         connect: {
             exchanges: 4,
@@ -357,10 +340,10 @@ export namespace NetworkProfiles {
     };
 
     export const defaults: Templates = {
-        unlimited: { exchanges: Infinity, additionalMrpDelay: Millis(0), bdxAdditionalMrpDelay: Millis(0) },
-        icdLit: { exchanges: Infinity, additionalMrpDelay: Millis(0), bdxAdditionalMrpDelay: Millis(0) },
-        fast: { exchanges: 200, additionalMrpDelay: Millis(0), bdxAdditionalMrpDelay: Millis(0) },
-        wifi: { exchanges: 200, additionalMrpDelay: Seconds(1), bdxAdditionalMrpDelay: Seconds(1) },
+        unlimited: { exchanges: Infinity, additionalMrpDelay: Millis(0) },
+        icdLit: { exchanges: Infinity, additionalMrpDelay: Millis(0) },
+        fast: { exchanges: 200, additionalMrpDelay: Millis(0) },
+        wifi: { exchanges: 200, additionalMrpDelay: Seconds(1) },
         thread: conservative,
         conservative,
         unknown: conservative,
