@@ -205,6 +205,21 @@ describe("StructManager", () => {
     describe("id-keyed references", () => {
         const initialValue = () => ({ prim: "hi", nested: { foo: "bar" }, list: ["one"] });
 
+        const SUBSTRUCT = {
+            id: 0,
+            type: "struct",
+            children: [
+                FieldElement({ name: "prim", id: 0, type: "string" }),
+                FieldElement({
+                    name: "nested",
+                    id: 1,
+                    type: "struct",
+                    children: [FieldElement({ name: "foo", id: 0, type: "string" })],
+                }),
+                FieldElement({ name: "list", id: 2, type: "list" }, FieldElement({ name: "entry", type: "string" })),
+            ],
+        };
+
         function testIdKeyed(
             actor: (vars: {
                 struct: TestStruct;
@@ -213,30 +228,8 @@ describe("StructManager", () => {
                 substruct: Val.Struct;
             }) => MaybePromise,
         ) {
-            const struct = TestStruct(
-                {
-                    substruct: {
-                        id: 0,
-                        type: "struct",
-                        children: [
-                            FieldElement({ name: "prim", id: 0, type: "string" }),
-                            FieldElement({
-                                name: "nested",
-                                id: 1,
-                                type: "struct",
-                                children: [FieldElement({ name: "foo", id: 0, type: "string" })],
-                            }),
-                            FieldElement(
-                                { name: "list", id: 2, type: "list" },
-                                FieldElement({ name: "entry", type: "string" }),
-                            ),
-                        ],
-                    },
-                },
-                // The "0" slot is the attribute ID a client mirror stores values under; the value itself is name-keyed
-                { 0: initialValue() },
-                "id",
-            );
+            // The "0" slot is the attribute ID a client mirror stores values under; the value itself is name-keyed
+            const struct = TestStruct({ substruct: SUBSTRUCT }, { 0: initialValue() }, "id");
 
             return struct.online(TestContext(), (ref, cx) =>
                 actor({ struct, cx, ref, substruct: ref.substruct as Val.Struct }),
@@ -299,6 +292,19 @@ describe("StructManager", () => {
             await struct.online(TestContext(), ref => {
                 expect(ref.prim).equals("hi");
                 expect(ref.sub).undefined;
+            });
+        });
+
+        // A report for a cluster or attribute the model cannot resolve decodes to TLV tag numbers, and that shape
+        // persists.  A later model that does know the schema must still read those values.
+        it("reads members of a value whose keys are TLV tag numbers", async () => {
+            const struct = TestStruct({ substruct: SUBSTRUCT }, { 0: { 0: "hi", 1: { 0: "bar" }, 2: ["one"] } }, "id");
+
+            await struct.online(TestContext(), ref => {
+                const substruct = ref.substruct as Val.Struct;
+                expect(substruct.prim).equals("hi");
+                expect(substruct.nested).deep.equals({ foo: "bar" });
+                expect(substruct.list).deep.equals(["one"]);
             });
         });
 

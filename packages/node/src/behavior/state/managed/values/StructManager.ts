@@ -351,6 +351,10 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 }
             } else if (key in struct) {
                 value = struct[key];
+            } else if (id !== undefined && key !== id && id in struct) {
+                // A value decoded without a schema — an unknown cluster or attribute, including one a later model
+                // learns about — keys its members by TLV tag number, so a name-keyed container accepts the ID too
+                value = struct[id];
             }
 
             // Note that we only mask values that are unreadable.  This is appropriate when the parent object is
