@@ -81,7 +81,7 @@ export class BdxSession {
         if (!exchange.session.isSecure) {
             throw new BdxError("Bdx Protocol requires a secure session.");
         }
-        exchange.closed.on(async () => {
+        exchange.closed.once(async () => {
             if (this.#isClosed) {
                 return;
             }

@@ -466,7 +466,12 @@ export class ExchangeManager implements Transport.Provider {
     }
 
     #addExchange(exchangeIndex: number, exchange: MessageExchange) {
-        exchange.closed.on(() => this.deleteExchange(exchangeIndex));
+        // A peer reuses exchange IDs, so only drop the index while it still maps to this exchange
+        exchange.closed.once(() => {
+            if (this.#exchanges.get(exchangeIndex) === exchange) {
+                this.deleteExchange(exchangeIndex);
+            }
+        });
         this.#exchanges.set(exchangeIndex, exchange);
 
         // The spec recommends a maximum of 5 concurrent exchanges over a unicast session to avoid exhausting the

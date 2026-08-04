@@ -116,7 +116,7 @@ export abstract class Session {
 
     addExchange(exchange: MessageExchange) {
         this.#exchanges.add(exchange);
-        exchange.closed.on(() => this.deleteExchange(exchange));
+        exchange.closed.once(() => this.deleteExchange(exchange));
     }
 
     deleteExchange(exchange: MessageExchange) {
