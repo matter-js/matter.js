@@ -751,10 +751,15 @@ export default function commands(theNode: MatterNode) {
                                             describe: "Apply update from local file",
                                             type: "boolean",
                                             default: false,
+                                        })
+                                        .option("max-block-size", {
+                                            describe:
+                                                "Cap the BDX block size for this transfer, in bytes (default: whatever the device requests)",
+                                            type: "number",
                                         });
                                 },
                                 async argv => {
-                                    const { nodeId: nodeIdStr, mode, force, local } = argv;
+                                    const { nodeId: nodeIdStr, mode, force, local, maxBlockSize } = argv;
                                     const { label: dclMode, isProduction } = resolveDclMode(theNode, mode);
                                     const forceDownload = force === true;
 
@@ -854,15 +859,19 @@ export default function commands(theNode: MatterNode) {
                                         throw new Error(`Node ${nodeIdStr} not connected`);
                                     }
 
+                                    if (maxBlockSize !== undefined) {
+                                        console.log(`Capping BDX block size to ${maxBlockSize} bytes`);
+                                    }
+
                                     await theNode.commissioningController.otaProvider.act(agent => {
                                         return agent
                                             .get(SoftwareUpdateManager)
-                                            .forceUpdate(
-                                                PeerAddress({ nodeId, fabricIndex: FabricIndex(1) }),
-                                                basicInfo.vendorId as VendorId,
-                                                basicInfo.productId as number,
-                                                updateVersion,
-                                            );
+                                            .forceUpdate(PeerAddress({ nodeId, fabricIndex: FabricIndex(1) }), {
+                                                vendorId: basicInfo.vendorId as VendorId,
+                                                productId: basicInfo.productId as number,
+                                                targetSoftwareVersion: updateVersion,
+                                                maxBdxBlockSize: maxBlockSize,
+                                            });
                                     });
                                 },
                             )

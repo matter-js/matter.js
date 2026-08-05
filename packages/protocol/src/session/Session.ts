@@ -9,6 +9,7 @@ import { PeerLossContext } from "#peer/PeerLossContext.js";
 import { SessionClosedError } from "#protocol/errors.js";
 import { MessageChannel } from "#protocol/MessageChannel.js";
 import type { MessageExchange } from "#protocol/MessageExchange.js";
+import { MRP } from "#protocol/MRP.js";
 import { SessionIntervals } from "#session/SessionIntervals.js";
 import {
     AsyncObservable,
@@ -55,7 +56,7 @@ export abstract class Session {
     activeTimestamp: Timestamp = 0;
     abstract type: SessionType;
 
-    #peerAdditionalMrpDelay?: () => Duration | undefined;
+    #peerMrpMargins?: () => MRP.Margins | undefined;
     #closing = ObservableValue();
     #ended = false;
     #gracefulClose = AsyncObservable<[]>();
@@ -203,20 +204,20 @@ export abstract class Session {
     }
 
     /**
-     * Additive MRP retransmission margin for the peer's network medium, or undefined if the medium is unknown.
+     * Additive MRP retransmission margins for the peer's network medium, or undefined if the medium is unknown.
      *
      * Applies to every exchange on the session, including those the peer initiates.
      */
-    get peerAdditionalMrpDelay(): Duration | undefined {
-        return this.#peerAdditionalMrpDelay?.();
+    get peerMrpMargins(): MRP.Margins | undefined {
+        return this.#peerMrpMargins?.();
     }
 
     /**
-     * Installs the resolver for {@link peerAdditionalMrpDelay}.  A resolver rather than a value because the peer's
-     * medium often becomes known (or changes, e.g. a new thread channel) only after the session exists.
+     * Installs the resolver for {@link peerMrpMargins}.  A resolver rather than a value because the peer's medium
+     * often becomes known (or changes, e.g. a new thread channel) only after the session exists.
      */
-    set peerAdditionalMrpDelayResolver(resolver: () => Duration | undefined) {
-        this.#peerAdditionalMrpDelay = resolver;
+    set peerMrpMarginsResolver(resolver: () => MRP.Margins | undefined) {
+        this.#peerMrpMargins = resolver;
     }
 
     /**

@@ -55,10 +55,7 @@ import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-
 
 const logger = Logger.get("SoftwareUpdateManager");
 
-interface UpdateConsent {
-    vendorId: VendorId;
-    productId: number;
-    targetSoftwareVersion: number;
+interface UpdateConsent extends SoftwareUpdateManager.UpdateTarget {
     peerAddress: PeerAddress;
 }
 
@@ -954,7 +951,8 @@ export class SoftwareUpdateManager extends Behavior {
      * This can be used when an exact timing of the update is needed. When the update can be executed in a delayed/queued
      * manner, please use `addUpdateConsent()`.
      */
-    async forceUpdate(peerAddress: PeerAddress, vendorId: VendorId, productId: number, targetSoftwareVersion: number) {
+    async forceUpdate(peerAddress: PeerAddress, target: SoftwareUpdateManager.UpdateTarget) {
+        const { vendorId, productId, targetSoftwareVersion } = target;
         peerAddress = PeerAddress(peerAddress);
         const existingEntry = this.internal.updateQueue.find(
             e =>
@@ -988,7 +986,7 @@ export class SoftwareUpdateManager extends Behavior {
             }
         }
 
-        const added = await this.addUpdateConsent(peerAddress, vendorId, productId, targetSoftwareVersion);
+        const added = await this.addUpdateConsent(peerAddress, target);
         if (!added) {
             throw new OtaUpdateError(`Node at ${peerAddress.toString()} is not currently applicable for OTA updates`);
         }
@@ -1049,18 +1047,28 @@ export class SoftwareUpdateManager extends Behavior {
     }
 
     /**
+     * The BDX block size cap that applies to this peer's pending update: its own override if one was given with the
+     * consent, otherwise {@link State.maxBdxBlockSize}.  Undefined accepts whatever the peer requests.
+     */
+    maxBdxBlockSizeFor(peerAddress: PeerAddress) {
+        peerAddress = PeerAddress(peerAddress);
+        const matches = (candidate: PeerAddress) =>
+            candidate.fabricIndex === peerAddress.fabricIndex && candidate.nodeId === peerAddress.nodeId;
+        const pending =
+            this.internal.updateQueue.find(entry => matches(entry.peerAddress)) ??
+            this.internal.consents.find(consent => matches(consent.peerAddress));
+        return pending?.maxBdxBlockSize ?? this.state.maxBdxBlockSize;
+    }
+
+    /**
      * Adds or updates a consent for a given peer address, vendor ID, product ID, and target software version.
      * Filters out existing consents for the given peer address and replaces them with the new one.
      * If the node associated with the peer address is applicable for an update, it schedules the update to happen with
      * the next queue slot, so potentially delayed.
      * This can be used when the update can be executed in a delayed/queued manner and it does not matter exactly when.
      */
-    async addUpdateConsent(
-        peerAddress: PeerAddress,
-        vendorId: VendorId,
-        productId: number,
-        targetSoftwareVersion: number,
-    ) {
+    async addUpdateConsent(peerAddress: PeerAddress, target: SoftwareUpdateManager.UpdateTarget) {
+        const { vendorId, productId, targetSoftwareVersion, maxBdxBlockSize } = target;
         peerAddress = PeerAddress(peerAddress);
         // Filter out all existing consents for this peer, they are replaced by the new one
         const consents = this.internal.consents.filter(
@@ -1083,6 +1091,7 @@ export class SoftwareUpdateManager extends Behavior {
             vendorId,
             productId,
             targetSoftwareVersion,
+            maxBdxBlockSize,
             peerAddress,
         });
         this.internal.consents = consents;
@@ -1092,7 +1101,14 @@ export class SoftwareUpdateManager extends Behavior {
             return false;
         }
 
-        this.#queueUpdate({ vendorId, productId, targetSoftwareVersion, peerAddress, endpoint: otaEndpoint });
+        this.#queueUpdate({
+            vendorId,
+            productId,
+            targetSoftwareVersion,
+            maxBdxBlockSize,
+            peerAddress,
+            endpoint: otaEndpoint,
+        });
         return true;
     }
 
@@ -1231,6 +1247,28 @@ export namespace SoftwareUpdateManager {
 
         /** Interval to Announces this controller as Update provider. Must not be lower than 24h! */
         announcementInterval = Hours(24);
+
+        /**
+         * Caps the BDX block size offered for OTA transfers.  Unset accepts whatever the peer requests, which is the
+         * transport maximum.
+         *
+         * A smaller block multiplies round trips, and each of those is bounded by the peer's BDX response budget, so
+         * lower this only for a peer that cannot handle full-size blocks.
+         */
+        maxBdxBlockSize?: number = undefined;
+    }
+
+    /** Identifies the update a consent applies to, and how to transfer it. */
+    export interface UpdateTarget {
+        vendorId: VendorId;
+        productId: number;
+        targetSoftwareVersion: number;
+
+        /**
+         * Caps the BDX block size for this transfer, overriding {@link State.maxBdxBlockSize}.  Unset falls back to
+         * that default.
+         */
+        maxBdxBlockSize?: number;
     }
 
     export class Internal {
