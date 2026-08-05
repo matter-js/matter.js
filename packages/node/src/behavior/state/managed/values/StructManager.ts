@@ -15,7 +15,7 @@ import { Instrumentation } from "../Instrumentation.js";
 import { Internal } from "../Internal.js";
 import { ManagedReference } from "../ManagedReference.js";
 import { NameResolver } from "../NameResolver.js";
-import type { ValReference } from "../ValReference.js";
+import { ValReference } from "../ValReference.js";
 import { PrimitiveManager } from "./PrimitiveManager.js";
 
 const AUTHORIZE_READ = Symbol("authorize-read");
@@ -193,17 +193,14 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
 
             // We allow attribute/field name or id as key.  If name is present id is ignored
             const pk = this[Internal.reference].primaryKey;
-            let key = ManagedReference.keyFor(this[Internal.reference], name, id);
+            let key = ValReference.keyFor(pk, name, id);
             let storedKey: undefined | number | string;
             if (key in this[Internal.reference].value) {
                 storedKey = key;
-            } else if (pk === "id") {
-                if (name in this[Internal.reference].value) {
-                    storedKey = name;
-                }
-            } else if (id !== undefined) {
-                if (id in this[Internal.reference].value) {
-                    storedKey = id;
+            } else {
+                const altKey = ValReference.altKeyFor(pk, name, id);
+                if (altKey !== undefined && altKey in this[Internal.reference].value) {
+                    storedKey = altKey;
                 }
             }
 
@@ -295,17 +292,12 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                     }
                 }
 
-                const key = ManagedReference.keyFor(this[Internal.reference], name, id);
-                if (key in struct) {
-                    return struct[key];
-                }
-
-                const key2 = this[Internal.reference].primaryKey === "id" ? name : id;
-                if (key2 !== undefined && key2 in struct) {
-                    return struct[key2];
-                }
-
-                return undefined;
+                const primaryKey = this[Internal.reference].primaryKey;
+                return ValReference.memberValueOf(
+                    struct,
+                    ValReference.keyFor(primaryKey, name, id),
+                    ValReference.altKeyFor(primaryKey, name, id),
+                );
             }
         };
     } else {
@@ -338,7 +330,8 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
 
             // Obtain the value.  Normally just struct[key] except in the case of Val.Dynamic
             const struct = this[Internal.reference].value;
-            const key = ManagedReference.keyFor(this[Internal.reference], name, id);
+            const primaryKey = this[Internal.reference].primaryKey;
+            const key = ValReference.keyFor(primaryKey, name, id);
             if ((struct as Val.Dynamic)[Val.properties]) {
                 const properties = (struct as Val.Dynamic)[Val.properties](
                     this[Internal.reference].rootOwner,
@@ -351,10 +344,13 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 }
             } else if (key in struct) {
                 value = struct[key];
-            } else if (id !== undefined && key !== id && id in struct) {
+            } else if (primaryKey === "name") {
                 // A value decoded without a schema — an unknown cluster or attribute, including one a later model
-                // learns about — keys its members by TLV tag number, so a name-keyed container accepts the ID too
-                value = struct[id];
+                // learns about — keys its members by TLV tag number, so a name-keyed container accepts the ID too.
+                const altKey = ValReference.altKeyFor(primaryKey, name, id);
+                if (altKey !== undefined && altKey in struct) {
+                    value = struct[altKey];
+                }
             }
 
             // Note that we only mask values that are unreadable.  This is appropriate when the parent object is

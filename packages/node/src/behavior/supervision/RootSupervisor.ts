@@ -20,6 +20,7 @@ import {
 } from "@matter/model";
 import { AccessControl, Val } from "@matter/protocol";
 import { AttributeId } from "@matter/types";
+import { ValReference } from "../state/managed/ValReference.js";
 import { ValueCaster } from "../state/managed/values/ValueCaster.js";
 import { ValueManager } from "../state/managed/values/ValueManager.js";
 import { ValuePatcher } from "../state/managed/values/ValuePatcher.js";
@@ -155,7 +156,7 @@ export class RootSupervisor implements ValueSupervisor {
     /**
      * Retrieve names or IDs of fields configured as non-volatile.
      */
-    persistentKeys(key: "id" | "name" = "name") {
+    persistentKeys(primaryKey: ValReference.PrimaryKey = "name") {
         const persistent = new Set<string>();
 
         for (const member of this.#members) {
@@ -166,14 +167,7 @@ export class RootSupervisor implements ValueSupervisor {
                 (member.tag === ElementTag.Attribute &&
                     (member.effectiveAccess.writable || member.effectiveAccess.fabricScoped))
             ) {
-                if (key === "id") {
-                    const id = member.effectiveId;
-                    if (id !== undefined) {
-                        persistent.add(id.toString());
-                        continue;
-                    }
-                }
-                persistent.add(member.propertyName);
+                persistent.add(String(ValReference.keyFor(primaryKey, member.propertyName, member.effectiveId)));
             }
         }
         return persistent;

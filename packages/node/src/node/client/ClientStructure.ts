@@ -7,6 +7,7 @@
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import type { ClusterBehaviorType } from "#behavior/cluster/ClusterBehaviorType.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
+import { ValReference } from "#behavior/state/managed/ValReference.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { RootEndpoint } from "#endpoints/root";
@@ -62,13 +63,13 @@ const SERVER_LIST_ATTR_NAME = "serverList";
 const PARTS_LIST_ATTR_NAME = "partsList";
 
 /**
- * Read a value from store initial values using either numeric attribute ID or property name.
+ * Read a value from store initial values, preferring the numeric attribute ID slot over the property name slot.
  */
 function getStoreValue(values: Record<string | number, unknown> | undefined, id: number, name: string): unknown {
     if (values === undefined) {
         return undefined;
     }
-    return id in values ? values[id] : values[name];
+    return ValReference.memberValueOf(values, id, name);
 }
 
 /**
@@ -1178,7 +1179,7 @@ export namespace ClientStructure {
     export type StoreFactory = (
         endpoint: Endpoint,
         behaviorId: string,
-        primaryKey: "id" | "name",
+        primaryKey: ValReference.PrimaryKey,
     ) => Datasource.ExternallyMutableStore;
 
     export interface Options {

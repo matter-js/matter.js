@@ -150,7 +150,7 @@ export namespace Datasource {
          *
          * For structs we also support the other key (id or name) for input, but always write using the preferred key.
          */
-        primaryKey?: "name" | "id";
+        primaryKey?: ValReference.PrimaryKey;
 
         /**
          * Optional callback, invoked when properties change.
@@ -277,7 +277,7 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
     onChange?: (attrs: string[]) => MaybePromise<void>;
 
     // Computed state
-    primaryKey: "name" | "id";
+    primaryKey: ValReference.PrimaryKey;
     version: number;
     manageVersion: boolean;
     events: Datasource.Events;
@@ -348,7 +348,7 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
 
         this.version = options.entropy.randomUint32;
         this.manageVersion = true;
-        this.persistentFields = options.supervisor.persistentKeys(options.primaryKey);
+        this.persistentFields = options.supervisor.persistentKeys(this.primaryKey);
 
         this.#configureExternalChanges();
 
