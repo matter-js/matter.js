@@ -7,7 +7,8 @@
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import type { ClusterBehaviorType } from "#behavior/cluster/ClusterBehaviorType.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
-import { ValReference } from "#behavior/state/managed/ValReference.js";
+import { memberValueOf } from "#behavior/state/managed/MemberKeys.js";
+import type { ValReference } from "#behavior/state/managed/ValReference.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { RootEndpoint } from "#endpoints/root";
@@ -69,7 +70,7 @@ function getStoreValue(values: Record<string | number, unknown> | undefined, id:
     if (values === undefined) {
         return undefined;
     }
-    return ValReference.memberValueOf(values, id, name);
+    return memberValueOf(values, id, name);
 }
 
 /**

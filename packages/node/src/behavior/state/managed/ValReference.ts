@@ -84,47 +84,4 @@ export namespace ValReference {
      * How a container keys its own members.
      */
     export type PrimaryKey = "id" | "name";
-
-    /**
-     * The slot a member occupies in a container keyed by {@link ValReference.primaryKey}.
-     *
-     * The persisted key set ({@link RootSupervisor.persistentKeys}) and a datasource container's own keys must both
-     * derive from this function — if they diverge, attributes silently stop persisting.
-     */
-    export function keyFor(primaryKey: PrimaryKey, name: string | number, id: number | undefined): string | number {
-        return primaryKey === "id" ? (id ?? name) : name;
-    }
-
-    /**
-     * The key under the other keying convention, if distinct from {@link ValReference.keyFor}'s — whether a reader
-     * may fall back to it is the reader's policy.
-     */
-    export function altKeyFor(
-        primaryKey: PrimaryKey,
-        name: string | number,
-        id: number | undefined,
-    ): string | number | undefined {
-        const key = keyFor(primaryKey, name, id);
-        return primaryKey === "id" ? (key === name ? undefined : name) : id;
-    }
-
-    /**
-     * Read a member from container at key, falling back to altKey; a caller passes `undefined` for altKey when it
-     * must not tolerate the alternate slot.
-     */
-    export function memberValueOf(
-        container: Val.Struct,
-        key: string | number,
-        altKey: string | number | undefined,
-    ): Val | undefined {
-        if (key in container) {
-            return container[key];
-        }
-
-        if (altKey !== undefined && altKey in container) {
-            return container[altKey];
-        }
-
-        return undefined;
-    }
 }

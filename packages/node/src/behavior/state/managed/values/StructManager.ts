@@ -14,8 +14,9 @@ import type { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
 import { Instrumentation } from "../Instrumentation.js";
 import { Internal } from "../Internal.js";
 import { ManagedReference } from "../ManagedReference.js";
+import { memberFallbackKeyFor, memberKeyFor, memberValueOf } from "../MemberKeys.js";
 import { NameResolver } from "../NameResolver.js";
-import { ValReference } from "../ValReference.js";
+import type { ValReference } from "../ValReference.js";
 import { PrimitiveManager } from "./PrimitiveManager.js";
 
 const AUTHORIZE_READ = Symbol("authorize-read");
@@ -193,14 +194,14 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
 
             // We allow attribute/field name or id as key.  If name is present id is ignored
             const pk = this[Internal.reference].primaryKey;
-            let key = ValReference.keyFor(pk, name, id);
+            let key = memberKeyFor(pk, name, id);
             let storedKey: undefined | number | string;
             if (key in this[Internal.reference].value) {
                 storedKey = key;
             } else {
-                const altKey = ValReference.altKeyFor(pk, name, id);
-                if (altKey !== undefined && altKey in this[Internal.reference].value) {
-                    storedKey = altKey;
+                const fallbackKey = memberFallbackKeyFor(pk, name, id);
+                if (fallbackKey !== undefined && fallbackKey in this[Internal.reference].value) {
+                    storedKey = fallbackKey;
                 }
             }
 
@@ -293,10 +294,10 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 }
 
                 const primaryKey = this[Internal.reference].primaryKey;
-                return ValReference.memberValueOf(
+                return memberValueOf(
                     struct,
-                    ValReference.keyFor(primaryKey, name, id),
-                    ValReference.altKeyFor(primaryKey, name, id),
+                    memberKeyFor(primaryKey, name, id),
+                    memberFallbackKeyFor(primaryKey, name, id),
                 );
             }
         };
@@ -331,7 +332,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
             // Obtain the value.  Normally just struct[key] except in the case of Val.Dynamic
             const struct = this[Internal.reference].value;
             const primaryKey = this[Internal.reference].primaryKey;
-            const key = ValReference.keyFor(primaryKey, name, id);
+            const key = memberKeyFor(primaryKey, name, id);
             if ((struct as Val.Dynamic)[Val.properties]) {
                 const properties = (struct as Val.Dynamic)[Val.properties](
                     this[Internal.reference].rootOwner,
@@ -347,9 +348,9 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
             } else if (primaryKey === "name") {
                 // A value decoded without a schema — an unknown cluster or attribute, including one a later model
                 // learns about — keys its members by TLV tag number, so a name-keyed container accepts the ID too.
-                const altKey = ValReference.altKeyFor(primaryKey, name, id);
-                if (altKey !== undefined && altKey in struct) {
-                    value = struct[altKey];
+                const fallbackKey = memberFallbackKeyFor(primaryKey, name, id);
+                if (fallbackKey !== undefined && fallbackKey in struct) {
+                    value = struct[fallbackKey];
                 }
             }
 

@@ -9,7 +9,7 @@ import type { Schema } from "@matter/model";
 import { ClusterModel, Model, ValueModel, type FieldValue } from "@matter/model";
 import { Val } from "@matter/protocol";
 import { Internal } from "./Internal.js";
-import { ValReference } from "./ValReference.js";
+import { memberValueOf } from "./MemberKeys.js";
 
 /**
  * Obtain a function that returns a visible property by name from the ownership hierarchy of a managed value.
@@ -71,7 +71,7 @@ export function NameResolver(
             if (struct === undefined || struct === null) {
                 return undefined;
             }
-            return ValReference.memberValueOf(struct, id, name);
+            return memberValueOf(struct, id, name);
         };
     }
 

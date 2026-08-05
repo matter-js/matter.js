@@ -6,7 +6,8 @@
 
 import { AccessControl, ExpiredReferenceError, Val } from "@matter/protocol";
 import type { Supervision } from "../../supervision/Supervision.js";
-import { ValReference } from "./ValReference.js";
+import { memberFallbackKeyFor, memberKeyFor, memberValueOf } from "./MemberKeys.js";
+import type { ValReference } from "./ValReference.js";
 
 type Container = Record<string | number, Val>;
 
@@ -36,7 +37,7 @@ export class ManagedReference implements ValReference {
     supervisionConfig?: Supervision.Config;
 
     #key: string | number;
-    #altKey: string | number | undefined;
+    #fallbackKey: string | number | undefined;
     #assertWriteOk: (value: Val) => void;
     #clone: ((container: Val) => Val) | undefined;
     #session: AccessControl.Session;
@@ -71,18 +72,18 @@ export class ManagedReference implements ValReference {
             path: parent.location.path.at(name),
         };
 
-        const key = ValReference.keyFor(parent.primaryKey, name, id);
-        const altKey = ValReference.altKeyFor(parent.primaryKey, name, id);
+        const key = memberKeyFor(parent.primaryKey, name, id);
+        const fallbackKey = memberFallbackKeyFor(parent.primaryKey, name, id);
         this.#key = key;
-        this.#altKey = altKey;
+        this.#fallbackKey = fallbackKey;
 
         let dynamicContainer: Val.Struct | undefined;
         if ((parent.value as Val.Dynamic)[Val.properties]) {
             dynamicContainer = (parent.value as Val.Dynamic)[Val.properties](parent.rootOwner, session);
             if (key in (dynamicContainer as Container)) {
                 this.#value = (dynamicContainer as Container)[key];
-            } else if (altKey !== undefined && altKey in (dynamicContainer as Container)) {
-                this.#value = (dynamicContainer as Container)[altKey];
+            } else if (fallbackKey !== undefined && fallbackKey in (dynamicContainer as Container)) {
+                this.#value = (dynamicContainer as Container)[fallbackKey];
             } else {
                 dynamicContainer = undefined;
             }
@@ -90,7 +91,7 @@ export class ManagedReference implements ValReference {
         this.#dynamicContainer = dynamicContainer;
 
         if (dynamicContainer === undefined) {
-            this.#value = ValReference.memberValueOf(parent.value as Container, key, altKey);
+            this.#value = memberValueOf(parent.value as Container, key, fallbackKey);
         }
 
         // Propagate supervision config from parent
@@ -152,9 +153,9 @@ export class ManagedReference implements ValReference {
                 this.parent!.rootOwner,
                 this.#session,
             );
-            return ValReference.memberValueOf(origProperties as Container, this.#key, this.#altKey);
+            return memberValueOf(origProperties as Container, this.#key, this.#fallbackKey);
         }
-        return ValReference.memberValueOf(this.parent!.original as Container, this.#key, this.#altKey);
+        return memberValueOf(this.parent!.original as Container, this.#key, this.#fallbackKey);
     }
 
     change(mutator: () => void) {
@@ -188,16 +189,16 @@ export class ManagedReference implements ValReference {
 
         const value =
             this.#dynamicContainer !== undefined
-                ? ValReference.memberValueOf(this.#dynamicContainer as Container, this.#key, this.#altKey)
-                : ValReference.memberValueOf(this.parent!.value as Container, this.#key, this.#altKey);
+                ? memberValueOf(this.#dynamicContainer as Container, this.#key, this.#fallbackKey)
+                : memberValueOf(this.parent!.value as Container, this.#key, this.#fallbackKey);
 
         this.#replaceValue(value);
     }
 
     #writeTo(container: Container, newValue: Val) {
         container[this.#key] = newValue;
-        if (this.#altKey !== undefined && this.#altKey in container) {
-            delete container[this.#altKey];
+        if (this.#fallbackKey !== undefined && this.#fallbackKey in container) {
+            delete container[this.#fallbackKey];
         }
     }
 

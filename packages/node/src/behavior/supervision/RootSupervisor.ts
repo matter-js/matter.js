@@ -20,7 +20,8 @@ import {
 } from "@matter/model";
 import { AccessControl, Val } from "@matter/protocol";
 import { AttributeId } from "@matter/types";
-import { ValReference } from "../state/managed/ValReference.js";
+import { memberKeyFor } from "../state/managed/MemberKeys.js";
+import type { ValReference } from "../state/managed/ValReference.js";
 import { ValueCaster } from "../state/managed/values/ValueCaster.js";
 import { ValueManager } from "../state/managed/values/ValueManager.js";
 import { ValuePatcher } from "../state/managed/values/ValuePatcher.js";
@@ -167,7 +168,7 @@ export class RootSupervisor implements ValueSupervisor {
                 (member.tag === ElementTag.Attribute &&
                     (member.effectiveAccess.writable || member.effectiveAccess.fabricScoped))
             ) {
-                persistent.add(String(ValReference.keyFor(primaryKey, member.propertyName, member.effectiveId)));
+                persistent.add(String(memberKeyFor(primaryKey, member.propertyName, member.effectiveId)));
             }
         }
         return persistent;
