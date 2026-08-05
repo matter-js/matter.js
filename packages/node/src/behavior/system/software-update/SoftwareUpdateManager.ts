@@ -643,7 +643,7 @@ export class SoftwareUpdateManager extends Behavior {
             };
             this.internal.knownUpdates.set(peerAddress, details);
 
-            const hasConsent = this.internal.consents.some(
+            const consent = this.internal.consents.find(
                 consent =>
                     consent.vendorId === vendorId &&
                     consent.productId === productId &&
@@ -654,13 +654,14 @@ export class SoftwareUpdateManager extends Behavior {
             if (this.internal.suppressUpdates) {
                 break;
             }
-            if (hasConsent) {
+            if (consent !== undefined) {
                 // We already have a consent for this update, so just announce the provider
                 this.#queueUpdate({
                     endpoint,
                     vendorId,
                     productId,
                     targetSoftwareVersion: updateDetails.softwareVersion,
+                    maxBdxBlockSize: consent.maxBdxBlockSize,
                     peerAddress,
                 });
             } else {
@@ -1054,10 +1055,9 @@ export class SoftwareUpdateManager extends Behavior {
         peerAddress = PeerAddress(peerAddress);
         const matches = (candidate: PeerAddress) =>
             candidate.fabricIndex === peerAddress.fabricIndex && candidate.nodeId === peerAddress.nodeId;
-        const pending =
-            this.internal.updateQueue.find(entry => matches(entry.peerAddress)) ??
-            this.internal.consents.find(consent => matches(consent.peerAddress));
-        return pending?.maxBdxBlockSize ?? this.state.maxBdxBlockSize;
+        const queued = this.internal.updateQueue.find(entry => matches(entry.peerAddress));
+        const consent = this.internal.consents.find(consent => matches(consent.peerAddress));
+        return queued?.maxBdxBlockSize ?? consent?.maxBdxBlockSize ?? this.state.maxBdxBlockSize;
     }
 
     /**

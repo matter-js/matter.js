@@ -678,6 +678,46 @@ describe("Ota", () => {
         );
     }).timeout(10_000);
 
+    it("keeps a consent's BDX block size when the update is queued later", async () => {
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer(
+            { requestUserConsent: false },
+            {
+                expectedOtaImage: Bytes.fromHex(""),
+            },
+        );
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        const peerAddress = controller.peers.get("peer1")!.state.commissioning.peerAddress!;
+
+        await otaProvider.act(agent =>
+            agent.get(SoftwareUpdateManager).addUpdateConsent(peerAddress, {
+                vendorId: VendorId(vendorId),
+                productId,
+                targetSoftwareVersion,
+                maxBdxBlockSize: 256,
+            }),
+        );
+
+        // A queue entry that carries no override of its own must not mask the consent's
+        await otaProvider.act(agent => {
+            const manager = agent.get(SoftwareUpdateManager);
+            for (const entry of manager.internal.updateQueue) {
+                entry.maxBdxBlockSize = undefined;
+            }
+        });
+
+        expect(await otaProvider.act(agent => agent.get(SoftwareUpdateManager).maxBdxBlockSizeFor(peerAddress))).equals(
+            256,
+        );
+    }).timeout(10_000);
+
     it("rejects an invalid BDX block size at the call site", async () => {
         const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer(
             { requestUserConsent: false },

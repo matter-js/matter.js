@@ -255,7 +255,8 @@ export namespace NetworkProfiles {
         additionalMrpDelay?: Duration;
 
         /**
-         * {@link additionalMrpDelay} for bulk transfer (BDX) exchanges.  Defaults to {@link additionalMrpDelay}.
+         * {@link additionalMrpDelay} for bulk transfer (BDX) exchanges.  Unset inherits the parent profile's value for
+         * a sub-profile, and otherwise falls back to this profile's {@link additionalMrpDelay}.
          */
         bdxAdditionalMrpDelay?: Duration;
     }
