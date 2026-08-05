@@ -14,6 +14,7 @@ import type { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
 import { Instrumentation } from "../Instrumentation.js";
 import { Internal } from "../Internal.js";
 import { ManagedReference } from "../ManagedReference.js";
+import { memberFallbackKeyFor, memberKeyFor, memberValueOf } from "../MemberKeys.js";
 import { NameResolver } from "../NameResolver.js";
 import type { ValReference } from "../ValReference.js";
 import { PrimitiveManager } from "./PrimitiveManager.js";
@@ -193,17 +194,14 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
 
             // We allow attribute/field name or id as key.  If name is present id is ignored
             const pk = this[Internal.reference].primaryKey;
-            let key = ManagedReference.keyFor(this[Internal.reference], name, id);
+            let key = memberKeyFor(pk, name, id);
             let storedKey: undefined | number | string;
             if (key in this[Internal.reference].value) {
                 storedKey = key;
-            } else if (pk === "id") {
-                if (name in this[Internal.reference].value) {
-                    storedKey = name;
-                }
-            } else if (id !== undefined) {
-                if (id in this[Internal.reference].value) {
-                    storedKey = id;
+            } else {
+                const fallbackKey = memberFallbackKeyFor(pk, name, id);
+                if (fallbackKey !== undefined && fallbackKey in this[Internal.reference].value) {
+                    storedKey = fallbackKey;
                 }
             }
 
@@ -295,17 +293,12 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                     }
                 }
 
-                const key = ManagedReference.keyFor(this[Internal.reference], name, id);
-                if (key in struct) {
-                    return struct[key];
-                }
-
-                const key2 = this[Internal.reference].primaryKey === "id" ? name : id;
-                if (key2 !== undefined && key2 in struct) {
-                    return struct[key2];
-                }
-
-                return undefined;
+                const primaryKey = this[Internal.reference].primaryKey;
+                return memberValueOf(
+                    struct,
+                    memberKeyFor(primaryKey, name, id),
+                    memberFallbackKeyFor(primaryKey, name, id),
+                );
             }
         };
     } else {
@@ -338,7 +331,8 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
 
             // Obtain the value.  Normally just struct[key] except in the case of Val.Dynamic
             const struct = this[Internal.reference].value;
-            const key = ManagedReference.keyFor(this[Internal.reference], name, id);
+            const primaryKey = this[Internal.reference].primaryKey;
+            const key = memberKeyFor(primaryKey, name, id);
             if ((struct as Val.Dynamic)[Val.properties]) {
                 const properties = (struct as Val.Dynamic)[Val.properties](
                     this[Internal.reference].rootOwner,
@@ -351,10 +345,13 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 }
             } else if (key in struct) {
                 value = struct[key];
-            } else if (id !== undefined && key !== id && id in struct) {
+            } else if (primaryKey === "name") {
                 // A value decoded without a schema — an unknown cluster or attribute, including one a later model
-                // learns about — keys its members by TLV tag number, so a name-keyed container accepts the ID too
-                value = struct[id];
+                // learns about — keys its members by TLV tag number, so a name-keyed container accepts the ID too.
+                const fallbackKey = memberFallbackKeyFor(primaryKey, name, id);
+                if (fallbackKey !== undefined && fallbackKey in struct) {
+                    value = struct[fallbackKey];
+                }
             }
 
             // Note that we only mask values that are unreadable.  This is appropriate when the parent object is
