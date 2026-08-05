@@ -361,7 +361,7 @@ export namespace NetworkProfiles {
         icdLit: { exchanges: Infinity, additionalMrpDelay: Millis(0) },
         fast: { exchanges: 200, additionalMrpDelay: Millis(0) },
         wifi: { exchanges: 200, additionalMrpDelay: Seconds(1) },
-        thread: { ...conservative, bdxAdditionalMrpDelay: Seconds(1.5) },
+        thread: conservative,
         conservative,
         unknown: conservative,
     };

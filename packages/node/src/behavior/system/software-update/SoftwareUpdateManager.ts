@@ -1069,6 +1069,9 @@ export class SoftwareUpdateManager extends Behavior {
      */
     async addUpdateConsent(peerAddress: PeerAddress, target: SoftwareUpdateManager.UpdateTarget) {
         const { vendorId, productId, targetSoftwareVersion, maxBdxBlockSize } = target;
+        if (maxBdxBlockSize !== undefined && (!Number.isInteger(maxBdxBlockSize) || maxBdxBlockSize <= 0)) {
+            throw new ImplementationError(`maxBdxBlockSize must be a positive integer, got ${maxBdxBlockSize}`);
+        }
         peerAddress = PeerAddress(peerAddress);
         // Filter out all existing consents for this peer, they are replaced by the new one
         const consents = this.internal.consents.filter(

@@ -14,7 +14,16 @@ import {
 } from "#behaviors/ota-software-update-requestor";
 import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import { ServerNode } from "#node/ServerNode.js";
-import { Bytes, createPromise, Minutes, MockFetch, Observable, Seconds, Timestamp } from "@matter/general";
+import {
+    Bytes,
+    createPromise,
+    ImplementationError,
+    Minutes,
+    MockFetch,
+    Observable,
+    Seconds,
+    Timestamp,
+} from "@matter/general";
 import {
     BdxProtocol,
     BdxSession,
@@ -667,6 +676,38 @@ describe("Ota", () => {
         expect(await otaProvider.act(agent => agent.get(SoftwareUpdateManager).maxBdxBlockSizeFor(peerAddress))).equals(
             256,
         );
+    }).timeout(10_000);
+
+    it("rejects an invalid BDX block size at the call site", async () => {
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer(
+            { requestUserConsent: false },
+            {
+                expectedOtaImage: Bytes.fromHex(""),
+            },
+        );
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        const peerAddress = controller.peers.get("peer1")!.state.commissioning.peerAddress!;
+
+        for (const maxBdxBlockSize of [0, -1, 1.5, Number.NaN]) {
+            await expect(
+                otaProvider.act(agent =>
+                    agent.get(SoftwareUpdateManager).addUpdateConsent(peerAddress, {
+                        vendorId: VendorId(vendorId),
+                        productId,
+                        targetSoftwareVersion,
+                        maxBdxBlockSize,
+                    }),
+                ),
+            ).to.be.rejectedWith(ImplementationError);
+        }
     }).timeout(10_000);
 
     it("Queue processes a single update via addUpdateConsent", async () => {
