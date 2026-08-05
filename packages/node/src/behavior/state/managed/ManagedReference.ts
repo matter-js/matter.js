@@ -28,8 +28,17 @@ type Container = Record<string | number, Val>;
  * separate ManagedReference.
  */
 export class ManagedReference implements ValReference {
-    primaryKey;
+    readonly primaryKey = "name";
     parent;
+
+    /**
+     * The key a member occupies in `parent.value`.  Readers of a container must resolve members with this so they agree
+     * with the slot a {@link ManagedReference} registers itself and writes its value under.
+     */
+    static keyFor(parent: ValReference, name: string | number, id: number | undefined) {
+        return parent.primaryKey === "id" ? (id ?? name) : name;
+    }
+
     subrefs?: Record<number | string, ValReference>;
     owner?: Val;
     supervisionConfig?: Supervision.Config;
@@ -46,23 +55,20 @@ export class ManagedReference implements ValReference {
 
     /**
      * @param parent a reference to the container we reference
-     * @param primaryKey the preferred key for lookup
      * @param name the name (in the case of structs) or index (in case of lists)
-     * @param id the lookup ID in the case of structs
+     * @param id the lookup ID, used when {@link parent} keys its members by ID
      * @param assertWriteOk enforces ACLs and read-only
      * @param clone clones the container prior to write; undefined if not transactional
      * @param session the access control session
      */
     constructor(
         parent: ValReference<Val.Collection>,
-        primaryKey: "name" | "id",
         name: string | number,
         id: number | undefined,
         assertWriteOk: (value: Val) => void,
         clone: (container: Val) => Val,
         session: AccessControl.Session,
     ) {
-        this.primaryKey = primaryKey;
         this.parent = parent;
         this.#assertWriteOk = assertWriteOk;
         this.#clone = clone;
@@ -73,8 +79,8 @@ export class ManagedReference implements ValReference {
             path: parent.location.path.at(name),
         };
 
-        const key = primaryKey === "id" ? (id ?? name) : name;
-        const altKey = primaryKey === "id" ? (key === name ? undefined : name) : id;
+        const key = ManagedReference.keyFor(parent, name, id);
+        const altKey = parent.primaryKey === "id" ? (key === name ? undefined : name) : id;
         this.#key = key;
         this.#altKey = altKey;
 

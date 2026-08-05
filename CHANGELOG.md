@@ -24,6 +24,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Enhancement: `network.timing` accepts the kick and address-change parameters
+    - Fix: Client node state reads and writes struct- and list-valued fields nested inside an attribute value
+    - Fix: Client node state reads struct- and list-valued attributes of a cluster implementation that supplies properties dynamically
 
 ## 0.17.8 (2026-08-02)
 
