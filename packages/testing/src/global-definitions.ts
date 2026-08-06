@@ -7,7 +7,7 @@
 // Note - we don't import mocha here because in the browser we load their standard browser bundle which is different
 // from the Node version
 
-import Chai from "chai";
+import * as Chai from "chai";
 import ChaiAsPromised from "chai-as-promised";
 
 import { browserSetup, extendApi, generalSetup } from "./mocha.js";
