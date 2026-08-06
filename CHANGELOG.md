@@ -11,11 +11,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
-- Breaking: Node.js 21 is no longer accepted by the declared engine range, which now reads `>=20.19.0 <21.0.0 || >=22.13.0`
 - @matter/general
     - Fix: The `Symbol.metadata` polyfill no longer conflicts with `lib.esnext.decorators` in the published declarations
-- @matter/testing
-    - Enhancement: Upgraded to chai 6 and chai-as-promised 8
 
 ## 0.17.9 (2026-08-06)
 

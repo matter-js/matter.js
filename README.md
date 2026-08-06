@@ -52,7 +52,8 @@ matter.js has already been successfully used in certified products, but there ar
 
 ## JavaScript/Node.js compatibility
 * At least ES2022 needs to be used as build target for your project!
-* The published packages are supports all LTS Node.js versions starting with 20.x
+* The published packages support all LTS Node.js versions starting with 20.x
+* Developing matter.js itself needs Node.js 22.12 or newer, because the build toolchain declares that range. Node.js 20 still builds and passes the tests, but `npm install` reports an engine warning
 
 Please also see the additional [TypeScript notes](./packages/main/README.md#typescript-note).
 
@@ -99,7 +100,7 @@ The examples also live in this repository and can be run from a clone with `npm 
 
 ### Extending and contributing to matter.js
 
-We welcome contributions!  If you have Node.js installed, prepare your development environment as follows:
+We welcome contributions!  With Node.js 22.12 or newer installed, prepare your development environment as follows:
 
 ```bash
 git clone https://github.com/matter-js/matter.js
@@ -109,7 +110,7 @@ npm install
 
 This will install all dependencies and create symlinks between the packages, so that it can be used locally. It also builds all packages.
 
-On Windows, in order to successfully build all the packages (tested on Windows 11 Pro) make sure to have installed Node.js 20+, the windows-build-tools and node-gyp version 10.
+On Windows, in order to successfully build all the packages (tested on Windows 11 Pro) make sure to have installed the windows-build-tools and node-gyp version 10.
 On Non-Windows platforms and having Python 3.12+ installed, please also make sure to use npm 10.2.3+.
 
 Please read the [contributing guide](./CONTRIBUTING.md) before opening an issue or pull request.
