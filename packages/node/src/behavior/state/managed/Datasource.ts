@@ -28,6 +28,14 @@ const logger = Logger.get("Datasource");
 
 const FEATURES_KEY = "__features__";
 
+/**
+ * Whether key is a member id, in the only spelling under which id keys are produced (canonical decimal, as emitted
+ * by memberKeyFor for members that define an id, persistentKeys and externalSet).
+ */
+function isIdKey(key: string) {
+    return /^(0|[1-9]\d*)$/.test(key);
+}
+
 // Once-per-act() guard for local sessions (frozen — can't set interactionStarted on the session).
 const localInteractionBeginEmitted = new WeakSet<object>();
 
@@ -272,7 +280,6 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
     location;
     entropy;
     store?: Datasource.Store | Datasource.ExternallyMutableStore;
-    defaults?: Val.Struct;
     owner?: any;
     onChange?: (attrs: string[]) => MaybePromise<void>;
 
@@ -302,14 +309,16 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
         this.location = options.location;
         this.entropy = options.entropy;
         this.store = options.store;
-        this.defaults = options.defaults;
         this.owner = options.owner;
         this.onChange = options.onChange;
         this.primaryKey = options.primaryKey === "id" ? "id" : "name";
         this.events = options.events ?? {};
 
-        // Initialize values
-        const values = new options.type() as Val.Struct;
+        // Initialize values.  An id-keyed datasource mirrors a peer, whose reports are the only source of values:
+        // the state class's name-keyed field initializers must not run, or they masquerade as reported data
+        const values = (
+            this.primaryKey === "id" ? Object.create(options.type.prototype) : new options.type()
+        ) as Val.Struct;
 
         let storedValues = options.store?.initialValues;
 
@@ -328,8 +337,56 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
             }
         }
 
+        let defaults = options.defaults;
+        if (this.primaryKey === "id") {
+            if (defaults !== undefined) {
+                // Only explicitly id-keyed defaults may seed a mirror (see PrimaryKey)
+                const kept = {} as Val.Struct;
+                const dropped = new Array<string>();
+                for (const key in defaults) {
+                    if (isIdKey(key)) {
+                        kept[key] = defaults[key];
+                    } else {
+                        dropped.push(key);
+                    }
+                }
+                if (dropped.length) {
+                    logger.warn(
+                        `Ignoring configured defaults [${dropped.join(", ")}] for ${options.location.path} because a peer's reports are the only source of values`,
+                    );
+                    defaults = kept;
+                }
+            }
+
+            if (storedValues !== undefined) {
+                // A store persisted before mirrors were id-keyed may hold peer data under property names; migrate it
+                // to the canonical id slot so it stays readable (idempotent — the store itself is not rewritten)
+                const ids = options.supervisor.propertyNamesAndIds;
+                let migrated: Val.Struct | undefined;
+                for (const key in storedValues) {
+                    const id = ids.get(key);
+                    if (id === undefined) {
+                        continue;
+                    }
+                    migrated ??= { ...storedValues };
+                    if (id in migrated) {
+                        logger.warn(
+                            `Discarding legacy value stored at "${key}" for ${options.location.path} because a newer value exists at its id`,
+                        );
+                    } else {
+                        logger.debug(`Migrated stored value "${key}" to id ${id} for ${options.location.path}`);
+                        migrated[id] = migrated[key];
+                    }
+                    delete migrated[key];
+                }
+                if (migrated) {
+                    storedValues = migrated;
+                }
+            }
+        }
+
         const initialValues = {
-            ...options.defaults,
+            ...defaults,
             ...storedValues,
         };
 
@@ -735,16 +792,26 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
         // Clone values if we haven't already
         if (this.#values === this.#internals.values) {
             const old = this.#values;
-            this.#values = new this.#internals.type();
+
+            let keys: Iterable<string>;
+            if (this.primaryKey === "id") {
+                // A mirror's clone must not resurrect the state class's name-keyed field initializers — the peer's
+                // reports are the only source of values
+                this.#values = Object.create(this.#internals.type.prototype);
+                keys = Object.keys(old);
+            } else {
+                this.#values = new this.#internals.type();
+                const keySet = new Set<string>(this.#fields);
+                for (const key of Object.keys(old)) {
+                    keySet.add(key);
+                }
+                keys = keySet;
+            }
 
             const properties = (this.#values as Val.Dynamic)[Val.properties]
                 ? (this.#values as Val.Dynamic)[Val.properties](this.rootOwner, this.#session)
                 : undefined;
-            // `#fields` only lists property names; client mirrors also store values at numeric attribute ids.
-            const keys = new Set<string>(this.#fields);
-            for (const key of Object.keys(old)) {
-                keys.add(key);
-            }
+
             for (const key of keys) {
                 if (properties && key in properties) {
                     // Property is dynamic anyway, so do nothing

@@ -14,7 +14,13 @@ import type { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
 import { Instrumentation } from "../Instrumentation.js";
 import { Internal } from "../Internal.js";
 import { ManagedReference } from "../ManagedReference.js";
-import { memberFallbackKeyFor, memberKeyFor, memberValueOf } from "../MemberKeys.js";
+import {
+    memberFallbackKeyFor,
+    memberKeyFor,
+    memberReadFallbackKeyFor,
+    memberSlotOf,
+    memberValueOf,
+} from "../MemberKeys.js";
 import { NameResolver } from "../NameResolver.js";
 import type { ValReference } from "../ValReference.js";
 import { PrimitiveManager } from "./PrimitiveManager.js";
@@ -195,17 +201,11 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
             // We allow attribute/field name or id as key.  If name is present id is ignored
             const pk = this[Internal.reference].primaryKey;
             let key = memberKeyFor(pk, name, id);
-            let storedKey: undefined | number | string;
-            if (key in this[Internal.reference].value) {
-                storedKey = key;
-            } else {
-                const fallbackKey = memberFallbackKeyFor(pk, name, id);
-                if (fallbackKey !== undefined && fallbackKey in this[Internal.reference].value) {
-                    storedKey = fallbackKey;
-                }
-            }
+            let storedKey = memberSlotOf(this[Internal.reference].value, key, memberFallbackKeyFor(pk, name, id));
 
-            const oldValue = storedKey === undefined ? undefined : this[Internal.reference].value[storedKey];
+            // Rollback and the fabric-scoped-list merge check must see what a read returns, not the
+            // write-migration slot above
+            const oldValue = memberValueOf(this[Internal.reference].value, key, memberReadFallbackKeyFor(pk, name, id));
 
             const self = this;
 
@@ -236,7 +236,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 if (isFabricScopedList && Array.isArray(value) && Array.isArray(oldValue)) {
                     // In the case of fabric-scoped write to established list we use the managed proxy to perform update
                     // as it will sort through values and only modify those with correct fabricIndex
-                    const proxy = self[name] as Val.List;
+                    const proxy = self[memberKeyFor(pk, name, id)] as Val.List;
                     for (let i = 0; i < value.length; i++) {
                         proxy[i] = value[i];
                     }
@@ -265,8 +265,14 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                         });
                     } catch (e) {
                         // Undo our change on error.  Rollback will take care of this when transactional but this
-                        // handles the cases of 1.) no transaction, and 2.) error is caught within transaction
-                        target[key] = oldValue;
+                        // handles the cases of 1.) no transaction, and 2.) error is caught within transaction.
+                        // A previously absent member must not leave a slot behind — consumers enumerate slot keys to
+                        // discover which members hold values
+                        if (oldValue === undefined) {
+                            delete target[key];
+                        } else {
+                            target[key] = oldValue;
+                        }
 
                         throw e;
                     }
@@ -297,7 +303,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 return memberValueOf(
                     struct,
                     memberKeyFor(primaryKey, name, id),
-                    memberFallbackKeyFor(primaryKey, name, id),
+                    memberReadFallbackKeyFor(primaryKey, name, id),
                 );
             }
         };
@@ -341,17 +347,10 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 if (name in properties) {
                     value = properties[name];
                 } else {
-                    value = struct[key];
+                    value = memberValueOf(struct, key, memberReadFallbackKeyFor(primaryKey, name, id));
                 }
-            } else if (key in struct) {
-                value = struct[key];
-            } else if (primaryKey === "name") {
-                // A value decoded without a schema — an unknown cluster or attribute, including one a later model
-                // learns about — keys its members by TLV tag number, so a name-keyed container accepts the ID too.
-                const fallbackKey = memberFallbackKeyFor(primaryKey, name, id);
-                if (fallbackKey !== undefined && fallbackKey in struct) {
-                    value = struct[fallbackKey];
-                }
+            } else {
+                value = memberValueOf(struct, key, memberReadFallbackKeyFor(primaryKey, name, id));
             }
 
             // Note that we only mask values that are unreadable.  This is appropriate when the parent object is
@@ -362,7 +361,8 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
             }
 
             if (value === undefined) {
-                return defaultReader?.(this);
+                // A referenced default is computed locally, so an id-keyed mirror never surfaces it
+                return primaryKey === "name" ? defaultReader?.(this) : undefined;
             }
 
             // Value is null or a dynamic property, so just return it

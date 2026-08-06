@@ -6,7 +6,13 @@
 
 import { AccessControl, ExpiredReferenceError, Val } from "@matter/protocol";
 import type { Supervision } from "../../supervision/Supervision.js";
-import { memberFallbackKeyFor, memberKeyFor, memberValueOf } from "./MemberKeys.js";
+import {
+    memberFallbackKeyFor,
+    memberKeyFor,
+    memberReadFallbackKeyFor,
+    memberSlotOf,
+    memberValueOf,
+} from "./MemberKeys.js";
 import type { ValReference } from "./ValReference.js";
 
 type Container = Record<string | number, Val>;
@@ -37,7 +43,8 @@ export class ManagedReference implements ValReference {
     supervisionConfig?: Supervision.Config;
 
     #key: string | number;
-    #fallbackKey: string | number | undefined;
+    #writeMigrationKey: string | number | undefined;
+    #readFallbackKey: string | number | undefined;
     #assertWriteOk: (value: Val) => void;
     #clone: ((container: Val) => Val) | undefined;
     #session: AccessControl.Session;
@@ -73,17 +80,18 @@ export class ManagedReference implements ValReference {
         };
 
         const key = memberKeyFor(parent.primaryKey, name, id);
-        const fallbackKey = memberFallbackKeyFor(parent.primaryKey, name, id);
+        const writeMigrationKey = memberFallbackKeyFor(parent.primaryKey, name, id);
+        const readFallbackKey = memberReadFallbackKeyFor(parent.primaryKey, name, id);
         this.#key = key;
-        this.#fallbackKey = fallbackKey;
+        this.#writeMigrationKey = writeMigrationKey;
+        this.#readFallbackKey = readFallbackKey;
 
         let dynamicContainer: Val.Struct | undefined;
         if ((parent.value as Val.Dynamic)[Val.properties]) {
             dynamicContainer = (parent.value as Val.Dynamic)[Val.properties](parent.rootOwner, session);
-            if (key in (dynamicContainer as Container)) {
-                this.#value = (dynamicContainer as Container)[key];
-            } else if (fallbackKey !== undefined && fallbackKey in (dynamicContainer as Container)) {
-                this.#value = (dynamicContainer as Container)[fallbackKey];
+            const slot = memberSlotOf(dynamicContainer as Container, key, readFallbackKey);
+            if (slot !== undefined) {
+                this.#value = (dynamicContainer as Container)[slot];
             } else {
                 dynamicContainer = undefined;
             }
@@ -91,7 +99,7 @@ export class ManagedReference implements ValReference {
         this.#dynamicContainer = dynamicContainer;
 
         if (dynamicContainer === undefined) {
-            this.#value = memberValueOf(parent.value as Container, key, fallbackKey);
+            this.#value = memberValueOf(parent.value as Container, key, readFallbackKey);
         }
 
         // Propagate supervision config from parent
@@ -153,9 +161,9 @@ export class ManagedReference implements ValReference {
                 this.parent!.rootOwner,
                 this.#session,
             );
-            return memberValueOf(origProperties as Container, this.#key, this.#fallbackKey);
+            return memberValueOf(origProperties as Container, this.#key, this.#readFallbackKey);
         }
-        return memberValueOf(this.parent!.original as Container, this.#key, this.#fallbackKey);
+        return memberValueOf(this.parent!.original as Container, this.#key, this.#readFallbackKey);
     }
 
     change(mutator: () => void) {
@@ -189,16 +197,16 @@ export class ManagedReference implements ValReference {
 
         const value =
             this.#dynamicContainer !== undefined
-                ? memberValueOf(this.#dynamicContainer as Container, this.#key, this.#fallbackKey)
-                : memberValueOf(this.parent!.value as Container, this.#key, this.#fallbackKey);
+                ? memberValueOf(this.#dynamicContainer as Container, this.#key, this.#readFallbackKey)
+                : memberValueOf(this.parent!.value as Container, this.#key, this.#readFallbackKey);
 
         this.#replaceValue(value);
     }
 
     #writeTo(container: Container, newValue: Val) {
         container[this.#key] = newValue;
-        if (this.#fallbackKey !== undefined && this.#fallbackKey in container) {
-            delete container[this.#fallbackKey];
+        if (this.#writeMigrationKey !== undefined && this.#writeMigrationKey in container) {
+            delete container[this.#writeMigrationKey];
         }
     }
 

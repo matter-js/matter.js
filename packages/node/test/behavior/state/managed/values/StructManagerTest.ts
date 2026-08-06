@@ -9,7 +9,15 @@ import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { MaybePromise, MockCrypto } from "@matter/general";
-import { ClusterModel, DataModelPath, FeatureMap, FeatureSet, FieldElement, FieldModel } from "@matter/model";
+import {
+    ClusterModel,
+    DataModelPath,
+    FeatureMap,
+    FeatureSet,
+    FieldElement,
+    FieldModel,
+    FieldValue,
+} from "@matter/model";
 import { ConstraintError, Val } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, NodeId } from "@matter/types";
 import { MockExchange } from "../../../../node/mock-exchange.js";
@@ -273,9 +281,9 @@ describe("StructManager", () => {
             });
         });
 
-        // Characterization: a value present only under its property name resolves for a primitive member but not for a
-        // struct or list member, which read as absent.  Documents current behavior, not a desired asymmetry
-        it("resolves only primitive members of a value stored under property names", async () => {
+        // An id-keyed container never falls back to the property-name slot: a member the peer has not reported
+        // under its id reads as undefined, whether primitive or collection.
+        it("reads a value present only under its property name as undefined, for primitives and collections alike", async () => {
             const struct = TestStruct(
                 {
                     prim: { id: 0, type: "string" },
@@ -290,10 +298,81 @@ describe("StructManager", () => {
             );
 
             await struct.online(TestContext(), ref => {
-                expect(ref.prim).equals("hi");
+                expect(ref.prim).undefined;
                 expect(ref.sub).undefined;
             });
         });
+
+        // A rejected write must roll back to the same value a read would have returned beforehand — not to
+        // whatever the write-migration fallback found under the property name, or the rollback plants the seeded
+        // default at the id slot and a later read wrongly reports the member as peer-reported.
+        it("rolls back to undefined, not a name-slot seeded default, when a rejected write is undone", async () => {
+            const struct = TestStruct({ prim: { id: 0, type: "uint8", constraint: "0 to 10" } }, { prim: 5 }, "id");
+
+            await struct.online(TestContext(), ref => {
+                expect(ref.prim).undefined;
+
+                expect(() => (ref.prim = 99)).throws();
+
+                expect(ref.prim).undefined;
+            });
+        });
+
+        // A fabric-scoped list the peer has not yet reported must write by direct assignment, not through the
+        // managed-proxy merge path reserved for an established list: that path reads back through the property
+        // getter, which (correctly) reports the unreported list as absent rather than the seeded empty array.
+        it("writes a fabric-scoped list the peer has not yet reported via direct assignment", async () => {
+            const struct = TestStruct(
+                {
+                    acl: {
+                        id: 0,
+                        type: "list",
+                        access: "RW F",
+                        children: [FieldElement({ name: "entry", type: "string" })],
+                    },
+                },
+                { acl: [] },
+                "id",
+            );
+
+            await struct.online(TestContext(), ref => {
+                expect(ref.acl).undefined;
+                expect(() => (ref.acl = ["x"])).not.throws();
+                expect(ref.acl).deep.equals(["x"]);
+            });
+        });
+
+        it("does not compute a referenced default for an unreported member of an id-keyed container", async () => {
+            const struct = TestStruct(referencedDefaultFields(), { 1: { foo: "bar" } }, "id");
+
+            await struct.online(TestContext(), ref => {
+                expect(ref.mirror).undefined;
+            });
+        });
+
+        it("computes a referenced default for an absent member of a name-keyed container", async () => {
+            const struct = TestStruct(referencedDefaultFields(), { src: { foo: "bar" } });
+
+            await struct.online(TestContext(), ref => {
+                expect(ref.mirror).deep.equals({ foo: "bar" });
+            });
+        });
+
+        function referencedDefaultFields() {
+            return {
+                src: {
+                    id: 1,
+                    type: "struct",
+                    children: [FieldElement({ name: "foo", type: "string" })],
+                },
+                mirror: {
+                    id: 2,
+                    type: "struct",
+                    default: FieldValue.Reference("src"),
+                    children: [FieldElement({ name: "foo", type: "string" })],
+                },
+            };
+        }
 
         // A report for a cluster or attribute the model cannot resolve decodes to TLV tag numbers, and that shape
         // persists.  A later model that does know the schema must still read those values.
@@ -332,6 +411,36 @@ describe("StructManager", () => {
             await LocalActorContext.act("test", cx => {
                 const state = datasource.reference(cx) as unknown as Val.Struct;
                 expect(state.prim).equals("hi");
+                expect(state.sub).deep.equals({ foo: "bar" });
+            });
+        });
+    });
+
+    describe("dynamic containers with TLV-tag-keyed members", () => {
+        // A name-keyed dynamic container (the default) whose members are stored under their element id, as when a
+        // report for an unresolved schema decodes to TLV tag numbers. The collection getter must resolve such a
+        // member the same way the primitive getter does.
+        it("reads a collection member stored under its element id", async () => {
+            const datasource = Datasource({
+                entropy: MockCrypto(),
+                type: DynamicState,
+                supervisor: RootSupervisor.for(
+                    new FieldModel(
+                        FieldElement(
+                            { name: "Struct", type: "struct" },
+                            FieldElement(
+                                { name: "sub", id: 1, type: "struct" },
+                                FieldElement({ name: "foo", id: 0, type: "string" }),
+                            ),
+                        ),
+                    ),
+                ),
+                location: { endpoint: EndpointNumber(1), path: new DataModelPath("DynamicState") },
+                store: { initialValues: { 1: { foo: "bar" } }, set: async () => {} },
+            });
+
+            await LocalActorContext.act("test", cx => {
+                const state = datasource.reference(cx) as unknown as Val.Struct;
                 expect(state.sub).deep.equals({ foo: "bar" });
             });
         });

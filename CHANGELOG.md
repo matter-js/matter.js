@@ -23,6 +23,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensure that the end of a session is logged also when its channel was detached before; channel detach is now logged as debug
 
 - @matter/node
+    - Breaking: A client node's attribute the peer has not reported now reads as `undefined` — primitives no longer return a default seeded from the state class or schema, and a schema default referencing another field no longer resolves on a client node
+    - Breaking: Configured options and environment variables no longer seed a client node's cluster state; the peer's reports are the only source of values
+    - Fix: Client node values persisted under property names by earlier versions are migrated to their attribute id on load, so they stay readable
+    - Fix: Writing a fabric-scoped list entry that stems from a cluster whose schema could not be resolved no longer produces two conflicting fabricIndex fields
     - Enhancement: `network.timing` accepts the kick and address-change parameters
     - Enhancement: Managed state derives a member's container key through one shared implementation (no functional change)
     - Fix: Client node state reads and writes struct- and list-valued fields nested inside an attribute value
