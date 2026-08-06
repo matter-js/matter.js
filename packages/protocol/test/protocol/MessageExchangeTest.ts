@@ -518,6 +518,65 @@ describe("MessageExchange", () => {
         });
     });
 
+    describe("close notification", () => {
+        before(() => MockTime.enable());
+
+        async function usedExchange() {
+            const session = new ProtocolMocks.NodeSession();
+            (session.channel as any).send = async (): Promise<void> => {};
+            const { exchange } = createExchange(session);
+            await exchange.send(0, Bytes.empty, { suppressAck: true, disableMrpLogic: true });
+            return exchange;
+        }
+
+        it("emits closing once when close is invoked again after the exchange completed its close", async () => {
+            const exchange = await usedExchange();
+            let closingCount = 0;
+            exchange.closing.on(() => {
+                closingCount++;
+            });
+
+            await exchange.close();
+            expect(exchange.closed.value).to.be.true;
+
+            await exchange.close();
+
+            expect(closingCount).to.equal(1);
+        });
+
+        it("emits closed once when destroyed after the exchange completed its close", async () => {
+            const exchange = await usedExchange();
+            let closedCount = 0;
+            exchange.closed.on(() => {
+                closedCount++;
+            });
+
+            await exchange.close();
+            await exchange.destroy();
+
+            expect(closedCount).to.equal(1);
+        });
+
+        // Characterization: destroy() bypasses the closing notification, which is why consumers that release
+        // resources on close must observe both closing and closed
+        it("emits closed but not closing when destroyed", async () => {
+            const exchange = await usedExchange();
+            let closingCount = 0;
+            let closedCount = 0;
+            exchange.closing.on(() => {
+                closingCount++;
+            });
+            exchange.closed.on(() => {
+                closedCount++;
+            });
+
+            await exchange.destroy();
+
+            expect(closingCount).to.equal(0);
+            expect(closedCount).to.equal(1);
+        });
+    });
+
     describe("cross-protocol StatusReport", () => {
         it("accepts SecureChannel StatusReport on a non-SecureChannel exchange and delivers it to the consumer", async () => {
             // Reproduces the case where a peer sends a spec-compliant StatusReport (protocolId=0, type=0x40)

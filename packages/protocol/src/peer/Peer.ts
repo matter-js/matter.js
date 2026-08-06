@@ -157,7 +157,7 @@ export class Peer {
             }
 
             // Remove session and detach listener when destroyed
-            session.closing.on(() => {
+            session.closing.once(() => {
                 this.#sessions.delete(session);
                 if (isIpNetworkChannel(session.channel.transportChannel)) {
                     session.channel.networkAddressChanged.off(tagUdp);
