@@ -653,6 +653,85 @@ describe("DnssdNames", () => {
             expect([...name.records]).deep.equals([]);
         });
 
+        it("ignores an SRV record targeting the root domain", async () => {
+            await using site = new MockSite();
+            const { client } = await site.addPair();
+
+            const qname = qnameOf(1);
+            const name = client.names.get(qname);
+
+            name.installRecord(srvRecord(qname, { port: 1234, target: "." }));
+
+            expect([...name.records]).deep.equals([]);
+        });
+
+        it("exposes no address and no target host for a service that is unavailable", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+            client.configureNames({
+                filter: record =>
+                    record.name === MOCK_SERVICE_DOMAIN || record.name.endsWith(`.${MOCK_SERVICE_DOMAIN}`),
+            });
+            const service = client.addService(qname);
+
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    srvRecord(qname, { port: 0, target: server.hostname }),
+                    {
+                        name: server.hostname,
+                        recordType: DnsRecordType.AAAA,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: "abcd::91",
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            expect([...service.addresses]).deep.equals([]);
+            expect(client.names.has(server.hostname)).false;
+        });
+
+        it("does not stage IP records from a packet whose only relevant record is unavailable", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+            client.configureNames({
+                filter: record =>
+                    record.name === MOCK_SERVICE_DOMAIN || record.name.endsWith(`.${MOCK_SERVICE_DOMAIN}`),
+            });
+
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    srvRecord(qname, { port: 0, target: server.hostname }),
+                    {
+                        name: server.hostname,
+                        recordType: DnsRecordType.AAAA,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: "abcd::99",
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [srvRecord(qname, { port: 1234, target: server.hostname })],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            expect([...client.names.get(server.hostname).records]).deep.equals([]);
+        });
+
         it("keeps a known service when a later announcement designates it unavailable", async () => {
             await using site = new MockSite();
             const { client, server } = await site.addPair();

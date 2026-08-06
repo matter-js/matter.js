@@ -23,6 +23,8 @@ const logger = Logger.get("DnssdName");
  */
 export const DEFAULT_TTL_GRACE_FACTOR = 1.05;
 
+const MAX_PORT = 0xffff;
+
 /**
  * Manages records associated with a single DNS-SD qname.
  *
@@ -113,6 +115,12 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
     }
 
     installRecord(record: DnsRecord<any>, options?: DnssdName.InstallOptions) {
+        const key = keyOf(record);
+        if (key === undefined) {
+            this.#deleteIfUnused();
+            return false;
+        }
+
         if (record.recordType === DnsRecordType.SRV && !isAvailableService(record.value)) {
             if (!this.#unavailableServiceReported) {
                 this.#unavailableServiceReported = true;
@@ -121,12 +129,6 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
                     Diagnostic.dict({ target: record.value.target, port: record.value.port }),
                 );
             }
-            this.#deleteIfUnused();
-            return false;
-        }
-
-        const key = keyOf(record);
-        if (key === undefined) {
             this.#deleteIfUnused();
             return false;
         }
@@ -167,6 +169,8 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
         }
 
         this.#notify("update", key, recordWithExpire);
+
+        return true;
     }
 
     deleteRecord(record: DnsRecord, ifOlderThan?: Timestamp) {
@@ -289,7 +293,7 @@ function isAvailableService({ target, port }: SrvRecordValue) {
         return false;
     }
 
-    return Number.isInteger(port) && port > 0 && port <= 65535;
+    return Number.isInteger(port) && port > 0 && port <= MAX_PORT;
 }
 
 function keyOf(record: DnsRecord): string | undefined {
