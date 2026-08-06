@@ -13,7 +13,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/general
     - Fix: DNS-SD ignores SRV records with port 0, an empty target or an out-of-range port
-    - Fix: DNS-SD address resolution queries the SRV target host instead of the service instance name
+    - Fix: DNS-SD resolution queries A/AAAA for the SRV target host instead of the service instance name
 
 ## 0.17.9 (2026-08-06)
 
