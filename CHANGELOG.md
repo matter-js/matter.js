@@ -9,6 +9,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+- @matter/general
+    - Fix: DNS-SD ignores SRV records with port 0, an empty target or an out-of-range port
+
 ## 0.17.9 (2026-08-06)
 
 - @matter/protocol

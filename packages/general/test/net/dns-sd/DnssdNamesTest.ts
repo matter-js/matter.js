@@ -577,6 +577,111 @@ describe("DnssdNames", () => {
         });
     });
 
+    describe("unavailable services", () => {
+        function srvRecord(qname: string, value: { port: number; target: string }): DnsRecord {
+            return {
+                name: qname,
+                recordType: DnsRecordType.SRV,
+                recordClass: DnsRecordClass.IN,
+                ttl: Hours(1),
+                value: { priority: 10, weight: 1, ...value },
+            };
+        }
+
+        it("ignores an SRV record with port 0", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+            const name = client.names.get(qname);
+
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: MOCK_SERVICE_DOMAIN,
+                        recordType: DnsRecordType.PTR,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: qname,
+                    },
+                    srvRecord(qname, { port: 0, target: server.hostname }),
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            expect([...name.records]).deep.equals([]);
+        });
+
+        it("ignores an SRV record with an empty target", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+            const name = client.names.get(qname);
+
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: MOCK_SERVICE_DOMAIN,
+                        recordType: DnsRecordType.PTR,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: qname,
+                    },
+                    srvRecord(qname, { port: 1234, target: "" }),
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            expect([...name.records]).deep.equals([]);
+        });
+
+        it("ignores an SRV record with a port outside the 16-bit range", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+            const name = client.names.get(qname);
+
+            name.installRecord(srvRecord(qname, { port: -1, target: server.hostname }));
+            name.installRecord(srvRecord(qname, { port: 65536, target: server.hostname }));
+
+            expect([...name.records]).deep.equals([]);
+        });
+
+        it("keeps a known service when a later announcement designates it unavailable", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+
+            const discovered = new Promise<void>(resolve => {
+                client.names.discovered.once(() => resolve());
+            });
+            await server.broadcast();
+            await MockTime.resolve(discovered);
+
+            const srvPorts = () =>
+                [...client.names.get(qname).records]
+                    .filter(record => record.recordType === DnsRecordType.SRV)
+                    .map(record => record.value.port);
+            expect(srvPorts()).deep.equals([1234]);
+
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [srvRecord(qname, { port: 0, target: server.hostname })],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            expect(srvPorts()).deep.equals([1234]);
+        });
+    });
+
     describe("TXT parameters", () => {
         it("recomputes parameters when a TXT record is removed", async () => {
             await using site = new MockSite();
