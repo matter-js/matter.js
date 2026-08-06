@@ -53,7 +53,7 @@ matter.js has already been successfully used in certified products, but there ar
 ## JavaScript/Node.js compatibility
 * At least ES2022 needs to be used as build target for your project!
 * The published packages support all LTS Node.js versions starting with 20.x
-* Developing matter.js itself needs Node.js 22.12 or newer, because the build toolchain declares that range. Node.js 20 still builds and passes the tests, but `npm install` reports an engine warning
+* Developing matter.js itself needs Node.js 22.12 or newer, because the build toolchain declares that range. Node.js 20 still builds and passes the tests, but `npm install` reports an engine warning.
 
 Please also see the additional [TypeScript notes](./packages/main/README.md#typescript-note).
 
