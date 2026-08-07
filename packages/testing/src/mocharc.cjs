@@ -14,11 +14,12 @@ if (globalThis.crypto === undefined) {
 }
 
 function mocharc(format = "cjs") {
-    const { resolve } = require("path");
+    const { dirname, resolve } = require("path");
     const cli = require("mocha/lib/cli/cli");
     const listSupportFiles = require("./util/files.js").listSupportFiles;
 
-    const TOOLS = resolve(__dirname, "../../../tools");
+    // The package exports no subpath for its binaries, so derive their location from the main entry point
+    const buildJs = resolve(dirname(require.resolve("@nacho-iot/js-tools")), "..", "..", "bin", "build.js");
 
     const testJs = `build/${format}/test`;
     const defaultSpec = `${testJs}/**/*Test.js`;
@@ -26,7 +27,7 @@ function mocharc(format = "cjs") {
     // Build.  Ideally we'd import build code but it's asynchronous and mocharc isn't.  So instead build in a separate
     // process
     const spawnSync = require("child_process").spawnSync;
-    const result = spawnSync(`${TOOLS}/bin/build.js`, [format], { stdio: "inherit" });
+    const result = spawnSync(process.execPath, [buildJs, format], { stdio: "inherit" });
     if (result.error) {
         console.error(result.error);
         process.exit(-1);

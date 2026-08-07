@@ -84,12 +84,12 @@
     },
     "devDependencies": {
         "c8": "^12.0.0",
-        "oxlint": "^1.75.0",
+        "oxlint": "^1.77.0",
         "oxlint-tsgolint": "^7.0.2001",
         "prettier": "^3.9.6",
         "prettier-plugin-organize-imports": "^4.3.0",
         "semver": "^7.8.5",
-        "typescript": "~6.0.3"
+        "typescript": "~7.0.2"
     },
     "overrides": {
         "brorand": "npm:@matter.js/brorand@1.1.0",
@@ -99,7 +99,7 @@
         }
     },
     "dependencies": {
-        "@nacho-iot/js-tools": "^0.1.7",
+        "@nacho-iot/js-tools": "^0.2.0",
         "memlab": "^2.0.4"
     },
     "allowScripts": {
@@ -113,9 +113,9 @@
         "ssh2@1.17.0": true,
         "@memlab/cli@2.0.4": true,
         "@serialport/bindings-cpp@12.0.1": true,
-        "@stoprocent/bleno@0.12.5": true,
-        "@stoprocent/bluetooth-hci-socket@2.2.6": true,
-        "@stoprocent/noble@2.5.7": true,
+        "@stoprocent/bleno@0.13.1": true,
+        "@stoprocent/bluetooth-hci-socket@2.3.0": true,
+        "@stoprocent/noble@2.7.1": true,
         "usb@2.18.0": true,
         "fsevents@2.3.2": true
     }

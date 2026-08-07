@@ -228,9 +228,9 @@ describe("RebootResubscribeArmer", () => {
 
         let peerLossCount = 0;
         const realHandlePeerLoss = sessions.handlePeerLoss.bind(sessions);
-        sessions.handlePeerLoss = (address, cause, asOf) => {
+        sessions.handlePeerLoss = (address, context) => {
             peerLossCount++;
-            return realHandlePeerLoss(address, cause, asOf);
+            return realHandlePeerLoss(address, context);
         };
 
         armer.arm(PEER);
@@ -251,9 +251,9 @@ describe("RebootResubscribeArmer", () => {
 
         let peerLossCount = 0;
         const realHandlePeerLoss = sessions.handlePeerLoss.bind(sessions);
-        sessions.handlePeerLoss = (address, cause, asOf) => {
+        sessions.handlePeerLoss = (address, context) => {
             peerLossCount++;
-            return realHandlePeerLoss(address, cause, asOf);
+            return realHandlePeerLoss(address, context);
         };
 
         armer.arm(PEER);

@@ -318,7 +318,7 @@ export class BlenoBleServer extends BleChannel<Bytes> {
         );
         this.latestHandshakePayload = undefined; // BTP Session initialized, handshake payload not needed anymore
         // Forward BTP-initiated close (e.g. ack-receive timeout) to our Observable.
-        this.btpSession.closed.on(() => this.emitClosed());
+        this.btpSession.closed.once(() => this.emitClosed());
     }
 
     handleC2Indicate() {

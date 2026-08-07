@@ -206,7 +206,7 @@ function addFeatureNode(
 
             for (const lhsFeature in lhsFeatures) {
                 add({
-                    feature: false,
+                    [feature.name]: false,
                     [lhsFeature]: lhsFeatures[lhsFeature],
                     ...rhsFeature,
                 });
@@ -215,8 +215,11 @@ function addFeatureNode(
         }
 
         case Conformance.Operator.OR: {
+            // The feature is mandatory when any disjunct holds, so each disjunct without it is illegal
             const features = extractDisjunctFeatures(node);
-            add(Object.fromEntries(Object.entries(features).map((k, v) => [k, !v])));
+            for (const name in features) {
+                add({ [name]: features[name], [feature.name]: false });
+            }
             break;
         }
 

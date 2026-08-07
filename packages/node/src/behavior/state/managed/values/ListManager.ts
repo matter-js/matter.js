@@ -162,7 +162,6 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
             if (subref === undefined) {
                 subref = new ManagedReference(
                     this.reference,
-                    "name",
                     index,
                     undefined,
                     assertWriteOkAlways,

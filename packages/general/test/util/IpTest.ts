@@ -4,9 +4,45 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipv4ToBytes, ipv4ToNumber, ipv6BytesToString, ipv6ToArray, ipv6ToBytes, onSameNetwork } from "#util/Ip.js";
+import {
+    ipv4ToBytes,
+    ipv4ToNumber,
+    ipv6BytesToString,
+    ipv6ToArray,
+    ipv6ToBytes,
+    isIPv4,
+    isIPv6,
+    onSameNetwork,
+} from "#util/Ip.js";
 
 describe("IP", () => {
+    describe("isIPv4/isIPv6", () => {
+        it("identifies a plain IPv4 address", () => {
+            expect(isIPv4("192.168.1.1")).equal(true);
+            expect(isIPv6("192.168.1.1")).equal(false);
+        });
+
+        it("identifies a plain IPv6 address", () => {
+            expect(isIPv4("fe80::e777:4f5e:c61e:7314")).equal(false);
+            expect(isIPv6("fe80::e777:4f5e:c61e:7314")).equal(true);
+        });
+
+        it("identifies an IPv6 address with a numeric zone index", () => {
+            expect(isIPv4("fe80::1%1")).equal(false);
+            expect(isIPv6("fe80::1%1")).equal(true);
+        });
+
+        it("identifies an IPv6 address with a zone index containing a dot", () => {
+            expect(isIPv4("fe80::1%eth0.100")).equal(false);
+            expect(isIPv6("fe80::1%eth0.100")).equal(true);
+        });
+
+        it("identifies an IPv4-mapped IPv6 address as IPv6", () => {
+            expect(isIPv4("::ffff:192.168.1.1")).equal(false);
+            expect(isIPv6("::ffff:192.168.1.1")).equal(true);
+        });
+    });
+
     describe("iPv4ToNumber", () => {
         it("converts an IPv4 address to a number", () => {
             const result = ipv4ToNumber("192.168.200.250");
@@ -129,6 +165,16 @@ describe("IP", () => {
             const result = onSameNetwork("fe80::e777:4f5e:c61e:7314", "fe80:1::4f5e:1:1", "ffff:ffff:ffff:ffff::");
 
             expect(result).equal(false);
+        });
+
+        it("returns true if two IPv6 addresses with a dotted zone index are on the same network", () => {
+            const result = onSameNetwork(
+                "fe80::e777:4f5e:c61e:7314%eth0.100",
+                "fe80::e777:4f5e:1:1%eth0.100",
+                "ffff:ffff:ffff:ffff::",
+            );
+
+            expect(result).equal(true);
         });
     });
 });
