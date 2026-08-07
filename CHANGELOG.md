@@ -11,6 +11,71 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/general
+    - Fix: Opening a namespace whose `driver.json` names an unregistered storage driver now throws `NoProviderError` instead of silently opening the existing data with a mismatched driver
+    - Fix: DNS-SD ignores SRV records with port 0, an empty target or an out-of-range port
+    - Fix: DNS-SD resolution queries A/AAAA for the SRV target host instead of the service instance name
+    - Fix: The `Symbol.metadata` polyfill no longer conflicts with `lib.esnext.decorators` in the published declarations
+
+- @matter/model
+    - Breaking: A provisional element is no longer mandatory; conformance following a `P` describes the conformance intended once the element leaves provisional state
+    - Enhancement: `FeatureSelectionErrors()` assesses a cluster's selected features against the combinations its FeatureMap conformance disallows
+    - Enhancement: `FeatureSet.resolve()` resolves a feature short code, title or camelized title to a short code
+    - Fix: A cluster's feature table no longer selects features; a feature the specification makes unconditionally mandatory is always selected
+    - Fix: Feature selection records against `operationalIsSupported` so a feature's `default` conveys only the specification's fallback value
+    - Fix: A feature mandated by any of several alternatives, such as `DoorLock.User`, is now reported as required
+
+- @matter/node
+    - Breaking: Default server exports no longer inherit the features their base implementation enables internally.
+        - `ColorControlServer`, `DoorLockServer`, `ElectricalEnergyMeasurementServer`, `LevelControlServer`, `ModeSelectServer`, `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer` and `WindowCoveringServer` now select no features. Select the features your device supports with `.with(...)` or use the DeviceType specific Requirement definitions of these clusters which automatically enable the needed features for the device type
+        - `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer`, `WindowCoveringServer` and `ElectricalEnergyMeasurementServer` now require a selection to be added to an endpoint at all. The `DoorLockDevice`, `SpeakerDevice` and `ModeSelectDevice` device types alias these exports, so their clusters also select no features and advertise a different FeatureMap.
+        - Verify the feature set of every device you compose. Persisted cluster state resets once for affected devices because it is keyed by feature selection
+    - Breaking: A LongIdleTimeSupport ICD must select CheckInProtocolSupport and UserActiveModeTrigger
+    - Breaking: A node that accepts more than one path per invoke must select the General Diagnostics DataModelTest feature
+    - Breaking: Adding a server cluster to an endpoint fails when its selected features violate the conformance of its FeatureMap
+    - Breaking: Provisional elements are no longer implemented by default; supply a state value or use `ClusterBehavior.enable()` to implement one
+    - Fix: `IdentifyServer` no longer offers the optional `TriggerEffect` command unless the device type requires it, an own command implementation has been added via an override or suppression is disabled; `IdentifyServer.enable({ commands: { triggerEffect: true } })`, `IdentifyServer.alter({ commands: { triggerEffect: { optional: false } } })` and an override of `suppressTriggerEffect()` also offer it
+    - Fix: `ClusterBehavior.with()` rejects a feature the cluster does not define
+
+- @matter/nodejs
+    - Breaking: `FileStorageDriver`'s constructor no longer accepts a `clear` argument; clearing is handled by `StorageService`
+    - Fix: Ensure that `--storage-clear`/`MATTER_STORAGE_CLEAR` is honored again and clears the storage on start
+
+- @matter/react-native
+    - Fix: The `storage.clear` variable now clears the storage on start as it does on Node.js
+
+- @matter/types
+    - Breaking: Provisional cluster elements are now typed as optional rather than always present
+    - Fix: `Cluster.with()` rejects a feature the cluster does not define and returns one frozen namespace per selection
+
+## 0.17.9 (2026-08-06)
+
+- @matter/protocol
+    - Enhancement: A BDX exchange retransmits its pending message early when a duplicate proves the peer is awake and still waiting for it
+    - Enhancement: Network profiles accept a separate `bdxAdditionalMrpDelay` for bulk transfer, defaulting to the profile's messaging margin
+    - Fix: The peer's medium-specific MRP retransmission margin now applies to peer-initiated exchanges (e.g. subscription data reports) and to exchanges created without peer context
+    - Fix: BDX retransmission intervals are capped so the whole MRP schedule fits inside the peer's BDX response budget, which acknowledgements do not extend; the peer's idle cadence does not raise the cap, since a peer holding an open exchange is in active mode
+    - Fix: A retransmission timer is no longer armed for a message that was acknowledged while an earlier transmission of it was still in flight, which left the timer running unreferenced
+    - Fix: Grouped `PeerTimingParameters` (`kickRestartCooldown`, `addressChangeProbeCooldown`) merge field-wise, so overriding one member keeps its siblings
+    - Fix: Ensure that an unsecured session created for an inbound message is discarded when no protocol handler adopts it
+    - Fix: Ensure that closed exchanges are removed from their session for all session types
+    - Fix: Ensure that a session releases its message channel when the transport owns the underlying channel, so the channel address observer of PASE, CASE and discarded inbound sessions is removed
+    - Fix: Ensure that the end of a session is logged also when its channel was detached before; channel detach is now logged as debug
+
+- @matter/node
+    - Breaking: `SoftwareUpdateManager.addUpdateConsent()` and `forceUpdate()` take the update as an object instead of three positional arguments, so it can carry per-update options
+    - Enhancement: `SoftwareUpdateManager` caps the BDX block size for OTA transfers via `maxBdxBlockSize` and overrides their MRP retransmission margin via `bdxAdditionalMrpDelay`, either generally in its state or per update when giving consent
+    - Enhancement: `network.profiles` accepts `bdxAdditionalMrpDelay`
+    - Enhancement: `network.timing` accepts the kick and address-change parameters
+    - Enhancement: Managed state derives a member's container key through one shared implementation (no functional change)
+    - Fix: Client node state reads and writes struct- and list-valued fields nested inside an attribute value
+    - Fix: Client node state reads struct- and list-valued attributes of a cluster implementation that supplies properties dynamically
+
+## 0.17.8 (2026-08-02)
+
+- @matter/general
+    - Fix: `isIPv4` no longer misclassifies a link-local IPv6 address as IPv4 when its zone index contains a dot, e.g. a Linux VLAN interface name like `eth0.100`
+
 - @matter/node
     - Fix: Closing a session from the stack of an in-flight subscription report no longer deadlocks the session in its closing state
     - Fix: A subscription report that goes unanswered abandons the subscription instead of declaring the controller lost and closing every session with it
@@ -20,6 +85,15 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/nodejs-ble
     - Enhancement: BLE disconnect logs now include the noble disconnect reason with its HCI status text
+
+- @matter/node
+    - Enhancement: `SoftwareUpdateManager.queuedUpdates` reports transferred bytes and transfer size of a running BDX transfer
+    - Fix: OTA updates are no longer reset as stalled while their BDX transfer is still moving data
+    - Fix: The in-progress entry of an OTA download is no longer dropped while its BDX transfer is still running
+    - Fix: A BDX session opened for a retry within the same query cycle is tracked like the first one
+
+- @matter/protocol
+    - Enhancement: `BdxSession` exposes `transferredBytes` and `dataLength`
 
 - @matter/nodejs-shell
     - Fix: `nodes ota check|download|apply` and `ota download` now default to a `--mode auto` that follows the `config ota-test-images` setting instead of always querying the production DCL only

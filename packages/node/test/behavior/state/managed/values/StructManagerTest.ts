@@ -9,7 +9,7 @@ import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { MaybePromise, MockCrypto } from "@matter/general";
-import { ClusterModel, DataModelPath, FeatureMap, FeatureSet, FieldElement } from "@matter/model";
+import { ClusterModel, DataModelPath, FeatureMap, FeatureSet, FieldElement, FieldModel } from "@matter/model";
 import { ConstraintError, Val } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, NodeId } from "@matter/types";
 import { MockExchange } from "../../../../node/mock-exchange.js";
@@ -65,6 +65,15 @@ const SchrödingersCat = new ClusterModel({
         { tag: "field", name: "Alive", type: "bool", constraint: "false", conformance: "[!LF]" },
     ],
 });
+
+/**
+ * A state class that supplies properties dynamically, as several server cluster implementations do.
+ */
+class DynamicState {
+    [Val.properties]() {
+        return {};
+    }
+}
 
 class SchrödingersCatsState {
     alive?: boolean;
@@ -190,6 +199,141 @@ describe("StructManager", () => {
 
             array = ref.array as { num: number; str: string }[];
             expect(array).deep.equals([...input, { num: 3, str: "baz" }]);
+        });
+    });
+
+    describe("id-keyed references", () => {
+        const initialValue = () => ({ prim: "hi", nested: { foo: "bar" }, list: ["one"] });
+
+        const SUBSTRUCT = {
+            id: 0,
+            type: "struct",
+            children: [
+                FieldElement({ name: "prim", id: 0, type: "string" }),
+                FieldElement({
+                    name: "nested",
+                    id: 1,
+                    type: "struct",
+                    children: [FieldElement({ name: "foo", id: 0, type: "string" })],
+                }),
+                FieldElement({ name: "list", id: 2, type: "list" }, FieldElement({ name: "entry", type: "string" })),
+            ],
+        };
+
+        function testIdKeyed(
+            actor: (vars: {
+                struct: TestStruct;
+                cx: ActionContext;
+                ref: Val.Struct;
+                substruct: Val.Struct;
+            }) => MaybePromise,
+        ) {
+            // The "0" slot is the attribute ID a client mirror stores values under; the value itself is name-keyed
+            const struct = TestStruct({ substruct: SUBSTRUCT }, { 0: initialValue() }, "id");
+
+            return struct.online(TestContext(), (ref, cx) =>
+                actor({ struct, cx, ref, substruct: ref.substruct as Val.Struct }),
+            );
+        }
+
+        it("reads members of a name-keyed value", async () => {
+            await testIdKeyed(({ substruct }) => {
+                expect(substruct.nested).deep.equals({ foo: "bar" });
+                expect(substruct.list).deep.equals(["one"]);
+            });
+        });
+
+        it("reads a member two levels below the id-keyed value", async () => {
+            await testIdKeyed(({ substruct }) => {
+                expect((substruct.nested as Val.Struct).foo).equals("bar");
+            });
+        });
+
+        it("reuses the managed value for repeated reads", async () => {
+            await testIdKeyed(({ ref }) => {
+                expect(ref.substruct).equals(ref.substruct);
+            });
+        });
+
+        it("keeps names as keys when writing nested members", async () => {
+            await testIdKeyed(async ({ struct, cx, substruct }) => {
+                substruct.prim = "changed";
+                (substruct.nested as Val.Struct).foo = "changed too";
+                (substruct.list as Val.List)[0] = "two";
+
+                await cx.transaction.commit();
+
+                expect(struct.notifies).deep.equals([
+                    {
+                        index: "substruct",
+                        oldValue: initialValue(),
+                        newValue: { prim: "changed", nested: { foo: "changed too" }, list: ["two"] },
+                    },
+                ]);
+            });
+        });
+
+        // Characterization: a value present only under its property name resolves for a primitive member but not for a
+        // struct or list member, which read as absent.  Documents current behavior, not a desired asymmetry
+        it("resolves only primitive members of a value stored under property names", async () => {
+            const struct = TestStruct(
+                {
+                    prim: { id: 0, type: "string" },
+                    sub: {
+                        id: 1,
+                        type: "struct",
+                        children: [FieldElement({ name: "foo", id: 0, type: "string" })],
+                    },
+                },
+                { prim: "hi", sub: { foo: "bar" } },
+                "id",
+            );
+
+            await struct.online(TestContext(), ref => {
+                expect(ref.prim).equals("hi");
+                expect(ref.sub).undefined;
+            });
+        });
+
+        // A report for a cluster or attribute the model cannot resolve decodes to TLV tag numbers, and that shape
+        // persists.  A later model that does know the schema must still read those values.
+        it("reads members of a value whose keys are TLV tag numbers", async () => {
+            const struct = TestStruct({ substruct: SUBSTRUCT }, { 0: { 0: "hi", 1: { 0: "bar" }, 2: ["one"] } }, "id");
+
+            await struct.online(TestContext(), ref => {
+                const substruct = ref.substruct as Val.Struct;
+                expect(substruct.prim).equals("hi");
+                expect(substruct.nested).deep.equals({ foo: "bar" });
+                expect(substruct.list).deep.equals(["one"]);
+            });
+        });
+
+        it("reads members of a state class that supplies dynamic properties", async () => {
+            const datasource = Datasource({
+                entropy: MockCrypto(),
+                type: DynamicState,
+                supervisor: RootSupervisor.for(
+                    new FieldModel(
+                        FieldElement(
+                            { name: "Struct", type: "struct" },
+                            FieldElement({ name: "prim", id: 0, type: "string" }),
+                            FieldElement(
+                                { name: "sub", id: 1, type: "struct" },
+                                FieldElement({ name: "foo", id: 0, type: "string" }),
+                            ),
+                        ),
+                    ),
+                ),
+                location: { endpoint: EndpointNumber(1), path: new DataModelPath("DynamicState") },
+                primaryKey: "id",
+                store: { initialValues: { 0: "hi", 1: { foo: "bar" } }, set: async () => {} },
+            });
+
+            await LocalActorContext.act("test", cx => {
+                const state = datasource.reference(cx) as unknown as Val.Struct;
+                expect(state.prim).equals("hi");
+                expect(state.sub).deep.equals({ foo: "bar" });
+            });
         });
     });
 

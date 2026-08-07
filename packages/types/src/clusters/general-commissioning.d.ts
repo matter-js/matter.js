@@ -221,7 +221,7 @@ export declare namespace GeneralCommissioning {
          *
          * @see {@link MatterSpecification.v16.Core} § 11.10.6.11
          */
-        recoveryIdentifier: Bytes;
+        recoveryIdentifier?: Bytes;
 
         /**
          * This attribute shall contain the primary reason that triggered the Network Recovery flow and its associated
@@ -229,7 +229,7 @@ export declare namespace GeneralCommissioning {
          *
          * @see {@link MatterSpecification.v16.Core} § 11.10.6.12
          */
-        networkRecoveryReason: NetworkRecoveryReason | null;
+        networkRecoveryReason?: NetworkRecoveryReason | null;
     }
 
     /**

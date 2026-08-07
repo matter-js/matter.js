@@ -30,8 +30,12 @@ describe("ClusterVariance", () => {
             expectComponents(attrs({ name: "attr", conformance: "D" }), { optional: ["attr"] });
         });
 
-        it("ignores provisional", () => {
-            expectComponents(attrs({ name: "attr", conformance: "P, M" }), { mandatory: ["attr"] });
+        it("classifies provisional as optional", () => {
+            expectComponents(attrs({ name: "attr", conformance: "P, M" }), { optional: ["attr"] });
+        });
+
+        it("classifies a provisional element without intended conformance as optional", () => {
+            expectComponents(attrs({ name: "attr", conformance: "P" }), { optional: ["attr"] });
         });
     });
 
@@ -39,6 +43,13 @@ describe("ClusterVariance", () => {
         it("classifies mandatory by feature", () => {
             expectComponents(attrs(["FOO"], { name: "attr", conformance: "FOO" }), {
                 mandatory: ["attr"],
+                condition: { allOf: ["FOO"] },
+            });
+        });
+
+        it("classifies provisional by feature as optional", () => {
+            expectComponents(attrs(["FOO"], { name: "attr", conformance: "P, FOO" }), {
+                optional: ["attr"],
                 condition: { allOf: ["FOO"] },
             });
         });
@@ -132,7 +143,7 @@ describe("ClusterVariance", () => {
 
         it("parses provisional comma otherwise-list P, FOO, BAR, BAZ", () => {
             expectComponents(attrs(["FOO", "BAR", "BAZ"], { name: "attr", conformance: "P, FOO, BAR, BAZ" }), {
-                mandatory: ["attr"],
+                optional: ["attr"],
                 condition: { anyOf: ["FOO", "BAR", "BAZ"] },
             });
         });

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { capitalize, ChannelType, decamelize, Diagnostic, ServerAddress } from "@matter/general";
+import { capitalize, ChannelType, decamelize, Diagnostic, Millis, ServerAddress } from "@matter/general";
 import { ClientNode, CommissioningClient, NetworkClient, SoftwareUpdateManager } from "@matter/node";
 import { PeerAddress, PeerSet } from "@matter/protocol";
 import { FabricIndex, NodeId, VendorId } from "@matter/types";
@@ -751,10 +751,34 @@ export default function commands(theNode: MatterNode) {
                                             describe: "Apply update from local file",
                                             type: "boolean",
                                             default: false,
+                                        })
+                                        .option("max-block-size", {
+                                            describe:
+                                                "Cap the BDX block size for this transfer, in bytes (default: whatever the device requests)",
+                                            type: "number",
+                                        })
+                                        .option("mrp-margin", {
+                                            describe:
+                                                "Additive MRP retransmission margin for this transfer, in milliseconds (default: derived from the device's medium)",
+                                            type: "number",
+                                        })
+                                        .check(argv => {
+                                            const blockSize = argv.maxBlockSize as number | undefined;
+                                            const margin = argv.mrpMargin as number | undefined;
+                                            if (
+                                                blockSize !== undefined &&
+                                                (!Number.isInteger(blockSize) || blockSize <= 0)
+                                            ) {
+                                                throw new Error("--max-block-size must be a positive integer");
+                                            }
+                                            if (margin !== undefined && (!Number.isFinite(margin) || margin < 0)) {
+                                                throw new Error("--mrp-margin must be a non-negative number of ms");
+                                            }
+                                            return true;
                                         });
                                 },
                                 async argv => {
-                                    const { nodeId: nodeIdStr, mode, force, local } = argv;
+                                    const { nodeId: nodeIdStr, mode, force, local, maxBlockSize, mrpMargin } = argv;
                                     const { label: dclMode, isProduction } = resolveDclMode(theNode, mode);
                                     const forceDownload = force === true;
 
@@ -854,15 +878,24 @@ export default function commands(theNode: MatterNode) {
                                         throw new Error(`Node ${nodeIdStr} not connected`);
                                     }
 
+                                    if (maxBlockSize !== undefined) {
+                                        console.log(`Capping BDX block size to ${maxBlockSize} bytes`);
+                                    }
+                                    if (mrpMargin !== undefined) {
+                                        console.log(`Using an MRP retransmission margin of ${mrpMargin}ms`);
+                                    }
+
                                     await theNode.commissioningController.otaProvider.act(agent => {
                                         return agent
                                             .get(SoftwareUpdateManager)
-                                            .forceUpdate(
-                                                PeerAddress({ nodeId, fabricIndex: FabricIndex(1) }),
-                                                basicInfo.vendorId as VendorId,
-                                                basicInfo.productId as number,
-                                                updateVersion,
-                                            );
+                                            .forceUpdate(PeerAddress({ nodeId, fabricIndex: FabricIndex(1) }), {
+                                                vendorId: basicInfo.vendorId as VendorId,
+                                                productId: basicInfo.productId as number,
+                                                targetSoftwareVersion: updateVersion,
+                                                maxBdxBlockSize: maxBlockSize,
+                                                bdxAdditionalMrpDelay:
+                                                    mrpMargin === undefined ? undefined : Millis(mrpMargin),
+                                            });
                                     });
                                 },
                             )

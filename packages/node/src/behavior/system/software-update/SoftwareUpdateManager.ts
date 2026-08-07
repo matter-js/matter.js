@@ -8,6 +8,7 @@ import { Behavior } from "#behavior/Behavior.js";
 import type { ActionContext } from "#behavior/context/ActionContext.js";
 import { DclBehavior } from "#behavior/system/dcl/DclBehavior.js";
 import { OtaAnnouncements } from "#behavior/system/software-update/OtaAnnouncements.js";
+import { OTA_PROGRESS_TIMEOUT } from "#behavior/system/software-update/OtaProgress.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import type { ClientNode } from "#node/ClientNode.js";
@@ -46,6 +47,7 @@ import {
     PeerAddressMap,
     RebootResubscribeArmer,
     SessionManager,
+    StorageScope,
 } from "@matter/protocol";
 import { VendorId } from "@matter/types";
 import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
@@ -53,10 +55,19 @@ import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-
 
 const logger = Logger.get("SoftwareUpdateManager");
 
-interface UpdateConsent {
-    vendorId: VendorId;
-    productId: number;
-    targetSoftwareVersion: number;
+/** Rejects transfer options a BDX session could not honour, before any state changes on their behalf. */
+function assertTransferOptions({ maxBdxBlockSize, bdxAdditionalMrpDelay }: SoftwareUpdateManager.UpdateTarget) {
+    if (maxBdxBlockSize !== undefined && (!Number.isInteger(maxBdxBlockSize) || maxBdxBlockSize <= 0)) {
+        throw new ImplementationError(`maxBdxBlockSize must be a positive integer, got ${maxBdxBlockSize}`);
+    }
+    if (bdxAdditionalMrpDelay !== undefined && (!Number.isFinite(bdxAdditionalMrpDelay) || bdxAdditionalMrpDelay < 0)) {
+        throw new ImplementationError(
+            `bdxAdditionalMrpDelay must be a finite, non-negative duration, got ${bdxAdditionalMrpDelay}`,
+        );
+    }
+}
+
+interface UpdateConsent extends SoftwareUpdateManager.UpdateTarget {
     peerAddress: PeerAddress;
 }
 
@@ -64,6 +75,7 @@ interface UpdateQueueEntry extends UpdateConsent {
     endpoint: Endpoint;
     lastProgressUpdateTime?: Timestamp;
     lastProgressStatus?: OtaUpdateStatus;
+    lastBdxTransferredBytes?: number;
 }
 
 interface UpdateConsentEntry extends DclOtaUpdateService.OtaUpdateListEntry {
@@ -130,11 +142,18 @@ export interface PendingUpdateInfo {
     /**
      * - `"queued"` — waiting for its turn; no announcement has been sent yet.
      * - `"in-progress"` — the OTA provider has been announced to the node and we are waiting for it to complete.
-     * - `"stalled"` — no progress update received for 15 minutes. The entry will be automatically reset and retried.
+     * - `"stalled"` — no status update and no BDX transfer activity within {@link OTA_PROGRESS_TIMEOUT}. The entry
+     *   will be automatically reset and retried.
      */
     status: "queued" | "in-progress" | "stalled";
     lastProgressStatus?: OtaUpdateStatus;
     lastProgressUpdateTime?: Timestamp;
+
+    /** Bytes transferred by the BDX session of an in-progress update, undefined for any other status. */
+    bdxTransferredBytes?: number;
+
+    /** Size of the transfer of an in-progress update, undefined for any other status or while it is unknown. */
+    bdxDataLength?: number;
 }
 
 /**
@@ -163,6 +182,7 @@ export class SoftwareUpdateManager extends Behavior {
         rootNode.behaviors.require(DclBehavior);
         this.internal.otaService = rootNode.agentFor(this.context).get(DclBehavior).otaUpdateService;
         await this.internal.otaService.construction;
+        this.internal.otaStorageScope = this.internal.otaService.storage.scope;
 
         this.reactTo(rootNode.lifecycle.online, this.#nodeOnline);
         this.reactTo(rootNode.lifecycle.goingOffline, this.#nodeGoingOffline);
@@ -266,10 +286,14 @@ export class SoftwareUpdateManager extends Behavior {
     get queuedUpdates(): PendingUpdateInfo[] {
         const now = Time.nowMs;
         return this.internal.updateQueue.map(entry => {
+            const bdxSession = this.#bdxSessionFor(entry.peerAddress);
             let status: PendingUpdateInfo["status"];
             if (entry.lastProgressUpdateTime === undefined) {
                 status = "queued";
-            } else if (entry.lastProgressUpdateTime + Minutes(15) < now) {
+            } else if (
+                entry.lastProgressUpdateTime + OTA_PROGRESS_TIMEOUT < now &&
+                !this.#isTransferring(entry, bdxSession?.transferredBytes)
+            ) {
                 status = "stalled";
             } else {
                 status = "in-progress";
@@ -282,8 +306,46 @@ export class SoftwareUpdateManager extends Behavior {
                 status,
                 lastProgressStatus: entry.lastProgressStatus,
                 lastProgressUpdateTime: entry.lastProgressUpdateTime,
+                bdxTransferredBytes: status === "in-progress" ? bdxSession?.transferredBytes : undefined,
+                bdxDataLength: status === "in-progress" ? bdxSession?.dataLength : undefined,
             };
         });
+    }
+
+    #bdxSessionFor(peerAddress: PeerAddress) {
+        const { otaStorageScope } = this.internal;
+        if (otaStorageScope === undefined || !this.env.has(BdxProtocol)) {
+            return undefined;
+        }
+        return this.env.get(BdxProtocol).sessionFor(peerAddress, otaStorageScope);
+    }
+
+    /**
+     * A retry of a failed download opens a fresh BDX session whose counter restarts below the one we recorded, so any
+     * change of the counter counts as liveness, not only growth.
+     */
+    #isTransferring(entry: UpdateQueueEntry, transferredBytes?: number) {
+        return transferredBytes !== undefined && transferredBytes !== (entry.lastBdxTransferredBytes ?? 0);
+    }
+
+    /**
+     * A download produces no OTA status transitions for as long as it runs, so a large image on a slow link looks
+     * stalled to a timestamp that only status changes refresh.
+     */
+    #refreshBdxProgress(entry: UpdateQueueEntry, now: Timestamp) {
+        const transferredBytes = this.#bdxSessionFor(entry.peerAddress)?.transferredBytes;
+        if (!this.#isTransferring(entry, transferredBytes)) {
+            return false;
+        }
+        entry.lastBdxTransferredBytes = transferredBytes;
+        entry.lastProgressUpdateTime = now;
+        return true;
+    }
+
+    #resetEntryProgress(entry: UpdateQueueEntry) {
+        entry.lastProgressUpdateTime = undefined;
+        entry.lastProgressStatus = OtaUpdateStatus.Unknown;
+        entry.lastBdxTransferredBytes = undefined;
     }
 
     /** Validate that we know the peer the update is requested for and the details match to what we know */
@@ -593,7 +655,7 @@ export class SoftwareUpdateManager extends Behavior {
             };
             this.internal.knownUpdates.set(peerAddress, details);
 
-            const hasConsent = this.internal.consents.some(
+            const consent = this.internal.consents.find(
                 consent =>
                     consent.vendorId === vendorId &&
                     consent.productId === productId &&
@@ -604,13 +666,15 @@ export class SoftwareUpdateManager extends Behavior {
             if (this.internal.suppressUpdates) {
                 break;
             }
-            if (hasConsent) {
+            if (consent !== undefined) {
                 // We already have a consent for this update, so just announce the provider
                 this.#queueUpdate({
                     endpoint,
                     vendorId,
                     productId,
                     targetSoftwareVersion: updateDetails.softwareVersion,
+                    maxBdxBlockSize: consent.maxBdxBlockSize,
+                    bdxAdditionalMrpDelay: consent.bdxAdditionalMrpDelay,
                     peerAddress,
                 });
             } else {
@@ -713,8 +777,7 @@ export class SoftwareUpdateManager extends Behavior {
             logger.info(
                 `Clearing in-progress update for node ${peerAddress.toString()} due to software version change. Last State was ${OtaUpdateStatus[entry.lastProgressStatus!]}`,
             );
-            entry.lastProgressUpdateTime = undefined;
-            entry.lastProgressStatus = OtaUpdateStatus.Unknown;
+            this.#resetEntryProgress(entry);
         }
         const expectedVersion = entry.targetSoftwareVersion;
         if (newVersion < expectedVersion) {
@@ -785,6 +848,8 @@ export class SoftwareUpdateManager extends Behavior {
             existing.productId = entry.productId;
             existing.targetSoftwareVersion = entry.targetSoftwareVersion;
             existing.endpoint = entry.endpoint;
+            existing.maxBdxBlockSize = entry.maxBdxBlockSize;
+            existing.bdxAdditionalMrpDelay = entry.bdxAdditionalMrpDelay;
             logger.info(`Updated existing queued update for node ${entry.peerAddress.toString()}`);
         } else {
             logger.info(`Queuing update consent for node ${entry.peerAddress.toString()}`);
@@ -815,14 +880,15 @@ export class SoftwareUpdateManager extends Behavior {
             // No update in progress, stop timer
             this.internal.updateQueueTimer.stop();
         } else if (inProgressCount > 0) {
-            // Check if all last Status is at least 15 minutes old, reset them to unknown and no time
             for (const entry of inProgressEntries) {
-                if (entry.lastProgressUpdateTime! + Minutes(15) < now) {
+                if (this.#refreshBdxProgress(entry, now)) {
+                    continue;
+                }
+                if (entry.lastProgressUpdateTime! + OTA_PROGRESS_TIMEOUT < now) {
                     logger.info(
                         `Resetting stalled OTA update state for node ${entry.peerAddress.toString()} due to inactivity`,
                     );
-                    entry.lastProgressUpdateTime = undefined;
-                    entry.lastProgressStatus = OtaUpdateStatus.Unknown;
+                    this.#resetEntryProgress(entry);
                     inProgressCount--;
                 }
             }
@@ -870,7 +936,7 @@ export class SoftwareUpdateManager extends Behavior {
         const { endpoint, peerAddress } = entry;
 
         // Guard: skip the announcement if a BDX session is already active for this peer
-        if (this.env.get(BdxProtocol).sessionFor(peerAddress, this.storage.scope) !== undefined) {
+        if (this.#bdxSessionFor(peerAddress) !== undefined) {
             logger.info(`BDX transfer still active for node ${peerAddress.toString()}, skipping announcement`);
             return;
         }
@@ -889,8 +955,7 @@ export class SoftwareUpdateManager extends Behavior {
         } catch (error) {
             logger.warn(`Failed to announce OTA provider to node ${peerAddress.toString()}:`, error);
             // Reset entry state so the queue doesn't stay blocked
-            entry.lastProgressUpdateTime = undefined;
-            entry.lastProgressStatus = OtaUpdateStatus.Unknown;
+            this.#resetEntryProgress(entry);
             this.#triggerQueuedUpdate();
         }
     }
@@ -902,7 +967,9 @@ export class SoftwareUpdateManager extends Behavior {
      * This can be used when an exact timing of the update is needed. When the update can be executed in a delayed/queued
      * manner, please use `addUpdateConsent()`.
      */
-    async forceUpdate(peerAddress: PeerAddress, vendorId: VendorId, productId: number, targetSoftwareVersion: number) {
+    async forceUpdate(peerAddress: PeerAddress, target: SoftwareUpdateManager.UpdateTarget) {
+        const { vendorId, productId, targetSoftwareVersion } = target;
+        assertTransferOptions(target);
         peerAddress = PeerAddress(peerAddress);
         const existingEntry = this.internal.updateQueue.find(
             e =>
@@ -913,7 +980,7 @@ export class SoftwareUpdateManager extends Behavior {
         if (existingEntry !== undefined) {
             // Check whether a BDX session is still active for this peer
             const bdxProtocol = this.env.get(BdxProtocol);
-            const activeSession = bdxProtocol.sessionFor(peerAddress, this.storage.scope);
+            const activeSession = this.#bdxSessionFor(peerAddress);
             if (activeSession !== undefined) {
                 // Update is legitimately in progress, don't disrupt it
                 logger.info(
@@ -936,7 +1003,7 @@ export class SoftwareUpdateManager extends Behavior {
             }
         }
 
-        const added = await this.addUpdateConsent(peerAddress, vendorId, productId, targetSoftwareVersion);
+        const added = await this.addUpdateConsent(peerAddress, target);
         if (!added) {
             throw new OtaUpdateError(`Node at ${peerAddress.toString()} is not currently applicable for OTA updates`);
         }
@@ -997,18 +1064,34 @@ export class SoftwareUpdateManager extends Behavior {
     }
 
     /**
+     * How BDX should carry this peer's pending update: the options given with its consent, else the general defaults
+     * in {@link State}.  An absent value leaves the decision to the peer and its medium.
+     *
+     * A consent may exist before the update is queued, so both are consulted.
+     */
+    bdxTransferOptionsFor(peerAddress: PeerAddress) {
+        peerAddress = PeerAddress(peerAddress);
+        const matches = (candidate: PeerAddress) =>
+            candidate.fabricIndex === peerAddress.fabricIndex && candidate.nodeId === peerAddress.nodeId;
+        const pending =
+            this.internal.updateQueue.find(entry => matches(entry.peerAddress)) ??
+            this.internal.consents.find(consent => matches(consent.peerAddress));
+        return {
+            maxBlockSize: pending?.maxBdxBlockSize ?? this.state.maxBdxBlockSize,
+            additionalMrpDelay: pending?.bdxAdditionalMrpDelay ?? this.state.bdxAdditionalMrpDelay,
+        };
+    }
+
+    /**
      * Adds or updates a consent for a given peer address, vendor ID, product ID, and target software version.
      * Filters out existing consents for the given peer address and replaces them with the new one.
      * If the node associated with the peer address is applicable for an update, it schedules the update to happen with
      * the next queue slot, so potentially delayed.
      * This can be used when the update can be executed in a delayed/queued manner and it does not matter exactly when.
      */
-    async addUpdateConsent(
-        peerAddress: PeerAddress,
-        vendorId: VendorId,
-        productId: number,
-        targetSoftwareVersion: number,
-    ) {
+    async addUpdateConsent(peerAddress: PeerAddress, target: SoftwareUpdateManager.UpdateTarget) {
+        const { vendorId, productId, targetSoftwareVersion, maxBdxBlockSize, bdxAdditionalMrpDelay } = target;
+        assertTransferOptions(target);
         peerAddress = PeerAddress(peerAddress);
         // Filter out all existing consents for this peer, they are replaced by the new one
         const consents = this.internal.consents.filter(
@@ -1031,6 +1114,8 @@ export class SoftwareUpdateManager extends Behavior {
             vendorId,
             productId,
             targetSoftwareVersion,
+            maxBdxBlockSize,
+            bdxAdditionalMrpDelay,
             peerAddress,
         });
         this.internal.consents = consents;
@@ -1040,7 +1125,15 @@ export class SoftwareUpdateManager extends Behavior {
             return false;
         }
 
-        this.#queueUpdate({ vendorId, productId, targetSoftwareVersion, peerAddress, endpoint: otaEndpoint });
+        this.#queueUpdate({
+            vendorId,
+            productId,
+            targetSoftwareVersion,
+            maxBdxBlockSize,
+            bdxAdditionalMrpDelay,
+            peerAddress,
+            endpoint: otaEndpoint,
+        });
         return true;
     }
 
@@ -1134,8 +1227,7 @@ export class SoftwareUpdateManager extends Behavior {
             // The intentional cancel path (#cancelUpdate) handles removal and updateFailed independently.
             logger.info(`OTA update BDX cancelled for node ${peerAddress.toString()}, resetting for retry`);
             this.internal.rebootResubscribeArmer?.disarm(peerAddress);
-            entry.lastProgressUpdateTime = undefined;
-            entry.lastProgressStatus = OtaUpdateStatus.Unknown;
+            this.#resetEntryProgress(entry);
             this.#triggerQueuedUpdate();
         } else {
             logger.info(
@@ -1180,6 +1272,42 @@ export namespace SoftwareUpdateManager {
 
         /** Interval to Announces this controller as Update provider. Must not be lower than 24h! */
         announcementInterval = Hours(24);
+
+        /**
+         * Caps the BDX block size offered for OTA transfers.  Unset accepts whatever the peer requests, which is the
+         * transport maximum.
+         *
+         * A smaller block multiplies round trips, and each of those is bounded by the peer's BDX response budget, so
+         * lower this only for a peer that cannot handle full-size blocks.
+         */
+        maxBdxBlockSize?: number = undefined;
+
+        /**
+         * Additive MRP retransmission margin for OTA transfers, overriding the margin the peer's medium implies.
+         *
+         * A BDX retransmission interval is capped so the whole schedule fits the peer's response budget, so values
+         * above roughly 7s are inert.
+         */
+        bdxAdditionalMrpDelay?: Duration = undefined;
+    }
+
+    /** Identifies the update a consent applies to, and how to transfer it. */
+    export interface UpdateTarget {
+        vendorId: VendorId;
+        productId: number;
+        targetSoftwareVersion: number;
+
+        /**
+         * Caps the BDX block size for this transfer, overriding {@link State.maxBdxBlockSize}.  Unset falls back to
+         * that default.
+         */
+        maxBdxBlockSize?: number;
+
+        /**
+         * Additive MRP retransmission margin for this transfer, overriding {@link State.bdxAdditionalMrpDelay} and the
+         * margin the peer's medium implies.  Unset falls back to that default.
+         */
+        bdxAdditionalMrpDelay?: Duration;
     }
 
     export class Internal {
@@ -1187,6 +1315,9 @@ export namespace SoftwareUpdateManager {
         consents = new Array<UpdateConsent>();
 
         otaService!: DclOtaUpdateService;
+
+        /** Scope of the OTA storage, captured so a lookup cannot depend on the service still being constructed. */
+        otaStorageScope?: StorageScope;
 
         checkForUpdateTimer!: Timer;
 

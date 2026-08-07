@@ -6,6 +6,7 @@
 
 import { AccessControl, ExpiredReferenceError, Val } from "@matter/protocol";
 import type { Supervision } from "../../supervision/Supervision.js";
+import { memberFallbackKeyFor, memberKeyFor, memberValueOf } from "./MemberKeys.js";
 import type { ValReference } from "./ValReference.js";
 
 type Container = Record<string | number, Val>;
@@ -28,14 +29,15 @@ type Container = Record<string | number, Val>;
  * separate ManagedReference.
  */
 export class ManagedReference implements ValReference {
-    primaryKey;
+    readonly primaryKey = "name";
     parent;
+
     subrefs?: Record<number | string, ValReference>;
     owner?: Val;
     supervisionConfig?: Supervision.Config;
 
     #key: string | number;
-    #altKey: string | number | undefined;
+    #fallbackKey: string | number | undefined;
     #assertWriteOk: (value: Val) => void;
     #clone: ((container: Val) => Val) | undefined;
     #session: AccessControl.Session;
@@ -46,23 +48,20 @@ export class ManagedReference implements ValReference {
 
     /**
      * @param parent a reference to the container we reference
-     * @param primaryKey the preferred key for lookup
      * @param name the name (in the case of structs) or index (in case of lists)
-     * @param id the lookup ID in the case of structs
+     * @param id the lookup ID, used when {@link parent} keys its members by ID
      * @param assertWriteOk enforces ACLs and read-only
      * @param clone clones the container prior to write; undefined if not transactional
      * @param session the access control session
      */
     constructor(
         parent: ValReference<Val.Collection>,
-        primaryKey: "name" | "id",
         name: string | number,
         id: number | undefined,
         assertWriteOk: (value: Val) => void,
         clone: (container: Val) => Val,
         session: AccessControl.Session,
     ) {
-        this.primaryKey = primaryKey;
         this.parent = parent;
         this.#assertWriteOk = assertWriteOk;
         this.#clone = clone;
@@ -73,18 +72,18 @@ export class ManagedReference implements ValReference {
             path: parent.location.path.at(name),
         };
 
-        const key = primaryKey === "id" ? (id ?? name) : name;
-        const altKey = primaryKey === "id" ? (key === name ? undefined : name) : id;
+        const key = memberKeyFor(parent.primaryKey, name, id);
+        const fallbackKey = memberFallbackKeyFor(parent.primaryKey, name, id);
         this.#key = key;
-        this.#altKey = altKey;
+        this.#fallbackKey = fallbackKey;
 
         let dynamicContainer: Val.Struct | undefined;
         if ((parent.value as Val.Dynamic)[Val.properties]) {
             dynamicContainer = (parent.value as Val.Dynamic)[Val.properties](parent.rootOwner, session);
             if (key in (dynamicContainer as Container)) {
                 this.#value = (dynamicContainer as Container)[key];
-            } else if (altKey !== undefined && altKey in (dynamicContainer as Container)) {
-                this.#value = (dynamicContainer as Container)[altKey];
+            } else if (fallbackKey !== undefined && fallbackKey in (dynamicContainer as Container)) {
+                this.#value = (dynamicContainer as Container)[fallbackKey];
             } else {
                 dynamicContainer = undefined;
             }
@@ -92,11 +91,7 @@ export class ManagedReference implements ValReference {
         this.#dynamicContainer = dynamicContainer;
 
         if (dynamicContainer === undefined) {
-            if (key in (parent.value as Container)) {
-                this.#value = (parent.value as Container)[key];
-            } else if (altKey !== undefined) {
-                this.#value = (parent.value as Container)[altKey];
-            }
+            this.#value = memberValueOf(parent.value as Container, key, fallbackKey);
         }
 
         // Propagate supervision config from parent
@@ -133,17 +128,7 @@ export class ManagedReference implements ValReference {
 
         // Now use change to complete the update
         this.change(() => {
-            if (this.#dynamicContainer) {
-                (this.#dynamicContainer as Container)[this.#key] = newValue;
-                if (this.#altKey !== undefined && this.#altKey in this.#dynamicContainer) {
-                    delete (this.#dynamicContainer as Container)[this.#altKey];
-                }
-            } else {
-                (this.parent!.value as Container)[this.#key] = newValue;
-                if (this.#altKey !== undefined && this.#altKey in this.parent!.value) {
-                    delete (this.parent!.value as Container)[this.#altKey];
-                }
-            }
+            this.#writeTo(this.#dynamicContainer ?? (this.parent!.value as Container), newValue);
         });
     }
 
@@ -168,20 +153,9 @@ export class ManagedReference implements ValReference {
                 this.parent!.rootOwner,
                 this.#session,
             );
-            if (this.#key in (origProperties as Container)) {
-                return (origProperties as Container)[this.#key];
-            }
-            if (this.#altKey !== undefined) {
-                return (origProperties as Container)[this.#altKey];
-            }
-        } else {
-            if (this.#key in this.parent!.original) {
-                return (this.parent!.original as Container)[this.#key];
-            }
-            if (this.#altKey !== undefined) {
-                return (this.parent!.original as Container)[this.#altKey];
-            }
+            return memberValueOf(origProperties as Container, this.#key, this.#fallbackKey);
         }
+        return memberValueOf(this.parent!.original as Container, this.#key, this.#fallbackKey);
     }
 
     change(mutator: () => void) {
@@ -193,17 +167,7 @@ export class ManagedReference implements ValReference {
             // In transactions, clone the value if we haven't done so yet
             if (this.#clone && this.#value === this.original) {
                 const newValue = this.#clone(this.#value);
-                if (this.#dynamicContainer !== undefined) {
-                    (this.#dynamicContainer as Container)[this.#key] = newValue;
-                    if (this.#altKey !== undefined && this.#altKey in this.#dynamicContainer) {
-                        delete (this.#dynamicContainer as Container)[this.#altKey];
-                    }
-                } else {
-                    (this.parent!.value as Container)[this.#key] = newValue;
-                    if (this.#altKey !== undefined && this.#altKey in (this.parent!.value as Container)) {
-                        delete (this.parent!.value as Container)[this.#altKey];
-                    }
-                }
+                this.#writeTo(this.#dynamicContainer ?? (this.parent!.value as Container), newValue);
                 this.#replaceValue(newValue);
             }
 
@@ -223,22 +187,19 @@ export class ManagedReference implements ValReference {
             return;
         }
 
-        let value;
-        if (this.#dynamicContainer !== undefined) {
-            if (this.#key in this.#dynamicContainer) {
-                value = (this.#dynamicContainer as Container)[this.#key];
-            } else if (this.#altKey !== undefined && this.#altKey in this.#dynamicContainer) {
-                value = (this.#dynamicContainer as Container)[this.#altKey];
-            }
-        } else {
-            if (this.#key in this.parent!.value) {
-                value = (this.parent!.value as Container)[this.#key];
-            } else if (this.#altKey !== undefined && this.#altKey in this.parent!.value) {
-                value = (this.parent!.value as Container)[this.#altKey];
-            }
-        }
+        const value =
+            this.#dynamicContainer !== undefined
+                ? memberValueOf(this.#dynamicContainer as Container, this.#key, this.#fallbackKey)
+                : memberValueOf(this.parent!.value as Container, this.#key, this.#fallbackKey);
 
         this.#replaceValue(value);
+    }
+
+    #writeTo(container: Container, newValue: Val) {
+        container[this.#key] = newValue;
+        if (this.#fallbackKey !== undefined && this.#fallbackKey in container) {
+            delete container[this.#fallbackKey];
+        }
     }
 
     #replaceValue(newValue: Val) {

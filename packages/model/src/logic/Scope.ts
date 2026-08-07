@@ -186,7 +186,7 @@ export function Scope(subject: Model, options: Scope.ScopeOptions = {}) {
             allMembers,
             features,
             conformantOnly,
-            conformantOnly ? deconflictedMemberCache : conformantMemberCache,
+            conformantOnly ? conformantMemberCache : deconflictedMemberCache,
         );
     }
 

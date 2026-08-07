@@ -520,6 +520,7 @@ describe("IcdManagementServer", () => {
         const litServer = IcdManagementServer.with(
             IcdManagement.Feature.CheckInProtocolSupport,
             IcdManagement.Feature.LongIdleTimeSupport,
+            IcdManagement.Feature.UserActiveModeTrigger,
         );
         const RootWithLit = ServerNode.RootEndpoint.with(litServer);
 
@@ -691,6 +692,7 @@ describe("IcdManagementServer", () => {
         const litServer = IcdManagementServer.with(
             IcdManagement.Feature.CheckInProtocolSupport,
             IcdManagement.Feature.LongIdleTimeSupport,
+            IcdManagement.Feature.UserActiveModeTrigger,
         );
         const RootWithLit = ServerNode.RootEndpoint.with(litServer);
 
@@ -912,6 +914,7 @@ describe("IcdManagementServer", () => {
         const dslsServer = IcdManagementServer.with(
             IcdManagement.Feature.CheckInProtocolSupport,
             IcdManagement.Feature.LongIdleTimeSupport,
+            IcdManagement.Feature.UserActiveModeTrigger,
             IcdManagement.Feature.DynamicSitLitSupport,
         );
         const RootWithDsls = ServerNode.RootEndpoint.with(dslsServer);
@@ -1026,6 +1029,7 @@ describe("IcdManagementServer", () => {
             const litServer = IcdManagementServer.with(
                 IcdManagement.Feature.CheckInProtocolSupport,
                 IcdManagement.Feature.LongIdleTimeSupport,
+                IcdManagement.Feature.UserActiveModeTrigger,
             );
             await using site = new MockSite();
             const { device } = await site.addCommissionedPair({
@@ -1041,6 +1045,7 @@ describe("IcdManagementServer", () => {
             const litServer = IcdManagementServer.with(
                 IcdManagement.Feature.CheckInProtocolSupport,
                 IcdManagement.Feature.LongIdleTimeSupport,
+                IcdManagement.Feature.UserActiveModeTrigger,
             );
             await using site = new MockSite();
             const { device } = await site.addCommissionedPair({
@@ -1062,6 +1067,7 @@ describe("IcdManagementServer", () => {
             const litServer = IcdManagementServer.with(
                 IcdManagement.Feature.CheckInProtocolSupport,
                 IcdManagement.Feature.LongIdleTimeSupport,
+                IcdManagement.Feature.UserActiveModeTrigger,
             );
             await using site = new MockSite();
             const { device } = await site.addCommissionedPair({
