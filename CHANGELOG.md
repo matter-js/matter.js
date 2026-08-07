@@ -34,7 +34,7 @@ The main work (all changes without a GitHub username in brackets in the below li
         - Verify the feature set of every device you compose. Persisted cluster state resets once for affected devices because it is keyed by feature selection
     - Breaking: A LongIdleTimeSupport ICD must select CheckInProtocolSupport and UserActiveModeTrigger
     - Breaking: A node that accepts more than one path per invoke must select the General Diagnostics DataModelTest feature
-    - Breaking: An unreported client node attribute reads its schema or datatype default when the attribute is mandatory under the peer's supported features, and `undefined` otherwise — regardless of the peer's AttributeList (some metatypes, e.g. enum, string, bytes, date and duration, have no datatype-level default)
+    - Breaking: An unreported client node attribute reads its schema default, else the specification's fallback value for its type, when the attribute is mandatory under the peer's supported features, and `undefined` otherwise — regardless of the peer's AttributeList (an enum attribute reads `undefined`, as the specification defines its fallback as manufacturer-specific)
     - Breaking: Configured options and environment variables no longer seed a client node's cluster state; the peer's reports are the only source of values
     - Breaking: Adding a server cluster to an endpoint fails when its selected features violate the conformance of its FeatureMap
     - Breaking: Provisional elements are no longer implemented by default; supply a state value or use `ClusterBehavior.enable()` to implement one

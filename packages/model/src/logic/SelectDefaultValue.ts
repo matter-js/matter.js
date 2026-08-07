@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Instant } from "@matter/general";
 import { Conformance } from "../aspects/Conformance.js";
 import { FieldValue, Metatype } from "../common/index.js";
 import type { ValueModel } from "../models/ValueModel.js";
@@ -40,14 +41,16 @@ export function IsMandatory(scope: Scope, member: ValueModel): boolean {
 }
 
 /**
- * Recursively compute the default a mandatory member assumes absent an explicit value.
+ * Recursively compute the default a mandatory member assumes absent an explicit value, following the Data Model
+ * specification's "Fallback Column" rules (null when nullable, 0/false for analog and boolean, empty for strings
+ * and lists, structs composited recursively; an enumeration's fallback is manufacturer-specific and stays
+ * undefined).
  *
  * Diverges from {@link SelectDefaultValue} for object/bitmap metatypes: it consults only a default the schema
  * states explicitly - {@link DefaultValue}'s constructed partial objects ignore conformance and bypass the
  * nullable rule - and builds struct defaults by recursing over conformant members instead of returning an empty
- * `{}`. A member with no synthesizable default is omitted, so the result may not satisfy the member's own
- * conformance. The return may be model-owned shared state (an explicit default), so callers copy it before
- * mutation or hand-out.
+ * `{}`. The return may be model-owned shared state (an explicit default), so callers copy it before mutation or
+ * hand-out.
  */
 export function MandatoryDefaultValue(scope: Scope, member: ValueModel, visiting?: Set<ValueModel>): unknown {
     if (!IsMandatory(scope, member)) {
@@ -56,7 +59,27 @@ export function MandatoryDefaultValue(scope: Scope, member: ValueModel, visiting
 
     const metatype = member.effectiveMetatype;
     if (metatype !== Metatype.object && metatype !== Metatype.bitmap) {
-        return defaultValueForMetatype(scope, member);
+        const value = defaultValueForMetatype(scope, member);
+        if (value !== undefined) {
+            return value;
+        }
+
+        // Fallback values per the Data Model specification's "Fallback Column" rules; an enumeration's fallback is
+        // manufacturer-specific, so it deliberately stays undefined
+        switch (metatype) {
+            case Metatype.string:
+                return "";
+
+            case Metatype.bytes:
+                return new Uint8Array();
+
+            case Metatype.date:
+                return new Date(0);
+
+            case Metatype.duration:
+                return Instant;
+        }
+        return undefined;
     }
 
     // A reference is resolved live by the consumer, not here; without this guard an unresolvable reference would

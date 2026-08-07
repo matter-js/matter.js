@@ -375,6 +375,23 @@ describe("StructManager", () => {
             });
         });
 
+        it("reads a mandatory string as empty and a mandatory enum as undefined when unreported", async () => {
+            const struct = TestStruct(
+                {
+                    label: { id: 0, type: "string", conformance: "M" },
+                    mode: { id: 1, type: "enum8", conformance: "M" },
+                },
+                {},
+                "id",
+            );
+
+            await struct.online(TestContext(), ref => {
+                expect(ref.label).equals("");
+                // An enumeration's fallback is manufacturer-specific per the Data Model specification
+                expect(ref.mode).undefined;
+            });
+        });
+
         it("reads a nullable mandatory member as null when unreported", async () => {
             const struct = TestStruct({ prim: { id: 0, type: "uint8", conformance: "M", quality: "X" } }, {}, "id");
 

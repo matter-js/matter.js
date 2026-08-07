@@ -148,8 +148,7 @@ describe("Datasource", () => {
                 { type: SeededState, supervisor: idSupervisor, primaryKey: "id" },
                 ({ state }) => {
                     expect("foo" in rawValuesOf(state)).false;
-                    // "foo" has no explicit conformance (optional) and is a string (no datatype default either
-                    // way), so it stays undefined even though a mandatory member now synthesizes a default
+                    // "foo" has no explicit conformance (optional), so no default is synthesized
                     expect(state.foo).undefined;
                 },
             );
