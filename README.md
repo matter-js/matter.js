@@ -100,7 +100,7 @@ The examples also live in this repository and can be run from a clone with `npm 
 
 ### Extending and contributing to matter.js
 
-We welcome contributions!  With Node.js 22.12 or newer installed, prepare your development environment as follows:
+We welcome contributions! With Node.js 22.12 or newer installed, prepare your development environment as follows:
 
 ```bash
 git clone https://github.com/matter-js/matter.js
