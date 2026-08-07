@@ -11,12 +11,16 @@ export class ProxyProtocolError extends NetworkError {}
 
 /** Peer rejected a command with an error response; `code` is the wire error code. */
 export class ProxyCommandError extends NetworkError {
+    /** The description as it appears in the wire `message` field, without the {@link code} prefix. */
+    readonly detail: string;
+
     constructor(
         readonly code: string,
         message: string,
         options?: ErrorOptions,
     ) {
         super(`${code}: ${message}`, options);
+        this.detail = message;
     }
 }
 
