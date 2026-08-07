@@ -284,9 +284,9 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
             if (
                 !bdxProtocol.enablePeerForScope(peerAddress, this.updateStorage, {
                     preferredDriverModes: [Flow.DriverMode.ReceiverDrive],
-                    // That's also the default but especially states for OTA, but let's set it explicitly
+                    // That's also the default but especially stated for OTA, but let's set it explicitly
                     messageTimeout: Minutes(5),
-                    // maxBlockSize 1024 (non-TCP), 8192 (TCP) - We support whatever the peer wants, so do not set that
+                    ...this.agent.get(SoftwareUpdateManager).bdxTransferOptionsFor(peerAddress),
                 })
             ) {
                 // We could not enable BDX for this scope because another process is registered with different details

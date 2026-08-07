@@ -55,10 +55,19 @@ import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-
 
 const logger = Logger.get("SoftwareUpdateManager");
 
-interface UpdateConsent {
-    vendorId: VendorId;
-    productId: number;
-    targetSoftwareVersion: number;
+/** Rejects transfer options a BDX session could not honour, before any state changes on their behalf. */
+function assertTransferOptions({ maxBdxBlockSize, bdxAdditionalMrpDelay }: SoftwareUpdateManager.UpdateTarget) {
+    if (maxBdxBlockSize !== undefined && (!Number.isInteger(maxBdxBlockSize) || maxBdxBlockSize <= 0)) {
+        throw new ImplementationError(`maxBdxBlockSize must be a positive integer, got ${maxBdxBlockSize}`);
+    }
+    if (bdxAdditionalMrpDelay !== undefined && (!Number.isFinite(bdxAdditionalMrpDelay) || bdxAdditionalMrpDelay < 0)) {
+        throw new ImplementationError(
+            `bdxAdditionalMrpDelay must be a finite, non-negative duration, got ${bdxAdditionalMrpDelay}`,
+        );
+    }
+}
+
+interface UpdateConsent extends SoftwareUpdateManager.UpdateTarget {
     peerAddress: PeerAddress;
 }
 
@@ -646,7 +655,7 @@ export class SoftwareUpdateManager extends Behavior {
             };
             this.internal.knownUpdates.set(peerAddress, details);
 
-            const hasConsent = this.internal.consents.some(
+            const consent = this.internal.consents.find(
                 consent =>
                     consent.vendorId === vendorId &&
                     consent.productId === productId &&
@@ -657,13 +666,15 @@ export class SoftwareUpdateManager extends Behavior {
             if (this.internal.suppressUpdates) {
                 break;
             }
-            if (hasConsent) {
+            if (consent !== undefined) {
                 // We already have a consent for this update, so just announce the provider
                 this.#queueUpdate({
                     endpoint,
                     vendorId,
                     productId,
                     targetSoftwareVersion: updateDetails.softwareVersion,
+                    maxBdxBlockSize: consent.maxBdxBlockSize,
+                    bdxAdditionalMrpDelay: consent.bdxAdditionalMrpDelay,
                     peerAddress,
                 });
             } else {
@@ -837,6 +848,8 @@ export class SoftwareUpdateManager extends Behavior {
             existing.productId = entry.productId;
             existing.targetSoftwareVersion = entry.targetSoftwareVersion;
             existing.endpoint = entry.endpoint;
+            existing.maxBdxBlockSize = entry.maxBdxBlockSize;
+            existing.bdxAdditionalMrpDelay = entry.bdxAdditionalMrpDelay;
             logger.info(`Updated existing queued update for node ${entry.peerAddress.toString()}`);
         } else {
             logger.info(`Queuing update consent for node ${entry.peerAddress.toString()}`);
@@ -954,7 +967,9 @@ export class SoftwareUpdateManager extends Behavior {
      * This can be used when an exact timing of the update is needed. When the update can be executed in a delayed/queued
      * manner, please use `addUpdateConsent()`.
      */
-    async forceUpdate(peerAddress: PeerAddress, vendorId: VendorId, productId: number, targetSoftwareVersion: number) {
+    async forceUpdate(peerAddress: PeerAddress, target: SoftwareUpdateManager.UpdateTarget) {
+        const { vendorId, productId, targetSoftwareVersion } = target;
+        assertTransferOptions(target);
         peerAddress = PeerAddress(peerAddress);
         const existingEntry = this.internal.updateQueue.find(
             e =>
@@ -988,7 +1003,7 @@ export class SoftwareUpdateManager extends Behavior {
             }
         }
 
-        const added = await this.addUpdateConsent(peerAddress, vendorId, productId, targetSoftwareVersion);
+        const added = await this.addUpdateConsent(peerAddress, target);
         if (!added) {
             throw new OtaUpdateError(`Node at ${peerAddress.toString()} is not currently applicable for OTA updates`);
         }
@@ -1049,18 +1064,34 @@ export class SoftwareUpdateManager extends Behavior {
     }
 
     /**
+     * How BDX should carry this peer's pending update: the options given with its consent, else the general defaults
+     * in {@link State}.  An absent value leaves the decision to the peer and its medium.
+     *
+     * A consent may exist before the update is queued, so both are consulted.
+     */
+    bdxTransferOptionsFor(peerAddress: PeerAddress) {
+        peerAddress = PeerAddress(peerAddress);
+        const matches = (candidate: PeerAddress) =>
+            candidate.fabricIndex === peerAddress.fabricIndex && candidate.nodeId === peerAddress.nodeId;
+        const pending =
+            this.internal.updateQueue.find(entry => matches(entry.peerAddress)) ??
+            this.internal.consents.find(consent => matches(consent.peerAddress));
+        return {
+            maxBlockSize: pending?.maxBdxBlockSize ?? this.state.maxBdxBlockSize,
+            additionalMrpDelay: pending?.bdxAdditionalMrpDelay ?? this.state.bdxAdditionalMrpDelay,
+        };
+    }
+
+    /**
      * Adds or updates a consent for a given peer address, vendor ID, product ID, and target software version.
      * Filters out existing consents for the given peer address and replaces them with the new one.
      * If the node associated with the peer address is applicable for an update, it schedules the update to happen with
      * the next queue slot, so potentially delayed.
      * This can be used when the update can be executed in a delayed/queued manner and it does not matter exactly when.
      */
-    async addUpdateConsent(
-        peerAddress: PeerAddress,
-        vendorId: VendorId,
-        productId: number,
-        targetSoftwareVersion: number,
-    ) {
+    async addUpdateConsent(peerAddress: PeerAddress, target: SoftwareUpdateManager.UpdateTarget) {
+        const { vendorId, productId, targetSoftwareVersion, maxBdxBlockSize, bdxAdditionalMrpDelay } = target;
+        assertTransferOptions(target);
         peerAddress = PeerAddress(peerAddress);
         // Filter out all existing consents for this peer, they are replaced by the new one
         const consents = this.internal.consents.filter(
@@ -1083,6 +1114,8 @@ export class SoftwareUpdateManager extends Behavior {
             vendorId,
             productId,
             targetSoftwareVersion,
+            maxBdxBlockSize,
+            bdxAdditionalMrpDelay,
             peerAddress,
         });
         this.internal.consents = consents;
@@ -1092,7 +1125,15 @@ export class SoftwareUpdateManager extends Behavior {
             return false;
         }
 
-        this.#queueUpdate({ vendorId, productId, targetSoftwareVersion, peerAddress, endpoint: otaEndpoint });
+        this.#queueUpdate({
+            vendorId,
+            productId,
+            targetSoftwareVersion,
+            maxBdxBlockSize,
+            bdxAdditionalMrpDelay,
+            peerAddress,
+            endpoint: otaEndpoint,
+        });
         return true;
     }
 
@@ -1231,6 +1272,42 @@ export namespace SoftwareUpdateManager {
 
         /** Interval to Announces this controller as Update provider. Must not be lower than 24h! */
         announcementInterval = Hours(24);
+
+        /**
+         * Caps the BDX block size offered for OTA transfers.  Unset accepts whatever the peer requests, which is the
+         * transport maximum.
+         *
+         * A smaller block multiplies round trips, and each of those is bounded by the peer's BDX response budget, so
+         * lower this only for a peer that cannot handle full-size blocks.
+         */
+        maxBdxBlockSize?: number = undefined;
+
+        /**
+         * Additive MRP retransmission margin for OTA transfers, overriding the margin the peer's medium implies.
+         *
+         * A BDX retransmission interval is capped so the whole schedule fits the peer's response budget, so values
+         * above roughly 7s are inert.
+         */
+        bdxAdditionalMrpDelay?: Duration = undefined;
+    }
+
+    /** Identifies the update a consent applies to, and how to transfer it. */
+    export interface UpdateTarget {
+        vendorId: VendorId;
+        productId: number;
+        targetSoftwareVersion: number;
+
+        /**
+         * Caps the BDX block size for this transfer, overriding {@link State.maxBdxBlockSize}.  Unset falls back to
+         * that default.
+         */
+        maxBdxBlockSize?: number;
+
+        /**
+         * Additive MRP retransmission margin for this transfer, overriding {@link State.bdxAdditionalMrpDelay} and the
+         * margin the peer's medium implies.  Unset falls back to that default.
+         */
+        bdxAdditionalMrpDelay?: Duration;
     }
 
     export class Internal {

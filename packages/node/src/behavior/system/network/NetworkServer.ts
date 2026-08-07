@@ -149,6 +149,9 @@ export namespace NetworkServer {
     }
 
     export class LimitsConfig extends ConcreteLimitsConfig {
+        @field(duration)
+        bdxAdditionalMrpDelay?: Duration;
+
         @field(ConcreteLimitsConfig)
         connect?: ConcreteLimitsConfig;
 

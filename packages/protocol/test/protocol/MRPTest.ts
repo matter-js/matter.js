@@ -7,8 +7,26 @@
 import { MRP } from "#protocol/MRP.js";
 import { SessionParameters } from "#session/SessionParameters.js";
 import { ChannelType, Millis, Seconds } from "@matter/general";
+import { BDX_PROTOCOL_ID, INTERACTION_PROTOCOL_ID, SECURE_CHANNEL_PROTOCOL_ID } from "@matter/types";
 
 describe("MRP", () => {
+    describe("marginFor", () => {
+        const margins = { messaging: Seconds(1.5), bdx: Seconds(5) };
+
+        it("selects the bdx margin for bulk transfer", () => {
+            expect(MRP.marginFor(margins, BDX_PROTOCOL_ID)).equals(Seconds(5));
+        });
+
+        it("selects the messaging margin for other protocols", () => {
+            expect(MRP.marginFor(margins, INTERACTION_PROTOCOL_ID)).equals(Seconds(1.5));
+            expect(MRP.marginFor(margins, SECURE_CHANNEL_PROTOCOL_ID)).equals(Seconds(1.5));
+        });
+
+        it("has no margin to offer when the peer's medium is unknown", () => {
+            expect(MRP.marginFor(undefined, BDX_PROTOCOL_ID)).equals(undefined);
+        });
+    });
+
     describe("retransmissionIntervalOf", () => {
         // Distinct intervals so idle- and active-based results cannot overlap, even with jitter
         const sessionParameters = SessionParameters({
