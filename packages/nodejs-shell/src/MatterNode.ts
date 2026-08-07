@@ -34,7 +34,6 @@ import { join } from "node:path";
 import { installDiagnosticLogging } from "./util/diagnosticLogging.js";
 import {
     cleanupLegacyStorage as purgeLegacyStorage,
-    legacyMigrationNeeded,
     migrateLegacyCommissionedNodes,
     migrateLegacyControllerCredentials,
 } from "./util/legacyStorageMigration.js";
@@ -161,26 +160,34 @@ export class MatterNode {
         // online here.
         if (resetStorage) {
             await (await this.#ensureNode()).erase();
+            if (cleanupLegacyStorage) {
+                logger.warn(`Ignoring --cleanup-legacy-storage during factory reset for store ${id}`);
+            }
             // A factory reset wipes the current fabric/peers; migrating legacy data afterward would resurrect
             // state the reset is meant to clear.
             return;
         }
 
-        const needMigration = await legacyMigrationNeeded(nodeEnvironment, id);
-        if (needMigration) {
-            // Must run before the controller ServerNode is created, so construction loads the migrated fabric.
-            await migrateLegacyControllerCredentials(nodeEnvironment, id);
+        // Both migration steps are self-guarding no-ops when there is nothing left to migrate, so calling them
+        // unconditionally on every boot also resumes a migration that crashed after only some peers were done.
+        // Step 1 must run before the controller ServerNode is created, so construction loads the migrated fabric.
+        await migrateLegacyControllerCredentials(nodeEnvironment, id);
 
-            const node = await this.#ensureNode();
-            const { nodes, endpoints, failed } = await migrateLegacyCommissionedNodes(node);
+        const node = await this.#ensureNode();
+        const { nodes, endpoints, failed } = await migrateLegacyCommissionedNodes(node);
+        if (nodes > 0) {
             logger.info(`Legacy storage migration: ${nodes} node(s), ${endpoints} endpoint(s) migrated`);
-            if (failed > 0) {
-                logger.warn(`${failed} peer(s) failed to migrate; do not run --cleanup-legacy-storage until resolved`);
-            }
+        }
+        if (failed > 0) {
+            logger.warn(`${failed} peer(s) failed to migrate; do not run --cleanup-legacy-storage until resolved`);
         }
 
         if (cleanupLegacyStorage) {
-            await purgeLegacyStorage(nodeEnvironment, id);
+            if (failed > 0) {
+                logger.warn(`Skipping --cleanup-legacy-storage this run: ${failed} peer(s) failed to migrate`);
+            } else {
+                await purgeLegacyStorage(nodeEnvironment, id);
+            }
         }
     }
 

@@ -6,7 +6,6 @@
 
 import {
     Environment,
-    ImplementationError,
     isObject,
     Logger,
     StorageManager,
@@ -135,16 +134,12 @@ export async function migrateLegacyCommissionedNodes(
     }
     const commissioned = await nodesCtx.get<LegacyCommissionedNode[]>("commissionedNodes", []);
 
+    // A migrated Era-B store carries exactly one fabric. Anything else (no fabric yet, or an unexpected
+    // multi-fabric store) cannot be addressed here; skip rather than abort the shell's startup.
     const fabrics = await baseStorage.createContext("fabrics").get<LegacyFabricRecord[]>("fabrics", []);
-    if (fabrics.length === 0) {
-        throw new ImplementationError(
-            "Cannot migrate commissioned nodes: no fabric present; run migrateLegacyControllerCredentials first",
-        );
-    }
     if (fabrics.length !== 1) {
-        throw new ImplementationError(
-            `Cannot migrate commissioned nodes: expected exactly one migrated fabric, found ${fabrics.length}`,
-        );
+        logger.warn(`Skipping legacy node migration: expected exactly one migrated fabric, found ${fabrics.length}`);
+        return { nodes: 0, endpoints: 0, failed: 0 };
     }
     const fabricIndex = FabricIndex(fabrics[0].fabricIndex);
 
