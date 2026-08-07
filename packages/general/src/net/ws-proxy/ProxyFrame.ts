@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MatterError } from "#MatterError.js";
+import { NetworkError } from "../Network.js";
 
 /** Framing error on a WS-proxy binary frame. */
-export class ProxyFrameError extends MatterError {}
+export class ProxyFrameError extends NetworkError {}
 
 const HEADER_SIZE = 3;
 

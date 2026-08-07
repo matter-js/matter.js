@@ -4,23 +4,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MatterError } from "#MatterError.js";
+import { NetworkError } from "../Network.js";
 
 /** WS-proxy protocol violation (bad handshake, malformed envelope). */
-export class ProxyProtocolError extends MatterError {}
+export class ProxyProtocolError extends NetworkError {}
 
 /** Peer rejected a command with an error response; `code` is the wire error code. */
-export class ProxyCommandError extends MatterError {
+export class ProxyCommandError extends NetworkError {
     constructor(
         readonly code: string,
         message: string,
+        options?: ErrorOptions,
     ) {
-        super(`${code}: ${message}`);
+        super(`${code}: ${message}`, options);
     }
 }
 
 /** Connection closed while commands were pending or before use. */
-export class ProxyConnectionClosedError extends MatterError {}
+export class ProxyConnectionClosedError extends NetworkError {}
 
 export interface ProxyHelloMessage {
     type: "hello";
