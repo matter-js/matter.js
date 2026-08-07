@@ -4,12 +4,49 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Environment, Logger, StorageManager, StorageService, SupportedStorageTypes } from "@matter/general";
+import {
+    Environment,
+    ImplementationError,
+    isObject,
+    Logger,
+    StorageManager,
+    StorageService,
+    SupportedStorageTypes,
+    Time,
+} from "@matter/general";
+import { ClientNode, NetworkClient, RemoteDescriptor, ServerNode, ServerNodeStore } from "@matter/node";
+import { DiscoveryData, OperationalAddress, PeerAddress } from "@matter/protocol";
+import { EventNumber, FabricIndex, NodeId } from "@matter/types";
 
 const logger = Logger.get("LegacyStorageMigration");
 
 /** A pre-0.16 `credentials` entry (fabric config or CA key material); relocated verbatim, never decoded. */
 type LegacyCredentialRecord = Record<string, SupportedStorageTypes>;
+
+/**
+ * A pre-0.16 `fabrics` entry; only `fabricIndex` is read here, the rest was relocated verbatim in step 1.
+ * Intersected with `Record<string, SupportedStorageTypes>` (rather than a plain interface) so the type still
+ * satisfies `StorageContext.get`'s `SupportedStorageTypes` constraint.
+ */
+type LegacyFabricRecord = Record<string, SupportedStorageTypes> & { fabricIndex: number };
+
+/** Per-node metadata carried in a `commissionedNodes` list entry. `deviceData` is intentionally not migrated. */
+type LegacyCommissionedEntry = Record<string, SupportedStorageTypes> & {
+    operationalServerAddress?: OperationalAddress;
+    discoveryData?: DiscoveryData;
+};
+
+/** One `commissionedNodes` list entry: the peer's raw stored node id paired with its metadata. */
+type LegacyCommissionedNode = [bigint, LegacyCommissionedEntry];
+
+/**
+ * True for a pre-0.16 cached attribute record (current storage keeps the bare value instead). Only checks for
+ * the `value` key; the index signature already types it as `SupportedStorageTypes`, so nothing is asserted about
+ * that key's value beyond what the storage layer already guarantees for every key.
+ */
+function isLegacyAttributeRecord(value: SupportedStorageTypes): value is Record<string, SupportedStorageTypes> {
+    return isObject(value) && "value" in value;
+}
 
 async function stepOneNeeded(mgr: StorageManager): Promise<boolean> {
     const credentials = mgr.createContext("credentials");
@@ -78,6 +115,113 @@ export async function migrateLegacyControllerCredentials(env: Environment, id: s
     } finally {
         await closeStorage(mgr, id);
     }
+}
+
+/**
+ * Step 2: migrate cached per-node data (`node-<id>` attribute trees + the `commissionedNodes` list) into the
+ * current per-peer store layout, and register each peer. Must run after the controller ServerNode is constructed
+ * (so its fabric is loaded) but before it goes online. Non-destructive — old data is left in place for
+ * {@link cleanupLegacyStorage}. Idempotent (skips peers that already exist); a peer that fails to migrate is
+ * skipped without aborting the rest and its partially-written store is cleared. Returns migrated counts.
+ */
+export async function migrateLegacyCommissionedNodes(
+    node: ServerNode,
+): Promise<{ nodes: number; endpoints: number; failed: number }> {
+    const serverStore = node.env.get(ServerNodeStore);
+    const baseStorage = serverStore.storage;
+    const nodesCtx = baseStorage.createContext("nodes");
+
+    // Gating on `stepTwoNeeded` here would stop the whole function the moment the first peer is migrated (it
+    // considers the new format present as soon as any `nodes.<id>` context exists), so a crash mid-loop would
+    // permanently strand the remaining un-migrated peers. Gate only on the raw list still being present.
+    if (!(await nodesCtx.has("commissionedNodes"))) {
+        logger.debug("No former commissioned nodes to migrate.");
+        return { nodes: 0, endpoints: 0, failed: 0 };
+    }
+    const commissioned = await nodesCtx.get<LegacyCommissionedNode[]>("commissionedNodes", []);
+
+    const fabrics = await baseStorage.createContext("fabrics").get<LegacyFabricRecord[]>("fabrics", []);
+    if (fabrics.length === 0) {
+        throw new ImplementationError(
+            "Cannot migrate commissioned nodes: no fabric present; run migrateLegacyControllerCredentials first",
+        );
+    }
+    if (fabrics.length !== 1) {
+        throw new ImplementationError(
+            `Cannot migrate commissioned nodes: expected exactly one migrated fabric, found ${fabrics.length}`,
+        );
+    }
+    const fabricIndex = FabricIndex(fabrics[0].fabricIndex);
+
+    let migratedNodes = 0;
+    let migratedEndpoints = 0;
+    let failedNodes = 0;
+
+    for (const [rawNodeId, { operationalServerAddress, discoveryData }] of commissioned) {
+        const nodeId = NodeId(rawNodeId);
+        const peerAddress = PeerAddress({ fabricIndex, nodeId });
+
+        const existingPeer = node.peers.get(peerAddress);
+        if (existingPeer !== undefined) {
+            logger.debug(`Node ${nodeId} already migrated, skipping`);
+            if (existingPeer.stateOf(NetworkClient).autoSubscribe) {
+                await existingPeer.setStateOf(NetworkClient, { autoSubscribe: false });
+            }
+            continue;
+        }
+
+        const id = serverStore.clientStores.allocateId();
+        let peerNode: ClientNode | undefined;
+        try {
+            const oldNode = baseStorage.createContext(`node-${nodeId}`);
+
+            const maxEventNumber = await oldNode.get<EventNumber>("__maxEventNumber__", EventNumber(0));
+
+            // Written before forAddress() below allocates the peer's store for the same id, which loads rather
+            // than overwrites whatever is already on disk under that context.
+            const peerStorage = nodesCtx.createContext(id).createContext("endpoints");
+            let endpointsForNode = 0;
+            for (const ep of await oldNode.contexts()) {
+                const oldEndpoint = oldNode.createContext(ep);
+                const newEndpoint = peerStorage.createContext(ep);
+                for (const cluster of await oldEndpoint.contexts()) {
+                    const oldCluster = oldEndpoint.createContext(cluster);
+                    const newCluster = newEndpoint.createContext(cluster);
+                    for (const key of await oldCluster.keys()) {
+                        const value = await oldCluster.get(key);
+                        if (key === "__version__") {
+                            await newCluster.set(key, value);
+                        } else if (isLegacyAttributeRecord(value)) {
+                            await newCluster.set(key, value.value);
+                        }
+                    }
+                }
+                endpointsForNode++;
+            }
+
+            const commissioning = RemoteDescriptor.toLongForm({
+                // Fallback only: discoveryData is spread after, so a peer with its own timestamp keeps it.
+                discoveredAt: Time.nowMs,
+                ...discoveryData,
+                addresses: operationalServerAddress ? [operationalServerAddress] : [],
+            });
+
+            peerNode = await node.peers.forAddress(peerAddress, { id });
+            await peerNode.set({ commissioning, network: { maxEventNumber, autoSubscribe: false } });
+            migratedNodes++;
+            migratedEndpoints += endpointsForNode;
+            logger.info(`Migrated commissioned node ${nodeId} as ${id}`);
+        } catch (error) {
+            failedNodes++;
+            logger.error(`Failed to migrate commissioned node ${nodeId} as ${id}, skipping:`, error);
+            if (peerNode !== undefined) {
+                await peerNode.delete();
+            }
+            await nodesCtx.createContext(id).clearAll();
+        }
+    }
+
+    return { nodes: migratedNodes, endpoints: migratedEndpoints, failed: failedNodes };
 }
 
 async function closeStorage(mgr: StorageManager, id: string): Promise<void> {
