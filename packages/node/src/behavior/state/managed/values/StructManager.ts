@@ -6,15 +6,7 @@
 
 import { camelize, deepCopy, GeneratedClass, ImplementationError, isObject } from "@matter/general";
 import type { Schema } from "@matter/model";
-import {
-    Access,
-    ElementTag,
-    FieldValue,
-    IsMandatory,
-    MandatoryDefaultValue,
-    Metatype,
-    ValueModel,
-} from "@matter/model";
+import { Access, ElementTag, FieldValue, MandatoryDefaultValue, Metatype, ValueModel } from "@matter/model";
 import { AccessControl, PhantomReferenceError, SchemaImplementationError, Val } from "@matter/protocol";
 import { FabricIndex } from "@matter/types";
 import { RootSupervisor } from "../../../supervision/RootSupervisor.js";
@@ -206,7 +198,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
     // data. The container itself never holds this value, so it can't masquerade as peer data in persistence,
     // change detection or external-change integration.
     const scope = supervisor.scope;
-    const isMandatory = IsMandatory(scope, schema);
+    const isMandatory = scope.isMandatory(schema);
 
     // The template is memoized but every value handed out is a fresh copy: an explicit schema default is
     // model-owned shared state.

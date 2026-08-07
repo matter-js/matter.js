@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Instant } from "@matter/general";
-import { Conformance } from "../aspects/Conformance.js";
 import { FieldValue, Metatype } from "../common/index.js";
 import type { ValueModel } from "../models/ValueModel.js";
 import { DecodedBitmap } from "./DecodedBitmap.js";
@@ -16,8 +14,8 @@ import type { Scope } from "./Scope.js";
  * Select the default value a member should assume absent an explicit value, gated by operational support (mandatory
  * given active features, or explicitly implemented).
  *
- * Returns undefined for a supported member whose metatype has no datatype-level default (e.g. enum, string, bytes,
- * date, duration) - such a member reads undefined even where typings make it required.
+ * Returns undefined for a supported member whose metatype has no datatype-level default (e.g. enum, string, bytes)
+ * - such a member reads undefined even where typings make it required.
  */
 export function SelectDefaultValue(scope: Scope, member: ValueModel): unknown {
     // No default unless mandatory or explicitly marked as implemented
@@ -26,18 +24,6 @@ export function SelectDefaultValue(scope: Scope, member: ValueModel): unknown {
     }
 
     return defaultValueForMetatype(scope, member);
-}
-
-/**
- * Is {@link member} mandatory given the features {@link scope} has active?
- *
- * Evaluated purely from the schema's declared conformance against the scope's supported features. Deliberately
- * blind to runtime element-support data such as a peer's AttributeList: {@link Scope#hasOperationalSupport} folds
- * that in, this does not.
- */
-export function IsMandatory(scope: Scope, member: ValueModel): boolean {
-    member = scope.modelFor(member);
-    return member.effectiveConformance.applicabilityFor(scope) === Conformance.Applicability.Mandatory;
 }
 
 /**
@@ -53,7 +39,7 @@ export function IsMandatory(scope: Scope, member: ValueModel): boolean {
  * hand-out.
  */
 export function MandatoryDefaultValue(scope: Scope, member: ValueModel, visiting?: Set<ValueModel>): unknown {
-    if (!IsMandatory(scope, member)) {
+    if (!scope.isMandatory(member)) {
         return undefined;
     }
 
@@ -65,19 +51,14 @@ export function MandatoryDefaultValue(scope: Scope, member: ValueModel, visiting
         }
 
         // Fallback values per the Data Model specification's "Fallback Column" rules; an enumeration's fallback is
-        // manufacturer-specific, so it deliberately stays undefined
+        // manufacturer-specific, so it deliberately stays undefined.  Time types derive from analog types and get
+        // their zero above
         switch (metatype) {
             case Metatype.string:
                 return "";
 
             case Metatype.bytes:
                 return new Uint8Array();
-
-            case Metatype.date:
-                return new Date(0);
-
-            case Metatype.duration:
-                return Instant;
         }
         return undefined;
     }

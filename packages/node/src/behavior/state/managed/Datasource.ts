@@ -385,7 +385,8 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
                     }
                     migrated ??= { ...storedValues };
                     if (id in migrated) {
-                        logger.warn(
+                        // The store itself is never rewritten, so this repeats every load — not warn-worthy
+                        logger.debug(
                             `Discarding legacy value stored at "${key}" for ${options.location.path} because a newer value exists at its id`,
                         );
                     } else {

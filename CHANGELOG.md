@@ -19,10 +19,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/model
     - Breaking: A provisional element is no longer mandatory; conformance following a `P` describes the conformance intended once the element leaves provisional state
-    - Breaking: `SelectDefaultValue()` lost its `oldDefault` parameter and is now called as `SelectDefaultValue(scope, member)` — if you passed an existing value, use that value directly when it is defined and call the function only when it is `undefined`
     - Enhancement: `FeatureSelectionErrors()` assesses a cluster's selected features against the combinations its FeatureMap conformance disallows
     - Enhancement: `FeatureSet.resolve()` resolves a feature short code, title or camelized title to a short code
-    - Enhancement: New `IsMandatory()` tells whether a member is mandatory under a schema's supported features, and `MandatoryDefaultValue()` computes the value such a member assumes when no real value exists (schema default, else datatype default, recursing into structs) — the basis for what an unreported client node attribute reads, usable wherever schema-derived fallback values are needed
+    - Enhancement: New `Scope.isMandatory()` tells whether a member is mandatory under a schema's supported features, and the new `MandatoryDefaultValue()` computes the value such a member assumes when no real value exists (schema default, else the specification's fallback value, recursing into structs) — the basis for what an unreported client node attribute reads, usable wherever schema-derived fallback values are needed; `SelectDefaultValue()` exposes the shallow variant used for server state seeding
     - Fix: A cluster's feature table no longer selects features; a feature the specification makes unconditionally mandatory is always selected
     - Fix: Feature selection records against `operationalIsSupported` so a feature's `default` conveys only the specification's fallback value
     - Fix: A feature mandated by any of several alternatives, such as `DoorLock.User`, is now reported as required
@@ -34,15 +33,16 @@ The main work (all changes without a GitHub username in brackets in the below li
         - Verify the feature set of every device you compose. Persisted cluster state resets once for affected devices because it is keyed by feature selection
     - Breaking: A LongIdleTimeSupport ICD must select CheckInProtocolSupport and UserActiveModeTrigger
     - Breaking: A node that accepts more than one path per invoke must select the General Diagnostics DataModelTest feature
-    - Breaking: An unreported client node attribute reads its schema default, else the specification's fallback value for its type, when the attribute is mandatory under the peer's supported features, and `undefined` otherwise — regardless of the peer's AttributeList (an enum attribute reads `undefined`, as the specification defines its fallback as manufacturer-specific)
-    - Breaking: Configured options and environment variables no longer seed a client node's cluster state; the peer's reports are the only source of values
+    - Breaking: An unreported client node attribute reads its schema default, else the specification's fallback value for its type, when the attribute is mandatory under the peer's supported features, and `undefined` otherwise — regardless of the peer's AttributeList (an enum attribute reads `undefined`, as the specification defines its fallback as manufacturer-specific). The value is a detached copy, so mutating a struct or list read from an unreported attribute does not write through
+    - Breaking: Configured options, environment variables and state-class field initializers no longer seed a client node's cluster state; the peer's reports are the only source of values
+    - Fix: Struct validation resolves a member stored under its TLV tag number, so a constraint violation there is caught and a mandatory member present only at its id no longer raises a conformance error
     - Breaking: Adding a server cluster to an endpoint fails when its selected features violate the conformance of its FeatureMap
     - Breaking: Provisional elements are no longer implemented by default; supply a state value or use `ClusterBehavior.enable()` to implement one
     - Fix: `IdentifyServer` no longer offers the optional `TriggerEffect` command unless the device type requires it, an own command implementation has been added via an override or suppression is disabled; `IdentifyServer.enable({ commands: { triggerEffect: true } })`, `IdentifyServer.alter({ commands: { triggerEffect: { optional: false } } })` and an override of `suppressTriggerEffect()` also offer it
     - Fix: `ClusterBehavior.with()` rejects a feature the cluster does not define
     - Fix: Client node values persisted under property names by earlier versions are migrated to their attribute id on load, so they stay readable
     - Fix: Writing a fabric-scoped list entry that stems from a cluster whose schema could not be resolved no longer produces two conflicting fabricIndex fields
-    - Fix: A rejected write to an attribute served by dynamic properties restores the previous value instead of deleting the property
+    - Fix: A rejected write to an attribute served by dynamic properties restores the previous value instead of deleting the property, and a rejected write to a previously absent attribute leaves no slot behind instead of one holding `undefined`
 
 - @matter/nodejs
     - Breaking: `FileStorageDriver`'s constructor no longer accepts a `clear` argument; clearing is handled by `StorageService`

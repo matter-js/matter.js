@@ -232,6 +232,38 @@ describe("Datasource", () => {
             );
         });
 
+        it("never hands a synthesized value to the store", async () => {
+            const mandatorySupervisor = BehaviorSupervisor({
+                id: "seededState",
+                State: SeededState,
+
+                schema: new DatatypeModel({
+                    name: "SeededState",
+                    type: "struct",
+
+                    children: [
+                        FieldElement({ name: "foo", id: 1, type: "string", quality: "N" }),
+                        FieldElement({ name: "count", id: 2, type: "uint8", conformance: "M", quality: "N" }),
+                    ],
+                }),
+            });
+
+            const store = createStore();
+            await withDatasourceAndReference(
+                { type: SeededState, supervisor: mandatorySupervisor, primaryKey: "id", store },
+                async ({ state, context }) => {
+                    expect((state as Val.Struct).count).equals(0);
+
+                    state.foo = "real";
+                    await context.transaction.commit();
+                },
+            );
+
+            expect(store.sets.length).equals(1);
+            expect(Object.keys(store.sets[0])).not.includes("2");
+            expect(store.sets[0][1]).equals("real");
+        });
+
         it("keeps non-member helper fields while stripping seeded member defaults", async () => {
             class HelperBackedState {
                 foo? = "bar";
