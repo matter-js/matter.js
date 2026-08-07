@@ -219,6 +219,34 @@ export async function migrateLegacyCommissionedNodes(
     return { nodes: migratedNodes, endpoints: migratedEndpoints, failed: failedNodes };
 }
 
+/**
+ * Explicit, separate removal of the legacy (Era B) storage artifacts. The sole destructive path. Refuses to run
+ * unless the new format is present (a fabric in `fabrics` OR a per-peer context under `nodes`), so it never
+ * destroys data that has not been migrated. Idempotent.
+ */
+export async function cleanupLegacyStorage(env: Environment, id: string): Promise<void> {
+    const mgr = await env.get(StorageService).open(id);
+    try {
+        const fabrics = await mgr.createContext("fabrics").get<LegacyFabricRecord[]>("fabrics", []);
+        const migratedPeers = (await mgr.createContext("nodes").contexts()).length > 0;
+        if (fabrics.length === 0 && !migratedPeers) {
+            logger.warn(`Refusing legacy cleanup for store ${id}: no migrated data present`);
+            return;
+        }
+
+        for (const context of await mgr.driver.contexts([])) {
+            if (context.startsWith("node-")) {
+                await mgr.createContext(context).clearAll();
+            }
+        }
+        await mgr.createContext("nodes").delete("commissionedNodes");
+        await mgr.createContext("credentials").clearAll();
+        logger.info(`Removed legacy storage artifacts for store ${id}`);
+    } finally {
+        await closeStorage(mgr, id);
+    }
+}
+
 async function closeStorage(mgr: StorageManager, id: string): Promise<void> {
     try {
         await mgr.close();
