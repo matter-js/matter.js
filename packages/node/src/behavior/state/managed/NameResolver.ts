@@ -60,7 +60,10 @@ export function NameResolver(
 
     /**
      * Read a property by name, preferring the id-keyed slot when available — client mirrors
-     * (`primaryKey: "id"`) hold live values at attribute ids while the property-name slot may be a stale default.
+     * (`primaryKey: "id"`) hold live values at attribute ids.
+     *
+     * The name-slot fallback must stay: the same resolver serves name-keyed containers, where the value
+     * legitimately lives at the property name.
      */
     function createDirectResolver(id?: number) {
         if (id === undefined) {
