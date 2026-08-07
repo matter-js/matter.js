@@ -81,6 +81,12 @@ async function main() {
                             default: false,
                             type: "boolean",
                         },
+                        "cleanup-legacy-storage": {
+                            description:
+                                "Irreversibly delete pre-0.16 storage artifacts after migration. Only use this once you are certain the migration succeeded and you will not downgrade below 0.16.",
+                            default: false,
+                            type: "boolean",
+                        },
                         netInterface: {
                             description: "Network interface to use for MDNS announcements and scanning.",
                             type: "string",
@@ -126,6 +132,7 @@ async function main() {
                     bleHciId,
                     nodeType,
                     factoryReset,
+                    cleanupLegacyStorage,
                     netInterface,
                     logfile,
                     webSocketInterface,
@@ -144,7 +151,7 @@ async function main() {
                 }
 
                 theNode = new MatterNode(nodeNum, netInterface);
-                await theNode.initialize(factoryReset);
+                await theNode.initialize(factoryReset, cleanupLegacyStorage);
 
                 if (logfile !== undefined) {
                     await theNode.Store.set("LogFile", logfile);

@@ -32,6 +32,12 @@ import { Ble, Fabric, FabricAuthority } from "@matter/protocol";
 import { NodeId } from "@matter/types";
 import { join } from "node:path";
 import { installDiagnosticLogging } from "./util/diagnosticLogging.js";
+import {
+    cleanupLegacyStorage as purgeLegacyStorage,
+    legacyMigrationNeeded,
+    migrateLegacyCommissionedNodes,
+    migrateLegacyControllerCredentials,
+} from "./util/legacyStorageMigration.js";
 
 const logger = Logger.get("Node");
 
@@ -122,7 +128,7 @@ export class MatterNode {
         return service;
     }
 
-    async initialize(resetStorage: boolean) {
+    async initialize(resetStorage: boolean, cleanupLegacyStorage = false) {
         if (this.#netInterface !== undefined) {
             this.#environment.vars.set("mdns.networkinterface", this.#netInterface);
         }
@@ -154,6 +160,27 @@ export class MatterNode {
         // The node is created but not started, so it does not go operationally online here.
         if (resetStorage) {
             await (await this.#ensureNode()).erase();
+            // The reset just wiped the current fabric/peers; migrating legacy data afterward would resurrect
+            // state the reset was meant to clear.
+            return;
+        }
+
+        const needMigration = await legacyMigrationNeeded(nodeEnvironment, id);
+        if (needMigration) {
+            // Must run before the controller ServerNode is created, so construction loads the migrated fabric.
+            await migrateLegacyControllerCredentials(nodeEnvironment, id);
+
+            // Eager creation (see above) lets migrated peers register before the node goes online.
+            const node = await this.#ensureNode();
+            const { nodes, endpoints, failed } = await migrateLegacyCommissionedNodes(node);
+            logger.info(`Legacy storage migration: ${nodes} node(s), ${endpoints} endpoint(s) migrated`);
+            if (failed > 0) {
+                logger.warn(`${failed} peer(s) failed to migrate; do not run --cleanup-legacy-storage until resolved`);
+            }
+        }
+
+        if (cleanupLegacyStorage) {
+            await purgeLegacyStorage(nodeEnvironment, id);
         }
     }
 
