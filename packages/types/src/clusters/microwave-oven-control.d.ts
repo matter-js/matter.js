@@ -146,7 +146,7 @@ export declare namespace MicrowaveOvenControl {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 8.13.5.7
          */
-        supportedWatts: number[];
+        supportedWatts?: number[];
 
         /**
          * Indicates the index into the list of SupportedWatts of the currently selected power setting.
@@ -155,7 +155,7 @@ export declare namespace MicrowaveOvenControl {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 8.13.5.8
          */
-        selectedWattIndex: number;
+        selectedWattIndex?: number;
     }
 
     /**

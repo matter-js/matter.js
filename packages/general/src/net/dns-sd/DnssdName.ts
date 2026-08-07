@@ -5,6 +5,7 @@
  */
 
 import { DnsRecord, DnsRecordType, SrvRecordValue } from "#codec/DnsCodec.js";
+import { Diagnostic } from "#log/Diagnostic.js";
 import { Logger } from "#log/Logger.js";
 import { Time } from "#time/Time.js";
 import type { Timestamp } from "#time/Timestamp.js";
@@ -21,6 +22,8 @@ const logger = Logger.get("DnssdName");
  * Grace factor applied to record TTLs so timing jitter doesn't cause premature expiry and spurious re-queries.
  */
 export const DEFAULT_TTL_GRACE_FACTOR = 1.05;
+
+const MAX_PORT = 0xffff;
 
 /**
  * Manages records associated with a single DNS-SD qname.
@@ -41,6 +44,7 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
     #parameters?: DnssdParameters;
     #dependencies?: Map<string, DnssdName>;
     #nullObserver?: () => void;
+    #unavailableServiceReported?: boolean;
 
     constructor(
         readonly qname: string,
@@ -117,6 +121,18 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
             return false;
         }
 
+        if (record.recordType === DnsRecordType.SRV && !isAvailableService(record.value)) {
+            if (!this.#unavailableServiceReported) {
+                this.#unavailableServiceReported = true;
+                logger.info(
+                    `Ignoring SRV record for "${this.qname}" that designates no available service`,
+                    Diagnostic.dict({ target: record.value.target, port: record.value.port }),
+                );
+            }
+            this.#deleteIfUnused();
+            return false;
+        }
+
         const oldRecord = this.#records.get(key);
         if (oldRecord) {
             this.#context.unregisterForExpiration(oldRecord);
@@ -153,6 +169,8 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
         }
 
         this.#notify("update", key, recordWithExpire);
+
+        return true;
     }
 
     deleteRecord(record: DnsRecord, ifOlderThan?: Timestamp) {
@@ -258,6 +276,24 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
 
         this.#notified = notify();
     }
+}
+
+/**
+ * Determine whether an SRV record designates a service that is actually reachable.
+ *
+ * A target of "." (decoded as an empty name) means the service is not available at this domain per RFC 2782, and a
+ * port of 0 designates a placeholder registration that claims a name without offering a service per RFC 6763 §8.
+ * Ports outside the 16-bit range cannot be dialed at all.
+ *
+ * @see {@link https://www.rfc-editor.org/rfc/rfc2782} "The format of the SRV RR"
+ * @see {@link https://www.rfc-editor.org/rfc/rfc6763#section-8} "Flagship Naming"
+ */
+function isAvailableService({ target, port }: SrvRecordValue) {
+    if (target === "" || target === ".") {
+        return false;
+    }
+
+    return Number.isInteger(port) && port > 0 && port <= MAX_PORT;
 }
 
 function keyOf(record: DnsRecord): string | undefined {

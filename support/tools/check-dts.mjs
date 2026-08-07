@@ -13,7 +13,7 @@
 // Run via: `npm run validate-dts`
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -45,6 +45,18 @@ const PACKAGES = [
 const MATTER_PATH_FRAGMENTS = ["/@matter/", "/@project-chip/matter.js/"];
 const MATTER_MODULE_FRAGMENTS = ["'@matter/", '"@matter/', "'@project-chip/matter.js", '"@project-chip/matter.js'];
 
+// In a workspace the node_modules entries are symlinks into packages/, and tsc reports the realpath.
+// Those paths contain no "@matter/" segment, so the fragments above never match them and every
+// diagnostic in our own packages would be silently filed as third-party noise.  Resolve the link
+// targets up front and match on those too.
+const MATTER_REAL_PREFIXES = PACKAGES.map(pkg => {
+    try {
+        return `${normalizePath(realpathSync(join(REPO_ROOT, "node_modules", pkg)))}/`;
+    } catch {
+        return undefined;
+    }
+}).filter(prefix => prefix !== undefined);
+
 // Errors that always indicate the harness itself is broken.  Treat as hard failures.
 //   TS2307 — Cannot find module 'X' (failed import)
 //   TS2792 — Cannot find module (with did-you-mean)
@@ -73,6 +85,7 @@ function isMatterError(line) {
     const normalized = normalizePath(line);
     return (
         MATTER_PATH_FRAGMENTS.some(frag => normalized.includes(frag)) ||
+        MATTER_REAL_PREFIXES.some(prefix => normalized.includes(prefix)) ||
         MATTER_MODULE_FRAGMENTS.some(frag => line.includes(frag))
     );
 }
@@ -185,6 +198,14 @@ function reportPass(label, result) {
 }
 
 function main() {
+    if (MATTER_REAL_PREFIXES.length !== PACKAGES.length) {
+        console.error(
+            `✗ Resolved only ${MATTER_REAL_PREFIXES.length} of ${PACKAGES.length} matter package locations; ` +
+                `diagnostics in the unresolved packages would be misfiled as third-party noise.`,
+        );
+        process.exit(2);
+    }
+
     // Two passes mirror the two artifacts each package ships:
     //   ESM (primary):  module=esnext + moduleResolution=bundler — what modern bundler/Node ESM
     //                   consumers see.  Strict; no allowlist.

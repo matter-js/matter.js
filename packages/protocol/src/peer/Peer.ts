@@ -157,7 +157,7 @@ export class Peer {
             }
 
             // Remove session and detach listener when destroyed
-            session.closing.on(() => {
+            session.closing.once(() => {
                 this.#sessions.delete(session);
                 if (isIpNetworkChannel(session.channel.transportChannel)) {
                     session.channel.networkAddressChanged.off(tagUdp);
@@ -166,6 +166,11 @@ export class Peer {
 
             // Ensure session parameters reflect those most recently reported by peer
             this.#descriptor.sessionParameters = session.parameters;
+
+            // Only pad when we actually know the peer's medium; the "unknown" fallback is deliberately not applied
+            // here because it would inflate responder timing for every peer of a node that never characterizes them.
+            session.peerMrpMarginsResolver = () =>
+                this.#physicalProperties === undefined ? undefined : this.network.mrpMargins;
         });
     }
 

@@ -4,13 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { capitalize, ChannelType, decamelize, Diagnostic, ServerAddress } from "@matter/general";
+import { capitalize, ChannelType, decamelize, Diagnostic, Millis, ServerAddress } from "@matter/general";
 import { ClientNode, CommissioningClient, NetworkClient, SoftwareUpdateManager } from "@matter/node";
 import { PeerAddress, PeerSet } from "@matter/protocol";
 import { FabricIndex, NodeId, VendorId } from "@matter/types";
 import { NodeStateInformation } from "@project-chip/matter.js/device";
 import type { Argv } from "yargs";
 import { createDiagnosticCallbacks, MatterNode } from "../MatterNode.js";
+import { resolveDclMode, withDclModeOption } from "./ota-dcl-mode.js";
 
 /** Parse a `udp://host:port` / `tcp://host:port` URL (IPv6 host in brackets) into a {@link ServerAddress}. */
 function parseFallbackAddress(input: string): ServerAddress {
@@ -549,27 +550,21 @@ export default function commands(theNode: MatterNode) {
                                 "check <node-id>",
                                 "Check for OTA updates for a commissioned node",
                                 yargs => {
-                                    return yargs
-                                        .positional("node-id", {
+                                    return withDclModeOption(
+                                        yargs.positional("node-id", {
                                             describe: "Node ID to check for updates",
                                             type: "string",
                                             demandOption: true,
-                                        })
-                                        .option("mode", {
-                                            describe: "DCL mode (prod or test)",
-                                            type: "string",
-                                            choices: ["prod", "test", "both"],
-                                            default: "prod",
-                                        })
-                                        .option("local", {
-                                            describe: "include local update files",
-                                            type: "boolean",
-                                            default: false,
-                                        });
+                                        }),
+                                    ).option("local", {
+                                        describe: "include local update files",
+                                        type: "boolean",
+                                        default: false,
+                                    });
                                 },
                                 async argv => {
                                     const { nodeId: nodeIdStr, mode, local } = argv;
-                                    const isProduction = mode === "prod" ? true : mode === "test" ? false : undefined;
+                                    const { label: dclMode, isProduction } = resolveDclMode(theNode, mode);
 
                                     await theNode.start();
                                     if (theNode.commissioningController === undefined) {
@@ -604,7 +599,7 @@ export default function commands(theNode: MatterNode) {
                                     console.log(
                                         `  Current Software Version: ${basicInfo.softwareVersion} (${basicInfo.softwareVersionString})`,
                                     );
-                                    console.log(`  DCL Mode: ${mode}\n`);
+                                    console.log(`  DCL Mode: ${dclMode}\n`);
 
                                     const updateInfo = await (
                                         await theNode.otaService()
@@ -630,7 +625,7 @@ export default function commands(theNode: MatterNode) {
                                             console.log(`  Release Notes: ${updateInfo.releaseNotesUrl}`);
                                         }
                                         console.log(
-                                            `\nRun "nodes ota download ${nodeIdStr}${mode === "test" ? " --mode test" : ""}" to download this update.`,
+                                            `\nRun "nodes ota download ${nodeIdStr}${mode === "auto" ? "" : ` --mode ${mode}`}" to download this update.`,
                                         );
                                     } else {
                                         console.log("✓ No updates available. Device is up to date.");
@@ -641,18 +636,13 @@ export default function commands(theNode: MatterNode) {
                                 "download <node-id>",
                                 "Download OTA update for a commissioned node",
                                 yargs => {
-                                    return yargs
-                                        .positional("node-id", {
+                                    return withDclModeOption(
+                                        yargs.positional("node-id", {
                                             describe: "Node ID to download update for",
                                             type: "string",
                                             demandOption: true,
-                                        })
-                                        .option("mode", {
-                                            describe: "DCL mode (prod or test)",
-                                            type: "string",
-                                            choices: ["prod", "test", "both"],
-                                            default: "prod",
-                                        })
+                                        }),
+                                    )
                                         .option("force", {
                                             describe: "Force download even if update is already stored locally",
                                             type: "boolean",
@@ -666,7 +656,7 @@ export default function commands(theNode: MatterNode) {
                                 },
                                 async argv => {
                                     const { nodeId: nodeIdStr, mode, force, local } = argv;
-                                    const isProduction = mode === "prod" ? true : mode === "test" ? false : undefined;
+                                    const { label: dclMode, isProduction } = resolveDclMode(theNode, mode);
                                     const forceDownload = force === true;
 
                                     await theNode.start();
@@ -702,7 +692,7 @@ export default function commands(theNode: MatterNode) {
                                     console.log(
                                         `  Current Software Version: ${basicInfo.softwareVersion} (${basicInfo.softwareVersionString})`,
                                     );
-                                    console.log(`  DCL Mode: ${mode}\n`);
+                                    console.log(`  DCL Mode: ${dclMode}\n`);
 
                                     const updateInfo = await (
                                         await theNode.otaService()
@@ -745,18 +735,13 @@ export default function commands(theNode: MatterNode) {
                                 "apply <node-id>",
                                 "Apply OTA update for a commissioned node",
                                 yargs => {
-                                    return yargs
-                                        .positional("node-id", {
+                                    return withDclModeOption(
+                                        yargs.positional("node-id", {
                                             describe: "Node ID to download update for",
                                             type: "string",
                                             demandOption: true,
-                                        })
-                                        .option("mode", {
-                                            describe: "DCL mode (prod or test)",
-                                            type: "string",
-                                            choices: ["prod", "test", "both"],
-                                            default: "prod",
-                                        })
+                                        }),
+                                    )
                                         .option("force", {
                                             describe: "Force download even if update is already stored locally",
                                             type: "boolean",
@@ -766,11 +751,35 @@ export default function commands(theNode: MatterNode) {
                                             describe: "Apply update from local file",
                                             type: "boolean",
                                             default: false,
+                                        })
+                                        .option("max-block-size", {
+                                            describe:
+                                                "Cap the BDX block size for this transfer, in bytes (default: whatever the device requests)",
+                                            type: "number",
+                                        })
+                                        .option("mrp-margin", {
+                                            describe:
+                                                "Additive MRP retransmission margin for this transfer, in milliseconds (default: derived from the device's medium)",
+                                            type: "number",
+                                        })
+                                        .check(argv => {
+                                            const blockSize = argv.maxBlockSize as number | undefined;
+                                            const margin = argv.mrpMargin as number | undefined;
+                                            if (
+                                                blockSize !== undefined &&
+                                                (!Number.isInteger(blockSize) || blockSize <= 0)
+                                            ) {
+                                                throw new Error("--max-block-size must be a positive integer");
+                                            }
+                                            if (margin !== undefined && (!Number.isFinite(margin) || margin < 0)) {
+                                                throw new Error("--mrp-margin must be a non-negative number of ms");
+                                            }
+                                            return true;
                                         });
                                 },
                                 async argv => {
-                                    const { nodeId: nodeIdStr, mode, force, local } = argv;
-                                    const isProduction = mode === "prod" ? true : mode === "test" ? false : undefined;
+                                    const { nodeId: nodeIdStr, mode, force, local, maxBlockSize, mrpMargin } = argv;
+                                    const { label: dclMode, isProduction } = resolveDclMode(theNode, mode);
                                     const forceDownload = force === true;
 
                                     await theNode.start();
@@ -807,7 +816,7 @@ export default function commands(theNode: MatterNode) {
                                     console.log(
                                         `  Current Software Version: ${basicInfo.softwareVersion} (${basicInfo.softwareVersionString})`,
                                     );
-                                    console.log(`  DCL Mode: ${mode}\n`);
+                                    console.log(`  DCL Mode: ${dclMode}\n`);
 
                                     const localUpdates = await (
                                         await theNode.otaService()
@@ -869,15 +878,24 @@ export default function commands(theNode: MatterNode) {
                                         throw new Error(`Node ${nodeIdStr} not connected`);
                                     }
 
+                                    if (maxBlockSize !== undefined) {
+                                        console.log(`Capping BDX block size to ${maxBlockSize} bytes`);
+                                    }
+                                    if (mrpMargin !== undefined) {
+                                        console.log(`Using an MRP retransmission margin of ${mrpMargin}ms`);
+                                    }
+
                                     await theNode.commissioningController.otaProvider.act(agent => {
                                         return agent
                                             .get(SoftwareUpdateManager)
-                                            .forceUpdate(
-                                                PeerAddress({ nodeId, fabricIndex: FabricIndex(1) }),
-                                                basicInfo.vendorId as VendorId,
-                                                basicInfo.productId as number,
-                                                updateVersion,
-                                            );
+                                            .forceUpdate(PeerAddress({ nodeId, fabricIndex: FabricIndex(1) }), {
+                                                vendorId: basicInfo.vendorId as VendorId,
+                                                productId: basicInfo.productId as number,
+                                                targetSoftwareVersion: updateVersion,
+                                                maxBdxBlockSize: maxBlockSize,
+                                                bdxAdditionalMrpDelay:
+                                                    mrpMargin === undefined ? undefined : Millis(mrpMargin),
+                                            });
                                     });
                                 },
                             )

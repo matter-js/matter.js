@@ -4,9 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, capitalize, decamelize } from "@matter/general";
+import { camelize, capitalize, decamelize, ImplementationError } from "@matter/general";
 import type { AttributeModel, CommandModel, EventModel } from "@matter/model";
-import { ClusterModel, ClusterModifier, GeneratorScope, GLOBAL_IDS, Metatype, ValueModel } from "@matter/model";
+import {
+    ClusterModel,
+    ClusterModifier,
+    FeatureSet,
+    GeneratorScope,
+    GLOBAL_IDS,
+    Metatype,
+    ValueModel,
+} from "@matter/model";
 import { StatusResponseError } from "../common/StatusResponseError.js";
 import type { AttributeId } from "../datatype/AttributeId.js";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -164,24 +172,57 @@ function installLazyProperties(ns: object, model: ClusterModel) {
             return Object.freeze(result);
         });
 
-        // Compat shim for pre-PR #3466 call sites: `PowerSource.Cluster.with(Feature.X, Feature.Y)`.
-        // Returns a shallow prototype-based clone of the namespace with `supportedFeatures` set.  Feature
-        // selection has no other runtime effect (attribute maps are not culled by conformance).
+        // Compat shim for pre-PR #3466 call sites: `PowerSource.Cluster.with(Feature.X, Feature.Y)`.  Returns a
+        // shallow prototype-based clone of the namespace with `supportedFeatures` set.  The namespace's own element
+        // maps are not culled; the selection takes effect when a behavior derives its schema from the namespace.
         // @deprecated Removal tracked for 0.19.
-        lazy("with", () => (...features: string[]) => {
-            const clone = Object.create(ns) as Record<string, unknown>;
-            const supportedFeatures: Record<string, true> = {};
-            for (const feature of features) {
-                // Feature enum values are PascalCase; SupportedFeatures keys are camelCase.
-                supportedFeatures[feature.charAt(0).toLowerCase() + feature.slice(1)] = true;
-            }
-            clone.supportedFeatures = Object.freeze(supportedFeatures);
-            // Preserve the `Cluster`/`Complete` self-reference invariant on the clone; prototype-chain lookup would
-            // otherwise resolve these to the source namespace and drop the `supportedFeatures` marker.  Must use
-            // defineProperty because the inherited props are non-writable (installed via lazy() with no `writable`).
-            Object.defineProperty(clone, "Cluster", { value: clone, enumerable: true, configurable: true });
-            Object.defineProperty(clone, "Complete", { value: clone, enumerable: true, configurable: true });
-            return clone;
+        lazy("with", () => {
+            // ClusterBehaviorCache keys on namespace identity, so returning a clone per call would defeat it.  One
+            // clone per selection is load-bearing rather than an optimization
+            const clones = new Map<string, object>();
+
+            return (...features: string[]) => {
+                // Resolve live: the model may gain features after this property installs.  Unresolved names would also
+                // grow the clone cache without bound
+                const all = model.features;
+                const { features: resolved, unresolved } = FeatureSet.resolve(all, features);
+
+                if (unresolved.length) {
+                    throw new ImplementationError(
+                        `${model.name} has no feature ${unresolved.map(name => `"${name}"`).join(", ")}; known features are ${FeatureSet.titlesOf(all).join(", ")}`,
+                    );
+                }
+
+                // SupportedFeatures keys are the camelized title
+                const names = [...resolved].map(code =>
+                    camelize(all.find(feature => feature.name === code)!.title ?? code),
+                );
+
+                const key = names.sort().join(",");
+                const existing = clones.get(key);
+                if (existing) {
+                    return existing;
+                }
+
+                const clone = Object.create(ns) as Record<string, unknown>;
+                const supportedFeatures: Record<string, true> = {};
+                for (const name of names) {
+                    supportedFeatures[name] = true;
+                }
+                clone.supportedFeatures = Object.freeze(supportedFeatures);
+                // Preserve the `Cluster`/`Complete` self-reference invariant on the clone; prototype-chain lookup would
+                // otherwise resolve these to the source namespace and drop the `supportedFeatures` marker.  Must use
+                // defineProperty because the inherited props are non-writable (installed via lazy() with no `writable`).
+                Object.defineProperty(clone, "Cluster", { value: clone, enumerable: true, configurable: true });
+                Object.defineProperty(clone, "Complete", { value: clone, enumerable: true, configurable: true });
+
+                // Holders share this object, so a write by one would otherwise corrupt it for every other
+                Object.freeze(clone);
+
+                clones.set(key, clone);
+
+                return clone;
+            };
         });
     }
 
@@ -329,8 +370,8 @@ export namespace ClusterType {
 
     /**
      * Compat layer for pre-PR #3466 call sites that pin features via `Cluster.with(...)`.  Returns the namespace
-     * shape with a `with()` method that shifts `Typing.SupportedFeatures`.  Feature selection has no further runtime
-     * effect; the shim exists only to keep existing call sites typing correctly during the 0.17 → 0.19 migration.
+     * shape with a `with()` method that shifts `Typing.SupportedFeatures`.  The shim exists to keep existing call
+     * sites typing correctly during the 0.17 → 0.19 migration.
      *
      * @deprecated Scheduled for removal in 0.19.  New code should type the cluster via
      * {@link WithSupportedFeatures} directly.

@@ -2016,6 +2016,5 @@ export namespace ColorControlBaseServer {
     };
 }
 
-// We had turned on some more features to provide a default implementation, but export the cluster with default
-// Features again.
-export class ColorControlServer extends ColorControlBaseServer.for(ColorControl) {}
+// Drop the features the base implementation enables internally so consumers select their own
+export class ColorControlServer extends ColorControlBaseServer.with() {}

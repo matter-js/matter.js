@@ -9,6 +9,7 @@ import { PeerLossContext } from "#peer/PeerLossContext.js";
 import { SessionClosedError } from "#protocol/errors.js";
 import { MessageChannel } from "#protocol/MessageChannel.js";
 import type { MessageExchange } from "#protocol/MessageExchange.js";
+import type { MRP } from "#protocol/MRP.js";
 import { SessionIntervals } from "#session/SessionIntervals.js";
 import {
     AsyncObservable,
@@ -55,7 +56,9 @@ export abstract class Session {
     activeTimestamp: Timestamp = 0;
     abstract type: SessionType;
 
+    #peerMrpMargins?: () => MRP.Margins | undefined;
     #closing = ObservableValue();
+    #ended = false;
     #gracefulClose = AsyncObservable<[]>();
     readonly #exchanges = new Set<MessageExchange>();
     protected deferredClose = false;
@@ -114,6 +117,7 @@ export abstract class Session {
 
     addExchange(exchange: MessageExchange) {
         this.#exchanges.add(exchange);
+        exchange.closed.once(() => this.deleteExchange(exchange));
     }
 
     deleteExchange(exchange: MessageExchange) {
@@ -200,6 +204,23 @@ export abstract class Session {
     }
 
     /**
+     * Additive MRP retransmission margins for the peer's network medium, or undefined if the medium is unknown.
+     *
+     * Applies to every exchange on the session, including those the peer initiates.
+     */
+    get peerMrpMargins(): MRP.Margins | undefined {
+        return this.#peerMrpMargins?.();
+    }
+
+    /**
+     * Installs the resolver for {@link peerMrpMargins}.  A resolver rather than a value because the peer's medium
+     * often becomes known (or changes, e.g. a new thread channel) only after the session exists.
+     */
+    set peerMrpMarginsResolver(resolver: () => MRP.Margins | undefined) {
+        this.#peerMrpMargins = resolver;
+    }
+
+    /**
      * Allows updating the Session timing parameters based on received information from the peer during PASE/CASE initialization
      */
     set timingParameters(intervals: Partial<SessionIntervals>) {
@@ -274,9 +295,9 @@ export abstract class Session {
     async initiateForceClose(context: PeerLossContext) {
         await this.initiateClose(async () => {
             if (!context.keepSubscriptions) {
-                await this.closeSubscriptions();
+                await this.closeSubscriptions(false, context.currentExchange);
             }
-            for (const exchange of this.#exchanges) {
+            for (const exchange of [...this.#exchanges]) {
                 if (exchange === context.currentExchange) {
                     this.deferredClose = true;
                     continue;
@@ -317,14 +338,14 @@ export abstract class Session {
         return !!this.#exchanges.size;
     }
 
-    async closeSubscriptions(_cancelledByPeer = false): Promise<number> {
+    async closeSubscriptions(_flush = false, _currentExchange?: MessageExchange): Promise<number> {
         return 0;
     }
 
     detachChannel() {
         const channel = this.#channel;
         this.#channel = undefined;
-        logger.info(this.via, "Channel detached");
+        logger.debug(this.via, "Channel detached");
         return channel;
     }
 
@@ -334,6 +355,10 @@ export abstract class Session {
         if (this.#channel) {
             await this.#channel.close();
             this.#channel = undefined;
+        }
+
+        if (!this.#ended) {
+            this.#ended = true;
             logger.info(this.via, "Session ended");
         }
     }

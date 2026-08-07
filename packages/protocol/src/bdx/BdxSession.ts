@@ -81,7 +81,7 @@ export class BdxSession {
         if (!exchange.session.isSecure) {
             throw new BdxError("Bdx Protocol requires a secure session.");
         }
-        exchange.closed.on(async () => {
+        exchange.closed.once(async () => {
             if (this.#isClosed) {
                 return;
             }
@@ -92,6 +92,19 @@ export class BdxSession {
 
     get progressInfo() {
         return this.#progressInfo;
+    }
+
+    /**
+     * Bytes transferred so far, 0 until the transfer flow is negotiated. Skipped ranges count as transferred, so a
+     * transfer using BlockQueryWithSkip can report more than {@link dataLength}.
+     */
+    get transferredBytes() {
+        return this.#transferFlow?.transferredBytes ?? 0;
+    }
+
+    /** Size of the transfer, undefined while unknown. */
+    get dataLength() {
+        return this.#transferFlow?.dataLength;
     }
 
     get progressFinished() {

@@ -59,7 +59,7 @@ export declare namespace AmbientContextSensing {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.9
          */
-        simultaneousDetectionLimit: number;
+        simultaneousDetectionLimit?: number;
 
         /**
          * Indicates the time duration of True state, in seconds, before the sensor changes its sensing detection state
@@ -72,7 +72,7 @@ export declare namespace AmbientContextSensing {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.10
          */
-        holdTime: number;
+        holdTime?: number;
 
         /**
          * Indicates the server's limits, and default value, for the HoldTime attribute. This is equivalent to the
@@ -81,7 +81,7 @@ export declare namespace AmbientContextSensing {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.11
          */
-        holdTimeLimits: HoldTimeLimits;
+        holdTimeLimits?: HoldTimeLimits;
     }
 
     /**
@@ -94,7 +94,7 @@ export declare namespace AmbientContextSensing {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.1
          */
-        humanActivityDetected: boolean;
+        humanActivityDetected?: boolean;
     }
 
     /**
@@ -107,7 +107,7 @@ export declare namespace AmbientContextSensing {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.2
          */
-        objectIdentified: boolean;
+        objectIdentified?: boolean;
     }
 
     /**
@@ -120,7 +120,7 @@ export declare namespace AmbientContextSensing {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.3
          */
-        audioContextDetected: boolean;
+        audioContextDetected?: boolean;
     }
 
     /**
@@ -136,7 +136,7 @@ export declare namespace AmbientContextSensing {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.4
          */
-        ambientContextType: AmbientContextType[];
+        ambientContextType?: AmbientContextType[];
 
         /**
          * Indicates the list of ambient context detection types supported by the server. Each supported ambient context
@@ -146,7 +146,7 @@ export declare namespace AmbientContextSensing {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.5
          */
-        ambientContextTypeSupported: ModeSelect.SemanticTag[];
+        ambientContextTypeSupported?: ModeSelect.SemanticTag[];
     }
 
     /**
@@ -161,7 +161,7 @@ export declare namespace AmbientContextSensing {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.6
          */
-        objectCountReached: boolean;
+        objectCountReached?: boolean;
 
         /**
          * Indicates configuration parameters to support an object counting feature. The attribute specifies the object
@@ -169,7 +169,7 @@ export declare namespace AmbientContextSensing {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.7
          */
-        objectCountConfig: ObjectCountConfig;
+        objectCountConfig?: ObjectCountConfig;
 
         /**
          * Indicates the number of objects detected in the area covered by the sensor. ObjectCount shall be exposed only
@@ -192,7 +192,7 @@ export declare namespace AmbientContextSensing {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.12
          */
-        predictedActivity: PredictedActivity[];
+        predictedActivity?: PredictedActivity[];
     }
 
     /**
@@ -326,7 +326,7 @@ export declare namespace AmbientContextSensing {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.16.8.1
          */
-        ambientContextDetectStarted: AmbientContextDetectStartedEvent;
+        ambientContextDetectStarted?: AmbientContextDetectStartedEvent;
 
         /**
          * This event shall be generated when the ambient context detection that generated the
@@ -337,7 +337,7 @@ export declare namespace AmbientContextSensing {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.16.8.2
          */
-        ambientContextDetectEnded: AmbientContextDetectEndedEvent;
+        ambientContextDetectEnded?: AmbientContextDetectEndedEvent;
     }
 
     /**
@@ -350,7 +350,7 @@ export declare namespace AmbientContextSensing {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.16.8.1
          */
-        ambientContextDetectStarted: AmbientContextDetectStartedEvent;
+        ambientContextDetectStarted?: AmbientContextDetectStartedEvent;
 
         /**
          * This event shall be generated when the ambient context detection that generated the
@@ -361,7 +361,7 @@ export declare namespace AmbientContextSensing {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.16.8.2
          */
-        ambientContextDetectEnded: AmbientContextDetectEndedEvent;
+        ambientContextDetectEnded?: AmbientContextDetectEndedEvent;
     }
 
     /**
