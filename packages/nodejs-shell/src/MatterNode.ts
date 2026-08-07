@@ -156,9 +156,8 @@ export class MatterNode {
             this.#storageLocation = join(nodeEnvironment.get(Filesystem).path, id);
         }
 
-        // Factory reset and legacy migration both need the node before start(); accept eager creation only in
-        // these rare, explicit cases. The node is created but not started, so it does not go operationally
-        // online here.
+        // Factory reset and legacy migration are the only paths that need the node constructed before start(),
+        // hence the eager #ensureNode() here rather than the usual lazy creation.
         if (resetStorage) {
             await (await this.#ensureNode()).erase();
             // erase() clears only the current-format fabric/peers. The legacy source must go too, or the next
