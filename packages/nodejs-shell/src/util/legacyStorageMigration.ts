@@ -228,9 +228,21 @@ export async function cleanupLegacyStorage(env: Environment, id: string): Promis
     const mgr = await env.get(StorageService).open(id);
     try {
         const fabrics = await mgr.createContext("fabrics").get<LegacyFabricRecord[]>("fabrics", []);
-        const migratedPeers = (await mgr.createContext("nodes").contexts()).length > 0;
-        if (fabrics.length === 0 && !migratedPeers) {
+        const nodesCtx = mgr.createContext("nodes");
+        const migratedPeerCount = (await nodesCtx.contexts()).length;
+        if (fabrics.length === 0 && migratedPeerCount === 0) {
             logger.warn(`Refusing legacy cleanup for store ${id}: no migrated data present`);
+            return;
+        }
+
+        // commissionedNodes can list peers that migrateLegacyCommissionedNodes has not yet migrated (a peer left
+        // for retry after a prior failure, or step 2 never having run at all); cleanup must not destroy those.
+        const commissionedNodes = await nodesCtx.get<LegacyCommissionedNode[]>("commissionedNodes", []);
+        const distinctLegacyNodeCount = new Set(commissionedNodes.map(([rawNodeId]) => rawNodeId)).size;
+        if (distinctLegacyNodeCount > 0 && migratedPeerCount < distinctLegacyNodeCount) {
+            logger.warn(
+                `Refusing legacy cleanup for store ${id}: ${migratedPeerCount} of ${distinctLegacyNodeCount} commissioned nodes migrated`,
+            );
             return;
         }
 
