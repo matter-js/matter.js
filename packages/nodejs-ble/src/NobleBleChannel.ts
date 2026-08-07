@@ -31,6 +31,7 @@ import {
 } from "@matter/protocol";
 import type { Characteristic, Peripheral } from "@stoprocent/noble";
 import { BleScanner } from "./BleScanner.js";
+import { nobleDisconnectReason } from "./NobleBleClient.js";
 
 const logger = Logger.get("BleChannel");
 
@@ -219,21 +220,23 @@ export class NobleBleCentralInterface implements Transport {
                 this.#connectionGuards.delete(connectionGuard);
             };
 
-            // Handler to retry the connection. Called on disconnections and errors.
-            const reTryHandler = (error?: any) => {
+            // Handler to retry the connection. Called on disconnections (with a noble disconnect reason) and errors.
+            const reTryHandler = (errorOrReason?: unknown) => {
                 // Cancel tracking states because we are done in this context
                 clearConnectionGuard();
                 this.#connectionsInProgress.delete(peripheralAddress);
                 peripheral.removeListener("connect", connectListener);
                 peripheral.removeListener("disconnect", reTryHandler);
 
-                if (error) {
+                if (errorOrReason instanceof Error) {
                     logger.info(
                         `Peripheral ${peripheralAddress} disconnected while trying to connect, try again`,
-                        error,
+                        errorOrReason,
                     );
                 } else {
-                    logger.info(`Peripheral ${peripheralAddress} disconnected while trying to connect, try again`);
+                    logger.info(
+                        `Peripheral ${peripheralAddress} disconnected while trying to connect (reason ${nobleDisconnectReason(errorOrReason)}), try again`,
+                    );
                 }
 
                 // Try again and chain promises
@@ -628,8 +631,10 @@ export class NobleBleChannel extends BleChannel<Bytes> {
     ) {
         super();
         this.#cleanupDataListener = cleanupDataListener;
-        peripheral.once("disconnect", () => {
-            logger.debug(`Disconnected from peripheral ${peripheral.address}. Closing BTP session`);
+        peripheral.once("disconnect", reason => {
+            logger.debug(
+                `Disconnected from peripheral ${peripheral.address} (reason ${nobleDisconnectReason(reason)}). Closing BTP session`,
+            );
             this.#connected = false;
             this.#cleanupDataListener();
             this.#terminateIterator();
@@ -642,7 +647,7 @@ export class NobleBleChannel extends BleChannel<Bytes> {
             this.emitClosed();
         });
         // Forward BTP-initiated close (e.g. ack-receive timeout) to our Observable.
-        this.btpSession.closed.on(() => this.emitClosed());
+        this.btpSession.closed.once(() => this.emitClosed());
     }
 
     get connected() {

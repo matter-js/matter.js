@@ -941,33 +941,39 @@ class CommissionedNodeStore {
                         if ((ignorePeer !== undefined && peer.id === ignorePeer) || !peer.lifecycle.isCommissioned) {
                             return undefined;
                         }
-                        const commissioningState = peer.maybeStateOf(CommissioningClient);
-                        const address = commissioningState?.peerAddress;
-                        const operationalServerAddress = commissioningState?.addresses?.[0];
-                        const discoveryData =
-                            commissioningState !== undefined
-                                ? RemoteDescriptor.fromLongForm(commissioningState)
-                                : undefined;
-                        const deviceData = {
-                            meta: ClientNodePhysicalProperties(peer),
-                            basicInformation: peer.maybeStateOf(BasicInformationClient),
-                        };
+                        try {
+                            const commissioningState = peer.maybeStateOf(CommissioningClient);
+                            const address = commissioningState?.peerAddress;
+                            const operationalServerAddress = commissioningState?.addresses?.[0];
+                            const discoveryData =
+                                commissioningState !== undefined
+                                    ? RemoteDescriptor.fromLongForm(commissioningState)
+                                    : undefined;
+                            const deviceData = {
+                                meta: ClientNodePhysicalProperties(peer),
+                                basicInformation: peer.maybeStateOf(BasicInformationClient),
+                            };
 
-                        if (address === undefined) {
-                            return;
+                            if (address === undefined) {
+                                return;
+                            }
+                            return [
+                                address.nodeId,
+                                {
+                                    operationalServerAddress: OperationalAddress.from(
+                                        operationalServerAddress !== undefined
+                                            ? ServerAddress(operationalServerAddress)
+                                            : undefined,
+                                    ),
+                                    discoveryData,
+                                    deviceData,
+                                },
+                            ] satisfies StoredOperationalPeer;
+                        } catch (error) {
+                            MatterError.accept(error);
+                            logger.info(`Not storing legacy record for node ${peer.id} because of error:`, error);
+                            return undefined;
                         }
-                        return [
-                            address.nodeId,
-                            {
-                                operationalServerAddress: OperationalAddress.from(
-                                    operationalServerAddress !== undefined
-                                        ? ServerAddress(operationalServerAddress)
-                                        : undefined,
-                                ),
-                                discoveryData,
-                                deviceData,
-                            },
-                        ] satisfies StoredOperationalPeer;
                     })
                     .filter(details => details !== undefined) as SupportedStorageTypes,
             ),

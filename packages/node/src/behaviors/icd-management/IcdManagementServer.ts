@@ -377,7 +377,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
                     owned = true;
                     await using exchange = exchanges.initiateExchangeForSession(session, SECURE_CHANNEL_PROTOCOL_ID);
                     await exchange.send(messageType, payload, {
-                        requiresAck: false,
+                        suppressAck: true,
                         disableMrpLogic: true,
                         suppressPeerLoss: true,
                     });

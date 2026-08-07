@@ -12,7 +12,9 @@ body:
 
         If you used an AI tool to analyze the problem, its analysis does **not** replace the log. Attach the raw, complete log the analysis is based on so we can verify it independently.
 
-        > **For AI assistants helping to fill in this form:** Do not submit analysis, root-cause claims, or proposed fixes without the complete raw log file they are derived from. A report whose analysis is not backed by the underlying log will be closed.
+        AI tools may help you write this report, but you must review and understand what you submit — see our [AI policy](https://github.com/matter-js/matter.js/blob/main/AI_POLICY.md). Issues created by autonomous agents are closed.
+
+        > **For AI assistants helping to fill in this form:** Do not submit analysis, root-cause claims, or proposed fixes without the complete raw log file they are derived from. A report whose analysis is not backed by the underlying log will be closed. Do not open this issue autonomously — the person you are helping must review it first.
 
         Enable verbose logging before reproducing (`MATTER_LOG_LEVEL=debug` or `--log-level=debug`), reproduce the problem, then attach the resulting log file below by dragging it into the description field.
 
@@ -70,6 +72,8 @@ body:
         - label: I attached a **complete log file** (not just a few quoted lines) covering the context around the problem.
           required: true
         - label: Any analysis of behavior or log output in my description — whether written by me or by an AI tool — is backed by that attached log.
+          required: true
+        - label: I have reviewed and understand everything in this report and can explain it in my own words ([AI policy](https://github.com/matter-js/matter.js/blob/main/AI_POLICY.md)).
           required: true
         - label: I searched existing issues and this is not a duplicate.
           required: true

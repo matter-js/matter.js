@@ -156,7 +156,7 @@ export class RebootResubscribeArmer {
      */
     async #recoverSilentPeer(peerAddress: PeerAddress) {
         try {
-            await this.#sessions.handlePeerLoss(peerAddress, new PeerUnresponsiveError());
+            await this.#sessions.handlePeerLoss(peerAddress, { cause: new PeerUnresponsiveError() });
         } catch (error) {
             logger.warn(peerAddress, "Failed to close sessions during apply-timeout recovery", error);
         }
