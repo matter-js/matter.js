@@ -156,12 +156,13 @@ export class MatterNode {
             this.#storageLocation = join(nodeEnvironment.get(Filesystem).path, id);
         }
 
-        // Factory reset needs the node to clear its stores; accept eager creation only in this rare, explicit case.
-        // The node is created but not started, so it does not go operationally online here.
+        // Factory reset and legacy migration both need the node before start(); accept eager creation only in
+        // these rare, explicit cases. The node is created but not started, so it does not go operationally
+        // online here.
         if (resetStorage) {
             await (await this.#ensureNode()).erase();
-            // The reset just wiped the current fabric/peers; migrating legacy data afterward would resurrect
-            // state the reset was meant to clear.
+            // A factory reset wipes the current fabric/peers; migrating legacy data afterward would resurrect
+            // state the reset is meant to clear.
             return;
         }
 
@@ -170,7 +171,6 @@ export class MatterNode {
             // Must run before the controller ServerNode is created, so construction loads the migrated fabric.
             await migrateLegacyControllerCredentials(nodeEnvironment, id);
 
-            // Eager creation (see above) lets migrated peers register before the node goes online.
             const node = await this.#ensureNode();
             const { nodes, endpoints, failed } = await migrateLegacyCommissionedNodes(node);
             logger.info(`Legacy storage migration: ${nodes} node(s), ${endpoints} endpoint(s) migrated`);
