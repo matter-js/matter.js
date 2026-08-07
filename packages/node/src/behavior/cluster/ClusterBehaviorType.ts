@@ -315,11 +315,8 @@ function createDerivedState({ scope, base, newProps }: DerivationContext) {
 
         // Make sure a default value is present if mandatory or marked as supported (note that the default value may
         // be "undefined" to indicate that an attribute is available optionally)
-        defaults[name] = SelectDefaultValue(
-            scope,
-            oldDefaults[name] === undefined ? knownDefaults?.[name] : oldDefaults[name],
-            propSchema,
-        );
+        const oldDefault = oldDefaults[name] === undefined ? knownDefaults?.[name] : oldDefaults[name];
+        defaults[name] = oldDefault === undefined ? SelectDefaultValue(scope, propSchema) : oldDefault;
     }
 
     const StateType = DerivedState({

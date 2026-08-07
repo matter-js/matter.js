@@ -7,7 +7,6 @@
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
-import { Internal } from "#behavior/state/managed/Internal.js";
 import { StateType } from "#behavior/state/StateType.js";
 import { BehaviorSupervisor } from "#behavior/supervision/BehaviorSupervisor.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
@@ -16,6 +15,7 @@ import { AsyncObservable, MaybePromise, MockCrypto, Observable, UnsettledStateEr
 import { DataModelPath, DatatypeModel, FieldElement, FieldModel } from "@matter/model";
 import { AccessControl, Val } from "@matter/protocol";
 import { EndpointNumber, NodeId } from "@matter/types";
+import { rawValuesOf } from "./values/value-utils.js";
 
 class MyState {
     foo = "bar";
@@ -135,10 +135,6 @@ describe("Datasource", () => {
                 children: [FieldElement({ name: "foo", id: 1, type: "string" })],
             }),
         });
-
-        function rawValuesOf(state: object) {
-            return (state as Internal.Collection)[Internal.reference].value as Val.Struct;
-        }
 
         it("seeds state-class defaults into a name-keyed container", async () => {
             await withDatasourceAndReference({ type: SeededState, supervisor: idSupervisor }, ({ state }) => {

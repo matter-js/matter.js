@@ -19,8 +19,10 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/model
     - Breaking: A provisional element is no longer mandatory; conformance following a `P` describes the conformance intended once the element leaves provisional state
+    - Breaking: `SelectDefaultValue()` no longer accepts an existing default to preserve; callers check that themselves
     - Enhancement: `FeatureSelectionErrors()` assesses a cluster's selected features against the combinations its FeatureMap conformance disallows
     - Enhancement: `FeatureSet.resolve()` resolves a feature short code, title or camelized title to a short code
+    - Enhancement: `MandatoryDefaultValue()` and `IsMandatory()` are exported for computing and gating a mandatory member's default value
     - Fix: A cluster's feature table no longer selects features; a feature the specification makes unconditionally mandatory is always selected
     - Fix: Feature selection records against `operationalIsSupported` so a feature's `default` conveys only the specification's fallback value
     - Fix: A feature mandated by any of several alternatives, such as `DoorLock.User`, is now reported as required
@@ -32,7 +34,7 @@ The main work (all changes without a GitHub username in brackets in the below li
         - Verify the feature set of every device you compose. Persisted cluster state resets once for affected devices because it is keyed by feature selection
     - Breaking: A LongIdleTimeSupport ICD must select CheckInProtocolSupport and UserActiveModeTrigger
     - Breaking: A node that accepts more than one path per invoke must select the General Diagnostics DataModelTest feature
-    - Breaking: Ensure that an unreported client node attribute reads the schema or datatype default when mandatory under the peer's supported features, matching the TypeScript typings, and `undefined` when optional (enum, string and bytes attributes have no datatype default)
+    - Breaking: An unreported client node attribute reads its schema or datatype default when the attribute is mandatory under the peer's supported features, and `undefined` otherwise — regardless of the peer's AttributeList (some metatypes, e.g. enum, string, bytes, date and duration, have no datatype-level default)
     - Breaking: Configured options and environment variables no longer seed a client node's cluster state; the peer's reports are the only source of values
     - Breaking: Adding a server cluster to an endpoint fails when its selected features violate the conformance of its FeatureMap
     - Breaking: Provisional elements are no longer implemented by default; supply a state value or use `ClusterBehavior.enable()` to implement one
@@ -40,6 +42,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `ClusterBehavior.with()` rejects a feature the cluster does not define
     - Fix: Client node values persisted under property names by earlier versions are migrated to their attribute id on load, so they stay readable
     - Fix: Writing a fabric-scoped list entry that stems from a cluster whose schema could not be resolved no longer produces two conflicting fabricIndex fields
+    - Fix: A rejected write to an attribute served by dynamic properties restores the previous value instead of deleting the property
 
 - @matter/nodejs
     - Breaking: `FileStorageDriver`'s constructor no longer accepts a `clear` argument; clearing is handled by `StorageService`

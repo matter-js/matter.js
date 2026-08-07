@@ -5,15 +5,14 @@
  */
 
 import { camelize, deepCopy, GeneratedClass, ImplementationError, isObject } from "@matter/general";
-import type { Schema, Scope } from "@matter/model";
+import type { Schema } from "@matter/model";
 import {
     Access,
-    DecodedBitmap,
-    DefaultValue,
     ElementTag,
     FieldValue,
+    IsMandatory,
+    MandatoryDefaultValue,
     Metatype,
-    SelectDefaultValue,
     ValueModel,
 } from "@matter/model";
 import { AccessControl, PhantomReferenceError, SchemaImplementationError, Val } from "@matter/protocol";
@@ -184,59 +183,6 @@ export namespace StructManager {
     }
 }
 
-/**
- * Recursively compute the default a mandatory member assumes absent an explicit value.  Extends
- * {@link SelectDefaultValue} for object/bitmap metatypes: nullable reads null, and instead of an empty `{}` a
- * struct holds the mandatory members' own synthesized defaults (optional nested members are omitted).
- *
- * Only a default the schema states explicitly is consulted — {@link DefaultValue}'s constructed partial objects
- * are not, as they ignore conformance and bypass the nullable rule.  Callers must copy the result before handing
- * it out: an explicit default is model-owned shared state.
- */
-function synthesizeMandatoryDefault(scope: Scope, member: ValueModel, visiting?: Set<ValueModel>): Val | undefined {
-    if (!scope.hasOperationalSupport(member)) {
-        return undefined;
-    }
-
-    const metatype = member.effectiveMetatype;
-    if (metatype !== Metatype.object && metatype !== Metatype.bitmap) {
-        return SelectDefaultValue(scope, undefined, member);
-    }
-
-    if (member.default !== undefined) {
-        const explicit = DefaultValue(scope, member);
-        if (explicit !== undefined) {
-            return metatype === Metatype.bitmap ? DecodedBitmap(member, explicit) : explicit;
-        }
-    }
-
-    if (member.nullable) {
-        return null;
-    }
-
-    if (metatype === Metatype.bitmap) {
-        return {};
-    }
-
-    // A consumer-defined schema may be self-referential
-    visiting ??= new Set();
-    if (visiting.has(member)) {
-        return undefined;
-    }
-    visiting.add(member);
-
-    const result: Val.Struct = {};
-    for (const child of scope.membersOf(member, { conformance: "conformant" })) {
-        const value = synthesizeMandatoryDefault(scope, child, visiting);
-        if (value !== undefined) {
-            result[child.propertyName] = value;
-        }
-    }
-
-    visiting.delete(member);
-    return result;
-}
-
 function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
     const name = schema.propertyName;
     const id = schema.id;
@@ -254,15 +200,34 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
         defaultReader = NameResolver(supervisor, schema.parent, camelize(FieldValue.referenced(schema.default)!));
     }
 
-    // A member the mirror's active features make mandatory always reads a value even when the peer hasn't
-    // reported it, matching the conformance-aware TypeScript typings; the container itself never holds this
-    // value, so it can't masquerade as peer data in persistence, change detection or external-change integration.
-    // Synthesized fresh per read — an explicit schema default is model-owned shared state, so handing out (or
-    // freezing) the same instance would alias every consumer and node onto it.
+    // A member mandatory under the mirror's active features always reads a value even when the peer's
+    // AttributeList omits it, and an optional member stays undefined even when the peer's AttributeList reports
+    // it -- this mirrors the conformance-aware TypeScript typings, which know nothing about runtime AttributeList
+    // data. The container itself never holds this value, so it can't masquerade as peer data in persistence,
+    // change detection or external-change integration.
     const scope = supervisor.scope;
-    const isOperationallySupported = scope.hasOperationalSupport(schema);
-    const synthesizeDefault = isOperationallySupported
-        ? () => deepCopy(synthesizeMandatoryDefault(scope, schema))
+    const isMandatory = IsMandatory(scope, schema);
+
+    // The template is memoized but every value handed out is a fresh copy: an explicit schema default is
+    // model-owned shared state, and the container never holds a synthesized value.
+    let template: Val | undefined;
+    let templated = false;
+    const synthesizeDefault = isMandatory
+        ? () => {
+              if (!templated) {
+                  template = MandatoryDefaultValue(scope, schema);
+                  templated = true;
+              }
+              return deepCopy(template);
+          }
+        : undefined;
+
+    // Rebind so the closure below narrows: TS doesn't narrow a captured `let` across a nested function boundary.
+    const referencedDefault = defaultReader;
+    const readDefault: ((self: Struct) => Val | undefined) | undefined = synthesizeDefault
+        ? referencedDefault
+            ? (self: Struct) => referencedDefault(self) ?? synthesizeDefault()
+            : () => synthesizeDefault()
         : undefined;
 
     const descriptor: PropertyDescriptor = {
@@ -386,14 +351,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                     memberKeyFor(primaryKey, name, id),
                     memberReadFallbackKeyFor(primaryKey, name, id),
                 );
-                if (value === undefined && primaryKey === "id" && synthesizeDefault) {
-                    // A referenced default wins over the synthesized datatype default
-                    if (defaultReader) {
-                        return defaultReader(this) ?? synthesizeDefault();
-                    }
-                    return synthesizeDefault();
-                }
-                return value;
+                return value === undefined && primaryKey === "id" ? readDefault?.(this) : value;
             }
         };
     } else {
@@ -450,21 +408,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
             }
 
             if (value === undefined) {
-                if (primaryKey === "name") {
-                    return defaultReader?.(this);
-                }
-
-                if (synthesizeDefault === undefined) {
-                    return undefined;
-                }
-
-                // A referenced default wins over the synthesized datatype default, but only for a member the
-                // mirror's active features make mandatory -- an optional unreported member stays undefined
-                if (defaultReader) {
-                    return defaultReader(this) ?? synthesizeDefault();
-                }
-
-                return synthesizeDefault();
+                return primaryKey === "name" ? defaultReader?.(this) : readDefault?.(this);
             }
 
             // Value is null or a dynamic property, so just return it

@@ -7,7 +7,6 @@
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
-import { Internal } from "#behavior/state/managed/Internal.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { MaybePromise, MockCrypto } from "@matter/general";
 import {
@@ -22,7 +21,7 @@ import {
 import { ConstraintError, Val } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, NodeId } from "@matter/types";
 import { MockExchange } from "../../../../node/mock-exchange.js";
-import { aclEndpoint, TestStruct } from "./value-utils.js";
+import { aclEndpoint, rawValuesOf, structOf, TestStruct } from "./value-utils.js";
 
 export type Nested = {
     substruct: {
@@ -282,10 +281,6 @@ describe("StructManager", () => {
             });
         });
 
-        function rawValuesOf(ref: Val.Struct) {
-            return (ref as unknown as Internal.Collection)[Internal.reference].value as Val.Struct;
-        }
-
         // An id-keyed container never falls back to the property-name slot.  A mandatory member (conformance
         // evaluated against the mirror's supported features) still reads a value -- synthesized from the schema,
         // not from the property-name slot.  An optional member reads undefined either way.
@@ -294,22 +289,34 @@ describe("StructManager", () => {
                 {
                     prim: { id: 0, type: "uint8", conformance: "M" },
                     opt: { id: 1, type: "uint8", conformance: "O" },
-                    sub: {
-                        id: 2,
-                        type: "struct",
-                        conformance: "M",
-                        children: [FieldElement({ name: "foo", id: 0, type: "string" })],
-                    },
                 },
-                { prim: 5, opt: 5, sub: { foo: "bar" } },
+                { prim: 5, opt: 5 },
                 "id",
             );
 
             await struct.online(TestContext(), ref => {
                 expect(ref.prim).equals(0);
                 expect(ref.opt).undefined;
-                // "foo" is a string with no explicit conformance (optional), so it contributes nothing to the
-                // recursively-synthesized default
+            });
+        });
+
+        // The same name-slot-ignored contract applies to a struct-typed member: it synthesizes from the schema
+        // rather than picking up the value reported under its property name.
+        it("recursively synthesizes a mandatory struct member, not the value reported only under its property name", async () => {
+            const struct = TestStruct(
+                {
+                    sub: {
+                        id: 0,
+                        type: "struct",
+                        conformance: "M",
+                        children: [FieldElement({ name: "foo", id: 0, type: "string" })],
+                    },
+                },
+                { sub: { foo: "bar" } },
+                "id",
+            );
+
+            await struct.online(TestContext(), ref => {
                 expect(ref.sub).deep.equals({});
             });
         });
@@ -356,6 +363,15 @@ describe("StructManager", () => {
                 expect(ref.acl).deep.equals([]);
                 expect(() => (ref.acl = ["x"])).not.throws();
                 expect(ref.acl).deep.equals(["x"]);
+            });
+        });
+
+        // A provisional element is not mandatory, so its default is not synthesized.
+        it("does not synthesize a default for a provisional member", async () => {
+            const struct = TestStruct({ prim: { id: 0, type: "uint8", conformance: "P, M" } }, {}, "id");
+
+            await struct.online(TestContext(), ref => {
+                expect(ref.prim).undefined;
             });
         });
 
@@ -427,14 +443,16 @@ describe("StructManager", () => {
             });
         });
 
-        it("synthesizes a fresh value per read, so consumer mutation cannot corrupt later reads", async () => {
+        it("hands out a fresh copy of an explicit struct default, so consumer mutation cannot corrupt the model's own default or a later read", async () => {
+            const explicitDefault = { foo: "bar" };
             const struct = TestStruct(
                 {
-                    arr: {
+                    sub: {
                         id: 0,
-                        type: "list",
+                        type: "struct",
                         conformance: "M",
-                        children: [FieldElement({ name: "entry", type: "string" })],
+                        default: { type: FieldValue.properties, properties: explicitDefault },
+                        children: [FieldElement({ name: "foo", id: 0, type: "string" })],
                     },
                 },
                 {},
@@ -442,15 +460,18 @@ describe("StructManager", () => {
             );
 
             await struct.online(TestContext(), ref => {
-                const first = ref.arr as Val.List;
-                expect(first).deep.equals([]);
+                const first = ref.sub as Val.Struct;
+                expect(first).deep.equals({ foo: "bar" });
 
-                first.push("x");
+                first.foo = "mutated";
 
-                expect(ref.arr).deep.equals([]);
+                expect(ref.sub).deep.equals({ foo: "bar" });
+                expect(explicitDefault).deep.equals({ foo: "bar" });
             });
         });
 
+        // Characterizes the server-side (name-keyed) path: synthesis is id-keyed-only, so a name-keyed container
+        // never synthesizes regardless of conformance.
         it("does not synthesize a default for an absent mandatory member of a name-keyed container", async () => {
             const struct = TestStruct({ prim: { id: 0, type: "uint8", conformance: "M" } });
 
@@ -467,11 +488,18 @@ describe("StructManager", () => {
             });
         });
 
-        it("computes a referenced default for a mandatory unreported member of an id-keyed container", async () => {
+        it("computes a referenced default for a mandatory unreported member of an id-keyed container, tracking the sibling uncopied", async () => {
             const struct = TestStruct(referencedDefaultFields("M"), { 1: { foo: "bar" } }, "id");
 
             await struct.online(TestContext(), ref => {
-                expect(ref.mirror).deep.equals({ foo: "bar" });
+                const mirror = ref.mirror as Val.Struct;
+                expect(mirror).deep.equals({ foo: "bar" });
+
+                // The reference resolves the sibling's live raw value, not a copy: mutating it here reaches the
+                // sibling directly.
+                mirror.foo = "changed";
+
+                expect((ref.src as Val.Struct).foo).equals("changed");
             });
         });
 
@@ -581,6 +609,44 @@ describe("StructManager", () => {
             it("reads undefined when the gating feature is not supported", async () => {
                 await testFeatureGated(false, ref => {
                     expect(ref.gated).undefined;
+                });
+            });
+        });
+
+        // Mandatoriness is evaluated purely against the schema's supported features; a peer's AttributeList
+        // (surfaced as Model#operationalIsSupported) must not move the outcome in either direction.
+        describe("mandatory default synthesis ignores the peer's AttributeList", () => {
+            class AttributeListOverrideState {}
+
+            async function testAttributeListOverride(
+                conformance: string,
+                operationalIsSupported: boolean,
+                actor: (ref: Val.Struct) => MaybePromise,
+            ) {
+                const schema = new FieldModel(structOf({ prim: { id: 0, type: "uint8", conformance } }));
+                const [prim] = schema.children;
+                prim.operationalIsSupported = operationalIsSupported;
+
+                const datasource = Datasource({
+                    entropy: MockCrypto(),
+                    type: AttributeListOverrideState,
+                    supervisor: RootSupervisor.for(schema),
+                    primaryKey: "id",
+                    location: { endpoint: EndpointNumber(1), path: new DataModelPath(0) },
+                });
+
+                await LocalActorContext.act("test", cx => actor(datasource.reference(cx) as unknown as Val.Struct));
+            }
+
+            it("reads undefined for an optional member even when the peer's AttributeList marks it supported", async () => {
+                await testAttributeListOverride("O", true, ref => {
+                    expect(ref.prim).undefined;
+                });
+            });
+
+            it("synthesizes a default for a mandatory member even when the peer's AttributeList marks it unsupported", async () => {
+                await testAttributeListOverride("M", false, ref => {
+                    expect(ref.prim).equals(0);
                 });
             });
         });
