@@ -342,12 +342,12 @@ export declare namespace EthernetNetworkDiagnostics {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link EthernetNetworkDiagnostics}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link EthernetNetworkDiagnostics}.
      */
     export const Cluster: ClusterType.WithCompat<typeof EthernetNetworkDiagnostics, EthernetNetworkDiagnostics>;
 
     /**
-     * @deprecated Use {@link EthernetNetworkDiagnostics}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link EthernetNetworkDiagnostics}.
      */
     export const Complete: typeof EthernetNetworkDiagnostics;
 
@@ -355,7 +355,7 @@ export declare namespace EthernetNetworkDiagnostics {
 }
 
 /**
- * @deprecated Use {@link EthernetNetworkDiagnostics}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link EthernetNetworkDiagnostics}.
  */
 export declare const EthernetNetworkDiagnosticsCluster: typeof EthernetNetworkDiagnostics;
 

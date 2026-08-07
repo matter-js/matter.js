@@ -189,12 +189,12 @@ export declare namespace ContentAppObserver {
     export const commands: ClusterType.CommandObjects<Commands>;
 
     /**
-     * @deprecated Use {@link ContentAppObserver}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ContentAppObserver}.
      */
     export const Cluster: typeof ContentAppObserver;
 
     /**
-     * @deprecated Use {@link ContentAppObserver}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ContentAppObserver}.
      */
     export const Complete: typeof ContentAppObserver;
 
@@ -202,7 +202,7 @@ export declare namespace ContentAppObserver {
 }
 
 /**
- * @deprecated Use {@link ContentAppObserver}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link ContentAppObserver}.
  */
 export declare const ContentAppObserverCluster: typeof ContentAppObserver;
 

@@ -51,7 +51,7 @@ export namespace Specifier {
         ClusterType.Command | (string & keyof NonNullable<C["commands"]>);
 
     /**
-     * @deprecated
+     * @deprecated Scheduled for removal in 0.19.
      * Legacy command specifier from ClusterType.  Use {@link ClusterType.Command}.
      */
     export interface ClusterTypeCommand {

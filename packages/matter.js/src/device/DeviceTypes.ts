@@ -11,7 +11,7 @@ import { ClusterId, DeviceTypeId } from "@matter/types";
 /**
  * General device classification categories.
  *
- * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export enum DeviceClasses {
     /** Node device type. */
@@ -68,7 +68,9 @@ export enum DeviceClasses {
     BridgedPowerSourceInfo = "BridgedPowerSourceInfo",
 }
 
-/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export interface DeviceTypeDefinition {
     name: string;
     code: DeviceTypeId;
@@ -82,7 +84,9 @@ export interface DeviceTypeDefinition {
     unknown: boolean;
 }
 
-/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export const DeviceTypeDefinition = ({
     name,
     code,
@@ -119,12 +123,14 @@ export const DeviceTypeDefinition = ({
 });
 
 /**
- * @deprecated These definitions will not be updated beyond Matter 1.1, use getDeviceTypeDefinitionFromModelByCode
+ * @deprecated Scheduled for removal in 0.19.  These definitions will not be updated beyond Matter 1.1, use getDeviceTypeDefinitionFromModelByCode
  *   instead.
  */
 export const DeviceTypes: { [key: string]: DeviceTypeDefinition } = {};
 
-/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export const UnknownDeviceType = (code: number, revision: number) =>
     DeviceTypeDefinition({
         code,
@@ -134,7 +140,7 @@ export const UnknownDeviceType = (code: number, revision: number) =>
         unknown: true,
     });
 
-/** @deprecated Use getDeviceTypeDefinitionFromModelByCode instead. */
+/** @deprecated Scheduled for removal in 0.19.  Use getDeviceTypeDefinitionFromModelByCode instead. */
 export function getDeviceTypeDefinitionByCode(code: number): DeviceTypeDefinition | undefined {
     return getDeviceTypeDefinitionFromModelByCode(code);
 }
@@ -142,7 +148,6 @@ export function getDeviceTypeDefinitionByCode(code: number): DeviceTypeDefinitio
 /** Cache of all device types dynamically generated from model. */
 const DynamicDeviceType: { [key: string]: DeviceTypeDefinition } = {};
 
-/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
 export function getDeviceTypeDefinitionFromModelByCode(code: number): DeviceTypeDefinition | undefined {
     if (DynamicDeviceType[code] !== undefined) {
         return DynamicDeviceType[code];

@@ -1148,12 +1148,12 @@ export declare namespace Actions {
     export const events: ClusterType.EventObjects<Events>;
 
     /**
-     * @deprecated Use {@link Actions}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Actions}.
      */
     export const Cluster: typeof Actions;
 
     /**
-     * @deprecated Use {@link Actions}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Actions}.
      */
     export const Complete: typeof Actions;
 
@@ -1161,7 +1161,7 @@ export declare namespace Actions {
 }
 
 /**
- * @deprecated Use {@link Actions}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link Actions}.
  */
 export declare const ActionsCluster: typeof Actions;
 

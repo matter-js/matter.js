@@ -9,37 +9,36 @@ import { ClientNode, ClientNodePhysicalProperties } from "@matter/node";
 import { BasicInformationClient } from "@matter/node/behaviors/basic-information";
 import { PhysicalDeviceProperties } from "@matter/protocol";
 
-/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export type DeviceInformationData = {
     basicInformation?: Record<string, SupportedStorageTypes>;
     deviceMeta?: PhysicalDeviceProperties;
 };
 
-/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export class DeviceInformation {
     readonly #node: ClientNode;
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     constructor(node: ClientNode) {
         this.#node = node;
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get meta() {
         return ClientNodePhysicalProperties(this.#node);
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get basicInformation() {
         return this.#node.maybeStateOf(BasicInformationClient);
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get valid() {
         return this.basicInformation !== undefined || this.meta !== undefined;
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get details(): DeviceInformationData {
         return {
             basicInformation: this.basicInformation,

@@ -41,7 +41,7 @@ type PaseCommissionerOptions = Omit<CommissioningControllerOptions, "environment
  * devices into an existing controller fabric. Once the initial commissioning process is completed, it uses a callback
  * to all to complete the commissioning process.
  *
- * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export class PaseCommissioner {
     readonly #environment: Environment;
@@ -54,7 +54,6 @@ export class PaseCommissioner {
      * Creates a new CommissioningController instance
      *
      * @param options The options for the CommissioningController
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     constructor(private readonly options: PaseCommissionerOptions) {
         if (options.environment === undefined) {
@@ -64,12 +63,10 @@ export class PaseCommissioner {
         this.#environment = environment;
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get nodeId() {
         return this.#controllerInstance?.nodeId;
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     assertControllerIsStarted(errorText?: string) {
         if (this.#controllerInstance === undefined) {
             throw new ImplementationError(
@@ -109,8 +106,6 @@ export class PaseCommissioner {
      * Use the connectNodeAfterCommissioning callback to implement an own logic to do the operative device discovery and
      * to complete the commissioning process.
      * Return true when the commissioning process is completed successfully, false on error.
-     *
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     async commissionNode(
         nodeOptions: NodeCommissioningOptions,
@@ -121,20 +116,14 @@ export class PaseCommissioner {
         return await controller.commission(nodeOptions, { completeCommissioningCallback });
     }
 
-    /**
-     * Disconnects all connected nodes and Closes the network connections and other resources of the controller.
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
-     */
+    /** Disconnects all connected nodes and Closes the network connections and other resources of the controller. */
     async close() {
         await this.#controllerInstance?.close();
         this.#controllerInstance = undefined;
         await this.#services?.close();
     }
 
-    /**
-     * Initialize the controller.
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
-     */
+    /** Initialize the controller. */
     async start() {
         const runtime = this.#environment.runtime;
         runtime.add(this);
@@ -143,7 +132,6 @@ export class PaseCommissioner {
         }
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     cancelCommissionableDeviceDiscovery(
         identifierData: CommissionableDeviceIdentifiers,
         discoveryCapabilities?: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap>,
@@ -151,7 +139,6 @@ export class PaseCommissioner {
         cancelDiscoverCommissionableDevices(identifierData, discoveryCapabilities, this.#activeDiscoveries);
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     async discoverCommissionableDevices(
         identifierData: CommissionableDeviceIdentifiers,
         discoveryCapabilities?: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap>,

@@ -1908,12 +1908,12 @@ export declare namespace DeviceEnergyManagement {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link DeviceEnergyManagement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link DeviceEnergyManagement}.
      */
     export const Cluster: ClusterType.WithCompat<typeof DeviceEnergyManagement, DeviceEnergyManagement>;
 
     /**
-     * @deprecated Use {@link DeviceEnergyManagement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link DeviceEnergyManagement}.
      */
     export const Complete: typeof DeviceEnergyManagement;
 
@@ -1921,7 +1921,7 @@ export declare namespace DeviceEnergyManagement {
 }
 
 /**
- * @deprecated Use {@link DeviceEnergyManagement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link DeviceEnergyManagement}.
  */
 export declare const DeviceEnergyManagementCluster: typeof DeviceEnergyManagement;
 

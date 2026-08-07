@@ -316,12 +316,12 @@ export declare namespace CarbonMonoxideConcentrationMeasurement {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link CarbonMonoxideConcentrationMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link CarbonMonoxideConcentrationMeasurement}.
      */
     export const Cluster: ClusterType.WithCompat<typeof CarbonMonoxideConcentrationMeasurement, CarbonMonoxideConcentrationMeasurement>;
 
     /**
-     * @deprecated Use {@link CarbonMonoxideConcentrationMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link CarbonMonoxideConcentrationMeasurement}.
      */
     export const Complete: typeof CarbonMonoxideConcentrationMeasurement;
 
@@ -329,7 +329,7 @@ export declare namespace CarbonMonoxideConcentrationMeasurement {
 }
 
 /**
- * @deprecated Use {@link CarbonMonoxideConcentrationMeasurement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link CarbonMonoxideConcentrationMeasurement}.
  */
 export declare const CarbonMonoxideConcentrationMeasurementCluster: typeof CarbonMonoxideConcentrationMeasurement;
 

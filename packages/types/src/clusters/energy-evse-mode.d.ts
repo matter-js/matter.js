@@ -340,12 +340,12 @@ export declare namespace EnergyEvseMode {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link EnergyEvseMode}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link EnergyEvseMode}.
      */
     export const Cluster: ClusterType.WithCompat<typeof EnergyEvseMode, EnergyEvseMode>;
 
     /**
-     * @deprecated Use {@link EnergyEvseMode}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link EnergyEvseMode}.
      */
     export const Complete: typeof EnergyEvseMode;
 
@@ -353,7 +353,7 @@ export declare namespace EnergyEvseMode {
 }
 
 /**
- * @deprecated Use {@link EnergyEvseMode}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link EnergyEvseMode}.
  */
 export declare const EnergyEvseModeCluster: typeof EnergyEvseMode;
 

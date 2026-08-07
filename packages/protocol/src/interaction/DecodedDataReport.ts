@@ -17,7 +17,7 @@ import {
 } from "./EventDataDecoder.js";
 
 /**
- * @deprecated since 0.17 — will be removed in 0.18. Import `DecodedDataReport` from `@project-chip/matter.js/cluster` instead.
+ * @deprecated since 0.17 — will be removed in 0.19. Import `DecodedDataReport` from `@project-chip/matter.js/cluster` instead.
  */
 export interface DecodedDataReport extends DataReport {
     isNormalized: true;
@@ -29,7 +29,7 @@ export interface DecodedDataReport extends DataReport {
 }
 
 /**
- * @deprecated since 0.17 — will be removed in 0.18. Use `decodeDataReport` from `@project-chip/matter.js/cluster`, or consume the
+ * @deprecated since 0.17 — will be removed in 0.19. Use `decodeDataReport` from `@project-chip/matter.js/cluster`, or consume the
  *   streaming `InputChunk` API directly.
  */
 export function DecodedDataReport(

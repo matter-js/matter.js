@@ -80,7 +80,7 @@ const AclExtensionAttributeId = AccessControl.attributes.extension.id;
 /**
  * Types of discovery that may be performed when connecting operationally.
  *
- * @deprecated node discovery is now continuous with MDNS queries sent as needed
+ * @deprecated Scheduled for removal in 0.19.  Node discovery is now continuous with MDNS queries sent as needed
  */
 export enum NodeDiscoveryType {
     /** No discovery is done, in calls means that only known addresses are tried. */
@@ -99,14 +99,14 @@ export enum NodeDiscoveryType {
 /**
  * Error when an unknown node is tried to be connected or any other action done with it.
  *
- * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export class UnknownNodeError extends MatterError {}
 
 /**
  * Configuration for discovering when establishing a peer connection.
  *
- * @deprecated discovery occurs automatically based on node state
+ * @deprecated Scheduled for removal in 0.19.  Discovery occurs automatically based on node state
  */
 export interface DiscoveryOptions {
     discoveryType?: NodeDiscoveryType;
@@ -117,19 +117,18 @@ export interface DiscoveryOptions {
 /**
  * Extended discovery options that include case authenticated tags for peer connections.
  *
- * @deprecated these options are ignored
+ * @deprecated Scheduled for removal in 0.19.  These options are ignored
  */
 export interface PeerConnectionOptions {
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     discoveryOptions?: DiscoveryOptions;
 
     /**
-     * @deprecated set CATs on CommissioningBehavior#state
+     * @deprecated Scheduled for removal in 0.19.  Set CATs on CommissioningBehavior#state
      */
     caseAuthenticatedTags?: CaseAuthenticatedTag[];
 
     /**
-     * @deprected configure queuing using the NetworkProfiles environmental service
+     * @deprecated Scheduled for removal in 0.19.  Configure queuing using the NetworkProfiles environmental service
      */
     queue?: Semaphore;
 }
@@ -139,22 +138,24 @@ function isAclOrExtensionPath(path: { clusterId: ClusterId; attributeId: Attribu
     return clusterId === AclClusterId && (attributeId === AclAttributeId || attributeId === AclExtensionAttributeId);
 }
 
-/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export type ResponseDataReport = Omit<
     DecodedDataReport,
     "isNormalized" | "subscriptionId" | "interactionModelRevision"
 >;
 
-/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export interface AttributeStatus {
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     path: {
         nodeId?: NodeId;
         endpointId?: EndpointNumber;
         clusterId?: ClusterId;
         attributeId?: AttributeId;
     };
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     status: Status;
 }
 
@@ -168,57 +169,42 @@ type CommandRequest<C extends ClusterType.Command> =
 type CommandResponse<C extends ClusterType.Command> =
     C extends ClusterType.Command<infer F> ? Awaited<ReturnType<F>> : unknown;
 
-/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export type InvokeOptions<C extends ClusterType.Command = ClusterType.Command> = {
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     endpointId?: EndpointNumber;
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     clusterId: ClusterId;
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     request: CommandRequest<C>;
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     command: C;
 
-    /**
-     * Send as timed request. If no timedRequestTimeoutMs is provided the default of 10s will be used.
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
-     */
+    /** Send as timed request. If no timedRequestTimeoutMs is provided the default of 10s will be used. */
     asTimedRequest?: boolean;
 
-    /**
-     * Use this timeout and send the request as Timed Request. If this is specified the above parameter is implied.
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
-     */
+    /** Use this timeout and send the request as Timed Request. If this is specified the above parameter is implied. */
     timedRequestTimeout?: Duration;
 
     /**
      * Expected processing time on the device side for this command.
      * useExtendedFailSafeMessageResponseTimeout is ignored if this value is set.
-     *
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     expectedProcessingTime?: Duration;
 
-    /**
-     * Use an extended Message Response Timeout as defined for FailSafe cases which is 30s.
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
-     */
+    /** Use an extended Message Response Timeout as defined for FailSafe cases which is 30s. */
     useExtendedFailSafeMessageResponseTimeout?: boolean;
 
-    /**
-     * Skip request data validation. Use this only when you know that your data is correct and validation would return an error.
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
-     */
+    /** Skip request data validation. Use this only when you know that your data is correct and validation would return an error. */
     skipValidation?: boolean;
 };
 
-/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export class InteractionClientProvider {
     readonly #owner: ServerNode;
     readonly #peers: PeerSet;
     readonly #clients = new PeerAddressMap<InteractionClient>();
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     constructor(owner: ServerNode) {
         this.#owner = owner;
         this.#peers = owner.env.get(PeerSet);
@@ -226,12 +212,10 @@ export class InteractionClientProvider {
         this.#peers.disconnected.on(peer => this.#onPeerLoss(peer.address));
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get peers() {
         return this.#peers;
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     async connect(
         address: PeerAddress,
         _options: PeerConnectionOptions & {
@@ -253,8 +237,6 @@ export class InteractionClientProvider {
     /**
      * Returns an InteractionClient for a session or PeerAddress which is not bound to a ClientNode Interactable
      * This should only be used for special cases.
-     *
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     async interactionClientFor(sessionOrAddress: SecureSession | PeerAddress): Promise<InteractionClient> {
         const exchangeProvider = this.#exchangeProviderFor(sessionOrAddress);
@@ -269,8 +251,6 @@ export class InteractionClientProvider {
 
     /**
      * Returns an InteractionClient for a specific peer address and ensures that also a peer node exists.
-     *
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     async getNodeInteractionClient(address: PeerAddress, _options: PeerConnectionOptions = {}) {
         let client = this.#clients.get(address);
@@ -299,14 +279,15 @@ export class InteractionClientProvider {
     }
 }
 
-/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export class InteractionClient {
     readonly #address?: PeerAddress;
     readonly isGroupAddress: boolean;
     readonly #interaction: Interactable;
     readonly #exchanges: ExchangeProvider;
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     constructor(interaction: Interactable, exchanges: ExchangeProvider, address?: PeerAddress) {
         this.#address = address;
         this.#interaction = interaction;
@@ -314,12 +295,11 @@ export class InteractionClient {
         this.isGroupAddress = address !== undefined ? PeerAddress.isGroup(address) : false;
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
+    // TODO
     get interaction() {
         return this.#interaction;
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get address() {
         if (this.#address === undefined) {
             throw new ImplementationError("This InteractionClient is not bound to a specific peer.");
@@ -327,22 +307,18 @@ export class InteractionClient {
         return this.#address;
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get maybeAddress() {
         return this.#address;
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get isReconnectable() {
         return false;
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get channelUpdated(): never {
         throw new ImplementationError("ExchangeProvider does not support channelUpdated");
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     async getAllAttributes(
         options: {
             dataVersionFilters?: { endpointId: EndpointNumber; clusterId: ClusterId; dataVersion: number }[];
@@ -362,7 +338,6 @@ export class InteractionClient {
         ).attributeReports;
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     async getAllEvents(
         options: {
             eventFilters?: TypeFromSchema<typeof TlvEventFilter>[];
@@ -377,7 +352,6 @@ export class InteractionClient {
         ).eventReports;
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     async getAllAttributesAndEvents(
         options: {
             dataVersionFilters?: {
@@ -404,7 +378,6 @@ export class InteractionClient {
         });
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     async getMultipleAttributes(
         options: {
             attributes?: { endpointId?: EndpointNumber; clusterId?: ClusterId; attributeId?: AttributeId }[];
@@ -420,7 +393,6 @@ export class InteractionClient {
         return (await this.getMultipleAttributesAndEvents(options)).attributeReports;
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     async getMultipleAttributesAndStatus(
         options: {
             attributes?: { endpointId?: EndpointNumber; clusterId?: ClusterId; attributeId?: AttributeId }[];
@@ -440,7 +412,6 @@ export class InteractionClient {
         return { attributeData: attributeReports, attributeStatus };
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     async getMultipleEvents(
         options: {
             events?: { endpointId?: EndpointNumber; clusterId?: ClusterId; eventId?: EventId }[];
@@ -451,7 +422,6 @@ export class InteractionClient {
         return (await this.getMultipleAttributesAndEvents(options)).eventReports;
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     async getMultipleEventsAndStatus(
         options: {
             events?: { endpointId?: EndpointNumber; clusterId?: ClusterId; eventId?: EventId }[];
@@ -463,7 +433,6 @@ export class InteractionClient {
         return { eventData: eventReports, eventStatus };
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     async getMultipleAttributesAndEvents(
         options: {
             attributes?: { endpointId?: EndpointNumber; clusterId?: ClusterId; attributeId?: AttributeId }[];
@@ -572,7 +541,6 @@ export class InteractionClient {
         };
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     getStoredAttribute<T>(options: {
         endpointId: EndpointNumber;
         clusterId: ClusterId;
@@ -591,7 +559,6 @@ export class InteractionClient {
         return undefined;
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     async getAttribute<T>(options: {
         endpointId: EndpointNumber;
         clusterId: ClusterId;
@@ -632,7 +599,6 @@ export class InteractionClient {
         return attributeReports[0]?.value as T | undefined;
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     async getEvent<T>(options: {
         endpointId: EndpointNumber;
         clusterId: ClusterId;
@@ -650,7 +616,6 @@ export class InteractionClient {
         return response?.eventReports[0]?.events as DecodedEventData<T>[] | undefined;
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     async setAttribute<T>(options: {
         attributeData: {
             endpointId?: EndpointNumber;
@@ -689,7 +654,6 @@ export class InteractionClient {
         }
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     async setMultipleAttributes(options: {
         attributes: {
             endpointId?: EndpointNumber;
@@ -796,7 +760,6 @@ export class InteractionClient {
             .filter(({ status }) => status !== Status.Success);
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     async subscribeAttribute<T>(options: {
         endpointId: EndpointNumber;
         clusterId: ClusterId;
@@ -846,7 +809,6 @@ export class InteractionClient {
         return { maxInterval };
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     async subscribeEvent<T>(options: {
         endpointId: EndpointNumber;
         clusterId: ClusterId;
@@ -901,7 +863,6 @@ export class InteractionClient {
         return { maxInterval };
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     async subscribeAllAttributesAndEvents(options: {
         minIntervalFloorSeconds: number;
         maxIntervalCeilingSeconds: number;
@@ -927,7 +888,6 @@ export class InteractionClient {
         });
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     async subscribeMultipleAttributesAndEvents(options: {
         attributes?: { endpointId?: EndpointNumber; clusterId?: ClusterId; attributeId?: AttributeId }[];
         events?: { endpointId?: EndpointNumber; clusterId?: ClusterId; eventId?: EventId; isUrgent?: boolean }[];
@@ -1154,14 +1114,12 @@ export class InteractionClient {
         throw new MatterFlowError("Received invoke response with no result nor response.");
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     async invoke<C extends ClusterType.Command>(options: InvokeOptions<C>): Promise<CommandResponse<C>> {
         return this.#invoke({ ...options, suppressResponse: false });
     }
 
     // TODO Add to ClusterClient when needed/when Group communication is implemented
     // TODO Additionally support it without endpoint
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     async invokeWithSuppressedResponse<C extends ClusterType.Command>(options: {
         endpointId?: EndpointNumber;
         clusterId: ClusterId;
@@ -1174,7 +1132,6 @@ export class InteractionClient {
         return this.#invoke({ ...options, suppressResponse: true }) as Promise<void>;
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get channelType() {
         return this.#exchanges.channelType;
     }

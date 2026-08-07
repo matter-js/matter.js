@@ -313,12 +313,12 @@ export declare namespace LaundryWasherMode {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link LaundryWasherMode}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link LaundryWasherMode}.
      */
     export const Cluster: ClusterType.WithCompat<typeof LaundryWasherMode, LaundryWasherMode>;
 
     /**
-     * @deprecated Use {@link LaundryWasherMode}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link LaundryWasherMode}.
      */
     export const Complete: typeof LaundryWasherMode;
 
@@ -326,7 +326,7 @@ export declare namespace LaundryWasherMode {
 }
 
 /**
- * @deprecated Use {@link LaundryWasherMode}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link LaundryWasherMode}.
  */
 export declare const LaundryWasherModeCluster: typeof LaundryWasherMode;
 

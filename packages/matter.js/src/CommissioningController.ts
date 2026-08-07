@@ -77,7 +77,9 @@ function discoveryKey(
     return JSON.stringify({ id: identifierData, caps: discoveryCapabilities });
 }
 
-/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export async function runDiscoverCommissionableDevices(
     node: ServerNode,
     identifierData: CommissionableDeviceIdentifiers,
@@ -114,7 +116,9 @@ export async function runDiscoverCommissionableDevices(
     }
 }
 
-/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export function cancelDiscoverCommissionableDevices(
     identifierData: CommissionableDeviceIdentifiers,
     discoveryCapabilities: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap> | undefined,
@@ -128,7 +132,7 @@ export function cancelDiscoverCommissionableDevices(
 // TODO Decline cluster access after announced/paired
 
 /**
- * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export type ControllerEnvironmentOptions = {
     /**
@@ -145,7 +149,7 @@ export type ControllerEnvironmentOptions = {
 /**
  * Constructor options for the CommissioningController class
  *
- * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export type CommissioningControllerOptions = CommissioningControllerNodeOptions & {
     /**
@@ -246,7 +250,7 @@ export type CommissioningControllerOptions = CommissioningControllerNodeOptions 
  * Configuration for performing discovery + commissioning in one step.
  * Kept in the legacy matter.js package; new code uses {@link CommissioningDiscovery.Options} directly.
  *
- * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export interface DiscoveryAndCommissioningOptions extends CommissioningOptions {
     /** Discovery related options. */
@@ -287,7 +291,7 @@ export interface DiscoveryAndCommissioningOptions extends CommissioningOptions {
 /**
  * Options needed to commission a new node
  *
- * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export type NodeCommissioningOptions = CommissioningControllerNodeOptions & {
     commissioning: Omit<DiscoveryAndCommissioningOptions, "fabric" | "discovery" | "passcode">;
@@ -298,7 +302,7 @@ export type NodeCommissioningOptions = CommissioningControllerNodeOptions & {
 /**
  * Controller class to commission and connect multiple nodes into one fabric.
  *
- * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export class CommissioningController {
     #crypto: Crypto;
@@ -325,7 +329,6 @@ export class CommissioningController {
      * Creates a new CommissioningController instance
      *
      * @param options The options for the CommissioningController
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     constructor(options: CommissioningControllerOptions) {
         if (options.environment === undefined) {
@@ -341,10 +344,7 @@ export class CommissioningController {
         this.#crypto.reportUsage();
     }
 
-    /**
-     * Returns the controller node instance. Throws an error when called before start() or after close().
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
-     */
+    /** Returns the controller node instance. Throws an error when called before start() or after close(). */
     get node(): ServerNode {
         return this.#assertControllerIsStarted().node;
     }
@@ -352,28 +352,20 @@ export class CommissioningController {
     /**
      * Returns the OTA provider endpoint on the controller node, if enabled and controller node was started.
      * Else throws an error.
-     *
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     get otaProvider(): Endpoint<OtaProviderEndpoint> {
         return this.#assertControllerIsStarted().node.endpoints.for("ota-provider") as Endpoint<OtaProviderEndpoint>;
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get crypto() {
         return this.#crypto;
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get nodeId() {
         return this.#controllerInstance?.nodeId;
     }
 
-    /**
-     * Returns the configuration data needed to create a PASE commissioner, e.g. in a mobile app.
-     *
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
-     */
+    /** Returns the configuration data needed to create a PASE commissioner, e.g. in a mobile app. */
     get paseCommissionerConfig() {
         const controller = this.#assertControllerIsStarted(
             "The CommissioningController needs to be started to get the PASE commissioner data.",
@@ -463,8 +455,6 @@ export class CommissioningController {
     /**
      * Commissions/Pairs a new device into the controller fabric. The method returns the NodeId of the commissioned
      * node on success.
-     *
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     async commissionNode(
         nodeOptions: NodeCommissioningOptions,
@@ -512,7 +502,6 @@ export class CommissioningController {
         return nodeId;
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     connectPaseChannel(nodeOptions: NodeCommissioningOptions): Promise<NodeSession> {
         const controller = this.#assertControllerIsStarted();
 
@@ -523,18 +512,13 @@ export class CommissioningController {
      * Completes the commissioning process for a node when the initial commissioning process was done by a PASE
      * commissioner. This method should be called to discover the device operational and complete the commissioning
      * process.
-     *
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     completeCommissioningForNode(peerNodeId: NodeId, discoveryData?: DiscoveryData) {
         const controller = this.#assertControllerIsStarted();
         return controller.completeCommissioning(peerNodeId, discoveryData);
     }
 
-    /**
-     * Check if a given node id is commissioned on this controller.
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
-     */
+    /** Check if a given node id is commissioned on this controller. */
     isNodeCommissioned(nodeId: NodeId) {
         const controller = this.#assertControllerIsStarted();
         return controller.getCommissionedNodes().includes(nodeId) ?? false;
@@ -556,8 +540,6 @@ export class CommissioningController {
      * use this in case of an error as last option.
      * If this method is used the state of the PairedNode instance might be out of sync, so the PairedNode instance
      * should be disconnected first.
-     *
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     async removeNode(nodeId: NodeId, tryDecommissioning = true) {
         const controller = this.#assertControllerIsStarted();
@@ -596,7 +578,7 @@ export class CommissioningController {
         }
     }
 
-    /** @deprecated Use PairedNode.disconnect() instead */
+    /** @deprecated Scheduled for removal in 0.19.  Use PairedNode.disconnect() instead */
     async disconnectNode(nodeId: NodeId, force = false) {
         const node = this.#pairedNodeForNodeId(nodeId);
         if (node === undefined && !force) {
@@ -616,8 +598,6 @@ export class CommissioningController {
     /**
      * Returns the PairedNode instance for a given NodeId. The instance is initialized without auto-connect if not yet
      * created.
-     *
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     async getNode(nodeId: NodeId, allowUnknownNode = false) {
         const existingNode = this.#pairedNodeForNodeId(nodeId);
@@ -633,7 +613,7 @@ export class CommissioningController {
      * This call is not blocking and returns an initialized PairedNode instance. The connection or reconnection
      * happens in the background. Please monitor the state of the node to see if the connection was successful.
      *
-     * @deprecated Use getNode() instead and call PairedNode.connect() or PairedNode.disconnect() as needed.
+     * @deprecated Scheduled for removal in 0.19.  Use getNode() instead and call PairedNode.connect() or PairedNode.disconnect() as needed.
      */
     connectNode(nodeId: NodeId, connectOptions?: CommissioningControllerNodeOptions, allowUnknownNode = false) {
         return this.#createPairedNode(nodeId, connectOptions, allowUnknownNode);
@@ -724,7 +704,7 @@ export class CommissioningController {
      * Connects to all paired nodes.
      * After connection the endpoint data of the device is analyzed and an object structure is created.
      *
-     * @deprecated Use getCommissionedNodes() to get the list of nodes and getNode(nodeId) instead and call PairedNode.connect() or PairedNode.disconnect() as needed.
+     * @deprecated Scheduled for removal in 0.19.  Use getCommissionedNodes() to get the list of nodes and getNode(nodeId) instead and call PairedNode.connect() or PairedNode.disconnect() as needed.
      */
     async connect(connectOptions?: CommissioningControllerNodeOptions) {
         const controller = this.#assertControllerIsStarted();
@@ -741,10 +721,7 @@ export class CommissioningController {
         return Array.from(this.#initializedNodes.values());
     }
 
-    /**
-     * Returns true if at least one node is commissioned/paired with this controller instance.
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
-     */
+    /** Returns true if t least one node is commissioned/paired with this controller instance. */
     isCommissioned() {
         const controller = this.#assertControllerIsStarted();
 
@@ -754,8 +731,6 @@ export class CommissioningController {
     /**
      * Creates and Return a new InteractionClient to communicate with a node. This is mainly used internally and should
      * not be used directly. See the PairedNode class for the public API.
-     *
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     async createInteractionClient(
         nodeIdOrSession: NodeId | SecureSession,
@@ -787,26 +762,20 @@ export class CommissioningController {
 
     /**
      * Returns the PairedNode instance for a given node id, if this node is connected.
-     * @deprecated Use getNode() instead
+     * @deprecated Scheduled for removal in 0.19.  Use getNode() instead
      */
     getPairedNode(nodeId: NodeId) {
         return this.#pairedNodeForNodeId(nodeId);
     }
 
-    /**
-     * Returns an array with the NodeIds of all commissioned nodes.
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
-     */
+    /** Returns an array with the NodeIds of all commissioned nodes. */
     getCommissionedNodes() {
         const controller = this.#assertControllerIsStarted();
 
         return controller.getCommissionedNodes() ?? [];
     }
 
-    /**
-     * Returns an array with all commissioned NodeIds and their metadata.
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
-     */
+    /** Returns an array with all commissioned NodeIds and their metadata. */
     getCommissionedNodesDetails(): PairedNodeDetails[] {
         const controller = this.#assertControllerIsStarted();
 
@@ -816,8 +785,6 @@ export class CommissioningController {
     /**
      * Disconnects all connected nodes and closes the network connections and other resources of the controller.
      * You can use "start()" to restart the controller after closing it.
-     *
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     async close() {
         this.#observers.close();
@@ -833,10 +800,7 @@ export class CommissioningController {
         this.#started = false;
     }
 
-    /**
-     * Return the port used by the controller for the UDP interface.
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
-     */
+    /** Return the port used by the controller for the UDP interface. */
     getPort(): number | undefined {
         return this.#options.localPort;
     }
@@ -854,15 +818,12 @@ export class CommissioningController {
         this.#ipv4Disabled = ipv4Disabled;
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get env() {
         return this.#environment;
     }
 
     /**
      * Initialize the controller and initialize and connect to all commissioned nodes if autoConnect is not set to false.
-     *
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     async start() {
         if (this.#ipv4Disabled === undefined) {
@@ -910,8 +871,6 @@ export class CommissioningController {
 
     /**
      * Cancels the discovery process for commissionable devices started with discoverCommissionableDevices().
-     *
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     cancelCommissionableDeviceDiscovery(
         identifierData: CommissionableDeviceIdentifiers,
@@ -924,8 +883,6 @@ export class CommissioningController {
      * Starts to discover commissionable devices.
      * The promise will be fulfilled after the provided timeout or when the discovery is stopped via
      * cancelCommissionableDeviceDiscovery(). The discoveredCallback will be called for each discovered device.
-     *
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     async discoverCommissionableDevices(
         identifierData: CommissionableDeviceIdentifiers,
@@ -946,8 +903,6 @@ export class CommissioningController {
     /**
      * Use this method to reset the Controller storage. The method can only be called if the controller is stopped and
      * will remove all commissioning data and paired nodes from the controller.
-     *
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     async resetStorage() {
         if (this.#started) {
@@ -958,10 +913,7 @@ export class CommissioningController {
         await this.node.erase(); // TODO check if that's correct
     }
 
-    /**
-     * Returns active session information for all connected nodes.
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
-     */
+    /** Returns active session information for all connected nodes. */
     getActiveSessionInformation(): ActiveSessionInformation[] {
         return this.#controllerInstance?.getActiveSessionInformation() ?? [];
     }
@@ -1011,8 +963,6 @@ export class CommissioningController {
     /**
      * Updates the fabric label for the controller and all connected nodes.
      * The label is used to identify the controller and all connected nodes in the fabric.
-     *
-     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     async updateFabricLabel(label: string) {
         const controller = this.#assertControllerIsStarted();
@@ -1063,13 +1013,11 @@ export class CommissioningController {
         }
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get groups(): FabricGroups {
         const controllerInstance = this.#assertControllerIsStarted();
         return controllerInstance.fabric.groups;
     }
 
-    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get fabric(): Fabric {
         const controllerInstance = this.#assertControllerIsStarted();
         return controllerInstance.fabric;

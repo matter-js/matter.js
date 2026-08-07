@@ -28,13 +28,18 @@ import { InteractionClient } from "./InteractionClient.js";
 
 const logger = Logger.get("ClusterClient");
 
-/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export function GroupClusterClient<const N extends ClusterType.Concrete>(
     clusterDef: N,
     interactionClient: InteractionClient,
     globalAttributeValues?: Record<string, unknown>,
 ): ClusterClientObj<N["Typing"]>;
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export function GroupClusterClient(
     clusterDef: ClusterType.Concrete,
     interactionClient: InteractionClient,
@@ -47,7 +52,9 @@ export function GroupClusterClient(
     return ClusterClient(clusterDef as any, undefined, interactionClient, globalAttributeValues) as any;
 }
 
-/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export function ClusterClient<const N extends ClusterType.Concrete>(
     clusterDef: N,
     endpointId: EndpointNumber | undefined,
@@ -55,6 +62,9 @@ export function ClusterClient<const N extends ClusterType.Concrete>(
     globalAttributeValues?: Record<string, unknown>,
 ): ClusterClientObj<N["Typing"]>;
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export function ClusterClient(
     clusterDef: ClusterType.Concrete,
     endpointId: EndpointNumber | undefined,
