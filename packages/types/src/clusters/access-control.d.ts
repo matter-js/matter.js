@@ -207,7 +207,7 @@ export declare namespace AccessControl {
          *
          * @see {@link MatterSpecification.v16.Core} § 9.10.6.10
          */
-        auxiliaryAcl: AccessControlEntry[];
+        auxiliaryAcl?: AccessControlEntry[];
     }
 
     /**
@@ -464,7 +464,7 @@ export declare namespace AccessControl {
          *
          * @see {@link MatterSpecification.v16.Core} § 9.10.9.4
          */
-        auxiliaryAccessUpdated: AuxiliaryAccessUpdatedEvent;
+        auxiliaryAccessUpdated?: AuxiliaryAccessUpdatedEvent;
     }
 
     /**
