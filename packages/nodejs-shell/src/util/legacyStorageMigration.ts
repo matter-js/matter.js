@@ -235,8 +235,8 @@ export async function cleanupLegacyStorage(env: Environment, id: string): Promis
             return;
         }
 
-        // commissionedNodes can list peers that migrateLegacyCommissionedNodes has not yet migrated (a peer left
-        // for retry after a prior failure, or step 2 never having run at all); cleanup must not destroy those.
+        // A commissionedNodes entry with no matching peer context is one migrateLegacyCommissionedNodes left for
+        // retry (prior failure, or step 2 never ran); this is not visible from a "migration ran at all" check.
         const commissionedNodes = await nodesCtx.get<LegacyCommissionedNode[]>("commissionedNodes", []);
         const distinctLegacyNodeCount = new Set(commissionedNodes.map(([rawNodeId]) => rawNodeId)).size;
         if (distinctLegacyNodeCount > 0 && migratedPeerCount < distinctLegacyNodeCount) {
