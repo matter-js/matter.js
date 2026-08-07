@@ -337,7 +337,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
                         newSoftwareVersion,
                     ),
                 );
-                bdxSession.closed.on(() => {
+                bdxSession.closed.once(() => {
                     const details = this.#inProgressDetailsForPeer(peerAddress, updateToken);
                     if (
                         details !== undefined &&

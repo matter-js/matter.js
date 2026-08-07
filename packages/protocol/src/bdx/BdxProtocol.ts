@@ -165,7 +165,7 @@ export class BdxProtocol implements ProtocolHandler {
 
         this.#sessionStarted.emit(bdxSession, scope);
 
-        bdxSession.closed.on(async () => {
+        bdxSession.closed.once(async () => {
             logger.debug(`BDX session for exchange ${exchange.id} closed`);
             this.#activeBdxSessions.delete(exchange);
             await exchange.close();

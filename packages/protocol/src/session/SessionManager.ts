@@ -259,7 +259,7 @@ export class SessionManager {
             session.subscriptions.added.on(subscriptionsChanged);
             session.subscriptions.deleted.on(subscriptionsChanged);
 
-            session.closing.on(() => {
+            session.closing.once(() => {
                 session.subscriptions.added.off(subscriptionsChanged);
                 session.subscriptions.deleted.off(subscriptionsChanged);
             });
