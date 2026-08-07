@@ -149,7 +149,7 @@ export declare namespace GroupKeyManagement {
          *
          * @see {@link MatterSpecification.v16.Core} § 11.2.6.5
          */
-        groupcastAdoption: GroupcastAdoption[];
+        groupcastAdoption?: GroupcastAdoption[];
     }
 
     /**
