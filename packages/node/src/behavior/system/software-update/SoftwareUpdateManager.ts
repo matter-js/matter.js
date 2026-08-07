@@ -662,6 +662,7 @@ export class SoftwareUpdateManager extends Behavior {
                     productId,
                     targetSoftwareVersion: updateDetails.softwareVersion,
                     maxBdxBlockSize: consent.maxBdxBlockSize,
+                    bdxAdditionalMrpDelay: consent.bdxAdditionalMrpDelay,
                     peerAddress,
                 });
             } else {
@@ -1052,12 +1053,31 @@ export class SoftwareUpdateManager extends Behavior {
      * consent, otherwise {@link State.maxBdxBlockSize}.  Undefined accepts whatever the peer requests.
      */
     maxBdxBlockSizeFor(peerAddress: PeerAddress) {
+        const { queued, consent } = this.#pendingUpdateFor(peerAddress);
+        return queued?.maxBdxBlockSize ?? consent?.maxBdxBlockSize ?? this.state.maxBdxBlockSize;
+    }
+
+    /**
+     * The additive MRP retransmission margin that applies to this peer's pending update, resolved like
+     * {@link maxBdxBlockSizeFor}.  Undefined leaves the peer's medium to imply it.
+     */
+    bdxAdditionalMrpDelayFor(peerAddress: PeerAddress) {
+        const { queued, consent } = this.#pendingUpdateFor(peerAddress);
+        return queued?.bdxAdditionalMrpDelay ?? consent?.bdxAdditionalMrpDelay ?? this.state.bdxAdditionalMrpDelay;
+    }
+
+    /**
+     * The queue entry and consent for a peer.  Both are consulted because a queue entry created from an existing
+     * consent may not carry that consent's options.
+     */
+    #pendingUpdateFor(peerAddress: PeerAddress) {
         peerAddress = PeerAddress(peerAddress);
         const matches = (candidate: PeerAddress) =>
             candidate.fabricIndex === peerAddress.fabricIndex && candidate.nodeId === peerAddress.nodeId;
-        const queued = this.internal.updateQueue.find(entry => matches(entry.peerAddress));
-        const consent = this.internal.consents.find(consent => matches(consent.peerAddress));
-        return queued?.maxBdxBlockSize ?? consent?.maxBdxBlockSize ?? this.state.maxBdxBlockSize;
+        return {
+            queued: this.internal.updateQueue.find(entry => matches(entry.peerAddress)),
+            consent: this.internal.consents.find(consent => matches(consent.peerAddress)),
+        };
     }
 
     /**
@@ -1068,9 +1088,15 @@ export class SoftwareUpdateManager extends Behavior {
      * This can be used when the update can be executed in a delayed/queued manner and it does not matter exactly when.
      */
     async addUpdateConsent(peerAddress: PeerAddress, target: SoftwareUpdateManager.UpdateTarget) {
-        const { vendorId, productId, targetSoftwareVersion, maxBdxBlockSize } = target;
+        const { vendorId, productId, targetSoftwareVersion, maxBdxBlockSize, bdxAdditionalMrpDelay } = target;
         if (maxBdxBlockSize !== undefined && (!Number.isInteger(maxBdxBlockSize) || maxBdxBlockSize <= 0)) {
             throw new ImplementationError(`maxBdxBlockSize must be a positive integer, got ${maxBdxBlockSize}`);
+        }
+        if (
+            bdxAdditionalMrpDelay !== undefined &&
+            (!Number.isFinite(bdxAdditionalMrpDelay) || bdxAdditionalMrpDelay < 0)
+        ) {
+            throw new ImplementationError(`bdxAdditionalMrpDelay must not be negative, got ${bdxAdditionalMrpDelay}`);
         }
         peerAddress = PeerAddress(peerAddress);
         // Filter out all existing consents for this peer, they are replaced by the new one
@@ -1095,6 +1121,7 @@ export class SoftwareUpdateManager extends Behavior {
             productId,
             targetSoftwareVersion,
             maxBdxBlockSize,
+            bdxAdditionalMrpDelay,
             peerAddress,
         });
         this.internal.consents = consents;
@@ -1109,6 +1136,7 @@ export class SoftwareUpdateManager extends Behavior {
             productId,
             targetSoftwareVersion,
             maxBdxBlockSize,
+            bdxAdditionalMrpDelay,
             peerAddress,
             endpoint: otaEndpoint,
         });
@@ -1259,6 +1287,14 @@ export namespace SoftwareUpdateManager {
          * lower this only for a peer that cannot handle full-size blocks.
          */
         maxBdxBlockSize?: number = undefined;
+
+        /**
+         * Additive MRP retransmission margin for OTA transfers, overriding the margin the peer's medium implies.
+         *
+         * The margin is amplified by the backoff multiplier and the whole schedule has to fit the peer's BDX response
+         * budget, so a large value costs the transfer rather than protecting it.
+         */
+        bdxAdditionalMrpDelay?: Duration = undefined;
     }
 
     /** Identifies the update a consent applies to, and how to transfer it. */
@@ -1272,6 +1308,12 @@ export namespace SoftwareUpdateManager {
          * that default.
          */
         maxBdxBlockSize?: number;
+
+        /**
+         * Additive MRP retransmission margin for this transfer, overriding {@link State.bdxAdditionalMrpDelay} and the
+         * margin the peer's medium implies.  Unset falls back to that default.
+         */
+        bdxAdditionalMrpDelay?: Duration;
     }
 
     export class Internal {

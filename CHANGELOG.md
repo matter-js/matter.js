@@ -25,7 +25,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Breaking: `SoftwareUpdateManager.addUpdateConsent()` and `forceUpdate()` take the update as an object instead of three positional arguments, so it can carry per-update options
-    - Enhancement: `SoftwareUpdateManager` caps the BDX block size for OTA transfers via `maxBdxBlockSize`, either generally in its state or per update when giving consent
+    - Enhancement: `SoftwareUpdateManager` caps the BDX block size for OTA transfers via `maxBdxBlockSize` and overrides their MRP retransmission margin via `bdxAdditionalMrpDelay`, either generally in its state or per update when giving consent
     - Enhancement: `network.profiles` accepts `bdxAdditionalMrpDelay`
     - Enhancement: `network.timing` accepts the kick and address-change parameters
     - Fix: Client node state reads and writes struct- and list-valued fields nested inside an attribute value

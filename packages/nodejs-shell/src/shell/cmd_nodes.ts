@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { capitalize, ChannelType, decamelize, Diagnostic, ServerAddress } from "@matter/general";
+import { capitalize, ChannelType, decamelize, Diagnostic, Millis, ServerAddress } from "@matter/general";
 import { ClientNode, CommissioningClient, NetworkClient, SoftwareUpdateManager } from "@matter/node";
 import { PeerAddress, PeerSet } from "@matter/protocol";
 import { FabricIndex, NodeId, VendorId } from "@matter/types";
@@ -756,10 +756,15 @@ export default function commands(theNode: MatterNode) {
                                             describe:
                                                 "Cap the BDX block size for this transfer, in bytes (default: whatever the device requests)",
                                             type: "number",
+                                        })
+                                        .option("mrp-margin", {
+                                            describe:
+                                                "Additive MRP retransmission margin for this transfer, in milliseconds (default: derived from the device's medium)",
+                                            type: "number",
                                         });
                                 },
                                 async argv => {
-                                    const { nodeId: nodeIdStr, mode, force, local, maxBlockSize } = argv;
+                                    const { nodeId: nodeIdStr, mode, force, local, maxBlockSize, mrpMargin } = argv;
                                     const { label: dclMode, isProduction } = resolveDclMode(theNode, mode);
                                     const forceDownload = force === true;
 
@@ -862,6 +867,9 @@ export default function commands(theNode: MatterNode) {
                                     if (maxBlockSize !== undefined) {
                                         console.log(`Capping BDX block size to ${maxBlockSize} bytes`);
                                     }
+                                    if (mrpMargin !== undefined) {
+                                        console.log(`Using an MRP retransmission margin of ${mrpMargin}ms`);
+                                    }
 
                                     await theNode.commissioningController.otaProvider.act(agent => {
                                         return agent
@@ -871,6 +879,8 @@ export default function commands(theNode: MatterNode) {
                                                 productId: basicInfo.productId as number,
                                                 targetSoftwareVersion: updateVersion,
                                                 maxBdxBlockSize: maxBlockSize,
+                                                bdxAdditionalMrpDelay:
+                                                    mrpMargin === undefined ? undefined : Millis(mrpMargin),
                                             });
                                     });
                                 },

@@ -17,7 +17,9 @@ import { ServerNode } from "#node/ServerNode.js";
 import {
     Bytes,
     createPromise,
+    type Duration,
     ImplementationError,
+    Millis,
     Minutes,
     MockFetch,
     Observable,
@@ -678,7 +680,7 @@ describe("Ota", () => {
         );
     }).timeout(10_000);
 
-    it("keeps a consent's BDX block size when the update is queued later", async () => {
+    it("keeps a consent's BDX options when the update is queued later", async () => {
         const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer(
             { requestUserConsent: false },
             {
@@ -702,6 +704,7 @@ describe("Ota", () => {
                 productId,
                 targetSoftwareVersion,
                 maxBdxBlockSize: 256,
+                bdxAdditionalMrpDelay: Millis(500),
             }),
         );
 
@@ -710,12 +713,59 @@ describe("Ota", () => {
             const manager = agent.get(SoftwareUpdateManager);
             for (const entry of manager.internal.updateQueue) {
                 entry.maxBdxBlockSize = undefined;
+                entry.bdxAdditionalMrpDelay = undefined;
             }
         });
 
         expect(await otaProvider.act(agent => agent.get(SoftwareUpdateManager).maxBdxBlockSizeFor(peerAddress))).equals(
             256,
         );
+        expect(
+            await otaProvider.act(agent => agent.get(SoftwareUpdateManager).bdxAdditionalMrpDelayFor(peerAddress)),
+        ).equals(Millis(500));
+    }).timeout(10_000);
+
+    it("resolves the BDX MRP margin from the consent, then from state", async () => {
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer(
+            { requestUserConsent: false },
+            {
+                expectedOtaImage: Bytes.fromHex(""),
+            },
+        );
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        const peerAddress = controller.peers.get("peer1")!.state.commissioning.peerAddress!;
+
+        // Nothing configured: the peer's medium implies the margin
+        expect(
+            await otaProvider.act(agent => agent.get(SoftwareUpdateManager).bdxAdditionalMrpDelayFor(peerAddress)),
+        ).equals(undefined);
+
+        await otaProvider.act(agent => {
+            agent.get(SoftwareUpdateManager).state.bdxAdditionalMrpDelay = Seconds(2);
+        });
+        expect(
+            await otaProvider.act(agent => agent.get(SoftwareUpdateManager).bdxAdditionalMrpDelayFor(peerAddress)),
+        ).equals(Seconds(2));
+
+        await otaProvider.act(agent =>
+            agent.get(SoftwareUpdateManager).addUpdateConsent(peerAddress, {
+                vendorId: VendorId(vendorId),
+                productId,
+                targetSoftwareVersion,
+                bdxAdditionalMrpDelay: Millis(500),
+            }),
+        );
+        expect(
+            await otaProvider.act(agent => agent.get(SoftwareUpdateManager).bdxAdditionalMrpDelayFor(peerAddress)),
+        ).equals(Millis(500));
     }).timeout(10_000);
 
     it("rejects an invalid BDX block size at the call site", async () => {
@@ -735,6 +785,19 @@ describe("Ota", () => {
 
         const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
         const peerAddress = controller.peers.get("peer1")!.state.commissioning.peerAddress!;
+
+        for (const bdxAdditionalMrpDelay of [Millis(-1), Number.NaN as Duration]) {
+            await expect(
+                otaProvider.act(agent =>
+                    agent.get(SoftwareUpdateManager).addUpdateConsent(peerAddress, {
+                        vendorId: VendorId(vendorId),
+                        productId,
+                        targetSoftwareVersion,
+                        bdxAdditionalMrpDelay,
+                    }),
+                ),
+            ).to.be.rejectedWith(ImplementationError);
+        }
 
         for (const maxBdxBlockSize of [0, -1, 1.5, Number.NaN]) {
             await expect(

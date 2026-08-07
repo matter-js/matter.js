@@ -287,6 +287,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
                     // That's also the default but especially states for OTA, but let's set it explicitly
                     messageTimeout: Minutes(5),
                     maxBlockSize: this.agent.get(SoftwareUpdateManager).maxBdxBlockSizeFor(peerAddress),
+                    additionalMrpDelay: this.agent.get(SoftwareUpdateManager).bdxAdditionalMrpDelayFor(peerAddress),
                 })
             ) {
                 // We could not enable BDX for this scope because another process is registered with different details
