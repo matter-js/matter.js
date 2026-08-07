@@ -26,6 +26,9 @@
             "path": "../../protocol/src"
         },
         {
+            "path": "../../testing/src"
+        },
+        {
             "path": "../src"
         }
     ]

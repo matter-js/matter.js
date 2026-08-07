@@ -20,6 +20,9 @@
         },
         {
             "path": "../../protocol/src"
+        },
+        {
+            "path": "../../testing/src"
         }
     ]
 }
