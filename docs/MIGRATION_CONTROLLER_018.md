@@ -675,3 +675,10 @@ certificates (`credentials.*` → `certificates.*`), then, separately, per-node 
 API has no equivalent hook. Anyone who has already run a 0.16+ build is unaffected — that storage is already in
 the new format and is reused as-is via `FabricAuthority.defaultFabric`. Only a *direct* jump from a pre-0.16
 layout to 0.18 needs a manual re-commission (or an interim run on a 0.16–0.17 build to migrate).
+
+A developer who wants to migrate such a storage themselves, outside the shell, can copy the shell's
+self-contained `packages/nodejs-shell/src/util/legacyStorageMigration.ts` and call its functions around their
+own controller `ServerNode` construction: guard with `legacyMigrationNeeded`, call
+`migrateLegacyControllerCredentials` before `ServerNode.create`, then `migrateLegacyCommissionedNodes(node)`
+once the node is created, and `cleanupLegacyStorage` only once certain the migration succeeded and the
+storage will not be downgraded below 0.16.

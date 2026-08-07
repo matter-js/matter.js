@@ -49,6 +49,16 @@ To manually convert a storage you can follow the following steps. The described 
 
 All "0.MatterController.node-*" files from the old storage are not needed to be copied, if existing. They are automatically regenerated on next start.
 
+## Migrating a pre-0.16 controller storage
+
+On startup, the shell automatically migrates a pre-0.16 controller storage (predating the
+`ServerNode`-based controller) to the current storage format. The old, now-unused data is left in
+place, so the migration is non-destructive and can be repeated safely.
+
+Once you are certain the migration succeeded and you will not downgrade this storage below 0.16,
+run the shell with `--cleanup-legacy-storage` to delete the leftover legacy data. **This is
+irreversible — once removed, there is no way back to the pre-0.16 layout.**
+
 ## General usage
 
 The shell offers and interactive prompt that can execute commands. If you just enter the command name that has sub commands (with or without followed by "help"), it will display the command options. If you enter the command name followed by the options, it will execute the command, with "help" after the command name it will show the detailed help for this command.

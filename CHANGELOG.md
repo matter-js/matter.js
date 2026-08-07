@@ -51,6 +51,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: `FileStorageDriver`'s constructor no longer accepts a `clear` argument; clearing is handled by `StorageService`
     - Fix: Ensure that `--storage-clear`/`MATTER_STORAGE_CLEAR` is honored again and clears the storage on start
 
+- @matter/nodejs-shell
+    - Feature: The shell automatically migrates a pre-0.16 controller storage to the current format on startup; `--cleanup-legacy-storage` irreversibly removes the leftover legacy data once migration is complete
+
 - @matter/react-native
     - Fix: The `storage.clear` variable now clears the storage on start as it does on Node.js
 
