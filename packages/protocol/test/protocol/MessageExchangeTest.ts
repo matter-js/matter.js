@@ -659,7 +659,7 @@ describe("MessageExchange", () => {
                 id: "unlimited",
                 semaphore: new Semaphore("test", Infinity),
                 additionalMrpDelay: Seconds(5),
-                bdxAdditionalMrpDelay: Seconds(5),
+                mrpMargins: { messaging: Seconds(5), bdx: Seconds(5) },
             };
         }
 

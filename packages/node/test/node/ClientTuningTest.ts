@@ -186,7 +186,7 @@ describe("ClientTuningTest", () => {
         const controller = await site.addController({
             network: {
                 profiles: {
-                    thread: { bdxAdditionalMrpDelay: Seconds(8) },
+                    thread: { bdxAdditionalMrpDelay: Seconds(3) },
                     wifi: { bdxAdditionalMrpDelay: Seconds(2) },
                 },
             },
@@ -197,14 +197,14 @@ describe("ClientTuningTest", () => {
         const profiles = controller.env.get(NetworkProfiles);
 
         const thread = profiles.get("thread");
-        expect(thread.bdxAdditionalMrpDelay).equals(Seconds(8));
+        expect(thread.mrpMargins.bdx).equals(Seconds(3));
         expect(thread.additionalMrpDelay).equals(Seconds(1.5));
 
         const wifi = profiles.get("wifi");
-        expect(wifi.bdxAdditionalMrpDelay).equals(Seconds(2));
+        expect(wifi.mrpMargins.bdx).equals(Seconds(2));
         expect(wifi.additionalMrpDelay).equals(Seconds(1));
 
-        expect(profiles.get("conservative").bdxAdditionalMrpDelay).equals(Seconds(1.5));
+        expect(profiles.get("conservative").mrpMargins.bdx).equals(Seconds(1.5));
     });
 
     it("ownNetworkProfileId sets the sender-side MRP margin", async () => {

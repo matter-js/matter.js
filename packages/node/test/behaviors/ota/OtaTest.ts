@@ -17,7 +17,6 @@ import { ServerNode } from "#node/ServerNode.js";
 import {
     Bytes,
     createPromise,
-    type Duration,
     ImplementationError,
     Millis,
     Minutes,
@@ -635,13 +634,11 @@ describe("Ota", () => {
             },
         ]);
     }).timeout(10_000); // locally needs 1s, but CI might be slower
-
-    it("resolves the BDX block size cap from the consent, then from state", async () => {
+    /** A commissioned pair with an OTA image staged, for tests that only exercise transfer-option resolution. */
+    async function otaSiteWithImage() {
         const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer(
             { requestUserConsent: false },
-            {
-                expectedOtaImage: Bytes.fromHex(""),
-            },
+            { expectedOtaImage: Bytes.fromHex("") },
         );
         const { TestOtaProviderServer } = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
 
@@ -649,169 +646,82 @@ describe("Ota", () => {
             TestOtaProviderServer,
             TestOtaRequestorServer,
         );
-        await using _localSite = site;
-
         const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
         const peerAddress = controller.peers.get("peer1")!.state.commissioning.peerAddress!;
 
-        // Nothing configured: accept whatever the peer requests
-        expect(await otaProvider.act(agent => agent.get(SoftwareUpdateManager).maxBdxBlockSizeFor(peerAddress))).equals(
-            undefined,
-        );
+        const optionsFor = () =>
+            otaProvider.act(agent => agent.get(SoftwareUpdateManager).bdxTransferOptionsFor(peerAddress));
+        const consentTo = (target: Partial<SoftwareUpdateManager.UpdateTarget>) =>
+            otaProvider.act(agent =>
+                agent.get(SoftwareUpdateManager).addUpdateConsent(peerAddress, {
+                    vendorId: VendorId(vendorId),
+                    productId,
+                    targetSoftwareVersion,
+                    ...target,
+                }),
+            );
+
+        return { site, otaProvider, peerAddress, optionsFor, consentTo };
+    }
+
+    it("resolves transfer options from the consent, then from state", async () => {
+        const { site, otaProvider, optionsFor, consentTo } = await otaSiteWithImage();
+        await using _localSite = site;
+
+        // Nothing configured: the peer and its medium decide
+        expect(await optionsFor()).deep.equals({ maxBlockSize: undefined, additionalMrpDelay: undefined });
 
         await otaProvider.act(agent => {
-            agent.get(SoftwareUpdateManager).state.maxBdxBlockSize = 512;
+            const { state } = agent.get(SoftwareUpdateManager);
+            state.maxBdxBlockSize = 512;
+            state.bdxAdditionalMrpDelay = Seconds(2);
         });
-        expect(await otaProvider.act(agent => agent.get(SoftwareUpdateManager).maxBdxBlockSizeFor(peerAddress))).equals(
-            512,
-        );
+        expect(await optionsFor()).deep.equals({ maxBlockSize: 512, additionalMrpDelay: Seconds(2) });
 
-        // A consent-level override outranks the general default
-        await otaProvider.act(agent =>
-            agent.get(SoftwareUpdateManager).addUpdateConsent(peerAddress, {
-                vendorId: VendorId(vendorId),
-                productId,
-                targetSoftwareVersion,
-                maxBdxBlockSize: 256,
-            }),
-        );
-        expect(await otaProvider.act(agent => agent.get(SoftwareUpdateManager).maxBdxBlockSizeFor(peerAddress))).equals(
-            256,
-        );
-    }).timeout(10_000);
+        // Consent-level overrides outrank the general defaults
+        await consentTo({ maxBdxBlockSize: 256, bdxAdditionalMrpDelay: Millis(500) });
+        expect(await optionsFor()).deep.equals({ maxBlockSize: 256, additionalMrpDelay: Millis(500) });
+    });
 
-    it("keeps a consent's BDX options when the update is queued later", async () => {
-        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer(
-            { requestUserConsent: false },
-            {
-                expectedOtaImage: Bytes.fromHex(""),
-            },
-        );
-        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
-
-        const { site, device, controller, otaProvider } = await initOtaSite(
-            TestOtaProviderServer,
-            TestOtaRequestorServer,
-        );
+    it("lets a later consent change and clear the options of a queued update", async () => {
+        const { site, optionsFor, consentTo } = await otaSiteWithImage();
         await using _localSite = site;
 
-        const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
-        const peerAddress = controller.peers.get("peer1")!.state.commissioning.peerAddress!;
+        await consentTo({ maxBdxBlockSize: 256, bdxAdditionalMrpDelay: Millis(500) });
+        expect(await optionsFor()).deep.equals({ maxBlockSize: 256, additionalMrpDelay: Millis(500) });
 
-        await otaProvider.act(agent =>
-            agent.get(SoftwareUpdateManager).addUpdateConsent(peerAddress, {
-                vendorId: VendorId(vendorId),
-                productId,
-                targetSoftwareVersion,
-                maxBdxBlockSize: 256,
-                bdxAdditionalMrpDelay: Millis(500),
-            }),
-        );
+        await consentTo({ maxBdxBlockSize: 128 });
+        expect(await optionsFor()).deep.equals({ maxBlockSize: 128, additionalMrpDelay: undefined });
 
-        // A queue entry that carries no override of its own must not mask the consent's
-        await otaProvider.act(agent => {
-            const manager = agent.get(SoftwareUpdateManager);
-            for (const entry of manager.internal.updateQueue) {
-                entry.maxBdxBlockSize = undefined;
-                entry.bdxAdditionalMrpDelay = undefined;
-            }
-        });
+        await consentTo({});
+        expect(await optionsFor()).deep.equals({ maxBlockSize: undefined, additionalMrpDelay: undefined });
+    });
 
-        expect(await otaProvider.act(agent => agent.get(SoftwareUpdateManager).maxBdxBlockSizeFor(peerAddress))).equals(
-            256,
-        );
-        expect(
-            await otaProvider.act(agent => agent.get(SoftwareUpdateManager).bdxAdditionalMrpDelayFor(peerAddress)),
-        ).equals(Millis(500));
-    }).timeout(10_000);
-
-    it("resolves the BDX MRP margin from the consent, then from state", async () => {
-        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer(
-            { requestUserConsent: false },
-            {
-                expectedOtaImage: Bytes.fromHex(""),
-            },
-        );
-        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
-
-        const { site, device, controller, otaProvider } = await initOtaSite(
-            TestOtaProviderServer,
-            TestOtaRequestorServer,
-        );
+    it("rejects invalid transfer options before touching any state", async () => {
+        const { site, otaProvider, peerAddress, consentTo } = await otaSiteWithImage();
         await using _localSite = site;
-
-        const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
-        const peerAddress = controller.peers.get("peer1")!.state.commissioning.peerAddress!;
-
-        // Nothing configured: the peer's medium implies the margin
-        expect(
-            await otaProvider.act(agent => agent.get(SoftwareUpdateManager).bdxAdditionalMrpDelayFor(peerAddress)),
-        ).equals(undefined);
-
-        await otaProvider.act(agent => {
-            agent.get(SoftwareUpdateManager).state.bdxAdditionalMrpDelay = Seconds(2);
-        });
-        expect(
-            await otaProvider.act(agent => agent.get(SoftwareUpdateManager).bdxAdditionalMrpDelayFor(peerAddress)),
-        ).equals(Seconds(2));
-
-        await otaProvider.act(agent =>
-            agent.get(SoftwareUpdateManager).addUpdateConsent(peerAddress, {
-                vendorId: VendorId(vendorId),
-                productId,
-                targetSoftwareVersion,
-                bdxAdditionalMrpDelay: Millis(500),
-            }),
-        );
-        expect(
-            await otaProvider.act(agent => agent.get(SoftwareUpdateManager).bdxAdditionalMrpDelayFor(peerAddress)),
-        ).equals(Millis(500));
-    }).timeout(10_000);
-
-    it("rejects an invalid BDX block size at the call site", async () => {
-        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer(
-            { requestUserConsent: false },
-            {
-                expectedOtaImage: Bytes.fromHex(""),
-            },
-        );
-        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
-
-        const { site, device, controller, otaProvider } = await initOtaSite(
-            TestOtaProviderServer,
-            TestOtaRequestorServer,
-        );
-        await using _localSite = site;
-
-        const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
-        const peerAddress = controller.peers.get("peer1")!.state.commissioning.peerAddress!;
-
-        for (const bdxAdditionalMrpDelay of [Millis(-1), Number.NaN as Duration]) {
-            await expect(
-                otaProvider.act(agent =>
-                    agent.get(SoftwareUpdateManager).addUpdateConsent(peerAddress, {
-                        vendorId: VendorId(vendorId),
-                        productId,
-                        targetSoftwareVersion,
-                        bdxAdditionalMrpDelay,
-                    }),
-                ),
-            ).to.be.rejectedWith(ImplementationError);
-        }
 
         for (const maxBdxBlockSize of [0, -1, 1.5, Number.NaN]) {
-            await expect(
-                otaProvider.act(agent =>
-                    agent.get(SoftwareUpdateManager).addUpdateConsent(peerAddress, {
-                        vendorId: VendorId(vendorId),
-                        productId,
-                        targetSoftwareVersion,
-                        maxBdxBlockSize,
-                    }),
-                ),
-            ).to.be.rejectedWith(ImplementationError);
+            await expect(consentTo({ maxBdxBlockSize })).to.be.rejectedWith(ImplementationError);
         }
-    }).timeout(10_000);
+        for (const bdxAdditionalMrpDelay of [Millis(-1), Millis(Number.NaN)]) {
+            await expect(consentTo({ bdxAdditionalMrpDelay })).to.be.rejectedWith(ImplementationError);
+        }
+
+        // forceUpdate tears down BDX registration and queue state on its way, so it must reject first too
+        await expect(
+            otaProvider.act(agent =>
+                agent.get(SoftwareUpdateManager).forceUpdate(peerAddress, {
+                    vendorId: VendorId(0),
+                    productId: 0,
+                    targetSoftwareVersion: 1,
+                    maxBdxBlockSize: 0,
+                }),
+            ),
+        ).to.be.rejectedWith(ImplementationError);
+
+        expect(await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates)).length(0);
+    });
 
     it("Queue processes a single update via addUpdateConsent", async () => {
         const data = { expectedOtaImage: Bytes.fromHex("") };

@@ -755,6 +755,20 @@ export default function commands(theNode: MatterNode) {
                                             describe:
                                                 "Additive MRP retransmission margin for this transfer, in milliseconds (default: derived from the device's medium)",
                                             type: "number",
+                                        })
+                                        .check(argv => {
+                                            const blockSize = argv.maxBlockSize as number | undefined;
+                                            const margin = argv.mrpMargin as number | undefined;
+                                            if (
+                                                blockSize !== undefined &&
+                                                (!Number.isInteger(blockSize) || blockSize <= 0)
+                                            ) {
+                                                throw new Error("--max-block-size must be a positive integer");
+                                            }
+                                            if (margin !== undefined && (!Number.isFinite(margin) || margin < 0)) {
+                                                throw new Error("--mrp-margin must be a non-negative number of ms");
+                                            }
+                                            return true;
                                         });
                                 },
                                 async argv => {
