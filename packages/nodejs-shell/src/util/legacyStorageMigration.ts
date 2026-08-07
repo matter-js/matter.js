@@ -231,18 +231,38 @@ export async function cleanupLegacyStorage(env: Environment, id: string): Promis
             logger.warn(`Refusing legacy cleanup for store ${id}: migration has not completed`);
             return;
         }
-
-        for (const context of await mgr.driver.contexts([])) {
-            if (context.startsWith("node-")) {
-                await mgr.createContext(context).clearAll();
-            }
-        }
-        await mgr.createContext("nodes").delete("commissionedNodes");
-        await mgr.createContext("credentials").clearAll();
+        await wipeLegacyContexts(mgr);
         logger.info(`Removed legacy storage artifacts for store ${id}`);
     } finally {
         await closeStorage(mgr, id);
     }
+}
+
+/**
+ * Unconditionally remove the legacy (pre-0.16) storage artifacts, no migration-state guard.
+ *
+ * A factory reset clears the current-format fabric but not the legacy source; leaving it would let the next boot
+ * re-migrate and resurrect the identity/key material the reset destroyed. The reset path therefore wipes the
+ * legacy source too. Unlike {@link cleanupLegacyStorage} this makes no completeness assumption — the reset is
+ * discarding everything regardless.
+ */
+export async function eraseLegacyStorage(env: Environment, id: string): Promise<void> {
+    const mgr = await env.get(StorageService).open(id);
+    try {
+        await wipeLegacyContexts(mgr);
+    } finally {
+        await closeStorage(mgr, id);
+    }
+}
+
+async function wipeLegacyContexts(mgr: StorageManager): Promise<void> {
+    for (const context of await mgr.driver.contexts([])) {
+        if (context.startsWith("node-")) {
+            await mgr.createContext(context).clearAll();
+        }
+    }
+    await mgr.createContext("nodes").delete("commissionedNodes");
+    await mgr.createContext("credentials").clearAll();
 }
 
 async function closeStorage(mgr: StorageManager, id: string): Promise<void> {

@@ -34,6 +34,7 @@ import { join } from "node:path";
 import { installDiagnosticLogging } from "./util/diagnosticLogging.js";
 import {
     cleanupLegacyStorage as purgeLegacyStorage,
+    eraseLegacyStorage,
     migrateLegacyCommissionedNodes,
     migrateLegacyControllerCredentials,
 } from "./util/legacyStorageMigration.js";
@@ -160,11 +161,9 @@ export class MatterNode {
         // online here.
         if (resetStorage) {
             await (await this.#ensureNode()).erase();
-            if (cleanupLegacyStorage) {
-                logger.warn(`Ignoring --cleanup-legacy-storage during factory reset for store ${id}`);
-            }
-            // A factory reset wipes the current fabric/peers; migrating legacy data afterward would resurrect
-            // state the reset is meant to clear.
+            // erase() clears only the current-format fabric/peers. The legacy source must go too, or the next
+            // boot's migration would re-materialize the identity and key material the reset just destroyed.
+            await eraseLegacyStorage(nodeEnvironment, id);
             return;
         }
 

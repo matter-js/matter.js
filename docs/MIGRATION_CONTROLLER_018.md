@@ -678,7 +678,11 @@ layout to 0.18 needs a manual re-commission (or an interim run on a 0.16–0.17 
 
 A developer who wants to migrate such a storage themselves, outside the shell, can copy the shell's
 self-contained `packages/nodejs-shell/src/util/legacyStorageMigration.ts` and call its functions around their
-own controller `ServerNode` construction: guard with `legacyMigrationNeeded`, call
-`migrateLegacyControllerCredentials` before `ServerNode.create`, then `migrateLegacyCommissionedNodes(node)`
-once the node is created, and `cleanupLegacyStorage` only once certain the migration succeeded and the
-storage will not be downgraded below 0.16.
+own controller `ServerNode` construction. Call them unconditionally on every start — each is an idempotent
+no-op when there is nothing to migrate, and calling them regardless (rather than gating on
+`legacyMigrationNeeded`) is what makes a migration interrupted after only some peers resume on the next run:
+call `migrateLegacyControllerCredentials` before `ServerNode.create`, then `migrateLegacyCommissionedNodes(node)`
+once the node is created and before it goes online. Run `cleanupLegacyStorage` (irreversible) only once certain
+the migration succeeded and the storage will not be downgraded below 0.16. `legacyMigrationNeeded` is available
+as a cheap "is there anything to do" probe for logging, but must not be used as the guard that decides whether
+to run the migration — it reports false once any peer has been migrated, so gating on it strands the rest.
