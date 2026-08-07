@@ -19,10 +19,10 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/model
     - Breaking: A provisional element is no longer mandatory; conformance following a `P` describes the conformance intended once the element leaves provisional state
-    - Breaking: `SelectDefaultValue()` no longer accepts an existing default to preserve; callers check that themselves
+    - Breaking: `SelectDefaultValue()` lost its `oldDefault` parameter and is now called as `SelectDefaultValue(scope, member)` — if you passed an existing value, use that value directly when it is defined and call the function only when it is `undefined`
     - Enhancement: `FeatureSelectionErrors()` assesses a cluster's selected features against the combinations its FeatureMap conformance disallows
     - Enhancement: `FeatureSet.resolve()` resolves a feature short code, title or camelized title to a short code
-    - Enhancement: `MandatoryDefaultValue()` and `IsMandatory()` are exported for computing and gating a mandatory member's default value
+    - Enhancement: New `IsMandatory()` tells whether a member is mandatory under a schema's supported features, and `MandatoryDefaultValue()` computes the value such a member assumes when no real value exists (schema default, else datatype default, recursing into structs) — the basis for what an unreported client node attribute reads, usable wherever schema-derived fallback values are needed
     - Fix: A cluster's feature table no longer selects features; a feature the specification makes unconditionally mandatory is always selected
     - Fix: Feature selection records against `operationalIsSupported` so a feature's `default` conveys only the specification's fallback value
     - Fix: A feature mandated by any of several alternatives, such as `DoorLock.User`, is now reported as required

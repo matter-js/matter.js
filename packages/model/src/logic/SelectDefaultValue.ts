@@ -123,11 +123,11 @@ function defaultValueForMetatype(scope: Scope, member: ValueModel): unknown {
 
         case Metatype.bitmap:
         case Metatype.object:
-            // This is not a very good default but it is better than undefined
+            // Only reachable via SelectDefaultValue, where a shallow placeholder suffices because the behavior
+            // supplies real state; MandatoryDefaultValue builds structs from their members' own defaults instead
             return {};
 
         case Metatype.array:
-            // Same
             return [];
     }
 }

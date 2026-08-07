@@ -209,7 +209,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
     const isMandatory = IsMandatory(scope, schema);
 
     // The template is memoized but every value handed out is a fresh copy: an explicit schema default is
-    // model-owned shared state, and the container never holds a synthesized value.
+    // model-owned shared state.
     let template: Val | undefined;
     let templated = false;
     const synthesizeDefault = isMandatory
