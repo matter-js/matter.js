@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { isDeepEqual } from "@matter/general";
+import { camelize, isDeepEqual } from "@matter/general";
 import type { ValueModel } from "../models/index.js";
 
 /**
@@ -62,6 +62,54 @@ export namespace FeatureSet {
     export type Flag = string;
     export type Flags = Iterable<FeatureSet.Flag>;
     export type Definition = Flags | { [name: string]: boolean | undefined };
+
+    /**
+     * A feature as named by the specification.
+     */
+    export interface Named {
+        name: string;
+        title?: string;
+    }
+
+    /**
+     * Resolve feature names to short codes.
+     *
+     * Callers name features in several ways: the specification's short code ("LT"), its title ("Lighting") or the
+     * camelized title generated APIs expose ("lighting").  All resolve here so every entry point accepts the same
+     * vocabulary.  Match is case insensitive.
+     *
+     * @returns the resolved short codes and any names that resolve to no feature
+     */
+    export function resolve(features: readonly Named[], names: Iterable<string>) {
+        const byName = new Map<string, string>();
+        for (const feature of features) {
+            const title = feature.title ?? feature.name;
+            for (const alias of [feature.name, title, camelize(title)]) {
+                byName.set(alias.toLowerCase(), feature.name);
+            }
+        }
+
+        const resolved = new FeatureSet();
+        const unresolved = new Array<string>();
+
+        for (const name of names) {
+            const code = byName.get(name.toLowerCase());
+            if (code === undefined) {
+                unresolved.push(name);
+            } else {
+                resolved.add(code);
+            }
+        }
+
+        return { features: resolved, unresolved };
+    }
+
+    /**
+     * The names {@link resolve} accepts, as the specification titles them.
+     */
+    export function titlesOf(features: readonly Named[]) {
+        return features.map(feature => feature.title ?? feature.name);
+    }
 
     /**
      * Normalize the feature map and list of supported feature names into sets of "all" and "supported" features by

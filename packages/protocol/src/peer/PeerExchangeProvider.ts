@@ -137,9 +137,12 @@ export class PeerExchangeProvider extends ExchangeProvider {
                     options?.addressOverride,
                 );
 
-                exchange.closing.on(() => {
+                // An exchange that is destroyed rather than closed emits only "closed", so both paths must release
+                const releaseSlot = () => {
                     slot.close();
-                });
+                };
+                exchange.closing.once(releaseSlot);
+                exchange.closed.once(releaseSlot);
 
                 return exchange;
             } catch (e) {

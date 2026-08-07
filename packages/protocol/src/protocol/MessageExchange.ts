@@ -1068,7 +1068,7 @@ export class MessageExchange {
             return this.#close(cause);
         }
 
-        {
+        if (!this.#closed.value) {
             using _emitting = closing.join("emitting");
             await this.#closing.emit(true);
         }
@@ -1127,6 +1127,9 @@ export class MessageExchange {
     async #close(cause?: Error) {
         using _closing = this.#lifetime.closing();
 
+        // Cleanup must repeat: a send may have started after an earlier close.  Only the notification is once-only.
+        const wasClosed = this.#closed.value;
+
         if (this.#closeCause === undefined) {
             this.#closeCause = cause;
         }
@@ -1140,7 +1143,9 @@ export class MessageExchange {
             this.#timedInteractionTimer?.stop();
             this.#messagesQueue.close(this.#closeCause);
         } finally {
-            await this.#closed.emit(true);
+            if (!wasClosed) {
+                await this.#closed.emit(true);
+            }
         }
     }
 

@@ -56,7 +56,7 @@ export interface ValReference<T extends Val = Val> {
      * How this container keys its own members.  Only a datasource root may key by element ID; every nested container
      * keys by property name (list entries, by index).
      */
-    readonly primaryKey: "id" | "name";
+    readonly primaryKey: ValReference.PrimaryKey;
 
     /**
      * The managed value that owns the reference.
@@ -77,4 +77,11 @@ export interface ValReference<T extends Val = Val> {
      * Per-instance validation configuration for this reference.
      */
     supervisionConfig?: Supervision.Config;
+}
+
+export namespace ValReference {
+    /**
+     * How a container keys its own members.
+     */
+    export type PrimaryKey = "id" | "name";
 }

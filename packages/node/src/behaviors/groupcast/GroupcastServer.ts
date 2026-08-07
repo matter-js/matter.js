@@ -31,6 +31,23 @@ const UNMAPPED_KEYSET_ID = 0xffff;
 const GROUPCAST_IS_PROVISIONAL = true;
 
 /**
+ * Every element of this provisional cluster is optional, so declare the ones this server implements.
+ *
+ * TODO: remove once the Groupcast cluster leaves provisional state in the Matter specification.  Its elements become
+ * mandatory again at that point and matter.js implements them without this declaration.
+ */
+const Base = GroupcastBehavior.enable({
+    attributes: {
+        membership: true,
+        maxMembershipCount: true,
+        maxMcastAddrCount: true,
+        usedMcastAddrCount: true,
+        fabricUnderTest: true,
+    },
+    events: { groupcastTesting: true },
+});
+
+/**
  * This is the default server implementation of {@link GroupcastBehavior}.
  *
  * The Groupcast cluster is node-scoped and must be placed on the root endpoint.
@@ -44,7 +61,7 @@ const GROUPCAST_IS_PROVISIONAL = true;
  * - On first use by a fabric, marks the fabric as "GroupcastAdopted" in GKM, making GroupKeyMap read-only.
  * - Migrates legacy group data from the Groups cluster on startup.
  */
-export class GroupcastServer extends GroupcastBehavior {
+export class GroupcastServer extends Base {
     declare internal: GroupcastServer.Internal;
 
     /** Timer for GroupcastTesting auto-disable. */
@@ -652,7 +669,7 @@ export namespace GroupcastServer {
     }
 
     /** Default state overrides for GroupcastServer. */
-    export class State extends GroupcastBehavior.State {
+    export class State extends Base.State {
         /**
          * Implementation-defined maximum membership count (min 10 per spec).
          * Set to 2 * GKM.maxGroupsPerFabric (44) so per-fabric quota floor(44/2)=22 aligns exactly
