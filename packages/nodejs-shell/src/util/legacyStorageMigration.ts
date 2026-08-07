@@ -220,29 +220,20 @@ export async function migrateLegacyCommissionedNodes(
 }
 
 /**
- * Explicit, separate removal of the legacy (Era B) storage artifacts. The sole destructive path. Refuses to run
- * unless the new format is present (a fabric in `fabrics` OR a per-peer context under `nodes`), so it never
- * destroys data that has not been migrated. Idempotent.
+ * Irreversible: once the legacy artifacts are deleted there is no way back, so this must only be run when the
+ * operator is certain migration succeeded and the store will not be downgraded below 0.16.
+ *
+ * Deletes all legacy (pre-0.16) storage artifacts once migration is no longer needed (the same
+ * `stepOneNeeded`/`stepTwoNeeded` predicate {@link legacyMigrationNeeded} uses). It does not verify that every
+ * individual peer migrated successfully: this is an explicit, user-confirmed action (e.g. the shell's
+ * `--cleanup-legacy-storage` flag). Running it against a store where step 1 or step 2 has not fully completed
+ * loses the un-migrated data; that is accepted, and is the caller's responsibility. Idempotent.
  */
 export async function cleanupLegacyStorage(env: Environment, id: string): Promise<void> {
     const mgr = await env.get(StorageService).open(id);
     try {
-        const fabrics = await mgr.createContext("fabrics").get<LegacyFabricRecord[]>("fabrics", []);
-        const nodesCtx = mgr.createContext("nodes");
-        const migratedPeerCount = (await nodesCtx.contexts()).length;
-        if (fabrics.length === 0 && migratedPeerCount === 0) {
-            logger.warn(`Refusing legacy cleanup for store ${id}: no migrated data present`);
-            return;
-        }
-
-        // A commissionedNodes entry with no matching peer context is one migrateLegacyCommissionedNodes left for
-        // retry (prior failure, or step 2 never ran); this is not visible from a "migration ran at all" check.
-        const commissionedNodes = await nodesCtx.get<LegacyCommissionedNode[]>("commissionedNodes", []);
-        const distinctLegacyNodeCount = new Set(commissionedNodes.map(([rawNodeId]) => rawNodeId)).size;
-        if (distinctLegacyNodeCount > 0 && migratedPeerCount < distinctLegacyNodeCount) {
-            logger.warn(
-                `Refusing legacy cleanup for store ${id}: ${migratedPeerCount} of ${distinctLegacyNodeCount} commissioned nodes migrated`,
-            );
+        if ((await stepOneNeeded(mgr)) || (await stepTwoNeeded(mgr))) {
+            logger.warn(`Refusing legacy cleanup for store ${id}: migration has not completed`);
             return;
         }
 
