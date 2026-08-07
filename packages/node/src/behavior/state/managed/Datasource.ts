@@ -36,6 +36,18 @@ function isIdKey(key: string) {
     return /^(0|[1-9]\d*)$/.test(key);
 }
 
+/**
+ * Remove a state instance's own enumerable value slots.  The constructor must run — skipping it via Object.create
+ * would leave private-field brands uninstalled and break a state class whose Val.properties implementation relies
+ * on them — so field initializers execute and are stripped afterwards.
+ */
+function stripOwnValues(values: Val.Struct) {
+    for (const key of Object.keys(values)) {
+        delete values[key];
+    }
+    return values;
+}
+
 // Once-per-act() guard for local sessions (frozen — can't set interactionStarted on the session).
 const localInteractionBeginEmitted = new WeakSet<object>();
 
@@ -315,10 +327,11 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
         this.events = options.events ?? {};
 
         // Initialize values.  An id-keyed datasource mirrors a peer, whose reports are the only source of values:
-        // the state class's name-keyed field initializers must not run, or they masquerade as reported data
-        const values = (
-            this.primaryKey === "id" ? Object.create(options.type.prototype) : new options.type()
-        ) as Val.Struct;
+        // the state class's name-keyed field initializers must not survive, or they masquerade as reported data
+        const values = new options.type() as Val.Struct;
+        if (this.primaryKey === "id") {
+            stripOwnValues(values);
+        }
 
         let storedValues = options.store?.initialValues;
 
@@ -797,7 +810,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
             if (this.primaryKey === "id") {
                 // A mirror's clone must not resurrect the state class's name-keyed field initializers — the peer's
                 // reports are the only source of values
-                this.#values = Object.create(this.#internals.type.prototype);
+                this.#values = stripOwnValues(new this.#internals.type() as Val.Struct);
                 keys = Object.keys(old);
             } else {
                 this.#values = new this.#internals.type();

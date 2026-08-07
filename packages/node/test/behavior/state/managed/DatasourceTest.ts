@@ -233,6 +233,28 @@ describe("Datasource", () => {
             );
         });
 
+        it("preserves private-field state while stripping seeded defaults", async () => {
+            class PrivateDynamicState {
+                foo? = "bar";
+                #extra: Val.Struct = {};
+
+                [Val.properties]() {
+                    return this.#extra;
+                }
+            }
+
+            await withDatasourceAndReference(
+                { type: PrivateDynamicState, supervisor: idSupervisor, primaryKey: "id" },
+                ({ state }) => {
+                    expect("foo" in rawValuesOf(state)).false;
+                    expect(state.foo).undefined;
+
+                    state.foo = "new";
+                    expect(state.foo).equals("new");
+                },
+            );
+        });
+
         it("does not resurrect state-class defaults when cloning for a transaction", async () => {
             await withDatasourceAndReference(
                 { type: SeededState, supervisor: idSupervisor, primaryKey: "id" },
