@@ -51,12 +51,11 @@ export class FileStorageDriver extends FilesystemStorageDriver implements Legacy
     }
 
     readonly #path: string;
-    readonly #clear: boolean;
     protected isInitialized = false;
     #writeFileBlocker = new Map<string, Promise<void>>();
     #index: ContextIndex = {};
 
-    constructor(namespaceOrPath?: DataNamespace | string, clear = false) {
+    constructor(namespaceOrPath?: DataNamespace | string) {
         super(typeof namespaceOrPath === "string" || namespaceOrPath === undefined ? undefined : namespaceOrPath);
         this.#path =
             typeof namespaceOrPath === "string"
@@ -64,7 +63,6 @@ export class FileStorageDriver extends FilesystemStorageDriver implements Legacy
                 : namespaceOrPath !== undefined
                   ? this.root!.directory.path
                   : "";
-        this.#clear = clear;
     }
 
     get initialized() {
@@ -77,10 +75,6 @@ export class FileStorageDriver extends FilesystemStorageDriver implements Legacy
         }
         await super.initialize();
 
-        if (this.#clear) {
-            this.#index = {};
-            await rm(this.#path, { recursive: true, force: true });
-        }
         await mkdir(this.#path, { recursive: true });
 
         const files = await readdir(this.#path);

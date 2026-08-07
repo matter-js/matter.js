@@ -32,7 +32,11 @@ function activeSpanNames(lifetime: Lifetime): string[] {
 }
 
 const RootWithLitIcd = MockServerNode.RootEndpoint.with(
-    IcdManagementServer.with(IcdManagement.Feature.CheckInProtocolSupport, IcdManagement.Feature.LongIdleTimeSupport),
+    IcdManagementServer.with(
+        IcdManagement.Feature.CheckInProtocolSupport,
+        IcdManagement.Feature.LongIdleTimeSupport,
+        IcdManagement.Feature.UserActiveModeTrigger,
+    ),
 );
 
 describe("ServerSubscription", () => {

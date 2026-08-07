@@ -45,6 +45,9 @@ export class StorageService {
     #configuredBlobDriver?: string;
     #openBlobDrivers = new Map<string, { driver: BlobStorageDriver; refs: number }>();
 
+    #clearOnFirstOpen = false;
+    #clearedNamespaces = new Set<string>();
+
     constructor(environment: Environment) {
         environment.set(StorageService, this);
         this.#environment = environment;
@@ -112,6 +115,19 @@ export class StorageService {
 
     get configuredBlobDriver() {
         return this.#configuredBlobDriver;
+    }
+
+    /**
+     * When true, each namespace is wiped the first time it is opened in this process (e.g. from
+     * `storage.clear`/`--storage-clear`).  Later opens of a namespace already cleared once, such as after a close,
+     * retain their data.
+     */
+    set clearOnFirstOpen(value: boolean) {
+        this.#clearOnFirstOpen = value;
+    }
+
+    get clearOnFirstOpen() {
+        return this.#clearOnFirstOpen;
     }
 
     /**
@@ -185,72 +201,86 @@ export class StorageService {
         const dir = root.directory;
         const namespace = root.namespace;
 
-        // Detect existing driver
-        let descriptor = await this.#readDescriptor(dir);
-        let detectedKind: string | undefined;
-
-        if (descriptor) {
-            if (descriptor.type === "blob") {
-                throw new StorageError(`Namespace "${namespace}" contains blob storage, not KV storage`);
-            }
-            detectedKind = descriptor.kind;
-        } else if (await this.#hasLegacyFileData(dir)) {
-            // Directory exists with data files but no driver.json → legacy file driver
-            detectedKind = "file";
-        } else {
-            // Check for legacy sibling .db file → sqlite driver
-            const dbFile = fs.file(`${namespace}.db`);
-            if (await dbFile.exists()) {
-                detectedKind = "sqlite";
-            }
-        }
-
-        // Resolve which driver to use
-        const targetKind = this.#configuredDriver ?? detectedKind ?? this.#defaultDriver;
-
-        // Migration: if we detected an existing driver that differs from the target, migrate
-        if (detectedKind !== undefined && detectedKind !== targetKind) {
-            await this.#migrate(fs, namespace, dir, detectedKind, targetKind);
-            descriptor = await this.#readDescriptor(dir);
-        }
-
-        if (!descriptor) {
-            descriptor = { kind: targetKind, type: "kv" };
-        } else if (descriptor.type === undefined) {
-            descriptor = { ...descriptor, type: "kv" };
-        }
-
-        const impl = this.#drivers.get(targetKind);
-        if (!impl) {
-            throw new NoProviderError(`No storage driver registered for "${targetKind}"`);
-        }
-
-        // Preinitialize
-        if (impl.preinitialize) {
-            await impl.preinitialize(fs, descriptor);
-        }
-
-        // Create the driver — pass root so it can acquire a ref-counted lock
-        const storage = await impl.create(root, descriptor);
-
+        // Our ref must outlive impl.create(), which takes a second ref on root — releasing earlier would drop the
+        // physical lock and let another process in mid-wipe.
+        let clearLock: DatafileRoot.Lock | undefined;
         try {
-            // Write driver.json if the directory exists after creation (before initialize, so we persist intent)
-            if (await dir.exists()) {
-                await this.#writeDescriptor(dir, descriptor);
+            let descriptor: StorageDriver.Descriptor;
+
+            if (this.#needsClear(cacheKey)) {
+                const kind = this.#configuredDriver ?? this.#defaultDriver;
+
+                // Reject an unregistered driver before the wipe, or a misconfigured id destroys the data it fails on
+                this.#driverFor(kind);
+
+                clearLock = await this.#clearFilesystemNamespace(root, cacheKey, "kv");
+                descriptor = { kind, type: "kv" };
+            } else {
+                // Detect existing driver
+                let detected = await this.#readDescriptor(dir);
+                let detectedKind: string | undefined;
+
+                if (detected) {
+                    if (detected.type === "blob") {
+                        throw new StorageError(`Namespace "${namespace}" contains blob storage, not KV storage`);
+                    }
+                    detectedKind = detected.kind;
+                } else if (await this.#hasLegacyFileData(dir)) {
+                    // Directory exists with data files but no driver.json → legacy file driver
+                    detectedKind = "file";
+                } else {
+                    // Check for legacy sibling .db file → sqlite driver
+                    const dbFile = fs.file(`${namespace}.db`);
+                    if (await dbFile.exists()) {
+                        detectedKind = "sqlite";
+                    }
+                }
+
+                // Resolve which driver to use
+                const resolvedKind = this.#configuredDriver ?? detectedKind ?? this.#defaultDriver;
+
+                // Migration: if we detected an existing driver that differs from the target, migrate
+                if (detectedKind !== undefined && detectedKind !== resolvedKind) {
+                    await this.#migrate(fs, namespace, dir, detectedKind, resolvedKind);
+                    detected = await this.#readDescriptor(dir);
+                }
+
+                if (!detected) {
+                    descriptor = { kind: resolvedKind, type: "kv" };
+                } else if (detected.type === undefined) {
+                    descriptor = { ...detected, type: "kv" };
+                } else {
+                    descriptor = detected;
+                }
             }
 
-            this.#openDrivers.set(cacheKey, { driver: storage, refs: 1 });
+            const impl = this.#driverFor(descriptor.kind);
 
-            const manager = new StorageManager(new StorageDriverHandle(storage, () => this.#release(cacheKey)));
-            await manager.initialize();
-            return manager;
-        } catch (e) {
+            // Preinitialize
+            if (impl.preinitialize) {
+                await impl.preinitialize(fs, descriptor);
+            }
+
+            // Create the driver — pass root so it can acquire a ref-counted lock
+            const storage = await impl.create(root, descriptor);
+
             try {
-                await storage.close();
-            } catch (closeError) {
-                logger.warn("Error closing storage after failed initialization:", closeError);
+                // Write driver.json if the directory exists after creation (before initialize, so we persist intent)
+                if (await dir.exists()) {
+                    await this.#writeDescriptor(dir, descriptor);
+                }
+
+                this.#openDrivers.set(cacheKey, { driver: storage, refs: 1 });
+
+                const manager = new StorageManager(new StorageDriverHandle(storage, () => this.#release(cacheKey)));
+                await manager.initialize();
+                return manager;
+            } catch (e) {
+                await this.#discardFailedDriver(cacheKey, storage);
+                throw e;
             }
-            throw e;
+        } finally {
+            await this.#releaseClearLock(clearLock);
         }
     }
 
@@ -258,11 +288,7 @@ export class StorageService {
         const targetKind = this.#configuredDriver ?? this.#defaultDriver;
         const descriptor: StorageDriver.Descriptor = { kind: targetKind, type: "kv" };
 
-        const impl = this.#drivers.get(targetKind);
-        if (!impl) {
-            throw new NoProviderError(`No storage driver registered for "${targetKind}"`);
-        }
-
+        const impl = this.#driverFor(targetKind);
         const storage = await impl.create(dataNs, descriptor);
 
         try {
@@ -270,13 +296,12 @@ export class StorageService {
 
             const manager = new StorageManager(new StorageDriverHandle(storage, () => this.#release(cacheKey)));
             await manager.initialize();
+
+            await this.#clearOpenDriver(storage, cacheKey, dataNs.namespace, "kv");
+
             return manager;
         } catch (e) {
-            try {
-                await storage.close();
-            } catch (closeError) {
-                logger.warn("Error closing storage after failed initialization:", closeError);
-            }
+            await this.#discardFailedDriver(cacheKey, storage);
             throw e;
         }
     }
@@ -345,84 +370,98 @@ export class StorageService {
 
     async #openBlobFilesystem(cacheKey: string, root: DatafileRoot): Promise<BlobStorageHandle> {
         const dir = root.directory;
+        const namespace = root.namespace;
 
-        // Detect existing blob driver from driver.json
-        let descriptor = await this.#readDescriptor(dir);
-        let detectedKind: string | undefined;
-
-        if (descriptor) {
-            if (descriptor.type === "kv") {
-                throw new StorageError(`Namespace "${root.namespace}" contains KV storage, not blob storage`);
-            }
-            detectedKind = descriptor.kind;
-        } else if (await dir.exists()) {
-            // Directory exists but no driver.json → detect layout from directory contents
-            const blobsSubDir = dir.directory("blobs");
-            if (await blobsSubDir.exists()) {
-                // Has a blobs/ subdirectory → WAL blob layout
-                detectedKind = "wal";
-            } else {
-                // Flat files → legacy file driver blob layout
-                detectedKind = "file";
-            }
-        }
-
-        const targetKind = this.#configuredBlobDriver ?? detectedKind ?? this.#defaultBlobDriver;
-
-        // Migrate blob data if the detected driver differs from the target
-        if (detectedKind !== undefined && detectedKind !== targetKind) {
-            await this.#migrateBlob(root, dir, detectedKind, targetKind);
-            descriptor = await this.#readDescriptor(dir);
-        }
-
-        const impl = this.#blobDrivers.get(targetKind);
-        if (!impl) {
-            throw new NoProviderError(`No blob storage driver registered for "${targetKind}"`);
-        }
-
-        if (!descriptor) {
-            descriptor = { kind: targetKind, type: "blob" };
-        }
-
-        if (impl.preinitialize) {
-            const fs = this.#environment.get(Filesystem);
-            await impl.preinitialize(fs, descriptor);
-        }
-
-        const storage = await impl.create(root, descriptor);
-
+        // See #openFilesystem for why our ref is held across create()/initialize() and released in the finally.
+        let clearLock: DatafileRoot.Lock | undefined;
         try {
-            await storage.initialize();
+            let descriptor: BlobStorageDriver.Descriptor;
 
-            // Write driver.json so future opens know which blob driver is in use
-            if (await dir.exists()) {
-                await this.#writeDescriptor(dir, { kind: targetKind, type: "blob" });
+            if (this.#needsClear(cacheKey)) {
+                const kind = this.#configuredBlobDriver ?? this.#defaultBlobDriver;
+
+                // Reject an unregistered driver before the wipe, or a misconfigured id destroys the data it fails on
+                this.#blobDriverFor(kind);
+
+                clearLock = await this.#clearFilesystemNamespace(root, cacheKey, "blob");
+                descriptor = { kind, type: "blob" };
+            } else {
+                // Detect existing blob driver from driver.json
+                let detected = await this.#readDescriptor(dir);
+                let detectedKind: string | undefined;
+
+                if (detected) {
+                    if (detected.type === "kv") {
+                        throw new StorageError(`Namespace "${namespace}" contains KV storage, not blob storage`);
+                    }
+                    detectedKind = detected.kind;
+                } else if (await dir.exists()) {
+                    // Directory exists but no driver.json → detect layout from directory contents
+                    const blobsSubDir = dir.directory("blobs");
+                    if (await blobsSubDir.exists()) {
+                        // Has a blobs/ subdirectory → WAL blob layout
+                        detectedKind = "wal";
+                    } else {
+                        // Flat files → legacy file driver blob layout
+                        detectedKind = "file";
+                    }
+                }
+
+                const resolvedKind = this.#configuredBlobDriver ?? detectedKind ?? this.#defaultBlobDriver;
+
+                // Migrate blob data if the detected driver differs from the target
+                if (detectedKind !== undefined && detectedKind !== resolvedKind) {
+                    await this.#migrateBlob(root, dir, detectedKind, resolvedKind);
+                    detected = await this.#readDescriptor(dir);
+                }
+
+                descriptor = detected ?? { kind: resolvedKind, type: "blob" };
             }
 
-            this.#openBlobDrivers.set(cacheKey, { driver: storage, refs: 1 });
-            return { driver: storage, close: () => this.#releaseBlobDriver(cacheKey) };
-        } catch (e) {
+            const targetKind = descriptor.kind;
+            const impl = this.#blobDriverFor(targetKind);
+
+            if (impl.preinitialize) {
+                const fs = this.#environment.get(Filesystem);
+                await impl.preinitialize(fs, descriptor);
+            }
+
+            const storage = await impl.create(root, descriptor);
+
             try {
-                await storage.close();
-            } catch (closeError) {
-                logger.warn("Error closing blob storage after failed initialization:", closeError);
+                await storage.initialize();
+
+                // Write driver.json so future opens know which blob driver is in use
+                if (await dir.exists()) {
+                    await this.#writeDescriptor(dir, { kind: targetKind, type: "blob" });
+                }
+
+                this.#openBlobDrivers.set(cacheKey, { driver: storage, refs: 1 });
+                return { driver: storage, close: () => this.#releaseBlobDriver(cacheKey) };
+            } catch (e) {
+                try {
+                    await storage.close();
+                } catch (closeError) {
+                    logger.warn("Error closing blob storage after failed initialization:", closeError);
+                }
+                throw e;
             }
-            throw e;
+        } finally {
+            await this.#releaseClearLock(clearLock);
         }
     }
 
     async #openBlobSimple(cacheKey: string, dataNs: DataNamespace): Promise<BlobStorageHandle> {
         const targetBlobKind = this.#configuredBlobDriver ?? this.#defaultBlobDriver;
-        const impl = this.#blobDrivers.get(targetBlobKind);
-        if (!impl) {
-            throw new NoProviderError(`No blob storage driver registered for "${targetBlobKind}"`);
-        }
+        const impl = this.#blobDriverFor(targetBlobKind);
 
         const descriptor: BlobStorageDriver.Descriptor = { kind: targetBlobKind, type: "blob" };
         const storage = await impl.create(dataNs, descriptor);
 
         try {
             await storage.initialize();
+
+            await this.#clearOpenDriver(storage, cacheKey, dataNs.namespace, "blob");
 
             this.#openBlobDrivers.set(cacheKey, { driver: storage, refs: 1 });
             return { driver: storage, close: () => this.#releaseBlobDriver(cacheKey) };
@@ -466,6 +505,126 @@ export class StorageService {
                 available: this.#drivers.size > 0,
             }),
         ];
+    }
+
+    /**
+     * Close a driver whose open failed.  The cache entry must go first, or a later open adopts the closed driver.
+     */
+    async #discardFailedDriver(cacheKey: string, storage: StorageDriver) {
+        if (this.#openDrivers.get(cacheKey)?.driver === storage) {
+            this.#openDrivers.delete(cacheKey);
+        }
+        try {
+            await storage.close();
+        } catch (closeError) {
+            logger.warn("Error closing storage after failed initialization:", closeError);
+        }
+    }
+
+    #driverFor(kind: string) {
+        const impl = this.#drivers.get(kind);
+        if (impl === undefined) {
+            throw new NoProviderError(`No storage driver registered for "${kind}"`);
+        }
+        return impl;
+    }
+
+    #blobDriverFor(kind: string) {
+        const impl = this.#blobDrivers.get(kind);
+        if (impl === undefined) {
+            throw new NoProviderError(`No blob storage driver registered for "${kind}"`);
+        }
+        return impl;
+    }
+
+    /**
+     * Does not mark `cacheKey` as cleared — call `#markCleared` only after the wipe actually succeeds, so a failed
+     * wipe can be retried.
+     */
+    #needsClear(cacheKey: string): boolean {
+        return this.#clearOnFirstOpen && !this.#clearedNamespaces.has(cacheKey);
+    }
+
+    #markCleared(cacheKey: string, namespace: string, type: StorageType) {
+        this.#clearedNamespaces.add(cacheKey);
+        logger.notice(`Cleared ${type === "blob" ? "blob storage" : "storage"} for namespace "${namespace}"`);
+    }
+
+    /**
+     * Wipe a filesystem namespace and return the lock taken for the wipe.  The caller must keep the lock until the
+     * driver has taken its own ref on {@link root} and release it via {@link #releaseClearLock}.
+     */
+    async #clearFilesystemNamespace(root: DatafileRoot, cacheKey: string, type: StorageType) {
+        const dir = root.directory;
+        const namespace = root.namespace;
+
+        const existing = await this.#readDescriptor(dir);
+        if (existing?.type !== undefined && existing.type !== type) {
+            throw new StorageError(
+                type === "kv"
+                    ? `Namespace "${namespace}" contains blob storage, not KV storage`
+                    : `Namespace "${namespace}" contains KV storage, not blob storage`,
+            );
+        }
+
+        const lock = await root.lock();
+        try {
+            await this.#clearFilesystemContents(dir);
+
+            if (type === "kv") {
+                // Delete the legacy sibling too, or a later non-clear start would detect sqlite and migrate the
+                // stale data back in
+                const dbFile = this.#environment.get(Filesystem).file(`${namespace}.db`);
+                if (await dbFile.exists()) {
+                    await dbFile.delete();
+                }
+            }
+        } catch (e) {
+            await this.#releaseClearLock(lock);
+            throw e;
+        }
+
+        this.#markCleared(cacheKey, namespace, type);
+        return lock;
+    }
+
+    /**
+     * Wipe a driver that is already open.  Filesystem namespaces are wiped before creation instead, so this covers
+     * only namespaces without a {@link Filesystem}.
+     */
+    async #clearOpenDriver(storage: BaseStorageDriver, cacheKey: string, namespace: string, type: StorageType) {
+        if (!this.#needsClear(cacheKey)) {
+            return;
+        }
+        await storage.clearAll([]);
+        this.#markCleared(cacheKey, namespace, type);
+    }
+
+    /**
+     * Releasing must never mask the error that aborted the open, so a failure here is logged rather than thrown.
+     */
+    async #releaseClearLock(lock?: DatafileRoot.Lock) {
+        try {
+            await lock?.close();
+        } catch (e) {
+            logger.warn("Error releasing storage lock after clear:", e);
+        }
+    }
+
+    /**
+     * Wipe a namespace directory's contents in place, preserving `driver.json` and the lock/pid files so a lock held
+     * across this call stays valid.
+     */
+    async #clearFilesystemContents(dir: Directory) {
+        if (!(await dir.exists())) {
+            return;
+        }
+        for await (const entry of dir.entries()) {
+            if (entry.kind === "file" && StorageDriver.RESERVED_FILENAMES.has(entry.name)) {
+                continue;
+            }
+            await entry.delete();
+        }
     }
 
     async #hasLegacyFileData(dir: Directory): Promise<boolean> {

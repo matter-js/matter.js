@@ -341,6 +341,5 @@ export namespace OnOffBaseServer {
     }
 }
 
-// We had turned on some more features to provide a default implementation, but export the cluster with default
-// Features again.
+// Drop the features the base implementation enables internally so consumers select their own
 export class OnOffServer extends OnOffBaseServer.with() {}

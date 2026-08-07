@@ -41,4 +41,5 @@ export class SmokeCoAlarmBaseServer extends SmokeCoAlarmBase {
     }
 }
 
-export class SmokeCoAlarmServer extends SmokeCoAlarmBaseServer.for(SmokeCoAlarm) {}
+// Drop the features the base implementation enables internally so consumers select their own
+export class SmokeCoAlarmServer extends SmokeCoAlarmBaseServer.with() {}

@@ -1671,6 +1671,5 @@ export namespace ThermostatBaseServer {
     }
 }
 
-// We had turned on some more features to provide a default implementation, but export the cluster with default
-// Features again.
-export class ThermostatServer extends ThermostatBaseServer.for(Thermostat) {}
+// Drop the features the base implementation enables internally so consumers select their own
+export class ThermostatServer extends ThermostatBaseServer.with() {}

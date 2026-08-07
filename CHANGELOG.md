@@ -11,11 +11,42 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/general
+    - Fix: Opening a namespace whose `driver.json` names an unregistered storage driver now throws `NoProviderError` instead of silently opening the existing data with a mismatched driver
+    - Fix: DNS-SD ignores SRV records with port 0, an empty target or an out-of-range port
+    - Fix: DNS-SD resolution queries A/AAAA for the SRV target host instead of the service instance name
+    - Fix: The `Symbol.metadata` polyfill no longer conflicts with `lib.esnext.decorators` in the published declarations
+
+- @matter/model
+    - Enhancement: `FeatureSelectionErrors()` assesses a cluster's selected features against the combinations its FeatureMap conformance disallows
+    - Enhancement: `FeatureSet.resolve()` resolves a feature short code, title or camelized title to a short code
+    - Fix: A cluster's feature table no longer selects features; a feature the specification makes unconditionally mandatory is always selected
+    - Fix: Feature selection records against `operationalIsSupported` so a feature's `default` conveys only the specification's fallback value
+    - Fix: A feature mandated by any of several alternatives, such as `DoorLock.User`, is now reported as required
+
 - @matter/node
-    - Breaking: A client node's attribute the peer has not reported now reads as `undefined` — primitives no longer return a default seeded from the state class or schema, and a schema default referencing another field no longer resolves on a client node
+    - Breaking: Default server exports no longer inherit the features their base implementation enables internally.
+        - `ColorControlServer`, `DoorLockServer`, `ElectricalEnergyMeasurementServer`, `LevelControlServer`, `ModeSelectServer`, `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer` and `WindowCoveringServer` now select no features. Select the features your device supports with `.with(...)` or use the DeviceType specific Requirement definitions of these clusters which automatically enable the needed features for the device type
+        - `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer`, `WindowCoveringServer` and `ElectricalEnergyMeasurementServer` now require a selection to be added to an endpoint at all. The `DoorLockDevice`, `SpeakerDevice` and `ModeSelectDevice` device types alias these exports, so their clusters also select no features and advertise a different FeatureMap.
+        - Verify the feature set of every device you compose. Persisted cluster state resets once for affected devices because it is keyed by feature selection
+    - Breaking: A LongIdleTimeSupport ICD must select CheckInProtocolSupport and UserActiveModeTrigger
+    - Breaking: A node that accepts more than one path per invoke must select the General Diagnostics DataModelTest feature
+    - Breaking: A client node's attribute the peer has not reported now reads as `undefined` — primitives no longer return a datatype/schema default, including a schema default referencing another field no longer resolves on a client node
     - Breaking: Configured options and environment variables no longer seed a client node's cluster state; the peer's reports are the only source of values
+    - Enhancement: Adding a server cluster to an endpoint fails when its selected features violate the conformance of its FeatureMap
+    - Fix: `ClusterBehavior.with()` rejects a feature the cluster does not define
     - Fix: Client node values persisted under property names by earlier versions are migrated to their attribute id on load, so they stay readable
     - Fix: Writing a fabric-scoped list entry that stems from a cluster whose schema could not be resolved no longer produces two conflicting fabricIndex fields
+
+- @matter/nodejs
+    - Breaking: `FileStorageDriver`'s constructor no longer accepts a `clear` argument; clearing is handled by `StorageService`
+    - Fix: Ensure that `--storage-clear`/`MATTER_STORAGE_CLEAR` is honored again and clears the storage on start
+
+- @matter/react-native
+    - Fix: The `storage.clear` variable now clears the storage on start as it does on Node.js
+
+- @matter/types
+    - Fix: `Cluster.with()` rejects a feature the cluster does not define and returns one frozen namespace per selection
 
 ## 0.17.9 (2026-08-06)
 
