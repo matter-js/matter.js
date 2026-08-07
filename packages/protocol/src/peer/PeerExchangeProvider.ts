@@ -85,8 +85,13 @@ export class PeerExchangeProvider extends ExchangeProvider {
             }
 
             const network = this.#context.networks.select(this.#peer, options?.network);
+            const medium = this.#context.networks.forPeer(this.#peer);
             const peerAdditionalMrpDelay =
-                options?.additionalMrpDelay ?? this.#context.networks.forPeer(this.#peer).additionalMrpDelay;
+                options?.additionalMrpDelay ??
+                MRP.marginFor(
+                    { messaging: medium.additionalMrpDelay, bdx: medium.bdxAdditionalMrpDelay },
+                    options?.protocol ?? INTERACTION_PROTOCOL_ID,
+                );
             const slot = await network.semaphore.obtainSlot(abort);
 
             try {
@@ -132,9 +137,12 @@ export class PeerExchangeProvider extends ExchangeProvider {
                     options?.addressOverride,
                 );
 
-                exchange.closing.on(() => {
+                // An exchange that is destroyed rather than closed emits only "closed", so both paths must release
+                const releaseSlot = () => {
                     slot.close();
-                });
+                };
+                exchange.closing.once(releaseSlot);
+                exchange.closed.once(releaseSlot);
 
                 return exchange;
             } catch (e) {

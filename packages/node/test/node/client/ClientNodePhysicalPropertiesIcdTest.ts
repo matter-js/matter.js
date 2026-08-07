@@ -17,6 +17,7 @@ const RootWithCipIcd = ServerNode.RootEndpoint.with(IcdManagementServer);
 const LitIcdServer = IcdManagementServer.with(
     IcdManagement.Feature.CheckInProtocolSupport,
     IcdManagement.Feature.LongIdleTimeSupport,
+    IcdManagement.Feature.UserActiveModeTrigger,
     IcdManagement.Feature.DynamicSitLitSupport,
 );
 const RootWithLitIcd = ServerNode.RootEndpoint.with(LitIcdServer);

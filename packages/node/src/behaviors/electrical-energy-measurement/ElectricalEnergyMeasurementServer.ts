@@ -89,7 +89,5 @@ export namespace ElectricalEnergyMeasurementBaseServer {
     };
 }
 
-// Reset all Features
-export class ElectricalEnergyMeasurementServer extends ElectricalEnergyMeasurementBaseServer.for(
-    ElectricalEnergyMeasurement,
-) {}
+// Drop the features the base implementation enables internally so consumers select their own
+export class ElectricalEnergyMeasurementServer extends ElectricalEnergyMeasurementBaseServer.with() {}

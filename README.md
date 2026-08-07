@@ -1,6 +1,6 @@
 # JavaScript/TypeScript based Matter Implementation
 
-[![license](https://img.shields.io/badge/license-Apache2-green.svg)](https://raw.githubusercontent.com/matter-js/matter.js/master/LICENSE)
+[![license](https://img.shields.io/badge/license-Apache2-green.svg)](https://raw.githubusercontent.com/matter-js/matter.js/main/LICENSE)
 
 ## What is Matter?
 
@@ -52,7 +52,8 @@ matter.js has already been successfully used in certified products, but there ar
 
 ## JavaScript/Node.js compatibility
 * At least ES2022 needs to be used as build target for your project!
-* The published packages are supports all LTS Node.js versions starting with 20.x
+* The published packages support all LTS Node.js versions starting with 20.x
+* Developing matter.js itself needs Node.js 22.12 or newer, because the build toolchain declares that range. Node.js 20 still builds and passes the tests, but `npm install` reports an engine warning.
 
 Please also see the additional [TypeScript notes](./packages/main/README.md#typescript-note).
 
@@ -84,18 +85,22 @@ If your project is not based on Node.js you need to implement the platform speci
 
 ### Run the examples
 
-The templates we use when you bootstrap a new application are available as examples you can run directly.  You can
-install them in Node.js as follows:
+The templates we use when you bootstrap a new application are available as examples you can run directly. Bootstrap one
+with the project creator:
 
 ```bash
-npm install @matter/examples
+npm init @matter
 ```
 
-Please refer to the Examples readme for information regarding their usage: [examples](examples/README.md)
+The examples also live in this repository and can be run from a clone with `npm run <example-name>` — see the root
+`package.json` for the available scripts. Please refer to the Examples readme for information regarding their usage:
+[examples](examples/README.md)
+
+> The examples were published as a single `@matter/examples` package up to version 0.15.x only.
 
 ### Extending and contributing to matter.js
 
-We welcome contributions!  If you have Node.js installed, prepare your development environment as follows:
+We welcome contributions! With Node.js 22.12 or newer installed, prepare your development environment as follows:
 
 ```bash
 git clone https://github.com/matter-js/matter.js
@@ -105,8 +110,18 @@ npm install
 
 This will install all dependencies and create symlinks between the packages, so that it can be used locally. It also builds all packages.
 
-On Windows, in order to successfully build all the packages (tested on Windows 11 Pro) make sure to have installed Node.js 20+, the windows-build-tools and node-gyp version 10.
+On Windows, in order to successfully build all the packages (tested on Windows 11 Pro) make sure to have installed the windows-build-tools and node-gyp version 10.
 On Non-Windows platforms and having Python 3.12+ installed, please also make sure to use npm 10.2.3+.
+
+Please read the [contributing guide](./CONTRIBUTING.md) before opening an issue or pull request.
+
+## AI policy
+
+This project follows the [Open Home Foundation AI Policy](./AI_POLICY.md).
+
+AI tools are welcome as an aid, but you must fully understand and be able to explain every
+change you submit. Contributions created by autonomous agents — issues, pull requests, or
+comments posted without human review — are not accepted and will be closed.
 
 ## Connecting with the community
 
@@ -201,7 +216,7 @@ You can use `npm run build-clean` on the root level to build all packages from s
 
 You can use `npm run test` on the root level to run all tests for all packages.
 
-Special testing using the Chip-Tool-Certification tests is available in the package chip-testing. Please refer to the [README.md](chip-testing/README.md) in the package for more details.
+Special testing using the Chip-Tool-Certification tests is available in the package chip-testing. Please refer to the [README.md](./support/chip-testing/README.md) in the package for more details.
 
 ## API documentation
 

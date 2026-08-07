@@ -18,11 +18,13 @@ import {
     Environment,
     Filesystem,
     StorageDriver,
+    StorageLockError,
     StorageMigration,
     StorageService,
     WalStorageDriver,
 } from "@matter/general";
 import * as assert from "node:assert";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -733,4 +735,176 @@ describe("StorageService migration", () => {
             }
         }
     });
+});
+
+describe("StorageService clearOnFirstOpen", () => {
+    let rootDir: string;
+    let env: Environment;
+    let storageService: StorageService;
+
+    const NAMESPACE = "clear-ns";
+
+    beforeEach(async () => {
+        rootDir = await mkdtemp(resolve(tmpdir(), "matterjs-svc-clear-"));
+        const fs = new NodeJsFilesystem(rootDir);
+        env = new Environment("test-clear-on-open");
+        env.set(Filesystem, fs);
+        storageService = env.get(StorageService);
+
+        storageService.registerDriver(FileStorageDriver);
+        storageService.defaultDriver = "file";
+        storageService.registerBlobDriver(DirectoryBlobStorageDriver);
+        storageService.registerBlobDriver(FlatFileBlobStorageDriver);
+        storageService.registerBlobDriver(WalBlobStorageDriver);
+        storageService.defaultBlobDriver = "dir";
+
+        if (supportsSqlite()) {
+            storageService.registerDriver({
+                id: "sqlite",
+                create(namespace) {
+                    return SqliteStorageDriver.create(namespace);
+                },
+            });
+        }
+    });
+
+    afterEach(async () => {
+        await rm(rootDir, { recursive: true, force: true });
+    });
+
+    it("wipes an existing namespace and its legacy sqlite sibling file before creating the driver", async () => {
+        const nsDir = resolve(rootDir, NAMESPACE);
+        const storage = new FileStorageDriver(nsDir);
+        await storage.initialize();
+        await storage.set(["ctx"], "key", "stale-value");
+        assert.equal(await storage.get(["ctx"], "key"), "stale-value");
+        await storage.close();
+
+        // Simulate a leftover sibling from a previous "storage.driver": "sqlite" run
+        await writeFile(resolve(rootDir, `${NAMESPACE}.db`), "legacy-sqlite-marker");
+
+        storageService.clearOnFirstOpen = true;
+
+        const manager = await storageService.open(NAMESPACE);
+        assert.equal(await manager.createContext("ctx").has("key"), false);
+        await manager.close();
+
+        // The sibling must be gone, or a later non-clear start would detect sqlite and migrate stale data back in
+        assert.equal(existsSync(resolve(rootDir, `${NAMESPACE}.db`)), false);
+
+        // No migration should have run
+        const migrationsDir = resolve(rootDir, ".migrations");
+        await assert.rejects(readdir(migrationsDir));
+    });
+
+    it("rejects instead of wiping when another lock is held on the namespace directory", async () => {
+        const nsDir = resolve(rootDir, NAMESPACE);
+        const storage = new FileStorageDriver(nsDir);
+        await storage.initialize();
+        await storage.set(["ctx"], "key", "stale-value");
+        await storage.close();
+
+        // Hold a lock via a separate DatafileRoot pointing at the same physical directory, simulating a second,
+        // still-running process (or another StorageService instance) that owns this namespace.
+        const lockFs = new NodeJsFilesystem(rootDir);
+        const heldLock = await new DatafileRoot(lockFs.directory(NAMESPACE)).lock();
+        try {
+            storageService.configuredDriver = "file";
+            storageService.clearOnFirstOpen = true;
+
+            await assert.rejects(storageService.open(NAMESPACE), StorageLockError);
+        } finally {
+            await heldLock.close();
+        }
+
+        // Nothing should have been wiped — the lock attempt failed before the wipe
+        const verify = new FileStorageDriver(nsDir);
+        await verify.initialize();
+        assert.equal(await verify.get(["ctx"], "key"), "stale-value");
+        await verify.close();
+    });
+
+    it("does not wipe a namespace already opened once in this process", async () => {
+        storageService.clearOnFirstOpen = true;
+
+        const manager1 = await storageService.open(NAMESPACE);
+        await manager1.createContext("ctx").set("key", "fresh-value");
+        await manager1.close();
+
+        const manager2 = await storageService.open(NAMESPACE);
+        assert.equal(await manager2.createContext("ctx").get("key"), "fresh-value");
+        await manager2.close();
+    });
+
+    // "wal" is covered by @matter/general's own StorageService tests (WalStorageDriver isn't nodejs-specific);
+    // "memory" isn't included here since MemoryStorageDriver never persists across a fresh create() to begin with.
+    const kvDriverIds = ["file", ...(supportsSqlite() ? ["sqlite"] : [])];
+
+    for (const id of kvDriverIds) {
+        it(`clears an existing "${id}" KV namespace`, async () => {
+            let storage: FileStorageDriver | SqliteStorageDriver;
+            if (id === "sqlite") {
+                storage = new SqliteStorageDriver({ namespaceOrPath: resolve(rootDir, `${NAMESPACE}.db`) });
+            } else {
+                storage = new FileStorageDriver(resolve(rootDir, NAMESPACE));
+            }
+            await storage.initialize();
+            await storage.set(["ctx"], "key", "stale-value");
+            assert.equal(await storage.get(["ctx"], "key"), "stale-value");
+            await storage.close();
+
+            storageService.configuredDriver = id;
+            storageService.clearOnFirstOpen = true;
+
+            const manager = await storageService.open(NAMESPACE);
+            const ctx = manager.createContext("ctx");
+            assert.equal(await ctx.has("key"), false);
+            assert.deepEqual(await ctx.keys(), []);
+            await manager.close();
+        });
+    }
+
+    const blobDriverIds = ["file", "dir", "wal"];
+
+    for (const id of blobDriverIds) {
+        it(`clears an existing "${id}" blob namespace`, async () => {
+            const blobNsDir = resolve(rootDir, NAMESPACE);
+            await mkdir(blobNsDir, { recursive: true });
+            const blobFs = new NodeJsFilesystem(blobNsDir);
+
+            let populateDriver: BlobStorageDriver;
+            if (id === "file") {
+                populateDriver = FlatFileBlobStorageDriver.create(new DatafileRoot(blobFs.directory(".")), {
+                    kind: "file",
+                });
+            } else if (id === "wal") {
+                populateDriver = WalBlobStorageDriver.create(new DatafileRoot(blobFs.directory(".")), {
+                    kind: "wal",
+                });
+            } else {
+                populateDriver = DirectoryBlobStorageDriver.create(new DatafileRoot(blobFs.directory(".")), {
+                    kind: "dir",
+                });
+            }
+            await populateDriver.initialize();
+
+            const stream = new ReadableStream<Bytes>({
+                start(controller) {
+                    controller.enqueue(new Uint8Array([1, 2, 3]));
+                    controller.close();
+                },
+            });
+            await populateDriver.writeBlobFromStream(["ctx"], "key", stream);
+            assert.equal(await populateDriver.has(["ctx"], "key"), true);
+            await populateDriver.close();
+
+            storageService.configuredBlobDriver = id;
+            storageService.clearOnFirstOpen = true;
+
+            const handle = await storageService.openBlobStorage(NAMESPACE);
+            assert.equal(await handle.driver.has(["ctx"], "key"), false);
+            assert.deepEqual(await handle.driver.keys(["ctx"]), []);
+            await handle.close();
+        });
+    }
 });

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { OTA_PROGRESS_TIMEOUT } from "#behavior/system/software-update/OtaProgress.js";
 import {
     OtaUpdateAvailableDetails,
     OtaUpdateStatus,
@@ -283,9 +284,10 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
             if (
                 !bdxProtocol.enablePeerForScope(peerAddress, this.updateStorage, {
                     preferredDriverModes: [Flow.DriverMode.ReceiverDrive],
-                    // That's also the default but especially states for OTA, but let's set it explicitly
+                    // That's also the default but especially stated for OTA, but let's set it explicitly
                     messageTimeout: Minutes(5),
-                    // maxBlockSize 1024 (non-TCP), 8192 (TCP) - We support whatever the peer wants, so do not set that
+                    maxBlockSize: this.agent.get(SoftwareUpdateManager).maxBdxBlockSizeFor(peerAddress),
+                    additionalMrpDelay: this.agent.get(SoftwareUpdateManager).bdxAdditionalMrpDelayFor(peerAddress),
                 })
             ) {
                 // We could not enable BDX for this scope because another process is registered with different details
@@ -302,11 +304,11 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
                     return;
                 }
 
-                // Found our session — unregister from sessionStarted to prevent listener accumulation
-                bdxProtocol.sessionStarted.off(sessionListener);
-
+                // A failed download is retried on a fresh session, so stay registered for the whole cycle. The
+                // entry is removed on a terminal state, and its cleanup unregisters this listener.
                 // Verify the entry still exists (might have been canceled/timed-out-since queryImage)
-                if (this.#inProgressDetailsForPeer(peerAddress, updateToken) === undefined) {
+                const transferDetails = this.#inProgressDetailsForPeer(peerAddress, updateToken);
+                if (transferDetails === undefined) {
                     return;
                 }
 
@@ -316,6 +318,10 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
                     OtaUpdateStatus.Downloading,
                     newSoftwareVersion,
                 );
+                // A transfer in flight keeps its entry alive; the state does not change again until it ends
+                bdxSession.progressInfo.on(() => {
+                    transferDetails.timestamp = Time.nowMs;
+                });
                 bdxSession.progressFinished.on(() =>
                     this.#updateInProgressDetails(
                         peerAddress,
@@ -332,7 +338,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
                         newSoftwareVersion,
                     ),
                 );
-                bdxSession.closed.on(() => {
+                bdxSession.closed.once(() => {
                     const details = this.#inProgressDetailsForPeer(peerAddress, updateToken);
                     if (
                         details !== undefined &&
@@ -356,7 +362,10 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
             const details = this.internal.inProgressDetails.get(
                 `${peerAddress.nodeId}-${peerAddress.fabricIndex}-${Bytes.toHex(updateToken)}`,
             );
-            if (details !== undefined) {
+            if (details === undefined) {
+                // Nothing will ever run the cleanup, so do not leave the listener behind
+                bdxProtocol.sessionStarted.off(sessionListener);
+            } else {
                 details.cleanup = () => bdxProtocol.sessionStarted.off(sessionListener);
             }
 
@@ -505,7 +514,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
     }
 
     #removeIfStale(key: string, details: OtaUpdateInProgressDetails, peerAddress: PeerAddress, now: Timestamp) {
-        if (details.timestamp + Minutes(15) >= now) {
+        if (details.timestamp + OTA_PROGRESS_TIMEOUT >= now) {
             return false;
         }
         logger.info(

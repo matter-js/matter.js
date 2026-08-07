@@ -68,7 +68,11 @@ class TestState {}
 /**
  * Utility for creating a managed struct via a datasource.
  */
-export function TestStruct(fields: Record<string, string | Partial<FieldElement>>, defaults: Val.Struct = {}) {
+export function TestStruct(
+    fields: Record<string, string | Partial<FieldElement>>,
+    defaults: Val.Struct = {},
+    primaryKey?: "name" | "id",
+) {
     const supervisor = RootSupervisor.for(new FieldModel(structOf(fields)));
 
     const notifies: { index: string | undefined; oldValue: Val; newValue: Val }[] = [];
@@ -93,6 +97,7 @@ export function TestStruct(fields: Record<string, string | Partial<FieldElement>
         supervisor,
         defaults,
         events,
+        primaryKey,
     });
 
     return {

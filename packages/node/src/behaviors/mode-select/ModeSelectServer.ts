@@ -108,4 +108,5 @@ export class ModeSelectBaseServer extends ModeSelectBase {
     }
 }
 
-export class ModeSelectServer extends ModeSelectBaseServer.for(ModeSelect) {}
+// Drop the features the base implementation enables internally so consumers select their own
+export class ModeSelectServer extends ModeSelectBaseServer.with() {}

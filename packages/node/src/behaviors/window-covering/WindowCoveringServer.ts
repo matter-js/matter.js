@@ -648,4 +648,5 @@ export namespace WindowCoveringBaseServer {
     };
 }
 
-export class WindowCoveringServer extends WindowCoveringBaseServer.for(WindowCovering) {}
+// Drop the features the base implementation enables internally so consumers select their own
+export class WindowCoveringServer extends WindowCoveringBaseServer.with() {}

@@ -315,6 +315,39 @@ describe("Supervision", () => {
         });
     });
 
+    describe("RootSupervisor#persistentKeys()", () => {
+        // ClusterModel injects global attributes (ClusterRevision, FeatureMap, ...) alongside our own fields, so
+        // assert membership of the fields under test rather than the full set.
+        function supervisorFor(fields: FieldModel[]) {
+            return RootSupervisor.for(new ClusterModel({ name: "TestCluster", children: fields }));
+        }
+
+        it("keys a persistent member by attribute id when it defines one", () => {
+            const supervisor = supervisorFor([
+                new FieldModel({ name: "withId", id: 5, type: "uint8", quality: "N" }),
+                new FieldModel({ name: "transient", id: 6, type: "uint8" }),
+            ]);
+            const keys = supervisor.persistentKeys("id");
+            expect(keys.has("5")).true;
+            expect(keys.has("6")).false;
+        });
+
+        it("falls back to propertyName when a persistent member has no id", () => {
+            const supervisor = supervisorFor([new FieldModel({ name: "noId", type: "uint8", quality: "N" })]);
+            expect(supervisor.persistentKeys("id").has("noId")).true;
+        });
+
+        it("keys persistent members by propertyName regardless of id", () => {
+            const supervisor = supervisorFor([
+                new FieldModel({ name: "withId", id: 5, type: "uint8", quality: "N" }),
+                new FieldModel({ name: "transient", id: 6, type: "uint8" }),
+            ]);
+            const keys = supervisor.persistentKeys("name");
+            expect(keys.has("withId")).true;
+            expect(keys.has("transient")).false;
+        });
+    });
+
     describe("constructor overloads", () => {
         // Mock behavior classes for testing
         class BaseBehavior {

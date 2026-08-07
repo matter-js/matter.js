@@ -635,6 +635,13 @@ export async function PeerConnection(
                 throw e;
             } finally {
                 kick?.[Symbol.dispose]();
+
+                if (!socketOwned) {
+                    // Destroy the exchange while its channel is still attached so a pending ack of the final CASE
+                    // message goes out
+                    await exchange.destroy();
+                    await unsecuredSession.detachChannel()?.release();
+                }
             }
         } finally {
             if (socketOwned) {

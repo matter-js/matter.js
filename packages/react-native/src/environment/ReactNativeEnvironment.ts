@@ -37,6 +37,7 @@ function configureStorage(env: Environment) {
     const service = env.get(StorageService);
     service.registerDriver(ReactNativeWebStorageDriver);
     service.defaultDriver = "async-storage";
+    service.clearOnFirstOpen = env.vars.boolean("storage.clear") ?? false;
 }
 
 function configureNetwork(env: Environment) {

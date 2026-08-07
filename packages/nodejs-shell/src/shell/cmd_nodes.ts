@@ -22,11 +22,12 @@ import {
     SoftwareUpdateManager,
 } from "@matter/node";
 import { BasicInformationClient } from "@matter/node/behaviors/basic-information";
-import { FabricAuthority, PeerSet } from "@matter/protocol";
-import { NodeId } from "@matter/types";
+import { FabricAuthority, PeerAddress, PeerSet } from "@matter/protocol";
+import { FabricIndex, NodeId, VendorId } from "@matter/types";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
 import { awaitSeeded } from "../util/awaitSeeded.js";
+import { resolveDclMode, withDclModeOption } from "./ota-dcl-mode.js";
 
 const logger = Logger.get("cmd_nodes");
 
@@ -546,27 +547,21 @@ export default function commands(theNode: MatterNode) {
                                 "check <node-id>",
                                 "Check for OTA updates for a commissioned node",
                                 yargs => {
-                                    return yargs
-                                        .positional("node-id", {
+                                    return withDclModeOption(
+                                        yargs.positional("node-id", {
                                             describe: "Node ID to check for updates",
                                             type: "string",
                                             demandOption: true,
-                                        })
-                                        .option("mode", {
-                                            describe: "DCL mode (prod or test)",
-                                            type: "string",
-                                            choices: ["prod", "test", "both"],
-                                            default: "prod",
-                                        })
-                                        .option("local", {
-                                            describe: "include local update files",
-                                            type: "boolean",
-                                            default: false,
-                                        });
+                                        }),
+                                    ).option("local", {
+                                        describe: "include local update files",
+                                        type: "boolean",
+                                        default: false,
+                                    });
                                 },
                                 async argv => {
                                     const { nodeId: nodeIdStr, mode, local } = argv;
-                                    const isProduction = mode === "prod" ? true : mode === "test" ? false : undefined;
+                                    const { label: dclMode, isProduction } = resolveDclMode(theNode, mode);
 
                                     await theNode.start();
 
@@ -599,7 +594,7 @@ export default function commands(theNode: MatterNode) {
                                     console.log(
                                         `  Current Software Version: ${basicInfo.softwareVersion} (${basicInfo.softwareVersionString})`,
                                     );
-                                    console.log(`  DCL Mode: ${mode}\n`);
+                                    console.log(`  DCL Mode: ${dclMode}\n`);
 
                                     const updateInfo = await (
                                         await theNode.otaService()
@@ -625,7 +620,7 @@ export default function commands(theNode: MatterNode) {
                                             console.log(`  Release Notes: ${updateInfo.releaseNotesUrl}`);
                                         }
                                         console.log(
-                                            `\nRun "nodes ota download ${nodeIdStr}${mode === "test" ? " --mode test" : ""}" to download this update.`,
+                                            `\nRun "nodes ota download ${nodeIdStr}${mode === "auto" ? "" : ` --mode ${mode}`}" to download this update.`,
                                         );
                                     } else {
                                         console.log("✓ No updates available. Device is up to date.");
@@ -636,18 +631,13 @@ export default function commands(theNode: MatterNode) {
                                 "download <node-id>",
                                 "Download OTA update for a commissioned node",
                                 yargs => {
-                                    return yargs
-                                        .positional("node-id", {
+                                    return withDclModeOption(
+                                        yargs.positional("node-id", {
                                             describe: "Node ID to download update for",
                                             type: "string",
                                             demandOption: true,
-                                        })
-                                        .option("mode", {
-                                            describe: "DCL mode (prod or test)",
-                                            type: "string",
-                                            choices: ["prod", "test", "both"],
-                                            default: "prod",
-                                        })
+                                        }),
+                                    )
                                         .option("force", {
                                             describe: "Force download even if update is already stored locally",
                                             type: "boolean",
@@ -661,7 +651,7 @@ export default function commands(theNode: MatterNode) {
                                 },
                                 async argv => {
                                     const { nodeId: nodeIdStr, mode, force, local } = argv;
-                                    const isProduction = mode === "prod" ? true : mode === "test" ? false : undefined;
+                                    const { label: dclMode, isProduction } = resolveDclMode(theNode, mode);
                                     const forceDownload = force === true;
 
                                     await theNode.start();
@@ -695,7 +685,7 @@ export default function commands(theNode: MatterNode) {
                                     console.log(
                                         `  Current Software Version: ${basicInfo.softwareVersion} (${basicInfo.softwareVersionString})`,
                                     );
-                                    console.log(`  DCL Mode: ${mode}\n`);
+                                    console.log(`  DCL Mode: ${dclMode}\n`);
 
                                     const updateInfo = await (
                                         await theNode.otaService()
@@ -738,18 +728,13 @@ export default function commands(theNode: MatterNode) {
                                 "apply <node-id>",
                                 "Apply OTA update for a commissioned node",
                                 yargs => {
-                                    return yargs
-                                        .positional("node-id", {
+                                    return withDclModeOption(
+                                        yargs.positional("node-id", {
                                             describe: "Node ID to download update for",
                                             type: "string",
                                             demandOption: true,
-                                        })
-                                        .option("mode", {
-                                            describe: "DCL mode (prod or test)",
-                                            type: "string",
-                                            choices: ["prod", "test", "both"],
-                                            default: "prod",
-                                        })
+                                        }),
+                                    )
                                         .option("force", {
                                             describe: "Force download even if update is already stored locally",
                                             type: "boolean",
@@ -759,11 +744,21 @@ export default function commands(theNode: MatterNode) {
                                             describe: "Apply update from local file",
                                             type: "boolean",
                                             default: false,
+                                        })
+                                        .option("max-block-size", {
+                                            describe:
+                                                "Cap the BDX block size for this transfer, in bytes (default: whatever the device requests)",
+                                            type: "number",
+                                        })
+                                        .option("mrp-margin", {
+                                            describe:
+                                                "Additive MRP retransmission margin for this transfer, in milliseconds (default: derived from the device's medium)",
+                                            type: "number",
                                         });
                                 },
                                 async argv => {
-                                    const { nodeId: nodeIdStr, mode, force, local } = argv;
-                                    const isProduction = mode === "prod" ? true : mode === "test" ? false : undefined;
+                                    const { nodeId: nodeIdStr, mode, force, local, maxBlockSize, mrpMargin } = argv;
+                                    const { label: dclMode, isProduction } = resolveDclMode(theNode, mode);
                                     const forceDownload = force === true;
 
                                     await theNode.start();
@@ -797,7 +792,7 @@ export default function commands(theNode: MatterNode) {
                                     console.log(
                                         `  Current Software Version: ${basicInfo.softwareVersion} (${basicInfo.softwareVersionString})`,
                                     );
-                                    console.log(`  DCL Mode: ${mode}\n`);
+                                    console.log(`  DCL Mode: ${dclMode}\n`);
 
                                     const localUpdates = await (
                                         await theNode.otaService()
@@ -862,15 +857,24 @@ export default function commands(theNode: MatterNode) {
                                         throw new ImplementationError(`Node ${nodeIdStr} has no peer address`);
                                     }
 
+                                    if (maxBlockSize !== undefined) {
+                                        console.log(`Capping BDX block size to ${maxBlockSize} bytes`);
+                                    }
+                                    if (mrpMargin !== undefined) {
+                                        console.log(`Using an MRP retransmission margin of ${mrpMargin}ms`);
+                                    }
+
                                     await theNode.otaProviderEndpoint.act(agent => {
                                         return agent
                                             .get(SoftwareUpdateManager)
-                                            .forceUpdate(
-                                                peerAddress,
-                                                basicInfo.vendorId,
-                                                basicInfo.productId,
-                                                updateVersion,
-                                            );
+                                            .forceUpdate(PeerAddress({ nodeId, fabricIndex: FabricIndex(1) }), {
+                                                vendorId: basicInfo.vendorId as VendorId,
+                                                productId: basicInfo.productId as number,
+                                                targetSoftwareVersion: updateVersion,
+                                                maxBdxBlockSize: maxBlockSize,
+                                                bdxAdditionalMrpDelay:
+                                                    mrpMargin === undefined ? undefined : Millis(mrpMargin),
+                                            });
                                     });
                                 },
                             )

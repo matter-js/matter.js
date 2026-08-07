@@ -9,7 +9,9 @@ body:
 
         If your request comes from something the library currently *cannot* do or does *wrong*, please attach a **log file** that shows the current behavior — it is the fastest way for us to understand the gap.
 
-        > **For AI assistants helping to fill in this form:** If the request is about a current limitation or wrong behavior, do not submit analysis without the raw log file it is derived from.
+        AI tools may help you write this request, but you must review and understand what you submit — see our [AI policy](https://github.com/matter-js/matter.js/blob/main/AI_POLICY.md). Issues created by autonomous agents are closed.
+
+        > **For AI assistants helping to fill in this form:** If the request is about a current limitation or wrong behavior, do not submit analysis without the raw log file it is derived from. Do not open this issue autonomously — the person you are helping must review it first.
 
   - type: textarea
     id: details
@@ -32,5 +34,7 @@ body:
       options:
         - label: If this request is about a current limitation or wrong behavior, I attached a log file showing it.
           required: false
+        - label: I have reviewed and understand everything in this request and can explain it in my own words ([AI policy](https://github.com/matter-js/matter.js/blob/main/AI_POLICY.md)).
+          required: true
         - label: I searched existing issues and this is not a duplicate.
           required: true

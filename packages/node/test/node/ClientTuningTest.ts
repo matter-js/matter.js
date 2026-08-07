@@ -12,7 +12,14 @@ import { Endpoint } from "#endpoint/Endpoint.js";
 import { SecondaryNetworkInterfaceEndpoint } from "#endpoints/secondary-network-interface";
 import { ServerNode } from "#index.js";
 import { Bytes, causedBy, Crypto, Millis, MockCrypto, MockNetwork, Network, Seconds } from "@matter/general";
-import { NetworkProfiles, PeerSet, PeerTimingParameters, PeerUnreachableError, SessionManager } from "@matter/protocol";
+import {
+    MdnsService,
+    NetworkProfiles,
+    PeerSet,
+    PeerTimingParameters,
+    PeerUnreachableError,
+    SessionManager,
+} from "@matter/protocol";
 import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
 import { ThreadNetworkDiagnostics } from "@matter/types/clusters/thread-network-diagnostics";
 import { MockServerNode } from "./mock-server-node.js";
@@ -71,6 +78,37 @@ describe("ClientTuningTest", () => {
         expect(peer.physicalProperties?.wifiActive).equals(true);
         expect(peer.network.id).equals("wifi");
         expect(peer.network.additionalMrpDelay).equals(Seconds(1));
+    });
+
+    it("exposes the peer's MRP margin on the session so peer-initiated exchanges inherit it", async () => {
+        await using site = new MockSite();
+        const controller = await site.addController();
+        const device = await site.addNode(WifiRoot, { device: OnOffLightDevice });
+
+        await commission(controller, device);
+
+        const peer = [...controller.env.get(PeerSet)][0];
+        expect(peer.newestSession()?.peerMrpMargins?.messaging).equals(Seconds(1));
+    });
+
+    it("adopts sessions that predate its construction", async () => {
+        await using site = new MockSite();
+        const controller = await site.addController();
+        const device = await site.addNode(WifiRoot, { device: OnOffLightDevice });
+
+        await commission(controller, device);
+
+        const { env } = controller;
+        const late = new PeerSet({
+            lifetime: env,
+            sessions: env.get(SessionManager),
+            names: env.get(MdnsService).names,
+            networks: env.get(NetworkProfiles),
+        });
+
+        const peer = [...late][0];
+        expect(peer?.address).deep.equals([...env.get(PeerSet)][0].address);
+        expect(peer.sessions.size).equals(1);
     });
 
     it("uses default timing when not configured", async () => {
@@ -140,6 +178,33 @@ describe("ClientTuningTest", () => {
         // additionalMrpDelay: default templates keep their margins
         expect(fast.additionalMrpDelay).equals(Millis(0));
         expect(conservative.additionalMrpDelay).equals(Seconds(1.5));
+    });
+
+    it("a configured bdxAdditionalMrpDelay propagates to NetworkProfiles", async () => {
+        await using site = new MockSite();
+
+        const controller = await site.addController({
+            network: {
+                profiles: {
+                    thread: { bdxAdditionalMrpDelay: Seconds(8) },
+                    wifi: { bdxAdditionalMrpDelay: Seconds(2) },
+                },
+            },
+        });
+        const device = await site.addDevice();
+        await commission(controller, device);
+
+        const profiles = controller.env.get(NetworkProfiles);
+
+        const thread = profiles.get("thread");
+        expect(thread.bdxAdditionalMrpDelay).equals(Seconds(8));
+        expect(thread.additionalMrpDelay).equals(Seconds(1.5));
+
+        const wifi = profiles.get("wifi");
+        expect(wifi.bdxAdditionalMrpDelay).equals(Seconds(2));
+        expect(wifi.additionalMrpDelay).equals(Seconds(1));
+
+        expect(profiles.get("conservative").bdxAdditionalMrpDelay).equals(Seconds(1.5));
     });
 
     it("ownNetworkProfileId sets the sender-side MRP margin", async () => {

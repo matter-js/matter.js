@@ -122,6 +122,10 @@ export class BdxProtocol implements ProtocolHandler {
                         );
                     }
 
+                    if (config?.additionalMrpDelay !== undefined) {
+                        exchange.peerAdditionalMrpDelay = config.additionalMrpDelay;
+                    }
+
                     messenger = new BdxMessenger(exchange, config?.messageTimeout);
 
                     const bdxSession = BdxSession.fromMessage(messenger, {
@@ -165,7 +169,7 @@ export class BdxProtocol implements ProtocolHandler {
 
         this.#sessionStarted.emit(bdxSession, scope);
 
-        bdxSession.closed.on(async () => {
+        bdxSession.closed.once(async () => {
             logger.debug(`BDX session for exchange ${exchange.id} closed`);
             this.#activeBdxSessions.delete(exchange);
             await exchange.close();
@@ -195,5 +199,12 @@ export class BdxProtocol implements ProtocolHandler {
 export namespace BdxProtocol {
     export interface Config extends BdxSessionConfiguration.Config {
         messageTimeout?: Duration;
+
+        /**
+         * Additive MRP retransmission margin for this peer's transfers, overriding the one its medium implies.
+         *
+         * Applies for the life of the exchange only, so it needs no teardown when the transfer ends.
+         */
+        additionalMrpDelay?: Duration;
     }
 }

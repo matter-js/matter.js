@@ -7,6 +7,7 @@
 import type { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import { NetworkRuntime } from "#behavior/system/network/NetworkRuntime.js";
 import type { ServerNetworkRuntime } from "#behavior/system/network/ServerNetworkRuntime.js";
+import { BasicInformationBehavior } from "#behaviors/basic-information";
 import { NetworkCommissioningServer } from "#behaviors/network-commissioning";
 import { TimeSynchronizationBehavior } from "#behaviors/time-synchronization";
 import type { Endpoint } from "#endpoint/Endpoint.js";
@@ -32,7 +33,15 @@ import {
 } from "@matter/general";
 import { FieldElement, Specification } from "@matter/model";
 import { assertRemoteActor, MdnsService, SessionManager, Val } from "@matter/protocol";
-import { CommandId, FabricIndex, Status, StatusResponseError, TlvInvokeResponse, TlvOfModel } from "@matter/types";
+import {
+    CommandId,
+    DEFAULT_MAX_PATHS_PER_INVOKE,
+    FabricIndex,
+    Status,
+    StatusResponseError,
+    TlvInvokeResponse,
+    TlvOfModel,
+} from "@matter/types";
 import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 import { GeneralDiagnosticsBehavior } from "./GeneralDiagnosticsBehavior.js";
 
@@ -94,6 +103,32 @@ export class GeneralDiagnosticsServer extends Base {
         this.maybeReactTo(this.events.activeRadioFaults$Changed, this.#triggerActiveRadioFaultsChangedEvent);
 
         this.maybeReactTo(this.events.activeNetworkFaults$Changed, this.#triggerActiveNetworkFaultsChangedEvent);
+    }
+
+    /**
+     * DataModelTest is mandatory above a maxPathsPerInvoke of one.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 11.12.4.1
+     * @throws {@link ImplementationError} if the feature is absent above a maxPathsPerInvoke of one
+     */
+    #assertDataModelTest() {
+        const maxPathsPerInvoke =
+            this.endpoint.maybeStateOf(BasicInformationBehavior)?.maxPathsPerInvoke ?? DEFAULT_MAX_PATHS_PER_INVOKE;
+
+        if (!this.features.dataModelTest) {
+            if (maxPathsPerInvoke > 1) {
+                throw new ImplementationError(
+                    `The DataModelTest feature is mandatory with a maxPathsPerInvoke of ${maxPathsPerInvoke}; select it with GeneralDiagnosticsServer.with("DataModelTest") or set maxPathsPerInvoke to 1`,
+                );
+            }
+            return;
+        }
+
+        if (maxPathsPerInvoke === 1) {
+            logger.info(
+                "The DataModelTest feature is enabled but is only required when maxPathsPerInvoke is greater than 1; disable it with GeneralDiagnosticsServer.with() if you do not want to advertise it",
+            );
+        }
     }
 
     #validateTestEnabledKey(enableKey: Bytes) {
@@ -303,6 +338,8 @@ export class GeneralDiagnosticsServer extends Base {
     }
 
     async #online() {
+        this.#assertDataModelTest();
+
         this.events.bootReason.emit(
             { bootReason: this.state.bootReason ?? GeneralDiagnostics.BootReason.Unspecified },
             this.context,
@@ -412,6 +449,10 @@ export namespace GeneralDiagnosticsServer {
         deviceTestEnableKey: Bytes = new Uint8Array(16).fill(0);
 
         [Val.properties](endpoint: Endpoint, session: ValueSupervisor.Session) {
+            // Invoked on the underlying state, so read our own values from here.  Reading them via the endpoint would
+            // require naming this behavior's type, and a type naming features the application did not select is absent
+            const state = this;
+
             return {
                 /**
                  * Report uptime
@@ -447,7 +488,7 @@ export namespace GeneralDiagnosticsServer {
                         Time.nowMs,
                     ).duration;
 
-                    const timeAsOfLastUpdate = endpoint.stateOf(GeneralDiagnosticsServer).totalOperationalHoursCounter;
+                    const timeAsOfLastUpdate = state.totalOperationalHoursCounter;
 
                     const totalOperationalTime = Millis(timeAsOfLastUpdate + timeSinceLastUpdate);
 

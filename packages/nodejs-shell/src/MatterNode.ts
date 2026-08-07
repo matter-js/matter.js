@@ -217,6 +217,26 @@ export class MatterNode {
         }
     }
 
+    /** Whether OTA updates from the test DCL are offered in addition to production ones. */
+    get allowTestOtaImages() {
+        return this.#allowTestOtaImages;
+    }
+
+    /** Persists the OTA test image setting, or resets it to the default when no value is given. */
+    async setAllowTestOtaImages(value?: boolean) {
+        if (value === undefined) {
+            await this.Store.delete("AllowTestOtaImages");
+        } else {
+            await this.Store.set("AllowTestOtaImages", value);
+        }
+        this.#allowTestOtaImages = value ?? false;
+        if (this.#started && this.commissioningController !== undefined) {
+            await this.commissioningController.otaProvider.setStateOf(SoftwareUpdateManager, {
+                allowTestOtaImages: this.#allowTestOtaImages,
+            });
+        }
+    }
+
     get Store() {
         if (!this.#storageContext) {
             throw new ImplementationError("Storage uninitialized");

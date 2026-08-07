@@ -5,7 +5,7 @@
  */
 
 import { ServerSubscriptionConfig } from "#node/server/ServerSubscription.js";
-import { Duration, Logger, Minutes } from "@matter/general";
+import { DeepPartial, Duration, Logger, Minutes } from "@matter/general";
 import { duration, field, uint16 } from "@matter/model";
 import { Ble, FabricManager, NetworkProfiles, PeerTimingParameters } from "@matter/protocol";
 import { DiscoveryCapabilitiesBitmap, TypeFromPartialBitSchema } from "@matter/types";
@@ -78,7 +78,25 @@ export namespace NetworkServer {
         declare runtime: ServerNetworkRuntime;
     }
 
-    export class TimingConfig implements Partial<PeerTimingParameters> {
+    export class KickRestartCooldownConfig implements Partial<PeerTimingParameters["kickRestartCooldown"]> {
+        @field(duration)
+        addressChange?: Duration;
+
+        @field(duration)
+        connect?: Duration;
+    }
+
+    export class AddressChangeProbeCooldownConfig implements Partial<
+        PeerTimingParameters["addressChangeProbeCooldown"]
+    > {
+        @field(duration)
+        minimum?: Duration;
+
+        @field(duration)
+        maximum?: Duration;
+    }
+
+    export class TimingConfig implements DeepPartial<PeerTimingParameters> {
         @field(duration)
         defaultConnectionTimeout?: Duration;
 
@@ -98,7 +116,22 @@ export namespace NetworkServer {
         delayAfterUnhandledError?: Duration;
 
         @field(duration)
-        minimumTimeBetweenMrpKicks?: Duration;
+        kickThrottleInterval?: Duration;
+
+        @field(uint16)
+        kickMinRetransmissions?: number;
+
+        @field(duration)
+        kickMinRestartSaving?: Duration;
+
+        @field(KickRestartCooldownConfig)
+        kickRestartCooldown?: KickRestartCooldownConfig;
+
+        @field(duration)
+        addressChangeStabilizationDelay?: Duration;
+
+        @field(AddressChangeProbeCooldownConfig)
+        addressChangeProbeCooldown?: AddressChangeProbeCooldownConfig;
     }
 
     export class ConcreteLimitsConfig implements Partial<NetworkProfiles.ConcreteLimits> {
@@ -113,6 +146,9 @@ export namespace NetworkServer {
 
         @field(duration)
         additionalMrpDelay?: Duration;
+
+        @field(duration)
+        bdxAdditionalMrpDelay?: Duration;
     }
 
     export class LimitsConfig extends ConcreteLimitsConfig {
@@ -145,6 +181,23 @@ export namespace NetworkServer {
         @field(LimitsConfig)
         icdLit?: LimitsConfig;
     }
+
+    type Mismatched<A, B> = Exclude<keyof A, keyof B> | Exclude<keyof B, keyof A>;
+    type SameFields<_Mismatched extends never> = unknown;
+
+    /**
+     * The config classes above restate their source's fields because {@link field} needs real property declarations,
+     * and `implements Partial<Source>` catches neither a field they fail to declare nor one the source has dropped.
+     * This does: either divergence breaks the build here, naming the offending field.
+     */
+    export type ConfigMatchesItsSource = [
+        SameFields<Mismatched<PeerTimingParameters, TimingConfig>>,
+        SameFields<Mismatched<PeerTimingParameters["kickRestartCooldown"], KickRestartCooldownConfig>>,
+        SameFields<Mismatched<PeerTimingParameters["addressChangeProbeCooldown"], AddressChangeProbeCooldownConfig>>,
+        SameFields<Mismatched<NetworkProfiles.ConcreteLimits, ConcreteLimitsConfig>>,
+        SameFields<Mismatched<NetworkProfiles.Limits, LimitsConfig>>,
+        SameFields<Mismatched<NetworkProfiles.Templates, ProfilesConfig>>,
+    ];
 
     export class State extends NetworkBehavior.State {
         listeningAddressIpv4?: string = undefined;

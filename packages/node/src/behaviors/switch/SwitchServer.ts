@@ -358,5 +358,5 @@ export namespace SwitchBaseServer {
     }
 }
 
-// Reset all Features
-export class SwitchServer extends SwitchBaseServer.for(Switch) {}
+// Drop the features the base implementation enables internally so consumers select their own
+export class SwitchServer extends SwitchBaseServer.with() {}
