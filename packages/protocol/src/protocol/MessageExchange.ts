@@ -226,7 +226,7 @@ export class MessageExchange {
     #onSend?: MessageExchange.SendNotifier;
     #onReceive?: MessageExchange.ReceiveNotifier;
     readonly #addressOverride?: ServerAddressUdp;
-    readonly #peerAdditionalMrpDelay?: Duration;
+    #peerAdditionalMrpDelay?: Duration;
     readonly #suppressPeerLoss: boolean;
     #receivedMessageToAck: Message | undefined;
     #receivedMessageAckTimer = Time.getTimer("ack receipt timeout", MRP.STANDALONE_ACK_TIMEOUT, () => {
@@ -335,6 +335,17 @@ export class MessageExchange {
 
     get isInitiator() {
         return this.#isInitiator;
+    }
+
+    /**
+     * Overrides the medium-derived MRP retransmission margin for this exchange.
+     *
+     * An exchange the peer initiated has no construction options to carry {@link MessageExchange.Options
+     * .peerAdditionalMrpDelay}, so a protocol that knows better than the peer's medium — BDX with a per-transfer
+     * margin, say — applies it here once it has adopted the exchange.
+     */
+    set peerAdditionalMrpDelay(margin: Duration) {
+        this.#peerAdditionalMrpDelay = margin;
     }
 
     /**
@@ -1170,7 +1181,7 @@ export class MessageExchange {
      * this exchange's traffic class.
      */
     get #sendAdditionalDelay() {
-        const peerMargin = this.#peerAdditionalMrpDelay ?? this.session.peerAdditionalMrpDelay;
+        const peerMargin = this.#peerAdditionalMrpDelay ?? MRP.marginFor(this.session.peerMrpMargins, this.#protocolId);
         return Duration.max(this.#context.localAdditionalMrpDelay, peerMargin ?? Millis(0));
     }
 
@@ -1242,8 +1253,8 @@ export namespace MessageExchange {
          * Additive MRP retransmission margin for the peer's network medium.  Sourced independently of
          * {@link network} so concurrency overrides cannot strip the medium-correct margin (e.g. thread's).
          *
-         * Overrides {@link Session.peerAdditionalMrpDelay}, which supplies the margin for exchanges created without
-         * this option (notably peer-initiated ones).
+         * Overrides {@link Session.peerMrpMargins}, which supplies the margin for exchanges created without this
+         * option (notably peer-initiated ones).
          */
         peerAdditionalMrpDelay?: Duration;
 

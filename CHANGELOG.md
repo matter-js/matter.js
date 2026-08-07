@@ -55,6 +55,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The peer's medium-specific MRP retransmission margin now applies to peer-initiated exchanges (e.g. subscription data reports) and to exchanges created without peer context
     - Fix: BDX retransmission intervals are capped so the whole MRP schedule fits inside the peer's BDX response budget, which acknowledgements do not extend; the peer's idle cadence does not raise the cap, since a peer holding an open exchange is in active mode
     - Fix: A retransmission timer is no longer armed for a message that was acknowledged while an earlier transmission of it was still in flight, which left the timer running unreferenced
+    - Enhancement: Network profiles accept a separate `bdxAdditionalMrpDelay` for bulk transfer, defaulting to the profile's messaging margin
     - Fix: Grouped `PeerTimingParameters` (`kickRestartCooldown`, `addressChangeProbeCooldown`) merge field-wise, so overriding one member keeps its siblings
     - Fix: Ensure that an unsecured session created for an inbound message is discarded when no protocol handler adopts it
     - Fix: Ensure that closed exchanges are removed from their session for all session types
@@ -62,6 +63,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensure that the end of a session is logged also when its channel was detached before; channel detach is now logged as debug
 
 - @matter/node
+    - Breaking: `SoftwareUpdateManager.addUpdateConsent()` and `forceUpdate()` take the update as an object instead of three positional arguments, so it can carry per-update options
+    - Enhancement: `SoftwareUpdateManager` caps the BDX block size for OTA transfers via `maxBdxBlockSize` and overrides their MRP retransmission margin via `bdxAdditionalMrpDelay`, either generally in its state or per update when giving consent
+    - Enhancement: `network.profiles` accepts `bdxAdditionalMrpDelay`
     - Enhancement: `network.timing` accepts the kick and address-change parameters
     - Enhancement: Managed state derives a member's container key through one shared implementation (no functional change)
     - Fix: Client node state reads and writes struct- and list-valued fields nested inside an attribute value

@@ -169,8 +169,13 @@ export class Peer {
 
             // Only pad when we actually know the peer's medium; the "unknown" fallback is deliberately not applied
             // here because it would inflate responder timing for every peer of a node that never characterizes them.
-            session.peerAdditionalMrpDelayResolver = () =>
-                this.#physicalProperties === undefined ? undefined : this.network.additionalMrpDelay;
+            session.peerMrpMarginsResolver = () => {
+                if (this.#physicalProperties === undefined) {
+                    return undefined;
+                }
+                const { additionalMrpDelay, bdxAdditionalMrpDelay } = this.network;
+                return { messaging: additionalMrpDelay, bdx: bdxAdditionalMrpDelay };
+            };
         });
     }
 
