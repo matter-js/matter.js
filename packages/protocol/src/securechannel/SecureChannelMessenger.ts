@@ -148,13 +148,13 @@ export class SecureChannelMessenger {
             GeneralStatusCode.Busy,
             SecureChannelStatusCode.Busy,
             abort,
-            false,
+            true,
             writer.toByteArray(),
         );
     }
 
     sendCloseSession(abort?: AbortSignal) {
-        return this.#sendStatusReport(GeneralStatusCode.Success, SecureChannelStatusCode.CloseSession, abort, false);
+        return this.#sendStatusReport(GeneralStatusCode.Success, SecureChannelStatusCode.CloseSession, abort, true);
     }
 
     get channelName() {
@@ -173,7 +173,7 @@ export class SecureChannelMessenger {
         generalStatus: GeneralStatusCode,
         protocolStatus: SecureChannelStatusCode,
         abort?: AbortSignal,
-        requiresAck?: boolean,
+        suppressAck?: true,
         protocolData?: Bytes,
     ) {
         await this.exchange.send(
@@ -184,7 +184,7 @@ export class SecureChannelMessenger {
                 protocolData,
             }),
             {
-                requiresAck,
+                suppressAck,
                 logContext: {
                     generalStatus: GeneralStatusCode[generalStatus] ?? Diagnostic.hex(generalStatus),
                     protocolStatus: SecureChannelStatusCode[protocolStatus] ?? Diagnostic.hex(protocolStatus),

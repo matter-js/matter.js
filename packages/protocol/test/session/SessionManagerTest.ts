@@ -7,7 +7,9 @@
 import { Fabric } from "#fabric/Fabric.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import { SessionParameters } from "#index.js";
+import type { MessageExchange } from "#protocol/MessageExchange.js";
 import { DuplicateMessageError } from "#protocol/MessageReceptionState.js";
+import { NodeSession } from "#session/NodeSession.js";
 import { SessionManager } from "#session/SessionManager.js";
 import {
     b$,
@@ -198,6 +200,133 @@ describe("SessionManager", () => {
 
             const result = sessionManager.maybeSessionFor(PEER_ADDRESS);
             expect(result).to.equal(sessionB);
+        });
+
+        it("closes the peer's least recently used session beyond the per-peer cap", async () => {
+            const PEER_NODE_ID = NodeId(0x1234n);
+
+            const sessions = new Array<NodeSession>();
+            for (let i = 0; i < 6; i++) {
+                sessions.push(
+                    await sessionManager.createSecureSession({
+                        id: 0x0100 + i,
+                        fabric: undefined,
+                        peerNodeId: PEER_NODE_ID,
+                        peerSessionId: 0x0001 + i,
+                        sharedSecret: DUMMY_BYTEARRAY,
+                        salt: DUMMY_BYTEARRAY,
+                        isInitiator: false, // the peer established these; we are the responder
+                        isResumption: false,
+                    }),
+                );
+                // Least-recently-used ordering decides who goes
+                sessions[i].timestamp = Timestamp(1000 + i);
+            }
+
+            await MockTime.yield3();
+
+            expect(sessions[0].isClosing).is.true;
+            expect(sessions.slice(1).filter(session => session.isClosing)).is.empty;
+        });
+
+        it("never evicts a session we initiated, even when it is the least recently used", async () => {
+            const PEER_NODE_ID = NodeId(0x9abcn);
+
+            // Ours, and the oldest -- a naive least-recently-used sweep would take this one first
+            const ours = await sessionManager.createSecureSession({
+                id: 0x0300,
+                fabric: undefined,
+                peerNodeId: PEER_NODE_ID,
+                peerSessionId: 0x0021,
+                sharedSecret: DUMMY_BYTEARRAY,
+                salt: DUMMY_BYTEARRAY,
+                isInitiator: true,
+                isResumption: false,
+            });
+            ours.timestamp = Timestamp(1);
+
+            const theirs = new Array<NodeSession>();
+            for (let i = 0; i < 6; i++) {
+                theirs.push(
+                    await sessionManager.createSecureSession({
+                        id: 0x0301 + i,
+                        fabric: undefined,
+                        peerNodeId: PEER_NODE_ID,
+                        peerSessionId: 0x0031 + i,
+                        sharedSecret: DUMMY_BYTEARRAY,
+                        salt: DUMMY_BYTEARRAY,
+                        isInitiator: false,
+                        isResumption: false,
+                    }),
+                );
+                theirs[i].timestamp = Timestamp(1000 + i);
+            }
+
+            await MockTime.yield3();
+
+            expect(ours.isClosing).is.false;
+            expect(theirs[0].isClosing).is.true;
+            expect(theirs.slice(1).filter(session => session.isClosing)).is.empty;
+        });
+
+        it("leaves sessions we initiated alone; peer loss reclaims those", async () => {
+            const PEER_NODE_ID = NodeId(0x5678n);
+
+            const sessions = new Array<NodeSession>();
+            for (let i = 0; i < 6; i++) {
+                sessions.push(
+                    await sessionManager.createSecureSession({
+                        id: 0x0200 + i,
+                        fabric: undefined,
+                        peerNodeId: PEER_NODE_ID,
+                        peerSessionId: 0x0011 + i,
+                        sharedSecret: DUMMY_BYTEARRAY,
+                        salt: DUMMY_BYTEARRAY,
+                        isInitiator: true,
+                        isResumption: false,
+                    }),
+                );
+                sessions[i].timestamp = Timestamp(1000 + i);
+            }
+
+            await MockTime.yield3();
+
+            expect(sessions.filter(session => session.isClosing)).is.empty;
+        });
+
+        it("conveys the initiating exchange when reporting peer loss", async () => {
+            const PEER_NODE_ID = NodeId(0x1234n);
+            const PEER_ADDRESS = { fabricIndex: FabricIndex(0), nodeId: PEER_NODE_ID };
+
+            const session = await sessionManager.createSecureSession({
+                id: 0x0100,
+                fabric: undefined,
+                peerNodeId: PEER_NODE_ID,
+                peerSessionId: 0x0001,
+                sharedSecret: DUMMY_BYTEARRAY,
+                salt: DUMMY_BYTEARRAY,
+                isInitiator: true,
+                isResumption: false,
+            });
+
+            const currentExchange = {} as MessageExchange;
+            const received = new Array<MessageExchange | undefined>();
+            session.subscriptions.add({
+                subscriptionId: 1,
+                isTerminated: false,
+                async handlePeerCancel() {},
+                async close(_flushViaSession, exchange) {
+                    received.push(exchange);
+                },
+            });
+
+            await sessionManager.handlePeerLoss(PEER_ADDRESS, {
+                cause: new Error("unresponsive"),
+                asOf: Timestamp(Number.MAX_SAFE_INTEGER),
+                currentExchange,
+            });
+
+            expect(received[0]).equals(currentExchange);
         });
     });
 

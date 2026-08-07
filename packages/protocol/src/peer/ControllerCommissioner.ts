@@ -392,7 +392,7 @@ export class ControllerCommissioner {
                 passcode,
                 { abort: signal },
             );
-            unsecuredSession.detachChannel();
+            await unsecuredSession.detachChannel()?.release();
             return caseSession;
         } catch (e) {
             // Close the exchange and rethrow
