@@ -232,6 +232,61 @@ describe("Datasource", () => {
             );
         });
 
+        it("keeps non-member helper fields while stripping seeded member defaults", async () => {
+            class HelperBackedState {
+                foo? = "bar";
+                backing: Val.Struct = { extra: 1 };
+
+                [Val.properties]() {
+                    return this.backing;
+                }
+            }
+
+            await withDatasourceAndReference(
+                { type: HelperBackedState, supervisor: idSupervisor, primaryKey: "id" },
+                ({ state }) => {
+                    const raw = rawValuesOf(state);
+                    expect("foo" in raw).false;
+                    expect((raw.backing as Val.Struct).extra).equals(1);
+                    expect(state.foo).undefined;
+                },
+            );
+        });
+
+        it("reads a struct member served by a dynamic provider on an id-keyed container", async () => {
+            class ProviderState {
+                sub?: Val.Struct;
+
+                [Val.properties]() {
+                    return { sub: { foo: "live" } };
+                }
+            }
+
+            const providerSupervisor = BehaviorSupervisor({
+                id: "providerState",
+                State: ProviderState,
+
+                schema: new DatatypeModel({
+                    name: "ProviderState",
+                    type: "struct",
+
+                    children: [
+                        FieldElement(
+                            { name: "sub", id: 1, type: "struct" },
+                            FieldElement({ name: "foo", id: 0, type: "string" }),
+                        ),
+                    ],
+                }),
+            });
+
+            await withDatasourceAndReference(
+                { type: ProviderState, supervisor: providerSupervisor, primaryKey: "id" },
+                ({ state }) => {
+                    expect(state.sub).deep.equals({ foo: "live" });
+                },
+            );
+        });
+
         it("preserves private-field state while stripping seeded defaults", async () => {
             class PrivateDynamicState {
                 foo? = "bar";

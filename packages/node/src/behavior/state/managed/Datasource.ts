@@ -37,13 +37,15 @@ function isIdKey(key: string) {
 }
 
 /**
- * Remove a state instance's own enumerable value slots.  The constructor must run — skipping it via Object.create
- * would leave private-field brands uninstalled and break a state class whose Val.properties implementation relies
- * on them — so field initializers execute and are stripped afterwards.
+ * Remove a state instance's schema-member value slots, keeping non-member helper fields (e.g. backing data for a
+ * Val.properties implementation).  The constructor must run — skipping it via Object.create would leave
+ * private-field brands uninstalled — so field initializers execute and the member slots are stripped afterwards.
  */
-function stripOwnValues(values: Val.Struct) {
+function stripMemberValues(values: Val.Struct, members: Set<string>) {
     for (const key of Object.keys(values)) {
-        delete values[key];
+        if (members.has(key)) {
+            delete values[key];
+        }
     }
     return values;
 }
@@ -330,7 +332,7 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
         // the state class's name-keyed field initializers must not survive, or they masquerade as reported data
         const values = new options.type() as Val.Struct;
         if (this.primaryKey === "id") {
-            stripOwnValues(values);
+            stripMemberValues(values, options.supervisor.memberNames);
         }
 
         let storedValues = options.store?.initialValues;
@@ -810,7 +812,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
             if (this.primaryKey === "id") {
                 // A mirror's clone must not resurrect the state class's name-keyed field initializers — the peer's
                 // reports are the only source of values
-                this.#values = stripOwnValues(new this.#internals.type() as Val.Struct);
+                this.#values = stripMemberValues(new this.#internals.type() as Val.Struct, this.#fields);
                 keys = Object.keys(old);
             } else {
                 this.#values = new this.#internals.type();

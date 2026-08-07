@@ -43,7 +43,7 @@ export class ManagedReference implements ValReference {
     supervisionConfig?: Supervision.Config;
 
     #key: string | number;
-    #writeMigrationKey: string | number | undefined;
+    #fallbackKey: string | number | undefined;
     #readFallbackKey: string | number | undefined;
     #assertWriteOk: (value: Val) => void;
     #clone: ((container: Val) => Val) | undefined;
@@ -80,16 +80,18 @@ export class ManagedReference implements ValReference {
         };
 
         const key = memberKeyFor(parent.primaryKey, name, id);
-        const writeMigrationKey = memberFallbackKeyFor(parent.primaryKey, name, id);
+        const fallbackKey = memberFallbackKeyFor(parent.primaryKey, name, id);
         const readFallbackKey = memberReadFallbackKeyFor(parent.primaryKey, name, id);
         this.#key = key;
-        this.#writeMigrationKey = writeMigrationKey;
+        this.#fallbackKey = fallbackKey;
         this.#readFallbackKey = readFallbackKey;
 
         let dynamicContainer: Val.Struct | undefined;
         if ((parent.value as Val.Dynamic)[Val.properties]) {
             dynamicContainer = (parent.value as Val.Dynamic)[Val.properties](parent.rootOwner, session);
-            const slot = memberSlotOf(dynamicContainer as Container, key, readFallbackKey);
+            // A provider is name-keyed regardless of the parent's keying and holds live values, never seeded
+            // defaults, so dynamic reads accept the name spelling where container reads must not
+            const slot = memberSlotOf(dynamicContainer as Container, key, fallbackKey);
             if (slot !== undefined) {
                 this.#value = (dynamicContainer as Container)[slot];
             } else {
@@ -161,7 +163,7 @@ export class ManagedReference implements ValReference {
                 this.parent!.rootOwner,
                 this.#session,
             );
-            return memberValueOf(origProperties as Container, this.#key, this.#readFallbackKey);
+            return memberValueOf(origProperties as Container, this.#key, this.#fallbackKey);
         }
         return memberValueOf(this.parent!.original as Container, this.#key, this.#readFallbackKey);
     }
@@ -197,7 +199,7 @@ export class ManagedReference implements ValReference {
 
         const value =
             this.#dynamicContainer !== undefined
-                ? memberValueOf(this.#dynamicContainer as Container, this.#key, this.#readFallbackKey)
+                ? memberValueOf(this.#dynamicContainer as Container, this.#key, this.#fallbackKey)
                 : memberValueOf(this.parent!.value as Container, this.#key, this.#readFallbackKey);
 
         this.#replaceValue(value);
@@ -205,8 +207,8 @@ export class ManagedReference implements ValReference {
 
     #writeTo(container: Container, newValue: Val) {
         container[this.#key] = newValue;
-        if (this.#writeMigrationKey !== undefined && this.#writeMigrationKey in container) {
-            delete container[this.#writeMigrationKey];
+        if (this.#fallbackKey !== undefined && this.#fallbackKey in container) {
+            delete container[this.#fallbackKey];
         }
     }
 

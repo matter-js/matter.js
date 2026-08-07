@@ -23,8 +23,8 @@ export function memberKeyFor(
 }
 
 /**
- * The key under the other keying convention, if distinct from {@link memberKeyFor}'s.  For write migration — a
- * reader uses {@link memberReadFallbackKeyFor}.
+ * The key under the other keying convention, if distinct from {@link memberKeyFor}'s.  For write migration and for
+ * reading name-keyed dynamic providers — a container reader uses {@link memberReadFallbackKeyFor}.
  */
 export function memberFallbackKeyFor(
     primaryKey: ValReference.PrimaryKey,
