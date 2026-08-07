@@ -306,7 +306,7 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
             this.emitClosed();
         });
         // Forward BTP-initiated close (e.g. ack-receive timeout) to our Observable.
-        this.btpSession.closed.on(() => this.emitClosed());
+        this.btpSession.closed.once(() => this.emitClosed());
     }
 
     /**

@@ -8,6 +8,7 @@ import { Behavior } from "#behavior/Behavior.js";
 import type { ActionContext } from "#behavior/context/ActionContext.js";
 import { DclBehavior } from "#behavior/system/dcl/DclBehavior.js";
 import { OtaAnnouncements } from "#behavior/system/software-update/OtaAnnouncements.js";
+import { OTA_PROGRESS_TIMEOUT } from "#behavior/system/software-update/OtaProgress.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import type { ClientNode } from "#node/ClientNode.js";
@@ -46,6 +47,7 @@ import {
     PeerAddressMap,
     RebootResubscribeArmer,
     SessionManager,
+    StorageScope,
 } from "@matter/protocol";
 import { VendorId } from "@matter/types";
 import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
@@ -64,6 +66,7 @@ interface UpdateQueueEntry extends UpdateConsent {
     endpoint: Endpoint;
     lastProgressUpdateTime?: Timestamp;
     lastProgressStatus?: OtaUpdateStatus;
+    lastBdxTransferredBytes?: number;
 }
 
 interface UpdateConsentEntry extends DclOtaUpdateService.OtaUpdateListEntry {
@@ -130,11 +133,18 @@ export interface PendingUpdateInfo {
     /**
      * - `"queued"` — waiting for its turn; no announcement has been sent yet.
      * - `"in-progress"` — the OTA provider has been announced to the node and we are waiting for it to complete.
-     * - `"stalled"` — no progress update received for 15 minutes. The entry will be automatically reset and retried.
+     * - `"stalled"` — no status update and no BDX transfer activity within {@link OTA_PROGRESS_TIMEOUT}. The entry
+     *   will be automatically reset and retried.
      */
     status: "queued" | "in-progress" | "stalled";
     lastProgressStatus?: OtaUpdateStatus;
     lastProgressUpdateTime?: Timestamp;
+
+    /** Bytes transferred by the BDX session of an in-progress update, undefined for any other status. */
+    bdxTransferredBytes?: number;
+
+    /** Size of the transfer of an in-progress update, undefined for any other status or while it is unknown. */
+    bdxDataLength?: number;
 }
 
 /**
@@ -163,6 +173,7 @@ export class SoftwareUpdateManager extends Behavior {
         rootNode.behaviors.require(DclBehavior);
         this.internal.otaService = rootNode.agentFor(this.context).get(DclBehavior).otaUpdateService;
         await this.internal.otaService.construction;
+        this.internal.otaStorageScope = this.internal.otaService.storage.scope;
 
         this.reactTo(rootNode.lifecycle.online, this.#nodeOnline);
         this.reactTo(rootNode.lifecycle.goingOffline, this.#nodeGoingOffline);
@@ -266,10 +277,14 @@ export class SoftwareUpdateManager extends Behavior {
     get queuedUpdates(): PendingUpdateInfo[] {
         const now = Time.nowMs;
         return this.internal.updateQueue.map(entry => {
+            const bdxSession = this.#bdxSessionFor(entry.peerAddress);
             let status: PendingUpdateInfo["status"];
             if (entry.lastProgressUpdateTime === undefined) {
                 status = "queued";
-            } else if (entry.lastProgressUpdateTime + Minutes(15) < now) {
+            } else if (
+                entry.lastProgressUpdateTime + OTA_PROGRESS_TIMEOUT < now &&
+                !this.#isTransferring(entry, bdxSession?.transferredBytes)
+            ) {
                 status = "stalled";
             } else {
                 status = "in-progress";
@@ -282,8 +297,46 @@ export class SoftwareUpdateManager extends Behavior {
                 status,
                 lastProgressStatus: entry.lastProgressStatus,
                 lastProgressUpdateTime: entry.lastProgressUpdateTime,
+                bdxTransferredBytes: status === "in-progress" ? bdxSession?.transferredBytes : undefined,
+                bdxDataLength: status === "in-progress" ? bdxSession?.dataLength : undefined,
             };
         });
+    }
+
+    #bdxSessionFor(peerAddress: PeerAddress) {
+        const { otaStorageScope } = this.internal;
+        if (otaStorageScope === undefined || !this.env.has(BdxProtocol)) {
+            return undefined;
+        }
+        return this.env.get(BdxProtocol).sessionFor(peerAddress, otaStorageScope);
+    }
+
+    /**
+     * A retry of a failed download opens a fresh BDX session whose counter restarts below the one we recorded, so any
+     * change of the counter counts as liveness, not only growth.
+     */
+    #isTransferring(entry: UpdateQueueEntry, transferredBytes?: number) {
+        return transferredBytes !== undefined && transferredBytes !== (entry.lastBdxTransferredBytes ?? 0);
+    }
+
+    /**
+     * A download produces no OTA status transitions for as long as it runs, so a large image on a slow link looks
+     * stalled to a timestamp that only status changes refresh.
+     */
+    #refreshBdxProgress(entry: UpdateQueueEntry, now: Timestamp) {
+        const transferredBytes = this.#bdxSessionFor(entry.peerAddress)?.transferredBytes;
+        if (!this.#isTransferring(entry, transferredBytes)) {
+            return false;
+        }
+        entry.lastBdxTransferredBytes = transferredBytes;
+        entry.lastProgressUpdateTime = now;
+        return true;
+    }
+
+    #resetEntryProgress(entry: UpdateQueueEntry) {
+        entry.lastProgressUpdateTime = undefined;
+        entry.lastProgressStatus = OtaUpdateStatus.Unknown;
+        entry.lastBdxTransferredBytes = undefined;
     }
 
     /** Validate that we know the peer the update is requested for and the details match to what we know */
@@ -713,8 +766,7 @@ export class SoftwareUpdateManager extends Behavior {
             logger.info(
                 `Clearing in-progress update for node ${peerAddress.toString()} due to software version change. Last State was ${OtaUpdateStatus[entry.lastProgressStatus!]}`,
             );
-            entry.lastProgressUpdateTime = undefined;
-            entry.lastProgressStatus = OtaUpdateStatus.Unknown;
+            this.#resetEntryProgress(entry);
         }
         const expectedVersion = entry.targetSoftwareVersion;
         if (newVersion < expectedVersion) {
@@ -815,14 +867,15 @@ export class SoftwareUpdateManager extends Behavior {
             // No update in progress, stop timer
             this.internal.updateQueueTimer.stop();
         } else if (inProgressCount > 0) {
-            // Check if all last Status is at least 15 minutes old, reset them to unknown and no time
             for (const entry of inProgressEntries) {
-                if (entry.lastProgressUpdateTime! + Minutes(15) < now) {
+                if (this.#refreshBdxProgress(entry, now)) {
+                    continue;
+                }
+                if (entry.lastProgressUpdateTime! + OTA_PROGRESS_TIMEOUT < now) {
                     logger.info(
                         `Resetting stalled OTA update state for node ${entry.peerAddress.toString()} due to inactivity`,
                     );
-                    entry.lastProgressUpdateTime = undefined;
-                    entry.lastProgressStatus = OtaUpdateStatus.Unknown;
+                    this.#resetEntryProgress(entry);
                     inProgressCount--;
                 }
             }
@@ -870,7 +923,7 @@ export class SoftwareUpdateManager extends Behavior {
         const { endpoint, peerAddress } = entry;
 
         // Guard: skip the announcement if a BDX session is already active for this peer
-        if (this.env.get(BdxProtocol).sessionFor(peerAddress, this.storage.scope) !== undefined) {
+        if (this.#bdxSessionFor(peerAddress) !== undefined) {
             logger.info(`BDX transfer still active for node ${peerAddress.toString()}, skipping announcement`);
             return;
         }
@@ -889,8 +942,7 @@ export class SoftwareUpdateManager extends Behavior {
         } catch (error) {
             logger.warn(`Failed to announce OTA provider to node ${peerAddress.toString()}:`, error);
             // Reset entry state so the queue doesn't stay blocked
-            entry.lastProgressUpdateTime = undefined;
-            entry.lastProgressStatus = OtaUpdateStatus.Unknown;
+            this.#resetEntryProgress(entry);
             this.#triggerQueuedUpdate();
         }
     }
@@ -913,7 +965,7 @@ export class SoftwareUpdateManager extends Behavior {
         if (existingEntry !== undefined) {
             // Check whether a BDX session is still active for this peer
             const bdxProtocol = this.env.get(BdxProtocol);
-            const activeSession = bdxProtocol.sessionFor(peerAddress, this.storage.scope);
+            const activeSession = this.#bdxSessionFor(peerAddress);
             if (activeSession !== undefined) {
                 // Update is legitimately in progress, don't disrupt it
                 logger.info(
@@ -1134,8 +1186,7 @@ export class SoftwareUpdateManager extends Behavior {
             // The intentional cancel path (#cancelUpdate) handles removal and updateFailed independently.
             logger.info(`OTA update BDX cancelled for node ${peerAddress.toString()}, resetting for retry`);
             this.internal.rebootResubscribeArmer?.disarm(peerAddress);
-            entry.lastProgressUpdateTime = undefined;
-            entry.lastProgressStatus = OtaUpdateStatus.Unknown;
+            this.#resetEntryProgress(entry);
             this.#triggerQueuedUpdate();
         } else {
             logger.info(
@@ -1187,6 +1238,9 @@ export namespace SoftwareUpdateManager {
         consents = new Array<UpdateConsent>();
 
         otaService!: DclOtaUpdateService;
+
+        /** Scope of the OTA storage, captured so a lookup cannot depend on the service still being constructed. */
+        otaStorageScope?: StorageScope;
 
         checkForUpdateTimer!: Timer;
 

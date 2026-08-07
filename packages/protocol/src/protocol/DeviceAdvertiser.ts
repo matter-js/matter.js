@@ -172,8 +172,8 @@ export class DeviceAdvertiser {
         });
 
         this.#observers.on(this.#context.sessions.subscriptionsChanged, (session, subscription) => {
-            if (this.#isOperational && subscription.isCanceledByPeer && session.fabric !== undefined) {
-                logger.debug(`Subscription canceled by peer, re-announce`);
+            if (this.#isOperational && subscription.isTerminated && session.fabric !== undefined) {
+                logger.debug(`Subscription ended, re-announce`);
                 this.#advertiseFabric(session.fabric, "reconnect");
             }
         });
