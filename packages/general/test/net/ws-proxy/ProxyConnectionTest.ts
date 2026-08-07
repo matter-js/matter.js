@@ -17,6 +17,7 @@ import { ProxyCommandError, ProxyConnectionClosedError } from "#net/ws-proxy/Pro
 import { Millis, Seconds } from "#time/TimeUnit.js";
 import { Bytes } from "#util/Bytes.js";
 import type { Observable } from "#util/Observable.js";
+import { PromiseTimeoutError } from "#util/Promises.js";
 
 const VERSION = 1;
 
@@ -25,12 +26,25 @@ const { send, receive } = MockWsConnection;
 async function receiveFrame(connection: HttpEndpoint.WsConnection) {
     const reader = connection.readable.getReader();
     try {
-        const result = await reader.read();
-        expect(result.done).false;
-        return decodeProxyFrame(Bytes.of(result.value as Bytes));
+        const { value } = await reader.read();
+        if (value === undefined || typeof value === "string") {
+            throw new NetworkError(`Expected a binary message but received ${typeof value}`);
+        }
+        return decodeProxyFrame(Bytes.of(value));
     } finally {
         reader.releaseLock();
     }
+}
+
+/**
+ * Assert a settled value is an error of the expected type and narrow it for further assertions.
+ */
+function errorOfType<T extends Error>(value: unknown, type: new (...args: never[]) => T) {
+    expect(value).instanceOf(type);
+    if (!(value instanceof type)) {
+        throw new NetworkError(`Expected ${type.name}`);
+    }
+    return value;
 }
 
 async function sendBytes(connection: HttpEndpoint.WsConnection, bytes: Uint8Array) {
@@ -235,6 +249,37 @@ describe("ProxyConnection", () => {
             await connection.close();
         });
 
+        it("ignores a hello response that arrives after the connection closed", async () => {
+            const faulty = faultyConnection();
+            const connection = new ProxyConnection({
+                connection: faulty.connection,
+                version: VERSION,
+                role: "initiator",
+            });
+
+            let handshakeCompleted = false;
+            connection.handshakeCompleted.on(() => {
+                handshakeCompleted = true;
+            });
+
+            connection.start();
+
+            // Park the read loop on the reader by waiting until our hello is on the wire
+            while (faulty.written.length === 0) {
+                await MockTime.yield();
+            }
+            await MockTime.yield();
+            await MockTime.yield();
+
+            // The peer's response was already in flight when we gave up on the handshake
+            const closing = connection.close();
+            faulty.deliver({ type: "hello_response", version: VERSION });
+            await closing;
+
+            expect(handshakeCompleted).false;
+            expect(connection.connected).false;
+        });
+
         it("closes when the handshake times out", async () => {
             const { client, server } = MockWsConnection();
             const connection = new ProxyConnection({
@@ -251,6 +296,71 @@ describe("ProxyConnection", () => {
             await closed;
             expect(connection.connected).false;
             await expectEnd(client);
+        });
+    });
+
+    describe("opened", () => {
+        it("resolves when the handshake completes", async () => {
+            const { client, server } = MockWsConnection();
+            const connection = new ProxyConnection({ connection: server, version: VERSION, role: "responder" });
+
+            connection.start();
+            const opened = connection.opened();
+
+            await send(client, { type: "hello", version: VERSION });
+            await opened;
+
+            expect(connection.connected).true;
+
+            await connection.close();
+        });
+
+        it("resolves immediately when already open", async () => {
+            const { connection } = await connectResponder();
+
+            await connection.opened();
+
+            await connection.close();
+        });
+
+        it("rejects when the connection closes first", async () => {
+            const { client, server } = MockWsConnection();
+            const connection = new ProxyConnection({ connection: server, version: VERSION, role: "responder" });
+
+            connection.start();
+            const opened = settlement(connection.opened());
+
+            await send(client, { type: "something-else" });
+
+            errorOfType(await opened, ProxyConnectionClosedError);
+
+            await connection.close();
+        });
+
+        it("rejects immediately when already closed", async () => {
+            const { server } = MockWsConnection();
+            const connection = new ProxyConnection({ connection: server, version: VERSION, role: "responder" });
+
+            await connection.close();
+
+            await expect(connection.opened()).rejectedWith(ProxyConnectionClosedError);
+        });
+
+        it("stops observing once settled", async () => {
+            const { client, server } = MockWsConnection();
+            const connection = new ProxyConnection({ connection: server, version: VERSION, role: "responder" });
+
+            connection.start();
+            const opened = connection.opened();
+            expect(connection.closed.isObserved).true;
+
+            await send(client, { type: "hello", version: VERSION });
+            await opened;
+
+            expect(connection.closed.isObserved).false;
+            expect(connection.handshakeCompleted.isObserved).false;
+
+            await connection.close();
         });
     });
 
@@ -291,10 +401,9 @@ describe("ProxyConnection", () => {
             expect(await receive(client)).deep.equals({ id: 0, command: "boom" });
             await send(client, { id: 0, success: false, error: "not_connected", message: "no peripheral" });
 
-            const error = await result;
-            expect(error).instanceOf(ProxyCommandError);
-            expect((error as ProxyCommandError).code).equals("not_connected");
-            expect((error as ProxyCommandError).message).equals("not_connected: no peripheral");
+            const error = errorOfType(await result, ProxyCommandError);
+            expect(error.code).equals("not_connected");
+            expect(error.message).equals("not_connected: no peripheral");
 
             await connection.close();
         });
@@ -306,7 +415,7 @@ describe("ProxyConnection", () => {
             expect(await receive(client)).deep.equals({ id: 0, command: "slow" });
 
             await MockTime.advance(Millis(500));
-            expect(await timedOut).instanceOf(Error);
+            errorOfType(await timedOut, PromiseTimeoutError);
 
             // The pending command is forgotten so the late response is ignored, and the connection remains usable
             await send(client, { id: 0, success: true, result: { late: true } });
@@ -370,9 +479,8 @@ describe("ProxyConnection", () => {
             expect(await receive(client)).deep.equals({ id: 0, command: "boom" });
             await send(client, { id: 0, success: false });
 
-            const error = await result;
-            expect(error).instanceOf(ProxyCommandError);
-            expect((error as ProxyCommandError).code).equals("unknown_error");
+            const error = errorOfType(await result, ProxyCommandError);
+            expect(error.code).equals("unknown_error");
 
             await connection.close();
         });
@@ -688,6 +796,9 @@ describe("ProxyConnection", () => {
             expect(() => connection.sendFrame(1, -1, new Uint8Array(0))).throws(ImplementationError);
 
             await connection.close();
+
+            // A closed connection reports the closure, not the range
+            expect(() => connection.sendFrame(0x100, 1, new Uint8Array(0))).throws(ProxyConnectionClosedError);
         });
 
         it("throws when sending a frame while not connected", async () => {
@@ -742,6 +853,37 @@ describe("ProxyConnection", () => {
             await connection.close();
 
             expect(connection.connected).false;
+        });
+
+        it("ignores traffic that arrives after the connection closed", async () => {
+            const faulty = faultyConnection();
+            const connection = new ProxyConnection({
+                connection: faulty.connection,
+                version: VERSION,
+                role: "responder",
+            });
+
+            const events = new Array<string>();
+            connection.eventReceived.on(event => {
+                events.push(event);
+            });
+
+            connection.start();
+            faulty.deliver({ type: "hello", version: VERSION });
+            await connection.opened();
+
+            // Park the read loop on the reader
+            while (faulty.written.length === 0) {
+                await MockTime.yield();
+            }
+            await MockTime.yield();
+            await MockTime.yield();
+
+            const closing = connection.close();
+            faulty.deliver({ event: "late", data: {} });
+            await closing;
+
+            expect(events).deep.equals([]);
         });
 
         it("tolerates overlapping closes", async () => {

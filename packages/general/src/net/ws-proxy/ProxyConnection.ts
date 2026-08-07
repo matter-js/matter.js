@@ -86,7 +86,7 @@ export class ProxyConnection {
     // error handler in place of the default rethrow
     readonly #observerFailed = (error: Error) => logger.error(`[${this.#id}] Observer failed:`, error);
 
-    /** Emitted once when the protocol handshake completes.  Failure is reported through {@link closed}. */
+    /** Emitted once when the protocol handshake completes.  Prefer {@link opened} for waiting on it. */
     readonly handshakeCompleted = new Observable<[]>(this.#observerFailed);
 
     /**
@@ -142,6 +142,45 @@ export class ProxyConnection {
         }).start();
 
         this.#running = this.#run(reader);
+    }
+
+    /**
+     * Wait for the handshake to complete.
+     *
+     * Resolves immediately if the connection is already open and rejects with {@link ProxyConnectionClosedError} if
+     * the connection closes first, so consumers do not have to race {@link handshakeCompleted} against
+     * {@link closed} themselves.
+     */
+    async opened(): Promise<void> {
+        if (this.#handshakeComplete) {
+            return;
+        }
+
+        if (this.#closedEmitted) {
+            throw new ProxyConnectionClosedError(`[${this.#id}] Connection closed before the handshake completed`);
+        }
+
+        const { promise, resolver, rejecter } = createPromise<void>();
+
+        const onOpened = () => {
+            release();
+            resolver();
+        };
+
+        const onClosed = () => {
+            release();
+            rejecter(new ProxyConnectionClosedError(`[${this.#id}] Connection closed before the handshake completed`));
+        };
+
+        const release = () => {
+            this.handshakeCompleted.off(onOpened);
+            this.closed.off(onClosed);
+        };
+
+        this.handshakeCompleted.on(onOpened);
+        this.closed.on(onClosed);
+
+        return promise;
     }
 
     /**
@@ -203,13 +242,13 @@ export class ProxyConnection {
     }
 
     sendFrame(opcode: number, handle: number, payload: Uint8Array) {
+        if (!this.connected) {
+            throw new ProxyConnectionClosedError(`[${this.#id}] Cannot send frame ${opcode}, not connected`);
+        }
+
         // The frame header truncates silently, which would misroute the frame to a valid but different handle
         if (opcode < 0 || opcode > 0xff || handle < 0 || handle > 0xffff) {
             throw new ImplementationError(`[${this.#id}] Frame opcode ${opcode} or handle ${handle} is out of range`);
-        }
-
-        if (!this.connected) {
-            throw new ProxyConnectionClosedError(`[${this.#id}] Cannot send frame ${opcode}, not connected`);
         }
 
         logger.debug(
@@ -294,6 +333,10 @@ export class ProxyConnection {
      * Process a message received before the handshake completes.  Returns false if the connection must close.
      */
     async #receiveHandshake(message: HttpEndpoint.WsMessage) {
+        if (this.#closedEmitted) {
+            return false;
+        }
+
         if (typeof message !== "string") {
             logger.warn(`[${this.#id}] Received binary frame before handshake`);
             return true;
@@ -331,11 +374,7 @@ export class ProxyConnection {
         const response: ProxyHelloResponseMessage = { type: "hello_response", version: this.#version };
         await this.#write(JSON.stringify(response));
 
-        this.#handshakeComplete = true;
-        logger.info(`[${this.#id}] Handshake complete (version ${this.#version})`);
-        this.handshakeCompleted.emit();
-
-        return true;
+        return this.#completeHandshake();
     }
 
     #receiveHelloResponse(message: Record<string, unknown>) {
@@ -358,6 +397,19 @@ export class ProxyConnection {
             return false;
         }
 
+        return this.#completeHandshake();
+    }
+
+    /**
+     * Commit the handshake.  Returns false if the connection reached its terminal state while the response was in
+     * flight, in which case the peer's message arrives too late to open the connection.
+     */
+    #completeHandshake() {
+        if (this.#closedEmitted) {
+            logger.debug(`[${this.#id}] Handshake completed after close, ignoring`);
+            return false;
+        }
+
         this.#handshakeComplete = true;
         logger.info(`[${this.#id}] Handshake complete (version ${this.#version})`);
         this.handshakeCompleted.emit();
@@ -366,6 +418,10 @@ export class ProxyConnection {
     }
 
     #receive(message: HttpEndpoint.WsMessage) {
+        if (this.#closedEmitted) {
+            return;
+        }
+
         if (typeof message !== "string") {
             this.#receiveFrame(message);
             return;
