@@ -59,7 +59,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensure that `--storage-clear`/`MATTER_STORAGE_CLEAR` is honored again and clears the storage on start
 
 - @matter/nodejs-shell
-    - Feature: The shell automatically migrates a pre-0.16 controller storage to the current format on startup; `--cleanup-legacy-storage` irreversibly removes the leftover legacy data once migration is complete
+    - Feature: Added `--cleanup-legacy-storage` to irreversibly remove the leftover pre-0.16 storage artifacts once they have been migrated to the current format
 
 - @matter/react-native
     - Fix: The `storage.clear` variable now clears the storage on start as it does on Node.js
