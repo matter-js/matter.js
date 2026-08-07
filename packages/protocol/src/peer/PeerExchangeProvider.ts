@@ -85,13 +85,10 @@ export class PeerExchangeProvider extends ExchangeProvider {
             }
 
             const network = this.#context.networks.select(this.#peer, options?.network);
-            const medium = this.#context.networks.forPeer(this.#peer);
+            const protocol = options?.protocol ?? INTERACTION_PROTOCOL_ID;
             const peerAdditionalMrpDelay =
                 options?.additionalMrpDelay ??
-                MRP.marginFor(
-                    { messaging: medium.additionalMrpDelay, bdx: medium.bdxAdditionalMrpDelay },
-                    options?.protocol ?? INTERACTION_PROTOCOL_ID,
-                );
+                MRP.marginFor(this.#context.networks.forPeer(this.#peer).mrpMargins, protocol);
             const slot = await network.semaphore.obtainSlot(abort);
 
             try {
@@ -133,7 +130,7 @@ export class PeerExchangeProvider extends ExchangeProvider {
                     session,
                     network,
                     peerAdditionalMrpDelay,
-                    options?.protocol ?? INTERACTION_PROTOCOL_ID,
+                    protocol,
                     options?.addressOverride,
                 );
 
