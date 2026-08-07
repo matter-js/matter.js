@@ -17,12 +17,32 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: DNS-SD resolution queries A/AAAA for the SRV target host instead of the service instance name
     - Fix: The `Symbol.metadata` polyfill no longer conflicts with `lib.esnext.decorators` in the published declarations
 
+- @matter/model
+    - Enhancement: `FeatureSelectionErrors()` assesses a cluster's selected features against the combinations its FeatureMap conformance disallows
+    - Enhancement: `FeatureSet.resolve()` resolves a feature short code, title or camelized title to a short code
+    - Fix: A cluster's feature table no longer selects features; a feature the specification makes unconditionally mandatory is always selected
+    - Fix: Feature selection records against `operationalIsSupported` so a feature's `default` conveys only the specification's fallback value
+    - Fix: A feature mandated by any of several alternatives, such as `DoorLock.User`, is now reported as required
+
+- @matter/node
+    - Breaking: Default server exports no longer inherit the features their base implementation enables internally.
+        - `ColorControlServer`, `DoorLockServer`, `ElectricalEnergyMeasurementServer`, `LevelControlServer`, `ModeSelectServer`, `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer` and `WindowCoveringServer` now select no features. Select the features your device supports with `.with(...)` or use the DeviceType specific Requirement definitions of these clusters which automatically enable the needed features for the device type
+        - `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer`, `WindowCoveringServer` and `ElectricalEnergyMeasurementServer` now require a selection to be added to an endpoint at all. The `DoorLockDevice`, `SpeakerDevice` and `ModeSelectDevice` device types alias these exports, so their clusters also select no features and advertise a different FeatureMap.
+        - Verify the feature set of every device you compose. Persisted cluster state resets once for affected devices because it is keyed by feature selection
+    - Breaking: A LongIdleTimeSupport ICD must select CheckInProtocolSupport and UserActiveModeTrigger
+    - Breaking: A node that accepts more than one path per invoke must select the General Diagnostics DataModelTest feature
+    - Enhancement: Adding a server cluster to an endpoint fails when its selected features violate the conformance of its FeatureMap
+    - Fix: `ClusterBehavior.with()` rejects a feature the cluster does not define
+
 - @matter/nodejs
     - Breaking: `FileStorageDriver`'s constructor no longer accepts a `clear` argument; clearing is handled by `StorageService`
     - Fix: Ensure that `--storage-clear`/`MATTER_STORAGE_CLEAR` is honored again and clears the storage on start
 
 - @matter/react-native
     - Fix: The `storage.clear` variable now clears the storage on start as it does on Node.js
+
+- @matter/types
+    - Fix: `Cluster.with()` rejects a feature the cluster does not define and returns one frozen namespace per selection
 
 ## 0.17.9 (2026-08-06)
 

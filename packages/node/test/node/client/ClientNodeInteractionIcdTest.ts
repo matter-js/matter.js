@@ -22,6 +22,7 @@ import { subscribedPeer } from "../node-helpers.js";
 const DslsIcdServer = IcdManagementServer.with(
     IcdManagement.Feature.CheckInProtocolSupport,
     IcdManagement.Feature.LongIdleTimeSupport,
+    IcdManagement.Feature.UserActiveModeTrigger,
     IcdManagement.Feature.DynamicSitLitSupport,
 );
 const RootWithDslsIcd = ServerNode.RootEndpoint.with(DslsIcdServer);
