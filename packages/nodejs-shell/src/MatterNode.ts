@@ -230,8 +230,8 @@ export class MatterNode {
             await this.Store.set("AllowTestOtaImages", value);
         }
         this.#allowTestOtaImages = value ?? false;
-        if (this.#started && this.commissioningController !== undefined) {
-            await this.commissioningController.otaProvider.setStateOf(SoftwareUpdateManager, {
+        if (this.#started && this.#node !== undefined) {
+            await this.otaProviderEndpoint.setStateOf(SoftwareUpdateManager, {
                 allowTestOtaImages: this.#allowTestOtaImages,
             });
         }

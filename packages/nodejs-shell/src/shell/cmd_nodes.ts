@@ -12,6 +12,7 @@ import {
     ImplementationError,
     InternalError,
     Logger,
+    Millis,
     ServerAddress,
 } from "@matter/general";
 import {

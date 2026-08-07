@@ -121,7 +121,6 @@ describe("PeerConnection establishment progress", () => {
             using abort = new Abort();
             // Unbounded retransmission mirrors PeerConnection's `maxInitialRetransmissions: Infinity`.
             const sendPromise = exchange.send(1, Bytes.empty, {
-                requiresAck: true,
                 maxRetransmissions: Infinity,
                 abort,
             });
