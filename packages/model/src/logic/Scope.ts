@@ -71,6 +71,14 @@ export interface Scope extends Conformance.FeatureContext {
      * {@link Model#operationalIsSupported} set.
      */
     hasOperationalSupport(model: Model): boolean;
+
+    /**
+     * Test whether an element is mandatory given the features active in this scope.
+     *
+     * Evaluated purely from the element's declared conformance. Deliberately blind to runtime element-support data
+     * such as a peer's AttributeList: {@link hasOperationalSupport} folds that in, this does not.
+     */
+    isMandatory(model: Model): boolean;
 }
 
 /**
@@ -153,6 +161,7 @@ export function Scope(subject: Model, options: Scope.ScopeOptions = {}) {
             : <T extends Model>(model: T) => model,
         membersOf,
         hasOperationalSupport,
+        isMandatory,
     };
 
     function membersOf<T extends Model>(parent: T, options: Scope.MemberOptions = {}) {
@@ -191,12 +200,16 @@ export function Scope(subject: Model, options: Scope.ScopeOptions = {}) {
     }
 
     function hasOperationalSupport(model: Model) {
-        model = scope.modelFor(model);
-
-        const operational = model.effectiveIsSupported;
+        const operational = scope.modelFor(model).effectiveIsSupported;
         if (operational !== undefined) {
             return operational;
         }
+
+        return isMandatory(model);
+    }
+
+    function isMandatory(model: Model) {
+        model = scope.modelFor(model);
 
         const conformance = (model as { effectiveConformance?: Conformance }).effectiveConformance;
 

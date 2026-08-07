@@ -6,7 +6,13 @@
 
 import { AccessControl, ExpiredReferenceError, Val } from "@matter/protocol";
 import type { Supervision } from "../../supervision/Supervision.js";
-import { memberFallbackKeyFor, memberKeyFor, memberValueOf } from "./MemberKeys.js";
+import {
+    memberFallbackKeyFor,
+    memberKeyFor,
+    memberReadFallbackKeyFor,
+    memberSlotOf,
+    memberValueOf,
+} from "./MemberKeys.js";
 import type { ValReference } from "./ValReference.js";
 
 type Container = Record<string | number, Val>;
@@ -38,6 +44,7 @@ export class ManagedReference implements ValReference {
 
     #key: string | number;
     #fallbackKey: string | number | undefined;
+    #readFallbackKey: string | number | undefined;
     #assertWriteOk: (value: Val) => void;
     #clone: ((container: Val) => Val) | undefined;
     #session: AccessControl.Session;
@@ -74,16 +81,19 @@ export class ManagedReference implements ValReference {
 
         const key = memberKeyFor(parent.primaryKey, name, id);
         const fallbackKey = memberFallbackKeyFor(parent.primaryKey, name, id);
+        const readFallbackKey = memberReadFallbackKeyFor(parent.primaryKey, name, id);
         this.#key = key;
         this.#fallbackKey = fallbackKey;
+        this.#readFallbackKey = readFallbackKey;
 
         let dynamicContainer: Val.Struct | undefined;
         if ((parent.value as Val.Dynamic)[Val.properties]) {
             dynamicContainer = (parent.value as Val.Dynamic)[Val.properties](parent.rootOwner, session);
-            if (key in (dynamicContainer as Container)) {
-                this.#value = (dynamicContainer as Container)[key];
-            } else if (fallbackKey !== undefined && fallbackKey in (dynamicContainer as Container)) {
-                this.#value = (dynamicContainer as Container)[fallbackKey];
+            // A provider is name-keyed regardless of the parent's keying and holds live values, never seeded
+            // defaults, so dynamic reads accept the name spelling where container reads must not
+            const slot = memberSlotOf(dynamicContainer as Container, key, fallbackKey);
+            if (slot !== undefined) {
+                this.#value = (dynamicContainer as Container)[slot];
             } else {
                 dynamicContainer = undefined;
             }
@@ -91,7 +101,7 @@ export class ManagedReference implements ValReference {
         this.#dynamicContainer = dynamicContainer;
 
         if (dynamicContainer === undefined) {
-            this.#value = memberValueOf(parent.value as Container, key, fallbackKey);
+            this.#value = memberValueOf(parent.value as Container, key, readFallbackKey);
         }
 
         // Propagate supervision config from parent
@@ -155,7 +165,7 @@ export class ManagedReference implements ValReference {
             );
             return memberValueOf(origProperties as Container, this.#key, this.#fallbackKey);
         }
-        return memberValueOf(this.parent!.original as Container, this.#key, this.#fallbackKey);
+        return memberValueOf(this.parent!.original as Container, this.#key, this.#readFallbackKey);
     }
 
     change(mutator: () => void) {
@@ -190,7 +200,7 @@ export class ManagedReference implements ValReference {
         const value =
             this.#dynamicContainer !== undefined
                 ? memberValueOf(this.#dynamicContainer as Container, this.#key, this.#fallbackKey)
-                : memberValueOf(this.parent!.value as Container, this.#key, this.#fallbackKey);
+                : memberValueOf(this.parent!.value as Container, this.#key, this.#readFallbackKey);
 
         this.#replaceValue(value);
     }

@@ -7,6 +7,7 @@
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
+import { Internal } from "#behavior/state/managed/Internal.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import type { Node } from "#node/Node.js";
@@ -129,6 +130,13 @@ export function TestStruct(
 }
 
 export type TestStruct = Identity<ReturnType<typeof TestStruct>>;
+
+/**
+ * Bypass the managed proxy to inspect the container's raw stored slots.
+ */
+export function rawValuesOf(value: object) {
+    return (value as Internal.Collection)[Internal.reference].value as Val.Struct;
+}
 
 export function aclEndpoint() {
     return {
