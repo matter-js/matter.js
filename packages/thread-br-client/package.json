@@ -30,7 +30,7 @@
     "dependencies": {
         "@matter/general": "*",
         "@matter/protocol": "*",
-        "@noble/curves": "^2.2.0"
+        "@noble/curves": "^2.3.0"
     },
     "devDependencies": {
         "@matter/testing": "*"

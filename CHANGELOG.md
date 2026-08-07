@@ -11,6 +11,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/general
+    - Fix: The `Symbol.metadata` polyfill no longer conflicts with `lib.esnext.decorators` in the published declarations
+
+## 0.17.9 (2026-08-06)
+
 - @matter/protocol
     - Enhancement: A BDX exchange retransmits its pending message early when a duplicate proves the peer is awake and still waiting for it
     - Fix: The peer's medium-specific MRP retransmission margin now applies to peer-initiated exchanges (e.g. subscription data reports) and to exchanges created without peer context
