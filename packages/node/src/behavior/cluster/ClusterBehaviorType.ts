@@ -17,15 +17,13 @@ import {
     ClassSemantics,
     ClusterModel,
     CommandModel,
-    DecodedBitmap,
-    DefaultValue,
     ElementTag,
     FeatureMap,
     FeatureSet,
     Matter,
-    Metatype,
     Schema,
     Scope,
+    SelectDefaultValue,
     ValueModel,
 } from "@matter/model";
 import { Val } from "@matter/protocol";
@@ -317,7 +315,7 @@ function createDerivedState({ scope, base, newProps }: DerivationContext) {
 
         // Make sure a default value is present if mandatory or marked as supported (note that the default value may
         // be "undefined" to indicate that an attribute is available optionally)
-        defaults[name] = selectDefaultValue(
+        defaults[name] = SelectDefaultValue(
             scope,
             oldDefaults[name] === undefined ? knownDefaults?.[name] : oldDefaults[name],
             propSchema,
@@ -596,49 +594,6 @@ function createDefaultCommandDescriptors({ scope, base, commandFactory }: Deriva
     }
 
     return result;
-}
-
-function selectDefaultValue(scope: Scope, oldDefault: Val, member: ValueModel) {
-    if (oldDefault !== undefined) {
-        return oldDefault;
-    }
-
-    // No default unless mandatory or explicitly marked as implemented
-    if (!scope.hasOperationalSupport(member)) {
-        return;
-    }
-
-    // If there's an explicit default, use that
-    const effectiveDefault = DefaultValue(scope, member);
-    if (effectiveDefault !== undefined) {
-        if (member.effectiveMetatype === "bitmap") {
-            return DecodedBitmap(member, effectiveDefault);
-        }
-        return effectiveDefault;
-    }
-
-    // Default for nullable is null
-    if (member.nullable) {
-        return null;
-    }
-
-    switch (member.effectiveMetatype) {
-        case Metatype.integer:
-        case Metatype.float:
-            return 0;
-
-        case Metatype.boolean:
-            return false;
-
-        case Metatype.bitmap:
-        case Metatype.object:
-            // This is not a very good default but it is better than undefined
-            return {};
-
-        case Metatype.array:
-            // Same
-            return [];
-    }
 }
 
 /**

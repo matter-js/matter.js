@@ -4,9 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, GeneratedClass, ImplementationError, isObject } from "@matter/general";
-import type { Schema } from "@matter/model";
-import { Access, ElementTag, FieldValue, Metatype, ValueModel } from "@matter/model";
+import { camelize, deepCopy, GeneratedClass, ImplementationError, isObject } from "@matter/general";
+import type { Schema, Scope } from "@matter/model";
+import {
+    Access,
+    DecodedBitmap,
+    DefaultValue,
+    ElementTag,
+    FieldValue,
+    Metatype,
+    SelectDefaultValue,
+    ValueModel,
+} from "@matter/model";
 import { AccessControl, PhantomReferenceError, SchemaImplementationError, Val } from "@matter/protocol";
 import { FabricIndex } from "@matter/types";
 import { RootSupervisor } from "../../../supervision/RootSupervisor.js";
@@ -175,6 +184,59 @@ export namespace StructManager {
     }
 }
 
+/**
+ * Recursively compute the default a mandatory member assumes absent an explicit value.  Extends
+ * {@link SelectDefaultValue} for object/bitmap metatypes: nullable reads null, and instead of an empty `{}` a
+ * struct holds the mandatory members' own synthesized defaults (optional nested members are omitted).
+ *
+ * Only a default the schema states explicitly is consulted — {@link DefaultValue}'s constructed partial objects
+ * are not, as they ignore conformance and bypass the nullable rule.  Callers must copy the result before handing
+ * it out: an explicit default is model-owned shared state.
+ */
+function synthesizeMandatoryDefault(scope: Scope, member: ValueModel, visiting?: Set<ValueModel>): Val | undefined {
+    if (!scope.hasOperationalSupport(member)) {
+        return undefined;
+    }
+
+    const metatype = member.effectiveMetatype;
+    if (metatype !== Metatype.object && metatype !== Metatype.bitmap) {
+        return SelectDefaultValue(scope, undefined, member);
+    }
+
+    if (member.default !== undefined) {
+        const explicit = DefaultValue(scope, member);
+        if (explicit !== undefined) {
+            return metatype === Metatype.bitmap ? DecodedBitmap(member, explicit) : explicit;
+        }
+    }
+
+    if (member.nullable) {
+        return null;
+    }
+
+    if (metatype === Metatype.bitmap) {
+        return {};
+    }
+
+    // A consumer-defined schema may be self-referential
+    visiting ??= new Set();
+    if (visiting.has(member)) {
+        return undefined;
+    }
+    visiting.add(member);
+
+    const result: Val.Struct = {};
+    for (const child of scope.membersOf(member, { conformance: "conformant" })) {
+        const value = synthesizeMandatoryDefault(scope, child, visiting);
+        if (value !== undefined) {
+            result[child.propertyName] = value;
+        }
+    }
+
+    visiting.delete(member);
+    return result;
+}
+
 function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
     const name = schema.propertyName;
     const id = schema.id;
@@ -192,6 +254,17 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
         defaultReader = NameResolver(supervisor, schema.parent, camelize(FieldValue.referenced(schema.default)!));
     }
 
+    // A member the mirror's active features make mandatory always reads a value even when the peer hasn't
+    // reported it, matching the conformance-aware TypeScript typings; the container itself never holds this
+    // value, so it can't masquerade as peer data in persistence, change detection or external-change integration.
+    // Synthesized fresh per read — an explicit schema default is model-owned shared state, so handing out (or
+    // freezing) the same instance would alias every consumer and node onto it.
+    const scope = supervisor.scope;
+    const isOperationallySupported = scope.hasOperationalSupport(schema);
+    const synthesizeDefault = isOperationallySupported
+        ? () => deepCopy(synthesizeMandatoryDefault(scope, schema))
+        : undefined;
+
     const descriptor: PropertyDescriptor = {
         enumerable: true,
 
@@ -203,8 +276,8 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
             let key = memberKeyFor(pk, name, id);
             let storedKey = memberSlotOf(this[Internal.reference].value, key, memberFallbackKeyFor(pk, name, id));
 
-            // Rollback and the fabric-scoped-list merge check must see what a read returns, not the
-            // write-migration slot above
+            // Rollback and the fabric-scoped-list merge check must see stored truth — never the write-migration
+            // slot above and never a synthesized default
             const oldValue = memberValueOf(this[Internal.reference].value, key, memberReadFallbackKeyFor(pk, name, id));
 
             const self = this;
@@ -214,6 +287,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
 
                 // Identify the target.  Usually just "struct" except when struct supports Val.Dynamic
                 let target;
+                let previousValue = oldValue;
                 if (Val.properties in struct) {
                     const properties = (struct as Val.Dynamic)[Val.properties](
                         this[Internal.reference].rootOwner,
@@ -222,6 +296,13 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                     if (name in properties) {
                         key = storedKey = name;
                         target = properties;
+                        if (isFabricScopedList || validate) {
+                            // A dynamic member's previous value lives in the provider, not the container slot;
+                            // read it only when rollback or the fabric-scoped merge check may consume it, as the
+                            // provider's getter may be costly.  Unmanage in case the provider serves a managed
+                            // value — rollback must not plant a proxy that expires with this session
+                            previousValue = Internal.unmanage(properties[name]);
+                        }
                     } else {
                         target = struct;
                     }
@@ -233,7 +314,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 value = Internal.unmanage(value);
 
                 // Modify the value
-                if (isFabricScopedList && Array.isArray(value) && Array.isArray(oldValue)) {
+                if (isFabricScopedList && Array.isArray(value) && Array.isArray(previousValue)) {
                     // In the case of fabric-scoped write to established list we use the managed proxy to perform update
                     // as it will sort through values and only modify those with correct fabricIndex
                     const proxy = self[memberKeyFor(pk, name, id)] as Val.List;
@@ -268,10 +349,10 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                         // handles the cases of 1.) no transaction, and 2.) error is caught within transaction.
                         // A previously absent member must not leave a slot behind — consumers enumerate slot keys to
                         // discover which members hold values
-                        if (oldValue === undefined) {
+                        if (previousValue === undefined) {
                             delete target[key];
                         } else {
-                            target[key] = oldValue;
+                            target[key] = previousValue;
                         }
 
                         throw e;
@@ -300,11 +381,19 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 }
 
                 const primaryKey = this[Internal.reference].primaryKey;
-                return memberValueOf(
+                const value = memberValueOf(
                     struct,
                     memberKeyFor(primaryKey, name, id),
                     memberReadFallbackKeyFor(primaryKey, name, id),
                 );
+                if (value === undefined && primaryKey === "id" && synthesizeDefault) {
+                    // A referenced default wins over the synthesized datatype default
+                    if (defaultReader) {
+                        return defaultReader(this) ?? synthesizeDefault();
+                    }
+                    return synthesizeDefault();
+                }
+                return value;
             }
         };
     } else {
@@ -361,8 +450,21 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
             }
 
             if (value === undefined) {
-                // A referenced default is computed locally, so an id-keyed mirror never surfaces it
-                return primaryKey === "name" ? defaultReader?.(this) : undefined;
+                if (primaryKey === "name") {
+                    return defaultReader?.(this);
+                }
+
+                if (synthesizeDefault === undefined) {
+                    return undefined;
+                }
+
+                // A referenced default wins over the synthesized datatype default, but only for a member the
+                // mirror's active features make mandatory -- an optional unreported member stays undefined
+                if (defaultReader) {
+                    return defaultReader(this) ?? synthesizeDefault();
+                }
+
+                return synthesizeDefault();
             }
 
             // Value is null or a dynamic property, so just return it

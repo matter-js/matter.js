@@ -31,7 +31,7 @@ The main work (all changes without a GitHub username in brackets in the below li
         - Verify the feature set of every device you compose. Persisted cluster state resets once for affected devices because it is keyed by feature selection
     - Breaking: A LongIdleTimeSupport ICD must select CheckInProtocolSupport and UserActiveModeTrigger
     - Breaking: A node that accepts more than one path per invoke must select the General Diagnostics DataModelTest feature
-    - Breaking: A client node's attribute the peer has not reported now reads as `undefined` — primitives no longer return a datatype/schema default, including a schema default referencing another field no longer resolves on a client node
+    - Breaking: Ensure that an unreported client node attribute reads the schema or datatype default when mandatory under the peer's supported features, matching the TypeScript typings, and `undefined` when optional (enum, string and bytes attributes have no datatype default)
     - Breaking: Configured options and environment variables no longer seed a client node's cluster state; the peer's reports are the only source of values
     - Breaking: Adding a server cluster to an endpoint fails when its selected features violate the conformance of its FeatureMap
     - Fix: `IdentifyServer` no longer offers the optional `TriggerEffect` command unless the device type requires it, an own command implementation has been added via an override or suppression is disabled; `IdentifyServer.enable({ commands: { triggerEffect: true } })`, `IdentifyServer.alter({ commands: { triggerEffect: { optional: false } } })` and an override of `suppressTriggerEffect()` also offer it

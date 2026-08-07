@@ -7,6 +7,7 @@
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
+import { Internal } from "#behavior/state/managed/Internal.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { MaybePromise, MockCrypto } from "@matter/general";
 import {
@@ -281,46 +282,61 @@ describe("StructManager", () => {
             });
         });
 
-        // An id-keyed container never falls back to the property-name slot: a member the peer has not reported
-        // under its id reads as undefined, whether primitive or collection.
-        it("reads a value present only under its property name as undefined, for primitives and collections alike", async () => {
+        function rawValuesOf(ref: Val.Struct) {
+            return (ref as unknown as Internal.Collection)[Internal.reference].value as Val.Struct;
+        }
+
+        // An id-keyed container never falls back to the property-name slot.  A mandatory member (conformance
+        // evaluated against the mirror's supported features) still reads a value -- synthesized from the schema,
+        // not from the property-name slot.  An optional member reads undefined either way.
+        it("reads a mandatory member as its datatype default and an optional member as undefined, when reported only under its property name", async () => {
             const struct = TestStruct(
                 {
-                    prim: { id: 0, type: "string" },
+                    prim: { id: 0, type: "uint8", conformance: "M" },
+                    opt: { id: 1, type: "uint8", conformance: "O" },
                     sub: {
-                        id: 1,
+                        id: 2,
                         type: "struct",
+                        conformance: "M",
                         children: [FieldElement({ name: "foo", id: 0, type: "string" })],
                     },
                 },
-                { prim: "hi", sub: { foo: "bar" } },
+                { prim: 5, opt: 5, sub: { foo: "bar" } },
                 "id",
             );
 
             await struct.online(TestContext(), ref => {
-                expect(ref.prim).undefined;
-                expect(ref.sub).undefined;
+                expect(ref.prim).equals(0);
+                expect(ref.opt).undefined;
+                // "foo" is a string with no explicit conformance (optional), so it contributes nothing to the
+                // recursively-synthesized default
+                expect(ref.sub).deep.equals({});
             });
         });
 
         // A rejected write must roll back to the same value a read would have returned beforehand — not to
         // whatever the write-migration fallback found under the property name, or the rollback plants the seeded
         // default at the id slot and a later read wrongly reports the member as peer-reported.
-        it("rolls back to undefined, not a name-slot seeded default, when a rejected write is undone", async () => {
-            const struct = TestStruct({ prim: { id: 0, type: "uint8", constraint: "0 to 10" } }, { prim: 5 }, "id");
+        it("rolls back to the synthesized default, not a name-slot seeded default, when a rejected write is undone", async () => {
+            const struct = TestStruct(
+                { prim: { id: 0, type: "uint8", constraint: "0 to 10", conformance: "M" } },
+                { prim: 5 },
+                "id",
+            );
 
             await struct.online(TestContext(), ref => {
-                expect(ref.prim).undefined;
+                expect(ref.prim).equals(0);
 
                 expect(() => (ref.prim = 99)).throws();
 
-                expect(ref.prim).undefined;
+                expect(ref.prim).equals(0);
+                expect(0 in rawValuesOf(ref)).false;
             });
         });
 
         // A fabric-scoped list the peer has not yet reported must write by direct assignment, not through the
         // managed-proxy merge path reserved for an established list: that path reads back through the property
-        // getter, which (correctly) reports the unreported list as absent rather than the seeded empty array.
+        // getter, which for a mandatory list now returns the synthesized empty array rather than a container value.
         it("writes a fabric-scoped list the peer has not yet reported via direct assignment", async () => {
             const struct = TestStruct(
                 {
@@ -328,6 +344,7 @@ describe("StructManager", () => {
                         id: 0,
                         type: "list",
                         access: "RW F",
+                        conformance: "M",
                         children: [FieldElement({ name: "entry", type: "string" })],
                     },
                 },
@@ -336,29 +353,137 @@ describe("StructManager", () => {
             );
 
             await struct.online(TestContext(), ref => {
-                expect(ref.acl).undefined;
+                expect(ref.acl).deep.equals([]);
                 expect(() => (ref.acl = ["x"])).not.throws();
                 expect(ref.acl).deep.equals(["x"]);
             });
         });
 
-        it("does not compute a referenced default for an unreported member of an id-keyed container", async () => {
-            const struct = TestStruct(referencedDefaultFields(), { 1: { foo: "bar" } }, "id");
+        it("reads a nullable mandatory member as null when unreported", async () => {
+            const struct = TestStruct({ prim: { id: 0, type: "uint8", conformance: "M", quality: "X" } }, {}, "id");
+
+            await struct.online(TestContext(), ref => {
+                expect(ref.prim).null;
+            });
+        });
+
+        it("reads a nullable mandatory struct as null even when a nested member carries a default", async () => {
+            const struct = TestStruct(
+                {
+                    sub: {
+                        id: 0,
+                        type: "struct",
+                        conformance: "M",
+                        quality: "X",
+                        children: [
+                            FieldElement({ name: "req", id: 0, type: "uint8", conformance: "M" }),
+                            FieldElement({ name: "opt", id: 1, type: "uint8", conformance: "O", default: 7 }),
+                        ],
+                    },
+                },
+                {},
+                "id",
+            );
+
+            await struct.online(TestContext(), ref => {
+                expect(ref.sub).null;
+            });
+        });
+
+        it("resolves a referenced default for a mandatory unreported primitive", async () => {
+            const struct = TestStruct(
+                {
+                    src: { id: 1, type: "uint8" },
+                    mirror: { id: 2, type: "uint8", conformance: "M", default: FieldValue.Reference("src") },
+                },
+                { 1: 5 },
+                "id",
+            );
+
+            await struct.online(TestContext(), ref => {
+                expect(ref.mirror).equals(5);
+            });
+        });
+
+        it("recursively synthesizes a mandatory struct's mandatory members, omitting optional ones", async () => {
+            const struct = TestStruct(
+                {
+                    sub: {
+                        id: 0,
+                        type: "struct",
+                        conformance: "M",
+                        children: [
+                            FieldElement({ name: "req", id: 0, type: "uint8", conformance: "M" }),
+                            FieldElement({ name: "opt", id: 1, type: "uint8", conformance: "O" }),
+                        ],
+                    },
+                },
+                {},
+                "id",
+            );
+
+            await struct.online(TestContext(), ref => {
+                expect(ref.sub).deep.equals({ req: 0 });
+            });
+        });
+
+        it("synthesizes a fresh value per read, so consumer mutation cannot corrupt later reads", async () => {
+            const struct = TestStruct(
+                {
+                    arr: {
+                        id: 0,
+                        type: "list",
+                        conformance: "M",
+                        children: [FieldElement({ name: "entry", type: "string" })],
+                    },
+                },
+                {},
+                "id",
+            );
+
+            await struct.online(TestContext(), ref => {
+                const first = ref.arr as Val.List;
+                expect(first).deep.equals([]);
+
+                first.push("x");
+
+                expect(ref.arr).deep.equals([]);
+            });
+        });
+
+        it("does not synthesize a default for an absent mandatory member of a name-keyed container", async () => {
+            const struct = TestStruct({ prim: { id: 0, type: "uint8", conformance: "M" } });
+
+            await struct.online(TestContext(), ref => {
+                expect(ref.prim).undefined;
+            });
+        });
+
+        it("does not compute a referenced default for an optional unreported member of an id-keyed container", async () => {
+            const struct = TestStruct(referencedDefaultFields("O"), { 1: { foo: "bar" } }, "id");
 
             await struct.online(TestContext(), ref => {
                 expect(ref.mirror).undefined;
             });
         });
 
-        it("computes a referenced default for an absent member of a name-keyed container", async () => {
-            const struct = TestStruct(referencedDefaultFields(), { src: { foo: "bar" } });
+        it("computes a referenced default for a mandatory unreported member of an id-keyed container", async () => {
+            const struct = TestStruct(referencedDefaultFields("M"), { 1: { foo: "bar" } }, "id");
 
             await struct.online(TestContext(), ref => {
                 expect(ref.mirror).deep.equals({ foo: "bar" });
             });
         });
 
-        function referencedDefaultFields() {
+        it("computes a referenced default for an absent member of a name-keyed container", async () => {
+            const struct = TestStruct(referencedDefaultFields("O"), { src: { foo: "bar" } });
+
+            await struct.online(TestContext(), ref => {
+                expect(ref.mirror).deep.equals({ foo: "bar" });
+            });
+        });
+
+        function referencedDefaultFields(mirrorConformance: string) {
             return {
                 src: {
                     id: 1,
@@ -369,6 +494,7 @@ describe("StructManager", () => {
                     id: 2,
                     type: "struct",
                     default: FieldValue.Reference("src"),
+                    conformance: mirrorConformance,
                     children: [FieldElement({ name: "foo", type: "string" })],
                 },
             };
@@ -414,6 +540,50 @@ describe("StructManager", () => {
                 expect(state.sub).deep.equals({ foo: "bar" });
             });
         });
+
+        describe("mandatory default synthesis under feature conformance", () => {
+            const FeatureGated = new ClusterModel({
+                id: 0xdeadbee2,
+                name: "FeatureGated",
+                children: [
+                    FeatureMap.extend({
+                        children: [{ tag: "field", name: "FT", description: "Feature", constraint: "0" }],
+                    }),
+                    { tag: "field", id: 1, name: "gated", type: "uint8", conformance: "FT" },
+                ],
+            });
+
+            class FeatureGatedState {}
+
+            async function testFeatureGated(featureOn: boolean, actor: (ref: Val.Struct) => MaybePromise) {
+                const schema = FeatureGated.clone();
+                if (featureOn) {
+                    schema.supportedFeatures = new FeatureSet("FT");
+                }
+
+                const datasource = Datasource({
+                    entropy: MockCrypto(),
+                    type: FeatureGatedState,
+                    supervisor: RootSupervisor.for(schema),
+                    primaryKey: "id",
+                    location: { endpoint: EndpointNumber(1), path: new DataModelPath(0) },
+                });
+
+                await LocalActorContext.act("test", cx => actor(datasource.reference(cx) as unknown as Val.Struct));
+            }
+
+            it("synthesizes a default when the gating feature is supported", async () => {
+                await testFeatureGated(true, ref => {
+                    expect(ref.gated).equals(0);
+                });
+            });
+
+            it("reads undefined when the gating feature is not supported", async () => {
+                await testFeatureGated(false, ref => {
+                    expect(ref.gated).undefined;
+                });
+            });
+        });
     });
 
     describe("dynamic containers with TLV-tag-keyed members", () => {
@@ -442,6 +612,43 @@ describe("StructManager", () => {
             await LocalActorContext.act("test", cx => {
                 const state = datasource.reference(cx) as unknown as Val.Struct;
                 expect(state.sub).deep.equals({ foo: "bar" });
+            });
+        });
+    });
+
+    describe("dynamic member rollback", () => {
+        // A rejected write to a member served by a Val.properties provider must restore the provider's previous
+        // value — the container slot is absent for such members, so container-derived state would delete it
+        it("restores a dynamic member's previous value when a write is rejected", async () => {
+            class BackedDynamicState {
+                backing: Val.Struct = { foo: "old" };
+
+                [Val.properties]() {
+                    return this.backing;
+                }
+            }
+
+            const datasource = Datasource({
+                entropy: MockCrypto(),
+                type: BackedDynamicState,
+                supervisor: RootSupervisor.for(
+                    new FieldModel(
+                        FieldElement(
+                            { name: "Struct", type: "struct" },
+                            FieldElement({ name: "foo", id: 0, type: "string", constraint: "max 4" }),
+                        ),
+                    ),
+                ),
+                location: { endpoint: EndpointNumber(1), path: new DataModelPath("BackedDynamicState") },
+            });
+
+            await LocalActorContext.act("test", cx => {
+                const state = datasource.reference(cx) as unknown as Val.Struct;
+                expect(state.foo).equals("old");
+
+                expect(() => (state.foo = "too long")).throws();
+
+                expect(state.foo).equals("old");
             });
         });
     });
