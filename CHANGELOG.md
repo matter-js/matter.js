@@ -33,7 +33,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: A node that accepts more than one path per invoke must select the General Diagnostics DataModelTest feature
     - Breaking: A client node's attribute the peer has not reported now reads as `undefined` — primitives no longer return a datatype/schema default, including a schema default referencing another field no longer resolves on a client node
     - Breaking: Configured options and environment variables no longer seed a client node's cluster state; the peer's reports are the only source of values
-    - Enhancement: Adding a server cluster to an endpoint fails when its selected features violate the conformance of its FeatureMap
+    - Breaking: Adding a server cluster to an endpoint fails when its selected features violate the conformance of its FeatureMap
+    - Fix: `IdentifyServer` no longer offers the optional `TriggerEffect` command unless the device type requires it, an own command implementation has been added via an override or suppression is disabled; `IdentifyServer.enable({ commands: { triggerEffect: true } })`, `IdentifyServer.alter({ commands: { triggerEffect: { optional: false } } })` and an override of `suppressTriggerEffect()` also offer it
     - Fix: `ClusterBehavior.with()` rejects a feature the cluster does not define
     - Fix: Client node values persisted under property names by earlier versions are migrated to their attribute id on load, so they stay readable
     - Fix: Writing a fabric-scoped list entry that stems from a cluster whose schema could not be resolved no longer produces two conflicting fabricIndex fields
