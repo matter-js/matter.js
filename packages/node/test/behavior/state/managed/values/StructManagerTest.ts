@@ -421,6 +421,42 @@ describe("StructManager", () => {
             });
         });
 
+        it("passes a referenced sibling's null through to a nullable member", async () => {
+            const struct = TestStruct(
+                {
+                    src: { id: 1, type: "uint8", quality: "X" },
+                    mirror: {
+                        id: 2,
+                        type: "uint8",
+                        conformance: "M",
+                        quality: "X",
+                        default: FieldValue.Reference("src"),
+                    },
+                },
+                { 1: null },
+                "id",
+            );
+
+            await struct.online(TestContext(), ref => {
+                expect(ref.mirror).null;
+            });
+        });
+
+        it("substitutes the datatype default when a referenced sibling is null but the member is not nullable", async () => {
+            const struct = TestStruct(
+                {
+                    src: { id: 1, type: "uint8", quality: "X" },
+                    mirror: { id: 2, type: "uint8", conformance: "M", default: FieldValue.Reference("src") },
+                },
+                { 1: null },
+                "id",
+            );
+
+            await struct.online(TestContext(), ref => {
+                expect(ref.mirror).equals(0);
+            });
+        });
+
         it("recursively synthesizes a mandatory struct's mandatory members, omitting optional ones", async () => {
             const struct = TestStruct(
                 {

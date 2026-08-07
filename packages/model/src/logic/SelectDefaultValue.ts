@@ -5,7 +5,7 @@
  */
 
 import { Conformance } from "../aspects/Conformance.js";
-import { Metatype } from "../common/index.js";
+import { FieldValue, Metatype } from "../common/index.js";
 import type { ValueModel } from "../models/ValueModel.js";
 import { DecodedBitmap } from "./DecodedBitmap.js";
 import { DefaultValue } from "./DefaultValue.js";
@@ -59,7 +59,9 @@ export function MandatoryDefaultValue(scope: Scope, member: ValueModel, visiting
         return defaultValueForMetatype(scope, member);
     }
 
-    if (member.default !== undefined) {
+    // A reference is resolved live by the consumer, not here; without this guard an unresolvable reference would
+    // fall through to DefaultValue's constructed partial object
+    if (member.default !== undefined && FieldValue.referenced(member.default) === undefined) {
         const explicit = DefaultValue(scope, member);
         if (explicit !== undefined) {
             return metatype === Metatype.bitmap ? DecodedBitmap(member, explicit) : explicit;
