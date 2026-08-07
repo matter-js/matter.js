@@ -47,12 +47,12 @@ export interface ConcreteNetworkProfile {
     additionalMrpDelay: Duration;
 
     /**
-     * {@link additionalMrpDelay} for bulk transfer (BDX) exchanges, which sustain many round trips over one path.
+     * The additive MRP margins for this profile, by traffic class.
      *
-     * Defaults to {@link additionalMrpDelay}; set it only for a medium that needs bulk transfer paced differently from
-     * normal messaging.
+     * Precomputed because it is read on the send path; {@link MRP.Margins.bdx} is {@link additionalMrpDelay} unless
+     * the medium needs bulk transfer paced differently from normal messaging.
      */
-    bdxAdditionalMrpDelay: Duration;
+    mrpMargins: MRP.Margins;
 }
 
 /**
@@ -147,28 +147,29 @@ export class NetworkProfiles {
         return this.configure(id, this.#defaults[id as keyof NetworkProfiles.Templates]);
     }
 
-    configure(id: string, limits: NetworkProfiles.Limits, parent?: MRP.Margins) {
-        const additionalMrpDelay = limits.additionalMrpDelay ?? parent?.messaging ?? Millis(0);
-        const bdxAdditionalMrpDelay = limits.bdxAdditionalMrpDelay ?? parent?.bdx ?? additionalMrpDelay;
+    configure(id: string, limits: NetworkProfiles.Limits, parentDelay?: Duration) {
+        const additionalMrpDelay = limits.additionalMrpDelay ?? parentDelay ?? Millis(0);
         const network: NetworkProfile = {
             id,
             semaphore: new Semaphore(`network semaphore ${id}`, limits.exchanges, limits.delay, limits.timeout),
             additionalMrpDelay,
-            bdxAdditionalMrpDelay,
+            mrpMargins: {
+                messaging: additionalMrpDelay,
+                bdx: limits.bdxAdditionalMrpDelay ?? additionalMrpDelay,
+            },
         };
-        const inherited = { messaging: additionalMrpDelay, bdx: bdxAdditionalMrpDelay };
         if (limits.connect) {
             network.connect = this.configure(
                 `${id}:connect`,
                 { ...limits.connect, connect: undefined, probeAddress: undefined },
-                inherited,
+                additionalMrpDelay,
             );
         }
         if (limits.probeAddress) {
             network.probeAddress = this.configure(
                 `${id}:probe`,
                 { ...limits.probeAddress, connect: undefined, probeAddress: undefined },
-                inherited,
+                additionalMrpDelay,
             );
         }
         logger.info(
@@ -253,18 +254,20 @@ export namespace NetworkProfiles {
          * Additive MRP retransmission margin for this medium.  Defaults to 0 unless the template sets one.
          */
         additionalMrpDelay?: Duration;
-
-        /**
-         * {@link additionalMrpDelay} for bulk transfer (BDX) exchanges.  Unset inherits the parent profile's value for
-         * a sub-profile, and otherwise falls back to this profile's {@link additionalMrpDelay}.
-         */
-        bdxAdditionalMrpDelay?: Duration;
     }
 
     /**
      * Parameters that control exchange throttling for a specific medium.
      */
     export interface Limits extends ConcreteLimits {
+        /**
+         * {@link additionalMrpDelay} for bulk transfer (BDX) exchanges, which sustain many round trips over one path.
+         *
+         * Defaults to {@link additionalMrpDelay}.  Values above roughly 7s are inert: a BDX retransmission interval is
+         * capped so the whole schedule fits the peer's response budget.
+         */
+        bdxAdditionalMrpDelay?: Duration;
+
         /**
          * Overrides specifically for establishing new sessions.
          *

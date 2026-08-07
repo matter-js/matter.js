@@ -286,8 +286,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
                     preferredDriverModes: [Flow.DriverMode.ReceiverDrive],
                     // That's also the default but especially stated for OTA, but let's set it explicitly
                     messageTimeout: Minutes(5),
-                    maxBlockSize: this.agent.get(SoftwareUpdateManager).maxBdxBlockSizeFor(peerAddress),
-                    additionalMrpDelay: this.agent.get(SoftwareUpdateManager).bdxAdditionalMrpDelayFor(peerAddress),
+                    ...this.agent.get(SoftwareUpdateManager).bdxTransferOptionsFor(peerAddress),
                 })
             ) {
                 // We could not enable BDX for this scope because another process is registered with different details

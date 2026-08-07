@@ -55,6 +55,18 @@ import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-
 
 const logger = Logger.get("SoftwareUpdateManager");
 
+/** Rejects transfer options a BDX session could not honour, before any state changes on their behalf. */
+function assertTransferOptions({ maxBdxBlockSize, bdxAdditionalMrpDelay }: SoftwareUpdateManager.UpdateTarget) {
+    if (maxBdxBlockSize !== undefined && (!Number.isInteger(maxBdxBlockSize) || maxBdxBlockSize <= 0)) {
+        throw new ImplementationError(`maxBdxBlockSize must be a positive integer, got ${maxBdxBlockSize}`);
+    }
+    if (bdxAdditionalMrpDelay !== undefined && (!Number.isFinite(bdxAdditionalMrpDelay) || bdxAdditionalMrpDelay < 0)) {
+        throw new ImplementationError(
+            `bdxAdditionalMrpDelay must be a finite, non-negative duration, got ${bdxAdditionalMrpDelay}`,
+        );
+    }
+}
+
 interface UpdateConsent extends SoftwareUpdateManager.UpdateTarget {
     peerAddress: PeerAddress;
 }
@@ -836,6 +848,8 @@ export class SoftwareUpdateManager extends Behavior {
             existing.productId = entry.productId;
             existing.targetSoftwareVersion = entry.targetSoftwareVersion;
             existing.endpoint = entry.endpoint;
+            existing.maxBdxBlockSize = entry.maxBdxBlockSize;
+            existing.bdxAdditionalMrpDelay = entry.bdxAdditionalMrpDelay;
             logger.info(`Updated existing queued update for node ${entry.peerAddress.toString()}`);
         } else {
             logger.info(`Queuing update consent for node ${entry.peerAddress.toString()}`);
@@ -955,6 +969,7 @@ export class SoftwareUpdateManager extends Behavior {
      */
     async forceUpdate(peerAddress: PeerAddress, target: SoftwareUpdateManager.UpdateTarget) {
         const { vendorId, productId, targetSoftwareVersion } = target;
+        assertTransferOptions(target);
         peerAddress = PeerAddress(peerAddress);
         const existingEntry = this.internal.updateQueue.find(
             e =>
@@ -1049,34 +1064,21 @@ export class SoftwareUpdateManager extends Behavior {
     }
 
     /**
-     * The BDX block size cap that applies to this peer's pending update: its own override if one was given with the
-     * consent, otherwise {@link State.maxBdxBlockSize}.  Undefined accepts whatever the peer requests.
+     * How BDX should carry this peer's pending update: the options given with its consent, else the general defaults
+     * in {@link State}.  An absent value leaves the decision to the peer and its medium.
+     *
+     * A consent may exist before the update is queued, so both are consulted.
      */
-    maxBdxBlockSizeFor(peerAddress: PeerAddress) {
-        const { queued, consent } = this.#pendingUpdateFor(peerAddress);
-        return queued?.maxBdxBlockSize ?? consent?.maxBdxBlockSize ?? this.state.maxBdxBlockSize;
-    }
-
-    /**
-     * The additive MRP retransmission margin that applies to this peer's pending update, resolved like
-     * {@link maxBdxBlockSizeFor}.  Undefined leaves the peer's medium to imply it.
-     */
-    bdxAdditionalMrpDelayFor(peerAddress: PeerAddress) {
-        const { queued, consent } = this.#pendingUpdateFor(peerAddress);
-        return queued?.bdxAdditionalMrpDelay ?? consent?.bdxAdditionalMrpDelay ?? this.state.bdxAdditionalMrpDelay;
-    }
-
-    /**
-     * The queue entry and consent for a peer.  Both are consulted because a queue entry created from an existing
-     * consent may not carry that consent's options.
-     */
-    #pendingUpdateFor(peerAddress: PeerAddress) {
+    bdxTransferOptionsFor(peerAddress: PeerAddress) {
         peerAddress = PeerAddress(peerAddress);
         const matches = (candidate: PeerAddress) =>
             candidate.fabricIndex === peerAddress.fabricIndex && candidate.nodeId === peerAddress.nodeId;
+        const pending =
+            this.internal.updateQueue.find(entry => matches(entry.peerAddress)) ??
+            this.internal.consents.find(consent => matches(consent.peerAddress));
         return {
-            queued: this.internal.updateQueue.find(entry => matches(entry.peerAddress)),
-            consent: this.internal.consents.find(consent => matches(consent.peerAddress)),
+            maxBlockSize: pending?.maxBdxBlockSize ?? this.state.maxBdxBlockSize,
+            additionalMrpDelay: pending?.bdxAdditionalMrpDelay ?? this.state.bdxAdditionalMrpDelay,
         };
     }
 
@@ -1089,15 +1091,7 @@ export class SoftwareUpdateManager extends Behavior {
      */
     async addUpdateConsent(peerAddress: PeerAddress, target: SoftwareUpdateManager.UpdateTarget) {
         const { vendorId, productId, targetSoftwareVersion, maxBdxBlockSize, bdxAdditionalMrpDelay } = target;
-        if (maxBdxBlockSize !== undefined && (!Number.isInteger(maxBdxBlockSize) || maxBdxBlockSize <= 0)) {
-            throw new ImplementationError(`maxBdxBlockSize must be a positive integer, got ${maxBdxBlockSize}`);
-        }
-        if (
-            bdxAdditionalMrpDelay !== undefined &&
-            (!Number.isFinite(bdxAdditionalMrpDelay) || bdxAdditionalMrpDelay < 0)
-        ) {
-            throw new ImplementationError(`bdxAdditionalMrpDelay must not be negative, got ${bdxAdditionalMrpDelay}`);
-        }
+        assertTransferOptions(target);
         peerAddress = PeerAddress(peerAddress);
         // Filter out all existing consents for this peer, they are replaced by the new one
         const consents = this.internal.consents.filter(
@@ -1291,8 +1285,8 @@ export namespace SoftwareUpdateManager {
         /**
          * Additive MRP retransmission margin for OTA transfers, overriding the margin the peer's medium implies.
          *
-         * The margin is amplified by the backoff multiplier and the whole schedule has to fit the peer's BDX response
-         * budget, so a large value costs the transfer rather than protecting it.
+         * A BDX retransmission interval is capped so the whole schedule fits the peer's response budget, so values
+         * above roughly 7s are inert.
          */
         bdxAdditionalMrpDelay?: Duration = undefined;
     }

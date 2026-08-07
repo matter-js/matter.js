@@ -60,20 +60,34 @@ export class BdxProtocol implements ProtocolHandler {
         if (peerDetails !== undefined) {
             const { storage: existingStorage, config: existingConfig } = peerDetails;
             if (existingStorage !== storage || !isDeepEqual(config, existingConfig)) {
-                logger.warn(
-                    "Cannot enable BDX for peer",
-                    peer,
-                    "with different storage or config:",
-                    config,
-                    "vs",
-                    existingConfig,
-                );
-                return false;
+                // A caller that derives its config from mutable state legitimately arrives with different values
+                // between transfers.  Only a transfer already under way is entitled to the config it started with.
+                if (this.#hasActiveSessionFor(peer, storage.scope)) {
+                    logger.warn(
+                        "Cannot enable BDX for peer",
+                        peer,
+                        "with different storage or config while a transfer is active:",
+                        config,
+                        "vs",
+                        existingConfig,
+                    );
+                    return false;
+                }
+                this.#peerScopes.set(peerScopeStr, { peer, storage, config });
             }
         } else {
             this.#peerScopes.set(peerScopeStr, { peer, storage, config });
         }
         return true;
+    }
+
+    #hasActiveSessionFor(peer: PeerAddress, scope: string) {
+        for (const { session, scope: sessionScope } of this.#activeBdxSessions.values()) {
+            if (sessionScope === scope && PeerAddress.is(peer, session.peerAddress)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     async disablePeerForScope(peer: PeerAddress, storage: ScopedStorage, force = false) {
@@ -122,17 +136,18 @@ export class BdxProtocol implements ProtocolHandler {
                         );
                     }
 
-                    if (config?.additionalMrpDelay !== undefined) {
-                        exchange.peerAdditionalMrpDelay = config.additionalMrpDelay;
+                    const { messageTimeout, additionalMrpDelay, ...sessionConfig } = config ?? {};
+                    if (additionalMrpDelay !== undefined) {
+                        exchange.peerAdditionalMrpDelay = additionalMrpDelay;
                     }
 
-                    messenger = new BdxMessenger(exchange, config?.messageTimeout);
+                    messenger = new BdxMessenger(exchange, messageTimeout);
 
                     const bdxSession = BdxSession.fromMessage(messenger, {
                         initMessageType,
                         initMessage,
                         fileDesignator: new PersistedFileDesignator(fileDesignator, storage),
-                        ...config,
+                        ...sessionConfig,
                     });
                     await this.#registerSession(messenger, bdxSession, storageScope);
 
