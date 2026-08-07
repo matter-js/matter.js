@@ -667,9 +667,11 @@ connect call. See the node-wide diagnostic-logging idiom above.
 before reading its endpoints/behaviors. For an offline peer this can wait indefinitely, so bound it (timeout /
 abort on `WaitingForDeviceDiscovery`) if the caller must not hang.
 
-**I'm upgrading directly from a pre-0.13 (pre-`ServerNode`) install — is my controller storage migrated?**
-The legacy `CommissioningController` carried a one-time migration of the old on-disk layout
-(`credentials` → `certificates`/`fabrics`, plus per-node data) into the `ServerNode` stores. The new API has
-no equivalent hook. Anyone who has already run a 0.13+ (`ServerNode`-based) build is unaffected — that storage
-is already in the new format and is reused as-is via `FabricAuthority.defaultFabric`. Only a *direct* jump from
-a pre-0.13 layout to 0.18 needs a manual re-commission (or an interim run on a 0.13–0.17 build to migrate).
+**I'm upgrading directly from a pre-0.16 (pre-`ServerNode`-controller) install — is my controller storage migrated?**
+The legacy `CommissioningController` carried a one-time migration of the old on-disk layout into the `ServerNode`
+stores when the controller moved onto `ServerNode` in 0.16: the fabric (`credentials.fabric` → `fabrics.*`) and
+certificates (`credentials.*` → `certificates.*`), then, separately, per-node data (cached attribute data
+`node-<ID>.*` → `nodes.peerX.endpoints.*`, and the `commissionedNodes` list folded into the peer data). The new
+API has no equivalent hook. Anyone who has already run a 0.16+ build is unaffected — that storage is already in
+the new format and is reused as-is via `FabricAuthority.defaultFabric`. Only a *direct* jump from a pre-0.16
+layout to 0.18 needs a manual re-commission (or an interim run on a 0.16–0.17 build to migrate).
