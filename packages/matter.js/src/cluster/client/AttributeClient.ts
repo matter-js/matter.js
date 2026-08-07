@@ -12,6 +12,8 @@ import { InteractionClient } from "./InteractionClient.js";
 
 /**
  * Factory function to create an AttributeClient for a given attribute.
+ *
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export function createAttributeClient<T>(
     attribute: ClusterType.Attribute<T>,
@@ -33,6 +35,8 @@ export function createAttributeClient<T>(
 
 /**
  * General class for AttributeClients
+ *
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export class AttributeClient<T = any> {
     readonly #isWritable: boolean;
@@ -198,11 +202,15 @@ export class AttributeClient<T = any> {
 
 /**
  * Special AttributeClient class to allow identifying attributes that are supported because reported by the Devices.
+ *
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export class SupportedAttributeClient<T> extends AttributeClient<T> {}
 
 /**
  * Special AttributeClient class to allow identifying attributes that are supported because reported by the Devices,
  * but the contained attribute is unknown.
+ *
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export class UnknownSupportedAttributeClient extends SupportedAttributeClient<any> {}

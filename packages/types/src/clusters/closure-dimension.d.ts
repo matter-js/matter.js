@@ -1071,12 +1071,12 @@ export declare namespace ClosureDimension {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link ClosureDimension}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ClosureDimension}.
      */
     export const Cluster: ClusterType.WithCompat<typeof ClosureDimension, ClosureDimension>;
 
     /**
-     * @deprecated Use {@link ClosureDimension}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ClosureDimension}.
      */
     export const Complete: typeof ClosureDimension;
 
@@ -1084,7 +1084,7 @@ export declare namespace ClosureDimension {
 }
 
 /**
- * @deprecated Use {@link ClosureDimension}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link ClosureDimension}.
  */
 export declare const ClosureDimensionCluster: typeof ClosureDimension;
 

@@ -314,7 +314,7 @@ export declare namespace ResourceMonitoring {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link ResourceMonitoring}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ResourceMonitoring}.
      */
     export const Complete: typeof ResourceMonitoring;
 

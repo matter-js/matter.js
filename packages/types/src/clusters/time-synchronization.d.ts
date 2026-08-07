@@ -1249,12 +1249,12 @@ export declare namespace TimeSynchronization {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link TimeSynchronization}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link TimeSynchronization}.
      */
     export const Cluster: ClusterType.WithCompat<typeof TimeSynchronization, TimeSynchronization>;
 
     /**
-     * @deprecated Use {@link TimeSynchronization}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link TimeSynchronization}.
      */
     export const Complete: typeof TimeSynchronization;
 
@@ -1262,7 +1262,7 @@ export declare namespace TimeSynchronization {
 }
 
 /**
- * @deprecated Use {@link TimeSynchronization}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link TimeSynchronization}.
  */
 export declare const TimeSynchronizationCluster: typeof TimeSynchronization;
 

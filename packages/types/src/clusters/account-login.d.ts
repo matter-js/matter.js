@@ -400,12 +400,12 @@ export declare namespace AccountLogin {
     export const events: ClusterType.EventObjects<Events>;
 
     /**
-     * @deprecated Use {@link AccountLogin}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link AccountLogin}.
      */
     export const Cluster: typeof AccountLogin;
 
     /**
-     * @deprecated Use {@link AccountLogin}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link AccountLogin}.
      */
     export const Complete: typeof AccountLogin;
 
@@ -413,7 +413,7 @@ export declare namespace AccountLogin {
 }
 
 /**
- * @deprecated Use {@link AccountLogin}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link AccountLogin}.
  */
 export declare const AccountLoginCluster: typeof AccountLogin;
 

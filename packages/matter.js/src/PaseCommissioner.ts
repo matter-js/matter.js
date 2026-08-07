@@ -40,6 +40,8 @@ type PaseCommissionerOptions = Omit<CommissioningControllerOptions, "environment
  * This represents a lightweight commissioner that can be used to start the commissioning process to commission
  * devices into an existing controller fabric. Once the initial commissioning process is completed, it uses a callback
  * to all to complete the commissioning process.
+ *
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export class PaseCommissioner {
     readonly #environment: Environment;

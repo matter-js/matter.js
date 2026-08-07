@@ -192,7 +192,7 @@ export namespace Invoke {
     ): InvokeCommandData;
 
     /**
-     * @deprecated
+     * @deprecated Scheduled for removal in 0.19.
      * Use {@link CommandRequest} with {@link ClusterType.Command}.
      */
     export function Command(request: Invoke.LegacyCommandRequest, skipValidation?: boolean): InvokeCommandData;
@@ -256,7 +256,7 @@ export namespace Invoke {
     }
 
     /**
-     * @deprecated
+     * @deprecated Scheduled for removal in 0.19.
      * Legacy command request using ClusterType commands.  Use {@link CommandRequest} with
      * {@link ClusterType.Command}.
      */
@@ -292,7 +292,7 @@ export namespace Invoke {
     > = WildcardCommandRequest<C, CMD> & { endpoint: Specifier.Endpoint };
 
     /**
-     * @deprecated
+     * @deprecated Scheduled for removal in 0.19.
      * Use the overload accepting {@link ConcreteCommandRequest}.
      */
     export function ConcreteCommandRequest(data: Invoke.LegacyCommandRequest): Invoke.LegacyCommandRequest;
@@ -321,7 +321,7 @@ export namespace Invoke {
     } & Fields<Specifier.CommandFor<Specifier.ClusterFor<C>, CMD>>;
 
     /**
-     * @deprecated
+     * @deprecated Scheduled for removal in 0.19.
      * Use the overload accepting {@link WildcardCommandRequest}.
      */
     export function WildcardCommandRequest(data: Invoke.LegacyCommandRequest): Invoke.LegacyCommandRequest;

@@ -1154,12 +1154,12 @@ export declare namespace WindowCovering {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link WindowCovering}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link WindowCovering}.
      */
     export const Cluster: ClusterType.WithCompat<typeof WindowCovering, WindowCovering>;
 
     /**
-     * @deprecated Use {@link WindowCovering}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link WindowCovering}.
      */
     export const Complete: typeof WindowCovering;
 
@@ -1167,7 +1167,7 @@ export declare namespace WindowCovering {
 }
 
 /**
- * @deprecated Use {@link WindowCovering}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link WindowCovering}.
  */
 export declare const WindowCoveringCluster: typeof WindowCovering;
 

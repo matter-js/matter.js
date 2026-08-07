@@ -27,11 +27,17 @@ import { Val } from "@matter/protocol";
 import { ClusterId, ClusterType, DeviceTypeId, EndpointNumber, getClusterNameById } from "@matter/types";
 import { DeviceTypeDefinition } from "./DeviceTypes.js";
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export interface EndpointOptions {
     endpointId?: EndpointNumber;
     uniqueStorageKey?: string;
 }
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export class Endpoint {
     private readonly clusterClients = new Map<ClusterId, ClusterClientObj>();
     private readonly childEndpoints = new Map<number, Endpoint>();

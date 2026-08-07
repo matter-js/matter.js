@@ -681,12 +681,12 @@ export declare namespace AmbientContextSensing {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link AmbientContextSensing}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link AmbientContextSensing}.
      */
     export const Cluster: ClusterType.WithCompat<typeof AmbientContextSensing, AmbientContextSensing>;
 
     /**
-     * @deprecated Use {@link AmbientContextSensing}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link AmbientContextSensing}.
      */
     export const Complete: typeof AmbientContextSensing;
 
@@ -694,7 +694,7 @@ export declare namespace AmbientContextSensing {
 }
 
 /**
- * @deprecated Use {@link AmbientContextSensing}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link AmbientContextSensing}.
  */
 export declare const AmbientContextSensingCluster: typeof AmbientContextSensing;
 

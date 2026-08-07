@@ -254,12 +254,12 @@ export declare namespace PressureMeasurement {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link PressureMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link PressureMeasurement}.
      */
     export const Cluster: ClusterType.WithCompat<typeof PressureMeasurement, PressureMeasurement>;
 
     /**
-     * @deprecated Use {@link PressureMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link PressureMeasurement}.
      */
     export const Complete: typeof PressureMeasurement;
 
@@ -267,7 +267,7 @@ export declare namespace PressureMeasurement {
 }
 
 /**
- * @deprecated Use {@link PressureMeasurement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link PressureMeasurement}.
  */
 export declare const PressureMeasurementCluster: typeof PressureMeasurement;
 

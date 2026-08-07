@@ -1014,12 +1014,12 @@ export declare namespace ServiceArea {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link ServiceArea}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ServiceArea}.
      */
     export const Cluster: ClusterType.WithCompat<typeof ServiceArea, ServiceArea>;
 
     /**
-     * @deprecated Use {@link ServiceArea}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ServiceArea}.
      */
     export const Complete: typeof ServiceArea;
 
@@ -1027,7 +1027,7 @@ export declare namespace ServiceArea {
 }
 
 /**
- * @deprecated Use {@link ServiceArea}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link ServiceArea}.
  */
 export declare const ServiceAreaCluster: typeof ServiceArea;
 

@@ -226,12 +226,12 @@ export declare namespace HepaFilterMonitoring {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link HepaFilterMonitoring}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link HepaFilterMonitoring}.
      */
     export const Cluster: ClusterType.WithCompat<typeof HepaFilterMonitoring, HepaFilterMonitoring>;
 
     /**
-     * @deprecated Use {@link HepaFilterMonitoring}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link HepaFilterMonitoring}.
      */
     export const Complete: typeof HepaFilterMonitoring;
 
@@ -239,7 +239,7 @@ export declare namespace HepaFilterMonitoring {
 }
 
 /**
- * @deprecated Use {@link HepaFilterMonitoring}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link HepaFilterMonitoring}.
  */
 export declare const HepaFilterMonitoringCluster: typeof HepaFilterMonitoring;
 

@@ -284,12 +284,12 @@ export declare namespace RefrigeratorAlarm {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link RefrigeratorAlarm}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link RefrigeratorAlarm}.
      */
     export const Cluster: ClusterType.WithCompat<typeof RefrigeratorAlarm, RefrigeratorAlarm>;
 
     /**
-     * @deprecated Use {@link RefrigeratorAlarm}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link RefrigeratorAlarm}.
      */
     export const Complete: typeof RefrigeratorAlarm;
 
@@ -297,7 +297,7 @@ export declare namespace RefrigeratorAlarm {
 }
 
 /**
- * @deprecated Use {@link RefrigeratorAlarm}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link RefrigeratorAlarm}.
  */
 export declare const RefrigeratorAlarmCluster: typeof RefrigeratorAlarm;
 
