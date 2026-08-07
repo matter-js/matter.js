@@ -38,6 +38,16 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Struct validation resolves a member stored under its TLV tag number, so a constraint violation there is caught and a mandatory member present only at its id no longer raises a conformance error
     - Breaking: Adding a server cluster to an endpoint fails when its selected features violate the conformance of its FeatureMap
     - Breaking: Provisional elements are no longer implemented by default; supply a state value or use `ClusterBehavior.enable()` to implement one
+    - Feature: Added `ServerNode.peers.commissioned` returning the commissioned `ClientNode`s
+    - Feature: Added `ClientNode.disable()`/`enable()` to persistently disable/enable a commissioned peer
+    - Feature: Added a `ClientNode` connection-state engine — `lifecycle.connectionState`/`connectionStateChanged`/`isConnected` and the `NodeConnectionState` enum
+    - Feature: Added `ClientNodeLifecycle.isSeeded` and the `seeded` event, indicating a peer node's structure has been read from the device at least once
+    - Feature: Added `Behaviors.forCluster(clusterId)` to resolve a cluster behavior type by numeric cluster id
+    - Feature: Added `openBasicCommissioningWindow`/`openEnhancedCommissioningWindow` on `CommissioningClient`/`ClientNode` to open a commissioning window on a commissioned peer
+    - Feature: Added split/delegated commissioning — `CommissioningClient.CommissioningOptions.finalizeCommissioning` plus `ServerNode.peers.completeCommissioning(nodeId, discoveryData?, options?)`
+    - Feature: Added `NetworkServer.autoStartCommissionedPeers` (default true) to opt out of auto-starting commissioned peers when the node goes online
+    - Adjustment: A node with commissioning disabled (e.g. a controller) now binds an ephemeral operational port instead of the standard Matter port (5540) when `NetworkServer.port` is unset; commissionable nodes still default to 5540 and an explicit port is always honored
+    - Fix: `endpoints.size` no longer double-counts the root endpoint
     - Removed: `StructManager.assertDirectReadAuthorized()` and the direct-read authorization it backed, unused since the legacy cluster API was dropped
     - Deprecation: `ClientNodeInteraction.localStateFor()` is scheduled for removal in 0.19 together with the legacy controller API
     - Fix: `IdentifyServer` no longer offers the optional `TriggerEffect` command unless the device type requires it, an own command implementation has been added via an override or suppression is disabled; `IdentifyServer.enable({ commands: { triggerEffect: true } })`, `IdentifyServer.alter({ commands: { triggerEffect: { optional: false } } })` and an override of `suppressTriggerEffect()` also offer it
@@ -50,6 +60,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: `FileStorageDriver`'s constructor no longer accepts a `clear` argument; clearing is handled by `StorageService`
     - Fix: Ensure that `--storage-clear`/`MATTER_STORAGE_CLEAR` is honored again and clears the storage on start
 
+- @matter/nodejs-shell
+    - Feature: Added `--cleanup-legacy-storage` to irreversibly remove the leftover pre-0.16 storage artifacts once they have been migrated to the current format
+
 - @matter/protocol
     - Deprecation: The legacy `DecodedDataReport` / `Decoded{Attribute,Event}Report*` types and the `normalize*` / `normalizeAndDecode*` helpers now announce removal in 0.19 instead of 0.18
     - Deprecation: The legacy `ClusterType` command request surface (`Invoke.LegacyCommandRequest`, `Specifier.ClusterTypeCommand`) and `SessionManager.owner` are scheduled for removal in 0.19
@@ -59,6 +72,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/types
     - Breaking: Provisional cluster elements are now typed as optional rather than always present
+    - Feature: Added the `ClusterLookup` namespace for cluster/attribute/command/event name↔id resolution (optional `MatterModel` for custom clusters)
     - Deprecation: The `ClusterType()` factory compat layer (`RetiredClusterType`, `RetiredElements`, the TLV `element` reverse mapping) is scheduled for removal in 0.19
     - Deprecation: The generated `Cluster`, `Complete` and `<Name>Cluster` aliases and the `ClusterType.WithCompat` `with()` shim are scheduled for removal in 0.19
     - Fix: `Cluster.with()` rejects a feature the cluster does not define and returns one frozen namespace per selection

@@ -4,14 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic, Logger, MatterError } from "@matter/general";
+import { Diagnostic, ImplementationError, Logger, Seconds } from "@matter/general";
+import { ClientNode, CommissioningClient } from "@matter/node";
+import { BasicInformationClient } from "@matter/node/behaviors/basic-information";
+import { DescriptorClient } from "@matter/node/behaviors/descriptor";
 import { DiscoveryCapabilitiesSchema, ManualPairingCodeCodec, NodeId, QrCode, QrPairingCodeCodec } from "@matter/types";
-import { BasicInformation, Descriptor, GeneralCommissioning } from "@matter/types/clusters";
-import { NodeCommissioningOptions } from "@project-chip/matter.js";
+import { GeneralCommissioning } from "@matter/types/clusters";
 import type { Argv } from "yargs";
-import { createDiagnosticCallbacks, MatterNode } from "../MatterNode.js";
+import { MatterNode } from "../MatterNode.js";
+import { awaitSeeded } from "../util/awaitSeeded.js";
 
 const logger = Logger.get("Commission");
+
+/** Look up a commissioned peer by node id across the controller's default admin fabric. */
+function findCommissionedNode(theNode: MatterNode, nodeId: NodeId): ClientNode | undefined {
+    return theNode.node.peers.commissioned.find(peer => peer.peerAddress?.nodeId === nodeId);
+}
 
 export default function commands(theNode: MatterNode) {
     return {
@@ -23,9 +31,53 @@ export default function commands(theNode: MatterNode) {
                 .command("pair", "Pair with a matter device", yargs => {
                     return (
                         yargs
+                            // Options are registered before the command below so their types flow into its handler's argv.
+                            .options({
+                                pairingCode: {
+                                    describe: "pairing code",
+                                    default: undefined,
+                                    type: "string",
+                                },
+                                qrCode: {
+                                    describe: "QR code string (MT:...)",
+                                    default: undefined,
+                                    type: "string",
+                                },
+                                qrCodeIndex: {
+                                    describe: "Index of QR code entry if multiple (1..n)",
+                                    default: 1,
+                                    type: "number",
+                                },
+                                setupPinCode: {
+                                    describe: "setup pin code",
+                                    default: 20202021,
+                                    type: "number",
+                                },
+                                instanceId: {
+                                    alias: "i",
+                                    describe: "instance id",
+                                    type: "string",
+                                },
+                                discriminator: {
+                                    alias: "d",
+                                    description: "Long discriminator",
+                                    type: "number",
+                                },
+                                shortDiscriminator: {
+                                    alias: "s",
+                                    description: "Short discriminator",
+                                    type: "number",
+                                },
+                                ble: {
+                                    alias: "b",
+                                    description: "Also discover over BLE",
+                                    type: "boolean",
+                                    default: false,
+                                },
+                            })
                             // Pair
                             .command(
-                                "* [node-id] [ip:[port]]",
+                                "* [node-id] [ip] [port]",
                                 "Commission a matter device",
                                 yargs => {
                                     return yargs
@@ -46,16 +98,15 @@ export default function commands(theNode: MatterNode) {
                                         });
                                 },
                                 async argv => {
-                                    const {
-                                        pairingCode,
-                                        qrCode,
-                                        nodeId: nodeIdStr,
-                                        ipPort,
-                                        ip,
-                                        ble = false,
-                                        instanceId,
-                                    } = argv;
+                                    const { pairingCode, qrCode, nodeId: nodeIdStr, port, ip, ble, instanceId } = argv;
                                     let { setupPinCode, discriminator, shortDiscriminator, qrCodeIndex } = argv;
+
+                                    if ((ip === undefined) !== (port === undefined)) {
+                                        console.log(
+                                            "Known-address commissioning requires both <ip> and <port>; provide both or neither (to use discovery).",
+                                        );
+                                        return;
+                                    }
 
                                     if (typeof pairingCode === "string" && pairingCode.length > 0) {
                                         const { shortDiscriminator: pairingCodeShortDiscriminator, passcode } =
@@ -104,32 +155,6 @@ export default function commands(theNode: MatterNode) {
 
                                     const nodeId = nodeIdStr !== undefined ? NodeId(BigInt(nodeIdStr)) : undefined;
                                     await theNode.start();
-                                    if (theNode.commissioningController === undefined) {
-                                        throw new Error("CommissioningController not initialized");
-                                    }
-
-                                    const options = {
-                                        discovery: {
-                                            knownAddress:
-                                                ip !== undefined && ipPort !== undefined
-                                                    ? { ip, port: ipPort, type: "udp" }
-                                                    : undefined,
-                                            identifierData:
-                                                instanceId !== undefined
-                                                    ? { instanceId }
-                                                    : discriminator !== undefined
-                                                      ? { longDiscriminator: discriminator }
-                                                      : shortDiscriminator !== undefined
-                                                        ? { shortDiscriminator }
-                                                        : {},
-                                            discoveryCapabilities: {
-                                                ble,
-                                                onIpNetwork: true,
-                                            },
-                                        },
-                                        passcode: setupPinCode,
-                                        ...createDiagnosticCallbacks(),
-                                    } as NodeCommissioningOptions;
 
                                     // Attestation policy: strict rejects errors but allows warnings/info
                                     const strictAttestation = await theNode.Store.get<boolean>(
@@ -137,8 +162,12 @@ export default function commands(theNode: MatterNode) {
                                         false,
                                     );
 
-                                    options.commissioning = {
-                                        nodeId: nodeId !== undefined ? NodeId(nodeId) : undefined,
+                                    const commissioningOptions: CommissioningClient.CommissioningOptions = {
+                                        passcode: setupPinCode,
+                                        discriminator,
+                                        nodeId,
+                                        // The shell subscribes on demand via the `subscribe` command, not at commission.
+                                        autoSubscribe: false,
                                         regulatoryLocation: GeneralCommissioning.RegulatoryLocationType.Outdoor, // Set to the most restrictive if relevant
                                         regulatoryCountryCode: "XX",
                                         onAttestationFailure: findings => {
@@ -156,103 +185,82 @@ export default function commands(theNode: MatterNode) {
                                         },
                                     };
 
-                                    console.log(Diagnostic.json(options));
+                                    // Keep secrets out of the debug dump (CodeQL: clear-text logging of sensitive
+                                    // info). Omit the passcode entirely — spreading then overriding still flows it
+                                    // into the logged object — and mask network credentials.
+                                    const { passcode: _passcode, wifiNetwork, ...loggable } = commissioningOptions;
+                                    console.log(
+                                        Diagnostic.json({
+                                            ...loggable,
+                                            ...(wifiNetwork && {
+                                                wifiNetwork: { ...wifiNetwork, wifiCredentials: "<redacted>" },
+                                            }),
+                                        }),
+                                    );
 
                                     await theNode.certificateService();
 
                                     const wifiSsid = await theNode.Store.get<string>("WiFiSsid", "");
                                     const wifiCredentials = await theNode.Store.get<string>("WiFiPassword", "");
                                     if (wifiSsid.length > 0 && wifiCredentials.length > 0) {
-                                        options.commissioning.wifiNetwork = { wifiSsid, wifiCredentials };
+                                        commissioningOptions.wifiNetwork = { wifiSsid, wifiCredentials };
                                     }
                                     const threadOperationalDataset = await theNode.Store.get<string>(
                                         "ThreadOperationalDataset",
                                         "",
                                     );
                                     if (threadOperationalDataset.length > 0) {
-                                        options.commissioning.threadNetwork = {
+                                        commissioningOptions.threadNetwork = {
                                             networkName: await theNode.Store.get<string>("ThreadName", ""),
                                             operationalDataset: threadOperationalDataset,
                                         };
                                     }
 
-                                    const commissionedNodeId =
-                                        await theNode.commissioningController.commissionNode(options);
-
-                                    console.log("Commissioned Node:", commissionedNodeId);
-
-                                    const node = theNode.commissioningController.getPairedNode(commissionedNodeId);
-                                    if (node === undefined) {
-                                        // Should not happen
-                                        throw new MatterError("Node not found after commissioning.");
+                                    let node: ClientNode;
+                                    if (ip !== undefined && port !== undefined) {
+                                        // Known address: locate/create the peer node directly instead of running mDNS
+                                        // discovery. Mirrors MatterController's own known-address commissioning path.
+                                        node = await theNode.node.peers.forDescriptor({
+                                            addresses: [{ ip, port, type: "udp" }],
+                                        });
+                                        await node.commission(commissioningOptions);
+                                    } else {
+                                        const identifierData =
+                                            instanceId !== undefined
+                                                ? { instanceId }
+                                                : shortDiscriminator !== undefined
+                                                  ? { shortDiscriminator }
+                                                  : {};
+                                        node = await theNode.node.peers.commission({
+                                            ...identifierData,
+                                            ...commissioningOptions,
+                                            discoveryCapabilities: { ble, onIpNetwork: true },
+                                        });
                                     }
 
-                                    // Important: This is a temporary API to proof the methods working and this will change soon and is NOT stable!
-                                    // It is provided to proof the concept
+                                    console.log("Commissioned Node:", node.peerAddress?.nodeId.toString());
 
-                                    // Example to initialize a ClusterClient and access concrete fields as API methods
-                                    const descriptor = node.getRootClusterClient(Descriptor);
+                                    if (!(await awaitSeeded(node))) {
+                                        return;
+                                    }
+
+                                    // Example to read cluster state directly instead of via a ClusterClient
+                                    const descriptor = node.maybeStateOf(DescriptorClient);
                                     if (descriptor !== undefined) {
-                                        console.log(await descriptor.attributes.deviceTypeList.get()); // you can call that way
-                                        console.log(await descriptor.getServerListAttribute()); // or more convenient that way
+                                        console.log(descriptor.deviceTypeList);
+                                        console.log(descriptor.serverList);
                                     } else {
                                         console.log("No Descriptor Cluster found. This should never happen!");
                                     }
 
-                                    // Example to subscribe to a field and get the value
-                                    const info = node.getRootClusterClient(BasicInformation);
+                                    const info = node.maybeStateOf(BasicInformationClient);
                                     if (info !== undefined) {
-                                        console.log(await info.getProductNameAttribute()); // This call is executed remotely
-                                        //console.log(await info.subscribeProductNameAttribute(value => console.log("productName", value), 5, 30));
-                                        //console.log(await info.getProductNameAttribute()); // This call is resolved locally because we have subscribed to the value!
+                                        console.log(info.productName);
                                     } else {
                                         console.log("No BasicInformation Cluster found. This should never happen!");
                                     }
                                 },
                             )
-                            .options({
-                                pairingCode: {
-                                    describe: "pairing code",
-                                    default: undefined,
-                                    type: "string",
-                                },
-                                qrCode: {
-                                    describe: "QR code string (MT:...)",
-                                    default: undefined,
-                                    type: "string",
-                                },
-                                qrCodeIndex: {
-                                    describe: "Index of QR code entry if multiple (1..n)",
-                                    default: 1,
-                                    type: "number",
-                                },
-                                setupPinCode: {
-                                    describe: "setup pin code",
-                                    default: 20202021,
-                                    type: "number",
-                                },
-                                instanceId: {
-                                    alias: "i",
-                                    describe: "instance id",
-                                    type: "string",
-                                },
-                                discriminator: {
-                                    alias: "d",
-                                    description: "Long discriminator",
-                                    type: "number",
-                                },
-                                shortDiscriminator: {
-                                    alias: "s",
-                                    description: "Short discriminator",
-                                    type: "number",
-                                },
-                                ble: {
-                                    alias: "b",
-                                    description: "Also discover over BLE",
-                                    type: "boolean",
-                                    default: false,
-                                },
-                            })
                     );
                 })
                 .command(
@@ -275,8 +283,11 @@ export default function commands(theNode: MatterNode) {
                         const { nodeId, timeout } = argv;
                         await theNode.start();
                         const node = (await theNode.connectAndGetNodes(nodeId, { autoSubscribe: false }))[0];
+                        if (!(await awaitSeeded(node))) {
+                            return;
+                        }
 
-                        await node.openBasicCommissioningWindow(timeout);
+                        await node.openBasicCommissioningWindow(Seconds(timeout));
 
                         console.log(`Basic Commissioning Window for node ${nodeId} opened`);
                     },
@@ -301,10 +312,14 @@ export default function commands(theNode: MatterNode) {
                         await theNode.start();
                         const { nodeId, timeout } = argv;
                         const node = (await theNode.connectAndGetNodes(nodeId, { autoSubscribe: false }))[0];
-                        const data = await node.openEnhancedCommissioningWindow(timeout);
+                        if (!(await awaitSeeded(node))) {
+                            return;
+                        }
+                        const { qrPairingCode, manualPairingCode } = await node.openEnhancedCommissioningWindow(
+                            Seconds(timeout),
+                        );
 
                         console.log(`Enhanced Commissioning Window for node ${nodeId} opened`);
-                        const { qrPairingCode, manualPairingCode } = data;
 
                         console.log(QrCode.get(qrPairingCode));
                         console.log(
@@ -333,11 +348,19 @@ export default function commands(theNode: MatterNode) {
                     },
                     async argv => {
                         await theNode.start();
-                        const { nodeId, force } = argv;
+                        const { nodeId: nodeIdStr, force } = argv;
                         if (force) {
-                            await theNode.controller.removeNode(NodeId(BigInt(nodeId)), !force);
+                            // Force: skip the on-device decommission attempt and just drop the peer locally.
+                            const node = findCommissionedNode(theNode, NodeId(BigInt(nodeIdStr)));
+                            if (node === undefined) {
+                                throw new ImplementationError(`Node ${nodeIdStr} not commissioned`);
+                            }
+                            await node.delete();
                         } else {
-                            const node = (await theNode.connectAndGetNodes(nodeId, { autoSubscribe: false }))[0];
+                            const node = (await theNode.connectAndGetNodes(nodeIdStr, { autoSubscribe: false }))[0];
+                            if (!(await awaitSeeded(node))) {
+                                return;
+                            }
                             await node.decommission();
                         }
                     },

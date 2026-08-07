@@ -81,6 +81,12 @@ async function main() {
                             default: false,
                             type: "boolean",
                         },
+                        "cleanup-legacy-storage": {
+                            description:
+                                "Irreversibly delete pre-0.16 storage artifacts after migration. Only use this once you are certain the migration succeeded and you will not downgrade below 0.16.",
+                            default: false,
+                            type: "boolean",
+                        },
                         netInterface: {
                             description: "Network interface to use for MDNS announcements and scanning.",
                             type: "string",
@@ -126,6 +132,7 @@ async function main() {
                     bleHciId,
                     nodeType,
                     factoryReset,
+                    cleanupLegacyStorage,
                     netInterface,
                     logfile,
                     webSocketInterface,
@@ -134,8 +141,17 @@ async function main() {
                     webAddress,
                 } = argv;
 
+                // Install BLE before the controller node initializes: the Ble service is registered reactively
+                // when `ble.enable` flips, and the node reads its availability during initialize().
+                if (bleEnable) {
+                    Environment.default.vars.set("ble.enable", true);
+                }
+                if (bleHciId !== undefined) {
+                    Environment.default.vars.set("ble.hci.id", bleHciId);
+                }
+
                 theNode = new MatterNode(nodeNum, netInterface);
-                await theNode.initialize(factoryReset);
+                await theNode.initialize(factoryReset, cleanupLegacyStorage);
 
                 if (logfile !== undefined) {
                     await theNode.Store.set("LogFile", logfile);
@@ -157,14 +173,6 @@ async function main() {
                     initializeWebPlumbing(theNode, nodeNum, webSocketPort, webServer, webAddress); // set up but wait for connect to create Shell
                 } else {
                     theShell = new Shell(theNode, nodeNum, PROMPT, process.stdin, process.stdout);
-                }
-
-                if (bleEnable) {
-                    Environment.default.vars.set("ble.enable", true);
-                }
-
-                if (bleHciId !== undefined) {
-                    Environment.default.vars.set("ble.hci.id", bleHciId);
                 }
 
                 console.log(`Started Node #${nodeNum} (Type: ${nodeType}) ${bleEnable ? "with" : "without"} BLE`);
