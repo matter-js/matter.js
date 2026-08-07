@@ -39,11 +39,7 @@ type LegacyCommissionedEntry = Record<string, SupportedStorageTypes> & {
 /** One `commissionedNodes` list entry: the peer's raw stored node id paired with its metadata. */
 type LegacyCommissionedNode = [bigint, LegacyCommissionedEntry];
 
-/**
- * True for a pre-0.16 cached attribute record (current storage keeps the bare value instead). Only checks for
- * the `value` key; the index signature already types it as `SupportedStorageTypes`, so nothing is asserted about
- * that key's value beyond what the storage layer already guarantees for every key.
- */
+/** True for a pre-0.16 cached attribute record (current storage keeps the bare value instead). */
 function isLegacyAttributeRecord(value: SupportedStorageTypes): value is Record<string, SupportedStorageTypes> {
     return isObject(value) && "value" in value;
 }
@@ -131,9 +127,8 @@ export async function migrateLegacyCommissionedNodes(
     const baseStorage = serverStore.storage;
     const nodesCtx = baseStorage.createContext("nodes");
 
-    // Gating on `stepTwoNeeded` here would stop the whole function the moment the first peer is migrated (it
-    // considers the new format present as soon as any `nodes.<id>` context exists), so a crash mid-loop would
-    // permanently strand the remaining un-migrated peers. Gate only on the raw list still being present.
+    // Per-peer idempotency is handled below; this only needs to know whether there is legacy data left to
+    // look at, so a resume after a partial run isn't skipped.
     if (!(await nodesCtx.has("commissionedNodes"))) {
         logger.debug("No former commissioned nodes to migrate.");
         return { nodes: 0, endpoints: 0, failed: 0 };
@@ -200,7 +195,7 @@ export async function migrateLegacyCommissionedNodes(
             }
 
             const commissioning = RemoteDescriptor.toLongForm({
-                // Fallback only: discoveryData is spread after, so a peer with its own timestamp keeps it.
+                // Fallback only — a peer with its own discoveredAt keeps it.
                 discoveredAt: Time.nowMs,
                 ...discoveryData,
                 addresses: operationalServerAddress ? [operationalServerAddress] : [],
