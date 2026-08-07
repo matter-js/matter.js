@@ -5,7 +5,7 @@
  */
 
 import { PeerAddress } from "#peer/PeerAddress.js";
-import { MRP } from "#protocol/MRP.js";
+import type { MRP } from "#protocol/MRP.js";
 import {
     Diagnostic,
     Duration,

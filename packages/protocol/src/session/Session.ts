@@ -9,7 +9,7 @@ import { PeerLossContext } from "#peer/PeerLossContext.js";
 import { SessionClosedError } from "#protocol/errors.js";
 import { MessageChannel } from "#protocol/MessageChannel.js";
 import type { MessageExchange } from "#protocol/MessageExchange.js";
-import { MRP } from "#protocol/MRP.js";
+import type { MRP } from "#protocol/MRP.js";
 import { SessionIntervals } from "#session/SessionIntervals.js";
 import {
     AsyncObservable,
