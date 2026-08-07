@@ -23,6 +23,9 @@ type RotationPhase = "distribute" | "activate" | "cleanup";
 
 const FAR_FUTURE_US = 100n * 365n * 24n * 3600n * 1_000_000n;
 
+// Index of "cleanup" in `phases`; reaching it is the rotation's point of no return (see class doc).
+const CLEANUP_INDEX = 2;
+
 /**
  * Rotates a group operational key across every member of the key set, gap-free and without relying on device
  * clock sync. Three gated phases: distribute the new key far-future-dormant → activate it now-dated while the old
@@ -30,12 +33,25 @@ const FAR_FUTURE_US = 100n * 365n * 24n * 3600n * 1_000_000n;
  * drop the old key, back-dating new so it is selectable on any clock. The sentinel top key in activate makes the
  * flip hold under the spec's second-newest TX rule too, not only matter.js's clock-based selection. Each phase
  * blocks until ALL members commit; an offline member parks the task.
+ *
+ * Forward-only once cleanup begins: the old key is being dropped and the survivor back-dated to the original op
+ * start, so the completed set is byte-indistinguishable from the pre-rotation set and a revert would be a silent
+ * no-op against the start-set diff. Recover a bad realized rotation by rotating to a NEW key, not by reverting;
+ * {@link revertible} declines cancel and auto-rollback past that point.
  */
 export class RotateGroupKey extends Task<RotateGroupKeyParams> {
     readonly type = ROTATE_GROUP_KEY_TYPE;
 
     static override idFor(params: RotateGroupKeyParams): string {
         return `${ROTATE_GROUP_KEY_TYPE}:${params.groupKeySetId}`;
+    }
+
+    override get revertible(): boolean {
+        return this.progress.phaseIndex < CLEANUP_INDEX;
+    }
+
+    override get notRevertibleReason(): string {
+        return "a realized group-key rotation is forward-only — rotate to a new key instead of reverting";
     }
 
     get phases(): TaskPhase[] {

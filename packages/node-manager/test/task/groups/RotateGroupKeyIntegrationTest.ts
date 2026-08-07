@@ -5,10 +5,11 @@
  */
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
+import { TaskNotRevertibleError } from "#task/errors.js";
 import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
 import { ROTATE_GROUP_KEY_TYPE, RotateGroupKeyParams } from "#task/groups/RotateGroupKey.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
-import { Crypto, MockCrypto, Seconds } from "@matter/general";
+import { Bytes, Crypto, MockCrypto, Seconds } from "@matter/general";
 import { ClientNode, DesiredStateBehavior, itemMapKey, NetworkClient, ServerNode } from "@matter/node";
 import { GroupKeyManagementServer } from "@matter/node/behaviors/group-key-management";
 import { GroupsServer } from "@matter/node/behaviors/groups";
@@ -81,6 +82,16 @@ function starts(g: {
 function deviceStarts(device: ServerNode, id: number): bigint[] {
     const entry = device.stateOf(GroupKeyManagementServer).groupKeySets.find(k => k.groupKeySetId === id);
     return entry === undefined ? new Array<bigint>() : starts(entry);
+}
+
+/** The device's stored operational key material (epochKey0) for a key set id — distinguishes old key from new. */
+function deviceKey0(device: ServerNode, id: number) {
+    const entry = device.stateOf(GroupKeyManagementServer).groupKeySets.find(k => k.groupKeySetId === id);
+    const key = entry?.epochKey0;
+    if (key === null || key === undefined) {
+        throw new Error(`device holds no epochKey0 for key set ${id}`);
+    }
+    return key;
 }
 
 /** The controller-side committed intent's start-time set for a peer's key set (unreadable material aside). */
@@ -292,5 +303,76 @@ describe("RotateGroupKey task integration (two members)", () => {
 
         expect(deviceStarts(deviceA, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
         expect(intentStarts(peerA, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
+    });
+
+    it("cancel in the distribute phase reverts both members to the old key", async () => {
+        await using site = new MockSite();
+        const { controller, deviceA, deviceB, peerA, peerB } = await twoMemberGroup(site);
+
+        expect(Bytes.areEqual(deviceKey0(deviceA, GROUP_KEY_SET_ID), OP_KEY)).equals(true);
+
+        // Take B offline so the rotation parks at distribute (phaseIndex 0 < CLEANUP_INDEX) — the revertible window.
+        const subscriptionB = subscriptionOf(peerB);
+        await MockTime.resolve(subscriptionB.active.emit(false), { macrotasks: true });
+
+        await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        await awaitState(controller, ROTATE_ID, "parked");
+
+        // Distribute has pushed the 2-key struct to the still-online member A; the task has not reached cleanup.
+        expect(intentStarts(peerA, GROUP_KEY_SET_ID).length).equals(2);
+        const phaseIndex = await controller.act(a => a.get(TaskManagerBehavior).state.tasks[ROTATE_ID]?.phaseIndex);
+        expect(phaseIndex).lessThan(2);
+
+        // Cancel is accepted in the safe window and returns a revert handle.
+        const handle = await MockTime.resolve(
+            controller.act(a => a.get(TaskManagerBehavior).cancel(ROTATE_ID)),
+            {
+                macrotasks: true,
+            },
+        );
+        expect(handle?.id).equals(`revert:${ROTATE_ID}`);
+
+        // Bring B back so the revert converges on both members.
+        await MockTime.resolve(subscriptionB.active.emit(true), { macrotasks: true });
+        await awaitState(controller, `revert:${ROTATE_ID}`, "completed");
+
+        // Both members restored to the single OLD key (old material); the dormant new key is dropped.
+        for (const device of [deviceA, deviceB]) {
+            expect(deviceStarts(device, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
+            expect(Bytes.areEqual(deviceKey0(device, GROUP_KEY_SET_ID), OP_KEY)).equals(true);
+        }
+        const state = await controller.act(a => a.get(TaskManagerBehavior).get(ROTATE_ID)?.status.state);
+        expect(state).equals("cancelled");
+        expect(intentStarts(peerA, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
+    });
+
+    it("declines cancel of a completed rotation and leaves the new key in place", async () => {
+        await using site = new MockSite();
+        const { controller, deviceA, deviceB } = await twoMemberGroup(site);
+
+        await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        await awaitState(controller, ROTATE_ID, "completed");
+
+        // The rotation realized the NEW key on both members (start-set matches the original, material does not).
+        for (const device of [deviceA, deviceB]) {
+            expect(deviceStarts(device, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
+            expect(Bytes.areEqual(deviceKey0(device, GROUP_KEY_SET_ID), NEW_KEY)).equals(true);
+        }
+
+        await expect(controller.act(a => a.get(TaskManagerBehavior).cancel(ROTATE_ID))).rejectedWith(
+            TaskNotRevertibleError,
+            "forward-only",
+        );
+
+        // Declined with zero side effects: no revert spawned, task stays completed, both devices keep the new key.
+        const status = await controller.act(a => a.get(TaskManagerBehavior).get(ROTATE_ID)?.status);
+        expect(status?.state).equals("completed");
+        expect(status?.revertTaskId).equals(undefined);
+        expect(await controller.act(a => a.get(TaskManagerBehavior).state.tasks[`revert:${ROTATE_ID}`])).equals(
+            undefined,
+        );
+        for (const device of [deviceA, deviceB]) {
+            expect(Bytes.areEqual(deviceKey0(device, GROUP_KEY_SET_ID), NEW_KEY)).equals(true);
+        }
     });
 });

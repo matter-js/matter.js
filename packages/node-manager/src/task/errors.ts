@@ -17,6 +17,9 @@ export class TaskFailedError extends TaskError {}
 /** A task's planned changes would exceed a node's device capacity for some item kind. */
 export class TaskCapacityExceededError extends TaskError {}
 
+/** cancel() was refused: the task passed its point of no return (e.g. a realized group-key rotation). */
+export class TaskNotRevertibleError extends TaskError {}
+
 /** Internal signal a running gate throws when cancel is requested, so #drive stops cleanly (not "failed"). */
 export class TaskCancelledSignal extends TaskError {}
 

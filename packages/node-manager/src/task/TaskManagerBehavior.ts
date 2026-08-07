@@ -8,7 +8,12 @@ import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { Logger, Mutex, Observable } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import { Agent, Behavior, ClientNode, DesiredStateBehavior, itemMapKey, Node, ServerNode } from "@matter/node";
-import { TaskCancelledSignal, TaskCapacityExceededError, TaskSuspendedSignal } from "./errors.js";
+import {
+    TaskCancelledSignal,
+    TaskCapacityExceededError,
+    TaskNotRevertibleError,
+    TaskSuspendedSignal,
+} from "./errors.js";
 import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup } from "./groups/AddNodeToGroup.js";
 import { REMOVE_NODE_FROM_GROUP_TYPE, RemoveNodeFromGroup } from "./groups/RemoveNodeFromGroup.js";
 import { ROTATE_GROUP_KEY_TYPE, RotateGroupKey } from "./groups/RotateGroupKey.js";
@@ -178,6 +183,11 @@ export class TaskManagerBehavior extends Behavior {
             return task?.revertTaskId === undefined ? undefined : this.get(task.revertTaskId);
         }
 
+        // A task past its point of no return declines cancel with zero side effects (gate untouched, state kept).
+        if (!task.revertible) {
+            throw new TaskNotRevertibleError(`Task ${task.id} is not revertible: ${task.notRevertibleReason}`);
+        }
+
         // Stop forward driving so the changeset is final before we revert it.
         this.#abortGate(task.id, new TaskCancelledSignal(`Task ${task.id} cancelled`));
         await this.internal.driving.get(task.id);
@@ -196,6 +206,10 @@ export class TaskManagerBehavior extends Behavior {
     #spawnRevert(task: Task): TaskHandle | undefined {
         // A failed revert surfaces as `failed` for operator attention; reverting a revert would recurse unbounded.
         if (task.type === REVERT_TYPE) {
+            return undefined;
+        }
+        // Past a task's point of no return there is nothing to roll back to; suppress auto-rollback too.
+        if (!task.revertible) {
             return undefined;
         }
         if (task.revertTaskId !== undefined) {
