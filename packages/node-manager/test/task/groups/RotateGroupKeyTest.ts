@@ -35,13 +35,16 @@ const ADD_PARAMS: AddNodeToGroupParams = {
     epochStartTime0: OP_START,
 };
 
+const ROTATION_ID = "r1";
+
 const ROTATE_PARAMS: RotateGroupKeyParams = {
     groupKeySetId: GROUP_KEY_SET_ID,
     newEpochKey: NEW_KEY,
+    rotationId: ROTATION_ID,
 };
 
 const ADD_ID = `${ADD_NODE_TO_GROUP_TYPE}:peer1:${0x101}:1`;
-const ROTATE_ID = `${ROTATE_GROUP_KEY_TYPE}:${GROUP_KEY_SET_ID}`;
+const ROTATE_ID = `${ROTATE_GROUP_KEY_TYPE}:${GROUP_KEY_SET_ID}:${ROTATION_ID}`;
 
 /** Snapshot of a keySetWrite, captured before the server mutates the request (MAX-sentinel nulling). */
 type WriteSnapshot = GroupKeyManagement.GroupKeySet;
@@ -160,7 +163,7 @@ describe("RotateGroupKey task integration (single member)", () => {
         await controller.act(a =>
             a.get(TaskManagerBehavior).run("rotateGroupKey", { ...ROTATE_PARAMS, groupKeySetId: 99 }),
         );
-        await awaitState(controller, `${ROTATE_GROUP_KEY_TYPE}:99`, "completed");
+        await awaitState(controller, `${ROTATE_GROUP_KEY_TYPE}:99:${ROTATION_ID}`, "completed");
         expect(writes.length).equals(0);
     });
 });

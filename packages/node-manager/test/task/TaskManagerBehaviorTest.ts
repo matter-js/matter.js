@@ -92,16 +92,16 @@ describe("TaskManagerBehavior", () => {
         expect(found?.status.externalId).equals("myref");
     });
 
-    it("marks a rotation non-revertible once cleanup begins; tasks are revertible by default", () => {
+    it("marks a rotation non-revertible once activate begins; tasks are revertible by default", () => {
         const rotatableAt = (phaseIndex: number) =>
             new RotateGroupKey(
-                "rotateGroupKey:42",
-                { groupKeySetId: 42, newEpochKey: new Uint8Array(16) },
+                "rotateGroupKey:42:r1",
+                { groupKeySetId: 42, newEpochKey: new Uint8Array(16), rotationId: "r1" },
                 { phaseIndex, state: "running" },
             ).revertible;
-        expect(rotatableAt(0)).equals(true); // before distribute
-        expect(rotatableAt(1)).equals(true); // activate
-        expect(rotatableAt(2)).equals(false); // cleanup in flight — point of no return
+        expect(rotatableAt(0)).equals(true); // distribute in flight — new key dormant, revert is clean
+        expect(rotatableAt(1)).equals(false); // activate in flight — new key going live, point of no return
+        expect(rotatableAt(2)).equals(false); // cleanup in flight
         expect(rotatableAt(3)).equals(false); // completed
 
         expect(new SyntheticTask("synthetic:x", { tag: "x" }).revertible).equals(true);
@@ -109,8 +109,11 @@ describe("TaskManagerBehavior", () => {
         // The generic decline reason must not leak a specific task type's domain language.
         expect(new SyntheticTask("synthetic:x", { tag: "x" }).notRevertibleReason).does.not.contain("rotation");
         expect(
-            new RotateGroupKey("rotateGroupKey:42", { groupKeySetId: 42, newEpochKey: new Uint8Array(16) })
-                .notRevertibleReason,
+            new RotateGroupKey("rotateGroupKey:42:r1", {
+                groupKeySetId: 42,
+                newEpochKey: new Uint8Array(16),
+                rotationId: "r1",
+            }).notRevertibleReason,
         ).contains("forward-only");
     });
 

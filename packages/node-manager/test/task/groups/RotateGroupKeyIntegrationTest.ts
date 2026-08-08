@@ -27,8 +27,14 @@ const OP_KEY = new Uint8Array(16).fill(0xab);
 const OP_START = 946684800000001n; // just above IPK_DEFAULT_EPOCH_START_TIME (2000-01-01 in unix-µs)
 const NEW_KEY = new Uint8Array(16).fill(0xcd);
 
-const ROTATE_PARAMS: RotateGroupKeyParams = { groupKeySetId: GROUP_KEY_SET_ID, newEpochKey: NEW_KEY };
-const ROTATE_ID = `${ROTATE_GROUP_KEY_TYPE}:${GROUP_KEY_SET_ID}`;
+const ROTATION_ID = "r1";
+const ROTATE_PARAMS: RotateGroupKeyParams = {
+    groupKeySetId: GROUP_KEY_SET_ID,
+    newEpochKey: NEW_KEY,
+    rotationId: ROTATION_ID,
+};
+const rotateId = (rotationId: string) => `${ROTATE_GROUP_KEY_TYPE}:${GROUP_KEY_SET_ID}:${rotationId}`;
+const ROTATE_ID = rotateId(ROTATION_ID);
 
 const ControllerRoot = MockServerNode.RootEndpoint.with(TaskManagerBehavior);
 const MEMBER_DEVICE = OnOffLightSwitchDevice.with(GroupsServer);
@@ -37,19 +43,29 @@ const MEMBER_DEVICE = OnOffLightSwitchDevice.with(GroupsServer);
 const writesA = new Array<bigint[]>();
 const writesB = new Array<bigint[]>();
 
+/**
+ * Fires after device B commits a keySetWrite, with that write's start-time set. Lets a test flip B offline the
+ * instant its distribute write lands — the only window that parks the rotation at activate (before activate's
+ * gate re-checks reachability), which external time-pumping cannot hit.
+ */
+let afterWriteB: ((starts: bigint[]) => void) | undefined;
+
 /** A device root whose GroupKeyManagementServer records every keySetWrite's start-time set into `sink`. */
-function recordingRoot(sink: bigint[][]) {
+function recordingRoot(sink: bigint[][], afterWrite?: (starts: bigint[]) => void) {
     class RecordingGroupKeyManagementServer extends GroupKeyManagementServer {
         override async keySetWrite(request: GroupKeyManagement.KeySetWriteRequest) {
-            sink.push(starts(request.groupKeySet));
-            return super.keySetWrite(request);
+            const s = starts(request.groupKeySet);
+            sink.push(s);
+            const result = await super.keySetWrite(request);
+            afterWrite?.(s);
+            return result;
         }
     }
     return MockServerNode.RootEndpoint.with(RecordingGroupKeyManagementServer);
 }
 
 const DeviceRootA = recordingRoot(writesA);
-const DeviceRootB = recordingRoot(writesB);
+const DeviceRootB = recordingRoot(writesB, s => afterWriteB?.(s));
 
 function addParamsFor(peerId: string): AddNodeToGroupParams {
     return {
@@ -171,6 +187,7 @@ describe("RotateGroupKey task integration (two members)", () => {
     beforeEach(() => {
         writesA.length = 0;
         writesB.length = 0;
+        afterWriteB = undefined;
     });
 
     it("rotates the shared key across both members to a single new key", async () => {
@@ -311,17 +328,17 @@ describe("RotateGroupKey task integration (two members)", () => {
 
         expect(Bytes.areEqual(deviceKey0(deviceA, GROUP_KEY_SET_ID), OP_KEY)).equals(true);
 
-        // Take B offline so the rotation parks at distribute (phaseIndex 0 < CLEANUP_INDEX) — the revertible window.
+        // Take B offline so the rotation parks at distribute (phaseIndex 0 < ACTIVATE_INDEX) — the revertible window.
         const subscriptionB = subscriptionOf(peerB);
         await MockTime.resolve(subscriptionB.active.emit(false), { macrotasks: true });
 
         await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
         await awaitState(controller, ROTATE_ID, "parked");
 
-        // Distribute has pushed the 2-key struct to the still-online member A; the task has not reached cleanup.
+        // Distribute has pushed the 2-key struct to the still-online member A; activate has not begun.
         expect(intentStarts(peerA, GROUP_KEY_SET_ID).length).equals(2);
         const phaseIndex = await controller.act(a => a.get(TaskManagerBehavior).state.tasks[ROTATE_ID]?.phaseIndex);
-        expect(phaseIndex).lessThan(2);
+        expect(phaseIndex).equals(0);
 
         // Cancel is accepted in the safe window and returns a revert handle.
         const handle = await MockTime.resolve(
@@ -344,6 +361,86 @@ describe("RotateGroupKey task integration (two members)", () => {
         const state = await controller.act(a => a.get(TaskManagerBehavior).get(ROTATE_ID)?.status.state);
         expect(state).equals("cancelled");
         expect(intentStarts(peerA, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
+    });
+
+    it("runs a second rotation of the same key set to a different key under a new rotationId", async () => {
+        await using site = new MockSite();
+        const { controller, deviceA, deviceB } = await twoMemberGroup(site);
+
+        const KEY_A = new Uint8Array(16).fill(0xa1);
+        const KEY_B = new Uint8Array(16).fill(0xb2);
+
+        await controller.act(a =>
+            a.get(TaskManagerBehavior).run("rotateGroupKey", {
+                groupKeySetId: GROUP_KEY_SET_ID,
+                newEpochKey: KEY_A,
+                rotationId: "r1",
+            }),
+        );
+        await awaitState(controller, rotateId("r1"), "completed");
+        for (const device of [deviceA, deviceB]) {
+            expect(Bytes.areEqual(deviceKey0(device, GROUP_KEY_SET_ID), KEY_A)).equals(true);
+        }
+
+        // A distinct rotationId is a distinct task id, so this rotation actually runs instead of deduping onto the
+        // completed r1 handle — the recovery path (rotate a bad key to another) depends on it.
+        await controller.act(a =>
+            a.get(TaskManagerBehavior).run("rotateGroupKey", {
+                groupKeySetId: GROUP_KEY_SET_ID,
+                newEpochKey: KEY_B,
+                rotationId: "r2",
+            }),
+        );
+        await awaitState(controller, rotateId("r2"), "completed");
+        for (const device of [deviceA, deviceB]) {
+            expect(Bytes.areEqual(deviceKey0(device, GROUP_KEY_SET_ID), KEY_B)).equals(true);
+        }
+    });
+
+    it("declines cancel during the activate phase and leaves the rotation in place", async () => {
+        await using site = new MockSite();
+        const { controller, deviceA, deviceB, peerB } = await twoMemberGroup(site);
+
+        // Flip B offline the instant its distribute write commits: distribute completes (both reachable through it),
+        // then activate's opening reachability re-check finds B gone and parks at phaseIndex 1 — the point of no return.
+        const subscriptionB = subscriptionOf(peerB);
+        let flipped = false;
+        afterWriteB = s => {
+            if (!flipped && s.length === 2) {
+                flipped = true;
+                subscriptionB.active.emit(false);
+            }
+        };
+
+        await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        await awaitState(controller, ROTATE_ID, "parked");
+
+        const phaseIndex = await controller.act(a => a.get(TaskManagerBehavior).state.tasks[ROTATE_ID]?.phaseIndex);
+        expect(phaseIndex).equals(1); // parked in activate, not distribute
+
+        // Distribute committed the 2-key struct on both members (old key still present); activate never wrote.
+        const parkedStartsA = deviceStarts(deviceA, GROUP_KEY_SET_ID);
+        const parkedStartsB = deviceStarts(deviceB, GROUP_KEY_SET_ID);
+        expect(parkedStartsA.length).equals(2);
+        expect(parkedStartsB.length).equals(2);
+
+        // Cancel is declined with zero side effects: no revert spawned, task stays parked, devices untouched.
+        await expect(controller.act(a => a.get(TaskManagerBehavior).cancel(ROTATE_ID))).rejectedWith(
+            TaskNotRevertibleError,
+            "forward-only",
+        );
+        const status = await controller.act(a => a.get(TaskManagerBehavior).get(ROTATE_ID)?.status);
+        expect(status?.state).equals("parked");
+        expect(status?.revertTaskId).equals(undefined);
+        expect(await controller.act(a => a.get(TaskManagerBehavior).state.tasks[`revert:${ROTATE_ID}`])).equals(
+            undefined,
+        );
+
+        // No rollback ran: both members keep their pre-cancel device state (distribute struct, old key present).
+        expect(deviceStarts(deviceA, GROUP_KEY_SET_ID)).deep.equals(parkedStartsA);
+        expect(deviceStarts(deviceB, GROUP_KEY_SET_ID)).deep.equals(parkedStartsB);
+        expect(Bytes.areEqual(deviceKey0(deviceA, GROUP_KEY_SET_ID), OP_KEY)).equals(true);
+        expect(Bytes.areEqual(deviceKey0(deviceB, GROUP_KEY_SET_ID), OP_KEY)).equals(true);
     });
 
     it("declines cancel of a completed rotation and leaves the new key in place", async () => {
