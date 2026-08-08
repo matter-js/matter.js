@@ -129,6 +129,49 @@ describe("Multi-client BLE Proxy", () => {
         expect(() => handler.accept(pair.server)).to.throw(ImplementationError);
     });
 
+    it("closes the rejected connection's transport when accept() is called after close()", async () => {
+        await handler.close();
+
+        const pair = MockWsConnection();
+        expect(() => handler.accept(pair.server)).to.throw(ImplementationError);
+
+        // accept() closed pair.server.writable; the other end of that pipe must see end-of-stream.
+        const reader = pair.client.readable.getReader();
+        try {
+            const { done } = await reader.read();
+            expect(done).to.be.true;
+        } finally {
+            reader.releaseLock();
+        }
+    });
+
+    it("keeps notifying other connectionEstablished listeners after one throws", async () => {
+        let secondCalled = false;
+        handler.connectionEstablished.on(() => {
+            throw new Error("listener boom");
+        });
+        handler.connectionEstablished.on(() => {
+            secondCalled = true;
+        });
+
+        await addClient();
+
+        expect(secondCalled).to.be.true;
+    });
+
+    it("still syncs start_scan to a joining client when a connectionEstablished listener throws", async () => {
+        handler.connectionEstablished.on(() => {
+            throw new Error("listener boom");
+        });
+
+        await addClient();
+        await handler.startScan({ service_uuids: ["fff6"], allow_duplicates: false });
+
+        const late = await addClient();
+        const cmd = await late.waitForCommand("start_scan");
+        expect(cmd.command).to.equal("start_scan");
+    });
+
     it("emits scanStopped when the last scanning client disconnects", async () => {
         const a = await addClient();
 
