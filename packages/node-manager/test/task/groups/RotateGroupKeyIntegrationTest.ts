@@ -5,7 +5,7 @@
  */
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
-import { TaskNotRevertibleError } from "#task/errors.js";
+import { TaskConflictError, TaskNotRevertibleError } from "#task/errors.js";
 import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
 import { ROTATE_GROUP_KEY_TYPE, RotateGroupKeyParams } from "#task/groups/RotateGroupKey.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
@@ -395,6 +395,80 @@ describe("RotateGroupKey task integration (two members)", () => {
         for (const device of [deviceA, deviceB]) {
             expect(Bytes.areEqual(deviceKey0(device, GROUP_KEY_SET_ID), KEY_B)).equals(true);
         }
+    });
+
+    it("rejects a concurrent rotation of a key set that already has a live rotation", async () => {
+        await using site = new MockSite();
+        const { controller, peerB } = await twoMemberGroup(site);
+
+        // Park r1 non-terminal (member B offline during distribute).
+        await MockTime.resolve(subscriptionOf(peerB).active.emit(false), { macrotasks: true });
+        await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        await awaitState(controller, ROTATE_ID, "parked");
+
+        const OTHER_KEY = new Uint8Array(16).fill(0xef);
+        await expect(
+            controller.act(async a =>
+                a.get(TaskManagerBehavior).run("rotateGroupKey", {
+                    groupKeySetId: GROUP_KEY_SET_ID,
+                    newEpochKey: OTHER_KEY,
+                    rotationId: "r2",
+                }),
+            ),
+        ).rejectedWith(TaskConflictError);
+
+        // r1 is untouched and no r2 task was spawned.
+        const r1State = await controller.act(a => a.get(TaskManagerBehavior).state.tasks[ROTATE_ID]?.state);
+        expect(r1State).equals("parked");
+        expect(await controller.act(a => a.get(TaskManagerBehavior).state.tasks[rotateId("r2")])).equals(undefined);
+        expect(await controller.act(a => a.get(TaskManagerBehavior).get(rotateId("r2")))).equals(undefined);
+    });
+
+    it("rejects a new rotation while a revert of the same key set is still live", async () => {
+        await using site = new MockSite();
+        const { controller, peerB } = await twoMemberGroup(site);
+
+        // Park r1 at distribute (member B offline), then cancel it — this spawns a revert that also parks (B still
+        // offline), so a live non-terminal revert now holds the key set.
+        await MockTime.resolve(subscriptionOf(peerB).active.emit(false), { macrotasks: true });
+        await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        await awaitState(controller, ROTATE_ID, "parked");
+        await MockTime.resolve(
+            controller.act(a => a.get(TaskManagerBehavior).cancel(ROTATE_ID)),
+            { macrotasks: true },
+        );
+        await awaitState(controller, `revert:${ROTATE_ID}`, "parked", "running");
+
+        const OTHER_KEY = new Uint8Array(16).fill(0xef);
+        await expect(
+            controller.act(async a =>
+                a.get(TaskManagerBehavior).run("rotateGroupKey", {
+                    groupKeySetId: GROUP_KEY_SET_ID,
+                    newEpochKey: OTHER_KEY,
+                    rotationId: "r2",
+                }),
+            ),
+        ).rejectedWith(TaskConflictError);
+
+        // The revert is untouched and no r2 task was spawned.
+        expect(["parked", "running"]).contains(
+            await controller.act(a => a.get(TaskManagerBehavior).state.tasks[`revert:${ROTATE_ID}`]?.state),
+        );
+        expect(await controller.act(a => a.get(TaskManagerBehavior).state.tasks[rotateId("r2")])).equals(undefined);
+    });
+
+    it("dedups an idempotent re-issue of the same rotationId to the same handle", async () => {
+        await using site = new MockSite();
+        const { controller, peerB } = await twoMemberGroup(site);
+
+        // Park so the task stays live/non-terminal across both issues.
+        await MockTime.resolve(subscriptionOf(peerB).active.emit(false), { macrotasks: true });
+        const first = await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        await awaitState(controller, ROTATE_ID, "parked");
+
+        const second = await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        expect(second.id).equals(first.id);
+        expect(second.id).equals(ROTATE_ID);
     });
 
     it("declines cancel during the activate phase and leaves the rotation in place", async () => {

@@ -79,6 +79,15 @@ export abstract class Task<P = unknown> {
         throw new ImplementationError("idFor must be implemented by the Task subclass");
     }
 
+    /**
+     * While a task is live and non-terminal, no other task sharing the same non-undefined resourceKey may start —
+     * mutual exclusion over a resource the reconciler cannot let two tasks mutate concurrently. Default undefined =
+     * no exclusivity.
+     */
+    resourceKey(): string | undefined {
+        return undefined;
+    }
+
     toPersistence(): TaskPersistence {
         return {
             type: this.type,

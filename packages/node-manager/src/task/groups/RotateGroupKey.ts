@@ -49,6 +49,11 @@ export class RotateGroupKey extends Task<RotateGroupKeyParams> {
         return `${ROTATE_GROUP_KEY_TYPE}:${params.groupKeySetId}:${params.rotationId}`;
     }
 
+    // Independent of rotationId: different rotationIds on the same key set must be mutually exclusive.
+    override resourceKey(): string {
+        return `groupKey:${this.params.groupKeySetId}`;
+    }
+
     override get revertible(): boolean {
         return this.progress.phaseIndex < ACTIVATE_INDEX;
     }
