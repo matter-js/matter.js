@@ -9,6 +9,7 @@ import { BleError, MatterBle } from "@matter/protocol";
 import type { BleProxyConnection } from "./BleProxyConnection.js";
 import type { BleProxyHandler } from "./BleProxyHandler.js";
 import type { DeviceDiscoveredData } from "./BleProxyProtocol.js";
+import { toCanonicalUuid } from "./ProxyBleChannel.js";
 
 const logger = Logger.get("ProxyBleClient");
 
@@ -86,10 +87,17 @@ export class ProxyBleClient {
         }
 
         logger.debug("Start BLE scanning via proxy ...");
-        // Matter discovery only needs one event per state change; opt out of the spec's default true so a 10 Hz
-        // peripheral advertise doesn't flood the WebSocket
-        await this.#handler.startScan({ service_uuids: ["fff6"], allow_duplicates: false });
+        // Claim the scan before awaiting: a second caller entering this window would broadcast a duplicate start_scan,
+        // and the resulting already_scanning error clears the hub's scanning set while this client still scans
         this.#isScanning = true;
+        try {
+            // Matter discovery only needs one event per state change; opt out of the spec's default true so a 10 Hz
+            // peripheral advertise doesn't flood the WebSocket
+            await this.#handler.startScan({ service_uuids: ["fff6"], allow_duplicates: false });
+        } catch (error) {
+            this.#isScanning = false;
+            throw error;
+        }
     }
 
     async stopScanning(): Promise<void> {
@@ -113,17 +121,18 @@ export class ProxyBleClient {
         const serviceData = new Map<string, Uint8Array>();
         let matterServiceData: Uint8Array | undefined;
         if (service_data) {
-            try {
-                for (const [uuid, base64Value] of Object.entries(service_data)) {
-                    const bytes = Bytes.of(Bytes.fromBase64(base64Value));
-                    serviceData.set(uuid, bytes);
-                    if (MatterBle.isServiceUuid(uuid)) {
-                        matterServiceData = bytes;
-                    }
+            for (const [uuid, base64Value] of Object.entries(service_data)) {
+                let bytes;
+                try {
+                    bytes = Bytes.of(Bytes.fromBase64(base64Value));
+                } catch (error) {
+                    logger.debug(`Peripheral ${address} sent undecodable service data for ${uuid}, ignoring it`, error);
+                    continue;
                 }
-            } catch (error) {
-                logger.debug(`Peripheral ${address} sent undecodable service data, ignoring`, error);
-                return;
+                serviceData.set(uuid, bytes);
+                if (MatterBle.isServiceUuid(toCanonicalUuid(uuid))) {
+                    matterServiceData = bytes;
+                }
             }
         }
 

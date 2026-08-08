@@ -11,8 +11,10 @@ import {
     InternalError,
     Logger,
     NetworkError,
+    Seconds,
     ServerAddress,
     Time,
+    withTimeout,
     type Channel,
     type Transport,
 } from "@matter/general";
@@ -32,6 +34,9 @@ const BTP_HANDSHAKE_RESPONSE_OPCODE_1 = 0x65;
 const BTP_HANDSHAKE_RESPONSE_OPCODE_2 = 0x6c;
 const BTP_HANDSHAKE_RESPONSE_LENGTH = 6;
 
+/** Channel teardown must not stall on an unresponsive proxy client, so the courtesy Disconnect is bounded. */
+const DISCONNECT_TIMEOUT = Seconds(5);
+
 /**
  * Normalize any UUID form sent by a proxy client to the canonical dashed-uppercase form used by Matter's
  * {@link MatterBle} constants.  Different BLE proxy clients deliver different formats:
@@ -39,10 +44,10 @@ const BTP_HANDSHAKE_RESPONSE_LENGTH = 6;
  *   - noble: 32 lowercase hex chars, no dashes ("18ee2ef5263d4559959f4f9c429f9d11")
  *   - generic: dashed form, either case ("18EE2EF5-263D-4559-959F-4F9C429F9D11")
  *
- * Both produce the same canonical string so command handlers stay format-agnostic.  Short forms ("fff6") are only
- * uppercased; the Matter characteristics are 128-bit, so no client reports them in short form.
+ * Both produce the same canonical string so command handlers stay format-agnostic.  The 16-bit short form ("fff6")
+ * is only uppercased, which is what {@link MatterBle.isServiceUuid} expects for service UUIDs.
  */
-function toCanonicalUuid(uuid: string): string {
+export function toCanonicalUuid(uuid: string): string {
     const upper = uuid.toUpperCase();
     if (upper.length === 32) {
         return [
@@ -112,7 +117,7 @@ export class ProxyBleCentralInterface implements Transport {
                 connection_handle,
             });
 
-            const matterService = services.find(s => MatterBle.isServiceUuid(s.uuid));
+            const matterService = services.find(s => MatterBle.isServiceUuid(toCanonicalUuid(s.uuid)));
             if (!matterService) {
                 throw new BleError(`Peripheral ${peripheralAddress} does not have Matter BLE service`);
             }
@@ -245,7 +250,10 @@ export class ProxyBleCentralInterface implements Transport {
                     if (!channelRef.channel?.connected) return;
                     logger.debug(`Disconnecting from ${peripheralAddress} via proxy`);
                     try {
-                        await connection.sendCommand(BleProxyCommand.Disconnect, { connection_handle });
+                        await withTimeout(
+                            DISCONNECT_TIMEOUT,
+                            connection.sendCommand(BleProxyCommand.Disconnect, { connection_handle }),
+                        );
                     } catch (error) {
                         logger.debug(
                             `Peripheral ${peripheralAddress}: Error sending Disconnect to proxy client`,
@@ -418,14 +426,19 @@ export class ProxyBleChannel extends BleChannel<Bytes> {
     }
 
     async close() {
-        this.#connected = false;
         this.#cleanupObservers();
         this.#terminateIterator();
         for (const listener of this.#closeListeners) {
             listener();
         }
         this.#btpSession.closed.off(this.#onBtpSessionClosed);
-        await this.#btpSession.close();
+        try {
+            // The session's disconnect callback tests {@link connected} to decide whether the peripheral still needs
+            // a Disconnect, so the flag must survive until the session has closed
+            await this.#btpSession.close();
+        } finally {
+            this.#connected = false;
+        }
         this.emitClosed();
     }
 }

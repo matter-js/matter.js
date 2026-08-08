@@ -136,6 +136,51 @@ describe("BLE Proxy Integration", function () {
                 client.close();
             }
         });
+
+        it("re-broadcasts start_scan after a scanStopped that lands inside the start_scan round-trip", async () => {
+            const client = new ProxyBleClient(handler);
+            try {
+                // The stop lands while startScanning is still awaiting its own broadcast, the window in which a
+                // scan flag set after the await would overwrite it
+                testClient.onCommand(BleProxyCommand.StartScan, async () => {
+                    await testClient.sendEvent("scan_stopped", { reason: "radio busy" });
+                });
+
+                const scanStopped = nextEmit(handler.scanStopped);
+                await client.startScanning();
+                await testClient.waitForCommand("start_scan");
+                await scanStopped;
+
+                const secondScan = testClient.waitForCommand("start_scan", Seconds(3));
+                await client.startScanning();
+                const cmd = await secondScan;
+                expect(cmd.command).to.equal("start_scan");
+            } finally {
+                client.close();
+            }
+        });
+
+        it("keeps a peripheral whose service data carries one undecodable entry", async () => {
+            const proxyBle = new ProxyBle(handler);
+            const mockDevice = new MockBleDevice({ discriminator: 2468, vendorId: 0xfff1, productId: 0x8000 });
+
+            testClient.onCommand(BleProxyCommand.StartScan, async () => {
+                const discovered = mockDevice.discoveredEventData as { service_data: Record<string, string> };
+                await testClient.sendEvent("device_discovered", {
+                    ...discovered,
+                    service_data: { "180a": "!not base64!", ...discovered.service_data },
+                });
+            });
+
+            const devices = await proxyBle.scanner.findCommissionableDevicesContinuously(
+                { longDiscriminator: 2468 },
+                () => {},
+                DISCOVERY_TIMEOUT,
+            );
+
+            expect(devices.length).to.equal(1);
+            expect(devices[0].deviceIdentifier).to.equal(mockDevice.address);
+        });
     });
 
     describe("openChannel BTP handshake", () => {
@@ -209,6 +254,77 @@ describe("BLE Proxy Integration", function () {
             expect(comboArgs?.write_uuid).to.equal(C1_UUID);
             expect(comboArgs?.subscribe_uuid).to.equal(C2_UUID);
 
+            await channel.close();
+        });
+
+        it("sends disconnect to the proxy client when the channel is closed", async () => {
+            const proxyBle = new ProxyBle(handler);
+            const mockDevice = new MockBleDevice({ discriminator: 6100, vendorId: 0xfff1, productId: 0x8000 });
+
+            await discoverDevice(proxyBle, mockDevice);
+            wireBtpFlow(mockDevice, 11);
+            testClient.onCommand(BleProxyCommand.Disconnect, async () => ({}));
+
+            const central = proxyBle.centralInterface as ProxyBleCentralInterface;
+            central.onData(() => {});
+
+            const channel = (await central.openChannel({
+                type: "ble",
+                peripheralAddress: mockDevice.address,
+            })) as ProxyBleChannel;
+
+            const disconnectPromise = testClient.waitForCommand("disconnect", Seconds(3));
+            await channel.close();
+
+            const disconnectCmd = await disconnectPromise;
+            expect((disconnectCmd.args as { connection_handle: number }).connection_handle).to.equal(11);
+        });
+
+        it("sends no disconnect when the peripheral reported the disconnect itself", async () => {
+            const proxyBle = new ProxyBle(handler);
+            const mockDevice = new MockBleDevice({ discriminator: 6200, vendorId: 0xfff1, productId: 0x8000 });
+
+            await discoverDevice(proxyBle, mockDevice);
+            wireBtpFlow(mockDevice, 12);
+            testClient.onCommand(BleProxyCommand.Disconnect, async () => ({}));
+
+            const central = proxyBle.centralInterface as ProxyBleCentralInterface;
+            central.onData(() => {});
+
+            const channel = (await central.openChannel({
+                type: "ble",
+                peripheralAddress: mockDevice.address,
+            })) as ProxyBleChannel;
+
+            const channelClosed = nextEmit(channel.closed);
+            await testClient.sendEvent("disconnected", { connection_handle: 12, reason: "peripheral gone" });
+            await channelClosed;
+
+            expect(channel.connected).to.be.false;
+            expect(testClient.receivedCommands.find(c => c.command === "disconnect")).to.be.undefined;
+        });
+
+        it("matches the Matter service when the client reports the compact 128-bit UUID form", async () => {
+            const proxyBle = new ProxyBle(handler);
+            const mockDevice = new MockBleDevice({
+                discriminator: 6300,
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                serviceUuid: "0000fff600001000800000805f9b34fb",
+            });
+
+            await discoverDevice(proxyBle, mockDevice);
+            wireBtpFlow(mockDevice, 13);
+
+            const central = proxyBle.centralInterface as ProxyBleCentralInterface;
+            central.onData(() => {});
+
+            const channel = (await central.openChannel({
+                type: "ble",
+                peripheralAddress: mockDevice.address,
+            })) as ProxyBleChannel;
+
+            expect(channel.connected).to.be.true;
             await channel.close();
         });
 

@@ -17,6 +17,8 @@ export interface MockBleDeviceConfig {
     productId: number;
     address?: string;
     name?: string;
+    /** UUID form the simulated proxy client reports for the Matter service. */
+    serviceUuid?: string;
 }
 
 export class MockBleDevice {
@@ -25,6 +27,7 @@ export class MockBleDevice {
     readonly discriminator: number;
     readonly vendorId: number;
     readonly productId: number;
+    readonly serviceUuid: string;
 
     constructor(config: MockBleDeviceConfig) {
         this.discriminator = config.discriminator;
@@ -32,6 +35,7 @@ export class MockBleDevice {
         this.productId = config.productId;
         this.address = config.address ?? "AA:BB:CC:DD:EE:FF";
         this.name = config.name ?? `MATTER-${config.discriminator}`;
+        this.serviceUuid = config.serviceUuid ?? "fff6";
     }
 
     /**
@@ -66,9 +70,9 @@ export class MockBleDevice {
             rssi: -55,
             connectable: true,
             service_data: {
-                fff6: Bytes.toBase64(this.advertisementServiceData),
+                [this.serviceUuid]: Bytes.toBase64(this.advertisementServiceData),
             },
-            service_uuids: ["fff6"],
+            service_uuids: [this.serviceUuid],
         };
     }
 
@@ -76,7 +80,7 @@ export class MockBleDevice {
      * Return mock GATT services for this device.
      */
     get services(): Array<{ uuid: string }> {
-        return [{ uuid: "fff6" }];
+        return [{ uuid: this.serviceUuid }];
     }
 
     /**
