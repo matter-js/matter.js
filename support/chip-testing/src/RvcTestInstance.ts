@@ -409,11 +409,14 @@ export class RvcTestInstance extends NodeTestInstance {
 }
 
 if (chip.isInitialized) {
-    RvcTestInstance.pics = await PicsSource.load({
-        kind: "composite",
-        sources: [
-            { kind: "chip", name: "examples/rvc-app/rvc-common/pics/rvc-app-pics-values" },
-            { kind: "file", name: "src/chip/matter-js-pics.properties" },
-        ],
-    });
+    RvcTestInstance.pics = await PicsSource.load(
+        {
+            kind: "composite",
+            sources: [
+                { kind: "chip", name: "examples/rvc-app/rvc-common/pics/rvc-app-pics-values" },
+                { kind: "file", name: "src/chip/matter-js-pics.properties" },
+            ],
+        },
+        chip.container,
+    );
 }

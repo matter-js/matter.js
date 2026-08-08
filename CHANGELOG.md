@@ -48,6 +48,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: Provisional cluster elements are now typed as optional rather than always present
     - Fix: `Cluster.with()` rejects a feature the cluster does not define and returns one frozen namespace per selection
 
+- @matter/testing
+    - Enhancement: `certTest()` defines controller-side certification tests with per-step PICS gating, device-log expectations and evidence recording; devices run as chip apps (docker or local binary) or matter.js test apps, selected via `MATTER_CERT_DEVICE`
+    - Enhancement: `PromptDrivenPythonTest` drives chip python test scripts that prompt for manual commissioning steps
+
 ## 0.17.9 (2026-08-06)
 
 - @matter/protocol

@@ -5,6 +5,7 @@
  */
 
 import {
+    Boot,
     Environment,
     ImplementationError,
     InternalError,
@@ -21,10 +22,12 @@ import {
     ClusterType,
     EndpointNumber,
     FabricIndex,
+    ManualPairingCodeCodec,
     NodeId,
     StatusResponseError,
 } from "@matter/main/types";
 import { AttributeModel, ClusterModel, Matter } from "@matter/model";
+import { CommissionableDeviceIdentifiers, getOperationalDeviceQname } from "@matter/main/protocol";
 import { CommissioningController } from "@project-chip/matter.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import type {
@@ -36,6 +39,7 @@ import type {
     LogSource,
     SubscribeOptions,
 } from "@matter/testing";
+import { LogFollower } from "@matter/testing";
 
 /**
  * Attributes a matter.js controller `write`/`invoke` call to the {@link InProcessControllerAdapter} whose
@@ -45,14 +49,11 @@ import type {
 const activeAdapterId = new AsyncLocalStorage<string>();
 
 const adapterStreams = new Map<string, LineStream>();
-let logCaptureInstalled = false;
 
-function installLogCapture() {
-    if (logCaptureInstalled) {
-        return;
-    }
-    logCaptureInstalled = true;
-
+// Boot.reboot() runs before every spec file and replaces Logger.destinations wholesale (see
+// Logger.ts's own Boot.init), so a one-time install at module load would stop forwarding adapter log
+// lines from the second cert-test file onward. Boot.init re-runs this on every reboot instead.
+Boot.init(() => {
     Logger.destinations["cert-controller-adapter"] = LogDestination({
         name: "cert-controller-adapter",
         format: LogFormat.formats.plain,
@@ -64,7 +65,7 @@ function installLogCapture() {
             adapterStreams.get(id)?.push(text);
         },
     });
-}
+});
 
 function runTagged<T>(id: string, fn: () => Promise<T>): Promise<T> {
     return activeAdapterId.run(id, fn);
@@ -138,6 +139,47 @@ function inferAttributeModel(id: number, value: unknown): AttributeModel {
     });
 }
 
+interface ResolvedCommissioningTarget {
+    identifierData: CommissionableDeviceIdentifiers;
+    passcode: number;
+}
+
+/**
+ * A `manualPairingCode` (from an enhanced commissioning window) only carries a short discriminator
+ * (§ 5.1.4.1's 4-bit form) and the window's freshly-generated passcode — never the device's original
+ * setup passcode/discriminator, which `openEnhancedCommissioningWindow` deliberately replaces per
+ * window. `target.passcode`/`target.discriminator` are for the device's original setup code instead.
+ */
+function resolveCommissioningTarget(target: CommissioningTarget): ResolvedCommissioningTarget {
+    if (target.manualPairingCode !== undefined) {
+        const { shortDiscriminator, passcode } = ManualPairingCodeCodec.decode(target.manualPairingCode);
+        if (shortDiscriminator === undefined) {
+            throw new ImplementationError("Manual pairing code did not decode to a short discriminator");
+        }
+        return { identifierData: { shortDiscriminator }, passcode };
+    }
+    if (target.passcode === undefined || target.discriminator === undefined) {
+        throw new ImplementationError(
+            "commission() requires either target.manualPairingCode or both target.passcode and target.discriminator",
+        );
+    }
+    return { identifierData: { longDiscriminator: target.discriminator }, passcode: target.passcode };
+}
+
+const OPERATIONAL_CREDENTIALS = Matter.clusters.require("OperationalCredentials");
+const OPERATIONAL_CREDENTIALS_ID = requireId(OPERATIONAL_CREDENTIALS.id, "OperationalCredentials cluster");
+const FABRICS_ATTRIBUTE_ID = requireId(
+    OPERATIONAL_CREDENTIALS.attributes.require("fabrics").id,
+    "OperationalCredentials.fabrics",
+);
+
+function requireId(id: number | undefined, what: string): number {
+    if (id === undefined) {
+        throw new InternalError(`${what} has no numeric id`);
+    }
+    return id;
+}
+
 function clusterModelFor(cluster: string | number): { model: ClusterModel; id: number } {
     const model = Matter.clusters(cluster);
     if (model === undefined) {
@@ -195,18 +237,21 @@ class InProcessCertNodeApi implements CertNodeApi {
             const { attributeData, attributeStatus } = await client.getMultipleAttributesAndStatus({
                 attributes: [{ endpointId, clusterId, attributeId }],
             });
-            if (attributeStatus?.length) {
-                throw new StatusResponseError(
-                    `readAttribute ${JSON.stringify(path)} failed`,
-                    attributeStatus[0].status,
-                );
-            }
             if (isConcretePath(path)) {
+                if (attributeStatus?.length) {
+                    throw new StatusResponseError(
+                        `readAttribute ${JSON.stringify(path)} failed`,
+                        attributeStatus[0].status,
+                    );
+                }
                 if (attributeData.length === 0) {
                     throw new InternalError(`readAttribute ${JSON.stringify(path)} returned no data`);
                 }
                 return attributeData[0].value;
             }
+            // A wildcard expansion legitimately mixes data with per-item statuses (e.g.
+            // UNSUPPORTED_ATTRIBUTE for a path the expansion reached but that doesn't apply there) —
+            // unlike a concrete path's status, that's not itself a read failure.
             return attributeData.map(({ path: { endpointId, clusterId, attributeId }, value }) => ({
                 endpoint: endpointId,
                 cluster: clusterId,
@@ -287,11 +332,34 @@ class InProcessCertNodeApi implements CertNodeApi {
         });
     }
 
+    /**
+     * The Fabrics attribute has FabricSensitive quality (Matter Core § 7.14.2.2): a plain `getStateOf`
+     * read (or one via {@link readAttribute}, which also defaults to fabric-filtered) would return only
+     * the calling controller's own entry, not every fabric on the node — useless for a multi-controller
+     * TC that needs to see (and label-match) fabrics it didn't itself create. Reads the wire directly
+     * with `isFabricFiltered: false` instead of going through `getStateOf`'s cached/local-state path.
+     */
     readFabrics(): Promise<unknown[]> {
         return runTagged(this.#adapterId, async () => {
-            const node = await this.#node();
-            const { fabrics } = await node.getStateOf(OperationalCredentialsClient, ["fabrics"]);
-            return fabrics ?? [];
+            const client = await this.#interactionClient();
+            const { attributeData, attributeStatus } = await client.getMultipleAttributesAndStatus({
+                attributes: [
+                    {
+                        endpointId: EndpointNumber(0),
+                        clusterId: ClusterId(OPERATIONAL_CREDENTIALS_ID),
+                        attributeId: AttributeId(FABRICS_ATTRIBUTE_ID),
+                    },
+                ],
+                isFabricFiltered: false,
+            });
+            if (attributeStatus?.length) {
+                throw new StatusResponseError("readFabrics failed", attributeStatus[0].status);
+            }
+            const value = attributeData[0]?.value;
+            if (!Array.isArray(value)) {
+                throw new InternalError(`readFabrics expected a list value, got ${JSON.stringify(value)}`);
+            }
+            return value;
         });
     }
 
@@ -299,6 +367,12 @@ class InProcessCertNodeApi implements CertNodeApi {
         return runTagged(this.#adapterId, async () => {
             const node = await this.#node();
             await node.decommission();
+        });
+    }
+
+    operationalMdnsInstanceName(): Promise<string> {
+        return runTagged(this.#adapterId, async () => {
+            return getOperationalDeviceQname(this.#controller.fabric.globalId, this.#nodeId);
         });
     }
 }
@@ -312,10 +386,19 @@ class InProcessCertNodeApi implements CertNodeApi {
  */
 export class InProcessControllerAdapter implements ControllerAdapter {
     readonly id: string;
+    readonly log: LogFollower;
     readonly #controller: CommissioningController;
     readonly #logStream = new LineStream();
 
     constructor(id: string) {
+        if (adapterStreams.has(id)) {
+            throw new InternalError(
+                `InProcessControllerAdapter "${id}" is already registered; two live adapters with the same id ` +
+                    "would misattribute each other's logs (adapterStreams is keyed by id) — give each controller " +
+                    "role a unique id",
+            );
+        }
+
         this.id = id;
         const env = new Environment(`cert-${id}`, Environment.default);
         new MockStorageService(env);
@@ -324,13 +407,9 @@ export class InProcessControllerAdapter implements ControllerAdapter {
             autoConnect: false,
             adminFabricLabel: id,
         });
+        this.log = new LogFollower(this.#logStream.follow(), id);
 
-        installLogCapture();
         adapterStreams.set(id, this.#logStream);
-    }
-
-    get log(): LogSource {
-        return this.#logStream;
     }
 
     start(): Promise<void> {
@@ -348,16 +427,15 @@ export class InProcessControllerAdapter implements ControllerAdapter {
 
     commission(target: CommissioningTarget): Promise<CertNodeRef> {
         return runTagged(this.id, async () => {
+            const { identifierData, passcode } = resolveCommissioningTarget(target);
             const nodeId = await this.#controller.commissionNode({
                 commissioning: {
                     regulatoryLocation: GeneralCommissioning.RegulatoryLocationType.IndoorOutdoor,
                     regulatoryCountryCode: "XX",
                     onAttestationFailure: true,
                 },
-                discovery: {
-                    identifierData: { longDiscriminator: target.discriminator },
-                },
-                passcode: target.passcode,
+                discovery: { identifierData },
+                passcode,
             });
             return nodeId.toString();
         });

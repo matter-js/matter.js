@@ -20,6 +20,7 @@ import { afterRun, beforeRun } from "../mocha.js";
 import { TestRunner } from "../runner.js";
 import { RootTestDescriptor, TestDescriptor, TestFileDescriptor } from "../test-descriptor.js";
 import { AccessoryServer } from "./accessory-server.js";
+import { createRegisteredCertTest } from "./cert/cert-test.js";
 import type { chip } from "./chip.js";
 import { Constants, ContainerPaths } from "./config.js";
 import { ContainerCommandPipe } from "./container-command-pipe.js";
@@ -509,8 +510,8 @@ async function configureScripts() {
  * Create a PICS file in the container appropriate for matter.js.
  */
 async function configurePics() {
-    Values.defaultPics = await PicsSource.load(Constants.defaultPics);
-    Values.defaultPicsFilename = await PicsSource.install(Values.defaultPics);
+    Values.defaultPics = await PicsSource.load(Constants.defaultPics, State.container);
+    Values.defaultPicsFilename = await PicsSource.install(State.container, Values.defaultPics);
 }
 
 /**
@@ -641,6 +642,9 @@ function createTest(descriptor: TestDescriptor) {
 
         case "py":
             return new PythonTest(descriptor as TestFileDescriptor, State.container, Values.restartFlagHostDir);
+
+        case "cert":
+            return createRegisteredCertTest(descriptor);
 
         default:
             throw new Error(`Cannot implement CHIP test ${descriptor.name} of kind ${descriptor.kind}`);

@@ -5,12 +5,15 @@
  */
 
 import type {
+    CertDevice,
     CertStepContext,
     CertTestDefinition,
+    DeviceExitInfo,
     StepRecorder,
     StepVerdict,
 } from "../../src/chip/cert/cert-context.js";
 import { CertTest } from "../../src/chip/cert/cert-test.js";
+import { LogFollower } from "../../src/chip/cert/log-follower.js";
 import { PicsFile } from "../../src/chip/pics/file.js";
 import type { Subject } from "../../src/device/subject.js";
 import type { Container } from "../../src/docker/container.js";
@@ -60,7 +63,9 @@ function stubRecorder(overrides: Partial<StepRecorder> = {}): StepRecorder {
         beginStep() {},
         check() {},
         endStep() {},
-        async flush() {},
+        async flush() {
+            return "";
+        },
         ...overrides,
     };
 }
@@ -94,6 +99,17 @@ function stubSubjectWithThrowingPics(): Subject {
         get pics(): PicsFile {
             throw new Error("PICS not initialized");
         },
+    };
+}
+
+async function* noLines(): AsyncGenerator<string> {}
+
+function stubCertDevice(exit: Promise<DeviceExitInfo>): CertDevice {
+    return {
+        ...stubSubject(new PicsFile([])),
+        flavor: "matterjs",
+        log: new LogFollower(noLines(), "stub-device"),
+        exit,
     };
 }
 
@@ -164,7 +180,7 @@ describe("CertTest", () => {
         };
 
         const beginStepNumbers = new Array<number | string>();
-        const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
+        const endStepCalls = new Array<{ number: number | string; verdict: StepVerdict; skipReason?: string }>();
         let flushed = false;
 
         const recorder: StepRecorder = {
@@ -172,11 +188,12 @@ describe("CertTest", () => {
                 beginStepNumbers.push(step.number);
             },
             check() {},
-            endStep(step, verdict) {
-                endStepVerdicts.push({ number: step.number, verdict });
+            endStep(step, verdict, skipReason) {
+                endStepCalls.push({ number: step.number, verdict, skipReason });
             },
             async flush() {
                 flushed = true;
+                return "";
             },
         };
 
@@ -193,10 +210,10 @@ describe("CertTest", () => {
         expect(ran).deep.equal({ step1: true, step2: false, step3: true });
 
         expect(beginStepNumbers).deep.equal([1, 3]);
-        expect(endStepVerdicts).deep.equal([
-            { number: 1, verdict: "pass" },
-            { number: 2, verdict: "skipped" },
-            { number: 3, verdict: "fail" },
+        expect(endStepCalls).deep.equal([
+            { number: 1, verdict: "pass", skipReason: undefined },
+            { number: 2, verdict: "skipped", skipReason: 'PICS "CADMIN.S.UnmetToken" not met' },
+            { number: 3, verdict: "fail", skipReason: undefined },
         ]);
 
         expect(flushed).equal(true);
@@ -401,5 +418,149 @@ describe("CertTest", () => {
             { number: 1, verdict: "fail" },
             { number: 2, verdict: "aborted" },
         ]);
+    });
+
+    it("skips a step whose flavors list excludes the current run's device flavor", async () => {
+        let step1Ran = false;
+        let step2Ran = false;
+
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step restricted to chip flavors",
+                    flavors: ["chip-docker", "chip-local"],
+                    run: async () => {
+                        step1Ran = true;
+                    },
+                },
+                {
+                    number: 2,
+                    text: "Step that includes the current flavor",
+                    flavors: ["matterjs"],
+                    run: async () => {
+                        step2Ran = true;
+                    },
+                },
+            ],
+        };
+
+        const endStepCalls = new Array<{ number: number | string; verdict: StepVerdict; skipReason?: string }>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: { th: stubCertDevice(new Promise<DeviceExitInfo>(() => {})) },
+            recorder: stubRecorder({
+                endStep(step, verdict, skipReason) {
+                    endStepCalls.push({ number: step.number, verdict, skipReason });
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+        const subject = stubSubject(new PicsFile([]));
+
+        await test.invoke(subject, () => {}, [], false);
+
+        expect(step1Ran).equal(false);
+        expect(step2Ran).equal(true);
+        expect(endStepCalls).deep.equal([
+            { number: 1, verdict: "skipped", skipReason: 'unsupported on device flavor "matterjs"' },
+            { number: 2, verdict: "pass", skipReason: undefined },
+        ]);
+    });
+
+    it("fails a step that declares an empty flavors list, rather than silently skipping it forever", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step with an empty flavors list",
+                    flavors: [],
+                    run: async () => {},
+                },
+            ],
+        };
+
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: { th: stubCertDevice(new Promise<DeviceExitInfo>(() => {})) },
+            recorder: stubRecorder(),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+        const subject = stubSubject(new PicsFile([]));
+
+        await expect(test.invoke(subject, () => {}, [], false)).rejectedWith('Step 1 declares an empty "flavors"');
+    });
+
+    it("fails the run and reports deviceExited when a device exits mid-step", async () => {
+        let exit!: (info: DeviceExitInfo) => void;
+        const exitPromise = new Promise<DeviceExitInfo>(resolve => {
+            exit = resolve;
+        });
+
+        let step2Ran = false;
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step that outlives its device",
+                    run: () =>
+                        new Promise<void>(resolve => {
+                            // Device exits while this step is still awaiting its own work.
+                            exit({ code: 1, signal: null });
+                            setTimeout(resolve, 0);
+                        }),
+                },
+                {
+                    number: 2,
+                    text: "Step that must not run after the device exited",
+                    run: async () => {
+                        step2Ran = true;
+                    },
+                },
+            ],
+        };
+
+        const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
+        const deviceExitedCalls = new Array<DeviceExitInfo>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: { th: stubCertDevice(exitPromise) },
+            recorder: stubRecorder({
+                endStep(step, verdict) {
+                    endStepVerdicts.push({ number: step.number, verdict });
+                },
+                deviceExited(info) {
+                    deviceExitedCalls.push(info);
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+        const subject = stubSubject(new PicsFile([]));
+
+        await expect(test.invoke(subject, () => {}, [], false)).rejectedWith(
+            "device exited unexpectedly while a step was running",
+        );
+
+        expect(step2Ran).equal(false);
+        expect(endStepVerdicts).deep.equal([
+            { number: 1, verdict: "fail" },
+            { number: 2, verdict: "aborted" },
+        ]);
+        expect(deviceExitedCalls).deep.equal([{ code: 1, signal: null }]);
     });
 });

@@ -5,6 +5,7 @@
  */
 
 import type { LogSource } from "./cert-context.js";
+import type { LogFollower } from "./log-follower.js";
 
 export type { LogSource };
 
@@ -20,12 +21,18 @@ export type CertNodeRef = string;
  * Commissioning parameters a {@link ControllerAdapter} needs to pair a node.
  *
  * Structurally compatible with {@link Subject.CommissioningParameters} so a step can pass
- * `subject.commissioning` directly.
+ * `subject.commissioning` directly for a device's original setup code.
+ *
+ * Either `manualPairingCode` or both `passcode`/`discriminator` must be present. An enhanced
+ * commissioning window (`CertNodeApi.openCommissioningWindow({enhanced: true})`) generates a fresh
+ * random discriminator/passcode pair that only the returned `manualPairingCode` carries — a step
+ * commissioning through that window has no other way to obtain them.
  */
 export interface CommissioningTarget {
-    passcode: number;
-    discriminator: number;
+    passcode?: number;
+    discriminator?: number;
     qrPairingCode?: string;
+    manualPairingCode?: string;
 }
 
 /**
@@ -61,6 +68,14 @@ export interface CertNodeApi {
     removeFabric(fabricIndex: number): Promise<unknown>;
     readFabrics(): Promise<unknown[]>;
     decommission(): Promise<void>;
+    /**
+     * The operational mDNS instance name (`<compressed-fabric-id>-<node-id>._matter._tcp.local`) this node
+     * advertises on the fabric it was commissioned onto — the same value matter.js's own advertiser computes
+     * via `getOperationalDeviceQname` (`@matter/protocol`). A network check (see
+     * `support/chip-testing/src/cert/mdns-check.ts`) uses this to attribute an operational SRV record to this
+     * specific node rather than to whatever else is advertising `_matter._tcp` on the network.
+     */
+    operationalMdnsInstanceName(): Promise<string>;
 }
 
 /**
@@ -77,5 +92,37 @@ export interface ControllerAdapter {
     close(): Promise<void>;
     commission(target: CommissioningTarget): Promise<CertNodeRef>;
     node(ref: CertNodeRef): CertNodeApi;
-    log: LogSource;
+    log: LogFollower;
+}
+
+/**
+ * Builds a {@link ControllerAdapter} for the given id (e.g. "dut", "th_cr2").
+ */
+export type ControllerAdapterFactory = (id: string) => ControllerAdapter;
+
+let activeFactory: ControllerAdapterFactory | undefined;
+
+/**
+ * Registers the {@link ControllerAdapterFactory} cert-test wiring uses to construct controllers.
+ *
+ * `packages/testing` cannot construct a real controller itself (that needs matter.js, which this
+ * package must stay free of — see the repo's dependency invariant); `support/chip-testing/src/cert`
+ * registers its `InProcessControllerAdapter` here at load time instead.
+ */
+export function registerControllerAdapterFactory(factory: ControllerAdapterFactory): void {
+    activeFactory = factory;
+}
+
+/**
+ * Constructs a {@link ControllerAdapter} via the factory registered with
+ * {@link registerControllerAdapterFactory}.
+ */
+export function createControllerAdapter(id: string): ControllerAdapter {
+    if (!activeFactory) {
+        throw new Error(
+            "No ControllerAdapter factory registered; a consumer (e.g. support/chip-testing/src/cert/index.ts) " +
+                "must call registerControllerAdapterFactory() before running a cert test",
+        );
+    }
+    return activeFactory(id);
 }

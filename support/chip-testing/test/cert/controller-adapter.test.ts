@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/main";
 import { Matter } from "@matter/model";
 import { expect } from "chai";
 import { AllClustersTestInstance } from "../../src/AllClustersTestInstance.js";
@@ -86,5 +87,9 @@ describe("InProcessControllerAdapter", () => {
         expect(logLines.length).to.be.greaterThan(0);
 
         await node.decommission();
+    });
+
+    it("throws when constructing a second adapter with an id already registered", () => {
+        expect(() => new InProcessControllerAdapter("dut")).to.throw(InternalError, /already registered/);
     });
 });
