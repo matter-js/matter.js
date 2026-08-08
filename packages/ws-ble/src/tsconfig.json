@@ -3,7 +3,9 @@
 {
     "extends": "../../../tsc/tsconfig.lib.json",
     "compilerOptions": {
-        "types": []
+        "types": [
+            "node"
+        ]
     },
     "references": [
         {
