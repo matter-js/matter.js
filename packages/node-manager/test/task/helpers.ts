@@ -7,7 +7,7 @@
 import { Task } from "#task/Task.js";
 import { PlannedChange, TaskPhase } from "#task/types.js";
 import { Observable } from "@matter/general";
-import { ClientNode, DesiredStateBehavior, ItemMode, ItemState, ManagedItem, itemMapKey } from "@matter/node";
+import { ClientNode, DesiredStateBehavior, ItemKind, ItemMode, ItemState, ManagedItem, itemMapKey } from "@matter/node";
 
 /** A synthetic task whose phases are supplied inline; for unit-testing the manager/driver. */
 export class SyntheticTask extends Task<{ tag: string }> {
@@ -130,7 +130,7 @@ export class FakePeer {
     }
 
     /** Reconciler stand-in: no kind has dependents by default (tests override per case). */
-    itemKind(_kind: string): unknown {
+    itemKind(_kind: string): ItemKind | undefined {
         return undefined;
     }
 

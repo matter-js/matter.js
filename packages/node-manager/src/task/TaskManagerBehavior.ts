@@ -8,9 +8,16 @@ import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { Logger, Mutex, Observable } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import { Agent, Behavior, ClientNode, DesiredStateBehavior, itemMapKey, Node, ServerNode } from "@matter/node";
-import { TaskCancelledSignal, TaskCapacityExceededError, TaskSuspendedSignal } from "./errors.js";
+import {
+    TaskCancelledSignal,
+    TaskCapacityExceededError,
+    TaskConflictError,
+    TaskNotRevertibleError,
+    TaskSuspendedSignal,
+} from "./errors.js";
 import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup } from "./groups/AddNodeToGroup.js";
 import { REMOVE_NODE_FROM_GROUP_TYPE, RemoveNodeFromGroup } from "./groups/RemoveNodeFromGroup.js";
+import { ROTATE_GROUP_KEY_TYPE, RotateGroupKey } from "./groups/RotateGroupKey.js";
 import { Revert, REVERT_TYPE } from "./Revert.js";
 import { GateControl, RunningTaskContext } from "./RunningTaskContext.js";
 import { Task, TaskPersistence } from "./Task.js";
@@ -70,6 +77,7 @@ export class TaskManagerBehavior extends Behavior {
     protected registerBuiltins(): void {
         this.internal.registry.register(ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup);
         this.internal.registry.register(REMOVE_NODE_FROM_GROUP_TYPE, RemoveNodeFromGroup);
+        this.internal.registry.register(ROTATE_GROUP_KEY_TYPE, RotateGroupKey);
         this.internal.registry.register(REVERT_TYPE, Revert);
     }
 
@@ -123,15 +131,42 @@ export class TaskManagerBehavior extends Behavior {
     }
 
     run(type: string, params: unknown, opts?: { externalId?: string }): TaskHandle {
+        return this.#spawn(type, params, { externalId: opts?.externalId });
+    }
+
+    /** Shared creation path so callers (e.g. #spawnRevert) can seed persisted fields before the first persist. */
+    #spawn(type: string, params: unknown, seed: Partial<TaskPersistence>): TaskHandle {
         const id = this.internal.registry.idFor(type, params);
         const existing = this.internal.live.get(id);
         if (existing !== undefined) {
             return this.#handle(existing);
         }
-        const task = this.internal.registry.create(type, id, params, { externalId: opts?.externalId });
+        const task = this.internal.registry.create(type, id, params, seed);
+        // Synchronous exclusivity check: no await between reading `live` and live.set below, so there is no TOCTOU
+        // window. The just-created task is discarded on throw (never tracked or persisted).
+        const rk = task.resourceKey();
+        if (rk !== undefined) {
+            for (const t of this.internal.live.values()) {
+                if (t.id !== task.id && !TERMINAL_STATES.has(t.progress.state) && this.#occupies(t, rk)) {
+                    throw new TaskConflictError(
+                        `Task ${task.id} rejected: resource ${rk} is in use by live task ${t.id}; wait until it reaches a terminal state`,
+                    );
+                }
+            }
+        }
         this.internal.live.set(id, task);
         this.#track(task);
         return this.#handle(task);
+    }
+
+    // A revert has no resourceKey of its own (so it is never rejected), but it rewrites the intents in its
+    // changeSet, so it occupies those resources against a new exclusive task. Resource key format is
+    // `${kind}:${key}`, matching each task's resourceKey().
+    #occupies(t: Task, rk: string): boolean {
+        if (t.resourceKey() === rk) {
+            return true;
+        }
+        return t instanceof Revert && t.params.entries.some(e => `${e.kind}:${e.key}` === rk);
     }
 
     get(idOrExternalId: string): TaskHandle | undefined {
@@ -171,6 +206,11 @@ export class TaskManagerBehavior extends Behavior {
             return task?.revertTaskId === undefined ? undefined : this.get(task.revertTaskId);
         }
 
+        // A task past its point of no return declines cancel with zero side effects (gate untouched, state kept).
+        if (!task.revertible) {
+            throw new TaskNotRevertibleError(`Task ${task.id} is not revertible: ${task.notRevertibleReason}`);
+        }
+
         // Stop forward driving so the changeset is final before we revert it.
         this.#abortGate(task.id, new TaskCancelledSignal(`Task ${task.id} cancelled`));
         await this.internal.driving.get(task.id);
@@ -191,17 +231,21 @@ export class TaskManagerBehavior extends Behavior {
         if (task.type === REVERT_TYPE) {
             return undefined;
         }
+        // Past a task's point of no return there is nothing to roll back to; suppress auto-rollback too.
+        if (!task.revertible) {
+            return undefined;
+        }
         if (task.revertTaskId !== undefined) {
             return this.get(task.revertTaskId);
         }
         if (task.changeSet.length === 0) {
             return undefined;
         }
-        const handle = this.run(REVERT_TYPE, { originalId: task.id, entries: task.changeSet });
-        const revert = this.internal.live.get(handle.id);
-        if (revert !== undefined) {
-            revert.revertOf = task.id;
-        }
+        const handle = this.#spawn(
+            REVERT_TYPE,
+            { originalId: task.id, entries: task.changeSet },
+            { revertOf: task.id },
+        );
         task.revertTaskId = handle.id;
         return handle;
     }
@@ -310,6 +354,7 @@ export class TaskManagerBehavior extends Behavior {
             reconciler,
             setState,
             this.#gateFor(task.id),
+            () => [...this.#rootNode.peers],
         );
     }
 

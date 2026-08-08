@@ -8,6 +8,7 @@ import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { DesiredStateBehavior, itemMapKey } from "@matter/node";
 import { GroupKeyManagementServer } from "@matter/node/behaviors/group-key-management";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
+import { FabricManager } from "@matter/protocol";
 import { GroupId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 
@@ -73,7 +74,7 @@ describe("GroupKey reconcile integration (single peer)", () => {
             "committed",
         );
 
-        // Drain ~5 s of virtual time so the subscription-active verify pass (keySetReadAllIndices is an
+        // Drain ~5 s of virtual time so the subscription-active verify pass (keySetRead is an
         // INVOKE, slow under MRP backoff) finishes while the keyset is still present, before we mutate below.
         for (let i = 0; i < 50; i++) {
             await MockTime.advance(100);
@@ -81,10 +82,12 @@ describe("GroupKey reconcile integration (single peer)", () => {
         }
 
         // Remove the keyset behind the engine's back; leave groupKeyMap intact to isolate keyset drift.
+        // KeySetRead is served from the fabric group manager, not the groupKeySets attribute, so both must be dropped.
         await MockTime.resolve(
             device.act("drop-keyset", agent => {
                 const gkm = agent.get(GroupKeyManagementServer);
                 gkm.state.groupKeySets = gkm.state.groupKeySets.filter(ks => ks.groupKeySetId !== 42);
+                agent.env.get(FabricManager).fabrics[0].groups.removeGroupKeySet(42);
             }),
         );
 

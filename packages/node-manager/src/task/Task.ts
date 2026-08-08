@@ -55,6 +55,20 @@ export abstract class Task<P = unknown> {
         };
     }
 
+    /**
+     * Whether cancel/failure may spawn a revert of this task's changeSet. False once a task passes a
+     * point of no return whose forward effect cannot be rolled back; the manager then declines cancel and
+     * suppresses auto-rollback.
+     */
+    get revertible(): boolean {
+        return true;
+    }
+
+    /** Operator-facing reason a cancel is declined while {@link revertible} is false; overridden per task type. */
+    get notRevertibleReason(): string {
+        return "it has passed its point of no return";
+    }
+
     /** Intents this task will create, derived from params, for pre-flight capacity admission. Removals omit. */
     plannedChanges(): PlannedChange[] {
         return new Array<PlannedChange>();
@@ -63,6 +77,15 @@ export abstract class Task<P = unknown> {
     /** Deterministic internal id from type + params. Subclasses override with their own key. */
     static idFor(_params: unknown): string {
         throw new ImplementationError("idFor must be implemented by the Task subclass");
+    }
+
+    /**
+     * While a task is live and non-terminal, no other task sharing the same non-undefined resourceKey may start —
+     * mutual exclusion over a resource the reconciler cannot let two tasks mutate concurrently. Default undefined =
+     * no exclusivity.
+     */
+    resourceKey(): string | undefined {
+        return undefined;
     }
 
     toPersistence(): TaskPersistence {

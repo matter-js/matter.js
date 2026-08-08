@@ -5,7 +5,11 @@
  */
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
+import { TaskFailedError } from "#task/errors.js";
+import { RotateGroupKey } from "#task/groups/RotateGroupKey.js";
+import { Task } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
+import { TaskPhase } from "#task/types.js";
 import { Environment } from "@matter/general";
 import { ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
@@ -86,6 +90,71 @@ describe("TaskManagerBehavior", () => {
         await awaitTaskDone(node, "synthetic:ext");
         const found = await node.act(a => a.get(TaskManagerBehavior).get("myref"));
         expect(found?.status.externalId).equals("myref");
+    });
+
+    it("marks a rotation non-revertible once activate begins; tasks are revertible by default", () => {
+        const rotatableAt = (phaseIndex: number) =>
+            new RotateGroupKey(
+                "rotateGroupKey:42:r1",
+                { groupKeySetId: 42, newEpochKey: new Uint8Array(16), rotationId: "r1" },
+                { phaseIndex, state: "running" },
+            ).revertible;
+        expect(rotatableAt(0)).equals(true); // distribute in flight — new key dormant, revert is clean
+        expect(rotatableAt(1)).equals(false); // activate in flight — new key going live, point of no return
+        expect(rotatableAt(2)).equals(false); // cleanup in flight
+        expect(rotatableAt(3)).equals(false); // completed
+
+        expect(new SyntheticTask("synthetic:x", { tag: "x" }).revertible).equals(true);
+
+        // The generic decline reason must not leak a specific task type's domain language.
+        expect(new SyntheticTask("synthetic:x", { tag: "x" }).notRevertibleReason).does.not.contain("rotation");
+        expect(
+            new RotateGroupKey("rotateGroupKey:42:r1", {
+                groupKeySetId: 42,
+                newEpochKey: new Uint8Array(16),
+                rotationId: "r1",
+            }).notRevertibleReason,
+        ).contains("forward-only");
+    });
+
+    it("suppresses auto-rollback for a non-revertible task but not a revertible one", async () => {
+        await using node = await makeNode();
+
+        class HardFail extends Task<{ tag: string; revertible: boolean }> {
+            override readonly type = "hardFail";
+            override get revertible() {
+                return this.params.revertible;
+            }
+            override get phases(): TaskPhase[] {
+                return [
+                    {
+                        name: "touch",
+                        run: async () => {
+                            this.changeSet.push({ peerId: "peer1", kind: "groupKey", key: "42" });
+                            throw new TaskFailedError("forced hard failure");
+                        },
+                    },
+                ];
+            }
+            static override idFor(params: { tag: string }) {
+                return `hardFail:${params.tag}`;
+            }
+        }
+
+        await node.act(a => a.get(TaskManagerBehavior).register("hardFail", HardFail));
+
+        await node.act(a => a.get(TaskManagerBehavior).run("hardFail", { tag: "revertible", revertible: true }));
+        await awaitTaskDone(node, "hardFail:revertible");
+        const revertible = await node.act(a => a.get(TaskManagerBehavior).get("hardFail:revertible")?.status);
+        expect(revertible?.state).equals("failed");
+        expect(revertible?.revertTaskId).equals("revert:hardFail:revertible");
+
+        await node.act(a => a.get(TaskManagerBehavior).run("hardFail", { tag: "final", revertible: false }));
+        await awaitTaskDone(node, "hardFail:final");
+        const nonRevertible = await node.act(a => a.get(TaskManagerBehavior).get("hardFail:final")?.status);
+        expect(nonRevertible?.state).equals("failed");
+        expect(nonRevertible?.revertTaskId).equals(undefined);
+        expect(await node.act(a => a.get(TaskManagerBehavior).state.tasks["revert:hardFail:final"])).equals(undefined);
     });
 
     it("persists task records in nonvolatile state", async () => {

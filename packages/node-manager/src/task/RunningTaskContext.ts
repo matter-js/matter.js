@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
+import { ReconcilerSurface } from "#reconcile/ReconcilerSurface.js";
 import { asError, Logger, ObserverGroup } from "@matter/general";
 import { ClientNode, DesiredStateBehavior, itemMapKey, ItemMode, ManagedItem, NetworkClient } from "@matter/node";
 import { SustainedSubscription } from "@matter/protocol";
@@ -32,9 +32,10 @@ export class RunningTaskContext implements TaskContext {
     constructor(
         protected readonly task: Task,
         protected readonly peerResolver: (peerId: string) => ClientNode | undefined,
-        protected readonly reconciler: ReconcilerBehavior,
+        protected readonly reconciler: ReconcilerSurface,
         protected readonly setState: (state: TaskState) => void,
         protected readonly gate?: GateControl,
+        protected readonly peerLister: () => ClientNode[] = () => new Array<ClientNode>(),
     ) {}
 
     resolvePeer(peerId: string): ClientNode {
@@ -195,6 +196,14 @@ export class RunningTaskContext implements TaskContext {
 
     itemAbsent(peer: ClientNode, kind: string, key: string): boolean {
         return peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)] === undefined;
+    }
+
+    peersWithIntent(kind: string, key: string): ClientNode[] {
+        const id = itemMapKey(kind, key);
+        return this.peerLister().filter(peer => {
+            const item = peer.stateOf(DesiredStateBehavior).items[id];
+            return item !== undefined && item.status.state !== "deletePending";
+        });
     }
 
     #itemState(peer: ClientNode, kind: string, key: string) {

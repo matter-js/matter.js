@@ -149,6 +149,12 @@ describe("Rollback task integration (single peer)", () => {
         );
         expect(revertId).equals(`revert:${FAILING_ID}`);
 
+        // revertOf is part of the revert's persisted seed, so it's readable before the revert has run at all.
+        const revertOf = await controller.act(
+            agent => agent.get(TaskManagerBehavior).state.tasks[`revert:${FAILING_ID}`]?.revertOf,
+        );
+        expect(revertOf).equals(FAILING_ID);
+
         await awaitState(controller, `revert:${FAILING_ID}`, "completed");
 
         expect(itemState(peer, "groupKey", String(GROUP_KEY_SET_ID))).equals(undefined);
@@ -175,6 +181,12 @@ describe("Rollback task integration (single peer)", () => {
         );
         expect(handle?.id).equals(`revert:${TASK_ID}`);
 
+        // revertOf is part of the revert's persisted seed, so it's readable before the revert has run at all.
+        const revertOf = await controller.act(
+            agent => agent.get(TaskManagerBehavior).state.tasks[`revert:${TASK_ID}`]?.revertOf,
+        );
+        expect(revertOf).equals(TASK_ID);
+
         await awaitState(controller, `revert:${TASK_ID}`, "completed");
 
         expect(itemState(peer, "groupKey", String(GROUP_KEY_SET_ID))).equals(undefined);
@@ -186,7 +198,7 @@ describe("Rollback task integration (single peer)", () => {
         expect(status?.state).equals("completed");
     });
 
-    it("create-if-absent provisions membership when the key set already exists on the device", async () => {
+    it("provisions membership when a matching key set already exists on the device (idempotent re-apply)", async () => {
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair({
             controller: { type: ControllerRoot },
@@ -195,7 +207,7 @@ describe("Rollback task integration (single peer)", () => {
 
         const peer = await subscribedPeer(controller, "peer1");
 
-        // Pre-seed key set 42 on the device via the fabric-scoped command so apply hits the create-if-absent skip.
+        // Pre-seed key set 42 with the same start-time set PARAMS will apply, so write-if-set-differs skips the re-write.
         await MockTime.resolve(
             peer.act(agent =>
                 agent.get(GroupKeyManagementClient).keySetWrite({
