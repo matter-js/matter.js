@@ -80,18 +80,16 @@ async function main() {
     const { serverUrl, hciId } = parseArgs(process.argv.slice(2));
     const client = new NobleBleProxyClient({ serverUrl, hciId });
 
-    logger.info(`Connecting to ${serverUrl}...`);
-    await client.connect();
-    logger.info("Connected. BLE proxy active. Press Ctrl+C to stop.");
-
     // The proxy is only useful while the hub is reachable; exiting lets a supervisor restart and reconnect it
     const stopped = new Promise<void>(resolve => client.closed.on(() => resolve()));
 
+    let connecting = true;
     let requested = false;
     const shutdown = (signal: string, code: number) => {
-        if (requested) {
-            // A close that cannot finish must not make the process unkillable
-            logger.warn(`Received ${signal} again, exiting immediately`);
+        // Nothing is worth draining before the hub connection exists, and a close that cannot finish must not
+        // make the process unkillable
+        if (connecting || requested) {
+            logger.warn(`Received ${signal}, exiting immediately`);
             process.exit(code);
         }
         requested = true;
@@ -101,6 +99,20 @@ async function main() {
 
     process.on("SIGINT", () => shutdown("SIGINT", 130));
     process.on("SIGTERM", () => shutdown("SIGTERM", 143));
+
+    logger.info(`Connecting to ${serverUrl}...`);
+    try {
+        await client.connect();
+    } catch (error) {
+        logger.error(`Failed to connect to ${serverUrl}:`, error);
+        logger.notice(
+            "The hub must be reachable and expose the BLE proxy WebSocket endpoint" +
+                " (matter-server must run with --ble-proxy)",
+        );
+        return 1;
+    }
+    connecting = false;
+    logger.info("Connected. BLE proxy active. Press Ctrl+C to stop.");
 
     // The hub may drop us between the handshake and the observer above, which would never emit again
     if (client.connected) {

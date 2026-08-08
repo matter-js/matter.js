@@ -52,6 +52,7 @@ const MATTER_SERVICE_UUID = "fff6";
 
 const INTERVIEW_TIMEOUT = Seconds(30);
 const LAZY_DISCOVERY_TIMEOUT = Seconds(10);
+const ADAPTER_POWER_ON_TIMEOUT = Seconds(10);
 
 type NobleFactory = (options: { extended: boolean }) => Noble;
 
@@ -70,8 +71,8 @@ interface ConnectionState {
     lastWriteCharacteristic?: Characteristic;
 
     /**
-     * Serializes inbound binary writes.  Noble registers each write's completion with `onceExclusive`, so
-     * overlapping writes on one characteristic drop all but the last callback and their errors vanish.
+     * Serializes writes.  Noble registers each write's completion with `onceExclusive`, so overlapping writes on
+     * one characteristic drop all but the last callback and their errors vanish.
      */
     writes: Promise<void>;
 }
@@ -136,8 +137,12 @@ export class NobleBleProxyClient {
     #nextHandle = 1;
     #discoveredPeripherals = new Map<string, Peripheral>();
     #lastDiscoverFingerprint = new Map<string, DiscoverFingerprint>();
+    #started = false;
     #closing = false;
     #closePromise?: Promise<void>;
+    #nobleWarningListener?: (message: string) => void;
+    #nobleStateListener?: (state: string) => void;
+    #nobleDiscoverListener?: (peripheral: Peripheral) => void;
 
     /** Emitted once the connection to the hub is gone, whether we closed it or the hub did. */
     readonly closed = new Observable<[]>(error => logger.error("Observer failed:", error));
@@ -158,12 +163,14 @@ export class NobleBleProxyClient {
      */
     async connect(): Promise<void> {
         // One socket per instance: a second connect would abandon the previous ProxyConnection and stack another
-        // pair of listeners on noble's process-wide singleton
-        if (this.#connection !== undefined) {
+        // pair of listeners on noble's process-wide singleton.  The sentinel is set before the first await so
+        // concurrent callers cannot both pass the check.
+        if (this.#started) {
             throw new ImplementationError(
                 "This client has already been connected; construct a new one to reconnect to the hub",
             );
         }
+        this.#started = true;
 
         await this.#loadNoble();
 
@@ -210,8 +217,25 @@ export class NobleBleProxyClient {
         }
         this.#connections.clear();
 
+        // Noble is a process-wide singleton, so listeners left behind outlive this client
+        const noble = this.#noble;
+        if (noble !== undefined) {
+            if (this.#nobleWarningListener !== undefined) {
+                noble.removeListener("warning", this.#nobleWarningListener);
+                this.#nobleWarningListener = undefined;
+            }
+            if (this.#nobleStateListener !== undefined) {
+                noble.removeListener("stateChange", this.#nobleStateListener);
+                this.#nobleStateListener = undefined;
+            }
+            if (this.#nobleDiscoverListener !== undefined) {
+                noble.removeListener("discover", this.#nobleDiscoverListener);
+                this.#nobleDiscoverListener = undefined;
+            }
+        }
+
         try {
-            this.#noble?.stop();
+            noble?.stop();
         } catch (error) {
             // Noble's stop misbehaves when the adapter is not powered on, and it must not strand the socket close
             // that emits `closed`
@@ -231,8 +255,21 @@ export class NobleBleProxyClient {
 
         // Noble's own warnings (unknown peripheral, missing service, …) are only visible here; the proxy runs in a
         // different process than the matter.js node that would otherwise surface them
-        noble.on("warning", (message: string) => logger.warn(`[NOBLE] warning: ${message}`));
-        noble.on("stateChange", (state: string) => logger.info(`[NOBLE] stateChange: ${state}`));
+        this.#nobleWarningListener = (message: string) => logger.warn(`[NOBLE] warning: ${message}`);
+        this.#nobleStateListener = (state: string) => logger.info(`[NOBLE] stateChange: ${state}`);
+        noble.on("warning", this.#nobleWarningListener);
+        noble.on("stateChange", this.#nobleStateListener);
+
+        // The hub pushes start_scan as soon as the handshake completes, and noble rejects scanning outright when
+        // the adapter is not powered on — with no retry, that leaves this client blind for the whole scan
+        try {
+            await noble.waitForPoweredOnAsync(ADAPTER_POWER_ON_TIMEOUT);
+        } catch (error) {
+            logger.warn(
+                `[NOBLE] adapter not powered on after ${Duration.format(ADAPTER_POWER_ON_TIMEOUT)}; scanning will fail until it is:`,
+                error,
+            );
+        }
     }
 
     // ─── Command Dispatch ────────────────────────────────────────────────────
@@ -316,7 +353,8 @@ export class NobleBleProxyClient {
         this.#lastDiscoverFingerprint.clear();
         // A repeated scan would otherwise stack listeners and emit each advertisement more than once
         noble.removeAllListeners("discover");
-        noble.on("discover", (peripheral: Peripheral) => this.#onDiscover(peripheral));
+        this.#nobleDiscoverListener = (peripheral: Peripheral) => this.#onDiscover(peripheral);
+        noble.on("discover", this.#nobleDiscoverListener);
 
         await noble.startScanningAsync([MATTER_SERVICE_UUID], true);
         logger.info(`[SCAN] BLE scan started (filter: ${MATTER_SERVICE_UUID})`);
@@ -518,7 +556,7 @@ export class NobleBleProxyClient {
 
         const data = decodeBase64(value);
         logger.debug(`[GATT] write ${characteristicUuid} ${data.length} bytes withResponse=${withResponse}`);
-        await char.writeAsync(data, !withResponse);
+        await this.#write(conn, char, data, !withResponse);
         conn.lastWriteCharacteristic = char;
     }
 
@@ -563,7 +601,7 @@ export class NobleBleProxyClient {
         );
 
         try {
-            await writeChar.writeAsync(data, !writeResponse);
+            await this.#write(conn, writeChar, data, !writeResponse);
         } catch (error) {
             subscribeChar.removeListener("data", listener);
             throw new ProxyCommandError(
@@ -679,6 +717,9 @@ export class NobleBleProxyClient {
         const previous = conn.subscriptions.get(characteristicUuid);
         if (previous) {
             previous.characteristic.removeListener("data", previous.listener);
+            // The entry is only restored once the new subscribe succeeds, so a failure cannot leave the map
+            // pointing at a listener that no longer receives anything
+            conn.subscriptions.delete(characteristicUuid);
         }
 
         const listener = (data: Buffer) => {
@@ -703,11 +744,10 @@ export class NobleBleProxyClient {
             return;
         }
 
-        const payload = Buffer.from(frame.payload);
         // Matter BTP writes C1 with an ATT Write Request, so withoutResponse is false
-        conn.writes = conn.writes
-            .then(() => characteristic.writeAsync(payload, false))
-            .catch(error => logger.error("Binary write error:", error));
+        this.#write(conn, characteristic, Buffer.from(frame.payload), false).catch(error =>
+            logger.error("Binary write error:", error),
+        );
     }
 
     #sendEvent(event: BleProxyEventName, data: Record<string, unknown>): void {
@@ -729,6 +769,16 @@ export class NobleBleProxyClient {
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
+
+    /**
+     * Perform a GATT write as part of the connection's write chain, so no two writes are ever in flight on the
+     * same peripheral.  The returned promise carries the write's own outcome; the chain itself absorbs it.
+     */
+    #write(conn: ConnectionState, char: Characteristic, data: Buffer, withoutResponse: boolean): Promise<void> {
+        const write = conn.writes.then(() => char.writeAsync(data, withoutResponse));
+        conn.writes = write.catch(() => {});
+        return write;
+    }
 
     #requireConnection(connectionHandle: number): ConnectionState {
         const conn = this.#connections.get(connectionHandle);
