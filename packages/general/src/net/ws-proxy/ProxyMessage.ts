@@ -6,9 +6,6 @@
 
 import { NetworkError } from "../Network.js";
 
-/** WS-proxy protocol violation (bad handshake, malformed envelope). */
-export class ProxyProtocolError extends NetworkError {}
-
 /** Peer rejected a command with an error response; `code` is the wire error code. */
 export class ProxyCommandError extends NetworkError {
     /** The description as it appears in the wire `message` field, without the {@link code} prefix. */
@@ -70,6 +67,3 @@ export interface ProxyEventMessage {
     event: string;
     data: Record<string, unknown>;
 }
-
-/** Constraint for protocol-specific typed command maps: command name → args/result types. */
-export type ProxyCommandMap = Record<string, { args: unknown; result: unknown }>;

@@ -139,6 +139,8 @@ export class NobleBleProxyClient {
     #lastDiscoverFingerprint = new Map<string, DiscoverFingerprint>();
     #started = false;
     #closing = false;
+    /** Hub's last commanded scan state, independent of whether noble is actually scanning right now. */
+    #hubScanRequested = false;
     #closePromise?: Promise<void>;
     #nobleWarningListener?: (message: string) => void;
     #nobleStateListener?: (state: string) => void;
@@ -356,11 +358,20 @@ export class NobleBleProxyClient {
         this.#nobleDiscoverListener = (peripheral: Peripheral) => this.#onDiscover(peripheral);
         noble.on("discover", this.#nobleDiscoverListener);
 
-        await noble.startScanningAsync([MATTER_SERVICE_UUID], true);
+        try {
+            await noble.startScanningAsync([MATTER_SERVICE_UUID], true);
+        } catch (error) {
+            // The command failed, so the hub does not believe scanning is active; a later connect must not
+            // resume it on the hub's behalf
+            this.#hubScanRequested = false;
+            throw error;
+        }
+        this.#hubScanRequested = true;
         logger.info(`[SCAN] BLE scan started (filter: ${MATTER_SERVICE_UUID})`);
     }
 
     async #handleStopScan(): Promise<void> {
+        this.#hubScanRequested = false;
         await this.#noble?.stopScanningAsync();
         logger.info("[SCAN] BLE scan stopped");
     }
@@ -400,6 +411,8 @@ export class NobleBleProxyClient {
         };
         peripheral.once("disconnect", disconnectListener);
 
+        let mtu: number;
+
         logger.info(`[CONN] Connecting to "${address}" (state=${peripheral.state})...`);
         try {
             // Pause scanning during connect + GATT discovery.  On macOS, scanning concurrently with
@@ -438,14 +451,8 @@ export class NobleBleProxyClient {
                 );
             }
 
-            const mtu = peripheral.mtu ?? 23;
+            mtu = peripheral.mtu ?? 23;
             logger.info(`[GATT] handle=${handle} ready mtu=${mtu}`);
-
-            // Resume scanning so the hub can still observe new devices and rssi updates
-            logger.debug("[SCAN] resuming scan after connect+interview...");
-            await noble.startScanningAsync([MATTER_SERVICE_UUID], true);
-
-            return { connection_handle: handle, mtu } satisfies ConnectResult;
         } catch (error) {
             const reason = disconnectedReason ?? errorOf(error).message;
             logger.error(`[CONN] handle=${handle} failed: ${reason}`);
@@ -458,11 +465,34 @@ export class NobleBleProxyClient {
                         logger.warn(`[CONN] handle=${handle} cleanup disconnect failed:`, disconnectError),
                     );
             }
-            // Always try to resume scanning so subsequent connect attempts still see devices
-            noble
-                .startScanningAsync([MATTER_SERVICE_UUID], true)
-                .catch(scanError => logger.warn("[SCAN] failed to resume scanning after connect failure:", scanError));
+            await this.#resumeScanIfRequested(noble, "after connect failure");
             throw new ProxyCommandError(BleProxyErrorCode.InternalError, reason);
+        }
+
+        // Resume scanning outside the connect try: a scan failure here must not tear down an interviewed
+        // connection, and the hub may have changed its mind about scanning while this was in flight
+        await this.#resumeScanIfRequested(noble, "after connect+interview");
+
+        return { connection_handle: handle, mtu } satisfies ConnectResult;
+    }
+
+    /**
+     * Resume scanning after the connect-time pause, but only if the hub still wants it — a stop_scan received
+     * during the pause, or while the resume itself was in flight, must stay in effect.  Never throws: a scan
+     * failure here is logged, not surfaced to the command that triggered the resume.
+     */
+    async #resumeScanIfRequested(noble: Noble, context: string): Promise<void> {
+        if (!this.#hubScanRequested) {
+            return;
+        }
+        try {
+            logger.debug(`[SCAN] resuming scan ${context}...`);
+            await noble.startScanningAsync([MATTER_SERVICE_UUID], true);
+            if (!this.#hubScanRequested) {
+                await noble.stopScanningAsync();
+            }
+        } catch (error) {
+            logger.warn(`[SCAN] failed to resume scanning ${context}:`, error);
         }
     }
 
