@@ -4,10 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Crypto, Time } from "@matter/general";
+import { Bytes, Crypto, Time } from "@matter/general";
 import { ClientNode, DesiredStateBehavior, itemMapKey } from "@matter/node";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import type { GroupKeyGrant } from "../../reconcile/GroupKeyItemKind.js";
+import { RotationPreconditionError } from "../errors.js";
 import { Task } from "../Task.js";
 import { TaskContext, TaskPhase } from "../types.js";
 
@@ -76,16 +77,43 @@ export class RotateGroupKey extends Task<RotateGroupKeyParams> {
         if (members.length === 0) {
             return;
         }
+        // distribute is the first phase, so validating here refuses the whole rotation before any intent is mutated.
+        if (phase === "distribute") {
+            for (const peer of members) {
+                const current = this.#currentIntent(peer);
+                if (current !== undefined && !this.#isRotatable(current)) {
+                    throw new RotationPreconditionError(
+                        `Cannot rotate group key set ${this.params.groupKeySetId} on peer ${peer.id}: ` +
+                            `member holds a multi-epoch keyset (slot 1/2 populated). Rotation requires a ` +
+                            `single-key steady state; multi-epoch keysets are unsupported.`,
+                    );
+                }
+            }
+        }
         for (const peer of members) {
             await ctx.setIntent(peer, "groupKey", key, this.#struct(peer, phase), "converge");
         }
         await ctx.awaitCommitted(members.map(peer => ({ peer, kind: "groupKey", key })));
     }
 
+    #currentIntent(peer: ClientNode): GroupKeyGrant | undefined {
+        const key = itemMapKey("groupKey", String(this.params.groupKeySetId));
+        return peer.stateOf(DesiredStateBehavior).items[key]?.intent as GroupKeyGrant | undefined;
+    }
+
+    // A single-key steady state is the required starting point; a member already carrying THIS rotation's new key in
+    // slot 1 is our own distribute output on a park/resume re-drive, not a foreign multi-epoch keyset, so accept it.
+    #isRotatable(current: GroupKeyGrant): boolean {
+        if (isSingleKeySteadyState(current)) {
+            return true;
+        }
+        const slot1 = current.epochKey1;
+        return slot1 !== null && slot1 !== undefined && Bytes.areEqual(slot1, this.params.newEpochKey);
+    }
+
     #struct(peer: ClientNode, phase: RotationPhase): GroupKeyGrant {
         const id = this.params.groupKeySetId;
-        const current = peer.stateOf(DesiredStateBehavior).items[itemMapKey("groupKey", String(id))]?.intent as
-            GroupKeyGrant | undefined;
+        const current = this.#currentIntent(peer);
         const policy =
             this.params.groupKeySecurityPolicy ??
             current?.groupKeySecurityPolicy ??
@@ -140,4 +168,16 @@ export class RotateGroupKey extends Task<RotateGroupKeyParams> {
 
 function toBigInt(v: number | bigint | null | undefined): bigint | undefined {
     return v === null || v === undefined ? undefined : BigInt(v);
+}
+
+/** True when only epoch slot 0 is populated — the precondition RotateGroupKey requires of every member. */
+function isSingleKeySteadyState(g: GroupKeyGrant): boolean {
+    const empty = (v: unknown) => v === null || v === undefined;
+    return (
+        !empty(g.epochKey0) &&
+        empty(g.epochKey1) &&
+        empty(g.epochStartTime1) &&
+        empty(g.epochKey2) &&
+        empty(g.epochStartTime2)
+    );
 }

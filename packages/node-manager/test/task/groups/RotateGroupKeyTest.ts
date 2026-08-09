@@ -8,7 +8,7 @@ import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroupParams } from "#task/groups/AddNo
 import { ROTATE_GROUP_KEY_TYPE, RotateGroupKeyParams } from "#task/groups/RotateGroupKey.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { Bytes } from "@matter/general";
-import { ServerNode } from "@matter/node";
+import { DesiredStateBehavior, itemMapKey, ServerNode } from "@matter/node";
 import { GroupKeyManagementServer } from "@matter/node/behaviors/group-key-management";
 import { GroupsServer } from "@matter/node/behaviors/groups";
 import { OnOffLightSwitchDevice } from "@matter/node/devices/on-off-light-switch";
@@ -150,6 +150,51 @@ describe("RotateGroupKey task integration (single member)", () => {
 
         // Steady state on the device is exactly one key.
         expect(deviceStarts(device, GROUP_KEY_SET_ID).length).equals(1);
+    });
+
+    it("refuses to rotate a member whose keyset is not a single-key steady state", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair({
+            controller: { type: ControllerRoot },
+            device: { type: DeviceRoot, device: OnOffLightSwitchDevice.with(GroupsServer) },
+        });
+        const peer = await subscribedPeer(controller, "peer1");
+
+        await controller.act(a => a.get(TaskManagerBehavior).run("addNodeToGroup", ADD_PARAMS));
+        await awaitState(controller, ADD_ID, "completed");
+
+        // Seed a committed multi-epoch intent (slot 1 populated) directly, without emitting itemChanged so no
+        // reconcile fires — the object identity below is the proof the rotation never rewrote the intent.
+        const multiEpoch: GroupKeyManagement.GroupKeySet = {
+            groupKeySetId: GROUP_KEY_SET_ID,
+            groupKeySecurityPolicy: TrustFirst,
+            epochKey0: OP_KEY,
+            epochStartTime0: OP_START,
+            epochKey1: new Uint8Array(16).fill(0xef),
+            epochStartTime1: OP_START + 1000n,
+            epochKey2: null,
+            epochStartTime2: null,
+        };
+        const itemKey = itemMapKey("groupKey", String(GROUP_KEY_SET_ID));
+        await peer.act(agent => {
+            const ds = agent.get(DesiredStateBehavior);
+            const existing = ds.state.items[itemKey];
+            ds.state.items = { ...ds.state.items, [itemKey]: { ...existing, intent: multiEpoch } };
+        });
+
+        writes.length = 0;
+        await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        await awaitState(controller, ROTATE_ID, "failed");
+
+        const status = await controller.act(a => a.get(TaskManagerBehavior).get(ROTATE_ID)?.status);
+        expect(status?.error).contains("single-key steady state");
+
+        // Nothing was mutated: no device write, and the seeded intent object is untouched (reference-equal).
+        expect(writes.length).equals(0);
+        const item = peer.stateOf(DesiredStateBehavior).items[itemKey];
+        expect(item?.intent).equals(multiEpoch);
+        expect(item?.status.state).equals("committed");
+        expect(deviceStarts(device, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
     });
 
     it("completes trivially when no member holds the key set (no writes)", async () => {

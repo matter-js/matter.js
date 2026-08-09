@@ -23,6 +23,9 @@ export class TaskNotRevertibleError extends TaskError {}
 /** A new task was rejected because a live non-terminal task already holds its exclusive resource. */
 export class TaskConflictError extends TaskError {}
 
+/** A task refused to run because a member's current intent violates a required precondition. */
+export class RotationPreconditionError extends TaskError {}
+
 /** Internal signal a running gate throws when cancel is requested, so #drive stops cleanly (not "failed"). */
 export class TaskCancelledSignal extends TaskError {}
 
