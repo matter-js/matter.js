@@ -16,6 +16,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: DNS-SD ignores SRV records with port 0, an empty target or an out-of-range port
     - Fix: DNS-SD resolution queries A/AAAA for the SRV target host instead of the service instance name
     - Fix: The `Symbol.metadata` polyfill no longer conflicts with `lib.esnext.decorators` in the published declarations
+    - Feature: Added generic WebSocket proxy framing (`net/ws-proxy`: hello handshake, JSON command/event envelope, binary frame codec) shared by WS-based proxy protocols
 
 - @matter/model
     - Breaking: A provisional element is no longer mandatory; conformance following a `P` describes the conformance intended once the element leaves provisional state
@@ -76,6 +77,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Deprecation: The `ClusterType()` factory compat layer (`RetiredClusterType`, `RetiredElements`, the TLV `element` reverse mapping) is scheduled for removal in 0.19
     - Deprecation: The generated `Cluster`, `Complete` and `<Name>Cluster` aliases and the `ClusterType.WithCompat` `with()` shim are scheduled for removal in 0.19
     - Fix: `Cluster.with()` rejects a feature the cluster does not define and returns one frozen namespace per selection
+
+- @matter/ws-ble
+    - Feature: Added as new package — BLE-over-WebSocket proxy (hub, `Ble` consumer stack, noble reference client and `matter-ble-proxy` CLI)
 
 - @project-chip/matter.js
     - Deprecation: Every class, type and function of the legacy controller API is now marked deprecated and scheduled for removal in 0.19; use the `ServerNode.peers` / `ClientNode` API of `@matter/node` instead

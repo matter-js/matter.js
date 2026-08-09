@@ -62,6 +62,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  *
  * A connection opens with a hello exchange.  The *initiator* sends the hello, the *responder* answers it.  Once the
  * handshake completes both roles are symmetric.
+ *
+ * The responder accepts any peer that completes the version handshake; it performs no authentication of its own.
+ * Securing the endpoint (authentication in front of the upgrade, network isolation, a reverse proxy) is the
+ * embedder's responsibility.
  */
 export class ProxyConnection {
     readonly #connection: HttpEndpoint.WsConnection;
