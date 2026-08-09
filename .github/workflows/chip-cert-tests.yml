@@ -1,0 +1,355 @@
+# @license
+# Copyright 2022-2026 Matter.js Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# This workflow executes the certification controller tests (support/chip-testing's `test-cert`
+# suite, test/cert/**/*.test.ts) — matter.js's own controller stack driving real Matter
+# certification test plan steps against a TH (test harness) implementation. It is triggered by:
+#
+#   * A daily schedule
+#
+#   * A manual trigger (workflow_dispatch), with inputs for the ref to test, which device binary
+#     source(s) to exercise, and a chip-cert-bins tag override
+#
+#   * Every published release (official or nightly dev), checked out at that release's exact tag
+#
+#   * A push whose head commit message contains [execute-certtests]
+#
+# Device binary sources for the chip-local flavor (test/cert's real-chip-binary TH):
+#
+#   * "cert-bins" — project-chip's official connectedhomeip/chip-cert-bins image. Published
+#     linux/arm64 only, so this runs on an arm64 runner (ubuntu-24.04-arm) with the harness "chip"
+#     container itself also running linux/arm64 (chip/state.ts rejects a platform mismatch)
+#
+#   * "own-built" — matter.js's own chip image conventions (support/chip/Dockerfile), rebuilt from
+#     source on this ref rather than pulled from ghcr.io/matter-js/chip: the published image
+#     predates this repo's chip_with_nlfaultinjection all-clusters build and would not contain the
+#     TH_SERVER binary TC-SC-3.5 needs. Once a rebuilt image is published through the normal chip
+#     image pipeline (build-test.chip.yml / release-chip-image.yml), this job's own rebuild step can
+#     revert to a plain `docker pull`
+#
+# A third "matterjs" flavor always runs, cheaply: an in-process TestInstance TH, no Docker app
+# binaries, validating the suite's controller-side step logic even when both binary paths above
+# have issues. TC-SC-3.5 self-skips there (it needs a TH_SERVER binary reachable inside the shared
+# harness container, which the matterjs job's pulled/published image does not have).
+
+name: Chip Certification Controller Tests
+
+on:
+  schedule:
+    - cron: 15 3 * * * # Every day at 03:15 (between chip-tool-tests at 01:00 and chip-matterjs-tests at 04:30)
+  workflow_dispatch: # Manually on demand
+    inputs:
+      ref:
+        description: 'Branch, tag or SHA to check out (defaults to the ref that triggered this run)'
+        required: false
+        default: ''
+      binariesSource:
+        description: 'Which chip-local device binary source(s) to exercise'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - cert-bins
+          - own-built
+      chipBinsTag:
+        description: 'connectedhomeip commit SHA (or "latest") for the official chip-cert-bins image'
+        required: true
+        default: 'df8bd0308caa0680e2a78cda724a959e5b385205'
+  release:
+    types: [published]
+  push:
+
+# Cancel previous runs on the same ref when a new commit is pushed
+concurrency:
+  group: ${{ github.ref }}-cert-tests
+  cancel-in-progress: true
+
+jobs:
+  # Resolve the four trigger paths into a single set of inputs the rest of the workflow consumes.
+  prepare:
+    if: github.repository == 'matter-js/matter.js'
+    runs-on: ubuntu-latest
+    outputs:
+      should-run: ${{ steps.resolve.outputs.should-run }}
+      ref: ${{ steps.resolve.outputs.ref }}
+      run-cert-bins: ${{ steps.flags.outputs.cert-bins }}
+      run-own-built: ${{ steps.flags.outputs.own-built }}
+      chip-bins-tag: ${{ steps.resolve.outputs.chip-bins-tag }}
+    steps:
+      - name: Resolve trigger inputs
+        id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_MSG: ${{ github.event.head_commit.message }}
+          DISPATCH_REF: ${{ inputs.ref }}
+          DISPATCH_SOURCE: ${{ inputs.binariesSource }}
+          DISPATCH_TAG: ${{ inputs.chipBinsTag }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          DEFAULT_REF: ${{ github.sha }}
+        run: |
+          case "$EVENT_NAME" in
+            push)
+              case "$PUSH_MSG" in
+                *"[execute-certtests]"*) echo "should-run=true" >> "$GITHUB_OUTPUT" ;;
+                *) echo "should-run=false" >> "$GITHUB_OUTPUT" ;;
+              esac
+              echo "ref=$DEFAULT_REF" >> "$GITHUB_OUTPUT"
+              echo "binaries-source=both" >> "$GITHUB_OUTPUT"
+              echo "chip-bins-tag=" >> "$GITHUB_OUTPUT"
+              ;;
+            release)
+              echo "should-run=true" >> "$GITHUB_OUTPUT"
+              echo "ref=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+              echo "binaries-source=both" >> "$GITHUB_OUTPUT"
+              echo "chip-bins-tag=" >> "$GITHUB_OUTPUT"
+              ;;
+            workflow_dispatch)
+              echo "should-run=true" >> "$GITHUB_OUTPUT"
+              echo "ref=${DISPATCH_REF:-$DEFAULT_REF}" >> "$GITHUB_OUTPUT"
+              echo "binaries-source=$DISPATCH_SOURCE" >> "$GITHUB_OUTPUT"
+              echo "chip-bins-tag=$DISPATCH_TAG" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              # schedule
+              echo "should-run=true" >> "$GITHUB_OUTPUT"
+              echo "ref=$DEFAULT_REF" >> "$GITHUB_OUTPUT"
+              echo "binaries-source=both" >> "$GITHUB_OUTPUT"
+              echo "chip-bins-tag=" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+      - name: Resolve binaries-source flags
+        id: flags
+        env:
+          SOURCE: ${{ steps.resolve.outputs.binaries-source }}
+        run: |
+          case "$SOURCE" in
+            cert-bins) echo "cert-bins=true" >> "$GITHUB_OUTPUT"; echo "own-built=false" >> "$GITHUB_OUTPUT" ;;
+            own-built) echo "cert-bins=false" >> "$GITHUB_OUTPUT"; echo "own-built=true" >> "$GITHUB_OUTPUT" ;;
+            both) echo "cert-bins=true" >> "$GITHUB_OUTPUT"; echo "own-built=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::Unknown binaries source '$SOURCE'"; exit 1 ;;
+          esac
+
+  # Rebuild matter.js's own chip harness image from source, one native platform per binaries
+  # source that needs it (see the workflow header comment for why a rebuild rather than a pull).
+  # Two distinct jobs rather than a matrix: a matrix entry's platform isn't available to a
+  # job-level `if`, only to its steps, so gating per platform needs separate jobs regardless.
+  chip-image-amd64:
+    needs: prepare
+    if: needs.prepare.outputs.should-run == 'true' && needs.prepare.outputs.run-own-built == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@v10
+        with:
+          root-reserve-mb: 4096
+          temp-reserve-mb: 3096
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+
+      - name: Check out matter.js
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
+
+      - name: Build chip image (amd64)
+        run: |
+          cd support/chip
+          ./bin/build chip-artifact
+
+      - name: Upload chip image artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: chip-image-amd64
+          path: /tmp/chip.tar
+
+  chip-image-arm64:
+    needs: prepare
+    if: needs.prepare.outputs.should-run == 'true' && needs.prepare.outputs.run-cert-bins == 'true'
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@v10
+        with:
+          root-reserve-mb: 4096
+          temp-reserve-mb: 3096
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+
+      - name: Check out matter.js
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
+
+      - name: Build chip image (arm64)
+        run: |
+          cd support/chip
+          ./bin/build chip-artifact
+
+      - name: Upload chip image artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: chip-image-arm64
+          path: /tmp/chip.tar
+
+  # Cheap flavor: in-process matter.js TestInstance TH, no Docker app binaries. Still needs the
+  # shared dbus/mdns/chip harness containers (the published image is fine here), so this validates
+  # the suite's controller-side step logic independent of either binary-source path above.
+  # TC-SC-3.5 self-skips (no TH_SERVER binary reachable inside the published image).
+  test-cert-matterjs:
+    needs: prepare
+    if: needs.prepare.outputs.should-run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out matter.js
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.x
+
+      - name: Install matter.js
+        run: npm ci --foreground-scripts
+
+      - name: Pull chip harness image from repository
+        run: docker pull ghcr.io/matter-js/chip
+
+      - name: Run certification controller tests (matterjs flavor)
+        env:
+          MATTER_CERT_DEVICE: matterjs
+          MATTER_TEST_SHUTDOWN_TIMEOUT_MS: 15000
+        run: |
+          cd support/chip-testing
+          npm run test-cert -- --no-pull
+
+      - name: Upload cert evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cert-evidence-matterjs
+          path: support/chip-testing/build/cert-evidence/**
+          if-no-files-found: ignore
+
+  # chip-local flavor using binaries baked into matter.js's own (freshly rebuilt) chip image:
+  # chip-all-clusters-app for TC-IDM-2.1/TC-ACT-3.2/TC-CADMIN-1.17, and
+  # chip-all-clusters-app-nlfaultinject — reachable inside the running harness container at
+  # /bin/chip-all-clusters-app-nlfaultinject with no extra bind-mount — as TC-SC-3.5's TH_SERVER.
+  test-cert-own-built:
+    needs: [prepare, chip-image-amd64]
+    if: needs.prepare.outputs.should-run == 'true' && needs.prepare.outputs.run-own-built == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out matter.js
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.x
+
+      - name: Install matter.js
+        run: npm ci --foreground-scripts
+
+      - name: Download chip image artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: chip-image-amd64
+          path: /tmp
+
+      - name: Load chip image
+        run: docker load -i /tmp/chip.tar
+
+      - name: Extract chip-local app binaries from the freshly-built image
+        run: |
+          mkdir -p /tmp/cert-app-dir
+          docker run --rm -v /tmp/cert-app-dir:/out ghcr.io/matter-js/chip:latest \
+            bash -c "cp -a /bin/chip-all-clusters-app* /out/"
+
+      - name: Verify TH_SERVER/DUT binaries were extracted
+        run: |
+          for bin in chip-all-clusters-app chip-all-clusters-app-nlfaultinject; do
+            if [ ! -x "/tmp/cert-app-dir/$bin" ]; then
+              echo "::error::$bin is missing from the freshly-built ghcr.io/matter-js/chip image." \
+                "support/chip/Dockerfile's own-built binaries changed shape, or the build silently" \
+                "failed to produce it; the own-built cert-test binaries path cannot proceed."
+              exit 1
+            fi
+          done
+
+      - name: Run certification controller tests (own-built binaries)
+        env:
+          MATTER_CERT_DEVICE: chip-local
+          MATTER_CERT_APP_DIR: /tmp/cert-app-dir
+          MATTER_CERT_TH_SERVER_APP_PATH: /bin/chip-all-clusters-app-nlfaultinject
+          MATTER_TEST_SHUTDOWN_TIMEOUT_MS: 15000
+        run: |
+          cd support/chip-testing
+          npm run test-cert -- --no-pull
+
+      - name: Upload cert evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cert-evidence-own-built
+          path: support/chip-testing/build/cert-evidence/**
+          if-no-files-found: ignore
+
+  # chip-local flavor using project-chip's official chip-cert-bins binaries (arm64-only, so this
+  # runs on a native arm64 runner). Extraction and the officialChipBinsDir bind-mount are handled by
+  # packages/testing/src/chip/chip-bins.ts + chip/state.ts; chip-cert-bins already ships
+  # chip-all-clusters-app-nlfaultinject, so TC-SC-3.5's TH_SERVER path needs no separate wiring.
+  test-cert-cert-bins:
+    needs: [prepare, chip-image-arm64]
+    if: needs.prepare.outputs.should-run == 'true' && needs.prepare.outputs.run-cert-bins == 'true'
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Check out matter.js
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.x
+
+      - name: Install matter.js
+        run: npm ci --foreground-scripts
+
+      - name: Download chip image artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: chip-image-arm64
+          path: /tmp
+
+      - name: Load chip image
+        run: docker load -i /tmp/chip.tar
+
+      - name: Run certification controller tests (cert-bins binaries)
+        env:
+          MATTER_CHIP_PLATFORM: linux/arm64
+          MATTER_CHIP_BINS_SOURCE: cert-bins
+          MATTER_CHIP_BINS_TAG: ${{ needs.prepare.outputs.chip-bins-tag }}
+          MATTER_CERT_DEVICE: chip-local
+          MATTER_CERT_TH_SERVER_APP_PATH: /official-chip-bins/chip-all-clusters-app-nlfaultinject
+          MATTER_TEST_SHUTDOWN_TIMEOUT_MS: 15000
+        run: |
+          cd support/chip-testing
+          npm run test-cert -- --no-pull
+
+      - name: Upload cert evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cert-evidence-cert-bins
+          path: support/chip-testing/build/cert-evidence/**
+          if-no-files-found: ignore
