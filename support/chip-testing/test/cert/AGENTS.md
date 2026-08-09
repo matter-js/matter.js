@@ -1,11 +1,10 @@
 # Authoring cert tests in this directory
 
 Guidance for whoever (human or agent) writes the next `TC-*.test.ts` here. Update this file in the
-same commit as the test case that produced the insight — see
-`.superpowers/sdd/2026-08-05-cert-controller-test-automation/plan-constraints-and-api-ref.md`. Log
-every test-plan-document discrepancy you find (wrong field type, unmatchable log quote, an
-unimplementable step, …) in `TESTPLAN-FEEDBACK.md`, same commit, same discipline — see that file's
-own header for the entry shape.
+same commit as the test case that produced the insight. Log every test-plan-document discrepancy
+you find (wrong field type, unmatchable log quote, an unimplementable step, …) in
+`TESTPLAN-FEEDBACK.md`, same commit, same discipline — see that file's own header for the entry
+shape.
 
 ## What a cert test is, and where the worked examples live
 
@@ -227,7 +226,7 @@ every reboot. A module-level "install once" boolean guard around a `Logger.desti
 assignment (the original pattern in both `index.ts`'s device log capture and
 `InProcessControllerAdapter.ts`'s adapter log capture) only ever runs during the *first* spec file in
 the process — every subsequent cert-test file's log lines silently go nowhere, because the guard skips
-re-registering into the fresh `destinations` object. This was invisible until Task 7 added a second
+re-registering into the fresh `destinations` object. This was invisible until a second
 cert-test file alongside `smoke.test.ts`; it will resurface for any *new* module-level registration
 against `Logger.destinations` (or anything else `Boot.reboot()`-resettable) unless it's wrapped in
 `Boot.init(() => { ... })` instead of a boolean guard.
@@ -526,14 +525,14 @@ either evidence or a fast local failure. This TC's `expectRejection` races the c
 settlement against a fixed timeout (`Time.sleep`, 25s) and reports `"fail"` for either an unexpected
 success *or* a timeout, `"pass"` only for an actual rejection, with the elapsed time in the evidence
 detail either way. In every run captured here (both flavors), matter.js's own controller detected the
-lost session and rejected within ~0ms — see TESTPLAN-FEEDBACK's Task 10 entry 2 for why the plan's own
+lost session and rejected within ~0ms — see TESTPLAN-FEEDBACK's `TC-CADMIN-1.17` entry 2 for why the plan's own
 wording assumes a slower, network-observable failure instead.
 
 ## `expectMdns`'s `operationalInstanceName` now also accepts an array (`TC-CADMIN-1.17`)
 
 Step 10 needs "exactly 2 of {dut's, th_cr3's} operational advertisements are live" — a genuinely
 different check from the single-fabric "is this one instance present, 0 or 1" the option was built for
-in Task 7/8. `expectMdns`'s `options.operationalInstanceName` (`mdns-check.ts`) now accepts
+for `TC-MDNS-CHECK-0.0`/`TC-IDM-2.1`. `expectMdns`'s `options.operationalInstanceName` (`mdns-check.ts`) now accepts
 `string | string[]`; internally it's always normalized to an array, and `checkOperationalRecords` counts
 how many of the given names currently carry a live SRV record and compares that count to
 `expectations.operationalRecords`. A single-name call is unchanged in behavior (a 1-element array's count

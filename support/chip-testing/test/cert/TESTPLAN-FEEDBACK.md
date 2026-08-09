@@ -4,16 +4,15 @@ Findings worth raising against the upstream CHIP test plan documents, discovered
 plan into a `TC-*.test.ts` here. Each entry: which TC, what the plan says, what's wrong or ambiguous,
 and what we did instead.
 
-Update this file in the same commit as the TC that produced the insight — see
-`.superpowers/sdd/2026-08-05-cert-controller-test-automation/plan-constraints-and-api-ref.md`.
+Update this file in the same commit as the TC that produced the insight.
 
-## Task 7 (`TC-MDNS-CHECK-0.0`)
+## `TC-MDNS-CHECK-0.0`
 
 No entry. `TC-MDNS-CHECK-0.0` is a framework smoke test for the `expectMdns` checker (`plan: "n/a"`,
 matching `TC-SMOKE-0.0`), not a translation of a real test plan document, so it produced no test-plan
 finding — only the framework-level notes now in `AGENTS.md`.
 
-## Task 8 (`TC-IDM-2.1`)
+## `TC-IDM-2.1`
 
 Plan: `interactiondatamodel.adoc` (chip-test-plans), cross-checked against
 `Test_TC_IDM_2_1.yaml` (connectedhomeip's own verification-block captures for this TC).
@@ -40,7 +39,7 @@ Plan: `interactiondatamodel.adoc` (chip-test-plans), cross-checked against
    chunking" / "read across the full model", with the coverage gap called out in the step's own
    `recorder.check` detail text rather than silently passing on an unrelated assertion.
 
-## Task 9 (`TC-ACT-3.2`)
+## `TC-ACT-3.2`
 
 Plan: `actions.adoc` (chip-test-plans, lines 367-451), cross-checked against
 `Test_TC_ACT_3_2.yaml` (connectedhomeip's own verification-block captures for this TC) and the current
@@ -67,7 +66,7 @@ Plan: `actions.adoc` (chip-test-plans, lines 367-451), cross-checked against
    cannot be executed with V1.0 SDK." Per the brief, every step still verifies the *outgoing* command's
    `CommandDataIB`/`CommandFields` against the TH log regardless of the response status it got back.
 
-## Task 10 (`TC-CADMIN-1.17`)
+## `TC-CADMIN-1.17`
 
 Plan: `multiplefabrics.adoc` (chip-test-plans, `[TC-CADMIN-1.17]` section, lines ~713-758), cross-checked
 against `Test_TC_CADMIN_1_17.yaml` (connectedhomeip's own verification-block captures) and the current
