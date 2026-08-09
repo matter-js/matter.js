@@ -6,6 +6,11 @@ This is the source for **ghcr.io/matter-js/chip** published here: https://github
 
 The matter.js test harness pulls this image automatically when running CHIP tests.
 
+Besides `chip-tool`, the image ships two all-clusters app binaries used as TH_SERVER/DUT for cert
+tests: `chip-all-clusters-app` and `chip-all-clusters-app-nlfaultinject` (built with CHIP's
+`chip_with_nlfaultinjection=true` GN arg so its FaultInjection cluster is present, as required by
+tests such as TC-SC-3.5).
+
 The [bin](./bin) directory contains additional helper scripts you can use on the host:
 
 * [build](./bin/build) builds the image

@@ -17,7 +17,7 @@ import { afterOne, beforeOne } from "../../mocha.js";
 import { TestFileDescriptor } from "../../test-descriptor.js";
 import { chip } from "../chip.js";
 import { State } from "../state.js";
-import { chipImageBase, ChipDockerSubject, ChipLocalSubject } from "./chip-app-subject.js";
+import { chipImageBase, ChipDockerSubject, ChipLocalSubject, resolveChipLocalAppDir } from "./chip-app-subject.js";
 import {
     CertDevice,
     CertDeviceFactory,
@@ -259,10 +259,7 @@ async function chipDockerImageRevision(app: string): Promise<string | undefined>
 }
 
 async function chipLocalMarkerRevision(): Promise<string | undefined> {
-    const dir = env.MATTER_CERT_APP_DIR;
-    if (!dir) {
-        return undefined;
-    }
+    const dir = await resolveChipLocalAppDir();
     const text = await readFile(join(dir, "CHIP_REF"), "utf-8");
     const trimmed = text.trim();
     return trimmed === "" ? undefined : trimmed;

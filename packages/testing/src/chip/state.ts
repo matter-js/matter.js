@@ -22,6 +22,7 @@ import { RootTestDescriptor, TestDescriptor, TestFileDescriptor } from "../test-
 import { AccessoryServer } from "./accessory-server.js";
 import { createRegisteredCertTest } from "./cert/cert-test.js";
 import type { chip } from "./chip.js";
+import { CERT_BINS_PLATFORM, chipBinsPlatformSupported, prepareChipBins, resolveChipBinsSource } from "./chip-bins.js";
 import { Constants, ContainerPaths } from "./config.js";
 import { ContainerCommandPipe } from "./container-command-pipe.js";
 import { PicsFile } from "./pics/file.js";
@@ -169,6 +170,11 @@ export const State = {
             progress.success(
                 `Initialized CHIP ${ansi.bold(chipCommit)} image ${ansi.bold(imageVersion)} for ${ansi.bold(arch)}`,
             );
+
+            if (resolveChipBinsSource() === "cert-bins") {
+                const { tag } = await prepareChipBins();
+                progress.success(`Using official chip-cert-bins ${ansi.bold(tag)} for chip-tool`);
+            }
         } catch (e) {
             progress.failure("Initializing containers");
             throw e;
@@ -433,6 +439,21 @@ async function configureContainer() {
         platform = `linux/${arch}`;
     }
 
+    // chip-cert-bins publishes linux/arm64 only (verified: no amd64 manifest exists at any tag).
+    // Bind-mounting its binaries into a container running a different platform fails at exec time
+    // with a confusing "cannot execute: required file not found" deep inside a test run — checked
+    // directly (docker run --platform linux/amd64 ... /official-chip-bins/chip-tool against an
+    // arm64-extracted binary) — so fail fast here instead, before spending time on extraction.
+    const chipBinsSelected = resolveChipBinsSource() === "cert-bins";
+    if (chipBinsSelected && !chipBinsPlatformSupported(platform)) {
+        throw new Error(
+            `MATTER_CHIP_BINS_SOURCE=cert-bins requires the harness "chip" container to run ` +
+                `${CERT_BINS_PLATFORM} (chip-cert-bins publishes no other platform), but it is configured for ` +
+                `${platform}. Set MATTER_CHIP_PLATFORM=${CERT_BINS_PLATFORM} and point MATTER_CHIP_IMAGE at an ` +
+                `${CERT_BINS_PLATFORM} build of the harness image, or unset MATTER_CHIP_BINS_SOURCE.`,
+        );
+    }
+
     const mdnsVolume = Volume(docker, Constants.mdnsVolumeName);
     await mdnsVolume.open();
 
@@ -440,6 +461,12 @@ async function configureContainer() {
     // file is directly visible to our monitor without docker exec polling
     const restartFlagHostDir = await mkdtemp(join(tmpdir(), "matter-restart-"));
     Values.restartFlagHostDir = restartFlagHostDir;
+
+    // MATTER_CHIP_BINS_SOURCE=cert-bins swaps the classic yaml/python tests' chip-tool for the
+    // official connectedhomeip/chip-cert-bins build; bind-mounted rather than baked into our own
+    // image so selecting it needs no image rebuild. Constants.chipToolPath (config.ts) already
+    // points --server_path at the mount below.
+    const chipBins = chipBinsSelected ? await prepareChipBins() : undefined;
 
     const composition = docker.compose("matter.js", {
         image: Constants.imageName,
@@ -467,6 +494,7 @@ async function configureContainer() {
         binds: {
             [mdnsVolume.name]: "/run/dbus",
             [restartFlagHostDir]: Constants.RestartFlagDir,
+            ...(chipBins ? { [chipBins.dir]: ContainerPaths.officialChipBinsDir } : {}),
         },
     });
 

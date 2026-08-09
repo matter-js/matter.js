@@ -118,6 +118,13 @@ FROM source AS bins
 # Build chip-tool
 RUN build-one chip-tool
 
+# Build the all-clusters app twice: once plain, once with CHIP's nlfaultinjection GN arg so
+# TC-SC-3.5 and other CASE fault-injection cert tests can drive its FaultInjection cluster as
+# TH_SERVER. Binary name follows CHIP's own build_examples.py convention (host.py's ALL_CLUSTERS +
+# use_nl_fault_injection rename step) so th_server_app_path expectations line up.
+RUN build-one all-clusters-app/linux chip-all-clusters-app
+RUN build-one all-clusters-app/linux chip-all-clusters-app chip-all-clusters-app-nlfaultinject chip_with_nlfaultinjection=true
+
 # Install Python stuff
 COPY support/install-chip-python /bin
 RUN install-chip-python

@@ -61,6 +61,52 @@ Additionally, the tests can be triggered when the commit contains special keywor
 -   `[execute-chiptests-long]` to execute the tests on the current branch including the long running tests
 -   `[rebuild-chip]` to rebuild the chip-tool executable from the connectedhomeip repository used by the CI (Attention: this needs morre time!) The chip binaries are cached and only built once a day.
 
+## Choosing a CHIP binary source
+
+By default, every CHIP binary a test run touches — the `chip-tool` the classic yaml/python tests
+above drive, and the `chip-<app>-app` DUT binaries `test/cert/`'s `chip-local` flavor spawns — comes
+from matter.js's own build (`ghcr.io/matter-js/chip*`, or a directory you built yourself). Setting
+`MATTER_CHIP_BINS_SOURCE=cert-bins` switches both to project-chip's official
+[`connectedhomeip/chip-cert-bins`](https://hub.docker.com/r/connectedhomeip/chip-cert-bins) image —
+the same binaries the official Matter Test Harness certifies against — instead.
+
+| Variable                 | Meaning                                                                                    | Default                                       |
+| ------------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `MATTER_CHIP_BINS_SOURCE` | Binary source: `matterjs` (unchanged default) or `cert-bins`.                                | `matterjs`                                     |
+| `MATTER_CHIP_BINS_TAG`    | `chip-cert-bins` tag to use — every tag is a connectedhomeip commit SHA; `latest` resolves the newest SHA via the Docker Hub tags API at run time (a live network call, so not the default). | a maintainer-vetted pinned SHA |
+| `MATTER_CHIP_BINS_DIR`    | Host base directory binaries are extracted into. Each tag gets its own subdirectory below it (`<MATTER_CHIP_BINS_DIR>/<tag>`), cached in and keyed by a stamp file recording the extracted tag. | `<tmpdir>/matter-js-chip-cert-bins`            |
+
+Extraction (`docker pull` + a short-lived `docker run -v ... cp -a`, mirroring the official Test
+Harness's own `update-sample-apps.sh`) is lazy and cached: it runs once per distinct tag and is a
+no-op on every subsequent run against that tag's subdirectory. Scoping by tag this way means two
+tags sharing one `MATTER_CHIP_BINS_DIR` can never clobber each other's files or stamp. It always
+requests `linux/arm64` — `chip-cert-bins` has never published any other platform — regardless of host
+architecture; on a non-arm64 host Docker runs the (harmless, `cp`-only) extraction step under
+emulation.
+
+Extraction has no cross-process lock: two runs racing to extract the *same* tag into the same
+`MATTER_CHIP_BINS_DIR` at once can still interleave their `rm -rf`/`cp -a`/stamp-write. Don't point
+concurrent test runs that might resolve to the same tag at one `MATTER_CHIP_BINS_DIR` — give each its
+own directory (or its own `MATTER_CHIP_BINS_TAG`) if they run at the same time.
+
+Running the extracted binaries afterwards is a different story per consumer, since architecture and
+OS constraints differ by how each one executes them:
+
+| Consumer                                   | How it runs the binary                          | Works on darwin-arm64 (this repo's dev host)?                                       | Works on Linux (amd64 CI, arm64 CI/Pi)?                                                        |
+| ------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Classic yaml/python tests (`chip/state.ts`) | bind-mounted into the harness `chip` **container** | No — matter.js's own harness image is amd64-only; the mismatch is caught up front (see below), not left to fail deep inside a run | Only if the harness `chip` container itself also runs `linux/arm64` (an amd64 host needs a published or self-built arm64 harness image — not published today) |
+| `chip-local` cert-test subjects             | spawned directly as a **host** process, no container | No — the extracted binaries are Linux ELF; macOS can't execute them at all              | Yes on arm64 natively; on amd64 only if the host has `binfmt_misc`/qemu-user-static registered for aarch64 |
+| `chip-docker` cert-test subjects            | not wired to `cert-bins` — unaffected by this source selector; see the Flavors section below | n/a                                                                                    | n/a                                                                                                 |
+
+Both mismatch cases above are checked directly (not just documented): `configureContainer()`
+(`chip/state.ts`) rejects a platform mismatch before spending time on extraction, and
+`resolveChipLocalAppDir()` (`chip/cert/chip-app-subject.ts`) rejects a non-Linux host before
+spawning. Either way you get an explicit, actionable error rather than a binary that silently fails
+to start.
+
+A cert-bins-sourced `chip-local` run's evidence `chipRef` (see "Evidence" below) is populated
+automatically from the extraction's own stamp file — no separate wiring needed.
+
 ## Certification controller tests (`test/cert/`)
 
 The tests above all drive chip-tool/python against matter.js acting as the **device**. `test/cert/`
@@ -79,20 +125,19 @@ Which TH implementation a run uses is chosen by `MATTER_CERT_DEVICE`:
 -   **`chip-local`** — TH is a real `chip-<app>-app` binary, spawned as a local child process.
     Needs `MATTER_CERT_APP_DIR` pointed at a directory containing the binaries (built from a
     connectedhomeip checkout, e.g. `.../out/darwin-arm64-all-clusters/chip-all-clusters-app`). This
-    is the flavor that actually produces chip-side evidence today.
+    is the flavor that actually produces chip-side evidence today. Set
+    `MATTER_CHIP_BINS_SOURCE=cert-bins` (see "Choosing a CHIP binary source" above) to use the
+    official `connectedhomeip/chip-cert-bins` binaries instead of a directory you built yourself —
+    on a supported host this needs no other configuration; `MATTER_CERT_APP_DIR` is ignored in that
+    mode.
 -   **`chip-docker`** — TH runs in a Docker container, `ghcr.io/matter-js/chip-<app>:latest`. **Not
-    functional end-to-end right now**, for two independent reasons: only the shared
-    `ghcr.io/matter-js/chip:latest` harness image (used by the YAML/python tests above) is
-    published; no per-app image (`ghcr.io/matter-js/chip-all-clusters`, `chip-bridge`, …) exists
-    yet, so starting this flavor fails immediately with
-    `No such image: ghcr.io/matter-js/chip-all-clusters:latest (404)`. Separately, even once a
-    per-app image exists, `ChipDockerDevice` (`chip-app-subject.ts`) starts its own `dbus`/`mdns`
-    sidecar containers bound to the same `matter.js-mdns` Docker volume that `chip/state.ts`'s
-    harness composition already starts its own `dbus`/`mdns` sidecars on for the whole test run —
-    two `dbus-daemon`s contending for the same `/run/dbus` socket path needs de-duplication (e.g.
-    reusing the harness's existing sidecars instead of starting a second pair) before this flavor
-    can work. Unblocking it means both publishing those per-app images and de-duplicating the
-    sidecars — neither implemented as part of this work.
+    functional end-to-end right now**: only the shared `ghcr.io/matter-js/chip:latest` harness image
+    (used by the YAML/python tests above) is published; no per-app image
+    (`ghcr.io/matter-js/chip-all-clusters`, `chip-bridge`, …) exists yet, so starting this flavor
+    fails immediately with `No such image: ghcr.io/matter-js/chip-all-clusters:latest (404)`. The
+    other blocker — `ChipDockerDevice` starting a duplicate `dbus`/`mdns` sidecar pair instead of
+    reusing `chip/state.ts`'s harness sidecars — is resolved; publishing the per-app images is what
+    remains.
 
 `MATTER_CERT_DEVICE` unset defaults to `chip-docker` (`resolveDeviceFlavor` in
 `packages/testing/src/chip/cert/device-config.ts`), which — until per-app images are published —
@@ -120,7 +165,7 @@ directory of symlinks to each app's own build output).
 | Variable                     | Meaning                                                                                   | Default                        |
 | ----------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------- |
 | `MATTER_CERT_DEVICE`          | Flavor: `matterjs`, `chip-local`, or `chip-docker`.                                        | `chip-docker`                   |
-| `MATTER_CERT_APP_DIR`         | Directory containing `chip-<app>-app` binaries (`chip-local` only).                        | none (required for `chip-local`) |
+| `MATTER_CERT_APP_DIR`         | Directory containing `chip-<app>-app` binaries (`chip-local` only, ignored when `MATTER_CHIP_BINS_SOURCE=cert-bins` — see "Choosing a CHIP binary source" above). | none (required for `chip-local`) |
 | `MATTER_CERT_CHIP_IMAGE_BASE` | Docker image base name for `chip-docker` (image pulled is `<base>-<app>:latest`).          | `ghcr.io/matter-js/chip`        |
 | `MATTER_CERT_EVIDENCE_DIR`    | Where `result.json`/`*.log` evidence bundles are written.                                  | `<package cwd>/cert-evidence`   |
 | `MATTER_CERT_TH_SERVER_APP_PATH` | Container-side path to a TH_SERVER binary for python-wrapped TCs (e.g. `TC-SC-3.5`); unset means the TC self-skips. | none |
@@ -128,12 +173,35 @@ directory of symlinks to each app's own build output).
 ### Running
 
 ```
-npm run test-cert                                    # matter-test --spec=test/cert/**/*.test.ts --report
-npx matter-test --spec="test/cert/TC-IDM-2.1.test.ts" # a single TC
+npm run test-cert                                                                            # matter-test --spec=test/cert/**/*.test.ts --report
+MATTER_TEST_SHUTDOWN_TIMEOUT_MS=15000 npx matter-test --spec="test/cert/TC-IDM-2.1.test.ts"  # a single TC
 ```
 
 Both need the shared dbus/mdns/chip harness containers, so Docker still has to be running even for
 the `matterjs` flavor.
+
+`test-cert` sets `MATTER_TEST_SHUTDOWN_TIMEOUT_MS=15000` itself, giving decommissioning fabrics more
+than `matter-test`'s 5s package-wide default to finish closing (see `test/cert/AGENTS.md`'s "Resolved:
+exit-101 flake" section for why). A single-TC run via `npx matter-test --spec=...` bypasses that
+script, so set the same variable yourself, as in the example above.
+
+### Continuous integration
+
+The [`Chip Certification Controller Tests`](../../.github/workflows/chip-cert-tests.yml) workflow
+runs this suite in CI:
+
+-   **Daily**, on a schedule.
+-   **On demand**, via the workflow's `workflow_dispatch` trigger — inputs let you pick a ref,
+    choose which `chip-local` binary source(s) to exercise (`cert-bins`, `own-built`, or `both`),
+    and override the `chip-cert-bins` tag.
+-   **After every published release** (official or nightly dev), checked out at that release's
+    exact tag.
+-   **On push**, when the head commit message contains `[execute-certtests]`.
+
+Every run also exercises the cheap `matterjs` flavor (no Docker app binaries needed) alongside
+whichever `chip-local` binary source(s) were selected. Evidence bundles
+(`support/chip-testing/build/cert-evidence/**`, including attached device/controller logs) are
+uploaded as job artifacts on every run, pass or fail, one per flavor/binary-source combination.
 
 ### Evidence
 
