@@ -113,7 +113,8 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
         name: tc,
         path: tc,
         app: options.app,
-        pics: options.pics.length ? options.pics.join(" && ") : undefined,
+        // PicsExpression's grammar conjoins with a single "&"; "&&" fails to parse
+        pics: options.pics.length ? options.pics.join(" & ") : undefined,
     };
 
     defineCertTest(descriptor, definition, controllerRoles, deviceRoles);

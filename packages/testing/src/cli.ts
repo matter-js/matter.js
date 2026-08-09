@@ -234,7 +234,20 @@ export async function main(argv = process.argv) {
         if (diagnostics) {
             console.log("\nPROCESS STATE:\n", diagnostics, "\n");
         }
-        process.exit(101);
+        console.error("Active resources:", process.getActiveResourcesInfo().join(", "));
+
+        // Fallback guarantees exit even if the wtfnode dump stalls
+        setTimeout(() => process.exit(101), 5_000).unref();
+        import("wtfnode").then(
+            ({ dump }) => {
+                dump();
+                process.exit(101);
+            },
+            error => {
+                console.error("Error: wtfnode dump failed:", error);
+                process.exit(101);
+            },
+        );
     }, SHUTDOWN_TIMEOUT_MS);
     timeout.unref();
 }
