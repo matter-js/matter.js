@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { RemoveNodeFromGroup, RemoveNodeFromGroupParams } from "#task/groups/RemoveNodeFromGroup.js";
 import { RunningTaskContext } from "#task/RunningTaskContext.js";
 import { TaskState } from "#task/types.js";
@@ -46,7 +45,7 @@ function runRemove(peer: FakePeer, params: RemoveNodeFromGroupParams) {
         task.progress.state = s;
     };
     wireItemKind(peer);
-    const ctx = new RunningTaskContext(task, () => peer.asNode(), peer as unknown as ReconcilerBehavior, setState);
+    const ctx = new RunningTaskContext(task, () => peer.asNode(), peer, setState);
     return task.phases[0].run(ctx);
 }
 

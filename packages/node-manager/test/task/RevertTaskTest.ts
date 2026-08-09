@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { Revert, RevertParams } from "#task/Revert.js";
 import { RunningTaskContext } from "#task/RunningTaskContext.js";
 import { TaskState } from "#task/types.js";
@@ -19,7 +18,7 @@ function runRevert(peer: FakePeer, params: RevertParams, referenced = new Set<st
     (peer as unknown as { itemKind(kind: string): unknown }).itemKind = (kind: string) => ({
         isReferenced: (_n: unknown, key: string) => referenced.has(`${kind}:${key}`),
     });
-    const ctx = new RunningTaskContext(task, () => peer.asNode(), peer as unknown as ReconcilerBehavior, setState);
+    const ctx = new RunningTaskContext(task, () => peer.asNode(), peer, setState);
     return task.phases[0].run(ctx);
 }
 
