@@ -563,4 +563,111 @@ describe("CertTest", () => {
         ]);
         expect(deviceExitedCalls).deep.equal([{ code: 1, signal: null }]);
     });
+
+    // `process` isn't available in the web bundle; this test's process-level unhandledRejection spy only
+    // makes sense in a Node host.
+    (typeof window === "undefined" ? it : it.skip)(
+        "contains an orphaned step run's eventual rejection instead of letting it escape unhandled",
+        async () => {
+            let exitDevice!: (info: DeviceExitInfo) => void;
+            const exitPromise = new Promise<DeviceExitInfo>(resolve => {
+                exitDevice = resolve;
+            });
+
+            let rejectStepRun!: (e: unknown) => void;
+            const definition: CertTestDefinition = {
+                tc: "TC-CADMIN-1.17",
+                plan: "multiplefabrics.adoc",
+                pics: [],
+                app: "all-clusters",
+                steps: [
+                    {
+                        number: 1,
+                        text: "Step that outlives its device and rejects only after the run has moved on",
+                        run: () =>
+                            new Promise<void>((_, reject) => {
+                                rejectStepRun = reject;
+                                exitDevice({ code: 1, signal: null });
+                            }),
+                    },
+                ],
+            };
+
+            const cx: CertStepContext = {
+                controllers: {},
+                devices: { th: stubCertDevice(exitPromise) },
+                recorder: stubRecorder(),
+            };
+
+            const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+            const subject = stubSubject(new PicsFile([]));
+
+            const unhandled = new Array<unknown>();
+            const onUnhandledRejection = (reason: unknown) => unhandled.push(reason);
+            process.on("unhandledRejection", onUnhandledRejection);
+            try {
+                await expect(test.invoke(subject, () => {}, [], false)).rejectedWith(
+                    "device exited unexpectedly while a step was running",
+                );
+
+                // The step's own run() promise is still pending here — it's the orphaned loser of the
+                // race. Settle it only now, simulating teardown pulling the rug out from under it after
+                // the run has already reported its outcome.
+                rejectStepRun(new Error("teardown closed the controller out from under the orphaned step"));
+
+                // Let the rejection's microtask queue drain so an unhandled rejection would have a
+                // chance to surface if nothing were containing it.
+                await new Promise(resolve => setTimeout(resolve, 0));
+                await new Promise(resolve => setTimeout(resolve, 0));
+            } finally {
+                process.off("unhandledRejection", onUnhandledRejection);
+            }
+
+            expect(unhandled).deep.equal([]);
+        },
+    );
+
+    it("disarms the device-exit watch once invoke() finishes, so a later exit isn't reported to a finished run's recorder", async () => {
+        let exitDevice!: (info: DeviceExitInfo) => void;
+        const exitPromise = new Promise<DeviceExitInfo>(resolve => {
+            exitDevice = resolve;
+        });
+
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step that finishes before the device ever exits",
+                    run: async () => {},
+                },
+            ],
+        };
+
+        const deviceExitedCalls = new Array<DeviceExitInfo>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: { th: stubCertDevice(exitPromise) },
+            recorder: stubRecorder({
+                deviceExited(info) {
+                    deviceExitedCalls.push(info);
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+        const subject = stubSubject(new PicsFile([]));
+
+        await test.invoke(subject, () => {}, [], false);
+
+        // The device only exits after the run already finished (e.g. matterjs teardown killing it).
+        exitDevice({ code: 0, signal: null });
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(deviceExitedCalls).deep.equal([]);
+    });
 });

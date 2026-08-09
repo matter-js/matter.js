@@ -6,8 +6,59 @@
 
 import type { CertDevice } from "../../src/chip/cert/cert-context.js";
 import type * as ChipAppSubjectModule from "../../src/chip/cert/chip-app-subject.js";
+import type { CompositionHandle, DockerHandle } from "../../src/chip/cert/chip-app-subject.js";
+import type { Container } from "../../src/docker/container.js";
 import type { Subject } from "../../src/device/subject.js";
 import { importModule } from "./dynamic-import.js";
+
+/**
+ * Minimal {@link Container} double satisfying only what `ChipDockerDevice`'s start()/stop() call
+ * (attach, wait, kill); any other member throws if invoked, since these tests never reach it. A
+ * single cast is unavoidable here: `attach`/`exec` are generic over an unconstrained
+ * `Terminal.Factory`, and this double only ever needs to support the one factory (`Terminal.Line`)
+ * `ChipDockerDevice` passes.
+ */
+function fakeContainer(): Container {
+    const notImplemented = (member: string) => () => {
+        throw new Error(`fakeContainer.${member}() is not implemented in this test`);
+    };
+
+    const emptyTerminal = {
+        async write() {},
+        async close() {},
+        async consume() {
+            return "";
+        },
+        [Symbol.asyncIterator]() {
+            return {
+                async next() {
+                    return { done: true as const, value: undefined };
+                },
+            };
+        },
+    };
+
+    return {
+        docker: undefined,
+        get image() {
+            return Promise.reject(new Error("fakeContainer.image is not implemented in this test"));
+        },
+        start: notImplemented("start"),
+        kill: async () => {},
+        remove: notImplemented("remove"),
+        attach: async () => emptyTerminal,
+        wait: async () => {},
+        exec: notImplemented("exec"),
+        read: notImplemented("read"),
+        follow: notImplemented("follow"),
+        execAndRead: notImplemented("execAndRead"),
+        write: notImplemented("write"),
+        delete: notImplemented("delete"),
+        edit: notImplemented("edit"),
+        resolveGlob: notImplemented("resolveGlob"),
+        createPipe: notImplemented("createPipe"),
+    } as unknown as Container;
+}
 
 function isCertDevice(subject: Subject): subject is CertDevice {
     return "flavor" in subject && "log" in subject && "exit" in subject;
@@ -125,6 +176,70 @@ if (typeof window === "undefined") {
             }
 
             await expect(device.start()).rejectedWith("MATTER_CERT_APP_DIR");
+        });
+    });
+
+    describe("ChipDockerSubject", () => {
+        let ChipDockerDevice: typeof ChipAppSubjectModule.ChipDockerDevice;
+        let HARNESS_DBUS_CONTAINER: string;
+
+        before(async () => {
+            ({ ChipDockerDevice, HARNESS_DBUS_CONTAINER } = await importModule<typeof ChipAppSubjectModule>(
+                "../../src/chip/cert/chip-app-subject.js",
+            ));
+        });
+
+        it("throws instead of starting its own dbus/mdns sidecars when the harness dbus container isn't running", async () => {
+            const composeCalls = new Array<string>();
+            const docker: DockerHandle = {
+                async ensureVolume() {},
+                compose(name) {
+                    composeCalls.push(name);
+                    throw new Error("compose() should not be called when the harness dbus container is down");
+                },
+                async containerStatus() {
+                    return undefined;
+                },
+            };
+
+            const device = new ChipDockerDevice("test", "cert", undefined, docker);
+            await expect(device.start()).rejectedWith(HARNESS_DBUS_CONTAINER);
+            expect(composeCalls).deep.equal([]);
+        });
+
+        it("reuses the harness's dbus/mdns pair and starts only the app container", async () => {
+            const statusChecks = new Array<string>();
+            const addedParts = new Array<string>();
+            const container = fakeContainer();
+
+            const composition: CompositionHandle = {
+                async add(config) {
+                    addedParts.push(config.name);
+                    return container;
+                },
+                async close() {},
+            };
+
+            const docker: DockerHandle = {
+                async ensureVolume() {},
+                compose() {
+                    return composition;
+                },
+                async containerStatus(name) {
+                    statusChecks.push(name);
+                    return { isRunning: true };
+                },
+            };
+
+            const device = new ChipDockerDevice("test", "cert", undefined, docker);
+
+            await device.start();
+            try {
+                expect(statusChecks).deep.equal([HARNESS_DBUS_CONTAINER]);
+                expect(addedParts).deep.equal(["app"]);
+            } finally {
+                await device.close();
+            }
         });
     });
 }

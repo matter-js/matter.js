@@ -8,15 +8,15 @@ import { ChildProcess, spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { env } from "node:process";
+import { env, platform as hostPlatform } from "node:process";
 import type { Subject } from "../../device/subject.js";
-import type { Composition } from "../../docker/composition.js";
 import type { Container } from "../../docker/container.js";
 import { Docker } from "../../docker/docker.js";
 import { NonZeroExitError } from "../../docker/errors.js";
 import { Terminal } from "../../docker/terminal.js";
 import { Volume } from "../../docker/volume.js";
 import { asyncLinesOf } from "../../util/text.js";
+import { CERT_BINS_PLATFORM, prepareChipBins, resolveChipBinsSource } from "../chip-bins.js";
 import type { PicsFile } from "../pics/file.js";
 import type { CertDevice, CertDeviceFactory, DeviceExitInfo, DeviceFlavor, LogSource } from "./cert-context.js";
 import { LogFollower } from "./log-follower.js";
@@ -123,7 +123,32 @@ class LineHub implements LogSource {
     }
 }
 
-function appDir(): string {
+/**
+ * Resolve the directory `chip-local` subjects spawn `chip-<app>-app` binaries from. When
+ * `MATTER_CHIP_BINS_SOURCE=cert-bins`, this extracts (if not already cached — see
+ * {@link prepareChipBins}) the official `connectedhomeip/chip-cert-bins` image and returns its own
+ * directory, ignoring `MATTER_CERT_APP_DIR` entirely; otherwise it requires `MATTER_CERT_APP_DIR` as
+ * before (a directory the user built/populated themselves). `cert-dsl.ts`'s
+ * `chipLocalMarkerRevision()` calls this too, so a cert-bins-sourced run's evidence `chipRef` comes
+ * from the same directory without separate wiring.
+ */
+export async function resolveChipLocalAppDir(): Promise<string> {
+    if (resolveChipBinsSource() === "cert-bins") {
+        // chip-local spawns the binary directly on the host, with no container in between —
+        // unlike the classic-test bind-mount (chip/state.ts), there's no container platform to
+        // match, but the host OS itself must be able to run the extracted Linux ELF binaries.
+        // Checked directly: they don't run at all on macOS (exec format error), regardless of arch.
+        if (hostPlatform !== "linux") {
+            throw new Error(
+                `MATTER_CHIP_BINS_SOURCE=cert-bins selects Linux/${CERT_BINS_PLATFORM} binaries that chip-local ` +
+                    `spawns directly on the host; this host is "${hostPlatform}", which cannot run them. Use a ` +
+                    "Linux host or CI runner for chip-local with cert-bins, or unset MATTER_CHIP_BINS_SOURCE and " +
+                    "point MATTER_CERT_APP_DIR at binaries built for this platform.",
+            );
+        }
+        return (await prepareChipBins()).dir;
+    }
+
     const dir = env.MATTER_CERT_APP_DIR;
     if (!dir) {
         throw new Error("MATTER_CERT_APP_DIR is not set; ChipLocalSubject needs it to find chip-<app>-app binaries");
@@ -166,7 +191,7 @@ class ChipLocalDevice implements CertDevice {
     }
 
     async initialize(): Promise<void> {
-        appDir();
+        await resolveChipLocalAppDir();
         this.#storageDir ??= await mkdtemp(join(tmpdir(), "matter-cert-local-"));
     }
 
@@ -175,7 +200,7 @@ class ChipLocalDevice implements CertDevice {
             return;
         }
 
-        const dir = appDir();
+        const dir = await resolveChipLocalAppDir();
         this.#storageDir ??= await mkdtemp(join(tmpdir(), "matter-cert-local-"));
 
         const binPath = join(dir, `chip-${this.app}-app`);
@@ -274,12 +299,61 @@ function mdnsVolumeName(): string {
 }
 
 /**
- * A chip-app device run in Docker.  Mirrors the dbus/mdns/app container trio from
- * `chip/state.ts`'s harness composition, but the third part runs the app-specific
- * `ghcr.io/matter-js/chip-<app>` image (its own `ENTRYPOINT` already runs the right binary) instead
- * of the shared `chip` image used for python/yaml tests.
+ * Container name of the dbus sidecar `chip/state.ts`'s harness composition
+ * (`docker.compose("matter.js", ...)`, part "dbus") always starts before any cert test runs (every
+ * `certTest()` call installs `State.initialize` as a `beforeRun` hook — see `cert-dsl.ts`'s
+ * `defineCertTest`). {@link ChipDockerDevice} checks for this instead of starting its own dbus/mdns
+ * pair: two system dbus daemons and mdns responders bound to the same `matter.js-mdns` volume would
+ * fight over the same `/run/dbus` socket once the app container becomes reachable.
  */
-class ChipDockerDevice implements CertDevice {
+export const HARNESS_DBUS_CONTAINER = "matter.js-dbus";
+
+/**
+ * The subset of `Docker.compose()`'s return value that {@link ChipDockerDevice} needs, extracted so
+ * tests can substitute a fake without a running Docker daemon.
+ */
+export interface CompositionHandle {
+    add(
+        config: Partial<Container.Configuration> & {
+            name: string;
+            recreate?: boolean;
+        },
+    ): Promise<Container>;
+    close(): Promise<void>;
+}
+
+/**
+ * The subset of {@link Docker} (plus volume setup) that {@link ChipDockerDevice} needs, extracted so
+ * tests can substitute a fake without a running Docker daemon.
+ */
+export interface DockerHandle {
+    ensureVolume(name: string): Promise<void>;
+    compose(name: string, config?: Partial<Container.Configuration>): CompositionHandle;
+    containerStatus(name: string): Promise<{ isRunning: boolean } | undefined>;
+}
+
+function realDockerHandle(): DockerHandle {
+    const docker = new Docker();
+    return {
+        async ensureVolume(name) {
+            await Volume(docker, name).open();
+        },
+        compose(name, config) {
+            return docker.compose(name, config);
+        },
+        containerStatus(name) {
+            return docker.containerStatus(name);
+        },
+    };
+}
+
+/**
+ * A chip-app device run in Docker.  Runs the app-specific `ghcr.io/matter-js/chip-<app>` image (its
+ * own `ENTRYPOINT` already runs the right binary) as a single container, reusing the CHIP harness's
+ * dbus/mdns sidecars (`chip/state.ts`'s `configureContainer`) instead of starting a duplicate pair —
+ * see {@link HARNESS_DBUS_CONTAINER}.
+ */
+export class ChipDockerDevice implements CertDevice {
     readonly flavor: DeviceFlavor = "chip-docker";
     readonly id: string;
     readonly app: string;
@@ -288,19 +362,19 @@ class ChipDockerDevice implements CertDevice {
 
     #appArgs: string[];
     #hub = new LineHub();
-    #docker = new Docker();
-    #composition?: Composition;
+    #docker: DockerHandle;
+    #composition?: CompositionHandle;
     #container?: Container;
-    #sidecars = new Array<Container>();
     #exit: ExitDeferred = createExitDeferred();
     #pump?: Promise<void>;
 
-    constructor(app: string, domain: string, options?: Subject.Options) {
+    constructor(app: string, domain: string, options?: Subject.Options, docker: DockerHandle = realDockerHandle()) {
         this.app = app;
         this.id = domain;
         this.commissioning = defaultCommissioning();
         this.log = new LogFollower(this.#hub.follow(), domain);
         this.#appArgs = options?.appArgs ?? [];
+        this.#docker = docker;
     }
 
     get pics(): PicsFile {
@@ -318,26 +392,29 @@ class ChipDockerDevice implements CertDevice {
             return;
         }
 
-        const platform = env.MATTER_CHIP_PLATFORM || "linux/amd64";
-        const baseImage = `${chipImageBase()}:latest`;
-        const appImage = `${chipImageBase()}-${this.app}:latest`;
+        const dbusStatus = await this.#docker.containerStatus(HARNESS_DBUS_CONTAINER);
+        if (!dbusStatus?.isRunning) {
+            throw new Error(
+                `Cannot start chip-docker cert subject "${this.id}": harness dbus container ` +
+                    `"${HARNESS_DBUS_CONTAINER}" is not running. chip-docker subjects reuse the CHIP harness's ` +
+                    "dbus/mdns sidecars (chip/state.ts's configureContainer) instead of starting their own; " +
+                    "start the harness (e.g. via certTest(), which installs State.initialize() as a beforeRun " +
+                    "hook) before starting this subject.",
+            );
+        }
 
-        const volume = Volume(this.#docker, mdnsVolumeName());
-        await volume.open();
+        const platform = env.MATTER_CHIP_PLATFORM || "linux/amd64";
+        const appImage = `${chipImageBase()}-${this.app}:latest`;
+        const volumeName = mdnsVolumeName();
+
+        await this.#docker.ensureVolume(volumeName);
 
         const composition = this.#docker.compose(`cert-${this.app}-${this.id}`, {
             platform,
-            binds: { [volume.name]: "/run/dbus" },
+            binds: { [volumeName]: "/run/dbus" },
             network: "host",
             autoRemove: true,
         });
-
-        const dbus = await composition.add({
-            name: "dbus",
-            image: baseImage,
-            command: ["/usr/bin/dbus-daemon", "--nopidfile", "--system", "--nofork"],
-        });
-        const mdns = await composition.add({ name: "mdns", image: baseImage, command: ["/bin/mdns-run"] });
 
         const args = [
             "--discriminator",
@@ -352,13 +429,12 @@ class ChipDockerDevice implements CertDevice {
             name: "app",
             image: appImage,
             recreate: true,
-            binds: { [volume.name]: "/run/dbus" },
+            binds: { [volumeName]: "/run/dbus" },
             command: args,
         });
 
         this.#composition = composition;
         this.#container = container;
-        this.#sidecars = [dbus, mdns];
         this.#exit = createExitDeferred();
 
         // Attaching immediately after the container starts still risks losing whatever it printed
@@ -392,19 +468,16 @@ class ChipDockerDevice implements CertDevice {
             return;
         }
 
-        for (const ct of [container, ...this.#sidecars]) {
-            try {
-                await ct.kill();
-            } catch {
-                // Already stopped/removed (e.g. crashed) — nothing left to stop.
-            }
+        try {
+            await container.kill();
+        } catch {
+            // Already stopped/removed (e.g. crashed) — nothing left to stop.
         }
         await this.#exit.promise;
 
         await this.#composition?.close();
         this.#composition = undefined;
         this.#container = undefined;
-        this.#sidecars = [];
     }
 
     async close(): Promise<void> {
@@ -438,8 +511,9 @@ export function ChipLocalSubject(app: string): CertDeviceFactory {
 }
 
 /**
- * Runs a chip-<app> device in a Docker container, mirroring the CHIP harness's dbus/mdns
- * preconditions.
+ * Runs a chip-<app> device in a Docker container. Requires the CHIP harness's dbus/mdns sidecars
+ * (started by `certTest()` via `State.initialize()`) to already be running — see
+ * {@link HARNESS_DBUS_CONTAINER}.
  */
 export function ChipDockerSubject(app: string): CertDeviceFactory {
     return (domain: string, options?: Subject.Options) => new ChipDockerDevice(app, domain, options);

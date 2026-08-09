@@ -60,7 +60,7 @@ export class CertTest extends BaseTest {
         const cx = this.contextFor(subject);
         const { recorder, devices } = cx;
         const picsFile = resolvePicsFile(subject);
-        const deviceExit = watchDeviceExits(devices, recorder);
+        const deviceExitWatch = watchDeviceExits(devices, recorder);
         const flavor = currentFlavor(devices);
 
         let aborted = false;
@@ -95,7 +95,12 @@ export class CertTest extends BaseTest {
                     step(`Test Step ${stepDef.number}: ${stepDef.text}`);
                     recorder.beginStep(stepDef);
 
-                    await raceAgainstDeviceExit(stepDef.run(cx), deviceExit);
+                    await raceAgainstDeviceExit(
+                        stepDef.run(cx),
+                        deviceExitWatch.exit,
+                        this.#definition.tc,
+                        stepDef.number,
+                    );
                 } catch (e) {
                     recorder.endStep(stepDef, "fail");
                     aborted = true;
@@ -124,6 +129,8 @@ export class CertTest extends BaseTest {
                     failure = e;
                 }
             }
+
+            deviceExitWatch.disarm();
         }
 
         if (failed) {
@@ -187,25 +194,64 @@ function stepPicsMet(stepDef: CertStepDefinition, picsFile: PicsFile | undefined
 }
 
 /**
+ * A {@link watchDeviceExits} subscription: `exit` resolves the same way every time (first device to
+ * exit wins), but the reaction that reports it to `recorder` must be {@link disarm}ed once the run is
+ * done with it.
+ */
+interface DeviceExitWatch {
+    exit: Promise<DeviceExitInfo>;
+    /**
+     * Drops the watch's reference to `recorder`. A matterjs device's `exit` never resolves, so
+     * without this the reaction below stays attached to it for the process's lifetime, keeping
+     * `recorder` (and the evidence/log history it holds for this one run) reachable indefinitely.
+     */
+    disarm(): void;
+}
+
+/**
  * Races every device's {@link CertDevice.exit} against the run and reports the first one that
  * settles to `recorder`. A device's own controlled `stop()`/`close()` (normal test teardown) always
  * runs after {@link CertTest.invoke} has already returned, so a resolution here during the run means
  * the device crashed independently of anything the test asked it to do.
  */
-function watchDeviceExits(devices: Record<string, CertDevice>, recorder: StepRecorder): Promise<DeviceExitInfo> {
-    return Promise.race(Object.values(devices).map(device => device.exit)).then(info => {
-        recorder.deviceExited?.(info);
-        return info;
+function watchDeviceExits(devices: Record<string, CertDevice>, recorder: StepRecorder): DeviceExitWatch {
+    let onExit: ((info: DeviceExitInfo) => void) | undefined = info => recorder.deviceExited?.(info);
+    const exit = Promise.race(Object.values(devices).map(device => device.exit));
+
+    void exit.then(info => {
+        try {
+            onExit?.(info);
+        } catch (e) {
+            console.warn("Cert test deviceExited hook failed:", e);
+        }
     });
+
+    return {
+        exit,
+        disarm() {
+            onExit = undefined;
+        },
+    };
 }
 
 /**
  * Fails the current step immediately if a device exits while it's running, rather than waiting for
  * the step's own timeout to notice the device is gone.
  */
-async function raceAgainstDeviceExit(stepRun: Promise<void>, deviceExit: Promise<DeviceExitInfo>): Promise<void> {
+async function raceAgainstDeviceExit(
+    stepRun: Promise<void>,
+    deviceExit: Promise<DeviceExitInfo>,
+    tc: string,
+    step: number | string,
+): Promise<void> {
     const outcome = await Promise.race([stepRun.then((): "ran" => "ran"), deviceExit.then((): "exited" => "exited")]);
     if (outcome === "exited") {
+        // stepRun keeps running independently of this race and settles on its own time; observe
+        // its eventual rejection so it can't surface as an unhandled rejection attributed to
+        // whatever runs later, without trying to cancel the operation itself.
+        void stepRun.catch(e => {
+            console.debug(`Cert test ${tc} step ${step}: orphaned step run settled after the device exit:`, e);
+        });
         throw new Error("A cert-test device exited unexpectedly while a step was running");
     }
 }

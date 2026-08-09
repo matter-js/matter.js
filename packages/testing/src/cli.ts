@@ -18,7 +18,9 @@ import { defaultDescriptor, printReport } from "./print-report.js";
 import { TestRunner } from "./runner.js";
 import { TestDescriptor } from "./test-descriptor.js";
 
-const SHUTDOWN_TIMEOUT_MS = 5_000;
+// A graceful session close can legitimately wait out a full MRP resubmission budget (several seconds) for an
+// unacked flush send. Override via MATTER_TEST_SHUTDOWN_TIMEOUT_MS for suites that exercise that path routinely.
+const SHUTDOWN_TIMEOUT_MS = Number(process.env.MATTER_TEST_SHUTDOWN_TIMEOUT_MS) || 5_000;
 
 enum TestType {
     esm = "esm",

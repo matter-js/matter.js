@@ -56,7 +56,9 @@ to an app this way:
 | `SU`, `BDX`                         | `ota-provider` / `ota-requestor` | `chip-ota-provider-app` / `chip-ota-requestor-app` | no — no matterjs OTA provider/requestor `TestInstance` in this package yet |
 
 The three "no" rows aren't blocked on chip-local/chip-docker — those flavors only need the binary to
-exist (verify with `MATTER_CERT_APP_DIR`/an app-specific image), same as any pilot. They're blocked
+exist (verify with `MATTER_CERT_APP_DIR`/an app-specific image, or `MATTER_CHIP_BINS_SOURCE=cert-bins`
+for the official binaries — see the root `README.md`'s "Choosing a CHIP binary source"), same as any
+pilot. They're blocked
 on **matterjs** only: either restrict every step to `flavors: ["chip-local", "chip-docker"]` (see
 "Declaring a device-flavor capability gap" below) so the TC still registers and runs on the flavors
 it can, or add the missing `TestInstance` + `registerMatterJsCertSubject(...)` call first if
@@ -230,14 +232,41 @@ cert-test file alongside `smoke.test.ts`; it will resurface for any *new* module
 against `Logger.destinations` (or anything else `Boot.reboot()`-resettable) unless it's wrapped in
 `Boot.init(() => { ... })` instead of a boolean guard.
 
-## Known, out-of-scope flake
+## Resolved: exit-101 flake after decommission-of-self ("process did not exit cleanly")
 
 Closing a `CommissioningController` (e.g. `InProcessControllerAdapter.close()`) after a
-decommission-of-self leaves a zombie session/subscription roughly ~75% of the time, which the test
-runner reports as `Error: Tests passed but process did not exit cleanly after 5s.` (exit code 101)
-even though every mocha assertion passed. This is a pre-existing issue filed against Task 6, not
-specific to any one TC — if a run ends this way with all tests green in the summary above the error,
-treat the run as passing and don't chase the exit code.
+decommission-of-self used to fail the test runner's clean-exit check (`Error: Tests passed but
+process did not exit cleanly after 5s.`, exit code 101) roughly ~75% of the time, even though every
+mocha assertion passed.
+
+**Root cause (verified via `MatterHooks.generateDiagnostics()`'s Lifetime dump and a
+`SHUTDOWN_TIMEOUT_MS` diagnostic bump):** decommissioning your own fabric runs `Fabric.leave()`
+(`packages/protocol/src/fabric/Fabric.ts`), which flushes every subscription on the session being
+torn down (`closeSubscriptions(true)`) before closing it. The legacy `CommissioningController`
+auto-subscribes to the whole node on commission (`PairedNode`'s default `autoSubscribe`), so there is
+always a live `ServerSubscription` (`packages/node/src/node/server/ServerSubscription.ts`) to flush.
+That flush sends one final data report on the about-to-close session and then closes its exchange
+gracefully (no `cause`), which makes `MessageExchange.close()`
+(`packages/protocol/src/protocol/MessageExchange.ts:1102-1124`) wait out a full MRP resubmission
+budget (`MRP.MAX_TRANSMISSIONS`-many backoff intervals, several seconds by design, per Matter Core §
+4.12.2.1) for that flush's ack before the exchange — and with it the subscription's `closing`
+lifetime, then the session, then the session manager — can finish disposing. This is correct,
+spec-compliant MRP behavior, not a leak; it just routinely takes longer than the test harness's fixed
+5s post-test grace period. Confirmed by raising that grace period alone (no other change): the same
+`InProcessControllerAdapter` test went from ~75% exit-101 to 0/8 clean exits, each finishing well
+under 20s.
+
+**Fix, in scope for this framework (not core matter.js):** `packages/testing/src/cli.ts`'s shutdown
+grace period is now overridable via `MATTER_TEST_SHUTDOWN_TIMEOUT_MS` (default unchanged at 5s for
+every other package). `support/chip-testing`'s own `test-cert` npm script sets it to 15s, so
+`npm run test-cert` is resolved. A run that bypasses that script — a direct
+`npx matter-test --spec=test/cert/...` invocation of a single TC — still needs the variable set by
+hand (see the root `README.md`'s "Running" section for the exact form); it is not resolved for that
+path, and there is no package-wide default that covers it (a `.matter-test.json` `env` override would
+work, but that file is gitignored/personal-only, so it can't be the checked-in fix). If a future TC
+adds its own decommission-of-self and still intermittently hits exit 101 despite the variable being
+set, that's new evidence, not a repeat of this one — re-diagnose rather than assuming it's the same
+bounded wait.
 
 ## Translating a real test plan into a `TC-*.test.ts` (source lookup flow)
 
