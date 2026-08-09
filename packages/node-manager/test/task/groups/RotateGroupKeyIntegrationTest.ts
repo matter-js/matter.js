@@ -7,8 +7,9 @@
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { TaskConflictError, TaskNotRevertibleError } from "#task/errors.js";
 import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
-import { ROTATE_GROUP_KEY_TYPE, RotateGroupKeyParams } from "#task/groups/RotateGroupKey.js";
+import { ROTATE_GROUP_KEY_TYPE, RotateGroupKey, RotateGroupKeyParams } from "#task/groups/RotateGroupKey.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
+import { TaskPhase } from "#task/types.js";
 import { Bytes, Crypto, MockCrypto, Seconds } from "@matter/general";
 import { ClientNode, DesiredStateBehavior, itemMapKey, NetworkClient, ServerNode } from "@matter/node";
 import { GroupKeyManagementServer } from "@matter/node/behaviors/group-key-management";
@@ -49,6 +50,34 @@ const writesB = new Array<bigint[]>();
  * gate re-checks reachability), which external time-pumping cannot hit.
  */
 let afterWriteB: ((starts: bigint[]) => void) | undefined;
+
+/**
+ * When armed, pauses #drive inside distribute's phase AFTER it commits but BEFORE the driver advances to
+ * activate — the exact between-phase gap the cancel-race guard closes. `releaseDistribute` unblocks it.
+ */
+let armBarrier = false;
+let releaseDistribute: (() => void) | undefined;
+
+class BarrierRotateGroupKey extends RotateGroupKey {
+    override get phases(): TaskPhase[] {
+        return super.phases.map(phase => {
+            if (phase.name !== "distribute") {
+                return phase;
+            }
+            return {
+                name: phase.name,
+                run: async ctx => {
+                    await phase.run(ctx);
+                    if (armBarrier) {
+                        await new Promise<void>(resolve => {
+                            releaseDistribute = resolve;
+                        });
+                    }
+                },
+            };
+        });
+    }
+}
 
 /** A device root whose GroupKeyManagementServer records every keySetWrite's start-time set into `sink`. */
 function recordingRoot(sink: bigint[][], afterWrite?: (starts: bigint[]) => void) {
@@ -188,6 +217,8 @@ describe("RotateGroupKey task integration (two members)", () => {
         writesA.length = 0;
         writesB.length = 0;
         afterWriteB = undefined;
+        armBarrier = false;
+        releaseDistribute = undefined;
     });
 
     it("rotates the shared key across both members to a single new key", async () => {
@@ -354,6 +385,56 @@ describe("RotateGroupKey task integration (two members)", () => {
         await awaitState(controller, `revert:${ROTATE_ID}`, "completed");
 
         // Both members restored to the single OLD key (old material); the dormant new key is dropped.
+        for (const device of [deviceA, deviceB]) {
+            expect(deviceStarts(device, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
+            expect(Bytes.areEqual(deviceKey0(device, GROUP_KEY_SET_ID), OP_KEY)).equals(true);
+        }
+        const state = await controller.act(a => a.get(TaskManagerBehavior).get(ROTATE_ID)?.status.state);
+        expect(state).equals("cancelled");
+        expect(intentStarts(peerA, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
+    });
+
+    it("cancel raced into the distribute→activate gap reverts to the old key without writing activate", async () => {
+        await using site = new MockSite();
+        const { controller, deviceA, deviceB, peerA } = await twoMemberGroup(site);
+
+        expect(Bytes.areEqual(deviceKey0(deviceA, GROUP_KEY_SET_ID), OP_KEY)).equals(true);
+
+        // Swap in the barrier variant (both members stay online) so distribute commits and then pauses.
+        await controller.act(a => a.get(TaskManagerBehavior).register(ROTATE_GROUP_KEY_TYPE, BarrierRotateGroupKey));
+        armBarrier = true;
+        writesA.length = writesB.length = 0;
+
+        await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+
+        // Pump until distribute has committed on both members and the driver is paused at the barrier.
+        for (let i = 0; i < 2_000 && releaseDistribute === undefined; i++) {
+            await MockTime.advance(100);
+            await MockTime.macrotask;
+        }
+        expect(releaseDistribute).not.equals(undefined);
+        expect(await controller.act(a => a.get(TaskManagerBehavior).state.tasks[ROTATE_ID]?.phaseIndex)).equals(0);
+        expect(writesA.map(s => s.length)).deep.equals([2]); // distribute wrote 2 slots; activate (3) has not run
+        expect(writesB.map(s => s.length)).deep.equals([2]);
+
+        // Request cancel while paused between phases; its flag is set synchronously (blocked on the drive promise).
+        const cancelPromise = controller.act(a => a.get(TaskManagerBehavior).cancel(ROTATE_ID));
+        for (let i = 0; i < 5; i++) {
+            await MockTime.macrotask;
+        }
+
+        // Release: the driver's between-phase check must catch the cancel and stop BEFORE writing activate.
+        releaseDistribute!();
+        releaseDistribute = undefined;
+
+        const handle = await MockTime.resolve(cancelPromise, { macrotasks: true });
+        expect(handle?.id).equals(`revert:${ROTATE_ID}`);
+        await awaitState(controller, `revert:${ROTATE_ID}`, "completed");
+
+        // Forbidden outcome ruled out: no activate write (never a 3-slot struct), no sentinel; both members back
+        // on the OLD key material with the single original start time.
+        expect(writesA.some(s => s.length === 3)).equals(false);
+        expect(writesB.some(s => s.length === 3)).equals(false);
         for (const device of [deviceA, deviceB]) {
             expect(deviceStarts(device, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
             expect(Bytes.areEqual(deviceKey0(device, GROUP_KEY_SET_ID), OP_KEY)).equals(true);

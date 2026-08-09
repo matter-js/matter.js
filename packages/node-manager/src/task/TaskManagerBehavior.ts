@@ -126,6 +126,7 @@ export class TaskManagerBehavior extends Behavior {
         const drivePromise = this.#drive(task).finally(() => {
             this.internal.driving.delete(task.id);
             this.internal.gates.delete(task.id);
+            this.internal.cancelling.delete(task.id);
         });
         this.internal.driving.set(task.id, drivePromise);
     }
@@ -211,10 +212,13 @@ export class TaskManagerBehavior extends Behavior {
             throw new TaskNotRevertibleError(`Task ${task.id} is not revertible: ${task.notRevertibleReason}`);
         }
 
-        // Stop forward driving so the changeset is final before we revert it.
+        // Stop forward driving so the changeset is final before we revert it. The flag also covers the
+        // between-phase gap the gate cannot: the driver checks it synchronously before advancing a phase.
+        this.internal.cancelling.add(task.id);
         this.#abortGate(task.id, new TaskCancelledSignal(`Task ${task.id} cancelled`));
         await this.internal.driving.get(task.id);
         this.internal.gates.delete(task.id);
+        this.internal.cancelling.delete(task.id);
 
         // running/parked → cancelled; an already-terminal (completed/failed) task keeps its truthful state.
         if (task.progress.state === "running" || task.progress.state === "parked") {
@@ -311,6 +315,11 @@ export class TaskManagerBehavior extends Behavior {
                 const phase = task.phases[task.progress.phaseIndex];
                 const ctx = await this.endpoint.act(agent => this.#contextFor(task, this.taskReconciler(agent)));
                 await phase.run(ctx);
+                // No gate exists in the gap between phases, so a cancel raced here is caught synchronously
+                // (no await before the increment below) — leaving phaseIndex at the still-revertible phase.
+                if (this.internal.cancelling.has(task.id)) {
+                    throw new TaskCancelledSignal(`Task ${task.id} cancelled`);
+                }
                 task.progress.phaseIndex += 1;
                 await this.#persist(task);
             }
@@ -424,6 +433,7 @@ export namespace TaskManagerBehavior {
         live!: Map<string, Task>;
         gates!: Map<string, GateState>;
         driving = new Map<string, Promise<void>>();
+        cancelling = new Set<string>();
         persistMutex?: Mutex;
     }
 
