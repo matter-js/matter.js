@@ -6,9 +6,9 @@
 
 import { InternalError } from "@matter/main";
 import { Matter } from "@matter/model";
-import type { AttributePathSpec, CertStepContext, CheckRecord, LogFollower, LogLine } from "@matter/testing";
+import type { AttributePathSpec, CertStepContext, CheckRecord, LogFollower } from "@matter/testing";
 import { certTest } from "@matter/testing";
-import { CommissionedRefs } from "./tc-support.js";
+import { CommissionedRefs, expectAdjacentLines } from "./tc-support.js";
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
 const ON_OFF = Matter.clusters.require("OnOff");
@@ -105,9 +105,9 @@ function attributePathIBSequence(fields: AttributePathSpec): RegExp[] {
 
 /**
  * Confirms chip's `ReadRequestMessage` log carries exactly the `AttributePathIB` shape `fields`
- * describes, scanning from `from` onward. Each pattern in {@link attributePathIBSequence} must match
- * the line immediately after the previous match — an extra or missing field line breaks the chain
- * rather than silently passing. Returns `"unverified"` for the matterjs flavor (see AGENTS.md's
+ * describes as a consecutive block at or after `from` (see {@link expectAdjacentLines} — a wildcard
+ * sequence is a strict prefix of a concrete one, so a block with extra field lines is a different
+ * block, not a match). Returns `"unverified"` for the matterjs flavor (see AGENTS.md's
  * flavor-pattern policy): matter.js doesn't emit this chip-specific log shape.
  */
 async function expectAttributePathIB(
@@ -117,32 +117,17 @@ async function expectAttributePathIB(
     from: number,
     timeoutMs: number,
 ): Promise<CheckRecord> {
-    let cursor = from;
-    let last: LogLine | undefined;
-
-    for (const pattern of attributePathIBSequence(fields)) {
-        const result = await log.expect({ chip: pattern }, { flavor, timeoutMs, from: cursor });
-        if (result.verdict === "unverified") {
-            return { type: "device-log", verdict: "unverified" };
-        }
-        if (last !== undefined && result.matched.index !== last.index + 1) {
-            return {
-                type: "device-log",
-                verdict: "fail",
-                pattern: result.pattern,
-                detail: `expected line ${last.index + 1}, matched line ${result.matched.index}`,
-            };
-        }
-        last = result.matched;
-        cursor = result.matched.index + 1;
+    const result = await expectAdjacentLines(log, flavor, attributePathIBSequence(fields), from, timeoutMs);
+    if (result.verdict === "unverified") {
+        return { type: "device-log", verdict: "unverified" };
     }
 
     return {
         type: "device-log",
         verdict: "pass",
         pattern: `AttributePathIB ${JSON.stringify(fields)}`,
-        matched: last?.text,
-        logLine: last?.index,
+        matched: result.last.text,
+        logLine: result.last.index,
     };
 }
 

@@ -9,7 +9,7 @@ import { Status, StatusResponseError, ValidationError } from "@matter/main/types
 import { Matter } from "@matter/model";
 import type { CertStepContext, CheckRecord, DeviceFlavor, LogFollower } from "@matter/testing";
 import { CertLogClosedError, CertLogTimeoutError, certTest } from "@matter/testing";
-import { CommissionedRefs } from "./tc-support.js";
+import { CommissionedRefs, expectAdjacentLines } from "./tc-support.js";
 
 const ACTIONS = Matter.clusters.require("Actions");
 
@@ -80,8 +80,8 @@ function commandPathIBSequence(commandId: number): RegExp[] {
 }
 
 /**
- * Confirms chip's `InvokeRequestMessage` log carries a `CommandPathIB` matching `commandId`
- * (line-adjacent, same discipline as `TC-IDM-2.1`'s `expectAttributePathIB`), then that every `fields`
+ * Confirms chip's `InvokeRequestMessage` log carries a `CommandPathIB` matching `commandId` as a
+ * consecutive block at or after `from` (see {@link expectAdjacentLines}), then that every `fields`
  * entry appears afterward, in order, as its own `0x<id> = <value>,` line inside `CommandFields`. Field
  * lines aren't required adjacent to the `CommandPathIB` block itself — chip emits a blank `CHIP:DMG:`
  * separator line in between that isn't part of what this check verifies. A search always starts at or
@@ -101,22 +101,12 @@ async function expectCommandInvoke(
     let last: { index: number; text: string } | undefined;
 
     try {
-        for (const pattern of commandPathIBSequence(commandId)) {
-            const result = await log.expect({ chip: pattern }, { flavor, timeoutMs, from: cursor });
-            if (result.verdict === "unverified") {
-                return { type: "device-log", verdict: "unverified" };
-            }
-            if (last !== undefined && result.matched.index !== last.index + 1) {
-                return {
-                    type: "device-log",
-                    verdict: "fail",
-                    pattern: result.pattern,
-                    detail: `expected line ${last.index + 1}, matched line ${result.matched.index}`,
-                };
-            }
-            last = result.matched;
-            cursor = result.matched.index + 1;
+        const block = await expectAdjacentLines(log, flavor, commandPathIBSequence(commandId), from, timeoutMs);
+        if (block.verdict === "unverified") {
+            return { type: "device-log", verdict: "unverified" };
         }
+        last = block.last;
+        cursor = block.last.index + 1;
 
         for (const { id, value } of fields) {
             // Every field in this TC is an unsigned int (uint16/uint32); chip's decode dump appends the

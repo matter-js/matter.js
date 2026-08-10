@@ -276,11 +276,11 @@ jobs:
         run: |
           mkdir -p /tmp/cert-app-dir
           docker run --rm -v /tmp/cert-app-dir:/out ghcr.io/matter-js/chip:latest \
-            bash -c "cp -a /bin/chip-all-clusters-app* /out/"
+            bash -c "cp -a /bin/chip-all-clusters-app* /bin/chip-bridge-app /out/"
 
       - name: Verify TH_SERVER/DUT binaries were extracted
         run: |
-          for bin in chip-all-clusters-app chip-all-clusters-app-nlfaultinject; do
+          for bin in chip-all-clusters-app chip-all-clusters-app-nlfaultinject chip-bridge-app; do
             if [ ! -x "/tmp/cert-app-dir/$bin" ]; then
               echo "::error::$bin is missing from the freshly-built ghcr.io/matter-js/chip image." \
                 "support/chip/Dockerfile's own-built binaries changed shape, or the build silently" \

@@ -63,10 +63,6 @@ function settled(promise: Promise<string>): Promise<SettleOutcome> {
     );
 }
 
-function afterTimeout(ms: number): Promise<SettleOutcome> {
-    return Time.sleep("TC-SC-3.5 commission timeout", Millis(ms)).then((): SettleOutcome => ({ kind: "timeout" }));
-}
-
 /**
  * Handles every "Manual Pairing Code" prompt `TC_SC_3_5.py` prints — steps 1b, 2c, 3c, 4c, 5c (4c is
  * skipped, and never prompts, if DUT has no ICAC in its NOC chain; see the script's `setup_class`/
@@ -86,10 +82,17 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
             const passcode = extractPasscode(promptText);
             const dut = cx.controllers.dut;
 
-            const outcome = await Promise.race([
-                settled(dut.commission({ passcode, discriminator: TH_SERVER_DISCRIMINATOR })),
-                afterTimeout(COMMISSION_TIMEOUT_MS),
-            ]);
+            const timeout = Time.sleep("TC-SC-3.5 commission timeout", Millis(COMMISSION_TIMEOUT_MS));
+            let outcome: SettleOutcome;
+            try {
+                outcome = await Promise.race([
+                    settled(dut.commission({ passcode, discriminator: TH_SERVER_DISCRIMINATOR })),
+                    timeout.then((): SettleOutcome => ({ kind: "timeout" })),
+                ]);
+            } finally {
+                // A lost race leaves the sleep armed for its full duration, keeping the process alive past teardown
+                timeout.cancel();
+            }
 
             switch (outcome.kind) {
                 case "resolved":

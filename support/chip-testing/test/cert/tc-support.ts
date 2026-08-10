@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/main";
-import type { CertNodeRef, CertStepContext } from "@matter/testing";
+import { InternalError, Time } from "@matter/main";
+import type { CertNodeRef, CertStepContext, LogFollower, LogLine } from "@matter/testing";
 
 /**
  * Tracks commissioned node refs by role for one cert-test run and decommissions whatever's still
@@ -77,6 +77,58 @@ export class CommissionedRefs<Role extends string = "dut"> {
             const ref = this.require(role, `Step ran before the ${role.toUpperCase()} was commissioned`);
             await run(cx, ref);
         });
+    }
+}
+
+/**
+ * Waits for `sequence` to match a run of CONSECUTIVE log lines anywhere at or after `from`.
+ *
+ * A candidate that matches `sequence[0]` but whose following lines don't stay adjacent is some
+ * *other* block sharing the same opening (e.g. a ReportData `AttributePathIB` carrying an extra
+ * `Attribute =` line where the request's wildcard block has none, possibly still in flight from an
+ * earlier step — the follower pumps the device stream asynchronously, so a previous step's response
+ * can surface after this step's `mark()`). Such a candidate is skipped and the search resumes at
+ * the next one; genuine absence of the block surfaces as `log.expect`'s own timeout error. The
+ * whole search shares one `timeoutMs` budget.
+ */
+export async function expectAdjacentLines(
+    log: LogFollower,
+    flavor: string,
+    sequence: RegExp[],
+    from: number,
+    timeoutMs: number,
+): Promise<{ verdict: "unverified" } | { verdict: "pass"; last: LogLine }> {
+    const deadline = Time.nowMs + timeoutMs;
+    const remaining = () => Math.max(1, deadline - Time.nowMs);
+
+    let cursor = from;
+    for (;;) {
+        const anchor = await log.expect({ chip: sequence[0] }, { flavor, timeoutMs: remaining(), from: cursor });
+        if (anchor.verdict === "unverified") {
+            return { verdict: "unverified" };
+        }
+
+        let last = anchor.matched;
+        let interleaved = false;
+        for (const pattern of sequence.slice(1)) {
+            const result = await log.expect(
+                { chip: pattern },
+                { flavor, timeoutMs: remaining(), from: last.index + 1 },
+            );
+            if (result.verdict === "unverified") {
+                return { verdict: "unverified" };
+            }
+            if (result.matched.index !== last.index + 1) {
+                interleaved = true;
+                break;
+            }
+            last = result.matched;
+        }
+
+        if (!interleaved) {
+            return { verdict: "pass", last };
+        }
+        cursor = anchor.matched.index + 1;
     }
 }
 

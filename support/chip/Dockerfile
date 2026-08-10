@@ -125,6 +125,9 @@ RUN build-one chip-tool
 RUN build-one all-clusters-app/linux chip-all-clusters-app
 RUN build-one all-clusters-app/linux chip-all-clusters-app chip-all-clusters-app-nlfaultinject chip_with_nlfaultinjection=true
 
+# TC-ACT-3.2's TH app for the cert tests' chip-local flavor, which spawns from this image's /bin
+RUN build-one bridge-app/linux chip-bridge-app
+
 # Install Python stuff
 COPY support/install-chip-python /bin
 RUN install-chip-python

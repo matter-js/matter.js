@@ -184,12 +184,6 @@ function settled(promise: Promise<unknown>): Promise<SettleOutcome> {
     );
 }
 
-function afterTimeout(ms: number): Promise<SettleOutcome> {
-    return Time.sleep("TC-CADMIN-1.17 post-removal check timeout", Millis(ms)).then((): SettleOutcome => ({
-        kind: "timeout",
-    }));
-}
-
 /**
  * Asserts `op` rejects (the TH_CR2-post-removal expectation) rather than resolves, bounded by
  * {@link POST_REMOVAL_TIMEOUT_MS} so a session that neither errors nor times out at the transport layer
@@ -199,7 +193,14 @@ function afterTimeout(ms: number): Promise<SettleOutcome> {
  */
 async function expectRejection(label: string, op: Promise<unknown>): Promise<CheckRecord> {
     const start = Time.nowMs;
-    const outcome = await Promise.race([settled(op), afterTimeout(POST_REMOVAL_TIMEOUT_MS)]);
+    const timeout = Time.sleep("TC-CADMIN-1.17 post-removal check timeout", Millis(POST_REMOVAL_TIMEOUT_MS));
+    let outcome: SettleOutcome;
+    try {
+        outcome = await Promise.race([settled(op), timeout.then((): SettleOutcome => ({ kind: "timeout" }))]);
+    } finally {
+        // A lost race leaves the sleep armed for its full duration, keeping the process alive past teardown
+        timeout.cancel();
+    }
     const elapsed = Duration.format(Millis(Time.nowMs - start));
 
     switch (outcome.kind) {

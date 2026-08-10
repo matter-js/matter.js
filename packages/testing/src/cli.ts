@@ -244,7 +244,7 @@ export async function main(argv = process.argv) {
         setTimeout(() => process.exit(101), 5_000).unref();
         import("wtfnode").then(
             ({ dump }) => {
-                dump();
+                dump({ fullStacks: true });
                 process.exit(101);
             },
             error => {
