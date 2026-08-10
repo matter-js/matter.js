@@ -121,6 +121,15 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
 
     const builder: CertTestBuilder = {
         step(number, text, run, opts) {
+            // Declaration-time, like the MultiDeviceUnsupportedError guard above: an empty list
+            // is a defect of the test definition, not a run-time condition of any one flavor.
+            if (opts?.flavors !== undefined && opts.flavors.length === 0) {
+                throw new Error(
+                    `certTest "${tc}" step ${number} declares an empty "flavors" list, which would skip it on ` +
+                        "every flavor — omit the option instead if that's genuinely intended",
+                );
+            }
+
             definition.steps.push({
                 number,
                 text,

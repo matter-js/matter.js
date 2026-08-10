@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { LogSource } from "../../src/chip/cert/cert-context.js";
-import { CertLogClosedError, CertLogTimeoutError, LogFollower } from "../../src/chip/cert/log-follower.js";
+import type { LogSource } from "@matter/testing";
+import { CertLogClosedError, CertLogTimeoutError, LogFollower } from "@matter/testing";
 
 /**
  * A push-controlled `AsyncIterable<string>` so tests can decide exactly when lines arrive, without
@@ -347,5 +347,50 @@ describe("LogFollower", () => {
 
         await follower.close();
         expect((await iterator.next()).done).equal(true);
+    });
+
+    it("annotate() appends an indexed, flagged line that shows up in lines and in follow()'s replay", async () => {
+        const source = new TestSource();
+        const follower = new LogFollower(source, "dut");
+
+        source.push("real line");
+        await waitUntil(() => follower.lines.length === 1);
+        follower.annotate("--- banner ---");
+        await waitUntil(() => follower.lines.length === 2);
+
+        expect(follower.lines.map(l => ({ index: l.index, text: l.text, synthetic: l.synthetic }))).deep.equal([
+            { index: 0, text: "real line", synthetic: undefined },
+            { index: 1, text: "--- banner ---", synthetic: true },
+        ]);
+
+        const seen = await (async () => {
+            const lines = new Array<string>();
+            for await (const line of follower.follow()) {
+                lines.push(line);
+                if (lines.length >= 2) break;
+            }
+            return lines;
+        })();
+        expect(seen).deep.equal(["real line", "--- banner ---"]);
+
+        await follower.close();
+    });
+
+    it("expect() never matches an annotated line, even against a catch-all pattern", async () => {
+        const source = new TestSource();
+        const follower = new LogFollower(source, "dut");
+        follower.mark();
+
+        follower.annotate("--- banner text that would match anything ---");
+        source.push("the real line expect() should find");
+        await waitUntil(() => follower.lines.length === 2);
+
+        const result = await follower.expect({ chip: /.*/ }, { flavor: "chip", timeoutMs: 2_000 });
+        expect(result.verdict).equal("pass");
+        if (result.verdict === "pass") {
+            expect(result.matched.text).equal("the real line expect() should find");
+        }
+
+        await follower.close();
     });
 });

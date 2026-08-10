@@ -13,7 +13,7 @@ import type {
     DeviceFlavor,
     Subject,
 } from "@matter/testing";
-import { LogFollower, registerControllerAdapterFactory, registerMatterJsCertSubject } from "@matter/testing";
+import { LineQueue, LogFollower, registerControllerAdapterFactory, registerMatterJsCertSubject } from "@matter/testing";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { join } from "node:path";
 import { env } from "node:process";
@@ -31,7 +31,7 @@ registerControllerAdapterFactory(id => new InProcessControllerAdapter(id));
 env.MATTER_CERT_EVIDENCE_DIR ??= join(process.cwd(), "build/cert-evidence");
 
 const activeDeviceId = new AsyncLocalStorage<string>();
-const deviceQueues = new Map<string, PushQueue>();
+const deviceQueues = new Map<string, LineQueue>();
 
 // Boot.reboot() runs before every spec file and replaces Logger.destinations wholesale (see
 // Logger.ts's own Boot.init), so a one-time install at module load would stop forwarding device log
@@ -54,44 +54,6 @@ function runTaggedForDevice<T>(id: string, fn: () => Promise<T>): Promise<T> {
     return activeDeviceId.run(id, fn);
 }
 
-/** Push/pull line buffer bridging a synchronous `Logger` write into `LogFollower`'s async source. */
-class PushQueue implements AsyncIterable<string> {
-    #lines = new Array<string>();
-    #waiters = new Array<() => void>();
-    #closed = false;
-
-    push(line: string): void {
-        this.#lines.push(line);
-        this.#wake();
-    }
-
-    close(): void {
-        this.#closed = true;
-        this.#wake();
-    }
-
-    #wake(): void {
-        const waiters = this.#waiters;
-        this.#waiters = new Array<() => void>();
-        for (const resolve of waiters) {
-            resolve();
-        }
-    }
-
-    async *[Symbol.asyncIterator](): AsyncGenerator<string> {
-        let index = 0;
-        for (;;) {
-            while (index < this.#lines.length) {
-                yield this.#lines[index++];
-            }
-            if (this.#closed) {
-                return;
-            }
-            await new Promise<void>(resolve => this.#waiters.push(resolve));
-        }
-    }
-}
-
 /**
  * Adds {@link CertDevice}'s extra fields (`log`/`flavor`/`exit`) to an in-process matter.js test
  * subject by delegation, so `cert-dsl.ts` (which cannot depend on matter.js) never needs to
@@ -112,7 +74,7 @@ class MatterJsCertDevice implements CertDevice {
 
     #inner: Subject;
     #id: string;
-    #queue: PushQueue;
+    #queue: LineQueue;
 
     constructor(inner: Subject, id: string) {
         if (deviceQueues.has(id)) {
@@ -125,7 +87,7 @@ class MatterJsCertDevice implements CertDevice {
 
         this.#inner = inner;
         this.#id = id;
-        this.#queue = new PushQueue();
+        this.#queue = new LineQueue();
         deviceQueues.set(id, this.#queue);
         this.log = new LogFollower(this.#queue, id);
     }

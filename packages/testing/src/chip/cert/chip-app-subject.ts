@@ -15,11 +15,18 @@ import { Docker } from "../../docker/docker.js";
 import { NonZeroExitError } from "../../docker/errors.js";
 import { Terminal } from "../../docker/terminal.js";
 import { Volume } from "../../docker/volume.js";
+import { delay, LineQueue } from "../../util/async.js";
 import { asyncLinesOf } from "../../util/text.js";
 import { CERT_BINS_PLATFORM, prepareChipBins, resolveChipBinsSource } from "../chip-bins.js";
-import type { PicsFile } from "../pics/file.js";
-import type { CertDevice, CertDeviceFactory, DeviceExitInfo, DeviceFlavor, LogSource } from "./cert-context.js";
+import { HARNESS_DBUS_CONTAINER } from "../config.js";
+import { PicsUnavailableError, type PicsFile } from "../pics/file.js";
+import type { CertDevice, CertDeviceFactory, DeviceExitInfo, DeviceFlavor } from "./cert-context.js";
 import { LogFollower } from "./log-follower.js";
+
+// ChipDockerDevice requires the harness dbus sidecar rather than starting its own dbus/mdns pair:
+// two system dbus daemons and mdns responders bound to the same `matter.js-mdns` volume would
+// fight over the same `/run/dbus` socket once the app container becomes reachable.
+export { HARNESS_DBUS_CONTAINER };
 
 const DEFAULT_DISCRIMINATOR = 3840;
 const DEFAULT_PASSCODE = 20202021;
@@ -59,68 +66,6 @@ function createExitDeferred(): ExitDeferred {
         resolve = r;
     });
     return { promise, resolve };
-}
-
-function delay(ms: number): { promise: Promise<"timeout">; cancel: () => void } {
-    let timer: NodeJS.Timeout;
-    const promise = new Promise<"timeout">(resolve => {
-        timer = setTimeout(() => resolve("timeout"), ms);
-    });
-    return { promise, cancel: () => clearTimeout(timer) };
-}
-
-/**
- * Multicasts process/container output lines to any number of independent {@link LogSource.follow}
- * consumers, replaying everything seen so far before tailing live.
- */
-class LineHub implements LogSource {
-    #lines = new Array<string>();
-    #closed = false;
-    #waiters = new Array<() => void>();
-
-    push(line: string): void {
-        this.#lines.push(line);
-        this.#wake();
-    }
-
-    close(): void {
-        if (this.#closed) {
-            return;
-        }
-        this.#closed = true;
-        this.#wake();
-    }
-
-    follow(): AsyncIterable<string> {
-        return this.#iterate();
-    }
-
-    async pump(source: AsyncIterable<string>): Promise<void> {
-        for await (const line of source) {
-            this.push(line);
-        }
-    }
-
-    #wake(): void {
-        const waiters = this.#waiters;
-        this.#waiters = new Array();
-        for (const waiter of waiters) {
-            waiter();
-        }
-    }
-
-    async *#iterate(): AsyncGenerator<string> {
-        let index = 0;
-        for (;;) {
-            while (index < this.#lines.length) {
-                yield this.#lines[index++];
-            }
-            if (this.#closed) {
-                return;
-            }
-            await new Promise<void>(resolve => this.#waiters.push(resolve));
-        }
-    }
 }
 
 /**
@@ -168,7 +113,7 @@ class ChipLocalDevice implements CertDevice {
     readonly log: LogFollower;
 
     #appArgs: string[];
-    #hub = new LineHub();
+    #hub = new LineQueue();
     #storageDir?: string;
     #child?: ChildProcess;
     #exit: ExitDeferred = createExitDeferred();
@@ -183,7 +128,7 @@ class ChipLocalDevice implements CertDevice {
     }
 
     get pics(): PicsFile {
-        throw new Error("No active PICS file for this device");
+        throw new PicsUnavailableError("No active PICS file for this device");
     }
 
     get exit(): Promise<DeviceExitInfo> {
@@ -299,16 +244,6 @@ function mdnsVolumeName(): string {
 }
 
 /**
- * Container name of the dbus sidecar `chip/state.ts`'s harness composition
- * (`docker.compose("matter.js", ...)`, part "dbus") always starts before any cert test runs (every
- * `certTest()` call installs `State.initialize` as a `beforeRun` hook — see `cert-dsl.ts`'s
- * `defineCertTest`). {@link ChipDockerDevice} checks for this instead of starting its own dbus/mdns
- * pair: two system dbus daemons and mdns responders bound to the same `matter.js-mdns` volume would
- * fight over the same `/run/dbus` socket once the app container becomes reachable.
- */
-export const HARNESS_DBUS_CONTAINER = "matter.js-dbus";
-
-/**
  * The subset of `Docker.compose()`'s return value that {@link ChipDockerDevice} needs, extracted so
  * tests can substitute a fake without a running Docker daemon.
  */
@@ -361,7 +296,7 @@ export class ChipDockerDevice implements CertDevice {
     readonly log: LogFollower;
 
     #appArgs: string[];
-    #hub = new LineHub();
+    #hub = new LineQueue();
     #docker: DockerHandle;
     #composition?: CompositionHandle;
     #container?: Container;
@@ -378,7 +313,7 @@ export class ChipDockerDevice implements CertDevice {
     }
 
     get pics(): PicsFile {
-        throw new Error("No active PICS file for this device");
+        throw new PicsUnavailableError("No active PICS file for this device");
     }
 
     get exit(): Promise<DeviceExitInfo> {

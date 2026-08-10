@@ -14,14 +14,12 @@ import {
     Logger,
     MockStorageService,
 } from "@matter/main";
-import { OperationalCredentialsClient } from "@matter/main/behaviors/operational-credentials";
 import { GeneralCommissioning } from "@matter/main/clusters";
 import {
     AttributeId,
     ClusterId,
     ClusterType,
     EndpointNumber,
-    FabricIndex,
     ManualPairingCodeCodec,
     NodeId,
     StatusResponseError,
@@ -36,10 +34,10 @@ import type {
     CertNodeRef,
     CommissioningTarget,
     ControllerAdapter,
-    LogSource,
+    ReadAttributeOptions,
     SubscribeOptions,
 } from "@matter/testing";
-import { LogFollower } from "@matter/testing";
+import { LineQueue, LogFollower } from "@matter/testing";
 
 /**
  * Attributes a matter.js controller `write`/`invoke` call to the {@link InProcessControllerAdapter} whose
@@ -48,7 +46,7 @@ import { LogFollower } from "@matter/testing";
  */
 const activeAdapterId = new AsyncLocalStorage<string>();
 
-const adapterStreams = new Map<string, LineStream>();
+const adapterStreams = new Map<string, LineQueue>();
 
 // Boot.reboot() runs before every spec file and replaces Logger.destinations wholesale (see
 // Logger.ts's own Boot.init), so a one-time install at module load would stop forwarding adapter log
@@ -69,42 +67,6 @@ Boot.init(() => {
 
 function runTagged<T>(id: string, fn: () => Promise<T>): Promise<T> {
     return activeAdapterId.run(id, fn);
-}
-
-/** A pull/push line buffer satisfying {@link LogSource}. */
-class LineStream implements LogSource {
-    #lines = new Array<string>();
-    #waiters = new Array<() => void>();
-    #closed = false;
-
-    push(line: string) {
-        this.#lines.push(line);
-        this.#wake();
-    }
-
-    close() {
-        this.#closed = true;
-        this.#wake();
-    }
-
-    #wake() {
-        const waiters = this.#waiters;
-        this.#waiters = new Array<() => void>();
-        for (const resolve of waiters) resolve();
-    }
-
-    async *follow(): AsyncIterable<string> {
-        let index = 0;
-        while (true) {
-            while (index < this.#lines.length) {
-                yield this.#lines[index++];
-            }
-            if (this.#closed) {
-                return;
-            }
-            await new Promise<void>(resolve => this.#waiters.push(resolve));
-        }
-    }
 }
 
 function toIds(path: AttributePathSpec) {
@@ -166,20 +128,6 @@ function resolveCommissioningTarget(target: CommissioningTarget): ResolvedCommis
     return { identifierData: { longDiscriminator: target.discriminator }, passcode: target.passcode };
 }
 
-const OPERATIONAL_CREDENTIALS = Matter.clusters.require("OperationalCredentials");
-const OPERATIONAL_CREDENTIALS_ID = requireId(OPERATIONAL_CREDENTIALS.id, "OperationalCredentials cluster");
-const FABRICS_ATTRIBUTE_ID = requireId(
-    OPERATIONAL_CREDENTIALS.attributes.require("fabrics").id,
-    "OperationalCredentials.fabrics",
-);
-
-function requireId(id: number | undefined, what: string): number {
-    if (id === undefined) {
-        throw new InternalError(`${what} has no numeric id`);
-    }
-    return id;
-}
-
 function clusterModelFor(cluster: string | number): { model: ClusterModel; id: number } {
     const model = Matter.clusters(cluster);
     if (model === undefined) {
@@ -230,12 +178,13 @@ class InProcessCertNodeApi implements CertNodeApi {
         });
     }
 
-    readAttribute(path: AttributePathSpec): Promise<unknown> {
+    readAttribute(path: AttributePathSpec, options?: ReadAttributeOptions): Promise<unknown> {
         return runTagged(this.#adapterId, async () => {
             const client = await this.#interactionClient();
             const { endpointId, clusterId, attributeId } = toIds(path);
             const { attributeData, attributeStatus } = await client.getMultipleAttributesAndStatus({
                 attributes: [{ endpointId, clusterId, attributeId }],
+                isFabricFiltered: options?.fabricFiltered,
             });
             if (isConcretePath(path)) {
                 if (attributeStatus?.length) {
@@ -323,46 +272,6 @@ class InProcessCertNodeApi implements CertNodeApi {
         });
     }
 
-    removeFabric(fabricIndex: number): Promise<unknown> {
-        return runTagged(this.#adapterId, async () => {
-            const node = await this.#node();
-            return await node.commandsOf(OperationalCredentialsClient).removeFabric({
-                fabricIndex: FabricIndex(fabricIndex),
-            });
-        });
-    }
-
-    /**
-     * The Fabrics attribute has FabricSensitive quality (Matter Core § 7.14.2.2): a plain `getStateOf`
-     * read (or one via {@link readAttribute}, which also defaults to fabric-filtered) would return only
-     * the calling controller's own entry, not every fabric on the node — useless for a multi-controller
-     * TC that needs to see (and label-match) fabrics it didn't itself create. Reads the wire directly
-     * with `isFabricFiltered: false` instead of going through `getStateOf`'s cached/local-state path.
-     */
-    readFabrics(): Promise<unknown[]> {
-        return runTagged(this.#adapterId, async () => {
-            const client = await this.#interactionClient();
-            const { attributeData, attributeStatus } = await client.getMultipleAttributesAndStatus({
-                attributes: [
-                    {
-                        endpointId: EndpointNumber(0),
-                        clusterId: ClusterId(OPERATIONAL_CREDENTIALS_ID),
-                        attributeId: AttributeId(FABRICS_ATTRIBUTE_ID),
-                    },
-                ],
-                isFabricFiltered: false,
-            });
-            if (attributeStatus?.length) {
-                throw new StatusResponseError("readFabrics failed", attributeStatus[0].status);
-            }
-            const value = attributeData[0]?.value;
-            if (!Array.isArray(value)) {
-                throw new InternalError(`readFabrics expected a list value, got ${JSON.stringify(value)}`);
-            }
-            return value;
-        });
-    }
-
     decommission(): Promise<void> {
         return runTagged(this.#adapterId, async () => {
             const node = await this.#node();
@@ -388,7 +297,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     readonly id: string;
     readonly log: LogFollower;
     readonly #controller: CommissioningController;
-    readonly #logStream = new LineStream();
+    readonly #logStream = new LineQueue();
 
     constructor(id: string) {
         if (adapterStreams.has(id)) {

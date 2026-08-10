@@ -4,14 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { delay } from "../../util/async.js";
 import { deansify } from "../../util/text.js";
 import type { LogSource } from "./cert-context.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
-
-// Node clamps a setTimeout delay above this to 1ms, which would busy-spin #waitForWake's
-// timer/wake race instead of actually waiting.
-const MAX_TIMEOUT_MS = 0x7fffffff;
 
 /**
  * A single buffered log line, with the cursor position it occupies in the follower's buffer.
@@ -20,6 +17,8 @@ export interface LogLine {
     index: number;
     at: Date;
     text: string;
+    /** Set on a line added via {@link LogFollower.annotate} — never matched by {@link LogFollower.expect}. */
+    synthetic?: true;
 }
 
 export type LogExpectResult =
@@ -90,14 +89,6 @@ function matchableCopy(pattern: RegExp): RegExp {
     return new RegExp(pattern.source, pattern.flags.replace(/[gy]/g, ""));
 }
 
-function delay(ms: number): { promise: Promise<"timeout">; cancel: () => void } {
-    let timer: NodeJS.Timeout;
-    const promise = new Promise<"timeout">(resolve => {
-        timer = setTimeout(() => resolve("timeout"), Math.min(ms, MAX_TIMEOUT_MS));
-    });
-    return { promise, cancel: () => clearTimeout(timer) };
-}
-
 /**
  * Buffers every line from an `AsyncIterable<string>` log source and lets cert-test steps assert
  * that a matching line appears within a cursor window, without depending on any particular
@@ -125,6 +116,17 @@ export class LogFollower implements LogSource {
             this.#resolveCloseSignal = resolve;
         });
         this.#pump = this.#consume(source);
+    }
+
+    /**
+     * Appends a synthetic line (e.g. a step-boundary banner) to the buffer at the current position,
+     * indexed like a real line but flagged so {@link expect} skips it. Lets a caller mark the
+     * chronologically right position in the evidence `.log` output without that marker ever
+     * satisfying a step's own pattern.
+     */
+    annotate(text: string): void {
+        this.#lines.push({ index: this.#lines.length, at: new Date(), text, synthetic: true });
+        this.#wake();
     }
 
     /**
@@ -196,6 +198,9 @@ export class LogFollower implements LogSource {
 
     #firstMatchFrom(pattern: RegExp, from: number): LogLine | undefined {
         for (let i = from; i < this.#lines.length; i++) {
+            if (this.#lines[i].synthetic) {
+                continue;
+            }
             if (pattern.test(this.#lines[i].text)) {
                 return this.#lines[i];
             }

@@ -26,8 +26,8 @@ const ACTION_ID = 0x1001;
 
 // Deliberately larger than a uint16 (max 65_535): the adoc's own expected-outcome text for steps 8-11
 // calls Duration "a valid uint16", but both the spec and the model (Actions.element.ts) declare the
-// Duration field uint32 — see TESTPLAN-FEEDBACK.md. A value only a uint32 can carry makes the mismatch
-// visible in the captured log rather than merely asserted.
+// Duration field uint32. A value only a uint32 can carry makes the mismatch visible in the captured
+// log rather than merely asserted.
 const DURATION = 100_000;
 const TRANSITION_TIME = 1_234;
 
@@ -145,7 +145,7 @@ async function expectCommandInvoke(
 /**
  * Records the invoke's outcome as evidence; per the brief, any status the TH returns is tolerated — the
  * real chip-bridge-app only accepts `InstantAction` (returns `Success`); every other command in this TC
- * fails with `UnsupportedCommand` before ever reaching its delegate (see TESTPLAN-FEEDBACK.md).
+ * fails with `UnsupportedCommand` before ever reaching its delegate.
  *
  * `ValidationError` (and its subclasses) is deliberately excluded even though it's also a
  * `StatusResponseError` — it's the client's own TLV encode-time rejection of `request` before anything

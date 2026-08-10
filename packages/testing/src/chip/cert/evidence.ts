@@ -83,7 +83,14 @@ export class EvidenceRecorder implements StepRecorder {
     }
 
     endStep(step: CertStepDefinition, verdict: StepVerdict, skipReason?: string): void {
-        const checks = this.#current?.def === step ? this.#current.checks : new Array<CheckRecord>();
+        // No active step is fine (skipped/aborted steps never begin), but ending a *different*
+        // step than the active one would silently discard the active step's checks.
+        if (this.#current !== undefined && this.#current.def !== step) {
+            throw new Error(
+                `EvidenceRecorder.endStep(${step.number}) called while step ${this.#current.def.number} is active`,
+            );
+        }
+        const checks = this.#current?.checks ?? new Array<CheckRecord>();
         this.#current = undefined;
 
         this.#steps.push({

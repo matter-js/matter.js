@@ -53,6 +53,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `PromptDrivenPythonTest` drives chip python test scripts that prompt for manual commissioning steps
     - Enhancement: `matter-test`'s post-test clean-exit grace period is overridable via `MATTER_TEST_SHUTDOWN_TIMEOUT_MS`
     - Enhancement: `MATTER_CHIP_BINS_SOURCE=cert-bins` selects project-chip's official `connectedhomeip/chip-cert-bins` binaries for the classic yaml/python tests and `chip-local` cert-test subjects
+    - Enhancement: A cert test's attached device/controller logs now carry a banner marking each step's start and end, alongside its verdict
 
 ## 0.17.9 (2026-08-06)
 

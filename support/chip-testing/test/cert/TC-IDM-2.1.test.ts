@@ -681,7 +681,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 verdict: pass ? "pass" : "fail",
                 detail:
                     `${entries.length} attributes returned (proxy for exceeding 1 MTU; the adapter's ` +
-                    `high-level readAttribute does not expose per-chunk StatusResponse acking — see TESTPLAN-FEEDBACK.md)`,
+                    `high-level readAttribute does not expose per-chunk StatusResponse acking)`,
             });
             if (!pass) {
                 throw new Error(`Expected a large wildcard read (>100 attributes), got ${entries.length}`);
@@ -707,7 +707,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 verdict: pass ? "pass" : "fail",
                 detail:
                     `${entries.length} attributes returned (neither cert flavor defines a manufacturer-specific ` +
-                    `cluster — see TESTPLAN-FEEDBACK.md)`,
+                    `cluster)`,
             });
 
             await commissioned.decommissionAll(cx);

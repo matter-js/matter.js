@@ -7,6 +7,7 @@
 import { Duration, InternalError, Millis, Time } from "@matter/main";
 import { Matter } from "@matter/model";
 import type {
+    CertNodeApi,
     CertNodeRef,
     CertStepContext,
     CheckRecord,
@@ -21,6 +22,8 @@ import { CommissionedRefs, PendingPairingCode } from "./tc-support.js";
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
 const VENDOR_ID = BASIC_INFORMATION.attributes.require("vendorId");
 const NODE_LABEL = BASIC_INFORMATION.attributes.require("nodeLabel");
+const OPERATIONAL_CREDENTIALS = Matter.clusters.require("OperationalCredentials");
+const FABRICS = OPERATIONAL_CREDENTIALS.attributes.require("fabrics");
 
 const CW_DURATION_SECONDS = 180;
 const EXPECTED_CR2_FABRIC_INDEX = 2;
@@ -59,6 +62,22 @@ function asFabricEntries(value: unknown[]): FabricEntry[] {
         );
     }
     return value;
+}
+
+/**
+ * The Fabrics attribute is fabric-scoped, so this read must not be fabric-filtered: a
+ * multi-controller TC needs to see (and label-match) fabrics the reading controller didn't itself
+ * create.
+ */
+async function readFabrics(node: CertNodeApi): Promise<FabricEntry[]> {
+    const value = await node.readAttribute(
+        { endpoint: 0, cluster: OPERATIONAL_CREDENTIALS.id, attribute: FABRICS.id },
+        { fabricFiltered: false },
+    );
+    if (!Array.isArray(value)) {
+        throw new InternalError(`Expected the Fabrics attribute to read as a list, got ${describeFabrics(value)}`);
+    }
+    return asFabricEntries(value);
 }
 
 // A FabricDescriptorStruct's nodeId/fabricId fields decode to bigint, which JSON.stringify cannot
@@ -296,7 +315,7 @@ certTest("TC-CADMIN-1.17", {
             const dut = cx.controllers.dut;
             const dutRef = commissioned.require("dut");
 
-            const fabrics = asFabricEntries(await dut.node(dutRef).readFabrics());
+            const fabrics = await readFabrics(dut.node(dutRef));
             const cr2Entry = fabrics.find(entry => entry.label === "th_cr2");
             if (!cr2Entry) {
                 throw new Error(`Expected a fabric entry labeled "th_cr2", got ${describeFabrics(fabrics)}`);
@@ -340,7 +359,7 @@ certTest("TC-CADMIN-1.17", {
             }
 
             const from = th.log.mark();
-            await dut.node(dutRef).removeFabric(fabricIndex);
+            await dut.node(dutRef).invoke("OperationalCredentials", "removeFabric", { fabricIndex });
 
             const removed = await expectDeviceLog(
                 th.log,
@@ -408,7 +427,7 @@ certTest("TC-CADMIN-1.17", {
             const dut = cx.controllers.dut;
             const dutRef = commissioned.require("dut");
 
-            const fabrics = asFabricEntries(await dut.node(dutRef).readFabrics());
+            const fabrics = await readFabrics(dut.node(dutRef));
             const stillHasCr2 = fabrics.some(entry => entry.label === "th_cr2");
             const pass = fabrics.length === 2 && !stillHasCr2;
             cx.recorder.check({
@@ -489,7 +508,7 @@ certTest("TC-CADMIN-1.17", {
                 const th_cr2 = cx.controllers.th_cr2;
                 const th_cr2Ref = commissioned.require("th_cr2");
 
-                const fabrics = asFabricEntries(await th_cr2.node(th_cr2Ref).readFabrics());
+                const fabrics = await readFabrics(th_cr2.node(th_cr2Ref));
                 const pass = fabrics.length === 3;
                 cx.recorder.check({
                     type: "response",

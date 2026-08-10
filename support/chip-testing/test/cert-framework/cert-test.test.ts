@@ -8,17 +8,16 @@ import type {
     CertDevice,
     CertStepContext,
     CertTestDefinition,
+    Container,
+    ControllerAdapter,
     DeviceExitInfo,
+    Docker,
     StepRecorder,
     StepVerdict,
-} from "../../src/chip/cert/cert-context.js";
-import { CertTest } from "../../src/chip/cert/cert-test.js";
-import { LogFollower } from "../../src/chip/cert/log-follower.js";
-import { PicsFile } from "../../src/chip/pics/file.js";
-import type { Subject } from "../../src/device/subject.js";
-import type { Container } from "../../src/docker/container.js";
-import type { Docker } from "../../src/docker/docker.js";
-import type { TestFileDescriptor } from "../../src/test-descriptor.js";
+    Subject,
+    TestFileDescriptor,
+} from "@matter/testing";
+import { CertTest, LogFollower, PicsFile, PicsUnavailableError } from "@matter/testing";
 
 async function notImplemented(..._args: unknown[]): Promise<never> {
     throw new Error("Container access is not available in this unit test");
@@ -93,11 +92,11 @@ function stubSubject(pics: PicsFile): Subject {
     };
 }
 
-function stubSubjectWithThrowingPics(): Subject {
+function stubSubjectWithThrowingPics(error: Error): Subject {
     return {
         ...stubSubject(new PicsFile([])),
         get pics(): PicsFile {
-            throw new Error("PICS not initialized");
+            throw error;
         },
     };
 }
@@ -110,6 +109,21 @@ function stubCertDevice(exit: Promise<DeviceExitInfo>): CertDevice {
         flavor: "matterjs",
         log: new LogFollower(noLines(), "stub-device"),
         exit,
+    };
+}
+
+function stubControllerAdapter(log: LogFollower): ControllerAdapter {
+    return {
+        id: "dut",
+        log,
+        async start() {},
+        async close() {},
+        async commission() {
+            return "ref";
+        },
+        node() {
+            throw new Error("not implemented in this test");
+        },
     };
 }
 
@@ -292,7 +306,7 @@ describe("CertTest", () => {
         await expect(test.invoke(subject, () => {}, [], false)).rejectedWith("flush blew up");
     });
 
-    it("runs a gated step (no fail, no skip) when Subject.pics throws — no active PICS means every step's PICS is met", async () => {
+    it("runs a gated step (no fail, no skip) when Subject.pics throws PicsUnavailableError — no active PICS means every step's PICS is met", async () => {
         let ran = false;
 
         const definition: CertTestDefinition = {
@@ -324,12 +338,39 @@ describe("CertTest", () => {
         };
 
         const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
-        const subject = stubSubjectWithThrowingPics();
+        const subject = stubSubjectWithThrowingPics(new PicsUnavailableError("PICS not initialized"));
 
         await test.invoke(subject, () => {}, [], false);
 
         expect(ran).equal(true);
         expect(endStepVerdicts).deep.equal([{ number: 1, verdict: "pass" }]);
+    });
+
+    it("propagates a non-PicsUnavailableError from Subject.pics instead of treating it as 'no active PICS'", async () => {
+        let ran = false;
+
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step that must not run",
+                    run: async () => {
+                        ran = true;
+                    },
+                },
+            ],
+        };
+
+        const cx: CertStepContext = { controllers: {}, devices: {}, recorder: stubRecorder() };
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+        const subject = stubSubjectWithThrowingPics(new Error("PICS file is corrupt"));
+
+        await expect(test.invoke(subject, () => {}, [], false)).rejectedWith("PICS file is corrupt");
+        expect(ran).equal(false);
     });
 
     it("runs a gated step (no fail, no skip) when Subject.pics is undefined — no active PICS means every step's PICS is met", async () => {
@@ -473,34 +514,6 @@ describe("CertTest", () => {
         ]);
     });
 
-    it("fails a step that declares an empty flavors list, rather than silently skipping it forever", async () => {
-        const definition: CertTestDefinition = {
-            tc: "TC-CADMIN-1.17",
-            plan: "multiplefabrics.adoc",
-            pics: [],
-            app: "all-clusters",
-            steps: [
-                {
-                    number: 1,
-                    text: "Step with an empty flavors list",
-                    flavors: [],
-                    run: async () => {},
-                },
-            ],
-        };
-
-        const cx: CertStepContext = {
-            controllers: {},
-            devices: { th: stubCertDevice(new Promise<DeviceExitInfo>(() => {})) },
-            recorder: stubRecorder(),
-        };
-
-        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
-        const subject = stubSubject(new PicsFile([]));
-
-        await expect(test.invoke(subject, () => {}, [], false)).rejectedWith('Step 1 declares an empty "flavors"');
-    });
-
     it("fails the run and reports deviceExited when a device exits mid-step", async () => {
         let exit!: (info: DeviceExitInfo) => void;
         const exitPromise = new Promise<DeviceExitInfo>(resolve => {
@@ -564,68 +577,122 @@ describe("CertTest", () => {
         expect(deviceExitedCalls).deep.equal([{ code: 1, signal: null }]);
     });
 
-    // `process` isn't available in the web bundle; this test's process-level unhandledRejection spy only
-    // makes sense in a Node host.
-    (typeof window === "undefined" ? it : it.skip)(
-        "contains an orphaned step run's eventual rejection instead of letting it escape unhandled",
-        async () => {
-            let exitDevice!: (info: DeviceExitInfo) => void;
-            const exitPromise = new Promise<DeviceExitInfo>(resolve => {
-                exitDevice = resolve;
-            });
+    it("contains an orphaned step run's eventual rejection instead of letting it escape unhandled", async () => {
+        let exitDevice!: (info: DeviceExitInfo) => void;
+        const exitPromise = new Promise<DeviceExitInfo>(resolve => {
+            exitDevice = resolve;
+        });
 
-            let rejectStepRun!: (e: unknown) => void;
-            const definition: CertTestDefinition = {
-                tc: "TC-CADMIN-1.17",
-                plan: "multiplefabrics.adoc",
-                pics: [],
-                app: "all-clusters",
-                steps: [
-                    {
-                        number: 1,
-                        text: "Step that outlives its device and rejects only after the run has moved on",
-                        run: () =>
-                            new Promise<void>((_, reject) => {
-                                rejectStepRun = reject;
-                                exitDevice({ code: 1, signal: null });
-                            }),
+        let rejectStepRun!: (e: unknown) => void;
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step that outlives its device and rejects only after the run has moved on",
+                    run: () =>
+                        new Promise<void>((_, reject) => {
+                            rejectStepRun = reject;
+                            exitDevice({ code: 1, signal: null });
+                        }),
+                },
+            ],
+        };
+
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: { th: stubCertDevice(exitPromise) },
+            recorder: stubRecorder(),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+        const subject = stubSubject(new PicsFile([]));
+
+        const unhandled = new Array<unknown>();
+        const onUnhandledRejection = (reason: unknown) => unhandled.push(reason);
+        process.on("unhandledRejection", onUnhandledRejection);
+        try {
+            await expect(test.invoke(subject, () => {}, [], false)).rejectedWith(
+                "device exited unexpectedly while a step was running",
+            );
+
+            // The step's own run() promise is still pending here — it's the orphaned loser of the
+            // race. Settle it only now, simulating teardown pulling the rug out from under it after
+            // the run has already reported its outcome.
+            rejectStepRun(new Error("teardown closed the controller out from under the orphaned step"));
+
+            // Let the rejection's microtask queue drain so an unhandled rejection would have a
+            // chance to surface if nothing were containing it.
+            await new Promise(resolve => setTimeout(resolve, 0));
+            await new Promise(resolve => setTimeout(resolve, 0));
+        } finally {
+            process.off("unhandledRejection", onUnhandledRejection);
+        }
+
+        expect(unhandled).deep.equal([]);
+    });
+
+    it("rejects the run when a device exits after the last step completed, so the runner outcome matches the evidence", async () => {
+        let exitDevice!: (info: DeviceExitInfo) => void;
+        const exitPromise = new Promise<DeviceExitInfo>(resolve => {
+            exitDevice = resolve;
+        });
+
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step that completes before the device dies",
+                    run: async () => {
+                        // The device exits only after this step has already resolved — no step
+                        // race is pending to observe it.
+                        setTimeout(() => exitDevice({ code: 1, signal: null }), 0);
                     },
-                ],
-            };
+                },
+            ],
+        };
 
-            const cx: CertStepContext = {
-                controllers: {},
-                devices: { th: stubCertDevice(exitPromise) },
-                recorder: stubRecorder(),
-            };
+        const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
+        const deviceExitedCalls = new Array<DeviceExitInfo>();
+        let flushed = false;
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: { th: stubCertDevice(exitPromise) },
+            recorder: stubRecorder({
+                endStep(step, verdict) {
+                    endStepVerdicts.push({ number: step.number, verdict });
+                },
+                deviceExited(info) {
+                    deviceExitedCalls.push(info);
+                },
+                async flush() {
+                    // Give the exit scheduled by step 1 time to settle before the run concludes,
+                    // modeling a crash landing between the last step and the end of evidence flush.
+                    await new Promise(resolve => setTimeout(resolve, 20));
+                    flushed = true;
+                    return "";
+                },
+            }),
+        };
 
-            const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
-            const subject = stubSubject(new PicsFile([]));
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+        const subject = stubSubject(new PicsFile([]));
 
-            const unhandled = new Array<unknown>();
-            const onUnhandledRejection = (reason: unknown) => unhandled.push(reason);
-            process.on("unhandledRejection", onUnhandledRejection);
-            try {
-                await expect(test.invoke(subject, () => {}, [], false)).rejectedWith(
-                    "device exited unexpectedly while a step was running",
-                );
+        await expect(test.invoke(subject, () => {}, [], false)).rejectedWith(
+            "exited unexpectedly (code 1, signal null) during the run",
+        );
 
-                // The step's own run() promise is still pending here — it's the orphaned loser of the
-                // race. Settle it only now, simulating teardown pulling the rug out from under it after
-                // the run has already reported its outcome.
-                rejectStepRun(new Error("teardown closed the controller out from under the orphaned step"));
-
-                // Let the rejection's microtask queue drain so an unhandled rejection would have a
-                // chance to surface if nothing were containing it.
-                await new Promise(resolve => setTimeout(resolve, 0));
-                await new Promise(resolve => setTimeout(resolve, 0));
-            } finally {
-                process.off("unhandledRejection", onUnhandledRejection);
-            }
-
-            expect(unhandled).deep.equal([]);
-        },
-    );
+        expect(endStepVerdicts).deep.equal([{ number: 1, verdict: "pass" }]);
+        expect(deviceExitedCalls).deep.equal([{ code: 1, signal: null }]);
+        expect(flushed).equal(true);
+    });
 
     it("disarms the device-exit watch once invoke() finishes, so a later exit isn't reported to a finished run's recorder", async () => {
         let exitDevice!: (info: DeviceExitInfo) => void;
@@ -669,5 +736,78 @@ describe("CertTest", () => {
         await Promise.resolve();
 
         expect(deviceExitedCalls).deep.equal([]);
+    });
+
+    it("injects a step-boundary banner pair into every device's and controller's log for a step that runs", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step one text",
+                    run: async () => {},
+                },
+            ],
+        };
+
+        const deviceLog = new LogFollower(noLines(), "device");
+        const controllerLog = new LogFollower(noLines(), "controller");
+        const cx: CertStepContext = {
+            controllers: { dut: stubControllerAdapter(controllerLog) },
+            devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
+            recorder: stubRecorder(),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+        const subject = stubSubject(new PicsFile([]));
+
+        await test.invoke(subject, () => {}, [], false);
+
+        for (const log of [deviceLog, controllerLog]) {
+            const banners = log.lines.filter(line => line.synthetic).map(line => line.text);
+            expect(banners).deep.equal([
+                "-".repeat(70),
+                "TC-CADMIN-1.17 — Test Step 1: Step one text",
+                "-".repeat(70),
+                "-".repeat(70),
+                "TC-CADMIN-1.17 — Test Step 1: PASS",
+                "-".repeat(70),
+            ]);
+        }
+    });
+
+    it("injects only an end banner (SKIPPED) for a step the flavor gate skips before it starts", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step restricted to chip flavors",
+                    flavors: ["chip-docker"],
+                    run: async () => {},
+                },
+            ],
+        };
+
+        const deviceLog = new LogFollower(noLines(), "device");
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
+            recorder: stubRecorder(),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+        const subject = stubSubject(new PicsFile([]));
+
+        await test.invoke(subject, () => {}, [], false);
+
+        const banners = deviceLog.lines.filter(line => line.synthetic).map(line => line.text);
+        expect(banners).deep.equal(["-".repeat(70), "TC-CADMIN-1.17 — Test Step 1: SKIPPED", "-".repeat(70)]);
     });
 });

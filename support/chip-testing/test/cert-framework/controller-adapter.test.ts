@@ -12,9 +12,11 @@ import { InProcessControllerAdapter } from "../../src/cert/InProcessControllerAd
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
 const ON_OFF = Matter.clusters.require("OnOff");
+const OPERATIONAL_CREDENTIALS = Matter.clusters.require("OperationalCredentials");
 const VENDOR_ID_ATTRIBUTE = BASIC_INFORMATION.attributes.require("vendorId");
 const ON_OFF_ATTRIBUTE = ON_OFF.attributes.require("onOff");
 const NODE_LABEL_ATTRIBUTE = BASIC_INFORMATION.attributes.require("nodeLabel");
+const FABRICS_ATTRIBUTE = OPERATIONAL_CREDENTIALS.attributes.require("fabrics");
 
 describe("InProcessControllerAdapter", () => {
     let device: AllClustersTestInstance;
@@ -76,7 +78,10 @@ describe("InProcessControllerAdapter", () => {
         });
         expect(nodeLabel).to.equal("cert-adapter-test");
 
-        const fabrics = await node.readFabrics();
+        const fabrics = await node.readAttribute(
+            { endpoint: 0, cluster: OPERATIONAL_CREDENTIALS.id, attribute: FABRICS_ATTRIBUTE.id },
+            { fabricFiltered: false },
+        );
         expect(fabrics).to.have.lengthOf(1);
 
         const logLines = new Array<string>();

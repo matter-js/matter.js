@@ -35,6 +35,20 @@ export namespace ContainerPaths {
 export type ContainerPathsType = typeof ContainerPaths;
 export interface ContainerPaths extends ContainerPathsType {}
 
+/** Name of the shared harness composition `chip/state.ts`'s `configureContainer()` starts. */
+export const HARNESS_COMPOSITION_NAME = "matter.js";
+
+/** Part name of the harness composition's dbus sidecar. */
+export const HARNESS_DBUS_PART_NAME = "dbus";
+
+/**
+ * Container name of the harness composition's dbus sidecar (`Composition.add` names containers
+ * `<composition>-<part>`). Cert-test chip-docker subjects check for this container and reuse the
+ * harness's dbus/mdns pair instead of starting their own — see `chip/cert/chip-app-subject.ts`'s
+ * `ChipDockerDevice`.
+ */
+export const HARNESS_DBUS_CONTAINER = `${HARNESS_COMPOSITION_NAME}-${HARNESS_DBUS_PART_NAME}`;
+
 /**
  * Specify the base filename to use for a test.  This specifies a "winner" in the case of conflicts.
  */

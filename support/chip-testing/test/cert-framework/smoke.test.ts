@@ -17,7 +17,7 @@ const VENDOR_ID_ATTRIBUTE = BASIC_INFORMATION.attributes.require("vendorId");
 // Carries the commissioned node ref from step 1 to step 2's decommission call.
 let commissionedRef: string | undefined;
 
-certTest("TC-SMOKE-0.0", { plan: "n/a", pics: [], app: "all-clusters" })
+certTest("FRAMEWORK-SMOKE", { plan: "n/a", pics: [], app: "all-clusters" })
     .step(1, "Commission the DUT and read VendorID", async cx => {
         const dut = cx.controllers.dut;
         const th = cx.devices.th;
@@ -88,15 +88,15 @@ function latestEvidenceDirFor(tc: string): string {
     return join(base, entries[entries.length - 1]);
 }
 
-describe("TC-SMOKE-0.0 evidence", () => {
+describe("FRAMEWORK-SMOKE evidence", () => {
     it("wrote result.json and device logs to the evidence directory", () => {
-        const dir = latestEvidenceDirFor("TC-SMOKE-0.0");
+        const dir = latestEvidenceDirFor("FRAMEWORK-SMOKE");
 
         expect(existsSync(join(dir, "result.json"))).to.equal(true);
         expect(existsSync(join(dir, "device-th.log"))).to.equal(true);
 
         const result = JSON.parse(readFileSync(join(dir, "result.json"), "utf-8"));
-        expect(result.tc).to.equal("TC-SMOKE-0.0");
+        expect(result.tc).to.equal("FRAMEWORK-SMOKE");
         expect(result.verdict).to.equal("pass");
         expect(result.steps).to.have.lengthOf(2);
         expect(result.steps.every((step: { verdict: string }) => step.verdict === "pass")).to.equal(true);

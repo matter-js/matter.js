@@ -13,12 +13,16 @@ function isDeviceFlavor(value: string): value is DeviceFlavor {
 
 /**
  * Resolve which device implementation cert tests run against, from `MATTER_CERT_DEVICE`.
+ *
+ * Unset defaults to `matterjs`, the only flavor that works with no configuration at all:
+ * `chip-local` needs `MATTER_CERT_APP_DIR`/`MATTER_CHIP_BINS_SOURCE`, and `chip-docker` has no
+ * published per-app images yet, so either would guarantee a failing default run.
  */
 export function resolveDeviceFlavor(): DeviceFlavor {
     const value = env.MATTER_CERT_DEVICE;
 
     if (value === undefined || value === "") {
-        return "chip-docker";
+        return "matterjs";
     }
 
     if (isDeviceFlavor(value)) {

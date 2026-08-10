@@ -1,10 +1,9 @@
 # Authoring cert tests in this directory
 
 Guidance for whoever (human or agent) writes the next `TC-*.test.ts` here. Update this file in the
-same commit as the test case that produced the insight. Log every test-plan-document discrepancy
-you find (wrong field type, unmatchable log quote, an unimplementable step, …) in
-`TESTPLAN-FEEDBACK.md`, same commit, same discipline — see that file's own header for the entry
-shape.
+same commit as the test case that produced the insight. Report every test-plan-document discrepancy
+you find (wrong field type, unmatchable log quote, an unimplementable step, …) to the maintainer
+through their own todo/issue flow — this is not logged in a committed file.
 
 ## What a cert test is, and where the worked examples live
 
@@ -15,9 +14,11 @@ the **TH** it's proving interop against — the reverse of this package's other 
 **device**. Four pilots exist; each is the reference example for a different mechanic, not just
 another TC:
 
-- **`TC-SMOKE-0.0`** (`smoke.test.ts`) — the minimal shape: one device, one controller, a response
-  check and a device-log check, plus the evidence-writing test right after it. Start here before
-  reading anything else.
+- **`FRAMEWORK-SMOKE`** (`test/cert-framework/smoke.test.ts`) — the minimal shape: one device, one
+  controller, a response check and a device-log check, plus the evidence-writing test right after
+  it. Lives outside this directory (its id is deliberately not `TC-*`: it's a framework self-test,
+  not a translation of a real certification test plan) but is still the reference to start with
+  before reading anything else here.
 - **`TC-IDM-2.1`** (all-clusters) — single-controller/single-device read requests: wildcard vs.
   concrete `AttributePathIB` reads, line-adjacency log matching, the adoc→YAML→regex source-lookup
   flow. See "Translating a real test plan" and "Wildcard path idioms" below.
@@ -152,6 +153,13 @@ it's the single easiest mistake to make writing a new step). `RunRecord.verdict`
 `"skipped"` run-level verdict is a legitimate, expected outcome for a flavor-gapped or
 prerequisite-blocked TC — it is not the same as `"fail"`, and shouldn't be treated as a failure when
 triaging a run.
+
+Every attached `.log` also carries a step-boundary banner (chip python/yaml style) at the point a
+step starts and again when it ends (`<tc> — Test Step <number>: <text>` / `<tc> — Test Step
+<number>: PASS|FAIL|SKIPPED|ABORTED`, each between a rule of dashes). `CertTest.invoke()`
+(`cert-test.ts`) injects these via `LogFollower.annotate()` into every device's and controller's log
+buffer; they're flagged synthetic so a step's own `log.expect()` never matches one, even against a
+catch-all pattern. This is purely for log readability — it doesn't change `RunRecord`'s shape.
 
 ## Shape of a cert test
 
@@ -290,9 +298,9 @@ requests):
    uses the same camelCase-from-PascalCase convention already established in `smoke.test.ts`).
 4. **A YAML step's `verification:` text can itself be wrong.** `Test_TC_IDM_2_1.yaml`'s step 20
    verification block describes the *opposite* direction from this TC's own DUT-as-client premise
-   (reads TC-IDM-2.2's captures, not this TC's) — see `TESTPLAN-FEEDBACK.md`. Cross-check a YAML capture's
-   own prose against the adoc's step text for the *same* TC before trusting it; log a mismatch as a
-   `TESTPLAN-FEEDBACK.md` entry rather than silently working around it in code.
+   (reads TC-IDM-2.2's captures, not this TC's). Cross-check a YAML capture's own prose against the
+   adoc's step text for the *same* TC before trusting it; report a mismatch to the maintainer rather
+   than silently working around it in code.
 
 ## chip's structured protocol logging needs explicit flags — and is colorized even when piped
 
@@ -355,8 +363,7 @@ This is a framework-level fix (`log-follower.ts`), not something an individual T
 
 A TC's TH app can exist for some flavors but not support the cluster/commands the plan needs on others
 — `TC-ACT-3.2` needs an Actions cluster on the bridge app, which the real `chip-bridge-app` has (even if
-most of its commands aren't implemented — see TESTPLAN-FEEDBACK.md) but matter.js's own
-`BridgeTestInstance` doesn't have at all. The DSL had no way to express "this step/TC only makes sense on
+most of its commands aren't implemented) but matter.js's own `BridgeTestInstance` doesn't have at all. The DSL had no way to express "this step/TC only makes sense on
 some flavors" before this TC, so it gained one: `CertStepOptions.flavors?: DeviceFlavor[]`
 (`cert-dsl.ts`), threaded through to `CertStepDefinition.flavors` (`cert-context.ts`) and checked in
 `CertTest.invoke()` (`cert-test.ts`) via `currentFlavor()` (every device in one run shares the same
@@ -386,9 +393,8 @@ implementation is the reason (missing command support, an action ID it doesn't r
 response that never arrives at all (anything that isn't a `StatusResponseError`, e.g. a real timeout) is a
 genuine step failure. `TC-ACT-3.2`'s `recordInvokeStatus` catches exactly `StatusResponseError` and
 records its `.code` as a `"response"` check with verdict `"pass"` either way; anything else rethrows.
-Eleven of this TC's twelve steps come back `UnsupportedCommand` (0x81) against the real chip-bridge-app —
-see TESTPLAN-FEEDBACK.md — and that's the expected, TESTPLAN-FEEDBACK-documented shape of a passing run,
-not a bug in the TC.
+Eleven of this TC's twelve steps come back `UnsupportedCommand` (0x81) against the real chip-bridge-app,
+and that's the expected shape of a passing run, not a bug in the TC.
 
 ## Async log delivery lag can make a later step's log check match an earlier step's trailing echo
 
@@ -473,26 +479,20 @@ plan's own literal `FabricIndex = 2`. (It happened to equal 2 in every run here,
 allocated sequentially and this TC always commissions dut→th_cr2→th_cr3 in that order — but deriving it
 is one line and removes a hidden assumption a differently-ordered TC would silently violate.)
 
-## Framework fix: `readFabrics()` was fabric-filtered, defeating its own purpose
+## Fabric-filtered reads: the `fabricFiltered: false` trap
 
-`InProcessCertNodeApi.readFabrics()` used to call `node.getStateOf(OperationalCredentialsClient,
-["fabrics"])` — a convenience wrapper that, like every attribute read in this codebase and in
-`chip-tool`, defaults to `isFabricFiltered: true`. Since the `Fabrics` attribute has FabricSensitive
-quality (Matter Core § 7.14.2.2), a fabric-filtered read *by design* returns only the *reading*
-controller's own entry — running `th_cr2.node(ref).readFabrics()` returned a one-element list containing
-only `th_cr2`'s own fabric, never `dut`'s or `th_cr3`'s. This went unnoticed until `TC-CADMIN-1.17`
-because every prior TC's `readFabrics()` caller only had one fabric on the device at all, so
-fabric-filtered and non-filtered reads were indistinguishable. This TC's step 6 (`DUT_CR1 reads the list
-of Fabrics`) — which the plan itself qualifies as "a non-fabric-filtered read" in the analogous generic
-composite-table version of this step — is exactly the case that exposes it: with 3 fabrics
-commissioned, a fabric-filtered read returns 1, silently wrong rather than obviously broken.
+The `Fabrics` attribute has FabricSensitive quality (Matter Core § 7.14.2.2), so a default
+(fabric-filtered) read *by design* returns only the *reading* controller's own entry — with 3 fabrics
+commissioned, `th_cr2`'s read returns a one-element list containing only `th_cr2`'s own fabric, never
+`dut`'s or `th_cr3`'s. This is silently wrong rather than obviously broken as long as only one fabric
+exists on the device, and only a multi-controller TC like `TC-CADMIN-1.17` exposes it (its step 6 is
+"a non-fabric-filtered read" per the plan's own generic composite-table variant).
 
-Fixed in `InProcessControllerAdapter.ts`: `readFabrics()` now calls
-`InteractionClient.getMultipleAttributesAndStatus` directly (the same low-level call `readAttribute` and
-`writeAttribute` already use) with `isFabricFiltered: false` explicit, bypassing `getStateOf`'s
-fabric-filtered default entirely. This is a behavior change for every existing/future `readFabrics()`
-caller, but only visible once more than one fabric exists on the device — the spec-correct behavior
-`chip-tool`'s own `--fabric-filtered 0` flag (used in this TC's own YAML capture) exists to select.
+`CertNodeApi` therefore has no dedicated fabrics helper: read fabrics via
+`readAttribute({endpoint: 0, cluster: <OperationalCredentials>, attribute: <fabrics>}, { fabricFiltered: false })`
+(see `TC-CADMIN-1.17.test.ts`'s `readFabrics` helper) — the spec-correct behavior `chip-tool`'s own
+`--fabric-filtered 0` flag (used in this TC's YAML capture) exists to select. Removing a fabric is the
+plain generic command: `invoke("OperationalCredentials", "removeFabric", { fabricIndex })`.
 
 ## Pairing-code commissioning (`TC-CADMIN-1.17`)
 
@@ -525,14 +525,18 @@ either evidence or a fast local failure. This TC's `expectRejection` races the c
 settlement against a fixed timeout (`Time.sleep`, 25s) and reports `"fail"` for either an unexpected
 success *or* a timeout, `"pass"` only for an actual rejection, with the elapsed time in the evidence
 detail either way. In every run captured here (both flavors), matter.js's own controller detected the
-lost session and rejected within ~0ms — see TESTPLAN-FEEDBACK's `TC-CADMIN-1.17` entry 2 for why the plan's own
-wording assumes a slower, network-observable failure instead.
+lost session and rejected within ~0ms. The plan's own wording assumes a slower, network-observable
+failure instead — chip-tool's captured evidence for the same scenario shows a CASE-resumption error
+(`CHIP Error 0x000000C9: No shared trusted root`), i.e. chip-tool actually reaches out over the network
+and gets rejected there. Both are legitimate ways to satisfy "verify read/write commands fail as
+expected"; `expectRejection` accepts either rather than asserting a specific failure latency or error
+identity.
 
 ## `expectMdns`'s `operationalInstanceName` now also accepts an array (`TC-CADMIN-1.17`)
 
 Step 10 needs "exactly 2 of {dut's, th_cr3's} operational advertisements are live" — a genuinely
 different check from the single-fabric "is this one instance present, 0 or 1" the option was built for
-for `TC-MDNS-CHECK-0.0`/`TC-IDM-2.1`. `expectMdns`'s `options.operationalInstanceName` (`mdns-check.ts`) now accepts
+for `FRAMEWORK-MDNS-CHECK`/`TC-IDM-2.1`. `expectMdns`'s `options.operationalInstanceName` (`mdns-check.ts`) now accepts
 `string | string[]`; internally it's always normalized to an array, and `checkOperationalRecords` counts
 how many of the given names currently carry a live SRV record and compares that count to
 `expectations.operationalRecords`. A single-name call is unchanged in behavior (a 1-element array's count

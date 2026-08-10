@@ -7,7 +7,7 @@
 import { certTest } from "@matter/testing";
 import { expectMdns } from "../../src/cert/mdns-check.js";
 
-certTest("TC-MDNS-CHECK-0.0", { plan: "n/a", pics: [], app: "all-clusters" })
+certTest("FRAMEWORK-MDNS-CHECK", { plan: "n/a", pics: [], app: "all-clusters" })
     .step(1, "Uncommissioned DUT advertises commissionable via mDNS", async cx => {
         const th = cx.devices.th;
 

@@ -57,9 +57,9 @@ on:
           - cert-bins
           - own-built
       chipBinsTag:
-        description: 'connectedhomeip commit SHA (or "latest") for the official chip-cert-bins image'
-        required: true
-        default: 'df8bd0308caa0680e2a78cda724a959e5b385205'
+        description: 'connectedhomeip commit SHA (or "latest") for the official chip-cert-bins image; empty uses the code-side default (DEFAULT_CERT_BINS_TAG in packages/testing/src/chip/chip-bins.ts)'
+        required: false
+        default: ''
   release:
     types: [published]
   push:
@@ -227,6 +227,15 @@ jobs:
       - name: Pull chip harness image from repository
         run: docker pull ghcr.io/matter-js/chip
 
+      - name: Run certification framework tests (prerequisite proof)
+        env:
+          MATTER_CERT_DEVICE: matterjs
+          MATTER_TEST_SHUTDOWN_TIMEOUT_MS: 15000
+          MATTER_WTF: 1
+        run: |
+          cd support/chip-testing
+          npm run test-cert-framework -- --no-pull
+
       - name: Run certification controller tests (matterjs flavor)
         env:
           MATTER_CERT_DEVICE: matterjs
@@ -240,7 +249,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: cert-evidence-matterjs
+          name: cert-evidence-matterjs.zip
           path: support/chip-testing/build/cert-evidence/**
           if-no-files-found: ignore
 
@@ -305,6 +314,17 @@ jobs:
           sudo apt-get install -y avahi-daemon
           sudo systemctl start avahi-daemon
 
+      - name: Run certification framework tests (prerequisite proof)
+        env:
+          MATTER_CERT_DEVICE: chip-local
+          MATTER_CERT_APP_DIR: /tmp/cert-app-dir
+          MATTER_CERT_TH_SERVER_APP_PATH: /bin/chip-all-clusters-app-nlfaultinject
+          MATTER_TEST_SHUTDOWN_TIMEOUT_MS: 15000
+          MATTER_WTF: 1
+        run: |
+          cd support/chip-testing
+          npm run test-cert-framework -- --no-pull
+
       - name: Run certification controller tests (own-built binaries)
         env:
           MATTER_CERT_DEVICE: chip-local
@@ -320,7 +340,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: cert-evidence-own-built
+          name: cert-evidence-own-built.zip
           path: support/chip-testing/build/cert-evidence/**
           if-no-files-found: ignore
 
@@ -362,6 +382,19 @@ jobs:
           sudo apt-get install -y avahi-daemon
           sudo systemctl start avahi-daemon
 
+      - name: Run certification framework tests (prerequisite proof)
+        env:
+          MATTER_CHIP_PLATFORM: linux/arm64
+          MATTER_CHIP_BINS_SOURCE: cert-bins
+          MATTER_CHIP_BINS_TAG: ${{ needs.prepare.outputs.chip-bins-tag }}
+          MATTER_CERT_DEVICE: chip-local
+          MATTER_CERT_TH_SERVER_APP_PATH: /official-chip-bins/chip-all-clusters-app-nlfaultinject
+          MATTER_TEST_SHUTDOWN_TIMEOUT_MS: 15000
+          MATTER_WTF: 1
+        run: |
+          cd support/chip-testing
+          npm run test-cert-framework -- --no-pull
+
       - name: Run certification controller tests (cert-bins binaries)
         env:
           MATTER_CHIP_PLATFORM: linux/arm64
@@ -379,6 +412,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: cert-evidence-cert-bins
+          name: cert-evidence-cert-bins.zip
           path: support/chip-testing/build/cert-evidence/**
           if-no-files-found: ignore

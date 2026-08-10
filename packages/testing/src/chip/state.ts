@@ -23,9 +23,9 @@ import { AccessoryServer } from "./accessory-server.js";
 import { createRegisteredCertTest } from "./cert/cert-test.js";
 import type { chip } from "./chip.js";
 import { CERT_BINS_PLATFORM, chipBinsPlatformSupported, prepareChipBins, resolveChipBinsSource } from "./chip-bins.js";
-import { Constants, ContainerPaths } from "./config.js";
+import { Constants, ContainerPaths, HARNESS_COMPOSITION_NAME, HARNESS_DBUS_PART_NAME } from "./config.js";
 import { ContainerCommandPipe } from "./container-command-pipe.js";
-import { PicsFile } from "./pics/file.js";
+import { PicsFile, PicsUnavailableError } from "./pics/file.js";
 import { PicsSource } from "./pics/source.js";
 import { PythonTest } from "./python-test.js";
 import { YamlTest } from "./yaml-test.js";
@@ -106,7 +106,7 @@ export const State = {
 
     get defaultPics() {
         if (Values.defaultPics === undefined) {
-            throw new Error("PICS not initialized");
+            throw new PicsUnavailableError("PICS not initialized");
         }
 
         return Values.defaultPics;
@@ -114,7 +114,7 @@ export const State = {
 
     get defaultPicsFilename() {
         if (Values.defaultPicsFilename === undefined) {
-            throw new Error("PICS not initialized");
+            throw new PicsUnavailableError("PICS not initialized");
         }
 
         return Values.defaultPicsFilename;
@@ -467,7 +467,7 @@ async function configureContainer() {
     // points --server_path at the mount below.
     const chipBins = chipBinsSelected ? await prepareChipBins() : undefined;
 
-    const composition = docker.compose("matter.js", {
+    const composition = docker.compose(HARNESS_COMPOSITION_NAME, {
         image: Constants.imageName,
         platform,
         binds: { [mdnsVolume.name]: "/run/dbus" },
@@ -478,7 +478,7 @@ async function configureContainer() {
     });
 
     await composition.add({
-        name: "dbus",
+        name: HARNESS_DBUS_PART_NAME,
         command: ["/usr/bin/dbus-daemon", "--nopidfile", "--system", "--nofork"],
     });
 

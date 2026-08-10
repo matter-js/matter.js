@@ -53,20 +53,29 @@ export interface SubscribeOptions {
     onUpdate?: (value: unknown) => void;
 }
 
+export interface ReadAttributeOptions {
+    /**
+     * Whether the read is fabric-filtered (Matter Core § 8.9.2's `FabricFiltered` flag; default
+     * true, the interaction-model default). Set false to read across all fabrics — a
+     * fabric-scoped attribute like OperationalCredentials.fabrics otherwise returns only the
+     * reading controller's own entry, useless for a multi-controller TC that must see fabrics it
+     * didn't itself create.
+     */
+    fabricFiltered?: boolean;
+}
+
 /**
  * Controller-side view of a single commissioned node.
  */
 export interface CertNodeApi {
     invoke(cluster: string | number, command: string, args?: object, endpoint?: number): Promise<unknown>;
-    readAttribute(path: AttributePathSpec): Promise<unknown>;
+    readAttribute(path: AttributePathSpec, options?: ReadAttributeOptions): Promise<unknown>;
     writeAttribute(path: AttributePathSpec, value: unknown): Promise<void>;
     subscribe(path: AttributePathSpec, opts: SubscribeOptions): Promise<unknown>;
     openCommissioningWindow(opts: {
         timeout: number;
         enhanced: boolean;
     }): Promise<{ manualPairingCode?: string; qrPairingCode?: string }>;
-    removeFabric(fabricIndex: number): Promise<unknown>;
-    readFabrics(): Promise<unknown[]>;
     decommission(): Promise<void>;
     /**
      * The operational mDNS instance name (`<compressed-fabric-id>-<node-id>._matter._tcp.local`) this node
@@ -107,9 +116,14 @@ let activeFactory: ControllerAdapterFactory | undefined;
  *
  * `packages/testing` cannot construct a real controller itself (that needs matter.js, which this
  * package must stay free of — see the repo's dependency invariant); `support/chip-testing/src/cert`
- * registers its `InProcessControllerAdapter` here at load time instead.
+ * registers its `InProcessControllerAdapter` here at load time instead. There is exactly one slot:
+ * re-registration throws, since a silent overwrite would swap controller implementations under any
+ * cert test already declared.
  */
 export function registerControllerAdapterFactory(factory: ControllerAdapterFactory): void {
+    if (activeFactory) {
+        throw new Error("A ControllerAdapter factory is already registered; only one is supported per process");
+    }
     activeFactory = factory;
 }
 

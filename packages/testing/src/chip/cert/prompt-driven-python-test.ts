@@ -91,7 +91,9 @@ export class PromptDrivenPythonTest extends PythonTest {
             // A handler that threw (e.g. an unexpected commissioning outcome) leaves the script still
             // blocked on its own `input()` read; closing forces that read to fail instead of hanging
             // the run for the full mocha timeout.
-            await terminal.close().catch(() => {});
+            await terminal.close().catch(closeError => {
+                console.warn("Error closing prompt-driven python test terminal:", closeError);
+            });
             throw e;
         }
 

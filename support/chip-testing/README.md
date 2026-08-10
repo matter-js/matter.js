@@ -139,13 +139,14 @@ Which TH implementation a run uses is chosen by `MATTER_CERT_DEVICE`:
     reusing `chip/state.ts`'s harness sidecars — is resolved; publishing the per-app images is what
     remains.
 
-`MATTER_CERT_DEVICE` unset defaults to `chip-docker` (`resolveDeviceFlavor` in
-`packages/testing/src/chip/cert/device-config.ts`), which — until per-app images are published —
-means an unset run fails rather than silently falling back. For a local, no-Docker-image loop, set
-it explicitly:
+`MATTER_CERT_DEVICE` unset defaults to `matterjs` (`resolveDeviceFlavor` in
+`packages/testing/src/chip/cert/device-config.ts`) — the only flavor that works without further
+configuration; the other two need `MATTER_CERT_APP_DIR`/`MATTER_CHIP_BINS_SOURCE` (`chip-local`)
+or per-app images that aren't published yet (`chip-docker`). So a plain run exercises the
+matterjs TH:
 
 ```
-MATTER_CERT_DEVICE=matterjs npm run test-cert
+npm run test-cert
 ```
 
 For real chip-side evidence, build the app(s) a TC needs from a connectedhomeip checkout (see
@@ -164,7 +165,7 @@ directory of symlinks to each app's own build output).
 
 | Variable                     | Meaning                                                                                   | Default                        |
 | ----------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------- |
-| `MATTER_CERT_DEVICE`          | Flavor: `matterjs`, `chip-local`, or `chip-docker`.                                        | `chip-docker`                   |
+| `MATTER_CERT_DEVICE`          | Flavor: `matterjs`, `chip-local`, or `chip-docker`.                                        | `matterjs`                      |
 | `MATTER_CERT_APP_DIR`         | Directory containing `chip-<app>-app` binaries (`chip-local` only, ignored when `MATTER_CHIP_BINS_SOURCE=cert-bins` — see "Choosing a CHIP binary source" above). | none (required for `chip-local`) |
 | `MATTER_CERT_CHIP_IMAGE_BASE` | Docker image base name for `chip-docker` (image pulled is `<base>-<app>:latest`).          | `ghcr.io/matter-js/chip`        |
 | `MATTER_CERT_EVIDENCE_DIR`    | Where `result.json`/`*.log` evidence bundles are written.                                  | `<package cwd>/cert-evidence`   |
@@ -236,9 +237,39 @@ attached log stream (`device-<role>.log`, `controller-<name>.log`). Sketch of `r
 `"aborted"`, for a step never reached after an earlier one failed). A run-level `"skipped"` means
 every step was skipped (a flavor or PICS gap) — not a failure.
 
+Every attached `.log` file also carries a step-boundary banner (chip python/yaml style) at the point
+a step starts and again when it ends, e.g.:
+
+```
+----------------------------------------------------------------------
+TC-IDM-2.1 — Test Step 1: Commission the DUT and read VendorID
+----------------------------------------------------------------------
+...real device/controller log lines for the step...
+----------------------------------------------------------------------
+TC-IDM-2.1 — Test Step 1: PASS
+----------------------------------------------------------------------
+```
+
+These are synthetic lines the engine injects (`LogFollower.annotate`), not real device/controller
+output — a step's own `log.expect()` never matches one, even against a catch-all pattern.
+`result.json`'s shape is unaffected.
+
 ### Authoring a new `TC-*.test.ts`
 
 See `test/cert/AGENTS.md` — source-lookup flow for translating a plan document, the DSL, the app
 mapping table, PICS/flavor policy, and evidence expectations, with the four existing pilots
-(`TC-IDM-2.1`, `TC-ACT-3.2`, `TC-CADMIN-1.17`, `TC-SC-3.5`) as worked examples. Log any test-plan
-document discrepancy found along the way in `test/cert/TESTPLAN-FEEDBACK.md`.
+(`TC-IDM-2.1`, `TC-ACT-3.2`, `TC-CADMIN-1.17`, `TC-SC-3.5`) as worked examples. Report any test-plan
+document discrepancy found along the way to the maintainer (todo/issue flow) rather than logging it
+in-repo.
+
+### Framework self-tests (`test/cert-framework/`)
+
+`test/cert/` holds only real certification test plan translations — `test-cert`'s
+`test/cert/**/*.test.ts` glob never runs anything else. Tests that exercise the cert framework
+itself (the DSL, `LogFollower`, `EvidenceRecorder`, the chip-local/chip-docker device flavors, the
+python-wrapped-test seam, …) live in the sibling `test/cert-framework/` directory instead, with
+`npm run test-cert-framework`. Their ids are deliberately not `TC-*` (e.g. `FRAMEWORK-SMOKE`,
+`FRAMEWORK-MDNS-CHECK`) so a reader never mistakes a framework self-test for a real certification
+claim. CI runs `test-cert-framework` before `test-cert` in every flavor's job — the framework tests
+are the prerequisite proof that the engine itself works before trusting what it reports for a real
+TC.

@@ -105,7 +105,9 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
                         await dut
                             .node(outcome.ref)
                             .decommission()
-                            .catch(() => {});
+                            .catch(e =>
+                                console.warn(`Failed to decommission unexpectedly-successful attempt ${attempt}:`, e),
+                            );
                         throw new Error(
                             `DUT commissioning unexpectedly succeeded on attempt ${attempt} against a ` +
                                 "Sigma2-fault-injected TH_SERVER",
