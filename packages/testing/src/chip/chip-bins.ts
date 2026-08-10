@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { tmpdir, userInfo } from "node:os";
 import { join } from "node:path";
 import { env } from "node:process";
 import { Docker } from "../docker/docker.js";
@@ -82,13 +82,26 @@ export function requestedChipBinsTag(): string {
     return env.MATTER_CHIP_BINS_TAG || DEFAULT_CERT_BINS_TAG;
 }
 
-/** Base host directory under which `chip-cert-bins` binaries are extracted, one subdirectory per tag. */
-export function chipBinsDir(): string {
-    return env.MATTER_CHIP_BINS_DIR || join(tmpdir(), "matter-js-chip-cert-bins");
+/**
+ * Component distinguishing this host user's default cache directory from another local user's —
+ * `os.userInfo().uid` is stable and unique per POSIX user; falls back to the username where uid
+ * isn't meaningful (Windows always reports -1, as can some POSIX edge cases).
+ */
+function defaultChipBinsDirUser(): string {
+    const { uid, username } = userInfo();
+    return uid !== -1 ? String(uid) : username;
 }
 
-/** Everything Docker itself allows in an image tag — also all that's safe to use verbatim as a directory name. */
-const VALID_TAG = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/;
+/** Base host directory under which `chip-cert-bins` binaries are extracted, one subdirectory per tag. */
+export function chipBinsDir(): string {
+    return env.MATTER_CHIP_BINS_DIR || join(tmpdir(), `matter-js-chip-cert-bins-${defaultChipBinsDirUser()}`);
+}
+
+/**
+ * Everything Docker itself allows in an image tag (grammar, and its 128-character length cap) —
+ * also all that's safe to use verbatim as a directory name.
+ */
+const VALID_TAG = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/;
 
 function assertValidTag(tag: string): void {
     if (!VALID_TAG.test(tag)) {
@@ -280,6 +293,46 @@ async function writeStamp(stampPath: string, tag: string, targetDir: string): Pr
 }
 
 /**
+ * Thrown when an existing chip-cert-bins extraction directory is owned by a different host user —
+ * on a multi-user host that user could have pre-created it and planted binaries this harness later
+ * spawns.
+ */
+export class ChipBinsOwnershipError extends Error {}
+
+/**
+ * Refuse to trust an existing extraction directory this host user does not own, before any stamp
+ * read or extraction relies on its contents. Skipped when `process.getuid` is unavailable
+ * (Windows has no POSIX ownership) or when `MATTER_CHIP_BINS_DIR` was set explicitly — that
+ * directory is the caller's own responsibility.
+ */
+export async function assertChipBinsDirOwnership(dir: string): Promise<void> {
+    const getuid = process.getuid;
+    if (getuid === undefined || env.MATTER_CHIP_BINS_DIR) {
+        return;
+    }
+
+    let stats;
+    try {
+        stats = await stat(dir);
+    } catch (e) {
+        if (isErrnoException(e) && e.code === "ENOENT") {
+            return;
+        }
+        throw e;
+    }
+
+    const uid = getuid();
+    if (stats.uid !== uid) {
+        throw new ChipBinsOwnershipError(
+            `chip-cert-bins extraction directory ${dir} is owned by uid ${stats.uid}, not this process's uid ` +
+                `${uid} — on a multi-user host another local user could have pre-created it and planted ` +
+                `binaries this harness later spawns. Point MATTER_CHIP_BINS_DIR at a directory only this user ` +
+                `can write to.`,
+        );
+    }
+}
+
+/**
  * Ensure `targetDir` holds `chip-<app>-app`/`chip-tool` binaries extracted from
  * `connectedhomeip/chip-cert-bins:<tag>`. Lazy and cached: if `targetDir`'s stamp file already
  * records `tag`, this is a no-op. A stamp mismatch (different tag, or no stamp at all — including a
@@ -291,6 +344,8 @@ export async function ensureChipBins(
     targetDir: string,
     docker: ChipBinsDockerHandle = realChipBinsDockerHandle(),
 ): Promise<EnsureChipBinsResult> {
+    await assertChipBinsDirOwnership(targetDir);
+
     const stampPath = join(targetDir, STAMP_FILE);
 
     const cachedTag = await readStamp(stampPath);
@@ -298,7 +353,7 @@ export async function ensureChipBins(
         return { tag, dir: targetDir, extracted: false };
     }
 
-    await mkdir(targetDir, { recursive: true });
+    await mkdir(targetDir, { recursive: true, mode: 0o700 });
 
     const imageRef = `${CERT_BINS_IMAGE}:${tag}`;
     await docker.pull(imageRef, CERT_BINS_PLATFORM);

@@ -63,9 +63,19 @@ describe("chip-bins", () => {
             expect(mod.requestedChipBinsTag()).equal("deadbeef");
         });
 
-        it("defaults the extraction directory under the OS temp dir", () => {
+        it("defaults the extraction directory under the OS temp dir, scoped by this host user", () => {
             delete process.env.MATTER_CHIP_BINS_DIR;
-            expect(mod.chipBinsDir()).equal(pathMod.join(osMod.tmpdir(), "matter-js-chip-cert-bins"));
+            const { uid, username } = osMod.userInfo();
+            const userComponent = uid !== -1 ? String(uid) : username;
+            expect(mod.chipBinsDir()).equal(pathMod.join(osMod.tmpdir(), `matter-js-chip-cert-bins-${userComponent}`));
+        });
+
+        it("includes this process's uid in the default directory name on POSIX", function () {
+            if (process.getuid === undefined) {
+                this.skip();
+            }
+            delete process.env.MATTER_CHIP_BINS_DIR;
+            expect(mod.chipBinsDir()).contain(String(process.getuid()));
         });
 
         it("honors an explicit directory override", () => {
@@ -98,6 +108,14 @@ describe("chip-bins", () => {
 
         it("rejects an empty tag", () => {
             expect(() => mod.chipBinsExtractionDir("", "/base")).throws("Invalid chip-cert-bins tag");
+        });
+
+        it("accepts a tag at Docker's 128-character length cap", () => {
+            expect(() => mod.chipBinsExtractionDir("a".repeat(128), "/base")).not.throws();
+        });
+
+        it("rejects a tag exceeding Docker's 128-character length cap", () => {
+            expect(() => mod.chipBinsExtractionDir("a".repeat(129), "/base")).throws("Invalid chip-cert-bins tag");
         });
     });
 
@@ -292,6 +310,113 @@ describe("chip-bins", () => {
             await mod.ensureChipBins("sometag", targetDir, handle);
 
             expect(platforms).deep.equal([mod.CERT_BINS_PLATFORM, mod.CERT_BINS_PLATFORM]);
+        });
+    });
+
+    describe("assertChipBinsDirOwnership", () => {
+        let dir: string;
+
+        beforeEach(async () => {
+            dir = await fsp.mkdtemp(pathMod.join(osMod.tmpdir(), "matter-chip-bins-ownership-test-"));
+        });
+
+        afterEach(async () => {
+            await fsp.rm(dir, { recursive: true, force: true });
+        });
+
+        it("passes silently when the directory does not exist yet", async () => {
+            await fsp.rm(dir, { recursive: true, force: true });
+            await expect(mod.assertChipBinsDirOwnership(dir)).fulfilled;
+        });
+
+        it("passes silently when the directory is owned by this process", async () => {
+            await expect(mod.assertChipBinsDirOwnership(dir)).fulfilled;
+        });
+
+        it("rejects with ChipBinsOwnershipError when the directory's owning uid differs from this process's", async function () {
+            const originalGetuid = process.getuid;
+            if (originalGetuid === undefined) {
+                this.skip();
+            }
+
+            process.getuid = () => originalGetuid() + 1;
+            try {
+                let caught: unknown;
+                try {
+                    await mod.assertChipBinsDirOwnership(dir);
+                } catch (e) {
+                    caught = e;
+                }
+
+                expect(caught).instanceOf(mod.ChipBinsOwnershipError);
+                expect((caught as Error).message).contain(dir);
+                expect((caught as Error).message).match(/MATTER_CHIP_BINS_DIR/);
+            } finally {
+                process.getuid = originalGetuid;
+            }
+        });
+
+        it("skips the check when MATTER_CHIP_BINS_DIR is set explicitly, even for a uid mismatch", async function () {
+            const originalGetuid = process.getuid;
+            if (originalGetuid === undefined) {
+                this.skip();
+            }
+
+            process.env.MATTER_CHIP_BINS_DIR = dir;
+            process.getuid = () => originalGetuid() + 1;
+            try {
+                await expect(mod.assertChipBinsDirOwnership(dir)).fulfilled;
+            } finally {
+                process.getuid = originalGetuid;
+            }
+        });
+
+        it("skips the check when process.getuid is unavailable, even for a uid mismatch", async function () {
+            const originalGetuid = process.getuid;
+            if (originalGetuid === undefined) {
+                this.skip();
+            }
+
+            Reflect.deleteProperty(process, "getuid");
+            try {
+                await expect(mod.assertChipBinsDirOwnership(dir)).fulfilled;
+            } finally {
+                process.getuid = originalGetuid;
+            }
+        });
+    });
+
+    describe("ensureChipBins ownership guard", () => {
+        let targetDir: string;
+
+        beforeEach(async () => {
+            targetDir = await fsp.mkdtemp(pathMod.join(osMod.tmpdir(), "matter-chip-bins-test-"));
+        });
+
+        afterEach(async () => {
+            await fsp.rm(targetDir, { recursive: true, force: true });
+        });
+
+        it("rejects before touching the stamp or docker when the target directory is foreign-owned", async function () {
+            const originalGetuid = process.getuid;
+            if (originalGetuid === undefined) {
+                this.skip();
+            }
+
+            process.getuid = () => originalGetuid() + 1;
+            const handle: ChipBinsDockerHandle = {
+                async pull() {
+                    throw new Error("must not be called");
+                },
+                async extractApps() {
+                    throw new Error("must not be called");
+                },
+            };
+            try {
+                await expect(mod.ensureChipBins("sometag", targetDir, handle)).rejectedWith(mod.ChipBinsOwnershipError);
+            } finally {
+                process.getuid = originalGetuid;
+            }
         });
     });
 

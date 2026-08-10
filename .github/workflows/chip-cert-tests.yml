@@ -314,11 +314,10 @@ jobs:
           sudo apt-get install -y avahi-daemon
           sudo systemctl start avahi-daemon
 
+      # Framework self-tests are hermetic logic proofs — they manage their own fixtures and must
+      # not inherit the binary-flavor environment of the real TC run below
       - name: Run certification framework tests (prerequisite proof)
         env:
-          MATTER_CERT_DEVICE: chip-local
-          MATTER_CERT_APP_DIR: /tmp/cert-app-dir
-          MATTER_CERT_TH_SERVER_APP_PATH: /bin/chip-all-clusters-app-nlfaultinject
           MATTER_TEST_SHUTDOWN_TIMEOUT_MS: 15000
           MATTER_WTF: 1
         run: |
@@ -382,13 +381,12 @@ jobs:
           sudo apt-get install -y avahi-daemon
           sudo systemctl start avahi-daemon
 
+      # Framework self-tests are hermetic logic proofs — they manage their own fixtures and must
+      # not inherit the binary-flavor environment of the real TC run below (the container platform
+      # still has to match this arm64 runner)
       - name: Run certification framework tests (prerequisite proof)
         env:
           MATTER_CHIP_PLATFORM: linux/arm64
-          MATTER_CHIP_BINS_SOURCE: cert-bins
-          MATTER_CHIP_BINS_TAG: ${{ needs.prepare.outputs.chip-bins-tag }}
-          MATTER_CERT_DEVICE: chip-local
-          MATTER_CERT_TH_SERVER_APP_PATH: /official-chip-bins/chip-all-clusters-app-nlfaultinject
           MATTER_TEST_SHUTDOWN_TIMEOUT_MS: 15000
           MATTER_WTF: 1
         run: |

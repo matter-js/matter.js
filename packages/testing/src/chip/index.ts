@@ -51,8 +51,10 @@ export { registerMatterJsCertSubject } from "./cert/matterjs-subject-registry.js
 export { PromptDrivenPythonTest } from "./cert/prompt-driven-python-test.js";
 export type { PromptHandler } from "./cert/prompt-driven-python-test.js";
 export {
+    assertChipBinsDirOwnership,
     CERT_BINS_IMAGE,
     CERT_BINS_PLATFORM,
+    ChipBinsOwnershipError,
     ChipBinsPermissionError,
     chipBinsDir,
     chipBinsExtractionDir,
