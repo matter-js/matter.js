@@ -223,11 +223,13 @@ describe("Commissioner", () => {
     });
 
     describe("keepAlive", () => {
-        it("passes session ID as COMMISSIONER_SESSION_ID TLV", async () => {
+        it("posts to c/ca with the session ID as COMMISSIONER_SESSION_ID TLV", async () => {
+            let capturedUriPath: string[] | undefined;
             let capturedPayload: Uint8Array | undefined;
 
             const mockCoap = {
                 request: async (opts: { uriPath: string[]; payload?: Uint8Array }) => {
+                    capturedUriPath = opts.uriPath;
                     capturedPayload = opts.payload;
                     return ackMessage(buildKaResponse(STATE_ACCEPT));
                 },
@@ -236,8 +238,12 @@ describe("Commissioner", () => {
 
             await new Commissioner(mockCoap).keepAlive(42);
 
+            expect(capturedUriPath).to.deep.equal(["c", "ca"]);
             expect(capturedPayload).to.not.be.undefined;
             const entries = BasicTlv.walk(capturedPayload!);
+            const stateEntry = entries.find(e => e.type === MeshCopTlvType.STATE);
+            expect(stateEntry).to.not.be.undefined;
+            expect(Bytes.of(stateEntry!.value)[0]).to.equal(STATE_ACCEPT);
             const sidEntry = entries.find(e => e.type === MeshCopTlvType.COMMISSIONER_SESSION_ID);
             expect(sidEntry).to.not.be.undefined;
             const sidValue = Bytes.of(sidEntry!.value);
@@ -260,11 +266,13 @@ describe("Commissioner", () => {
     });
 
     describe("release", () => {
-        it("includes both COMMISSIONER_SESSION_ID and COMMISSIONER_ID in payload", async () => {
+        it("resigns via c/ca keep-alive carrying State(reject) and the session ID", async () => {
+            let capturedUriPath: string[] | undefined;
             let capturedPayload: Uint8Array | undefined;
 
             const mockCoap = {
                 request: async (opts: { uriPath: string[]; payload?: Uint8Array }) => {
+                    capturedUriPath = opts.uriPath;
                     capturedPayload = opts.payload;
                     return ackMessage(new Uint8Array());
                 },
@@ -273,15 +281,43 @@ describe("Commissioner", () => {
 
             await new Commissioner(mockCoap).release(42);
 
+            expect(capturedUriPath).to.deep.equal(["c", "ca"]);
             expect(capturedPayload).to.not.be.undefined;
             const entries = BasicTlv.walk(capturedPayload!);
+            const stateEntry = entries.find(e => e.type === MeshCopTlvType.STATE);
             const sidEntry = entries.find(e => e.type === MeshCopTlvType.COMMISSIONER_SESSION_ID);
-            const idEntry = entries.find(e => e.type === MeshCopTlvType.COMMISSIONER_ID);
+            expect(stateEntry).to.not.be.undefined;
+            expect(Bytes.of(stateEntry!.value)[0]).to.equal(STATE_REJECT);
             expect(sidEntry).to.not.be.undefined;
-            expect(idEntry).to.not.be.undefined;
             const sidValue = Bytes.of(sidEntry!.value);
             expect((sidValue[0] << 8) | sidValue[1]).to.equal(42);
-            expect(new TextDecoder().decode(idEntry!.value)).to.equal(Commissioner.COMMISSIONER_ID);
+        });
+
+        it("swallows CoAP errors (best-effort)", async () => {
+            const mockCoap = {
+                request: async () => {
+                    throw new Error("coap boom");
+                },
+                close: async () => {},
+            } as unknown as CoapClient;
+
+            await new Commissioner(mockCoap).release(42);
+        });
+
+        it("tolerates a non-success CoAP response without throwing (best-effort)", async () => {
+            const mockCoap = {
+                request: async () =>
+                    ({
+                        type: "ACK",
+                        code: "4.04",
+                        messageId: 0,
+                        token: new Uint8Array(4),
+                        payload: new Uint8Array(),
+                    }) as CoapMessage,
+                close: async () => {},
+            } as unknown as CoapClient;
+
+            await new Commissioner(mockCoap).release(42);
         });
     });
 

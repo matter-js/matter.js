@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or discussion
+    url: https://github.com/matter-js/matter.js/discussions
+    about: For usage questions and general discussion, please use Discussions instead of opening an issue.
+  - name: I want to know how AI tools may be used when contributing
+    url: https://github.com/matter-js/matter.js/blob/main/AI_POLICY.md
+    about: The Open Home Foundation AI Policy applies to all issues, pull requests, and comments in this repository. Autonomously created contributions are closed.

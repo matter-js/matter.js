@@ -261,6 +261,29 @@ describe("BorderRouterRegistry", () => {
             expect(e!.addresses).to.deep.equal(["192.168.2.20", "fe80::cafe"]);
         });
 
+        it("keeps last-known addresses when the target's A/AAAA records transiently expire", async () => {
+            await innerRegistry.start();
+            const target = stub.makeTarget("Kuche.local.", ["192.168.1.10", "fd00::1"]);
+            const inst = stub.makeInstance("Kuche._meshcop._udp.local", {
+                txt: { xa: "aabbccddeeff0011", nn: "MyNet" },
+                srvTarget: "Kuche.local.",
+                srvPort: 49154,
+            });
+            stub.discover(inst);
+            expect(innerRegistry.get("AABBCCDDEEFF0011")!.addresses).to.deep.equal(["192.168.1.10", "fd00::1"]);
+
+            let updates = 0;
+            innerRegistry.events.updated.on(() => {
+                updates++;
+            });
+            target.setAddresses([]);
+            target.emit({ name: target });
+
+            const e = innerRegistry.get("AABBCCDDEEFF0011");
+            expect(e!.addresses).to.deep.equal(["192.168.1.10", "fd00::1"]);
+            expect(updates).to.equal(0);
+        });
+
         it("skips records missing an xa TXT key", async () => {
             await innerRegistry.start();
             stub.makeTarget("Kuche.local.", ["192.168.1.10"]);

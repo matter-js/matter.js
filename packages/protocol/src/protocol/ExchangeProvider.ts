@@ -130,8 +130,6 @@ export class DedicatedChannelExchangeProvider extends ExchangeProvider {
     }
 
     async initiateExchange(options?: NewExchangeOptions): Promise<MessageExchange> {
-        // This provider has no peer/medium context, so the medium-derived margin is unavailable; only an explicit
-        // per-call override can apply here.
         return this.exchangeManager.initiateExchangeForSession(this.#session, INTERACTION_PROTOCOL_ID, {
             peerAdditionalMrpDelay: options?.additionalMrpDelay,
         });

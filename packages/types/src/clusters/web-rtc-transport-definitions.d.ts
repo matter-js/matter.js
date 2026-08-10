@@ -309,7 +309,7 @@ export declare namespace WebRtcTransportDefinitions {
     }
 
     /**
-     * @deprecated Use {@link WebRtcTransportDefinitions}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link WebRtcTransportDefinitions}.
      */
     export const Complete: typeof WebRtcTransportDefinitions;
 

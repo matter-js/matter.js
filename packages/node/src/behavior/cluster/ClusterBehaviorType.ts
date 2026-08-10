@@ -5,20 +5,25 @@
  */
 
 import { Events, OfflineEvent, OnlineEvent, QuietEvent } from "#behavior/Events.js";
-import { AsyncObservable, camelize, EventEmitter, GeneratedClass, ImplementationError } from "@matter/general";
+import {
+    AsyncObservable,
+    camelize,
+    describeList,
+    EventEmitter,
+    GeneratedClass,
+    ImplementationError,
+} from "@matter/general";
 import {
     ClassSemantics,
     ClusterModel,
     CommandModel,
-    DecodedBitmap,
-    DefaultValue,
     ElementTag,
     FeatureMap,
     FeatureSet,
     Matter,
-    Metatype,
     Schema,
     Scope,
+    SelectDefaultValue,
     ValueModel,
 } from "@matter/model";
 import { Val } from "@matter/protocol";
@@ -72,15 +77,21 @@ export function ClusterBehaviorType({
         schema = syncFeatures(schema, namespace);
     }
 
+    // A feature the specification mandates without condition is not a selection.  We support it in our own
+    // implementations; for a peer we defer to the features it reports
+    if (!forClient) {
+        schema = selectUnconditionalFeatures(schema);
+    }
+
     // Construct namespace from schema if not provided
     if (!namespace) {
         namespace = ClusterType(schema);
     }
 
-    const useCache = name === undefined;
+    const useCache = name === undefined && commandFactory === undefined;
 
     if (useCache) {
-        const cached = ClusterBehaviorCache.get(base, schema, forClient);
+        const cached = ClusterBehaviorCache.get(base, schema, namespace, forClient);
         if (cached) {
             return cached;
         }
@@ -146,7 +157,7 @@ export function ClusterBehaviorType({
     schema.finalize();
 
     if (useCache) {
-        ClusterBehaviorCache.set(base, schema, type);
+        ClusterBehaviorCache.set(base, schema, namespace, type, forClient);
     }
 
     return type as ClusterBehavior.Type;
@@ -304,11 +315,8 @@ function createDerivedState({ scope, base, newProps }: DerivationContext) {
 
         // Make sure a default value is present if mandatory or marked as supported (note that the default value may
         // be "undefined" to indicate that an attribute is available optionally)
-        defaults[name] = selectDefaultValue(
-            scope,
-            oldDefaults[name] === undefined ? knownDefaults?.[name] : oldDefaults[name],
-            propSchema,
-        );
+        const oldDefault = oldDefaults[name] === undefined ? knownDefaults?.[name] : oldDefaults[name];
+        defaults[name] = oldDefault === undefined ? SelectDefaultValue(scope, propSchema) : oldDefault;
     }
 
     const StateType = DerivedState({
@@ -419,77 +427,66 @@ function schemaForId(id: number) {
  * We cache schema for clusters configured for certain features.  This in turn enables the RootSupervisor cache which
  * keys off of the schema.
  */
-const configuredSchemaCache = new Map<Schema.Cluster, Record<string, Schema.Cluster>>();
+const configuredSchemaCache = new WeakMap<Schema.Cluster, Record<string, Schema.Cluster>>();
+
+/**
+ * Schema that differ from another only by feature selection cache against that schema, so a selection reapplied to a
+ * variant converges on the original object rather than minting a third.
+ */
+const featureVariantOrigin = new WeakMap<Schema.Cluster, Schema.Cluster>();
 
 /**
  * Ensure the supported features enumerated by schema align with a namespace's feature selection.
  */
 function syncFeatures(schema: Schema.Cluster, namespace: object | undefined) {
-    // Determine features from namespace's supportedFeatures or schema
-    let incomingFeatures: FeatureSet;
-
     const nsSupportedFeatures = (namespace as { supportedFeatures?: Record<string, boolean> } | undefined)
         ?.supportedFeatures;
-    if (nsSupportedFeatures) {
-        incomingFeatures = new FeatureSet(nsSupportedFeatures);
-    } else {
-        // No feature override — use schema's defaults
+    if (nsSupportedFeatures === undefined) {
         return schema;
     }
 
-    if (incomingFeatures.is(schema.supportedFeatures)) {
-        return schema;
-    }
-
-    // If we have cached this version of the cluster, return the cached schema
-    const featureKey = [...incomingFeatures].sort().join(",");
-    let schemaBucket = configuredSchemaCache.get(schema);
-    if (schemaBucket === undefined) {
-        schemaBucket = {};
-        configuredSchemaCache.set(schema, schemaBucket);
-    } else {
-        if (featureKey in schemaBucket) {
-            return schemaBucket[featureKey];
-        }
-    }
-
-    // New schema
-    schema = schema.clone();
-    schema.supportedFeatures = incomingFeatures;
-
-    // Cache
-    schemaBucket[featureKey] = schema;
-
-    return schema;
+    return syncFeaturesFromSet(schema, featureSetFor(schema, new FeatureSet(nsSupportedFeatures)));
 }
 
 /**
  * Apply a feature selection to a schema.  If `features` is `true`, all elements are included regardless of
- * conformance ("complete" mode).  Otherwise, maps feature names to the schema's FeatureSet short codes.
+ * conformance ("complete" mode).
  */
 function applyFeatureSelection(schema: Schema.Cluster, features: readonly string[] | true): Schema.Cluster {
-    if (features === true) {
-        // "Complete" mode — clone schema and mark all features as supported
-        const featureSet = new FeatureSet();
-        for (const feature of (schema as ClusterModel).features) {
-            featureSet.add(feature.name);
-        }
-        return syncFeaturesFromSet(schema, featureSet);
-    }
+    const names = features === true ? (schema as ClusterModel).features.map(feature => feature.name) : features;
 
-    // Map user-facing feature names to schema short codes
-    const featureSet = new FeatureSet();
+    return syncFeaturesFromSet(schema, featureSetFor(schema, names));
+}
+
+/**
+ * Map feature names to a schema's FeatureSet short codes.
+ */
+function featureSetFor(schema: Schema.Cluster, names: Iterable<string>) {
     const model = schema as ClusterModel;
-    for (const name of features) {
-        for (const feature of model.features) {
-            if ((feature.title ?? feature.name) === name || feature.name === name) {
-                featureSet.add(feature.name);
-                break;
-            }
-        }
+    const { features } = model;
+    const { features: resolved, unresolved } = FeatureSet.resolve(features, names);
+
+    if (unresolved.length) {
+        throw new ImplementationError(
+            `${model.name} has no feature ${describeList("and", ...unresolved.map(name => `"${name}"`))}; known features are ${FeatureSet.titlesOf(features).join(", ")}`,
+        );
     }
 
-    return syncFeaturesFromSet(schema, featureSet);
+    return resolved;
+}
+
+/**
+ * Ensure features the specification mandates without condition are selected.
+ */
+function selectUnconditionalFeatures(schema: Schema.Cluster) {
+    const unconditional = (schema as ClusterModel).unconditionalFeatures;
+    if (!unconditional.size) {
+        return schema;
+    }
+
+    const selection = new FeatureSet([...schema.supportedFeatures, ...unconditional]);
+
+    return syncFeaturesFromSet(schema, selection);
 }
 
 /**
@@ -500,20 +497,26 @@ function syncFeaturesFromSet(schema: Schema.Cluster, featureSet: FeatureSet): Sc
         return schema;
     }
 
+    const origin = featureVariantOrigin.get(schema) ?? schema;
+    if (featureSet.is(origin.supportedFeatures)) {
+        return origin;
+    }
+
     const featureKey = [...featureSet].sort().join(",");
-    let schemaBucket = configuredSchemaCache.get(schema);
+    let schemaBucket = configuredSchemaCache.get(origin);
     if (schemaBucket === undefined) {
         schemaBucket = {};
-        configuredSchemaCache.set(schema, schemaBucket);
+        configuredSchemaCache.set(origin, schemaBucket);
     } else if (featureKey in schemaBucket) {
         return schemaBucket[featureKey];
     }
 
-    schema = schema.clone();
-    schema.supportedFeatures = featureSet;
-    schemaBucket[featureKey] = schema;
+    const variant = origin.clone();
+    variant.supportedFeatures = featureSet;
+    schemaBucket[featureKey] = variant;
+    featureVariantOrigin.set(variant, origin);
 
-    return schema;
+    return variant;
 }
 
 /**
@@ -521,9 +524,10 @@ function syncFeaturesFromSet(schema: Schema.Cluster, featureSet: FeatureSet): Sc
  */
 function computeFeatureFlags(schema: ClusterModel): Record<string, boolean> {
     const flags: Record<string, boolean> = {};
+    const supported = schema.supportedFeatures;
     for (const child of schema.featureMap.children) {
         const key = camelize(child.title ?? child.name);
-        flags[key] = schema.supportedFeatures.has(child.name);
+        flags[key] = supported.has(child.name);
     }
     return flags;
 }
@@ -587,49 +591,6 @@ function createDefaultCommandDescriptors({ scope, base, commandFactory }: Deriva
     }
 
     return result;
-}
-
-function selectDefaultValue(scope: Scope, oldDefault: Val, member: ValueModel) {
-    if (oldDefault !== undefined) {
-        return oldDefault;
-    }
-
-    // No default unless mandatory or explicitly marked as implemented
-    if (!scope.hasOperationalSupport(member)) {
-        return;
-    }
-
-    // If there's an explicit default, use that
-    const effectiveDefault = DefaultValue(scope, member);
-    if (effectiveDefault !== undefined) {
-        if (member.effectiveMetatype === "bitmap") {
-            return DecodedBitmap(member, effectiveDefault);
-        }
-        return effectiveDefault;
-    }
-
-    // Default for nullable is null
-    if (member.nullable) {
-        return null;
-    }
-
-    switch (member.effectiveMetatype) {
-        case Metatype.integer:
-        case Metatype.float:
-            return 0;
-
-        case Metatype.boolean:
-            return false;
-
-        case Metatype.bitmap:
-        case Metatype.object:
-            // This is not a very good default but it is better than undefined
-            return {};
-
-        case Metatype.array:
-            // Same
-            return [];
-    }
 }
 
 /**

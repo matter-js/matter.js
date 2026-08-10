@@ -296,12 +296,12 @@ export declare namespace SoftwareDiagnostics {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link SoftwareDiagnostics}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link SoftwareDiagnostics}.
      */
     export const Cluster: ClusterType.WithCompat<typeof SoftwareDiagnostics, SoftwareDiagnostics>;
 
     /**
-     * @deprecated Use {@link SoftwareDiagnostics}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link SoftwareDiagnostics}.
      */
     export const Complete: typeof SoftwareDiagnostics;
 
@@ -309,7 +309,7 @@ export declare namespace SoftwareDiagnostics {
 }
 
 /**
- * @deprecated Use {@link SoftwareDiagnostics}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link SoftwareDiagnostics}.
  */
 export declare const SoftwareDiagnosticsCluster: typeof SoftwareDiagnostics;
 

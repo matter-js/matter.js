@@ -9,18 +9,22 @@ import {
     type DataNamespace,
     FilesystemStorageDriver,
     fromJson,
+    Logger,
     type StorageDriver,
     StorageTransaction,
     type SupportedStorageTypes,
     toJson,
 } from "@matter/general";
-import { resolve } from "node:path";
+import { mkdir } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 
 import { platformDatabaseCreator } from "./SqlitePlatform.js";
 import { SqliteStorageDriverError } from "./SqliteStorageDriverError.js";
 import type { DatabaseCreator, DatabaseLike, SafeUint8Array, SqlRunnable } from "./SqliteTypes.js";
 import { SqliteTransaction as Transaction } from "./SqliteTypes.js";
 import { buildContextKeyLog, buildContextKeyPair, buildContextPath, escapeGlob } from "./SqliteUtil.js";
+
+const logger = new Logger("SqliteStorageDriver");
 
 /**
  * Type of Key-Value store table
@@ -282,13 +286,26 @@ export class SqliteStorageDriver extends FilesystemStorageDriver implements Clon
             throw new SqliteStorageDriverError("initialize", this.tableName, "Storage already initialized!");
         }
         if (!this.#databaseCreator) {
+            if (this.dbPath !== SqliteStorageDriver.memoryPath) {
+                // DatabaseSync does not create missing parents, so the namespace directory must exist first
+                await mkdir(dirname(this.dbPath), { recursive: true });
+            }
             this.#openDatabase(await platformDatabaseCreator());
         }
-        await super.initialize();
-        if (this.clearOnInit) {
-            this.#database.prepare(`DELETE FROM ${this.tableName}`).run();
+        try {
+            await super.initialize();
+            if (this.clearOnInit) {
+                this.#database.prepare(`DELETE FROM ${this.tableName}`).run();
+            }
+            this.isInitialized = true;
+        } catch (error) {
+            try {
+                await this.close();
+            } catch (closeError) {
+                logger.warn("Failed to release storage after initialization error", closeError);
+            }
+            throw error;
         }
-        this.isInitialized = true;
     }
 
     public clone(): StorageDriver {

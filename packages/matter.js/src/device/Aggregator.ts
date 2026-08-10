@@ -13,6 +13,8 @@ import { Endpoint, EndpointOptions } from "./Endpoint.js";
 /**
  * An Aggregator is a special endpoint that exposes multiple devices as a "bridge" into the matter ecosystem.
  * Devices added must already have the BridgedDeviceBasicInformationCluster configured.
+ *
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export class Aggregator extends Endpoint {
     /**

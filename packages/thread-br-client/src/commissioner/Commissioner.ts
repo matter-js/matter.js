@@ -5,7 +5,6 @@
  */
 
 import { type Duration, Logger, MatterError, Millis, Seconds, Time, TimeoutError, type Timer } from "@matter/general";
-import { BasicTlv, MeshCopTlvType } from "@matter/protocol";
 import type { CoapClient } from "../coap/CoapClient.js";
 import { LeadKa } from "./LeadKa.js";
 import { LeadPet } from "./LeadPet.js";
@@ -134,7 +133,7 @@ export class Commissioner {
         const response = await this.#coap.request({
             type: "CON",
             code: "0.02",
-            uriPath: ["c", "ka"],
+            uriPath: ["c", "ca"],
             payload: LeadKa.buildRequest(sessionId),
         });
 
@@ -145,33 +144,29 @@ export class Commissioner {
     }
 
     /**
-     * Send a MeshCoP `COMM_REL` (commissioner release) request.
+     * Resign the commissioner session via a MeshCoP `COMM_KA` (keep-alive) with a
+     * rejecting State TLV. Thread has no dedicated release URI on the Border Agent
+     * channel; a keep-alive carrying `State=reject` is how a commissioner relinquishes.
      *
      * Best-effort — CoAP errors are logged at `warn` level and swallowed so a
-     * failed release does not block teardown. The BR will expire the session on
-     * its own if the release is lost.
+     * failed resign does not block teardown. Dropping the DTLS session also makes
+     * the Border Agent revoke the role, so a lost resign is harmless.
      *
      * @param sessionId - Session ID returned by {@link petition}.
      */
     async release(sessionId: number): Promise<void> {
         try {
-            // COMM_REL requires both COMMISSIONER_SESSION_ID and COMMISSIONER_ID (Thread spec Table 8-16).
-            const sessionBytes = new Uint8Array(2);
-            sessionBytes[0] = (sessionId >> 8) & 0xff;
-            sessionBytes[1] = sessionId & 0xff;
-            const releasePayload = BasicTlv.encode([
-                { type: MeshCopTlvType.COMMISSIONER_SESSION_ID, value: sessionBytes },
-                {
-                    type: MeshCopTlvType.COMMISSIONER_ID,
-                    value: new TextEncoder().encode(Commissioner.COMMISSIONER_ID),
-                },
-            ]);
-            await this.#coap.request({
+            const response = await this.#coap.request({
                 type: "CON",
                 code: "0.02",
-                uriPath: ["c", "cr"],
-                payload: releasePayload,
+                uriPath: ["c", "ca"],
+                payload: LeadKa.buildRequest(sessionId, "reject"),
             });
+            // CoapClient resolves 4.xx/5.xx responses rather than throwing, so a rejected
+            // resign is only visible by inspecting the response code.
+            if (!response.code.startsWith("2.")) {
+                logger.warn(`Commissioner release got non-success CoAP response ${response.code} (best-effort)`);
+            }
         } catch (err) {
             logger.warn("Commissioner release failed (best-effort):", err);
         }

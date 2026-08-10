@@ -309,10 +309,14 @@ export class BorderRouterRegistry {
             const targetQname = target.qname.toLowerCase();
             const updated = new Array<BorderRouterEntry>();
             for (const entry of this.#registry.values()) {
-                if (entry.hostname?.toLowerCase() === targetQname) {
-                    entry.addresses = this.#sortAddresses(this.#collectAddresses(target));
-                    updated.push(this.#snapshotEntry(entry));
-                }
+                if (entry.hostname?.toLowerCase() !== targetQname) continue;
+                // A transient mDNS A/AAAA cache flush/expiry yields no addresses; keep the
+                // last-known reachable set rather than zeroing it (mirrors #parseAndUpsert's
+                // empty-address guard). Address-less "host gone" is signalled via `removed`.
+                const addresses = this.#sortAddresses(this.#collectAddresses(target));
+                if (addresses.length === 0) continue;
+                entry.addresses = addresses;
+                updated.push(this.#snapshotEntry(entry));
             }
             for (const entry of updated) {
                 this.events.updated.emit(entry);
@@ -344,8 +348,8 @@ export class BorderRouterRegistry {
                     rawXa === undefined ? "missing" : `${rawXa.byteLength}B:${Bytes.toHex(rawXa).toUpperCase()}`;
                 const nn = params.get("nn");
                 const vn = params.get("vn");
-                logger.info(
-                    `BR instance dropped (no valid xa) qname="${name.qname}" source=${source} xa=${xaInfo} nn="${nn ?? ""}" vn="${vn ?? ""}"`,
+                logger.debug(
+                    `BR instance skipped (missing or malformed xa) qname="${name.qname}" source=${source} xa=${xaInfo} nn="${nn ?? ""}" vn="${vn ?? ""}"`,
                 );
                 return;
             }

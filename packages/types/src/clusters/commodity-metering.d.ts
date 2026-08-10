@@ -147,12 +147,12 @@ export declare namespace CommodityMetering {
     export const attributes: ClusterType.AttributeObjects<Attributes>;
 
     /**
-     * @deprecated Use {@link CommodityMetering}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link CommodityMetering}.
      */
     export const Cluster: typeof CommodityMetering;
 
     /**
-     * @deprecated Use {@link CommodityMetering}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link CommodityMetering}.
      */
     export const Complete: typeof CommodityMetering;
 
@@ -160,7 +160,7 @@ export declare namespace CommodityMetering {
 }
 
 /**
- * @deprecated Use {@link CommodityMetering}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link CommodityMetering}.
  */
 export declare const CommodityMeteringCluster: typeof CommodityMetering;
 

@@ -326,6 +326,20 @@ describe("Logger", () => {
             expect(result.message).equal("xxxx-xx-xx xx:xx:xx.xxx ERROR UnitTest Uh oh");
         });
 
+        it("resolves a value that proxies to a presented value", () => {
+            // An object whose [Diagnostic.value] returns a Diagnostic wrapper (e.g. NodeActivity → Diagnostic.list)
+            // must render the wrapper's value, not treat the wrapper itself as the list.
+            const proxied = {
+                get [Diagnostic.value]() {
+                    return Diagnostic.list(["one", "two"]);
+                },
+            };
+            const result = captureOne(() => {
+                logger.debug("pending", proxied);
+            });
+            expect(result.message).equals("xxxx-xx-xx xx:xx:xx.xxx DEBUG UnitTest pending\n  one\n  two");
+        });
+
         it("emphasizes", () => {
             const result = captureOne(() => {
                 logger.error("THIS IS", Diagnostic.strong("VERY"), "IMPORTANT");

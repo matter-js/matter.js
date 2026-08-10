@@ -8,7 +8,8 @@ import { Advertiser } from "#advertisement/Advertiser.js";
 import { CommissioningMode } from "#advertisement/CommissioningMode.js";
 import { ServiceDescription } from "#advertisement/ServiceDescription.js";
 import { DeviceAdvertiser, DeviceAdvertiserContext, IcdAdvertisement } from "#protocol/DeviceAdvertiser.js";
-import { Observable, Seconds } from "@matter/general";
+import { SessionIntervals } from "#session/SessionIntervals.js";
+import { Millis, Observable, Seconds } from "@matter/general";
 import { FabricIndex, NodeId, VendorId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 
@@ -63,6 +64,7 @@ function createMockContext() {
         retry,
         subscriptionsChanged,
         forFabric: () => [] as any[],
+        sessionParameters: { ...SessionIntervals.defaults },
     } as unknown as DeviceAdvertiserContext["sessions"];
 
     return {
@@ -315,6 +317,75 @@ describe("DeviceAdvertiser", () => {
 
             const desc = opAds[0].description as ServiceDescription.Operational;
             expect(desc.icd).to.be.undefined;
+        });
+    });
+
+    describe("session intervals in operational advertisements", () => {
+        function createFabric() {
+            return {
+                fabricIndex: FabricIndex(1),
+                globalId: 1n,
+                nodeId: NodeId(1n),
+            } as any;
+        }
+
+        it("feeds the node's session intervals into a non-ICD operational advertisement", () => {
+            const { fabrics, sessions } = createMockContext();
+            (sessions as any).sessionParameters = {
+                idleInterval: Millis(1000),
+                activeInterval: Millis(700),
+                activeThreshold: Seconds(6),
+            };
+            const advertiser = new MockAdvertiser();
+            const deviceAdvertiser = new DeviceAdvertiser({ fabrics, sessions });
+            deviceAdvertiser.addAdvertiser(advertiser);
+            deviceAdvertiser.enterOperationalMode();
+
+            const fabric = createFabric();
+            (fabrics as any)[Symbol.iterator] = () => [fabric].values();
+            (fabrics.events.added as Observable<[any]>).emit(fabric);
+
+            const opAds = advertiser.advertiseCalls.filter(c => c.description.kind === "operational");
+            expect(opAds.length).greaterThan(0);
+
+            const desc = opAds[0].description as ServiceDescription.Operational;
+            expect(desc.idleInterval).equals(Millis(1000));
+            expect(desc.activeInterval).equals(Millis(700));
+            expect(desc.activeThreshold).equals(Seconds(6));
+            expect(desc.icd).to.be.undefined;
+        });
+
+        it("lets the ICD provider override the node's session intervals", () => {
+            const { fabrics, sessions } = createMockContext();
+            (sessions as any).sessionParameters = {
+                idleInterval: Millis(1000),
+                activeInterval: Millis(700),
+                activeThreshold: Seconds(6),
+            };
+            const advertiser = new MockAdvertiser();
+            const deviceAdvertiser = new DeviceAdvertiser({ fabrics, sessions });
+            deviceAdvertiser.addAdvertiser(advertiser);
+
+            deviceAdvertiser.setIcdAdvertisementProvider(() => ({
+                icd: IcdManagement.OperatingMode.Lit,
+                // idleInterval omitted — LIT SHOULD NOT advertise SII
+                activeInterval: Seconds(3),
+                activeThreshold: Seconds(5),
+            }));
+            deviceAdvertiser.enterOperationalMode();
+
+            const fabric = createFabric();
+            (fabrics as any)[Symbol.iterator] = () => [fabric].values();
+            (fabrics.events.added as Observable<[any]>).emit(fabric);
+
+            const opAds = advertiser.advertiseCalls.filter(c => c.description.kind === "operational");
+            expect(opAds.length).greaterThan(0);
+
+            const desc = opAds[0].description as ServiceDescription.Operational;
+            expect(desc.idleInterval).to.be.undefined;
+            expect(desc.activeInterval).equals(Seconds(3));
+            expect(desc.activeThreshold).equals(Seconds(5));
+            expect(desc.icd).equals(IcdManagement.OperatingMode.Lit);
         });
     });
 });

@@ -7,6 +7,8 @@
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import type { ClusterBehaviorType } from "#behavior/cluster/ClusterBehaviorType.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
+import { memberValueOf } from "#behavior/state/managed/MemberKeys.js";
+import type { ValReference } from "#behavior/state/managed/ValReference.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { RootEndpoint } from "#endpoints/root";
@@ -32,7 +34,6 @@ import {
     DeviceClassification,
     FeatureMap,
     GeneratedCommandList,
-    Matter,
     type FeatureBitmap,
 } from "@matter/model";
 import { ReadScope, Val, type Read, type ReadResult } from "@matter/protocol";
@@ -63,13 +64,13 @@ const SERVER_LIST_ATTR_NAME = "serverList";
 const PARTS_LIST_ATTR_NAME = "partsList";
 
 /**
- * Read a value from store initial values using either numeric attribute ID or property name.
+ * Read a value from store initial values, preferring the numeric attribute ID slot over the property name slot.
  */
 function getStoreValue(values: Record<string | number, unknown> | undefined, id: number, name: string): unknown {
     if (values === undefined) {
         return undefined;
     }
-    return id in values ? values[id] : values[name];
+    return memberValueOf(values, id, name);
 }
 
 /**
@@ -542,26 +543,31 @@ export class ClientStructure {
         this.#clustersWithDataThisInteraction.add(cluster);
         this.#preserveAbsentCluster(endpoint.endpoint, cluster);
 
+        // A non-empty AttributeList is authoritative for the attribute set.  An empty list is ignored so it doesn't
+        // churn against the received-attribute fallback.  Detect the change up front, before any feature comparison
+        // clears the behavior, so the outgoing behavior's schema is still available to prune dropped attributes.
+        const attributeList = attrs.values.get(AttributeList.id);
+        const newAttributes = Array.isArray(attributeList) && attributeList.length ? attributeList : undefined;
+        const attributeSetChanged =
+            !!cluster.behavior &&
+            newAttributes !== undefined &&
+            !isDeepEqual(
+                cluster.attributes,
+                [...newAttributes].sort((a, b) => a - b),
+            );
+
+        if (attributeSetChanged) {
+            this.#pruneDroppedAttributes(cluster, newAttributes, attrs.values);
+        }
+
         if (cluster.behavior && attrs.values.has(FeatureMap.id)) {
             if (!isDeepEqual(cluster.features, attrs.values.get(FeatureMap.id))) {
                 cluster.behavior = undefined;
             }
         }
 
-        if (cluster.behavior && attrs.values.has(AttributeList.id)) {
-            const attributeList = attrs.values.get(AttributeList.id);
-            // A non-empty AttributeList is authoritative: rebuilding on any difference honors both added and removed
-            // attributes.  An empty list is ignored here so it doesn't churn against the received-attribute fallback.
-            if (
-                Array.isArray(attributeList) &&
-                attributeList.length &&
-                !isDeepEqual(
-                    cluster.attributes,
-                    [...attributeList].sort((a, b) => a - b),
-                )
-            ) {
-                cluster.behavior = undefined;
-            }
+        if (attributeSetChanged) {
+            cluster.behavior = undefined;
         }
 
         if (cluster.behavior && attrs.values.has(AcceptedCommandList.id)) {
@@ -579,6 +585,39 @@ export class ClientStructure {
 
         await cluster.store.externalSet(attrs.values);
         this.#synchronizeCluster(endpoint, cluster);
+    }
+
+    /**
+     * Mark values for attributes dropped by a new attribute list for deletion.
+     *
+     * The client store keys attribute values by both numeric attribute ID (protocol updates) and property name (seed
+     * data), so we clear both forms.  Entries added to {@link values} are removed by the pending
+     * {@link Datasource.ExternallyMutableStore.externalSet}; a value of `undefined` deletes a key.
+     */
+    #pruneDroppedAttributes(cluster: ClusterStructure, newAttributeList: readonly unknown[], values: Val.StructMap) {
+        if (!cluster.attributes) {
+            return;
+        }
+
+        const retained = new Set(newAttributeList);
+        const oldAttributes = cluster.behavior?.cluster?.attributes;
+
+        for (const id of cluster.attributes) {
+            if (retained.has(id)) {
+                continue;
+            }
+
+            values.set(id, undefined);
+
+            if (oldAttributes) {
+                for (const [name, def] of Object.entries(oldAttributes)) {
+                    if (def.id === id) {
+                        values.set(name, undefined);
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -651,6 +690,7 @@ export class ClientStructure {
                 if (this.#commandFactory) {
                     shape.commandFactory = this.#commandFactory;
                 }
+                shape.matter = this.#node.matter;
                 const behaviorType = PeerBehavior(shape);
 
                 if (endpoint.lifecycle.isInstalled) {
@@ -692,7 +732,7 @@ export class ClientStructure {
                 }
 
                 let isApp = false;
-                const model = Matter.deviceTypes(dt.deviceType);
+                const model = this.#node.matter.deviceTypes(dt.deviceType);
                 if (model !== undefined) {
                     isApp = DeviceClassification.isApplication(model.classification);
                 }
@@ -879,7 +919,7 @@ export class ClientStructure {
         }
 
         // Try to resolve by looking up the cluster model by capitalized behavior name (e.g. "onOff" → "OnOff")
-        const clusterModel = Matter.clusters(capitalize(behaviorId));
+        const clusterModel = this.#node.matter.clusters(capitalize(behaviorId));
         if (clusterModel) {
             return this.#clusterFor(endpoint, clusterModel.id as ClusterId);
         }
@@ -957,10 +997,15 @@ export class ClientStructure {
     async #rebuild(structure: EndpointStructure) {
         const { endpoint, clusters } = structure;
 
-        for (const cluster of clusters.values()) {
+        for (const [key, cluster] of clusters.entries()) {
             const { behavior, pendingBehavior, pendingDelete } = cluster;
 
             if (pendingDelete) {
+                // Discard the structure entirely so a later re-appearance rebuilds it from scratch with a fresh store
+                // and a fresh behavior.  Keeping a dropped cluster's structure around leaves a stale behavior reference
+                // that suppresses regeneration in #synchronizeCluster, so the cluster never re-installs.
+                clusters.delete(key);
+
                 if (!behavior) {
                     continue;
                 }
@@ -1135,7 +1180,7 @@ export namespace ClientStructure {
     export type StoreFactory = (
         endpoint: Endpoint,
         behaviorId: string,
-        primaryKey: "id" | "name",
+        primaryKey: ValReference.PrimaryKey,
     ) => Datasource.ExternallyMutableStore;
 
     export interface Options {

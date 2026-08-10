@@ -5,7 +5,7 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
-import type { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
+import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { NodeActivity } from "#behavior/context/NodeActivity.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
@@ -31,7 +31,7 @@ import {
 } from "@matter/general";
 import { ClusterModel } from "@matter/model";
 import { ClusterTypeProtocol, Val } from "@matter/protocol";
-import type { ClusterType } from "@matter/types";
+import type { ClusterId, ClusterType } from "@matter/types";
 import type { Agent } from "../Agent.js";
 import type { Endpoint } from "../Endpoint.js";
 import { BehaviorInitializationError, EndpointBehaviorsError } from "../errors.js";
@@ -58,7 +58,7 @@ export class Behaviors {
     #events: Record<string, EventEmitter> = {};
     #options: Record<string, object | undefined>;
     #protocol?: ProtocolService;
-    #detachedObservers?: Record<string, DetachedObservers>;
+    #detachedObservers?: Record<string, Record<string, DetachedObservers>>;
 
     /**
      * The {@link SupportedBehaviors} of the {@link Endpoint}.
@@ -82,6 +82,18 @@ export class Behaviors {
         }
 
         return supported as T;
+    }
+
+    /**
+     * Obtain the {@link ClusterBehavior.Type} the endpoint uses to implement a given cluster, if supported.
+     */
+    forCluster(clusterId: ClusterId): ClusterBehavior.Type | undefined {
+        for (const type of Object.values(this.#supported)) {
+            if (ClusterBehavior.is(type) && type.cluster.id === clusterId) {
+                return type;
+            }
+        }
+        return undefined;
     }
 
     /**
@@ -847,7 +859,7 @@ export class Behaviors {
      * Updates endpoint "state" and "events" properties to include properties for a supported behavior.
      */
     #augmentEndpoint(type: Behavior.Type) {
-        const { id, Events } = type;
+        const { id } = type;
 
         // Descriptors persist across the lifetime of the Behaviors instance (constructor + inject install them and
         // close does not remove them so reuse paths like factory-reset can re-activate the same getter).  Returning
@@ -869,11 +881,15 @@ export class Behaviors {
         const detachedObservers = this.#detachedObservers?.[type.id];
         if (detachedObservers) {
             delete this.#detachedObservers![type.id];
-            const newEvents = new Events();
+            const newEvents = this.#createEventsFor(type);
             for (const key in detachedObservers) {
                 const newEvent = (newEvents as unknown as Record<string, BasicObservable | undefined>)[key];
                 if (newEvent && "attachObservers" in newEvent) {
-                    newEvent.attachObservers(detachedObservers);
+                    newEvent.attachObservers(detachedObservers[key]);
+                } else {
+                    logger.warn(
+                        `Discarding observers of ${this.#endpoint}.${id}.${key} because the replacement behavior does not support the event`,
+                    );
                 }
             }
             this.#events[id] = newEvents;
@@ -883,11 +899,7 @@ export class Behaviors {
             get: () => {
                 let events = this.#events[id];
                 if (!events) {
-                    events = this.#events[id] = new Events();
-
-                    if (typeof (events as Events).setContext === "function") {
-                        (events as Events).setContext(this.#endpoint, type);
-                    }
+                    events = this.#events[id] = this.#createEventsFor(type);
                 }
                 return events;
             },
@@ -895,6 +907,14 @@ export class Behaviors {
             enumerable: true,
             configurable: true,
         });
+    }
+
+    #createEventsFor(type: Behavior.Type) {
+        const events = new type.Events();
+        if (typeof (events as Events).setContext === "function") {
+            (events as Events).setContext(this.#endpoint, type);
+        }
+        return events;
     }
 }
 

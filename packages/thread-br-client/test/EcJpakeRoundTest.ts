@@ -7,13 +7,10 @@
 import { StandardCrypto } from "@matter/general";
 import { Bytes } from "@matter/main";
 import { p256 } from "@noble/curves/nist.js";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { ECJPAKE_ID_CLIENT, EcJpakeRound } from "../src/dtls/ecjpake/EcJpakeRound.js";
 import { SchnorrZkp } from "../src/dtls/ecjpake/SchnorrZkp.js";
+import { data as mbedtlsVectors } from "./fixtures/ecjpake/mbedtls-self-test-vectors.json.js";
 
-const PACKAGE_ROOT = process.cwd();
-const FIXTURE = resolve(PACKAGE_ROOT, "test/fixtures/ecjpake/mbedtls-self-test-vectors.json");
 const crypto = new StandardCrypto();
 
 interface MbedTlsVectors {
@@ -25,10 +22,6 @@ interface MbedTlsVectors {
     srv_one: string;
 }
 
-function loadVectors(): MbedTlsVectors {
-    return JSON.parse(readFileSync(FIXTURE, "utf8")) as MbedTlsVectors;
-}
-
 function bigintFromHex(hex: string): bigint {
     return BigInt("0x" + hex);
 }
@@ -37,7 +30,7 @@ const Point = p256.Point;
 const N = Point.Fn.ORDER;
 
 describe("EcJpakeRound.parseRound1 (mbedTLS oracle)", () => {
-    const vectors = loadVectors();
+    const vectors: MbedTlsVectors = mbedtlsVectors;
 
     it("decodes mbedTLS cli_one into two valid key-pair-with-ZKP entries", () => {
         const round = EcJpakeRound.parseRound1(Bytes.of(Bytes.fromHex(vectors.cli_one)));
@@ -86,7 +79,7 @@ describe("EcJpakeRound.parseRound1 (mbedTLS oracle)", () => {
 });
 
 describe("EcJpakeRound.serializeRound1 (byte-identical with mbedTLS oracle)", () => {
-    const vectors = loadVectors();
+    const vectors: MbedTlsVectors = mbedtlsVectors;
 
     it("re-serializes mbedTLS cli_one byte-identically (parse -> serialize == input)", () => {
         const original = Bytes.of(Bytes.fromHex(vectors.cli_one));
@@ -111,7 +104,7 @@ describe("EcJpakeRound.serializeRound1 (byte-identical with mbedTLS oracle)", ()
 });
 
 describe("EcJpakeRound.parseRound1 defensive copies", () => {
-    const vectors = loadVectors();
+    const vectors: MbedTlsVectors = mbedtlsVectors;
 
     it("returned X / zkp.V / zkp.r are independent of the input buffer", () => {
         const original = Bytes.of(Bytes.fromHex(vectors.cli_one));
@@ -130,7 +123,7 @@ describe("EcJpakeRound.parseRound1 defensive copies", () => {
 });
 
 describe("EcJpakeRound.buildRound1 (deterministic ephemerals)", () => {
-    const vectors = loadVectors();
+    const vectors: MbedTlsVectors = mbedtlsVectors;
 
     it("produces a parseable, ZKP-valid round-1 for the client side", async () => {
         const x1 = bigintFromHex(vectors.x1);

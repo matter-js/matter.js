@@ -499,12 +499,12 @@ export declare namespace OnOff {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link OnOff}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link OnOff}.
      */
     export const Cluster: ClusterType.WithCompat<typeof OnOff, OnOff>;
 
     /**
-     * @deprecated Use {@link OnOff}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link OnOff}.
      */
     export const Complete: typeof OnOff;
 
@@ -512,7 +512,7 @@ export declare namespace OnOff {
 }
 
 /**
- * @deprecated Use {@link OnOff}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link OnOff}.
  */
 export declare const OnOffCluster: typeof OnOff;
 

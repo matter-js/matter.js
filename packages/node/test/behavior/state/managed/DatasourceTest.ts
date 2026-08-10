@@ -15,6 +15,7 @@ import { AsyncObservable, MaybePromise, MockCrypto, Observable, UnsettledStateEr
 import { DataModelPath, DatatypeModel, FieldElement, FieldModel } from "@matter/model";
 import { AccessControl, Val } from "@matter/protocol";
 import { EndpointNumber, NodeId } from "@matter/types";
+import { rawValuesOf } from "./values/value-utils.js";
 
 class MyState {
     foo = "bar";
@@ -115,6 +116,243 @@ describe("Datasource", () => {
                     expect(state3.foo).equals("BAR");
                 });
             });
+        });
+    });
+
+    describe("id-keyed containers", () => {
+        class SeededState {
+            foo? = "bar";
+        }
+
+        const idSupervisor = BehaviorSupervisor({
+            id: "seededState",
+            State: SeededState,
+
+            schema: new DatatypeModel({
+                name: "SeededState",
+                type: "struct",
+
+                children: [FieldElement({ name: "foo", id: 1, type: "string" })],
+            }),
+        });
+
+        it("seeds state-class defaults into a name-keyed container", async () => {
+            await withDatasourceAndReference({ type: SeededState, supervisor: idSupervisor }, ({ state }) => {
+                expect("foo" in rawValuesOf(state)).true;
+                expect(state.foo).equals("bar");
+            });
+        });
+
+        it("does not seed state-class defaults into an id-keyed container", async () => {
+            await withDatasourceAndReference(
+                { type: SeededState, supervisor: idSupervisor, primaryKey: "id" },
+                ({ state }) => {
+                    expect("foo" in rawValuesOf(state)).false;
+                    // "foo" has no explicit conformance (optional), so no default is synthesized
+                    expect(state.foo).undefined;
+                },
+            );
+        });
+
+        it("drops name-keyed defaults but keeps id-keyed defaults when seeding an id-keyed container", async () => {
+            await withDatasourceAndReference(
+                {
+                    type: SeededState,
+                    supervisor: idSupervisor,
+                    primaryKey: "id",
+                    defaults: { foo: "nope", "0x1": "nope", " 1": "nope", 1: "hi" },
+                },
+                ({ state }) => {
+                    const raw = rawValuesOf(state);
+                    expect("foo" in raw).false;
+                    expect("0x1" in raw).false;
+                    expect(" 1" in raw).false;
+                    expect(raw[1]).equals("hi");
+                    expect(state.foo).equals("hi");
+                },
+            );
+        });
+
+        it("leaves no slot behind when a write to an unreported member is rejected", async () => {
+            const constrainedSupervisor = BehaviorSupervisor({
+                id: "seededState",
+                State: SeededState,
+
+                schema: new DatatypeModel({
+                    name: "SeededState",
+                    type: "struct",
+
+                    children: [FieldElement({ name: "foo", id: 1, type: "string", constraint: "max 4" })],
+                }),
+            });
+
+            await withDatasourceAndReference(
+                { type: SeededState, supervisor: constrainedSupervisor, primaryKey: "id" },
+                ({ state }) => {
+                    expect(() => (state.foo = "too long")).throws();
+
+                    const raw = rawValuesOf(state);
+                    expect(1 in raw).false;
+                    expect("foo" in raw).false;
+                    expect(state.foo).undefined;
+                },
+            );
+        });
+
+        it("migrates a legacy name-keyed stored value to its id slot, keeping unknown keys verbatim", async () => {
+            await withDatasourceAndReference(
+                {
+                    type: SeededState,
+                    supervisor: idSupervisor,
+                    primaryKey: "id",
+                    store: createStore({ foo: "legacy", mystery: "residue" }),
+                },
+                ({ state }) => {
+                    const raw = rawValuesOf(state);
+                    expect("foo" in raw).false;
+                    expect(raw[1]).equals("legacy");
+                    expect(raw.mystery).equals("residue");
+                    expect(state.foo).equals("legacy");
+                },
+            );
+        });
+
+        it("prefers an id-keyed stored value over a legacy name-keyed one", async () => {
+            await withDatasourceAndReference(
+                {
+                    type: SeededState,
+                    supervisor: idSupervisor,
+                    primaryKey: "id",
+                    store: createStore({ foo: "stale", 1: "live" }),
+                },
+                ({ state }) => {
+                    expect("foo" in rawValuesOf(state)).false;
+                    expect(state.foo).equals("live");
+                },
+            );
+        });
+
+        it("never hands a synthesized value to the store", async () => {
+            const mandatorySupervisor = BehaviorSupervisor({
+                id: "seededState",
+                State: SeededState,
+
+                schema: new DatatypeModel({
+                    name: "SeededState",
+                    type: "struct",
+
+                    children: [
+                        FieldElement({ name: "foo", id: 1, type: "string", quality: "N" }),
+                        FieldElement({ name: "count", id: 2, type: "uint8", conformance: "M", quality: "N" }),
+                    ],
+                }),
+            });
+
+            const store = createStore();
+            await withDatasourceAndReference(
+                { type: SeededState, supervisor: mandatorySupervisor, primaryKey: "id", store },
+                async ({ state, context }) => {
+                    expect((state as Val.Struct).count).equals(0);
+
+                    state.foo = "real";
+                    await context.transaction.commit();
+                },
+            );
+
+            expect(store.sets.length).equals(1);
+            expect(Object.keys(store.sets[0])).not.includes("2");
+            expect(store.sets[0][1]).equals("real");
+        });
+
+        it("keeps non-member helper fields while stripping seeded member defaults", async () => {
+            class HelperBackedState {
+                foo? = "bar";
+                backing: Val.Struct = { extra: 1 };
+
+                [Val.properties]() {
+                    return this.backing;
+                }
+            }
+
+            await withDatasourceAndReference(
+                { type: HelperBackedState, supervisor: idSupervisor, primaryKey: "id" },
+                ({ state }) => {
+                    const raw = rawValuesOf(state);
+                    expect("foo" in raw).false;
+                    expect((raw.backing as Val.Struct).extra).equals(1);
+                    expect(state.foo).undefined;
+                },
+            );
+        });
+
+        it("reads a struct member served by a dynamic provider on an id-keyed container", async () => {
+            class ProviderState {
+                sub?: Val.Struct;
+
+                [Val.properties]() {
+                    return { sub: { foo: "live" } };
+                }
+            }
+
+            const providerSupervisor = BehaviorSupervisor({
+                id: "providerState",
+                State: ProviderState,
+
+                schema: new DatatypeModel({
+                    name: "ProviderState",
+                    type: "struct",
+
+                    children: [
+                        FieldElement(
+                            { name: "sub", id: 1, type: "struct" },
+                            FieldElement({ name: "foo", id: 0, type: "string" }),
+                        ),
+                    ],
+                }),
+            });
+
+            await withDatasourceAndReference(
+                { type: ProviderState, supervisor: providerSupervisor, primaryKey: "id" },
+                ({ state }) => {
+                    expect(state.sub).deep.equals({ foo: "live" });
+                },
+            );
+        });
+
+        it("preserves private-field state while stripping seeded defaults", async () => {
+            class PrivateDynamicState {
+                foo? = "bar";
+                #extra: Val.Struct = {};
+
+                [Val.properties]() {
+                    return this.#extra;
+                }
+            }
+
+            await withDatasourceAndReference(
+                { type: PrivateDynamicState, supervisor: idSupervisor, primaryKey: "id" },
+                ({ state }) => {
+                    expect("foo" in rawValuesOf(state)).false;
+                    expect(state.foo).undefined;
+
+                    state.foo = "new";
+                    expect(state.foo).equals("new");
+                },
+            );
+        });
+
+        it("does not resurrect state-class defaults when cloning for a transaction", async () => {
+            await withDatasourceAndReference(
+                { type: SeededState, supervisor: idSupervisor, primaryKey: "id" },
+                ({ state }) => {
+                    state.foo = "new";
+
+                    const raw = rawValuesOf(state);
+                    expect("foo" in raw).false;
+                    expect(raw[1]).equals("new");
+                    expect(state.foo).equals("new");
+                },
+            );
         });
     });
 

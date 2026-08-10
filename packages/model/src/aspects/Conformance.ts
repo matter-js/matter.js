@@ -810,7 +810,17 @@ function computeApplicability(features: Set<string>, supportedFeatures: Set<stri
     if (ast.type === Conformance.Special.Otherwise) {
         let fallback = None;
 
+        // Per §7.3 terms following a "P" describe the conformance intended once the element is no longer provisional,
+        // so they contribute their condition but may never make the element mandatory.  A provisional element must
+        // remain in the conformant view so an application can enable it.
+        let provisional = false;
+
         for (const node of ast.param) {
+            if (node.type === Conformance.Flag.Provisional) {
+                provisional = true;
+                continue;
+            }
+
             switch (assessOuterExpression(node)) {
                 case Conditional:
                     fallback = Conditional;
@@ -823,7 +833,7 @@ function computeApplicability(features: Set<string>, supportedFeatures: Set<stri
                     break;
 
                 case Mandatory:
-                    return Mandatory;
+                    return provisional ? Optional : Mandatory;
             }
         }
 
@@ -853,8 +863,10 @@ function computeApplicability(features: Set<string>, supportedFeatures: Set<stri
 
             case Conformance.Flag.Disallowed:
             case Conformance.Flag.Deprecated:
-            case Conformance.Flag.Provisional:
                 return None;
+
+            case Conformance.Flag.Provisional:
+                return Optional;
 
             case Conformance.Flag.Mandatory:
                 return Mandatory;

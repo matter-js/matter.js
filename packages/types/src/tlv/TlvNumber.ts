@@ -91,7 +91,7 @@ export class TlvNumericSchema<T extends bigint | number> extends TlvSchema<T> {
         return this.#max ?? this.baseTypeMax;
     }
 
-    /** @deprecated Part of old ClusterType() compat layer. */
+    /** @deprecated Part of old ClusterType() compat layer.  Scheduled for removal in 0.19. */
     override get element(): TlvSchema.Element | undefined {
         const typeName = numericTypeByMax.get(this.baseTypeMax);
         if (typeName === undefined) {

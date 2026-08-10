@@ -5,6 +5,7 @@
  */
 
 import { PeerAddress } from "#peer/PeerAddress.js";
+import type { MRP } from "#protocol/MRP.js";
 import {
     Diagnostic,
     Duration,
@@ -44,6 +45,14 @@ export interface ConcreteNetworkProfile {
      * with the local "own" profile margin via max at send time.
      */
     additionalMrpDelay: Duration;
+
+    /**
+     * The additive MRP margins for this profile, by traffic class.
+     *
+     * Precomputed because it is read on the send path; {@link MRP.Margins.bdx} is {@link additionalMrpDelay} unless
+     * the medium needs bulk transfer paced differently from normal messaging.
+     */
+    mrpMargins: MRP.Margins;
 }
 
 /**
@@ -144,6 +153,10 @@ export class NetworkProfiles {
             id,
             semaphore: new Semaphore(`network semaphore ${id}`, limits.exchanges, limits.delay, limits.timeout),
             additionalMrpDelay,
+            mrpMargins: {
+                messaging: additionalMrpDelay,
+                bdx: limits.bdxAdditionalMrpDelay ?? additionalMrpDelay,
+            },
         };
         if (limits.connect) {
             network.connect = this.configure(
@@ -186,7 +199,13 @@ export class NetworkProfiles {
             }
             defaults = this.#defaults.thread;
         } else if (
-            pp.supportsWifi ||
+            pp.wifiActive ||
+            // No operational-medium data: a WiFi-capable node conservatively gets the WiFi margin.
+            (pp.wifiActive === undefined && pp.ethernetActive === undefined && pp.supportsWifi)
+        ) {
+            id = "wifi";
+            defaults = this.#defaults.wifi;
+        } else if (
             pp.supportsEthernet ||
             // We have data but no Network Commissioning cluster, means "other means"
             (!pp.supportsWifi && !pp.supportsEthernet && !pp.supportsThread && pp.rootEndpointServerList.length > 0)
@@ -242,6 +261,14 @@ export namespace NetworkProfiles {
      */
     export interface Limits extends ConcreteLimits {
         /**
+         * {@link additionalMrpDelay} for bulk transfer (BDX) exchanges, which sustain many round trips over one path.
+         *
+         * Defaults to {@link additionalMrpDelay}.  Values above roughly 7s are inert: a BDX retransmission interval is
+         * capped so the whole schedule fits the peer's response budget.
+         */
+        bdxAdditionalMrpDelay?: Duration;
+
+        /**
          * Overrides specifically for establishing new sessions.
          *
          * If present, any values here act as limits specifically for CASE session establishment.
@@ -263,9 +290,17 @@ export namespace NetworkProfiles {
         /**
          * Limit for "fast" networks.
          *
-         * We use this value for ethernet and WiFi.
+         * We use this value for ethernet.
          */
         fast: Limits;
+
+        /**
+         * Limit for WiFi networks.
+         *
+         * Matches {@link fast} concurrency but adds an MRP retransmission margin: WiFi power-save can delay delivery
+         * beyond the peer's advertised SAI/SII, and retransmitting too eagerly wastes airtime.
+         */
+        wifi: Limits;
 
         /**
          * Limit for thread networks, by channel.
@@ -329,6 +364,7 @@ export namespace NetworkProfiles {
         unlimited: { exchanges: Infinity, additionalMrpDelay: Millis(0) },
         icdLit: { exchanges: Infinity, additionalMrpDelay: Millis(0) },
         fast: { exchanges: 200, additionalMrpDelay: Millis(0) },
+        wifi: { exchanges: 200, additionalMrpDelay: Seconds(1) },
         thread: conservative,
         conservative,
         unknown: conservative,

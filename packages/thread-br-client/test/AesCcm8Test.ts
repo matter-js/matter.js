@@ -5,12 +5,9 @@
  */
 
 import { Bytes, StandardCrypto } from "@matter/general";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { AesCcm8 } from "../src/dtls/record/AesCcm8.js";
+import { data as rfc3610AesCcmVectors } from "./fixtures/dtls/rfc3610-aes128-ccm-vectors.json.js";
 
-const PACKAGE_ROOT = process.cwd();
-const FIXTURE_DIR = resolve(PACKAGE_ROOT, "test/fixtures/dtls");
 const crypto = new StandardCrypto();
 
 interface Rfc3610Fixture {
@@ -25,12 +22,8 @@ interface Rfc3610Fixture {
     }>;
 }
 
-function loadJson<T>(name: string): T {
-    return JSON.parse(readFileSync(resolve(FIXTURE_DIR, name), "utf8")) as T;
-}
-
 describe("AesCcm8.encrypt (RFC 3610 §8 vectors)", () => {
-    const fixture = loadJson<Rfc3610Fixture>("rfc3610-aes128-ccm-vectors.json");
+    const fixture: Rfc3610Fixture = rfc3610AesCcmVectors;
     const key = Bytes.of(Bytes.fromHex(fixture.key));
 
     for (const vector of fixture.vectors) {
@@ -47,7 +40,7 @@ describe("AesCcm8.encrypt (RFC 3610 §8 vectors)", () => {
 });
 
 describe("AesCcm8.decrypt (RFC 3610 §8 vectors)", () => {
-    const fixture = loadJson<Rfc3610Fixture>("rfc3610-aes128-ccm-vectors.json");
+    const fixture: Rfc3610Fixture = rfc3610AesCcmVectors;
     const key = Bytes.of(Bytes.fromHex(fixture.key));
 
     for (const vector of fixture.vectors) {

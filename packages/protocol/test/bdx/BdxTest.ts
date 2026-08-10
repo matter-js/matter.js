@@ -5,6 +5,7 @@ import {
     BdxBlockQueryWithSkipMessage,
     BdxClient,
     BdxError,
+    BdxMessage,
     BdxReceiveInitMessage,
     BdxStatusResponseError,
     Flow,
@@ -314,6 +315,85 @@ describe("BdxTest", () => {
                         expect(clientExchangeData[3].data.blockCounter).equals(2);
 
                         const receivedData = readBlob(clientStorage, fd.blobName);
+                        expect(receivedData).to.deep.equal(data);
+                    },
+                });
+            });
+
+            it("Caps a peer-proposed maxBlockSize larger than the transport payload size", async () => {
+                const data = crypto.randomBytes(2048);
+
+                let fd: PersistedFileDesignator;
+                await bdxTransfer({
+                    prepare: async (clientStorage, serverStorage, messenger) => {
+                        fd = new PersistedFileDesignator("data", clientStorage);
+                        writeBlob(serverStorage, "data", data);
+
+                        return {
+                            bdxClient: BdxClient.asReceiver(messenger, { fileDesignator: fd }),
+                            expectedInitialMessageType: BdxMessageType.ReceiveInit,
+                        };
+                    },
+                    // Simulate a non-compliant peer that proposes a 4096 byte block on a transport whose negotiated
+                    // block size caps at 966 bytes. The recorded clientExchangeData still shows the original message
+                    // because it is captured before this manipulator runs.
+                    clientExchangeManipulator: message => {
+                        if (message.payloadHeader.messageType === BdxMessageType.ReceiveInit) {
+                            const { message: init } = BdxMessage.decode(BdxMessageType.ReceiveInit, message.payload);
+                            message.payload = BdxMessage.encode({
+                                kind: BdxMessageType.ReceiveInit,
+                                message: { ...init, maxBlockSize: 4096 },
+                            });
+                        }
+                        return message;
+                    },
+                    validate: async (clientStorage, _serverStorage, { clientExchangeData, serverExchangeData }) => {
+                        expect(serverExchangeData[0].type).equals(BdxMessageType.ReceiveAccept);
+                        expect(serverExchangeData[0].data.maxBlockSize).equals(966);
+
+                        expect(serverExchangeData[1].type).equals(BdxMessageType.Block);
+                        expect(serverExchangeData[1].data.data.length).equals(966);
+
+                        const receivedData = readBlob(clientStorage, fd.blobName);
+                        expect(receivedData).to.deep.equal(data);
+                        expect(clientExchangeData[clientExchangeData.length - 1].type).equals(
+                            BdxMessageType.BlockAckEof,
+                        );
+                    },
+                });
+            });
+
+            it("Caps a peer-accepted maxBlockSize larger than the transport payload size", async () => {
+                const data = crypto.randomBytes(2048);
+
+                let fd: PersistedFileDesignator;
+                await bdxTransfer({
+                    prepare: async (clientStorage, _serverStorage, messenger) => {
+                        fd = new PersistedFileDesignator("data", clientStorage);
+                        writeBlob(clientStorage, "data", data);
+
+                        return {
+                            bdxClient: BdxClient.asSender(messenger, { fileDesignator: fd }),
+                            expectedInitialMessageType: BdxMessageType.SendInit,
+                        };
+                    },
+                    // Simulate a non-compliant peer whose SendAccept echoes a 4096 byte block on a transport whose
+                    // negotiated block size caps at 966 bytes. The sender-initiator must not send blocks that large.
+                    serverExchangeManipulator: message => {
+                        if (message.payloadHeader.messageType === BdxMessageType.SendAccept) {
+                            const { message: accept } = BdxMessage.decode(BdxMessageType.SendAccept, message.payload);
+                            message.payload = BdxMessage.encode({
+                                kind: BdxMessageType.SendAccept,
+                                message: { ...accept, maxBlockSize: 4096 },
+                            });
+                        }
+                        return message;
+                    },
+                    validate: async (_clientStorage, serverStorage, { clientExchangeData }) => {
+                        expect(clientExchangeData[1].type).equals(BdxMessageType.Block);
+                        expect(clientExchangeData[1].data.data.length).equals(966);
+
+                        const receivedData = readBlob(serverStorage, fd.blobName);
                         expect(receivedData).to.deep.equal(data);
                     },
                 });

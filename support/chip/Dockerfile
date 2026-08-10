@@ -62,7 +62,7 @@ RUN --mount=type=cache,sharing=locked,target=/var/cache/apt \
     #   libcairo2-dev - also pygobject dep
     #
     apt-get -qq -y install --no-install-recommends \
-        git clang pkg-config libssl-dev libdbus-1-dev libavahi-client-dev clang pkg-config \
+        git curl clang pkg-config libssl-dev libdbus-1-dev libavahi-client-dev clang pkg-config \
         ninja-build python3-venv python3-dev unzip libreadline-dev python3-pip \
         g++ libglib2.0-dev libglib2.0-dev-bin libpcsclite-dev libevent-dev
 EOF
@@ -167,6 +167,9 @@ WORKDIR /
 
 # Some scripts expect pigweed root
 ENV PW_PROJECT_ROOT=/
+
+# chiptest derives CHIP_ROOT by walking parents of its own file for this marker (upstream #72527)
+COPY --from=source /connectedhomeip/SPECIFICATION_VERSION /SPECIFICATION_VERSION
 
 # YAML tests of course use a different data model
 COPY --from=source /connectedhomeip/src/app/zap-templates/zcl/data-model/chip \

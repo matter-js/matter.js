@@ -5,7 +5,6 @@
  */
 
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
-import { GlobalAttributeState } from "#behavior/cluster/ClusterState.js";
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
 import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavior.js";
@@ -29,6 +28,7 @@ import { AggregatorEndpoint } from "#endpoints/aggregator";
 import type { ClientEndpointInitializer } from "#node/client/ClientEndpointInitializer.js";
 import { ClientNodeFactory } from "#node/client/ClientNodeFactory.js";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
+import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
 import {
@@ -348,6 +348,67 @@ describe("ClientNode", () => {
         expect(controllerB.peers.size).equals(1);
         expect([...controllerB.peers].map(n => n.id)).deep.equals(["device"]);
         expect(controllerB.peers.get("device")).not.undefined;
+    });
+
+    it("assigns an unused node ID when commissioning after a restart with existing peers", async () => {
+        await using site = new MockSite();
+
+        // Commission a first device, which receives node ID 1
+        const { controller } = await site.addCommissionedPair();
+        expect(controller.peers.size).equals(1);
+        expect([...controller.peers][0].state.commissioning.peerAddress?.nodeId).equals(NodeId(1));
+
+        // *** RESTART controller ***
+        await site.close();
+        const controllerB = await site.addNode(undefined, { id: "controller1", index: 1 });
+        expect(controllerB.peers.size).equals(1);
+
+        // Commission a second device without an explicit node ID.  The allocator must skip the restored
+        // peer's node ID rather than offer it and later reject it as already commissioned.
+        const device2 = await site.addDevice();
+        const controllerCrypto = controllerB.env.get(Crypto) as MockCrypto;
+        const device2Crypto = device2.env.get(Crypto) as MockCrypto;
+        controllerCrypto.entropic = device2Crypto.entropic = true;
+
+        const { passcode, discriminator } = device2.state.commissioning;
+        await MockTime.resolve(controllerB.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
+            macrotasks: true,
+        });
+        controllerCrypto.entropic = device2Crypto.entropic = false;
+
+        expect(controllerB.peers.size).equals(2);
+        const nodeIds = [...controllerB.peers].map(n => n.state.commissioning.peerAddress?.nodeId);
+        expect(nodeIds).contains(NodeId(1));
+        expect(nodeIds).contains(NodeId(2));
+    });
+
+    it("rejects an explicit node ID already held by a restored peer after a restart", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const usedNodeId = [...controller.peers][0].peerAddress!.nodeId;
+
+        // *** RESTART controller ***
+        await site.close();
+        const controllerB = await site.addNode(undefined, { id: "controller1", index: 1 });
+        expect(controllerB.peers.size).equals(1);
+
+        const device = await site.addDevice({ commissioning: { discriminator: 999, passcode: 22223333 } });
+
+        const discovered = await MockTime.resolve(
+            controllerB.peers.discover({ longDiscriminator: 999, timeout: Seconds(30) }),
+            { macrotasks: true },
+        );
+        const candidate = discovered[0];
+        expect(candidate).not.undefined;
+
+        // Wrong passcode: the conflict must be reported before PASE, proving the restored peer's ID is seen as in use
+        await MockTime.resolve(
+            expect(candidate.commission({ passcode: 11112222, discriminator: 999, nodeId: usedNodeId })).rejectedWith(
+                /already in use/i,
+            ),
+        );
+
+        expect(device.state.commissioning.commissioned).equals(false);
     });
 
     it("rejects node-level commissioning without known addresses", async () => {
@@ -1405,7 +1466,13 @@ describe("ClientNode", () => {
             expect(typeof state).equals("object");
             expect((state as Val.Struct)[1]).equals("hello");
             expect((state as Val.Struct).attr$1).equals("hello");
-            expect((state as Val.Struct).attr$14).deep.equals(optList); // Attribute 20
+            expect((state as Val.Struct)[20]).deep.equals(optList); // by numeric attribute ID
+            expect((state as Val.Struct).attr$14).deep.equals(optList); // by name (ID 20 = 0x14)
+
+            const stateById = (peer.state as Record<number, Val.Struct>)[0x1234_fc01];
+            expect(typeof stateById).equals("object");
+            expect(stateById[20]).deep.equals(optList);
+            expect(stateById.attr$14).deep.equals(optList);
         }
     });
 
@@ -1475,7 +1542,7 @@ describe("ClientNode", () => {
 
         await MockTime.resolve(replaced);
 
-        expect((clientEp1.stateOf(WindowCoveringClient) as unknown as GlobalAttributeState).featureMap).deep.equals({
+        expect(clientEp1.globalsOf(WindowCoveringClient).featureMap).deep.equals({
             lift: true,
             positionAwareLift: true,
             tilt: true,
@@ -1495,6 +1562,141 @@ describe("ClientNode", () => {
 
         newValue = await MockTime.resolve(sawChange);
         expect(newValue).equals(1200);
+    });
+
+    it("exposes attributes added by a behavior replace", async () => {
+        // *** SETUP ***
+
+        const LiftWc = WindowCoveringServer.with("Lift", "PositionAwareLift").set({
+            currentPositionLiftPercent100ths: 0,
+        });
+
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair({
+            device: {
+                type: ServerNode.RootEndpoint,
+                device: WindowCoveringDevice.with(LiftWc),
+            },
+        });
+
+        const peer1 = controller.peers.get("peer1")!;
+        const clientEp1 = peer1.parts.get("ep1")!;
+        expect(clientEp1).not.undefined;
+
+        const serverEp1 = device.parts.get("part0")!;
+        expect(serverEp1).not.undefined;
+
+        // Tilt attribute is not part of the Lift-only schema, so reading it must fail before the replace
+        await expect(
+            MockTime.resolve(clientEp1.getStateOf(WindowCoveringClient, ["currentPositionTiltPercent100ths"])),
+        ).rejectedWith(/currentPositionTiltPercent100ths/);
+
+        // *** REPLACE CLUSTER ADDING TILT ***
+
+        await MockTime.resolve(device.stop());
+        await serverEp1.erase();
+
+        const LiftTiltWc = WindowCoveringServer.with("Lift", "PositionAwareLift", "Tilt", "PositionAwareTilt").set({
+            type: WindowCovering.WindowCoveringType.Unknown,
+            currentPositionLiftPercent100ths: 0,
+            currentPositionTiltPercent100ths: 0,
+        });
+
+        // Nudge so version number changes, otherwise new endpoint won't sync
+        device.env.set(Entropy, MockCrypto(0x20));
+
+        await device.add({
+            type: WindowCoveringDevice.with(LiftTiltWc),
+            number: 1,
+            id: "part0b",
+        });
+
+        const replaced = new Promise(resolve => peer1.env.get(ClientStructureEvents).clusterReplaced.on(resolve));
+
+        await MockTime.resolve(device.start());
+        await MockTime.resolve(replaced);
+
+        // *** VALIDATE ***
+
+        // The attribute added by the Tilt feature must now be readable rather than reported absent
+        const tilt = await MockTime.resolve(
+            clientEp1.getStateOf(WindowCoveringClient, ["currentPositionTiltPercent100ths"]),
+        );
+        expect(tilt).deep.equals({ currentPositionTiltPercent100ths: 0 });
+
+        // The local featureMap view must reflect the new feature set, not the stale Lift-only one
+        expect(clientEp1.globalsOf(WindowCoveringClient).featureMap).deep.equals({
+            lift: true,
+            positionAwareLift: true,
+            tilt: true,
+            positionAwareTilt: true,
+        });
+
+        // The local state view must include the attribute added by the Tilt feature
+        expect(clientEp1.stateOf(WindowCoveringClient).currentPositionTiltPercent100ths).equals(0);
+    });
+
+    it("propagates global attribute changes to the change notification service", async () => {
+        // *** SETUP ***
+
+        const LiftWc = WindowCoveringServer.with("Lift", "PositionAwareLift").set({
+            currentPositionLiftPercent100ths: 0,
+        });
+
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair({
+            device: {
+                type: ServerNode.RootEndpoint,
+                device: WindowCoveringDevice.with(LiftWc),
+            },
+        });
+
+        const peer1 = controller.peers.get("peer1")!;
+        const serverEp1 = device.parts.get("part0")!;
+
+        const globalUpdates = new Array<{ properties?: string[] }>();
+        const changeService = controller.env.get(ChangeNotificationService);
+        changeService.change.on(change => {
+            if (
+                change.kind === "update" &&
+                ClusterBehavior.is(change.behavior) &&
+                change.behavior.cluster.id === WindowCoveringClient.cluster.id &&
+                change.properties?.some(p => p === "featureMap" || p === "attributeList")
+            ) {
+                globalUpdates.push({ properties: change.properties });
+            }
+        });
+
+        // *** REPLACE CLUSTER ADDING TILT ***
+
+        await MockTime.resolve(device.stop());
+        await serverEp1.erase();
+
+        const LiftTiltWc = WindowCoveringServer.with("Lift", "PositionAwareLift", "Tilt", "PositionAwareTilt").set({
+            type: WindowCovering.WindowCoveringType.Unknown,
+            currentPositionLiftPercent100ths: 0,
+            currentPositionTiltPercent100ths: 0,
+        });
+
+        device.env.set(Entropy, MockCrypto(0x20));
+
+        await device.add({
+            type: WindowCoveringDevice.with(LiftTiltWc),
+            number: 1,
+            id: "part0b",
+        });
+
+        const replaced = new Promise(resolve => peer1.env.get(ClientStructureEvents).clusterReplaced.on(resolve));
+
+        await MockTime.resolve(device.start());
+        await MockTime.resolve(replaced);
+
+        // *** VALIDATE ***
+
+        expect(
+            globalUpdates.length,
+            "featureMap/attributeList change must reach the change notification service",
+        ).not.equals(0);
     });
 
     it("correctly removes behavior", async () => {
@@ -1587,6 +1789,125 @@ describe("ClientNode", () => {
             "onOff",
             "descriptor",
         ]);
+    });
+
+    it("removes attributes when a behavior replace drops a feature", async () => {
+        // *** SETUP ***
+
+        const LiftTiltWc = WindowCoveringServer.with("Lift", "PositionAwareLift", "Tilt", "PositionAwareTilt").set({
+            type: WindowCovering.WindowCoveringType.Unknown,
+            currentPositionLiftPercent100ths: 0,
+            currentPositionTiltPercent100ths: 0,
+        });
+
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair({
+            device: {
+                type: ServerNode.RootEndpoint,
+                device: WindowCoveringDevice.with(LiftTiltWc),
+            },
+        });
+
+        const peer1 = controller.peers.get("peer1")!;
+        const clientEp1 = peer1.parts.get("ep1")!;
+        const serverEp1 = device.parts.get("part0")!;
+
+        // Tilt is present initially
+        expect(clientEp1.globalsOf(WindowCoveringClient).featureMap.tilt).equals(true);
+        expect(clientEp1.stateOf(WindowCoveringClient).currentPositionTiltPercent100ths).equals(0);
+
+        // *** REPLACE CLUSTER DROPPING TILT ***
+
+        await MockTime.resolve(device.stop());
+        await serverEp1.erase();
+
+        const LiftWc = WindowCoveringServer.with("Lift", "PositionAwareLift").set({
+            currentPositionLiftPercent100ths: 0,
+        });
+
+        // Nudge so version number changes, otherwise new endpoint won't sync
+        device.env.set(Entropy, MockCrypto(0x20));
+
+        await device.add({
+            type: WindowCoveringDevice.with(LiftWc),
+            number: 1,
+            id: "part0b",
+        });
+
+        const replaced = new Promise(resolve => peer1.env.get(ClientStructureEvents).clusterReplaced.on(resolve));
+
+        await MockTime.resolve(device.start());
+        await MockTime.resolve(replaced);
+
+        // *** VALIDATE ***
+
+        // featureMap and feature view reflect the shrunk feature set
+        expect(clientEp1.globalsOf(WindowCoveringClient).featureMap.tilt).equals(false);
+        expect(clientEp1.featuresOf(WindowCoveringClient).tilt).equals(false);
+
+        // The schema-validated read path correctly rejects the dropped attribute
+        await expect(
+            MockTime.resolve(clientEp1.getStateOf(WindowCoveringClient, ["currentPositionTiltPercent100ths"])),
+        ).rejectedWith(/not present on behavior/);
+
+        // The raw state view must not retain the dropped attribute's stale value
+        expect(clientEp1.stateOf(WindowCoveringClient).currentPositionTiltPercent100ths).equals(undefined);
+
+        // Lift attribute survives the replace
+        expect(clientEp1.stateOf(WindowCoveringClient).currentPositionLiftPercent100ths).equals(0);
+    });
+
+    it("re-installs a cluster the device drops and later restores", async () => {
+        // *** SETUP ***
+
+        const LiftWc = WindowCoveringServer.with("Lift", "PositionAwareLift").set({
+            currentPositionLiftPercent100ths: 0,
+        });
+
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair({
+            device: {
+                type: ServerNode.RootEndpoint,
+                device: OnOffLightDevice.with(LiftWc),
+            },
+        });
+
+        const peer1 = controller.peers.get("peer1")!;
+        const clientEp1 = peer1.parts.get("ep1")!;
+
+        expect(clientEp1.behaviors.supported["windowCovering"]).to.be.ok;
+
+        // *** REMOVE THE CLUSTER ***
+
+        await MockTime.resolve(device.stop());
+        await device.parts.get("part0")!.erase();
+        device.env.set(Entropy, MockCrypto(0x20));
+        await device.add({ type: OnOffLightDevice, number: 1, id: "part0b" });
+
+        const deleted = new Promise(resolve => peer1.env.get(ClientStructureEvents).clusterDeleted.on(resolve));
+        await MockTime.resolve(device.start());
+        await MockTime.resolve(deleted);
+
+        expect(clientEp1.behaviors.supported["windowCovering"]).to.be.undefined;
+
+        // *** RESTORE THE CLUSTER ***
+
+        await MockTime.resolve(device.stop());
+        await device.parts.get("part0b")!.erase();
+        device.env.set(Entropy, MockCrypto(0x40));
+        await device.add({ type: OnOffLightDevice.with(LiftWc), number: 1, id: "part0c" });
+
+        const added = new Promise(resolve =>
+            peer1.env.get(ClientStructureEvents).clusterInstalled(WindowCoveringClient).on(resolve),
+        );
+        await MockTime.resolve(device.start());
+        await MockTime.resolve(added);
+
+        // *** VALIDATE ***
+
+        expect(clientEp1.behaviors.supported["windowCovering"]).to.be.ok;
+        expect(clientEp1.stateOf(WindowCoveringClient).currentPositionLiftPercent100ths).equals(0);
+        expect(clientEp1.globalsOf(WindowCoveringClient).featureMap.lift).equals(true);
     });
 
     it("handles shutdown event and reestablishes connection", () => {
@@ -1994,6 +2315,60 @@ describe("ClientNode", () => {
             return [attr(Descriptor.id, Descriptor.attributes.serverList.id, EP1_SERVER_LIST, version)];
         }
 
+        function descriptorServerListWithNeoReport(version: number): ReadResult.Report[] {
+            return [attr(Descriptor.id, Descriptor.attributes.serverList.id, [...EP1_SERVER_LIST, NEO], version)];
+        }
+
+        // Like neoReports but with attribute 2 present in both the attribute list and the data — same featureMap.
+        function neoReportsWithExtraAttr(version: number): ReadResult.Report[] {
+            return [
+                attr(NEO, ClusterRevision.id, 1, version),
+                attr(NEO, FeatureMap.id, {}, version),
+                attr(
+                    NEO,
+                    AttributeList.id,
+                    [
+                        0,
+                        2,
+                        GeneratedCommandList.id,
+                        AcceptedCommandList.id,
+                        AttributeList.id,
+                        FeatureMap.id,
+                        ClusterRevision.id,
+                    ],
+                    version,
+                ),
+                attr(NEO, AcceptedCommandList.id, [], version),
+                attr(NEO, GeneratedCommandList.id, [], version),
+                attr(NEO, 0, 1234, version),
+                attr(NEO, 2, 5678, version),
+            ];
+        }
+
+        // Like neoReports but with an accepted command (1) added — same featureMap and attribute list.
+        function neoReportsWithExtraCommand(version: number): ReadResult.Report[] {
+            return [
+                attr(NEO, ClusterRevision.id, 1, version),
+                attr(NEO, FeatureMap.id, {}, version),
+                attr(
+                    NEO,
+                    AttributeList.id,
+                    [
+                        0,
+                        GeneratedCommandList.id,
+                        AcceptedCommandList.id,
+                        AttributeList.id,
+                        FeatureMap.id,
+                        ClusterRevision.id,
+                    ],
+                    version,
+                ),
+                attr(NEO, AcceptedCommandList.id, [1], version),
+                attr(NEO, GeneratedCommandList.id, [], version),
+                attr(NEO, 0, 1234, version),
+            ];
+        }
+
         async function* readResult(...chunks: ReadResult.Report[][]): ReadResult {
             for (const chunk of chunks) {
                 yield chunk;
@@ -2082,6 +2457,102 @@ describe("ClientNode", () => {
             expect(neoActive(), "NEO behavior should be dropped").false;
             expect(neoStorageKeys(), "NEO storage should be erased").empty;
         });
+
+        it("re-installs a cluster the peer drops and later serves again", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            const initializer = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
+            const structure = initializer.structure;
+            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+
+            const neoActive = () => {
+                const endpoint = structure.endpointFor(EP1);
+                return (
+                    endpoint !== undefined &&
+                    Object.values(endpoint.behaviors.supported).some(
+                        type => (type as ClusterBehavior.Type).cluster?.id === NEO,
+                    )
+                );
+            };
+
+            // NEO present in serverList and serving data.
+            await drain(structure.mutate(request, readResult(descriptorServerListWithNeoReport(10), neoReports(10))));
+            expect(neoActive(), "NEO should be active initially").true;
+
+            // Peer drops NEO: descriptor omits it and no data is served.
+            await drain(structure.mutate(request, readResult(descriptorServerListReport(11))));
+            expect(neoActive(), "NEO should be dropped").false;
+
+            // Peer serves NEO again and lists it in the descriptor.  It must come back.
+            await drain(structure.mutate(request, readResult(descriptorServerListWithNeoReport(12), neoReports(12))));
+            expect(neoActive(), "NEO must be re-installed after the peer serves it again").true;
+        });
+
+        it("rebuilds a cluster when the peer changes its attribute list without a feature change", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const structure = (peer1.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+
+            const neoType = () => {
+                const endpoint = structure.endpointFor(EP1);
+                return endpoint === undefined
+                    ? undefined
+                    : Object.values(endpoint.behaviors.supported).find(
+                          type => (type as ClusterBehavior.Type).cluster?.id === NEO,
+                      );
+            };
+
+            await drain(structure.mutate(request, readResult(descriptorServerListWithNeoReport(10), neoReports(10))));
+            const before = neoType();
+            expect(before, "NEO should be active initially").not.undefined;
+
+            // Same featureMap, but the attribute list (and data) now include attribute 2.
+            await drain(
+                structure.mutate(
+                    request,
+                    readResult(descriptorServerListWithNeoReport(11), neoReportsWithExtraAttr(11)),
+                ),
+            );
+            const after = neoType();
+            expect(after, "NEO should remain active").not.undefined;
+            expect(after, "behavior must be rebuilt to reflect the new attribute set").not.equals(before);
+        });
+
+        it("rebuilds a cluster when the peer changes its accepted command list without a feature change", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const structure = (peer1.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+
+            const neoType = () => {
+                const endpoint = structure.endpointFor(EP1);
+                return endpoint === undefined
+                    ? undefined
+                    : Object.values(endpoint.behaviors.supported).find(
+                          type => (type as ClusterBehavior.Type).cluster?.id === NEO,
+                      );
+            };
+
+            await drain(structure.mutate(request, readResult(descriptorServerListWithNeoReport(10), neoReports(10))));
+            const before = neoType();
+            expect(before, "NEO should be active initially").not.undefined;
+
+            // Same featureMap and attribute list, but a new accepted command appears.
+            await drain(
+                structure.mutate(
+                    request,
+                    readResult(descriptorServerListWithNeoReport(11), neoReportsWithExtraCommand(11)),
+                ),
+            );
+            const after = neoType();
+            expect(after, "NEO should remain active").not.undefined;
+            expect(after, "behavior must be rebuilt to reflect the new command set").not.equals(before);
+        });
     });
 });
 
@@ -2148,7 +2619,7 @@ const PEER1_STATE = {
         autoSubscribe: true,
         autoStateInitialize: undefined,
         isDisabled: false,
-        port: 0x15a4,
+        port: undefined,
         operationalPort: -1,
         defaultSubscription: undefined,
         maxEventNumber: 3n,

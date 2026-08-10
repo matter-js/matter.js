@@ -5,15 +5,11 @@
  */
 
 import { Bytes } from "@matter/main";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { normalizeKeys } from "../src/otbr-rest/caseNormalizer.js";
 import { __testables, translateNodeJson } from "../src/otbr-rest/translation.js";
+import { data as diagnosticsJson } from "./fixtures/otbr-rest/diagnostics.json.js";
 
-const PACKAGE_ROOT = process.cwd();
-const FIXTURE_DIR = resolve(PACKAGE_ROOT, "test/fixtures/otbr-rest");
-
-const RAW_DIAGNOSTICS: unknown = JSON.parse(readFileSync(resolve(FIXTURE_DIR, "diagnostics.json"), "utf8"));
+const RAW_DIAGNOSTICS: unknown = diagnosticsJson;
 
 function loadDiagnosticsArray(): unknown[] {
     const normalized = normalizeKeys(RAW_DIAGNOSTICS);

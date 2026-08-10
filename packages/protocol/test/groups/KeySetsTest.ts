@@ -92,7 +92,7 @@ describe("KeySets", () => {
         });
 
         it("returns the newest non-future key when a future-dated key is installed", () => {
-            const nowUs = Time.nowUs * 1000;
+            const nowUs = Time.nowMs * 1000;
             const sets = new KeySets<OperationalKeySet>();
             sets.add(threeKeySet(5, nowUs - 2 * HOUR_US, nowUs - HOUR_US, nowUs + HOUR_US));
 
@@ -100,7 +100,7 @@ describe("KeySets", () => {
         });
 
         it("returns the newest key when all keys are in the past", () => {
-            const nowUs = Time.nowUs * 1000;
+            const nowUs = Time.nowMs * 1000;
             const sets = new KeySets<OperationalKeySet>();
             sets.add(threeKeySet(5, nowUs - 3 * HOUR_US, nowUs - 2 * HOUR_US, nowUs - HOUR_US));
 
@@ -108,7 +108,7 @@ describe("KeySets", () => {
         });
 
         it("throws when every key is in the future", () => {
-            const nowUs = Time.nowUs * 1000;
+            const nowUs = Time.nowMs * 1000;
             const sets = new KeySets<OperationalKeySet>();
             sets.add(threeKeySet(5, nowUs + HOUR_US, nowUs + 2 * HOUR_US, nowUs + 3 * HOUR_US));
 
@@ -116,7 +116,7 @@ describe("KeySets", () => {
         });
 
         it("returns the second-newest key for the IPK key set (§4.14.2.6)", () => {
-            const nowUs = Time.nowUs * 1000;
+            const nowUs = Time.nowMs * 1000;
             const sets = new KeySets<OperationalKeySet>();
             sets.add(threeKeySet(0, nowUs - 3 * HOUR_US, nowUs - 2 * HOUR_US, nowUs - HOUR_US));
 

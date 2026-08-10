@@ -6,12 +6,9 @@
 
 import { StandardCrypto } from "@matter/general";
 import { Bytes } from "@matter/main";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { ECJPAKE_ID_CLIENT, EcJpakeRound } from "../src/dtls/ecjpake/EcJpakeRound.js";
+import { data as mbedtlsVectors } from "./fixtures/ecjpake/mbedtls-self-test-vectors.json.js";
 
-const PACKAGE_ROOT = process.cwd();
-const FIXTURE = resolve(PACKAGE_ROOT, "test/fixtures/ecjpake/mbedtls-self-test-vectors.json");
 const crypto = new StandardCrypto();
 
 interface MbedTlsVectors {
@@ -21,16 +18,12 @@ interface MbedTlsVectors {
     srv_one: string;
 }
 
-function loadVectors(): MbedTlsVectors {
-    return JSON.parse(readFileSync(FIXTURE, "utf8")) as MbedTlsVectors;
-}
-
 function bigintFromHex(hex: string): bigint {
     return BigInt("0x" + hex);
 }
 
 describe("EcJpakeRound parse -> serialize round-trip", () => {
-    const vectors = loadVectors();
+    const vectors: MbedTlsVectors = mbedtlsVectors;
 
     it("is byte-identical across synthetic round-1 messages with varying r-lengths", async () => {
         // Mix of ephemeral seeds to hit both 32-byte and shorter r encodings via

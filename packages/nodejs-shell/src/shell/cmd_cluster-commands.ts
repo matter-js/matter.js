@@ -6,9 +6,10 @@
 
 import { Diagnostic } from "@matter/general";
 import { ClusterModel, CommandModel, Matter } from "@matter/model";
-import { ClusterId, ValidationError } from "@matter/types";
+import { ValidationError } from "@matter/types";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
+import { elementKnownUnsupported, resolveClusterEndpoint } from "../util/ClusterEndpoint.js";
 import { convertJsonDataWithModel } from "../util/Json.js";
 
 function generateAllCommandHandlersForCluster(yargs: Argv, theNode: MatterNode) {
@@ -48,9 +49,6 @@ function generateCommandHandler(
     command: CommandModel,
     theNode: MatterNode,
 ) {
-    //console.log("Generating command handler for ", command.name, JSON.stringify(command));
-    //console.log(command.definingModel);
-
     if (command.definingModel !== undefined) {
         // If command has parameters for the call
         return yargs.command(
@@ -126,15 +124,16 @@ async function executeCommand(
 ) {
     const commandName = command.propertyName;
 
-    const node = (await theNode.connectAndGetNodes(nodeId))[0];
-
-    const clusterClient = node.getDeviceById(endpointId)?.getClusterClientById(ClusterId(clusterId));
-    if (clusterClient === undefined) {
-        console.log(`ERROR: Cluster ${node.nodeId.toString()}/${endpointId}/${clusterId} not found.`);
+    const resolved = await resolveClusterEndpoint(theNode, nodeId, endpointId, clusterId);
+    if (resolved === undefined) {
         return;
     }
-    if (clusterClient.commands[commandName] === undefined) {
-        console.log(`ERROR: Command ${node.nodeId.toString()}/${endpointId}/${clusterId}/${command.id} not supported.`);
+    const { node, endpoint, behaviorType } = resolved;
+
+    if (elementKnownUnsupported(endpoint, behaviorType, "commands", commandName)) {
+        console.log(
+            `ERROR: Command ${node.peerAddress?.nodeId}/${endpointId}/${clusterId}/${command.id} not supported.`,
+        );
         return;
     }
     try {
@@ -142,9 +141,9 @@ async function executeCommand(
             requestData = convertJsonDataWithModel(command, requestData);
         }
 
-        const result = await clusterClient.commands[commandName](requestData);
+        const result = await endpoint.commandsOf(behaviorType.id)[commandName](requestData);
         console.log(
-            `Command ${command.name} ${node.nodeId.toString()}/${endpointId}/${clusterId}/${command.id} invoked ${requestData ? `with ${Diagnostic.json(requestData)}` : ""}`,
+            `Command ${command.name} ${node.peerAddress?.nodeId}/${endpointId}/${clusterId}/${command.id} invoked ${requestData ? `with ${Diagnostic.json(requestData)}` : ""}`,
         );
         if (result !== undefined) {
             console.log(`Result: ${Diagnostic.json(result)}`);

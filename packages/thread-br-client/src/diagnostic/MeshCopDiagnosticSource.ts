@@ -264,8 +264,8 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
         };
 
         // `done` settles AFTER Commissioner.release() so callers awaiting handle.done / handle.close()
-        // see a clean release before tearing down DTLS. (Without that ordering COMM_REL races socket
-        // close and the BR never sees the release ACK, manifesting as petition-rejected on retry.)
+        // see a clean resign before tearing down DTLS. (Without that ordering the reject keep-alive
+        // races socket close and the BR never sees the ACK, manifesting as petition-rejected on retry.)
         const done = this.#commissioner
             .withSession(async () => {
                 if (closed) return;

@@ -492,7 +492,7 @@ export declare namespace ModeBase {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link ModeBase}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ModeBase}.
      */
     export const Complete: typeof ModeBase;
 

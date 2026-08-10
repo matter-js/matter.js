@@ -47,6 +47,21 @@ describe("Timestamp", () => {
             expect(Timestamp.fromMicroseconds(2_500n)).equal(2.5);
         });
 
+        it("toMicroseconds scales up to microseconds as a bigint", () => {
+            expect(Timestamp.toMicroseconds(Timestamp(2.5))).equal(2_500n);
+            expect(Timestamp.toMicroseconds(Timestamp(0))).equal(0n);
+        });
+
+        it("toMicroseconds rounds sub-microsecond fractions", () => {
+            expect(Timestamp.toMicroseconds(Timestamp(2.5006))).equal(2_501n);
+        });
+
+        it("toMicroseconds round-trips fromMicroseconds", () => {
+            expect(Timestamp.toMicroseconds(Timestamp.fromMicroseconds(1_577_836_800_000_000n))).equal(
+                1_577_836_800_000_000n,
+            );
+        });
+
         it("dateOf round-trips a timestamp", () => {
             expect(Timestamp.dateOf(Timestamp(1_577_836_800_000)).getTime()).equal(1_577_836_800_000);
         });

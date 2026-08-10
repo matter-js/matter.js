@@ -608,7 +608,7 @@ export class ClientInteraction<
                                 Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
                                 "with",
                                 isObject(fields) ? Diagnostic.dict(fields) : "(no payload)",
-                                commandRef !== undefined ? `(ref ${commandRef})` : "",
+                                commandRef !== undefined && batchCommands.size > 1 ? `(ref ${commandRef})` : "",
                             ];
                         }),
                     ),

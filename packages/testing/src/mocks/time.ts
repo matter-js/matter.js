@@ -31,6 +31,8 @@ export interface MockTime extends MockTimeLike {}
 
 const macrotaskDependents = new Set<Promise<unknown>>();
 
+const timerNames = new WeakMap<TimerCallback, string>();
+
 const registry = {
     timers: new Set<MockTimer>(),
     register(_timer: MockTimer) {},
@@ -41,23 +43,28 @@ const registry = {
 class MockTimer {
     name = "Test";
     systemId = 0;
-    intervalMs = 0;
-    isPeriodic = false;
+    utility = false;
+    readonly isPeriodic: boolean;
 
     #mockTime: MockTime;
-    #duration: number;
+    #interval = 0;
+    #armedInterval = 0;
 
     isRunning = false;
     readonly #callback: TimerCallback;
 
-    constructor(mockTime: MockTime, name: string, duration: number, callback: TimerCallback) {
+    constructor(mockTime: MockTime, name: string, duration: number, callback: TimerCallback, isPeriodic = false) {
         this.name = name;
+        this.isPeriodic = isPeriodic;
 
         this.#mockTime = mockTime;
-        this.#duration = duration;
+        this.interval = duration;
 
-        if (this instanceof MockInterval) {
-            this.#callback = callback;
+        if (isPeriodic) {
+            this.#callback = async () => {
+                this.#mockTime.callbackAtTime(this.#mockTime.nowMs + this.#armedInterval, this.#callback);
+                await callback();
+            };
         } else {
             this.#callback = () => {
                 this.#close();
@@ -66,9 +73,32 @@ class MockTimer {
         }
     }
 
+    /**
+     * The timer's interval.
+     *
+     * As with the production implementation, changes have no effect until the timer restarts.
+     */
+    set interval(interval: number) {
+        if (interval < 0 || interval > 2147483647) {
+            throw new Error(
+                `Invalid intervalMs: ${interval}. The value must be between 0 and 32-bit maximum value (2147483647)`,
+            );
+        }
+        this.#interval = interval;
+    }
+
+    get interval() {
+        return this.#interval;
+    }
+
     start() {
+        if (this.isRunning) {
+            this.stop();
+        }
         registry.register(this);
-        this.#mockTime.callbackAtTime(this.#mockTime.nowMs + this.#duration, this.#callback);
+        timerNames.set(this.#callback, `${this.name}(${this.#interval}${this.isPeriodic ? ",periodic" : ""})`);
+        this.#armedInterval = this.#interval;
+        this.#mockTime.callbackAtTime(this.#mockTime.nowMs + this.#armedInterval, this.#callback);
         this.isRunning = true;
         return this;
     }
@@ -82,16 +112,6 @@ class MockTimer {
         registry.unregister(this);
         this.#mockTime.removeCallback(this.#callback);
         this.isRunning = false;
-    }
-}
-
-class MockInterval extends MockTimer {
-    constructor(mockTime: MockTime, name: string, duration: number, callback: TimerCallback) {
-        const intervalCallback = async () => {
-            mockTime.callbackAtTime(mockTime.nowMs + duration, intervalCallback);
-            await callback();
-        };
-        super(mockTime, name, duration, intervalCallback);
     }
 }
 
@@ -224,12 +244,16 @@ export const MockTime = {
         return nowMs;
     },
 
+    get nowUs() {
+        return nowMs;
+    },
+
     getTimer(name: string, duration: number, callback: TimerCallback): MockTimer {
         return new MockTimer(this, name, duration, callback);
     },
 
     getPeriodicTimer(name: string, interval: number, callback: TimerCallback): MockTimer {
-        return new MockInterval(this, name, interval, callback);
+        return new MockTimer(this, name, interval, callback, true);
     },
 
     /**
@@ -353,11 +377,24 @@ export const MockTime = {
     async advance(ms: number) {
         const newTimeMs = nowMs + ms;
 
+        let previousAtMs: number | undefined;
+        let iterationsAtSameTime = 0;
         while (callbacks.length) {
             const { atMs, callback } = callbacks[0];
             if (atMs > newTimeMs) break;
             callbacks.shift();
             nowMs = atMs;
+
+            // A timer that rearms at the current time never lets the mock clock advance, so without this guard the
+            // loop spins indefinitely
+            iterationsAtSameTime = atMs === previousAtMs ? iterationsAtSameTime + 1 : 0;
+            previousAtMs = atMs;
+            if (iterationsAtSameTime > 10000) {
+                throw new TestTimeoutError(
+                    `Timer ${timerNames.get(callback) ?? "(unknown)"} rearms without advancing mock time`,
+                );
+            }
+
             await callback();
         }
 

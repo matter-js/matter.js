@@ -52,6 +52,41 @@ describe("CommissioningConnection", () => {
         expect(attempts).deep.equals(["a:fd00::1", "b:fd00::2"]);
     });
 
+    it("does not accept a late success on a device already dropped for invalid credentials", async () => {
+        // One device, two addresses sharing a device abort: the first address fails the credential check
+        // (dropping the whole device), so a slower success on the second address must NOT be accepted as
+        // the winner — the device has been permanently dropped.
+        let releaseLate!: () => void;
+        const lateGate = new Promise<void>(r => (releaseLate = r));
+        let closeCause: unknown;
+
+        const p = CommissioningConnection({
+            devices: [device("a", [udp("fd00::1"), udp("fd00::2")])],
+            timeout: Seconds(2),
+            staggerDelay: 0,
+            establishSession: async address => {
+                if ((address as ServerAddressUdp).ip === "fd00::1") {
+                    throw new UnexpectedDataError("invalid credentials");
+                }
+                await lateGate;
+                return {
+                    initiateForceClose: async (options?: { cause?: unknown }) => {
+                        closeCause = options?.cause;
+                    },
+                } as any;
+            },
+        });
+
+        // Let fd00::1 fail and mark the device invalid, then let fd00::2 complete.
+        await new Promise(r => setTimeout(r, 0));
+        releaseLate();
+
+        await expect(p).rejectedWith(UnexpectedDataError);
+        await new Promise(r => setTimeout(r, 0));
+        // The late session is closed with the real credential error, not the generic race fallback.
+        expect(closeCause).instanceof(UnexpectedDataError);
+    });
+
     it("keeps device in play for network errors while addresses remain", async () => {
         const attempts = new Array<string>();
 
@@ -121,7 +156,60 @@ describe("CommissioningConnection", () => {
         resolveSecond();
 
         await p;
+        // The won session is returned without blocking on loser cleanup, so the loser closes its
+        // orphan session in the background — yield to let that finish before asserting.
+        await new Promise(r => setTimeout(r, 0));
         expect(sessionClosed).equals(true);
+    });
+
+    it("returns the won session without waiting for an abort-unresponsive loser to settle", async () => {
+        // Regression for the parallel-PASE commissioning flake: once one address wins PASE the won
+        // session must be returned immediately.  A loser wedged in an abort-unresponsive wait (device
+        // PASE responder locked until its ~60s pairing failsafe) must NOT delay the winner, or the won
+        // session ages past the failsafe and is already dead by the time commissioning uses it.
+        let releaseLoser!: () => void;
+        const loserGate = new Promise<void>(r => (releaseLoser = r));
+        let winnerResolved = false;
+        let winnerSessionClosed = false;
+
+        const p = CommissioningConnection({
+            devices: [device("winner", [udp("abcd::2")]), device("loser", [udp("10.10.10.2")])],
+            timeout: Seconds(90),
+            staggerDelay: 0,
+            establishSession: async address => {
+                if ((address as ServerAddressUdp).ip === "abcd::2") {
+                    return {
+                        initiateForceClose: async () => {
+                            winnerSessionClosed = true;
+                        },
+                    } as any;
+                }
+                // Loser deliberately ignores the abort signal — models a PASE attempt wedged in an MRP
+                // wait against a device whose responder stays locked until its pairing failsafe expires.
+                await loserGate;
+                return { initiateForceClose: async () => {} } as any;
+            },
+        });
+        const settled = p.then(result => {
+            winnerResolved = true;
+            return result;
+        });
+
+        try {
+            // Give the winner every chance to establish and the race to settle, WITHOUT releasing the loser.
+            for (let i = 0; i < 5; i++) {
+                await new Promise(r => setTimeout(r, 0));
+            }
+
+            expect(winnerResolved).equals(true);
+            const result = await settled;
+            expect(result.discoveryData.deviceIdentifier).equals("winner");
+            expect(winnerSessionClosed).equals(false);
+        } finally {
+            // Release the loser so its cleanup runs and nothing dangles into the next test.
+            releaseLoser();
+            await new Promise(r => setTimeout(r, 0));
+        }
     });
 
     it("closes session if timeout fires while establishment is pending", async () => {

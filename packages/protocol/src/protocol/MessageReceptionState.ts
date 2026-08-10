@@ -28,7 +28,7 @@ export abstract class MessageReceptionState {
  */
 export class MessageReceptionStateEncryptedWithoutRollover extends MessageReceptionState {
     protected maximumMessageCounter: number | undefined;
-    private messageCounterBitmap = 0xffffffff; // All bits set to 1
+    private messageCounterBitmap = this.initialBitmap;
 
     constructor(messageCounter?: number) {
         super();
@@ -37,10 +37,18 @@ export class MessageReceptionStateEncryptedWithoutRollover extends MessageRecept
         }
     }
 
+    /**
+     * Bitmap seeded when the window is first anchored to a counter. All-1s for encrypted messages marks every
+     * sub-max counter as already-received (replay protection).
+     */
+    protected get initialBitmap(): number {
+        return 0xffffffff;
+    }
+
     /** Initialize the message counter state. */
     private initialize(messageCounter: number) {
         this.maximumMessageCounter = messageCounter;
-        this.messageCounterBitmap = 0xffffffff; // All bits set to 1
+        this.messageCounterBitmap = this.initialBitmap;
     }
 
     /**
@@ -173,6 +181,15 @@ export class MessageReceptionStateEncryptedWithRollover extends MessageReception
  * back the window to the current location.
  */
 export class MessageReceptionStateUnencryptedWithRollover extends MessageReceptionStateEncryptedWithoutRollover {
+    /**
+     * Empty window: no sub-max counters have been received yet, so legitimately reordered messages below the first
+     * observed counter stay acceptable. Unencrypted duplicate detection is not a security control, so this loses
+     * nothing; matches the CHIP reference implementation, which has never seeded a full window.
+     */
+    protected override get initialBitmap(): number {
+        return 0;
+    }
+
     protected override calculateDiff(messageCounter: number) {
         if (this.maximumMessageCounter === undefined) {
             return 0;

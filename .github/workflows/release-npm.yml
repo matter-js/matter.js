@@ -37,7 +37,7 @@ jobs:
         os: [ macos-latest, windows-latest ]
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         # needed as long as we test Node.js 16 and npm <10.2.2 is used for Node.js 18/20
         with:
           python-version: '3.11'
@@ -94,7 +94,7 @@ jobs:
 
       - name: Use Node.js 24.x
         if: steps.automerge.outputs.mergeResult == 'merged'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 24.x
 
@@ -124,9 +124,7 @@ jobs:
         if: steps.automerge.outputs.mergeResult == 'merged'
         env:
           PRERELEASE: ${{ contains(steps.version.outputs.result, '-') }}
-        run: |
-          npm install -g npm@latest
-          
+        run: |          
           if [[ "$PRERELEASE" == "true" ]]; then
             npm publish --workspaces --tag dev
           else

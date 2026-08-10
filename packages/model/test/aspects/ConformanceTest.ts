@@ -563,4 +563,60 @@ describe("Conformance", () => {
             expect(conformance.toString()).equal("Rev >= v3");
         });
     });
+
+    describe("applicability", () => {
+        const { None, Optional, Conditional, Mandatory } = Conformance.Applicability;
+
+        function applicability(definition: string, ...supportedFeatures: string[]) {
+            return new Conformance(definition).applicabilityFor({
+                definedFeatures: new Set(["AA", "BB"]),
+                supportedFeatures: new Set(supportedFeatures),
+            });
+        }
+
+        it("resolves plain flags", () => {
+            expect(applicability("M")).equal(Mandatory);
+            expect(applicability("O")).equal(Optional);
+            expect(applicability("X")).equal(None);
+            expect(applicability("D")).equal(None);
+        });
+
+        it("resolves features", () => {
+            expect(applicability("AA", "AA")).equal(Mandatory);
+            expect(applicability("AA")).equal(None);
+            expect(applicability("AA, O", "AA")).equal(Mandatory);
+            expect(applicability("AA, O")).equal(Optional);
+        });
+
+        it("makes a standalone provisional element optional", () => {
+            expect(applicability("P")).equal(Optional);
+        });
+
+        it("caps an intended mandatory conformance at optional", () => {
+            expect(applicability("P, M")).equal(Optional);
+        });
+
+        it("caps an intended feature conformance at optional", () => {
+            expect(applicability("P, AA", "AA")).equal(Optional);
+            expect(applicability("P, AA & BB", "AA", "BB")).equal(Optional);
+        });
+
+        it("excludes an intended feature conformance whose feature is unsupported", () => {
+            expect(applicability("P, AA")).equal(None);
+            expect(applicability("P, AA & BB", "AA")).equal(None);
+        });
+
+        it("leaves an intended optional conformance optional", () => {
+            expect(applicability("P, O")).equal(Optional);
+            expect(applicability("P, [AA & BB]", "AA", "BB")).equal(Optional);
+        });
+
+        it("leaves an intended conditional conformance conditional", () => {
+            expect(applicability("P, desc")).equal(Conditional);
+        });
+
+        it("does not cap a mandatory term preceding the provisional term", () => {
+            expect(applicability("AA, P", "AA")).equal(Mandatory);
+        });
+    });
 });

@@ -6,6 +6,7 @@
 
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { IcdManagementServer } from "#behaviors/icd-management";
+import { NetworkCommissioningServer } from "#behaviors/network-commissioning";
 import { PowerSourceServer } from "#behaviors/power-source";
 import { SwitchServer } from "#behaviors/switch";
 import { ThreadNetworkDiagnosticsServer } from "#behaviors/thread-network-diagnostics";
@@ -19,12 +20,20 @@ import { SecondaryNetworkInterfaceEndpoint } from "#endpoints/secondary-network-
 import { Node } from "#node/Node.js";
 import { NodePhysicalProperties } from "#node/NodePhysicalProperties.js";
 import { ServerNode } from "#node/ServerNode.js";
-import { Instant, Minutes, Seconds } from "@matter/general";
+import { Bytes, Instant, Minutes, Seconds } from "@matter/general";
 import { MockServerNode } from "@matter/node/testing";
 import { PhysicalDeviceProperties, Subscribe } from "@matter/protocol";
 import { PowerSource } from "@matter/types/clusters/power-source";
 import { Switch } from "@matter/types/clusters/switch";
 import { ThreadNetworkDiagnostics } from "@matter/types/clusters/thread-network-diagnostics";
+
+class EthernetCommissioningServer extends NetworkCommissioningServer.with("EthernetNetworkInterface") {
+    override initialize() {
+        this.state.maxNetworks = 1;
+        this.state.interfaceEnabled = true;
+        this.state.networks = [{ networkId: Bytes.fromHex("00"), connected: true }];
+    }
+}
 
 describe("NodePhysicalProperties", () => {
     it("chooses correct default intervals", async () => {
@@ -115,6 +124,65 @@ describe("NodePhysicalProperties", () => {
             maxIntervalCeiling: Minutes(1),
             minIntervalFloor: Instant,
         });
+    });
+
+    it("infers wifi from root endpoint diagnostics when Network Commissioning is absent", async () => {
+        const WifiServer = WiFiNetworkDiagnosticsServer.set({ bssid: Bytes.fromHex("847848cc0bde") });
+        const node = await MockServerNode.create(ServerNode.RootEndpoint.with(WifiServer));
+        const props = NodePhysicalProperties(node);
+
+        expect(props.supportsWifi).true;
+        expect(props.supportsThread).false;
+        expect(props.supportsEthernet).false;
+    });
+
+    it("does not infer wifi from an unassociated interface", async () => {
+        const node = await MockServerNode.create(ServerNode.RootEndpoint.with(WiFiNetworkDiagnosticsServer));
+        const props = NodePhysicalProperties(node);
+
+        expect(props.supportsWifi).false;
+    });
+
+    it("infers thread from root endpoint diagnostics when Network Commissioning is absent", async () => {
+        const ThreadServer = ThreadNetworkDiagnosticsServer.set({ channel: 15, panId: 0x1234 });
+        const node = await MockServerNode.create(ServerNode.RootEndpoint.with(ThreadServer));
+        const props = NodePhysicalProperties(node);
+
+        expect(props.supportsThread).true;
+        expect(props.supportsWifi).false;
+        expect(props.threadActive).true;
+        expect(props.threadChannel).equals(15);
+    });
+
+    it("does not infer thread from an unjoined interface", async () => {
+        const node = await MockServerNode.create(ServerNode.RootEndpoint.with(ThreadNetworkDiagnosticsServer));
+        const props = NodePhysicalProperties(node);
+
+        expect(props.supportsThread).false;
+        expect(props.threadActive).false;
+    });
+
+    it("does not infer a medium from diagnostics on a non-root endpoint", async () => {
+        const WifiServer = WiFiNetworkDiagnosticsServer.set({ bssid: Bytes.fromHex("847848cc0bde") });
+        const node = await MockServerNode.create({
+            parts: [new Endpoint(SecondaryNetworkInterfaceEndpoint.with(WifiServer))],
+        });
+        const props = NodePhysicalProperties(node);
+
+        expect(props.supportsWifi).false;
+    });
+
+    it("does not infer a medium when Network Commissioning reports one", async () => {
+        const WifiServer = WiFiNetworkDiagnosticsServer.set({ bssid: Bytes.fromHex("847848cc0bde") });
+        const ThreadServer = ThreadNetworkDiagnosticsServer.set({ channel: 15, panId: 0x1234 });
+        const node = await MockServerNode.create(
+            ServerNode.RootEndpoint.with(EthernetCommissioningServer, WifiServer, ThreadServer),
+        );
+        const props = NodePhysicalProperties(node);
+
+        expect(props.supportsEthernet).true;
+        expect(props.supportsWifi).false;
+        expect(props.supportsThread).false;
     });
 
     it("reports the specification version and no Generic Switch by default", async () => {

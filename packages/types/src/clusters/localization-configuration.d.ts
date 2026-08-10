@@ -107,12 +107,12 @@ export declare namespace LocalizationConfiguration {
     export const attributes: ClusterType.AttributeObjects<Attributes>;
 
     /**
-     * @deprecated Use {@link LocalizationConfiguration}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link LocalizationConfiguration}.
      */
     export const Cluster: typeof LocalizationConfiguration;
 
     /**
-     * @deprecated Use {@link LocalizationConfiguration}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link LocalizationConfiguration}.
      */
     export const Complete: typeof LocalizationConfiguration;
 
@@ -120,7 +120,7 @@ export declare namespace LocalizationConfiguration {
 }
 
 /**
- * @deprecated Use {@link LocalizationConfiguration}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link LocalizationConfiguration}.
  */
 export declare const LocalizationConfigurationCluster: typeof LocalizationConfiguration;
 

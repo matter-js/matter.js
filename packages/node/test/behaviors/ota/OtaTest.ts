@@ -6,7 +6,7 @@
 
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { OtaUpdateStatus, SoftwareUpdateManager } from "#behavior/system/software-update/SoftwareUpdateManager.js";
-import { BasicInformationServer } from "#behaviors/basic-information";
+import { BasicInformationClient, BasicInformationServer } from "#behaviors/basic-information";
 import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
 import {
     OtaSoftwareUpdateRequestorClient,
@@ -14,11 +14,22 @@ import {
 } from "#behaviors/ota-software-update-requestor";
 import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import { ServerNode } from "#node/ServerNode.js";
-import { Bytes, createPromise, Hours, MockFetch, Timestamp } from "@matter/general";
-import { MockSite } from "@matter/node/testing";
+import {
+    Bytes,
+    createPromise,
+    ImplementationError,
+    Millis,
+    Minutes,
+    MockFetch,
+    Observable,
+    Seconds,
+    Timestamp,
+} from "@matter/general";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 import {
     BdxProtocol,
     BdxSession,
+    ClientSubscriptions,
     FabricAuthority,
     PeerAddress,
     SessionManager,
@@ -139,7 +150,7 @@ describe("Ota", () => {
         await otaProvider.act(agent => {
             return agent
                 .get(SoftwareUpdateManager)
-                .forceUpdate(peerAddress!, VendorId(vendorId), productId, targetSoftwareVersion);
+                .forceUpdate(peerAddress!, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion });
         });
 
         await MockTime.resolve(announceOtaProviderPromise);
@@ -191,6 +202,359 @@ describe("Ota", () => {
         await site[Symbol.asyncDispose]();
     }).timeout(10_000); // locally needs 1s, but CI might be slower
 
+    it("OTA reboot: closes older sessions and does not re-subscribe a device that feeds its subscription", async () => {
+        const data = { expectedOtaImage: Bytes.fromHex("") };
+
+        const { applyUpdatePromise, announceOtaProviderPromise, TestOtaRequestorServer } =
+            InstrumentedOtaRequestorServer({ requestUserConsent: false }, data);
+
+        const {
+            queryImagePromise,
+            applyUpdateRequestPromise,
+            checkUpdateAvailablePromise,
+            notifyUpdateAppliedPromise,
+            TestOtaProviderServer,
+        } = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { otaImage, vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        data.expectedOtaImage = Bytes.of(otaImage.image);
+
+        const peer1 = controller.peers.get("peer1")!;
+        const peerAddress = peer1.state.commissioning.peerAddress!;
+
+        // Spy on the collaborators the armer drives. No restore is needed: each initOtaSite test gets its
+        // own Environment, so these patches die with the site (same rationale as the BDX test below).
+        const shutdownCalls = new Array<{ address: PeerAddress; asOf?: Timestamp }>();
+        const closeForPeerCalls = new Array<PeerAddress>();
+        // A device-pushed (non-initiator) session for this peer is the reboot return the armer keys on; capturing
+        // its createdAt lets us prove the armer's Mechanism A fired (it passes session.createdAt), distinct from the
+        // Peers.#onStartUp reboot path that also calls handlePeerShutdown.
+        const rebootSessionCreatedAts = new Array<Timestamp>();
+        await otaProvider.act(agent => {
+            const sessionManager = agent.env.get(SessionManager);
+            const subscriptions = agent.env.get(ClientSubscriptions);
+            const originalShutdown = sessionManager.handlePeerShutdown.bind(sessionManager);
+            sessionManager.handlePeerShutdown = (address, asOf) => {
+                shutdownCalls.push({ address, asOf });
+                return originalShutdown(address, asOf);
+            };
+            const originalCloseForPeer = subscriptions.closeForPeer.bind(subscriptions);
+            subscriptions.closeForPeer = address => {
+                closeForPeerCalls.push(address);
+                return originalCloseForPeer(address);
+            };
+            sessionManager.sessions.added.on(session => {
+                if (!session.isInitiator && PeerAddress.is(session.peerAddress, peerAddress)) {
+                    rebootSessionCreatedAts.push(session.createdAt);
+                }
+            });
+        });
+
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .forceUpdate(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion }),
+        );
+
+        await MockTime.resolve(announceOtaProviderPromise);
+        await MockTime.resolve(queryImagePromise);
+        await MockTime.resolve(checkUpdateAvailablePromise);
+        await MockTime.resolve(applyUpdateRequestPromise);
+
+        // The armer specifically must have been armed for this peer at Applying — this disambiguates
+        // the shutdownCalls assertion below from the general Peers.#onStartUp reboot path, which also
+        // calls handlePeerShutdown independently of OTA.
+        const armerDefinedAfterApplying = await otaProvider.act(
+            agent => agent.get(SoftwareUpdateManager).internal.rebootResubscribeArmer !== undefined,
+        );
+        expect(armerDefinedAfterApplying).equals(true);
+
+        await MockTime.resolve(applyUpdatePromise);
+
+        // Simulate reboot with the new version — CASE resumes quickly, but the pre-reboot subscription was
+        // deleted server-side by the restart, and this harness's client subscription only notices that on its
+        // own ~1m47s liveness timeout (far outside the 30s grace). A persistent device that keeps feeding its
+        // subscription would refresh lastReportStartedAtFor well before that; simulate that here rather than
+        // waiting out the real timeout, so the test verifies the armer's grace-window decision deterministically.
+        await MockTime.resolve(device.stop());
+        await device.setStateOf(BasicInformationServer, { softwareVersion: targetSoftwareVersion });
+        await MockTime.resolve(device.start());
+        await MockTime.resolve(notifyUpdateAppliedPromise);
+
+        // Model a persistent, fed device and record every grace-window query. lastReportStartedAtFor is queried
+        // nowhere but the armer's #onGraceExpired, so a recorded query proves the grace path ran end-to-end.
+        const lastReportQueries = new Array<PeerAddress>();
+        await otaProvider.act(agent => {
+            const subscriptions = agent.env.get(ClientSubscriptions);
+            subscriptions.lastReportStartedAtFor = address => {
+                if (PeerAddress.is(address, peerAddress)) {
+                    lastReportQueries.push(address);
+                    return Timestamp(MockTime.nowMs);
+                }
+                return undefined;
+            };
+        });
+
+        // Let the grace window elapse.
+        await MockTime.advance(Seconds(30));
+        await MockTime.macrotasks;
+
+        // The armer's grace-expiry path ran for the returning peer and reached its keep/re-subscribe decision.
+        // This is the anti-vacuous anchor: a no-op #onSessionAdded never arms the grace timer, so #onGraceExpired
+        // never runs and this stays empty — the whole test then fails rather than passing on the Peers.#onStartUp
+        // contribution alone.
+        expect(lastReportQueries.some(a => PeerAddress.is(a, peerAddress))).equals(true);
+
+        // Mechanism A ran for the returning peer with the reboot session's createdAt (the armer's asOf), not merely
+        // the general Peers.#onStartUp shutdown.
+        expect(rebootSessionCreatedAts.length).greaterThan(0);
+        expect(
+            shutdownCalls.some(
+                c =>
+                    PeerAddress.is(c.address, peerAddress) &&
+                    c.asOf !== undefined &&
+                    rebootSessionCreatedAts.includes(c.asOf),
+            ),
+        ).equals(true);
+
+        // …and because the subscription was fed, the armer chose KEEP: no force re-subscribe.
+        expect(closeForPeerCalls.some(a => PeerAddress.is(a, peerAddress))).equals(false);
+
+        await site[Symbol.asyncDispose]();
+    }).timeout(10_000);
+
+    it("OTA reboot: force re-subscribes (Mechanism B) when the subscription is not fed within the grace window", async () => {
+        const data = { expectedOtaImage: Bytes.fromHex("") };
+
+        const { applyUpdatePromise, announceOtaProviderPromise, TestOtaRequestorServer } =
+            InstrumentedOtaRequestorServer({ requestUserConsent: false }, data);
+
+        const {
+            queryImagePromise,
+            applyUpdateRequestPromise,
+            checkUpdateAvailablePromise,
+            notifyUpdateAppliedPromise,
+            TestOtaProviderServer,
+        } = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { otaImage, vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        data.expectedOtaImage = Bytes.of(otaImage.image);
+
+        const peer1 = controller.peers.get("peer1")!;
+        const peerAddress = peer1.state.commissioning.peerAddress!;
+
+        // Complement of the sibling "does not re-subscribe" test: spy on the real closeForPeer while
+        // deliberately NOT patching lastReportStartedAtFor. This harness's ClientSubscriptions only
+        // notices a lost subscription on its own ~1m47s liveness timeout, far outside the 30s grace,
+        // so lastReportStartedAtFor still reflects the pre-reboot report and the armer's grace-window
+        // check should fire Mechanism B unassisted. No restore is needed: each initOtaSite test gets
+        // its own Environment, so this patch dies with the site.
+        const closeForPeerCalls = new Array<PeerAddress>();
+        await otaProvider.act(agent => {
+            const subscriptions = agent.env.get(ClientSubscriptions);
+            const originalCloseForPeer = subscriptions.closeForPeer.bind(subscriptions);
+            subscriptions.closeForPeer = address => {
+                closeForPeerCalls.push(address);
+                return originalCloseForPeer(address);
+            };
+        });
+
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .forceUpdate(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion }),
+        );
+
+        await MockTime.resolve(announceOtaProviderPromise);
+        await MockTime.resolve(queryImagePromise);
+        await MockTime.resolve(checkUpdateAvailablePromise);
+        await MockTime.resolve(applyUpdateRequestPromise);
+
+        const armerDefinedAfterApplying = await otaProvider.act(
+            agent => agent.get(SoftwareUpdateManager).internal.rebootResubscribeArmer !== undefined,
+        );
+        expect(armerDefinedAfterApplying).equals(true);
+
+        await MockTime.resolve(applyUpdatePromise);
+
+        // Simulate reboot with the new version.
+        await MockTime.resolve(device.stop());
+        await device.setStateOf(BasicInformationServer, { softwareVersion: targetSoftwareVersion });
+        await MockTime.resolve(device.start());
+        await MockTime.resolve(notifyUpdateAppliedPromise);
+
+        // Nothing must fire before the grace elapses — this rules out a regression that force-re-subscribes
+        // on session-added rather than after the grace window.
+        expect(closeForPeerCalls.some(a => PeerAddress.is(a, peerAddress))).equals(false);
+
+        // Let the grace window elapse without ever refreshing lastReportStartedAtFor.
+        await MockTime.advance(Seconds(31));
+        await MockTime.macrotasks;
+
+        expect(closeForPeerCalls.some(a => PeerAddress.is(a, peerAddress))).equals(true);
+
+        await site[Symbol.asyncDispose]();
+    }).timeout(10_000);
+
+    it("a real inbound subscription report advances ClientSubscriptions.lastReportStartedAtFor", async () => {
+        // Exercises the actual stamp in ClientSubscriptionHandler and its aggregation in
+        // ClientSubscriptions, with no patch of either — the RebootResubscribeArmer's grace-window
+        // decision depends entirely on this real path staying correct.
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({ requestUserConsent: false });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        // subscribedPeer waits for the sustained subscription to be genuinely active; without that wait, a
+        // state change made immediately after commissioning can race the initial bootstrap read and land via
+        // that read's response rather than a real subscription report.
+        const peer1 = await subscribedPeer(controller, "peer1");
+        // #peers is keyed by the interned PeerAddress instance (reference equality); state.commissioning.peerAddress
+        // is not itself interned, so it must be normalized before use as a lookup key here — same as production
+        // callers (e.g. SoftwareUpdateManager.forceUpdate) do via PeerAddress(peerAddress).
+        const peerAddress = PeerAddress(peer1.state.commissioning.peerAddress!);
+
+        const subscriptions = await otaProvider.act(agent => agent.env.get(ClientSubscriptions));
+
+        // Only device-pushed reports flow through ClientSubscriptionHandler (which does the stamp); the initial
+        // priming report comes back inline in the subscribe exchange and never touches that path. So we drive TWO
+        // successive device-pushed reports and assert the stamp strictly advances between them — a stamp written at
+        // the wrong time or held constant would fail even though a single report leaves it merely defined.
+        const firstReport = new Promise<void>(resolve => {
+            peer1.eventsOf(BasicInformationClient).softwareVersion$Changed.once(() => resolve());
+        });
+        await device.setStateOf(BasicInformationServer, { softwareVersion: 99 });
+        await MockTime.resolve(firstReport);
+        const afterFirst = subscriptions.lastReportStartedAtFor(peerAddress);
+        expect(afterFirst).not.undefined;
+
+        // Advance so the second report is stamped at a strictly later time than the first.
+        await MockTime.advance(Seconds(5));
+
+        const secondReport = new Promise<void>(resolve => {
+            peer1.eventsOf(BasicInformationClient).softwareVersion$Changed.once(() => resolve());
+        });
+        await device.setStateOf(BasicInformationServer, { softwareVersion: 100 });
+        await MockTime.resolve(secondReport);
+        const afterSecond = subscriptions.lastReportStartedAtFor(peerAddress);
+        expect(afterSecond).not.undefined;
+
+        expect(afterSecond!).greaterThan(afterFirst!);
+
+        await site[Symbol.asyncDispose]();
+    }).timeout(10_000);
+
+    it("OTA reboot: the failed-apply detection path does not disarm the peer", async () => {
+        // The armer refreshes the subscription only when the returning device opens a device-initiated session; in
+        // this harness that session appears via notifyUpdateApplied, which a FAILED apply never sends (the device
+        // instead schedules a much-later retry query). So the observable proof here is the invariant the fix relies
+        // on: the failed-apply detection path must NOT disarm the peer, so a retry-query session arriving within the
+        // return-timeout window still finds the armer live and re-subscribes fast instead of falling back to the full
+        // liveness timeout. (A return slower than that window is recovered by the armer's own return-timeout backstop
+        // — a separate path exercised in RebootResubscribeArmerTest.) The sibling Mechanism-B test covers the
+        // closeForPeer behaviour once such a session exists.
+        const data = { expectedOtaImage: Bytes.fromHex("") };
+
+        const { applyUpdatePromise, announceOtaProviderPromise, TestOtaRequestorServer } =
+            InstrumentedOtaRequestorServer({ requestUserConsent: false }, data);
+
+        const { queryImagePromise, applyUpdateRequestPromise, checkUpdateAvailablePromise, TestOtaProviderServer } =
+            InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { otaImage, vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        data.expectedOtaImage = Bytes.of(otaImage.image);
+
+        const peer1 = controller.peers.get("peer1")!;
+        const peerAddress = peer1.state.commissioning.peerAddress!;
+
+        const updateFailedEvents = new Array<PeerAddress>();
+        await otaProvider.act(agent => {
+            agent.get(SoftwareUpdateManager).events.updateFailed.on(peer => {
+                updateFailedEvents.push(peer);
+            });
+        });
+
+        // Drive the update through to Applying, which arms the armer for this peer.
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .forceUpdate(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion }),
+        );
+        await MockTime.resolve(announceOtaProviderPromise);
+        await MockTime.resolve(queryImagePromise);
+        await MockTime.resolve(checkUpdateAvailablePromise);
+        await MockTime.resolve(applyUpdateRequestPromise);
+
+        // Armed at Applying. Spy on disarm so we can assert the failed-apply path leaves the arming in place. No
+        // restore is needed: each initOtaSite test gets its own Environment, so the patch dies with the site.
+        const disarmCalls = new Array<PeerAddress>();
+        await otaProvider.act(agent => {
+            const armer = agent.get(SoftwareUpdateManager).internal.rebootResubscribeArmer;
+            expect(armer).not.undefined;
+            const originalDisarm = armer!.disarm.bind(armer);
+            armer!.disarm = address => {
+                disarmCalls.push(address);
+                return originalDisarm(address);
+            };
+        });
+
+        await MockTime.resolve(applyUpdatePromise);
+
+        // Simulate a FAILED apply: the device reboots reporting the OLD (unchanged) softwareVersion. startUp fires
+        // with the old version while the entry is still in Applying → apply-failure detection.
+        const subscription = peer1.behaviors.internalsOf(NetworkClient).activeSubscription!;
+        expect(subscription).not.undefined;
+        SustainedSubscription.assert(subscription);
+
+        await MockTime.resolve(device.stop());
+        await MockTime.resolve(subscription.inactive);
+
+        // While the device is down, the return-timeout backstop (#onReturnTimeout) elapses and recovers the peer
+        // (disarm + re-subscribe) — a separate path from the failed-apply detection this test guards, and one that
+        // cannot be confused with it because detection only runs once the device is back up. Wait for it here, then
+        // discard its disarm so the assertion below sees only disarm calls that could originate from the detection
+        // code. (This backstop is covered directly in RebootResubscribeArmerTest.)
+        while (!disarmCalls.some(a => PeerAddress.is(a, peerAddress))) {
+            await MockTime.advance(Seconds(10));
+        }
+        disarmCalls.length = 0;
+
+        // Keep the original softwareVersion (do NOT set it to targetSoftwareVersion).
+        await MockTime.resolve(device.start());
+        await MockTime.resolve(subscription.active);
+        await MockTime.macrotasks;
+
+        // Failure detection still fires…
+        expect(updateFailedEvents.some(a => PeerAddress.is(a, peerAddress))).equals(true);
+        // …and — the invariant this test guards — the failed-apply path did NOT disarm the peer. Re-adding a
+        // disarm() to that branch would make this fail.
+        expect(disarmCalls.some(a => PeerAddress.is(a, peerAddress))).equals(false);
+
+        await site[Symbol.asyncDispose]();
+    }).timeout(10_000);
+
     it("Cancel a software update before download by removing consent", async () => {
         // *** COMMISSIONING ***
 
@@ -238,7 +602,7 @@ describe("Ota", () => {
         await otaProvider.act(agent => {
             return agent
                 .get(SoftwareUpdateManager)
-                .forceUpdate(peerAddress!, VendorId(vendorId), productId, targetSoftwareVersion);
+                .forceUpdate(peerAddress!, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion });
         });
 
         await otaProvider.act(agent => {
@@ -269,6 +633,94 @@ describe("Ota", () => {
             },
         ]);
     }).timeout(10_000); // locally needs 1s, but CI might be slower
+    /** A commissioned pair with an OTA image staged, for tests that only exercise transfer-option resolution. */
+    async function otaSiteWithImage() {
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer(
+            { requestUserConsent: false },
+            { expectedOtaImage: Bytes.fromHex("") },
+        );
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        const peerAddress = controller.peers.get("peer1")!.state.commissioning.peerAddress!;
+
+        const optionsFor = () =>
+            otaProvider.act(agent => agent.get(SoftwareUpdateManager).bdxTransferOptionsFor(peerAddress));
+        const consentTo = (target: Partial<SoftwareUpdateManager.UpdateTarget>) =>
+            otaProvider.act(agent =>
+                agent.get(SoftwareUpdateManager).addUpdateConsent(peerAddress, {
+                    vendorId: VendorId(vendorId),
+                    productId,
+                    targetSoftwareVersion,
+                    ...target,
+                }),
+            );
+
+        return { site, otaProvider, peerAddress, optionsFor, consentTo };
+    }
+
+    it("resolves transfer options from the consent, then from state", async () => {
+        const { site, otaProvider, optionsFor, consentTo } = await otaSiteWithImage();
+        await using _localSite = site;
+
+        // Nothing configured: the peer and its medium decide
+        expect(await optionsFor()).deep.equals({ maxBlockSize: undefined, additionalMrpDelay: undefined });
+
+        await otaProvider.act(agent => {
+            const { state } = agent.get(SoftwareUpdateManager);
+            state.maxBdxBlockSize = 512;
+            state.bdxAdditionalMrpDelay = Seconds(2);
+        });
+        expect(await optionsFor()).deep.equals({ maxBlockSize: 512, additionalMrpDelay: Seconds(2) });
+
+        // Consent-level overrides outrank the general defaults
+        await consentTo({ maxBdxBlockSize: 256, bdxAdditionalMrpDelay: Millis(500) });
+        expect(await optionsFor()).deep.equals({ maxBlockSize: 256, additionalMrpDelay: Millis(500) });
+    });
+
+    it("lets a later consent change and clear the options of a queued update", async () => {
+        const { site, optionsFor, consentTo } = await otaSiteWithImage();
+        await using _localSite = site;
+
+        await consentTo({ maxBdxBlockSize: 256, bdxAdditionalMrpDelay: Millis(500) });
+        expect(await optionsFor()).deep.equals({ maxBlockSize: 256, additionalMrpDelay: Millis(500) });
+
+        await consentTo({ maxBdxBlockSize: 128 });
+        expect(await optionsFor()).deep.equals({ maxBlockSize: 128, additionalMrpDelay: undefined });
+
+        await consentTo({});
+        expect(await optionsFor()).deep.equals({ maxBlockSize: undefined, additionalMrpDelay: undefined });
+    });
+
+    it("rejects invalid transfer options before touching any state", async () => {
+        const { site, otaProvider, peerAddress, consentTo } = await otaSiteWithImage();
+        await using _localSite = site;
+
+        for (const maxBdxBlockSize of [0, -1, 1.5, Number.NaN]) {
+            await expect(consentTo({ maxBdxBlockSize })).to.be.rejectedWith(ImplementationError);
+        }
+        for (const bdxAdditionalMrpDelay of [Millis(-1), Millis(Number.NaN)]) {
+            await expect(consentTo({ bdxAdditionalMrpDelay })).to.be.rejectedWith(ImplementationError);
+        }
+
+        // forceUpdate tears down BDX registration and queue state on its way, so it must reject first too
+        await expect(
+            otaProvider.act(agent =>
+                agent.get(SoftwareUpdateManager).forceUpdate(peerAddress, {
+                    vendorId: VendorId(0),
+                    productId: 0,
+                    targetSoftwareVersion: 1,
+                    maxBdxBlockSize: 0,
+                }),
+            ),
+        ).to.be.rejectedWith(ImplementationError);
+
+        expect(await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates)).length(0);
+    });
 
     it("Queue processes a single update via addUpdateConsent", async () => {
         const data = { expectedOtaImage: Bytes.fromHex("") };
@@ -308,7 +760,7 @@ describe("Ota", () => {
         const added = await otaProvider.act(agent => {
             return agent
                 .get(SoftwareUpdateManager)
-                .addUpdateConsent(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion);
+                .addUpdateConsent(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion });
         });
         expect(added).equals(true);
 
@@ -424,7 +876,7 @@ describe("Ota", () => {
         await otaProvider.act(agent => {
             return agent
                 .get(SoftwareUpdateManager)
-                .addUpdateConsent(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion);
+                .addUpdateConsent(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion });
         });
 
         // Manually set the entry to in-progress with Downloading status
@@ -457,6 +909,40 @@ describe("Ota", () => {
         expect(updateFailedEvents).length(0);
     }).timeout(10_000);
 
+    it("Done status clears the consent for the completed version", async () => {
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({
+            requestUserConsentForUpdate: false,
+        });
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({ requestUserConsent: false });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+
+        const peer1 = controller.peers.get("peer1")!;
+        const peerAddress = peer1.state.commissioning.peerAddress!;
+
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .addUpdateConsent(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion }),
+        );
+        expect(await otaProvider.act(agent => agent.get(SoftwareUpdateManager).hasConsent(peerAddress))).equals(true);
+
+        await otaProvider.act(agent => {
+            agent
+                .get(SoftwareUpdateManager)
+                .onOtaStatusChange(peerAddress, OtaUpdateStatus.Done, targetSoftwareVersion);
+        });
+
+        expect(await otaProvider.act(agent => agent.get(SoftwareUpdateManager).hasConsent(peerAddress))).equals(false);
+        expect(await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates)).length(0);
+    }).timeout(10_000);
+
     it("Apply failure detected when startUp fires after Applying state", async () => {
         // This test verifies the status ordering fix: previousProgressStatus is saved BEFORE the
         // clearing block in #onSoftwareVersionChanged, so the Applying check on startUp works correctly.
@@ -486,7 +972,7 @@ describe("Ota", () => {
         await otaProvider.act(agent => {
             return agent
                 .get(SoftwareUpdateManager)
-                .addUpdateConsent(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion);
+                .addUpdateConsent(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion });
         });
 
         // Directly set the entry to Applying state with a progress time (simulates mid-apply state)
@@ -546,7 +1032,7 @@ describe("Ota", () => {
         await otaProvider.act(agent => {
             return agent
                 .get(SoftwareUpdateManager)
-                .addUpdateConsent(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion);
+                .addUpdateConsent(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion });
         });
 
         // Patch BdxProtocol.sessionFor to simulate an active BDX session for this peer.
@@ -598,6 +1084,314 @@ describe("Ota", () => {
         const queue = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates);
         expect(queue).length(1);
         expect(queue[0].status).equals("queued");
+    }).timeout(10_000);
+
+    it("A running BDX transfer keeps a long download out of the stalled state", async () => {
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({
+            requestUserConsentForUpdate: false,
+            queryImage: false, // announcement is suppressed by the BDX guard, so the device never queries
+        });
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({
+            requestUserConsent: false,
+            announceOtaProvider: false,
+        });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        const peer1 = controller.peers.get("peer1")!;
+        const peerAddress = peer1.state.commissioning.peerAddress!;
+
+        const bdxSession = { peerAddress, transferredBytes: 0, dataLength: 6_000_000 };
+        await otaProvider.act(agent => {
+            const bdxProtocol = agent.get(SoftwareUpdateManager).env.get(BdxProtocol);
+            const originalSessionFor = bdxProtocol.sessionFor.bind(bdxProtocol);
+            bdxProtocol.sessionFor = (peer, scope) =>
+                PeerAddress.is(peer, peerAddress)
+                    ? (bdxSession as unknown as BdxSession)
+                    : originalSessionFor(peer, scope);
+        });
+
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .addUpdateConsent(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion }),
+        );
+
+        // Simulate the state the download reaches: announced, image transfer running
+        await otaProvider.act(agent => {
+            agent.get(SoftwareUpdateManager).onOtaStatusChange(peerAddress, OtaUpdateStatus.Downloading);
+        });
+
+        // Well beyond the 15 minute progress timeout, with blocks arriving all the way
+        for (let minutes = 0; minutes < 30; minutes += 5) {
+            bdxSession.transferredBytes += 200_000;
+            await MockTime.advance(Minutes(5));
+        }
+
+        const queue = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates);
+        expect(queue).length(1);
+        expect(queue[0].status).equals("in-progress");
+        expect(queue[0].lastProgressStatus).equals(OtaUpdateStatus.Downloading);
+        expect(queue[0].bdxTransferredBytes).equals(1_200_000);
+        expect(queue[0].bdxDataLength).equals(6_000_000);
+
+        // Blocks that arrive between two queue checks also count for the reported status
+        await otaProvider.act(agent => {
+            const entry = agent.get(SoftwareUpdateManager).internal.updateQueue[0];
+            entry.lastProgressUpdateTime = Timestamp(MockTime.nowMs - Minutes(20));
+        });
+        bdxSession.transferredBytes += 200_000;
+        const polledQueue = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates);
+        expect(polledQueue[0].status).equals("in-progress");
+    }).timeout(10_000);
+
+    it("A retried BDX transfer counts as progress although its byte counter restarts", async () => {
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({
+            requestUserConsentForUpdate: false,
+            queryImage: false,
+        });
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({
+            requestUserConsent: false,
+            announceOtaProvider: false,
+        });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        const peer1 = controller.peers.get("peer1")!;
+        const peerAddress = peer1.state.commissioning.peerAddress!;
+
+        const bdxSession = { peerAddress, transferredBytes: 900_000, dataLength: 6_000_000 };
+        await otaProvider.act(agent => {
+            const bdxProtocol = agent.get(SoftwareUpdateManager).env.get(BdxProtocol);
+            const originalSessionFor = bdxProtocol.sessionFor.bind(bdxProtocol);
+            bdxProtocol.sessionFor = (peer, scope) =>
+                PeerAddress.is(peer, peerAddress)
+                    ? (bdxSession as unknown as BdxSession)
+                    : originalSessionFor(peer, scope);
+        });
+
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .addUpdateConsent(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion }),
+        );
+        await otaProvider.act(agent => {
+            agent.get(SoftwareUpdateManager).onOtaStatusChange(peerAddress, OtaUpdateStatus.Downloading);
+        });
+
+        // The first attempt gets far enough for its counter to be recorded
+        await MockTime.advance(Minutes(5));
+
+        // It then fails and the requestor retries on a fresh session, which starts over. No status change reaches the
+        // manager in between — the provider stops listening after the first session of a query cycle.
+        bdxSession.transferredBytes = 0;
+        for (let minutes = 0; minutes < 25; minutes += 5) {
+            bdxSession.transferredBytes += 20_000;
+            await MockTime.advance(Minutes(5));
+        }
+
+        const queue = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates);
+        expect(queue).length(1);
+        expect(queue[0].status).equals("in-progress");
+        expect(queue[0].lastProgressStatus).equals(OtaUpdateStatus.Downloading);
+    }).timeout(10_000);
+
+    it("A running BDX transfer keeps its in-progress entry alive, including a session opened for a retry", async () => {
+        const data = { expectedOtaImage: Bytes.fromHex("") };
+        const { applyUpdatePromise, TestOtaRequestorServer } = InstrumentedOtaRequestorServer(
+            { requestUserConsent: false },
+            data,
+        );
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { otaImage, vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        data.expectedOtaImage = Bytes.of(otaImage.image);
+
+        const peer1 = controller.peers.get("peer1")!;
+        const peerAddress = peer1.state.commissioning.peerAddress!;
+
+        const inProgressDetails = await otaProvider.act(
+            agent => agent.get(OtaSoftwareUpdateProviderServer).internal.inProgressDetails,
+        );
+
+        // Write an aged timestamp from the first block and read it back a few blocks later: the entry carries a
+        // fresh timestamp only if the blocks in between refreshed it.
+        const agedTimestamp = Timestamp(MockTime.nowMs - Minutes(20));
+        let blocks = 0;
+        let timestampWhileTransferring: Timestamp | undefined;
+        await otaProvider.act(agent => {
+            agent
+                .get(SoftwareUpdateManager)
+                .env.get(BdxProtocol)
+                .sessionStarted.on((bdxSession: BdxSession) =>
+                    bdxSession.progressInfo.on(() => {
+                        const details = [...inProgressDetails.values()][0];
+                        if (details === undefined) {
+                            return;
+                        }
+                        blocks++;
+                        if (blocks === 1) {
+                            details.timestamp = agedTimestamp;
+                        } else if (blocks === 3) {
+                            timestampWhileTransferring = details.timestamp;
+                        }
+                    }),
+                );
+        });
+
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .forceUpdate(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion }),
+        );
+
+        await MockTime.resolve(applyUpdatePromise);
+
+        expect(blocks).greaterThan(3);
+        expect(timestampWhileTransferring).greaterThan(agedTimestamp);
+
+        // A failed attempt is retried on a fresh session within the same query cycle, so the provider must still be
+        // listening after the first session of that cycle ended
+        const retrySession = {
+            peerAddress,
+            progressInfo: Observable<[bytesTransferred: number, totalBytesLength: number | undefined]>(),
+            progressFinished: Observable<[totalBytesTransferred: number]>(),
+            progressCancelled: Observable(),
+            closed: Observable(),
+        };
+        await otaProvider.act(agent => {
+            const server = agent.get(OtaSoftwareUpdateProviderServer);
+            agent
+                .get(SoftwareUpdateManager)
+                .env.get(BdxProtocol)
+                .sessionStarted.emit(retrySession as unknown as BdxSession, server.updateStorage.scope);
+        });
+
+        const retryDetails = [...inProgressDetails.values()][0];
+        expect(retryDetails?.lastState).equals(OtaUpdateStatus.Downloading);
+
+        retryDetails!.timestamp = agedTimestamp;
+        retrySession.progressInfo.emit(1024, 50_000);
+        expect(retryDetails!.timestamp).greaterThan(agedTimestamp);
+    }).timeout(10_000);
+
+    // Guards against treating the mere existence of a BDX session as progress; a full revert of the activity check
+    // also passes, since the entry then expires on the same tick.
+    it("An open BDX session that never transfers a block does not count as progress", async () => {
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({
+            requestUserConsentForUpdate: false,
+            queryImage: false,
+        });
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({
+            requestUserConsent: false,
+            announceOtaProvider: false,
+        });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        const peer1 = controller.peers.get("peer1")!;
+        const peerAddress = peer1.state.commissioning.peerAddress!;
+
+        // A session whose transfer flow is not negotiated yet reports 0 transferred bytes
+        const bdxSession = { peerAddress, transferredBytes: 0, dataLength: undefined };
+        await otaProvider.act(agent => {
+            const bdxProtocol = agent.get(SoftwareUpdateManager).env.get(BdxProtocol);
+            const originalSessionFor = bdxProtocol.sessionFor.bind(bdxProtocol);
+            bdxProtocol.sessionFor = (peer, scope) =>
+                PeerAddress.is(peer, peerAddress)
+                    ? (bdxSession as unknown as BdxSession)
+                    : originalSessionFor(peer, scope);
+        });
+
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .addUpdateConsent(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion }),
+        );
+
+        await otaProvider.act(agent => {
+            agent.get(SoftwareUpdateManager).onOtaStatusChange(peerAddress, OtaUpdateStatus.Downloading);
+        });
+
+        // Just past the first timeout window — an open session must not have bought the entry another one
+        await MockTime.advance(Minutes(22));
+
+        const queue = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates);
+        expect(queue).length(1);
+        expect(queue[0].status).equals("queued");
+        expect(queue[0].lastProgressStatus).equals(OtaUpdateStatus.Unknown);
+    }).timeout(10_000);
+
+    // Characterization test: passes against the unmodified baseline as well. It guards the reset path itself, not
+    // the BDX activity check.
+    it("A BDX transfer that stops moving data is reset for retry", async () => {
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({
+            requestUserConsentForUpdate: false,
+            queryImage: false,
+        });
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({
+            requestUserConsent: false,
+            announceOtaProvider: false,
+        });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        const peer1 = controller.peers.get("peer1")!;
+        const peerAddress = peer1.state.commissioning.peerAddress!;
+
+        const bdxSession = { peerAddress, transferredBytes: 512_000, dataLength: 6_000_000 };
+        await otaProvider.act(agent => {
+            const bdxProtocol = agent.get(SoftwareUpdateManager).env.get(BdxProtocol);
+            const originalSessionFor = bdxProtocol.sessionFor.bind(bdxProtocol);
+            bdxProtocol.sessionFor = (peer, scope) =>
+                PeerAddress.is(peer, peerAddress)
+                    ? (bdxSession as unknown as BdxSession)
+                    : originalSessionFor(peer, scope);
+        });
+
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .addUpdateConsent(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion }),
+        );
+
+        await otaProvider.act(agent => {
+            agent.get(SoftwareUpdateManager).onOtaStatusChange(peerAddress, OtaUpdateStatus.Downloading);
+        });
+
+        // The session stays open but no block arrives anymore
+        await MockTime.advance(Minutes(30));
+
+        const queue = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates);
+        expect(queue).length(1);
+        expect(queue[0].status).equals("queued");
+        expect(queue[0].lastProgressStatus).equals(OtaUpdateStatus.Unknown);
     }).timeout(10_000);
 
     it("queryImage Case A: stale in-progress entry with no BDX session → cleared, fresh queryImage proceeds", async () => {
@@ -682,7 +1476,7 @@ describe("Ota", () => {
         await otaProvider.act(agent => {
             return agent
                 .get(SoftwareUpdateManager)
-                .forceUpdate(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion);
+                .forceUpdate(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion });
         });
 
         // Wait for queryImage to complete (provider ran Case A logic, returned NotAvailable)
@@ -813,7 +1607,7 @@ describe("Ota", () => {
         await otaProvider.act(agent => {
             return agent
                 .get(SoftwareUpdateManager)
-                .forceUpdate(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion);
+                .forceUpdate(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion });
         });
 
         // Wait for queryImage to complete (provider ran Case B logic, returned NotAvailable to device)
@@ -932,7 +1726,7 @@ describe("Ota", () => {
         await otaProvider.act(agent => {
             return agent
                 .get(SoftwareUpdateManager)
-                .addUpdateConsent(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion);
+                .addUpdateConsent(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion });
         });
 
         // Set entry to Applying state (so startUp would normally trigger updateFailed if NOT suppressed)
@@ -1022,7 +1816,7 @@ describe("Ota", () => {
         await otaProvider.act(agent => {
             return agent
                 .get(SoftwareUpdateManager)
-                .addUpdateConsent(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion);
+                .addUpdateConsent(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion });
         });
 
         // Set to Applying state
@@ -1089,16 +1883,21 @@ describe("Ota", () => {
     }).timeout(10_000);
 
     it("Cleanup purges stored test-mode OTA when allowTestOtaImages is disabled, preserves prod/local", async () => {
-        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({
-            requestUserConsentForUpdate: false,
+        // Device intentionally has no OTA requestor, so it is not an update target: the periodic check offers
+        // nothing and #cleanupObsoleteUpdates is exercised in isolation.
+        const site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair({
+            controller: {
+                type: ServerNode.RootEndpoint,
+                parts: [{ id: "ota-provider", type: OtaProviderEndpoint }],
+            },
         });
-        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({ requestUserConsent: false });
-
-        const { site, device, controller, otaProvider } = await initOtaSite(
-            TestOtaProviderServer,
-            TestOtaRequestorServer,
-        );
         await using _localSite = site;
+
+        const otaProvider = controller.parts.get("ota-provider")!;
+        await otaProvider.act(agent => {
+            agent.get(SoftwareUpdateManager).state.allowTestOtaImages = true;
+        });
 
         // Store a test-mode OTA image via the helper (matches device vid/pid, version = peer + 1).
         const { otaImage } = await addTestOtaImage(device, controller);
@@ -1115,15 +1914,13 @@ describe("Ota", () => {
         expect(before.filter(u => u.mode === "prod")).length(1);
         expect(before.filter(u => u.mode === "local")).length(1);
 
-        // Disable test OTA usage → next periodic check must purge the stored test-mode file.
+        // Disable test OTA usage: the check must purge the stored test-mode file.
         await otaProvider.act(agent => {
             agent.get(SoftwareUpdateManager).state.allowTestOtaImages = false;
         });
 
-        // Advance past the 24h update-check interval so the periodic timer fires
-        // #checkAvailableUpdates → #cleanupObsoleteUpdates.
-        await MockTime.advance(Hours(24) + 1000);
-        await MockTime.macrotasks;
+        // The periodic timer normally triggers this; invoke it directly so cleanup completes deterministically.
+        await otaProvider.act(agent => agent.get(SoftwareUpdateManager).checkForUpdates());
 
         const after = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).internal.otaService.find({}));
         expect(after.filter(u => u.mode === "test")).length(0);

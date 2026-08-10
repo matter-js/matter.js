@@ -1004,7 +1004,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                     occupiedHeatingSetpoint: 2000,
                     unoccupiedCoolingSetpoint: 2800,
                     unoccupiedHeatingSetpoint: 1800,
-                    minSetpointDeadBand: 25,
+                    minSetpointDeadBand: 20,
                     remoteSensing: {},
                     controlSequenceOfOperation: Thermostat.ControlSequenceOfOperation.CoolingAndHeating,
                     systemMode: Thermostat.SystemMode.Auto,

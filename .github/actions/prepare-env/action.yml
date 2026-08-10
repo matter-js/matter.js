@@ -28,5 +28,5 @@ runs:
       if: ${{ inputs.os == 'windows-latest' || inputs.os == 'windows-2019' }}
       shell: powershell
       run: |
-        npm install -g npm@latest
+        npm install -g npm@11
         npm ci --foreground-scripts

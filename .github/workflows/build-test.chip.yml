@@ -254,7 +254,7 @@ jobs:
         controller: ${{ fromJson(needs.workflow-conditions.outputs.controllers) }}
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - uses: ./.github/actions/run-chip-tests
         with:

@@ -178,16 +178,41 @@ export abstract class BehaviorBacking {
     }
 
     set type(type: Behavior.Type) {
-        if (!type.supports(this.#type)) {
-            // This is unlikely to cause issues because we limit to peer contexts.  In that case we implement elements
-            // fairly expansively regardless of reported support.  So worst case scenario the metadata reported earlier
-            // may be out of sync with the device.  There is a small possibility this causes problems, though, so log a
-            // warning
-            logger.warn(
-                `The cluster for active behavior ${this} may no longer be strictly compatible with local implementation`,
-            );
+        if (type.supports(this.#type)) {
+            this.#type = type;
+            return;
         }
+
+        // Peer-only: a changed data version already forced a full re-read, so the new type and its values are
+        // current and the change reaches consumers via ServersChanged.  Informational, not a compatibility fault.
+        logger.info(`Updated behavior ${this} to match changed peer cluster structure`);
         this.#type = type;
+
+        this.refreshForChangedType();
+    }
+
+    /**
+     * Rebuild state derived from {@link type} after the backed cluster structure changes.  Derivatives that cache
+     * additional type-derived data override to refresh it.
+     */
+    protected refreshForChangedType() {
+        const datasource = this.#datasource;
+        if (datasource === undefined) {
+            return;
+        }
+
+        // Server stores can't reseed a rebuilt datasource, so recreating would reset their state to defaults; only
+        // externally-mutable (peer) stores reclaim their live values.
+        const store = this.store;
+        if (!("reclaimValues" in store) || typeof store.reclaimValues !== "function") {
+            return;
+        }
+
+        // Move live values back to the store so the rebuilt datasource re-seeds from current data, not defaults.
+        store.reclaimValues();
+
+        datasource.close();
+        this.#datasource = Datasource(this.datasourceOptions);
     }
 
     /**

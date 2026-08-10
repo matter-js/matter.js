@@ -10,7 +10,7 @@ import { Subscription, SubscriptionId } from "#interaction/Subscription.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { ProtocolHandler } from "#protocol/ProtocolHandler.js";
 import { SecureSession } from "#session/SecureSession.js";
-import { AbortedError, causedBy, Diagnostic, InternalError, Logger } from "@matter/general";
+import { AbortedError, causedBy, Diagnostic, InternalError, Logger, Time } from "@matter/general";
 import { DataReport, INTERACTION_PROTOCOL_ID, Status, TlvAttributeReport, TypeFromSchema } from "@matter/types";
 import { InputChunk } from "../InputChunk.js";
 import { ClientSubscriptions } from "./ClientSubscriptions.js";
@@ -106,6 +106,10 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
         // Pass the data to the recipient
         try {
             subscription.isReading = true;
+
+            // Stamp when the report (data or keepalive) starts arriving, not on completion — a multi-chunk report
+            // may stream for a while, and liveness is proven the moment the peer starts sending on this subscription.
+            subscription.lastReportStartedAt = Time.nowMs;
 
             // If this is just a ping, only reset the timeout
             if (!initialReport.attributeReports?.length && !initialReport.eventReports?.length) {

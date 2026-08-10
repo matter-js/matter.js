@@ -5,14 +5,12 @@
  */
 
 import { Bytes } from "@matter/main";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { OtbrRestProbe } from "../src/otbr-rest/OtbrRestProbe.js";
+import { data as nodeCamelJson } from "./fixtures/otbr-rest/node-camel.json.js";
+import { data as nodeJson } from "./fixtures/otbr-rest/node.json.js";
 
-const PACKAGE_ROOT = process.cwd();
-const FIXTURE_DIR = resolve(PACKAGE_ROOT, "test/fixtures/otbr-rest");
-const NODE_PASCAL_FIXTURE = readFileSync(resolve(FIXTURE_DIR, "node.json"), "utf8");
-const NODE_CAMEL_FIXTURE = readFileSync(resolve(FIXTURE_DIR, "node-camel.json"), "utf8");
+const NODE_PASCAL_FIXTURE = JSON.stringify(nodeJson);
+const NODE_CAMEL_FIXTURE = JSON.stringify(nodeCamelJson);
 
 type FetchHandler = (url: string, init?: RequestInit) => Promise<Response>;
 

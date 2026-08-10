@@ -102,6 +102,70 @@ describe("Heap", () => {
         }
     });
 
+    it("holds each item at most once", () => {
+        const emitted = Array<number>();
+        const heap = new Heap(compareNumbers);
+        heap.added.on(n => {
+            emitted.push(n);
+        });
+
+        heap.add(1, 2, 2, 3, 3, 3);
+
+        expect(heap.size).equals(3);
+        expect(emitted).deep.equals([1, 2, 3]); // no emit for the skipped duplicates
+
+        const result = Array<number | undefined>();
+        while (heap.size) {
+            result.push(heap.shift());
+        }
+        expect(result).deep.equals([1, 2, 3]);
+    });
+
+    it("can delete an item added after an earlier delete", () => {
+        const heap = new Heap(compareNumbers);
+        heap.add(1, 2, 3, 4, 5);
+
+        // Establish position tracking, then add a value large enough to remain at a leaf (it does not bubble, so its
+        // position must be registered by add() itself).
+        expect(heap.delete(2)).equals(true);
+        heap.add(100);
+        expect(heap.delete(100)).equals(true);
+
+        const result = Array<number | undefined>();
+        while (heap.size) {
+            result.push(heap.shift());
+        }
+        expect(result).deep.equals([1, 3, 4, 5]);
+    });
+
+    it("supports delete then re-add of the same item", () => {
+        const heap = new Heap(compareNumbers);
+        heap.add(1, 2, 3);
+
+        expect(heap.delete(2)).equals(true);
+        heap.add(2); // allowed again: no longer present
+        expect(heap.size).equals(3);
+        expect(heap.delete(2)).equals(true);
+        expect(heap.size).equals(2);
+    });
+
+    it("delete returns false for an absent item", () => {
+        const heap = new Heap(compareNumbers);
+        heap.add(1, 2, 3);
+
+        expect(heap.delete(99)).equals(false);
+        expect(heap.size).equals(3);
+    });
+
+    it("reports isEmpty", () => {
+        const heap = new Heap(compareNumbers);
+        expect(heap.isEmpty).equals(true);
+        heap.add(1);
+        expect(heap.isEmpty).equals(false);
+        heap.shift();
+        expect(heap.isEmpty).equals(true);
+    });
+
     it("emits firstChanged on insert and delete", () => {
         const emitted = Array<number | undefined>();
         const heap = new Heap(compareNumbers);

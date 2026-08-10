@@ -1133,12 +1133,12 @@ export declare namespace ElectricalPowerMeasurement {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link ElectricalPowerMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ElectricalPowerMeasurement}.
      */
     export const Cluster: ClusterType.WithCompat<typeof ElectricalPowerMeasurement, ElectricalPowerMeasurement>;
 
     /**
-     * @deprecated Use {@link ElectricalPowerMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ElectricalPowerMeasurement}.
      */
     export const Complete: typeof ElectricalPowerMeasurement;
 
@@ -1146,7 +1146,7 @@ export declare namespace ElectricalPowerMeasurement {
 }
 
 /**
- * @deprecated Use {@link ElectricalPowerMeasurement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link ElectricalPowerMeasurement}.
  */
 export declare const ElectricalPowerMeasurementCluster: typeof ElectricalPowerMeasurement;
 

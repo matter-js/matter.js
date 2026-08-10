@@ -50,6 +50,12 @@ export interface PhysicalDeviceProperties {
     /** Device type IDs present on any endpoint of the node. */
     deviceTypes?: Set<DeviceTypeId>;
     threadActive?: boolean;
+
+    /** A WiFi interface reports itself operational (GeneralDiagnostics.NetworkInterfaces). Undefined if unknown. */
+    wifiActive?: boolean;
+
+    /** An ethernet interface reports itself operational (GeneralDiagnostics.NetworkInterfaces). Undefined if unknown. */
+    ethernetActive?: boolean;
     threadPan?: bigint;
     threadChannel?: number;
 }

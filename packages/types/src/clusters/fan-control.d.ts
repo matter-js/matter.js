@@ -746,12 +746,12 @@ export declare namespace FanControl {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link FanControl}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link FanControl}.
      */
     export const Cluster: ClusterType.WithCompat<typeof FanControl, FanControl>;
 
     /**
-     * @deprecated Use {@link FanControl}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link FanControl}.
      */
     export const Complete: typeof FanControl;
 
@@ -759,7 +759,7 @@ export declare namespace FanControl {
 }
 
 /**
- * @deprecated Use {@link FanControl}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link FanControl}.
  */
 export declare const FanControlCluster: typeof FanControl;
 

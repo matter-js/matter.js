@@ -6,11 +6,8 @@
 
 import { Bytes } from "@matter/main";
 import { BasicTlv, OperationalDataset } from "@matter/protocol";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
-const PACKAGE_ROOT = process.cwd();
-const FIXTURE_DIR = resolve(PACKAGE_ROOT, "test/fixtures/datasets");
+import { data as agnersVector1Expected } from "./fixtures/datasets/agners-vector-1.expected.txt.js";
+import { data as agnersVector1Hex } from "./fixtures/datasets/agners-vector-1.hex.js";
 
 interface ParsedLine {
     type: number;
@@ -43,10 +40,9 @@ function parseAgnersLine(line: string): ParsedLine | undefined {
 
 describe("OperationalDataset cross-validation against Agners' Python parser", () => {
     it("matches per-TLV (type, length, value) for agners-vector-1 in order", () => {
-        const hex = readFileSync(resolve(FIXTURE_DIR, "agners-vector-1.hex"), "utf8").trim();
+        const hex = agnersVector1Hex.trim();
         const blob = Bytes.of(Bytes.fromHex(hex));
-        const expectedRaw = readFileSync(resolve(FIXTURE_DIR, "agners-vector-1.expected.txt"), "utf8");
-        const expected = expectedRaw
+        const expected = agnersVector1Expected
             .split("\n")
             .map(s => s.trim())
             .filter(s => s.length > 0)
@@ -71,7 +67,7 @@ describe("OperationalDataset cross-validation against Agners' Python parser", ()
     });
 
     it("decodes the same fixture into named OperationalDataset accessors", () => {
-        const hex = readFileSync(resolve(FIXTURE_DIR, "agners-vector-1.hex"), "utf8").trim();
+        const hex = agnersVector1Hex.trim();
         const blob = Bytes.of(Bytes.fromHex(hex));
         const ds = OperationalDataset.decode(blob);
 
@@ -84,7 +80,7 @@ describe("OperationalDataset cross-validation against Agners' Python parser", ()
     });
 
     it("round-trips agners-vector-1 byte-identically", () => {
-        const hex = readFileSync(resolve(FIXTURE_DIR, "agners-vector-1.hex"), "utf8").trim();
+        const hex = agnersVector1Hex.trim();
         const blob = Bytes.of(Bytes.fromHex(hex));
         const ds = OperationalDataset.decode(blob);
         expect(OperationalDataset.encode(ds)).to.deep.equal(blob);

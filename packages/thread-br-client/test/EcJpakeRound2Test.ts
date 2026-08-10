@@ -7,12 +7,9 @@
 import { StandardCrypto } from "@matter/general";
 import { Bytes } from "@matter/main";
 import { p256 } from "@noble/curves/nist.js";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { ECJPAKE_ID_CLIENT, ECJPAKE_ID_SERVER, EcJpakeRound } from "../src/dtls/ecjpake/EcJpakeRound.js";
+import { data as mbedtlsVectors } from "./fixtures/ecjpake/mbedtls-self-test-vectors.json.js";
 
-const PACKAGE_ROOT = process.cwd();
-const FIXTURE = resolve(PACKAGE_ROOT, "test/fixtures/ecjpake/mbedtls-self-test-vectors.json");
 const crypto = new StandardCrypto();
 
 interface MbedTlsVectors {
@@ -27,10 +24,6 @@ interface MbedTlsVectors {
     srv_two: string;
 }
 
-function loadVectors(): MbedTlsVectors {
-    return JSON.parse(readFileSync(FIXTURE, "utf8")) as MbedTlsVectors;
-}
-
 function bigintFromHex(hex: string): bigint {
     return BigInt("0x" + hex);
 }
@@ -43,7 +36,7 @@ function pointBytes(scalar: bigint): Uint8Array {
 }
 
 describe("EcJpakeRound.parseRound2 + verifyRound2Zkp (mbedTLS oracle)", () => {
-    const vectors = loadVectors();
+    const vectors: MbedTlsVectors = mbedtlsVectors;
 
     it("parses cli_two (no ECParameters prefix) into a single ECJPAKEKeyKP", () => {
         const kp = EcJpakeRound.parseRound2(Bytes.of(Bytes.fromHex(vectors.cli_two)), {
@@ -131,7 +124,7 @@ describe("EcJpakeRound.parseRound2 + verifyRound2Zkp (mbedTLS oracle)", () => {
 });
 
 describe("EcJpakeRound.serializeRound2 (byte-identical round-trip with mbedTLS oracle)", () => {
-    const vectors = loadVectors();
+    const vectors: MbedTlsVectors = mbedtlsVectors;
 
     it("re-serialises cli_two byte-identically (parse -> serialize == input)", () => {
         const kp = EcJpakeRound.parseRound2(Bytes.of(Bytes.fromHex(vectors.cli_two)), {
@@ -151,7 +144,7 @@ describe("EcJpakeRound.serializeRound2 (byte-identical round-trip with mbedTLS o
 });
 
 describe("EcJpakeRound.buildRound2 (deterministic ephemerals)", () => {
-    const vectors = loadVectors();
+    const vectors: MbedTlsVectors = mbedtlsVectors;
 
     function clientGenerator() {
         const Xp1 = pointBytes(bigintFromHex(vectors.x3));

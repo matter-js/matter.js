@@ -35,8 +35,9 @@ export namespace IcdMultiAdminError {
      * ecosystems.
      */
     export const TRUSTED_ECOSYSTEM_VENDORS: readonly VendorId[] = [
-        VendorId(0x1384) /* Apple */,
+        VendorId(0x1384) /* Apple Keychain - Not subscribing */,
         VendorId(0x110a) /* Samsung SmartThings */,
+        VendorId(0x134b) /* Open Home Foundation/Home Assistant */,
     ];
 
     /**

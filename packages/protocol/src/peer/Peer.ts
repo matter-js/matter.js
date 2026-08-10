@@ -31,6 +31,7 @@ import {
     Lifetime,
     Logger,
     Millis,
+    Observable,
     ObserverGroup,
     QuietObservable,
     Seconds,
@@ -85,6 +86,10 @@ export class Peer {
     #observers = new ObserverGroup();
     #exchangeProvider?: ExchangeProvider;
     #updated = AsyncObservable<[peer: Peer]>();
+    // Emitted from the MRP retransmission path; swallow observer throws so a bad listener can't break CASE establishment.
+    #establishmentUnresponsive = Observable<[]>(error =>
+        logger.warn("Unhandled error in establishmentUnresponsive observer:", error),
+    );
     #addressMonitor?: PeerAddressMonitor;
 
     constructor(descriptor: PeerDescriptor, context: Peer.Context) {
@@ -157,7 +162,7 @@ export class Peer {
             }
 
             // Remove session and detach listener when destroyed
-            session.closing.on(() => {
+            session.closing.once(() => {
                 this.#sessions.delete(session);
                 if (isIpNetworkChannel(session.channel.transportChannel)) {
                     session.channel.networkAddressChanged.off(tagUdp);
@@ -166,6 +171,11 @@ export class Peer {
 
             // Ensure session parameters reflect those most recently reported by peer
             this.#descriptor.sessionParameters = session.parameters;
+
+            // Only pad when we actually know the peer's medium; the "unknown" fallback is deliberately not applied
+            // here because it would inflate responder timing for every peer of a node that never characterizes them.
+            session.peerMrpMarginsResolver = () =>
+                this.#physicalProperties === undefined ? undefined : this.network.mrpMargins;
         });
     }
 
@@ -174,6 +184,15 @@ export class Peer {
      */
     get updated() {
         return this.#updated;
+    }
+
+    /**
+     * Emits when a CASE establishment attempt has retransmitted past the MRP budget without a response, indicating
+     * the peer is likely unresponsive.  The latch re-arms per attempt (and per handshake message), so a later stall
+     * can emit again.  Retransmission itself is unchanged; this is only a signal.
+     */
+    get establishmentUnresponsive(): Observable<[]> {
+        return this.#establishmentUnresponsive;
     }
 
     get lifetime() {
@@ -539,7 +558,8 @@ export class Peer {
     }
 
     newestSession(type?: ChannelType) {
-        // Prefer the most recently used session.  Older ones may not work with broken peers (e.g. CHIP test harness)
+        // Prefer the session we last heard from the peer on (highest activeTimestamp).  A dead session
+        // still retransmitting keeps a high `timestamp`, so ordering by that would pick it over a fresh one.
         let found: NodeSession | undefined;
 
         for (const session of this.#sessions) {
@@ -551,7 +571,7 @@ export class Peer {
                 continue;
             }
 
-            if (!found || found.timestamp < session.timestamp) {
+            if (!found || found.activeTimestamp < session.activeTimestamp) {
                 found = session;
             }
         }

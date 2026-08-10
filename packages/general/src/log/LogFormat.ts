@@ -562,15 +562,17 @@ function renderDictionary(value: object, formatter: Formatter) {
 }
 
 function valueFor(value: unknown) {
-    if (typeof value !== "object" || value === null) {
-        return value;
-    }
-    if (Diagnostic.value in value) {
+    // Walk the proxy chain in lockstep with presentationFor: unwrap presentation-less proxies, but stop at the level
+    // that declares a presentation and return its value, so the value matches the presentation the switch acts on.
+    while (typeof value === "object" && value !== null && Diagnostic.value in value) {
         const proxied = Diagnostic.valueOf(value);
         if (proxied === value) {
             throw new InternalError("Diagnostic value proxies to itself");
         }
-        return proxied;
+        if (Diagnostic.presentation in value) {
+            return proxied;
+        }
+        value = proxied;
     }
     return value;
 }

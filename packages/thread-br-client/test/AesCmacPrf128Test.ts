@@ -6,26 +6,18 @@
 
 import { StandardCrypto } from "@matter/general";
 import { Bytes } from "@matter/main";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { AesCmacPrf128 } from "../src/crypto/AesCmacPrf128.js";
-
-const PACKAGE_ROOT = process.cwd();
-const FIXTURE_DIR = resolve(PACKAGE_ROOT, "test/fixtures");
+import { data as rfc4615CmacPrfVectors } from "./fixtures/rfc4615-cmac-prf-vectors.json.js";
 
 interface PrfFixture {
     messageHex: string;
     vectors: Array<{ name: string; keyHex: string; expectedPrfHex: string }>;
 }
 
-function loadJson<T>(name: string): T {
-    return JSON.parse(readFileSync(resolve(FIXTURE_DIR, name), "utf8")) as T;
-}
-
 const crypto = new StandardCrypto();
 
 describe("AesCmacPrf128.compute (RFC 4615)", () => {
-    const fixture = loadJson<PrfFixture>("rfc4615-cmac-prf-vectors.json");
+    const fixture: PrfFixture = rfc4615CmacPrfVectors;
     const message = Bytes.of(Bytes.fromHex(fixture.messageHex));
 
     for (const vector of fixture.vectors) {

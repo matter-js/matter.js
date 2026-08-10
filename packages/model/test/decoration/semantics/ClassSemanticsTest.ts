@@ -166,6 +166,31 @@ describe("ClassSemantics", () => {
         });
     });
 
+    it("initializes metadata when Function.prototype[Symbol.metadata] is non-writable", () => {
+        const original = Object.getOwnPropertyDescriptor(Function.prototype, Symbol.metadata);
+        Object.defineProperty(Function.prototype, Symbol.metadata, {
+            value: null,
+            writable: false,
+            enumerable: false,
+            configurable: true,
+        });
+
+        try {
+            class Foo {}
+
+            expect(Object.hasOwn(Foo, Symbol.metadata)).false;
+            const semantics = ClassSemantics.of(Foo);
+            expect(semantics.new).equals(Foo);
+            expect(Object.hasOwn(Foo, Symbol.metadata)).true;
+        } finally {
+            if (original === undefined) {
+                delete (Function.prototype as { [Symbol.metadata]?: unknown })[Symbol.metadata];
+            } else {
+                Object.defineProperty(Function.prototype, Symbol.metadata, original);
+            }
+        }
+    });
+
     describe("new field", () => {
         it("is possible when not final", () => {
             @datatype()

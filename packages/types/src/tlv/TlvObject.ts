@@ -91,7 +91,7 @@ export class ObjectSchema<F extends TlvFields> extends TlvSchema<TypeFromFields<
         this.isFabricScoped = isFabricScoped;
     }
 
-    /** @deprecated Part of old ClusterType() compat layer. */
+    /** @deprecated Part of old ClusterType() compat layer.  Scheduled for removal in 0.19. */
     override get element(): TlvSchema.Element {
         const children: FieldElement[] = [];
 
@@ -301,14 +301,15 @@ export class ObjectSchema<F extends TlvFields> extends TlvSchema<TypeFromFields<
     ): TypeFromFields<F> {
         for (const k in this.fieldDefinitions) {
             const field = this.fieldDefinitions[k] as FieldType<any>;
+            const fieldValueOfK = (value as any)[k];
 
             if (field.id === fieldId) {
-                if (injectChecker((value as any)[k])) {
+                if (injectChecker(fieldValueOfK)) {
                     field.schema.validate(fieldValue); // Make sure type matches
                     (value as any)[k] = fieldValue;
                 }
-            } else {
-                (value as any)[k] = field.schema.injectField((value as any)[k], fieldId, fieldValue, injectChecker);
+            } else if (fieldValueOfK !== undefined && fieldValueOfK !== null) {
+                (value as any)[k] = field.schema.injectField(fieldValueOfK, fieldId, fieldValue, injectChecker);
             }
         }
         return value;
@@ -321,13 +322,14 @@ export class ObjectSchema<F extends TlvFields> extends TlvSchema<TypeFromFields<
     ): TypeFromFields<F> {
         for (const k in this.fieldDefinitions) {
             const field = this.fieldDefinitions[k] as FieldType<any>;
+            const fieldValueOfK = (value as any)[k];
 
             if (field.id === fieldId) {
-                if ((value as any)[k] !== undefined && removeChecker((value as any)[k])) {
+                if (fieldValueOfK !== undefined && removeChecker(fieldValueOfK)) {
                     delete (value as any)[k];
                 }
-            } else {
-                (value as any)[k] = field.schema.removeField((value as any)[k], fieldId, removeChecker);
+            } else if (fieldValueOfK !== undefined && fieldValueOfK !== null) {
+                (value as any)[k] = field.schema.removeField(fieldValueOfK, fieldId, removeChecker);
             }
         }
         return value;

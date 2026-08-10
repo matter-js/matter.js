@@ -53,7 +53,7 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
     }
 
     async #nodeOnline() {
-        const fabricAuthority = this.env.get(FabricAuthority);
+        const fabricAuthority = await this.env.load(FabricAuthority);
         const ownFabric = fabricAuthority.fabrics[0];
         if (!ownFabric) {
             this.reactTo(fabricAuthority.fabricAdded, this.#nodeOnline, { once: true });

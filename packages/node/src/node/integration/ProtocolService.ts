@@ -301,8 +301,11 @@ class EndpointState {
         }
     }
 
-    #updateDeviceTypes(deviceTypeList: Readonly<{ deviceType: DeviceTypeId }[]>) {
-        this.protocol.deviceTypes = deviceTypeList.map(dt => dt.deviceType);
+    #updateDeviceTypes(deviceTypeList: Readonly<{ deviceType: DeviceTypeId }[]> | undefined) {
+        if (deviceTypeList === undefined) {
+            logger.warn(`Endpoint ${this.protocol.id} descriptor is missing mandatory DeviceTypeList`);
+        }
+        this.protocol.deviceTypes = deviceTypeList?.map(dt => dt.deviceType) ?? [];
     }
 }
 

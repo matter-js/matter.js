@@ -143,12 +143,12 @@ export declare namespace PowerTopology {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link PowerTopology}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link PowerTopology}.
      */
     export const Cluster: ClusterType.WithCompat<typeof PowerTopology, PowerTopology>;
 
     /**
-     * @deprecated Use {@link PowerTopology}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link PowerTopology}.
      */
     export const Complete: typeof PowerTopology;
 
@@ -156,7 +156,7 @@ export declare namespace PowerTopology {
 }
 
 /**
- * @deprecated Use {@link PowerTopology}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link PowerTopology}.
  */
 export declare const PowerTopologyCluster: typeof PowerTopology;
 

@@ -314,12 +314,12 @@ export declare namespace OzoneConcentrationMeasurement {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link OzoneConcentrationMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link OzoneConcentrationMeasurement}.
      */
     export const Cluster: ClusterType.WithCompat<typeof OzoneConcentrationMeasurement, OzoneConcentrationMeasurement>;
 
     /**
-     * @deprecated Use {@link OzoneConcentrationMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link OzoneConcentrationMeasurement}.
      */
     export const Complete: typeof OzoneConcentrationMeasurement;
 
@@ -327,7 +327,7 @@ export declare namespace OzoneConcentrationMeasurement {
 }
 
 /**
- * @deprecated Use {@link OzoneConcentrationMeasurement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link OzoneConcentrationMeasurement}.
  */
 export declare const OzoneConcentrationMeasurementCluster: typeof OzoneConcentrationMeasurement;
 

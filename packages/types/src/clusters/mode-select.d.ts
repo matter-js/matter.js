@@ -358,12 +358,12 @@ export declare namespace ModeSelect {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link ModeSelect}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ModeSelect}.
      */
     export const Cluster: ClusterType.WithCompat<typeof ModeSelect, ModeSelect>;
 
     /**
-     * @deprecated Use {@link ModeSelect}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ModeSelect}.
      */
     export const Complete: typeof ModeSelect;
 
@@ -371,7 +371,7 @@ export declare namespace ModeSelect {
 }
 
 /**
- * @deprecated Use {@link ModeSelect}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link ModeSelect}.
  */
 export declare const ModeSelectCluster: typeof ModeSelect;
 

@@ -82,6 +82,9 @@ const logger = Logger.get("PairedNode");
 /** Delay after receiving a changed partList  from a device to update the device structure */
 const STRUCTURE_UPDATE_TIMEOUT = Seconds(5);
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export enum NodeStates {
     /**
      * Node seems active nd last communications were successful and subscription updates were received and all data is
@@ -108,7 +111,7 @@ export enum NodeStates {
     WaitingForDeviceDiscovery = 3,
 }
 
-/** @deprecated */
+/** @deprecated Scheduled for removal in 0.19. */
 export enum NodeStateInformation {
     /**
      * Node seems active nd last communications were successful and subscription updates were received and all data is
@@ -146,6 +149,9 @@ export enum NodeStateInformation {
     Decommissioned = 5,
 }
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export type CommissioningControllerNodeOptions = {
     /**
      * Unless set to false the node will be automatically connected when initialized. When set to false use
@@ -177,21 +183,21 @@ export type CommissioningControllerNodeOptions = {
     /**
      * Optional additional callback method which is called for each Attribute change reported by the device. Use this
      * if subscribing to all relevant attributes is too much effort.
-     * @deprecated Please use the events.attributeChanged observable instead.
+     * @deprecated Scheduled for removal in 0.19.  Please use the events.attributeChanged observable instead.
      */
     readonly attributeChangedCallback?: (nodeId: NodeId, data: DecodedAttributeReportValue<any>) => void;
 
     /**
      * Optional additional callback method which is called for each Event reported by the device. Use this if
      * subscribing to all relevant events is too much effort.
-     * @deprecated Please use the events.eventTriggered observable instead.
+     * @deprecated Scheduled for removal in 0.19.  Please use the events.eventTriggered observable instead.
      */
     readonly eventTriggeredCallback?: (nodeId: NodeId, data: DecodedEventReportValue<any>) => void;
 
     /**
      * Optional callback method which is called when the state of the node changes. This can be used to detect when
      * the node goes offline or comes back online.
-     * @deprecated Please use the events.stateChanged observable and the extra events for structureChanged and
+     * @deprecated Scheduled for removal in 0.19.  Please use the events.stateChanged observable and the extra events for structureChanged and
      *  decommissioned instead.
      */
     readonly stateInformationCallback?: (nodeId: NodeId, state: NodeStateInformation) => void;
@@ -203,6 +209,9 @@ export type CommissioningControllerNodeOptions = {
     readonly caseAuthenticatedTags?: CaseAuthenticatedTag[];
 };
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export class NodeNotConnectedError extends MatterError {}
 
 /**
@@ -222,6 +231,8 @@ function areNumberListsSame(list1: Immutable<number[]>, list2: Immutable<number[
 /**
  * Class to represents one node that is paired/commissioned with the matter.js Controller. Instances are returned by
  * the CommissioningController on commissioning or when connecting.
+ *
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export class PairedNode {
     readonly #clientNode: ClientNode;
@@ -842,7 +853,7 @@ export class PairedNode {
      * Subscribe to all attributes and events of the device. Unless setting the Controller property autoSubscribe to
      * false, this is executed automatically. Alternatively, you can manually subscribe by calling this method.
      *
-     * @deprecated Subscription is now managed by NetworkClient on the ClientNode. Use connect() to activate.
+     * @deprecated Scheduled for removal in 0.19.  Subscription is now managed by NetworkClient on the ClientNode. Use connect() to activate.
      */
     async subscribeAllAttributesAndEvents(_options?: {
         ignoreInitialTriggers?: boolean;
@@ -960,10 +971,8 @@ export class PairedNode {
             return;
         }
         collectedData.set(endpointId, endpoint);
-        if (descriptorData.partsList.length) {
-            for (const partEndpointId of descriptorData.partsList) {
-                this.#collectEndpoints(partEndpointId, collectedData);
-            }
+        for (const partEndpointId of descriptorData.partsList ?? []) {
+            this.#collectEndpoints(partEndpointId, collectedData);
         }
     }
 
@@ -976,12 +985,12 @@ export class PairedNode {
         return !(
             areNumberListsSame(
                 device.getDeviceTypes().map(({ code }) => code),
-                descriptorData.deviceTypeList.map(({ deviceType }) => deviceType),
+                (descriptorData.deviceTypeList ?? []).map(({ deviceType }) => deviceType),
             ) &&
             // Check if the cluster clients are the same - they map to the serverList attribute
             areNumberListsSame(
                 device.getAllClusterClients().map(({ id }) => id),
-                descriptorData.serverList,
+                descriptorData.serverList ?? [],
             )
         );
     }
@@ -1088,7 +1097,11 @@ export class PairedNode {
                 endpointId,
                 Diagnostic.json(endpoint.state),
             ]);
-            this.#endpoints.set(endpointId, this.#createDevice(endpointId, endpoint, this.#interactionClient));
+            const device = this.#createDevice(endpointId, endpoint, this.#interactionClient);
+            if (device === undefined) {
+                continue;
+            }
+            this.#endpoints.set(endpointId, device);
             if (!isRecreation) {
                 eventsToEmit.set(endpointId, "nodeEndpointAdded");
             }
@@ -1130,7 +1143,7 @@ export class PairedNode {
             throw new InternalError("Endpoints not initialized yet! Should never happen");
         }
         const partLists = Array.from(descriptors.entries()).map(
-            ([epNo, ep]) => [epNo, ep.stateOf(DescriptorClient).partsList] as [EndpointNumber, EndpointNumber[]], // else Typescript gets confused
+            ([epNo, ep]) => [epNo, ep.stateOf(DescriptorClient).partsList ?? []] as [EndpointNumber, EndpointNumber[]], // else Typescript gets confused
         );
         logger.debug(() => [this.#peerAddress, `Endpoints from PartsLists`, Diagnostic.json(partLists)]);
 
@@ -1198,7 +1211,7 @@ export class PairedNode {
     #createDevice(endpointId: EndpointNumber, endpoint: ClientEndpoint, interactionClient: InteractionClient) {
         const descriptorData = endpoint.stateOf(DescriptorClient);
 
-        const deviceTypes = descriptorData.deviceTypeList.flatMap(({ deviceType, revision }) => {
+        const deviceTypes = (descriptorData.deviceTypeList ?? []).flatMap(({ deviceType, revision }) => {
             const deviceTypeDefinition = getDeviceTypeDefinitionFromModelByCode(deviceType);
             if (deviceTypeDefinition === undefined) {
                 logger.info(
@@ -1216,14 +1229,20 @@ export class PairedNode {
             return deviceTypeDefinition;
         });
         if (deviceTypes.length === 0) {
-            logger.debug(this.#peerAddress, `No device type found for endpoint ${endpointId}, ignore`);
-            throw new MatterError(`NodeId ${this.nodeId}: No device type found for endpoint`);
+            if (endpointId !== 0) {
+                logger.warn(this.#peerAddress, `No device type found for endpoint ${endpointId}, ignoring it`);
+                return undefined;
+            }
+            logger.warn(
+                this.#peerAddress,
+                `No device type found for root endpoint, using default Root Node device type`,
+            );
         }
 
         const endpointClusters = Array<ClusterClientObj>();
 
         // Add ClusterClients for all server clusters of the device
-        for (const clusterId of descriptorData.serverList) {
+        for (const clusterId of descriptorData.serverList ?? []) {
             const clusterModel = Matter.clusters(clusterId);
             const cluster = (
                 clusterModel !== undefined
@@ -1237,7 +1256,9 @@ export class PairedNode {
         if (endpointId === 0) {
             // Endpoint 0 is the root endpoint, so we use a RootEndpoint object
             const rootEndpoint = new RootEndpoint(endpoint);
-            rootEndpoint.setDeviceTypes(deviceTypes as AtLeastOne<DeviceTypeDefinition>); // Ideally only root one as defined
+            if (deviceTypes.length > 0) {
+                rootEndpoint.setDeviceTypes(deviceTypes as AtLeastOne<DeviceTypeDefinition>); // Ideally only root one as defined
+            }
             endpointClusters.forEach(cluster => rootEndpoint.addClusterClient(cluster));
             return rootEndpoint;
         } else if (deviceTypes.find(deviceType => deviceType.code === AggregatorDt.id) !== undefined) {
@@ -1248,7 +1269,7 @@ export class PairedNode {
             return aggregator;
         } else {
             // It seems to be device but has a partsList, so it is a composed device
-            if (descriptorData.partsList.length > 0) {
+            if ((descriptorData.partsList ?? []).length > 0) {
                 const composedDevice = new ComposedDevice(endpoint, deviceTypes[0], [], { endpointId });
                 composedDevice.setDeviceTypes(deviceTypes as AtLeastOne<DeviceTypeDefinition>);
                 endpointClusters.forEach(cluster => composedDevice.addClusterClient(cluster));
@@ -1658,6 +1679,9 @@ export class PairedNode {
     }
 }
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export namespace PairedNode {
     export interface NodeStructureEvents {
         /** Emitted when endpoints are added. */

@@ -5,15 +5,38 @@
  */
 
 import { IcdManagementServer } from "#behaviors/icd-management";
+import { InteractionServer } from "#node/server/InteractionServer.js";
 import { ServerSubscription, ServerSubscriptionConfig } from "#node/server/ServerSubscription.js";
-import { DataReadQueue, Millis, Seconds } from "@matter/general";
+import { DataReadQueue, Lifetime, Millis, NoResponseTimeoutError, Seconds } from "@matter/general";
 import { MockServerNode } from "@matter/node/testing";
-import { MessageExchange, NodeSession } from "@matter/protocol";
+import {
+    ExchangeManager,
+    InteractionServerMessenger,
+    MessageExchange,
+    NodeSession,
+    PeerUnresponsiveError,
+    ProtocolMocks,
+    SessionManager,
+} from "@matter/protocol";
+import { AttributeId, AttributePath, ClusterId, EndpointNumber } from "@matter/types";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { LIT_CONFIG } from "./icd-helpers.js";
 
+function activeSpanNames(lifetime: Lifetime): string[] {
+    const names = new Array<string>();
+    for (const span of lifetime.spans) {
+        names.push(String(span.name), ...activeSpanNames(span));
+    }
+    return names;
+}
+
 const RootWithLitIcd = MockServerNode.RootEndpoint.with(
-    IcdManagementServer.with(IcdManagement.Feature.CheckInProtocolSupport, IcdManagement.Feature.LongIdleTimeSupport),
+    IcdManagementServer.with(
+        IcdManagement.Feature.CheckInProtocolSupport,
+        IcdManagement.Feature.LongIdleTimeSupport,
+        IcdManagement.Feature.UserActiveModeTrigger,
+    ),
 );
 
 describe("ServerSubscription", () => {
@@ -31,10 +54,15 @@ describe("ServerSubscription", () => {
             minIntervalFloorSeconds?: number;
             maxIntervalCeilingSeconds?: number;
             negotiateIntervals?: boolean;
+            session?: NodeSession;
+            attributeRequests?: AttributePath[];
         },
     ): Promise<ServerSubscription> {
-        const fabric = await node.addFabric();
-        const session = (await node.createExchange({ fabric })).session as NodeSession;
+        let session = overrides?.session;
+        if (session === undefined) {
+            const fabric = await node.addFabric();
+            session = (await node.createExchange({ fabric })).session as NodeSession;
+        }
 
         return new ServerSubscription({
             id: 1,
@@ -47,7 +75,8 @@ describe("ServerSubscription", () => {
             request: {
                 minIntervalFloorSeconds: overrides?.minIntervalFloorSeconds ?? 0,
                 maxIntervalCeilingSeconds: overrides?.maxIntervalCeilingSeconds ?? 60,
-                // No attributeRequests / eventRequests → keepalive-only sends, no RemoteActorContext needed
+                // Without attributeRequests / eventRequests these are keepalive-only sends
+                attributeRequests: overrides?.attributeRequests,
                 isFabricFiltered: false,
             },
             subscriptionOptions: ServerSubscriptionConfig.of(),
@@ -57,7 +86,7 @@ describe("ServerSubscription", () => {
         });
     }
 
-    it("sets isCanceledByPeer and removes from session when peer cancels", async () => {
+    it("marks the subscription terminated and removes it from the session when the peer cancels", async () => {
         const node = await MockServerNode.createOnline();
 
         const subscription = await createSubscription(node, () => ({}) as any);
@@ -65,12 +94,12 @@ describe("ServerSubscription", () => {
 
         subscription.activate();
 
-        expect(subscription.isCanceledByPeer).is.false;
+        expect(subscription.isTerminated).is.false;
         expect([...session.subscriptions]).has.length(1);
 
         await subscription.handlePeerCancel();
 
-        expect(subscription.isCanceledByPeer).is.true;
+        expect(subscription.isTerminated).is.true;
         expect([...session.subscriptions]).is.empty;
 
         await MockTime.resolve(node.close());
@@ -177,8 +206,181 @@ describe("ServerSubscription", () => {
         await MockTime.resolve(subscription.handlePeerCancel());
 
         expect(exchangeCloseThrew).is.true;
-        expect(subscription.isCanceledByPeer).is.true;
+        expect(subscription.isTerminated).is.true;
         expect([...session.subscriptions]).is.empty;
+
+        await MockTime.resolve(node.close());
+    });
+
+    it("abandons the subscription after repeated MRP exhaustion, leaving the session alone", async () => {
+        const node = await MockServerNode.createOnline();
+
+        let sends = 0;
+        const subscription = await createSubscription(node, () => {
+            return {
+                maxPayloadSize: 1200,
+                async send() {
+                    sends++;
+                    // What MRP exhaustion actually throws — see MessageExchange #sentMessageAckFailure
+                    throw new PeerUnresponsiveError(Millis(1000));
+                },
+                async close() {},
+            } as unknown as MessageExchange;
+        });
+
+        const session = subscription.session as NodeSession;
+        subscription.activate();
+
+        await MockTime.advance(1000);
+        for (let i = 0; i < 5; i++) {
+            await MockTime.yield3();
+        }
+
+        expect(sends).equals(3); // #sendUpdateErrorCounter tolerates 2 failures before giving up
+
+        // The update loop must terminate.  Abandoning from inside it cannot wait for it to finish -- that would be
+        // waiting for its own caller -- and a lingering "updating" span means it never returned.
+        expect(activeSpanNames(session.activate())).not.to.include("updating");
+        expect([...session.subscriptions]).is.empty;
+
+        // Failing to push reports says nothing about whether the controller can still reach us
+        expect(session.isClosing).is.false;
+        expect(session.isPeerLost).is.false;
+
+        await MockTime.resolve(node.close());
+    });
+
+    it("completes a flushing close triggered from inside an in-flight update", async () => {
+        const node = await MockServerNode.createOnline();
+        const fabric = await node.addFabric();
+        const initialExchange = await node.createExchange({ fabric });
+        const session = initialExchange.session as NodeSession;
+
+        const changedPath = {
+            endpointId: EndpointNumber(0),
+            clusterId: ClusterId(BasicInformation.id),
+            attributeId: AttributeId(BasicInformation.attributes.dataModelRevision.id),
+        };
+        const emitChange = (version: number) =>
+            node.protocol.attrsChanged.emit(
+                changedPath.endpointId,
+                changedPath.clusterId,
+                [changedPath.attributeId],
+                version,
+            );
+
+        let flushingClose: Promise<number> | undefined;
+
+        // The message counter rollover callback runs on the stack of the send that consumed the counter, and closes
+        // the session's subscriptions with a flush
+        const reportExchange = new ProtocolMocks.Exchange({ index: 2, context: { session }, maxPayloadSize: 1200 });
+        reportExchange.send = async () => {
+            // A change arriving mid-send leaves outstanding data, so the close below reaches #flush
+            emitChange(2);
+            flushingClose = session.closeSubscriptions(true, reportExchange);
+            await flushingClose;
+            throw new PeerUnresponsiveError(Millis(1000));
+        };
+
+        const subscription = await createSubscription(node, () => reportExchange, {
+            session,
+            attributeRequests: [changedPath],
+        });
+
+        await initialExchange.writeStatus();
+        await MockTime.resolve(
+            subscription.sendInitialReport(new InteractionServerMessenger(initialExchange), {
+                node,
+                exchange: initialExchange,
+                fabricFiltered: false,
+            }),
+        );
+        subscription.activate();
+
+        emitChange(1);
+        await MockTime.advance(200);
+
+        expect(flushingClose).is.not.undefined;
+        await MockTime.resolve(flushingClose!);
+
+        expect([...session.subscriptions]).is.empty;
+
+        await MockTime.resolve(node.close());
+    });
+
+    it("completes session force-close triggered from inside an in-flight update", async () => {
+        const node = await MockServerNode.createOnline();
+
+        let subscription!: ServerSubscription;
+        let forceClose: Promise<void> | undefined;
+
+        // Mirrors MessageExchange.send(): the failing send reports the failure while still on the sending stack, and
+        // the resulting teardown closes this subscription while its update is in flight
+        const reportExchange = {
+            maxPayloadSize: 1200,
+            async send() {
+                forceClose = (subscription.session as NodeSession).handlePeerLoss({
+                    cause: new NoResponseTimeoutError("Simulated missing ack"),
+                    currentExchange: reportExchange,
+                });
+                await forceClose;
+                throw new NoResponseTimeoutError("Simulated missing ack");
+            },
+            async close() {},
+        } as unknown as MessageExchange;
+
+        subscription = await createSubscription(node, () => reportExchange);
+
+        const session = subscription.session as NodeSession;
+        subscription.activate();
+
+        // Fire the 100 ms send timer + 50 ms delay timer so the keepalive update starts
+        await MockTime.advance(200);
+
+        expect(forceClose).is.not.undefined;
+        await MockTime.resolve(forceClose!);
+
+        expect(session.isClosing).is.true;
+        expect([...session.subscriptions]).is.empty;
+
+        await MockTime.resolve(node.close());
+    });
+
+    it("suppresses peer loss on the exchanges it opens to push subscription reports", async () => {
+        const node = await MockServerNode.createOnline();
+        const fabric = await node.addFabric();
+        const session = (await node.createExchange({ fabric })).session as NodeSession;
+
+        const exchangeManager = node.env.get(ExchangeManager);
+        const captured = new Array<MessageExchange.Options | undefined>();
+        exchangeManager.initiateExchangeForSession = (_session, _protocolId, options) => {
+            captured.push(options);
+            throw new PeerUnresponsiveError(Millis(1000));
+        };
+
+        const interactionServer = new InteractionServer(node, node.env.get(SessionManager));
+
+        try {
+            await expect(
+                interactionServer.establishFormerSubscription(
+                    {
+                        subscriptionId: 1,
+                        peerAddress: session.peerAddress,
+                        isFabricFiltered: false,
+                        minIntervalFloor: Seconds(0),
+                        maxIntervalCeiling: Seconds(60),
+                        maxInterval: Seconds(60),
+                        sendInterval: Seconds(30),
+                    },
+                    session,
+                ),
+            ).to.be.rejectedWith(PeerUnresponsiveError);
+        } finally {
+            delete (exchangeManager as Partial<ExchangeManager>).initiateExchangeForSession;
+        }
+
+        expect(captured).has.length(1);
+        expect(captured[0]?.suppressPeerLoss).is.true;
 
         await MockTime.resolve(node.close());
     });

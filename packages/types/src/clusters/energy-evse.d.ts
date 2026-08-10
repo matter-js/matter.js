@@ -1665,12 +1665,12 @@ export declare namespace EnergyEvse {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link EnergyEvse}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link EnergyEvse}.
      */
     export const Cluster: ClusterType.WithCompat<typeof EnergyEvse, EnergyEvse>;
 
     /**
-     * @deprecated Use {@link EnergyEvse}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link EnergyEvse}.
      */
     export const Complete: typeof EnergyEvse;
 
@@ -1678,7 +1678,7 @@ export declare namespace EnergyEvse {
 }
 
 /**
- * @deprecated Use {@link EnergyEvse}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link EnergyEvse}.
  */
 export declare const EnergyEvseCluster: typeof EnergyEvse;
 

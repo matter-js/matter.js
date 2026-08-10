@@ -6,17 +6,12 @@
 
 import { Bytes } from "@matter/main";
 import { OperationalDataset } from "@matter/protocol";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { ThreadCredentialsRegistry } from "../src/credentials/ThreadCredentialsRegistry.js";
 import type { ThreadNetworkCredentials } from "../src/credentials/ThreadNetworkCredentials.js";
+import { data as synthetic1Hex } from "./fixtures/datasets/synthetic-1.hex.js";
 
-const PACKAGE_ROOT = process.cwd();
-const FIXTURE_DIR = resolve(PACKAGE_ROOT, "test/fixtures/datasets");
-
-function loadDataset(name: string): OperationalDataset {
-    const hex = readFileSync(resolve(FIXTURE_DIR, name), "utf8").trim();
-    return OperationalDataset.decode(Bytes.of(Bytes.fromHex(hex)));
+function loadDataset(hex: string): OperationalDataset {
+    return OperationalDataset.decode(Bytes.of(Bytes.fromHex(hex.trim())));
 }
 
 function makeCreds(overrides: Partial<ThreadNetworkCredentials> = {}): ThreadNetworkCredentials {
@@ -42,7 +37,7 @@ describe("ThreadCredentialsRegistry", () => {
 
     describe("register(dataset)", () => {
         it("extracts extPanId, networkName, pskc, activeTimestamp from a real dataset", () => {
-            const ds = loadDataset("synthetic-1.hex");
+            const ds = loadDataset(synthetic1Hex);
             registry.register(ds);
             const list = registry.list();
             expect(list).to.have.lengthOf(1);
@@ -53,14 +48,14 @@ describe("ThreadCredentialsRegistry", () => {
         });
 
         it("never exposes the network key", () => {
-            const ds = loadDataset("synthetic-1.hex");
+            const ds = loadDataset(synthetic1Hex);
             registry.register(ds);
             const stored = registry.list()[0];
             expect("networkKey" in stored).to.equal(false);
         });
 
         it("fires events.registered with the new credentials", () => {
-            const ds = loadDataset("synthetic-1.hex");
+            const ds = loadDataset(synthetic1Hex);
             const emitted: ThreadNetworkCredentials[] = [];
             registry.events.registered.on(c => {
                 emitted.push(c);
@@ -87,7 +82,7 @@ describe("ThreadCredentialsRegistry", () => {
         });
 
         it("replaces an existing entry with the same extPanId", () => {
-            const ds = loadDataset("synthetic-1.hex");
+            const ds = loadDataset(synthetic1Hex);
             registry.register(ds);
             registry.registerCredentials(makeCreds({ networkName: "Replaced", pskc: new Uint8Array(16).fill(0xff) }));
             const list = registry.list();
@@ -96,7 +91,7 @@ describe("ThreadCredentialsRegistry", () => {
         });
 
         it("emits events.registered (only) on replacement, not unregistered", () => {
-            const ds = loadDataset("synthetic-1.hex");
+            const ds = loadDataset(synthetic1Hex);
             registry.register(ds);
             const registered: ThreadNetworkCredentials[] = [];
             const unregistered: Bytes[] = [];
@@ -120,19 +115,19 @@ describe("ThreadCredentialsRegistry", () => {
         });
 
         it("throws when extPanId is missing", () => {
-            const ds = loadDataset("synthetic-1.hex");
+            const ds = loadDataset(synthetic1Hex);
             ds.extPanId = undefined;
             expect(() => registry.register(ds)).to.throw(/extPanId/);
         });
 
         it("throws when networkName is missing", () => {
-            const ds = loadDataset("synthetic-1.hex");
+            const ds = loadDataset(synthetic1Hex);
             ds.networkName = undefined;
             expect(() => registry.register(ds)).to.throw(/networkName/);
         });
 
         it("throws when pskc is missing", () => {
-            const ds = loadDataset("synthetic-1.hex");
+            const ds = loadDataset(synthetic1Hex);
             ds.pskc = undefined;
             expect(() => registry.register(ds)).to.throw(/pskc/);
         });
