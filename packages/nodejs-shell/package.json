@@ -41,7 +41,6 @@
         "@matter/nodejs-ble": "*",
         "@matter/protocol": "*",
         "@matter/types": "*",
-        "@project-chip/matter.js": "*",
         "ws": "^8.21.2",
         "yargs": "^18.1.0"
     },

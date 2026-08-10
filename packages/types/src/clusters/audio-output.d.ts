@@ -247,12 +247,12 @@ export declare namespace AudioOutput {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link AudioOutput}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link AudioOutput}.
      */
     export const Cluster: ClusterType.WithCompat<typeof AudioOutput, AudioOutput>;
 
     /**
-     * @deprecated Use {@link AudioOutput}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link AudioOutput}.
      */
     export const Complete: typeof AudioOutput;
 
@@ -260,7 +260,7 @@ export declare namespace AudioOutput {
 }
 
 /**
- * @deprecated Use {@link AudioOutput}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link AudioOutput}.
  */
 export declare const AudioOutputCluster: typeof AudioOutput;
 

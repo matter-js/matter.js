@@ -595,12 +595,12 @@ export declare namespace TlsCertificateManagement {
     export const commands: ClusterType.CommandObjects<Commands>;
 
     /**
-     * @deprecated Use {@link TlsCertificateManagement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link TlsCertificateManagement}.
      */
     export const Cluster: typeof TlsCertificateManagement;
 
     /**
-     * @deprecated Use {@link TlsCertificateManagement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link TlsCertificateManagement}.
      */
     export const Complete: typeof TlsCertificateManagement;
 
@@ -608,7 +608,7 @@ export declare namespace TlsCertificateManagement {
 }
 
 /**
- * @deprecated Use {@link TlsCertificateManagement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link TlsCertificateManagement}.
  */
 export declare const TlsCertificateManagementCluster: typeof TlsCertificateManagement;
 

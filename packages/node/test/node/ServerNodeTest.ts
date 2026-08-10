@@ -32,6 +32,7 @@ import {
     MockUdpSocket,
     NetworkSimulator,
     Seconds,
+    STANDARD_MATTER_PORT,
     StorageManager,
     StorageService,
 } from "@matter/general";
@@ -232,6 +233,59 @@ describe("ServerNode", () => {
 
         const expiration = DnsCodec.decode(await expirationReceived);
         expect(expiration?.answers[0]?.ttl).equals(0);
+    });
+
+    describe("operational port", () => {
+        it("binds the standard Matter port for a commissionable node without an explicit port", async () => {
+            const node = await MockServerNode.createOnline({
+                type: MockServerNode.RootEndpoint,
+                commissioning: { enabled: true },
+            });
+
+            expect(node.state.network.port).equals(STANDARD_MATTER_PORT);
+            expect(node.state.network.operationalPort).equals(STANDARD_MATTER_PORT);
+
+            await node.close();
+        });
+
+        it("uses an ephemeral operational port for a controller node without an explicit port", async () => {
+            const node = await MockServerNode.createOnline({
+                type: MockServerNode.RootEndpoint,
+                commissioning: { enabled: false },
+            });
+
+            expect(node.state.network.port).equals(undefined);
+            expect(node.state.network.operationalPort).greaterThan(0);
+            expect(node.state.network.operationalPort).not.equals(STANDARD_MATTER_PORT);
+
+            await node.close();
+        });
+
+        it("honors an explicit port on a commissionable node", async () => {
+            const node = await MockServerNode.createOnline({
+                type: MockServerNode.RootEndpoint,
+                commissioning: { enabled: true },
+                network: { port: 5555 },
+            });
+
+            expect(node.state.network.port).equals(5555);
+            expect(node.state.network.operationalPort).equals(5555);
+
+            await node.close();
+        });
+
+        it("honors an explicit port on a controller node", async () => {
+            const node = await MockServerNode.createOnline({
+                type: MockServerNode.RootEndpoint,
+                commissioning: { enabled: false },
+                network: { port: 5555 },
+            });
+
+            expect(node.state.network.port).equals(5555);
+            expect(node.state.network.operationalPort).equals(5555);
+
+            await node.close();
+        });
     });
 
     it("commissions", async () => {

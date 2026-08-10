@@ -960,12 +960,12 @@ export declare namespace GeneralCommissioning {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link GeneralCommissioning}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link GeneralCommissioning}.
      */
     export const Cluster: ClusterType.WithCompat<typeof GeneralCommissioning, GeneralCommissioning>;
 
     /**
-     * @deprecated Use {@link GeneralCommissioning}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link GeneralCommissioning}.
      */
     export const Complete: typeof GeneralCommissioning;
 
@@ -973,7 +973,7 @@ export declare namespace GeneralCommissioning {
 }
 
 /**
- * @deprecated Use {@link GeneralCommissioning}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link GeneralCommissioning}.
  */
 export declare const GeneralCommissioningCluster: typeof GeneralCommissioning;
 

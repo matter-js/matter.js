@@ -314,12 +314,12 @@ export declare namespace Pm25ConcentrationMeasurement {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link Pm25ConcentrationMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Pm25ConcentrationMeasurement}.
      */
     export const Cluster: ClusterType.WithCompat<typeof Pm25ConcentrationMeasurement, Pm25ConcentrationMeasurement>;
 
     /**
-     * @deprecated Use {@link Pm25ConcentrationMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Pm25ConcentrationMeasurement}.
      */
     export const Complete: typeof Pm25ConcentrationMeasurement;
 
@@ -327,7 +327,7 @@ export declare namespace Pm25ConcentrationMeasurement {
 }
 
 /**
- * @deprecated Use {@link Pm25ConcentrationMeasurement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link Pm25ConcentrationMeasurement}.
  */
 export declare const Pm25ConcentrationMeasurementCluster: typeof Pm25ConcentrationMeasurement;
 

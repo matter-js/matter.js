@@ -21,6 +21,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: A provisional element is no longer mandatory; conformance following a `P` describes the conformance intended once the element leaves provisional state
     - Enhancement: `FeatureSelectionErrors()` assesses a cluster's selected features against the combinations its FeatureMap conformance disallows
     - Enhancement: `FeatureSet.resolve()` resolves a feature short code, title or camelized title to a short code
+    - Enhancement: New `Scope.isMandatory()` tells whether a member is mandatory under a schema's supported features, and the new `MandatoryDefaultValue()` computes the value such a member assumes when no real value exists (schema default, else the specification's fallback value, recursing into structs) — the basis for what an unreported client node attribute reads, usable wherever schema-derived fallback values are needed; `SelectDefaultValue()` exposes the shallow variant used for server state seeding
     - Fix: A cluster's feature table no longer selects features; a feature the specification makes unconditionally mandatory is always selected
     - Fix: Feature selection records against `operationalIsSupported` so a feature's `default` conveys only the specification's fallback value
     - Fix: A feature mandated by any of several alternatives, such as `DoorLock.User`, is now reported as required
@@ -32,20 +33,52 @@ The main work (all changes without a GitHub username in brackets in the below li
         - Verify the feature set of every device you compose. Persisted cluster state resets once for affected devices because it is keyed by feature selection
     - Breaking: A LongIdleTimeSupport ICD must select CheckInProtocolSupport and UserActiveModeTrigger
     - Breaking: A node that accepts more than one path per invoke must select the General Diagnostics DataModelTest feature
+    - Breaking: An unreported client node attribute reads its schema default, else the specification's fallback value for its type, when the attribute is mandatory under the peer's supported features, and `undefined` otherwise — regardless of the peer's AttributeList (an enum attribute reads `undefined`, as the specification defines its fallback as manufacturer-specific). The value is a detached copy, so mutating a struct or list read from an unreported attribute does not write through
+    - Breaking: Configured options, environment variables and state-class field initializers no longer seed a client node's cluster state; the peer's reports are the only source of values
+    - Fix: Struct validation resolves a member stored under its TLV tag number, so a constraint violation there is caught and a mandatory member present only at its id no longer raises a conformance error
     - Breaking: Adding a server cluster to an endpoint fails when its selected features violate the conformance of its FeatureMap
     - Breaking: Provisional elements are no longer implemented by default; supply a state value or use `ClusterBehavior.enable()` to implement one
+    - Breaking: `SoftwareUpdateManager.addUpdateConsent()` and `forceUpdate()` take the update as an object instead of three positional arguments, so it can carry per-update options
+    - Feature: Added `ServerNode.peers.commissioned` returning the commissioned `ClientNode`s
+    - Feature: Added `ClientNode.disable()`/`enable()` to persistently disable/enable a commissioned peer
+    - Feature: Added a `ClientNode` connection-state engine — `lifecycle.connectionState`/`connectionStateChanged`/`isConnected` and the `NodeConnectionState` enum
+    - Feature: Added `ClientNodeLifecycle.isSeeded` and the `seeded` event, indicating a peer node's structure has been read from the device at least once
+    - Feature: Added `Behaviors.forCluster(clusterId)` to resolve a cluster behavior type by numeric cluster id
+    - Feature: Added `openBasicCommissioningWindow`/`openEnhancedCommissioningWindow` on `CommissioningClient`/`ClientNode` to open a commissioning window on a commissioned peer
+    - Feature: Added split/delegated commissioning — `CommissioningClient.CommissioningOptions.finalizeCommissioning` plus `ServerNode.peers.completeCommissioning(nodeId, discoveryData?, options?)`
+    - Feature: Added `NetworkServer.autoStartCommissionedPeers` (default true) to opt out of auto-starting commissioned peers when the node goes online
+    - Enhancement: `SoftwareUpdateManager` caps the BDX block size for OTA transfers via `maxBdxBlockSize` and overrides their MRP retransmission margin via `bdxAdditionalMrpDelay`, either generally in its state or per update when giving consent
+    - Enhancement: `network.profiles` accepts `bdxAdditionalMrpDelay`
+    - Adjustment: A node with commissioning disabled (e.g. a controller) now binds an ephemeral operational port instead of the standard Matter port (5540) when `NetworkServer.port` is unset; commissionable nodes still default to 5540 and an explicit port is always honored
+    - Fix: `endpoints.size` no longer double-counts the root endpoint
+    - Removed: `StructManager.assertDirectReadAuthorized()` and the direct-read authorization it backed, unused since the legacy cluster API was dropped
+    - Deprecation: `ClientNodeInteraction.localStateFor()` is scheduled for removal in 0.19 together with the legacy controller API
     - Fix: `IdentifyServer` no longer offers the optional `TriggerEffect` command unless the device type requires it, an own command implementation has been added via an override or suppression is disabled; `IdentifyServer.enable({ commands: { triggerEffect: true } })`, `IdentifyServer.alter({ commands: { triggerEffect: { optional: false } } })` and an override of `suppressTriggerEffect()` also offer it
     - Fix: `ClusterBehavior.with()` rejects a feature the cluster does not define
+    - Fix: Client node values persisted under property names by earlier versions are migrated to their attribute id on load, so they stay readable
+    - Fix: Writing a fabric-scoped list entry that stems from a cluster whose schema could not be resolved no longer produces two conflicting fabricIndex fields
+    - Fix: A rejected write to an attribute served by dynamic properties restores the previous value instead of deleting the property, and a rejected write to a previously absent attribute leaves no slot behind instead of one holding `undefined`
 
 - @matter/nodejs
     - Breaking: `FileStorageDriver`'s constructor no longer accepts a `clear` argument; clearing is handled by `StorageService`
     - Fix: Ensure that `--storage-clear`/`MATTER_STORAGE_CLEAR` is honored again and clears the storage on start
+
+- @matter/nodejs-shell
+    - Feature: Added `--cleanup-legacy-storage` to irreversibly remove the leftover pre-0.16 storage artifacts once they have been migrated to the current format
+
+- @matter/protocol
+    - Deprecation: The legacy `DecodedDataReport` / `Decoded{Attribute,Event}Report*` types and the `normalize*` / `normalizeAndDecode*` helpers now announce removal in 0.19 instead of 0.18
+    - Deprecation: The legacy `ClusterType` command request surface (`Invoke.LegacyCommandRequest`, `Specifier.ClusterTypeCommand`) and `SessionManager.owner` are scheduled for removal in 0.19
+    - Enhancement: Network profiles accept a separate `bdxAdditionalMrpDelay` for bulk transfer, defaulting to the profile's messaging margin
 
 - @matter/react-native
     - Fix: The `storage.clear` variable now clears the storage on start as it does on Node.js
 
 - @matter/types
     - Breaking: Provisional cluster elements are now typed as optional rather than always present
+    - Feature: Added the `ClusterLookup` namespace for cluster/attribute/command/event name↔id resolution (optional `MatterModel` for custom clusters)
+    - Deprecation: The `ClusterType()` factory compat layer (`RetiredClusterType`, `RetiredElements`, the TLV `element` reverse mapping) is scheduled for removal in 0.19
+    - Deprecation: The generated `Cluster`, `Complete` and `<Name>Cluster` aliases and the `ClusterType.WithCompat` `with()` shim are scheduled for removal in 0.19
     - Fix: `Cluster.with()` rejects a feature the cluster does not define and returns one frozen namespace per selection
 
 - @matter/testing
@@ -55,11 +88,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `MATTER_CHIP_BINS_SOURCE=cert-bins` selects project-chip's official `connectedhomeip/chip-cert-bins` binaries for the classic yaml/python tests and `chip-local` cert-test subjects
     - Enhancement: A cert test's attached device/controller logs now carry a banner marking each step's start and end, alongside its verdict
 
+- @project-chip/matter.js
+    - Deprecation: Every class, type and function of the legacy controller API is now marked deprecated and scheduled for removal in 0.19; use the `ServerNode.peers` / `ClientNode` API of `@matter/node` instead
+
 ## 0.17.9 (2026-08-06)
 
 - @matter/protocol
     - Enhancement: A BDX exchange retransmits its pending message early when a duplicate proves the peer is awake and still waiting for it
-    - Enhancement: Network profiles accept a separate `bdxAdditionalMrpDelay` for bulk transfer, defaulting to the profile's messaging margin
     - Fix: The peer's medium-specific MRP retransmission margin now applies to peer-initiated exchanges (e.g. subscription data reports) and to exchanges created without peer context
     - Fix: BDX retransmission intervals are capped so the whole MRP schedule fits inside the peer's BDX response budget, which acknowledgements do not extend; the peer's idle cadence does not raise the cap, since a peer holding an open exchange is in active mode
     - Fix: A retransmission timer is no longer armed for a message that was acknowledged while an earlier transmission of it was still in flight, which left the timer running unreferenced
@@ -70,9 +105,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensure that the end of a session is logged also when its channel was detached before; channel detach is now logged as debug
 
 - @matter/node
-    - Breaking: `SoftwareUpdateManager.addUpdateConsent()` and `forceUpdate()` take the update as an object instead of three positional arguments, so it can carry per-update options
-    - Enhancement: `SoftwareUpdateManager` caps the BDX block size for OTA transfers via `maxBdxBlockSize` and overrides their MRP retransmission margin via `bdxAdditionalMrpDelay`, either generally in its state or per update when giving consent
-    - Enhancement: `network.profiles` accepts `bdxAdditionalMrpDelay`
     - Enhancement: `network.timing` accepts the kick and address-change parameters
     - Enhancement: Managed state derives a member's container key through one shared implementation (no functional change)
     - Fix: Client node state reads and writes struct- and list-valued fields nested inside an attribute value
@@ -410,7 +442,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: New `TrustedAsTestCertificate` attestation finding lets `onAttestationFailure` decide whether to accept devices whose PAA is only in the trust store as a test certificate; previously these failed with `PaaNotTrusted`. Adds per-call `considerTestCertificates` and a separate `acceptTestCertificates` trust policy on `DclCertificateService`
     - Feature: `OnAttestationFailure` callback may return a `string` (wraps the underlying error as `cause` of a new `CommissioningError`) or throw to propagate verbatim
     - Adjustment: Default-accept policies (`onAttestationFailure === true`/`undefined`) now commission test-PAA-only devices that previously failed; upgrade the policy to keep rejecting
-    - Deprecation: Internally used `DecodedDataReport`, `DecodedAttributeReport{Value,Status,Entry}`, `DecodedEventReport{Value,Status,Entry}`, `DecodedEventData`, and the `normalize*` / `normalizeAndDecode*` helpers moved to `@project-chip/matter.js/cluster`. Scheduled for removal in 0.18
+    - Deprecation: Internally used `DecodedDataReport`, `DecodedAttributeReport{Value,Status,Entry}`, `DecodedEventReport{Value,Status,Entry}`, `DecodedEventData`, and the `normalize*` / `normalizeAndDecode*` helpers moved to `@project-chip/matter.js/cluster`. Scheduled for removal in 0.19
     - Enhancement: `ReadResult.EventValue` exposes the four wire timestamp variants (`epochTimestamp`, `systemTimestamp`, `deltaEpochTimestamp`, `deltaSystemTimestamp`) alongside the existing collapsed `timestamp: number`
     - Adjustment: `ReadResult.Chunk` may now be an async iterable (`InputChunk` is an async generator); consumers iterate chunk contents with `for await … of chunk`. Mainly internal
     - Fix: Fixes message counter rollover logic

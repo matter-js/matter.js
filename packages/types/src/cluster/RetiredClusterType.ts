@@ -23,7 +23,7 @@ import { Attribute, Command, Event } from "./RetiredElements.js";
 /**
  * Types and utilities for the deprecated ClusterType factory.
  *
- * @deprecated Remove when ClusterType compat layer is dropped.
+ * @deprecated Scheduled for removal in 0.19 when the ClusterType compat layer is dropped.
  */
 export namespace RetiredClusterType {
     /**
@@ -148,7 +148,7 @@ export namespace RetiredClusterType {
     /**
      * Input to the retired ClusterType factory.
      *
-     * @deprecated
+     * @deprecated Scheduled for removal in 0.19.
      */
     export type Options<F extends BitSchema = {}> = {
         id: number;
@@ -163,12 +163,12 @@ export namespace RetiredClusterType {
     };
 
     /**
-     * @deprecated Provided for compatibility with external consumers.
+     * @deprecated Provided for compatibility with external consumers.  Scheduled for removal in 0.19.
      */
     export type AttributeValues<T> = T extends { Typing: { Attributes: infer A } } ? A : {};
 
     /**
-     * @deprecated Provided for compatibility with external consumers.
+     * @deprecated Provided for compatibility with external consumers.  Scheduled for removal in 0.19.
      */
     export type CommandsOf<T> = T extends { Typing: { Commands: infer C } } ? C : {};
 

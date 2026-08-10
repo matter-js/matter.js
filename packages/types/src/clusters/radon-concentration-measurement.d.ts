@@ -314,12 +314,12 @@ export declare namespace RadonConcentrationMeasurement {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link RadonConcentrationMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link RadonConcentrationMeasurement}.
      */
     export const Cluster: ClusterType.WithCompat<typeof RadonConcentrationMeasurement, RadonConcentrationMeasurement>;
 
     /**
-     * @deprecated Use {@link RadonConcentrationMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link RadonConcentrationMeasurement}.
      */
     export const Complete: typeof RadonConcentrationMeasurement;
 
@@ -327,7 +327,7 @@ export declare namespace RadonConcentrationMeasurement {
 }
 
 /**
- * @deprecated Use {@link RadonConcentrationMeasurement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link RadonConcentrationMeasurement}.
  */
 export declare const RadonConcentrationMeasurementCluster: typeof RadonConcentrationMeasurement;
 
