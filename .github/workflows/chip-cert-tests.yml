@@ -35,6 +35,9 @@
 
 name: Chip Certification Controller Tests
 
+permissions:
+  contents: read
+
 on:
   schedule:
     - cron: 15 3 * * * # Every day at 03:15 (between chip-tool-tests at 01:00 and chip-matterjs-tests at 04:30)
@@ -277,6 +280,11 @@ jobs:
           mkdir -p /tmp/cert-app-dir
           docker run --rm -v /tmp/cert-app-dir:/out ghcr.io/matter-js/chip:latest \
             bash -c "cp -a /bin/chip-all-clusters-app* /bin/chip-bridge-app /out/"
+          # cert-dsl.ts's chipLocalMarkerRevision() reads this to populate evidence's chipRef; the
+          # image carries the same connectedhomeip commit in its org.opencontainers.image.revision
+          # label (baked by docker-bake.hcl from CHIP_COMMIT).
+          docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' \
+            ghcr.io/matter-js/chip:latest > /tmp/cert-app-dir/CHIP_REF
 
       - name: Verify TH_SERVER/DUT binaries were extracted
         run: |

@@ -19,9 +19,24 @@ import { TestRunner } from "./runner.js";
 import { TestDescriptor } from "./test-descriptor.js";
 import { wtf } from "./util/wtf.js";
 
+function resolveShutdownTimeoutMs(): number {
+    const raw = process.env.MATTER_TEST_SHUTDOWN_TIMEOUT_MS;
+    if (raw === undefined) {
+        return 5_000;
+    }
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+        console.error(
+            `Warning: MATTER_TEST_SHUTDOWN_TIMEOUT_MS="${raw}" is not a positive number; falling back to 5000ms.`,
+        );
+        return 5_000;
+    }
+    return parsed;
+}
+
 // A graceful session close can legitimately wait out a full MRP resubmission budget (several seconds) for an
 // unacked flush send. Override via MATTER_TEST_SHUTDOWN_TIMEOUT_MS for suites that exercise that path routinely.
-const SHUTDOWN_TIMEOUT_MS = Number(process.env.MATTER_TEST_SHUTDOWN_TIMEOUT_MS) || 5_000;
+const SHUTDOWN_TIMEOUT_MS = resolveShutdownTimeoutMs();
 
 enum TestType {
     esm = "esm",
@@ -244,7 +259,11 @@ export async function main(argv = process.argv) {
         setTimeout(() => process.exit(101), 5_000).unref();
         import("wtfnode").then(
             ({ dump }) => {
-                dump({ fullStacks: true });
+                try {
+                    dump({ fullStacks: true });
+                } catch (error) {
+                    console.error("Error: wtfnode dump failed:", error);
+                }
                 process.exit(101);
             },
             error => {

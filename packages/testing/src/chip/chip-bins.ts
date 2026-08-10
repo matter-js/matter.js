@@ -210,19 +210,22 @@ function realChipBinsDockerHandle(): ChipBinsDockerHandle {
             // `cp -a`, not just `cp -a` alone — a tag switch can drop an app the previous tag had,
             // and `cp -a` never removes a destination file absent from the source, so skipping the
             // `rm` would leave a stale binary from the old tag sitting under the new tag's stamp.
-            // Uses docker run -v ... rather than `docker cp`, so extraction needs no tar-stream
-            // dependency of its own.
             //
-            // `cp -a src/.` also replicates /root/apps' root ownership onto the bind-mounted target,
-            // so on hosts where container root is real root (native Linux docker) a non-root invoker
-            // could no longer write the stamp file — restore ownership to the invoking user.
+            // `cp -a src/.` also replicates /root/apps' root ownership onto the bind-mounted target.
+            // On rootful Docker (container root is host root), that leaves the target unwritable by
+            // a non-root invoker, so the chown below restores the invoking user's ownership. On
+            // rootless Docker/Podman, container root already maps to the invoking host user, and
+            // this same chown can instead land the files on an unrelated subuid — best-effort here;
+            // `ensureChipBins`'s stamp write is the authority on whether extraction actually left
+            // `targetDir` writable.
             const uid = process.getuid?.();
             const gid = process.getgid?.();
-            const restoreOwnership = uid !== undefined && gid !== undefined ? ` && chown -R ${uid}:${gid} /out` : "";
+            const chownStep =
+                uid !== undefined && gid !== undefined ? ` && { chown -R ${uid}:${gid} /out || true; }` : "";
             const container = await docker.start({
                 image: imageRef,
                 platform,
-                command: ["bash", "-c", `rm -rf /out/* && cp -a /root/apps/. /out/${restoreOwnership}`],
+                command: ["bash", "-c", `rm -rf /out/* && cp -a /root/apps/. /out/${chownStep}`],
                 binds: { [targetDir]: "/out" },
                 autoRemove: true,
             });
@@ -243,6 +246,36 @@ async function readStamp(stampPath: string): Promise<string | undefined> {
         return (await readFile(stampPath, "utf-8")).trim();
     } catch {
         return undefined;
+    }
+}
+
+function isErrnoException(value: unknown): value is NodeJS.ErrnoException {
+    return value instanceof Error && "code" in value;
+}
+
+/**
+ * Thrown when `targetDir` is not writable by the host after a `chip-cert-bins` extraction
+ * otherwise succeeded — the extraction container's UID mapping left files the host user cannot
+ * write, most often on rootless Docker/Podman (see the message for what to do about it).
+ */
+export class ChipBinsPermissionError extends Error {}
+
+async function writeStamp(stampPath: string, tag: string, targetDir: string): Promise<void> {
+    try {
+        await writeFile(stampPath, tag);
+    } catch (e) {
+        if (isErrnoException(e) && (e.code === "EACCES" || e.code === "EPERM")) {
+            throw new ChipBinsPermissionError(
+                `chip-cert-bins:${tag} extracted into ${targetDir}, but writing the extraction stamp there ` +
+                    `failed (${e.code}). This typically means the extraction container's UID mapping left the ` +
+                    `directory unwritable by this host user — common on rootless Docker/Podman, where container ` +
+                    `root already maps to the invoking host user and remapping ownership can instead land on an ` +
+                    `unrelated subuid. Point MATTER_CHIP_BINS_DIR at a directory this host user can write to ` +
+                    `regardless of the extraction container's UID mapping, or adjust your Docker/Podman ` +
+                    `UID-mapping configuration.`,
+            );
+        }
+        throw e;
     }
 }
 
@@ -271,7 +304,7 @@ export async function ensureChipBins(
     await docker.pull(imageRef, CERT_BINS_PLATFORM);
     await docker.extractApps(imageRef, CERT_BINS_PLATFORM, targetDir);
 
-    await writeFile(stampPath, tag);
+    await writeStamp(stampPath, tag, targetDir);
 
     return { tag, dir: targetDir, extracted: true };
 }

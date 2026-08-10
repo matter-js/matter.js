@@ -267,6 +267,32 @@ if (typeof window === "undefined") {
                 expect(retry.extracts).deep.equal([`${mod.CERT_BINS_IMAGE}:sometag`]);
             });
 
+            it("throws a named ChipBinsPermissionError naming rootless Docker/Podman and MATTER_CHIP_BINS_DIR when the stamp write is denied", async function () {
+                if (process.getuid?.() === 0) {
+                    // Permission bits are unenforceable when running as root (e.g. some CI/container
+                    // setups); the scenario this test simulates cannot occur for a root invoker.
+                    this.skip();
+                }
+
+                const { handle } = fakeDocker();
+                await fsp.chmod(targetDir, 0o500);
+
+                try {
+                    let caught: unknown;
+                    try {
+                        await mod.ensureChipBins("sometag", targetDir, handle);
+                    } catch (e) {
+                        caught = e;
+                    }
+
+                    expect(caught).instanceOf(mod.ChipBinsPermissionError);
+                    expect((caught as Error).message).match(/rootless Docker\/Podman/);
+                    expect((caught as Error).message).match(/MATTER_CHIP_BINS_DIR/);
+                } finally {
+                    await fsp.chmod(targetDir, 0o700);
+                }
+            });
+
             it("always requests the arm64 platform regardless of host architecture", async () => {
                 const platforms = new Array<string>();
                 const handle: ChipBinsModule.ChipBinsDockerHandle = {

@@ -439,11 +439,10 @@ async function configureContainer() {
         platform = `linux/${arch}`;
     }
 
-    // chip-cert-bins publishes linux/arm64 only (verified: no amd64 manifest exists at any tag).
-    // Bind-mounting its binaries into a container running a different platform fails at exec time
-    // with a confusing "cannot execute: required file not found" deep inside a test run — checked
-    // directly (docker run --platform linux/amd64 ... /official-chip-bins/chip-tool against an
-    // arm64-extracted binary) — so fail fast here instead, before spending time on extraction.
+    // chip-cert-bins publishes linux/arm64 only (no amd64 manifest exists at any tag). Bind-mounting
+    // its binaries into a container running a different platform fails at exec time with a
+    // confusing "cannot execute: required file not found" deep inside a test run, so fail fast here
+    // instead, before spending time on extraction.
     const chipBinsSelected = resolveChipBinsSource() === "cert-bins";
     if (chipBinsSelected && !chipBinsPlatformSupported(platform)) {
         throw new Error(

@@ -136,8 +136,8 @@ export async function resolveChipLocalAppDir(): Promise<string> {
     if (resolveChipBinsSource() === "cert-bins") {
         // chip-local spawns the binary directly on the host, with no container in between —
         // unlike the classic-test bind-mount (chip/state.ts), there's no container platform to
-        // match, but the host OS itself must be able to run the extracted Linux ELF binaries.
-        // Checked directly: they don't run at all on macOS (exec format error), regardless of arch.
+        // match, but the host OS itself must be able to run the extracted Linux ELF binaries, which
+        // macOS cannot (exec format error), regardless of arch.
         if (hostPlatform !== "linux") {
             throw new Error(
                 `MATTER_CHIP_BINS_SOURCE=cert-bins selects Linux/${CERT_BINS_PLATFORM} binaries that chip-local ` +
