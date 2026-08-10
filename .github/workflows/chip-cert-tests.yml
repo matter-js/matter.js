@@ -61,9 +61,12 @@ on:
     types: [published]
   push:
 
-# Cancel previous runs on the same ref when a new commit is pushed
+# Cancel previous runs on the same ref when a new commit is pushed. Pushes without the
+# [execute-certtests] indicator skip all jobs but still enter the workflow's concurrency group
+# before the job-level gate runs, so they get a unique per-run group instead — otherwise any
+# unrelated push to the ref cancels a real run in flight.
 concurrency:
-  group: ${{ github.ref }}-cert-tests
+  group: ${{ github.event_name == 'push' && !contains(github.event.head_commit.message, '[execute-certtests]') && github.run_id || format('{0}-cert-tests', github.ref) }}
   cancel-in-progress: true
 
 jobs:
@@ -225,6 +228,7 @@ jobs:
         env:
           MATTER_CERT_DEVICE: matterjs
           MATTER_TEST_SHUTDOWN_TIMEOUT_MS: 15000
+          MATTER_WTF: 1
         run: |
           cd support/chip-testing
           npm run test-cert -- --no-pull
@@ -285,12 +289,21 @@ jobs:
             fi
           done
 
+      # chip-local spawns the chip apps on the host; they are built with platform mdns and
+      # advertise via avahi over the system dbus, neither of which GitHub runners provide
+      - name: Start host mDNS responder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y avahi-daemon
+          sudo systemctl start avahi-daemon
+
       - name: Run certification controller tests (own-built binaries)
         env:
           MATTER_CERT_DEVICE: chip-local
           MATTER_CERT_APP_DIR: /tmp/cert-app-dir
           MATTER_CERT_TH_SERVER_APP_PATH: /bin/chip-all-clusters-app-nlfaultinject
           MATTER_TEST_SHUTDOWN_TIMEOUT_MS: 15000
+          MATTER_WTF: 1
         run: |
           cd support/chip-testing
           npm run test-cert -- --no-pull
@@ -334,6 +347,13 @@ jobs:
       - name: Load chip image
         run: docker load -i /tmp/chip.tar
 
+      # See the own-built job's step of the same name
+      - name: Start host mDNS responder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y avahi-daemon
+          sudo systemctl start avahi-daemon
+
       - name: Run certification controller tests (cert-bins binaries)
         env:
           MATTER_CHIP_PLATFORM: linux/arm64
@@ -342,6 +362,7 @@ jobs:
           MATTER_CERT_DEVICE: chip-local
           MATTER_CERT_TH_SERVER_APP_PATH: /official-chip-bins/chip-all-clusters-app-nlfaultinject
           MATTER_TEST_SHUTDOWN_TIMEOUT_MS: 15000
+          MATTER_WTF: 1
         run: |
           cd support/chip-testing
           npm run test-cert -- --no-pull

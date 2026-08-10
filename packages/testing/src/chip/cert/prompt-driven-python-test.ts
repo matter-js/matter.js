@@ -9,6 +9,7 @@ import type { Container } from "../../docker/container.js";
 import { Terminal } from "../../docker/terminal.js";
 import type { TestFileDescriptor } from "../../test-descriptor.js";
 import { parseStep } from "../chip-test-common.js";
+import { FIFO_PATH } from "../container-command-pipe.js";
 import { createCommand, PythonTest, spiffy } from "../python-test.js";
 import type { CertStepContext } from "./cert-context.js";
 
@@ -54,6 +55,11 @@ export class PromptDrivenPythonTest extends PythonTest {
         args: string[],
         uncommissioned: boolean,
     ): Promise<void> {
+        // CHIP's python runner refuses to start unless the --app-pipe fifo exists; no
+        // harness-managed app subject creates it in a prompt-driven run. Non-destructive so an
+        // already-attached classic-harness pipe is left alone.
+        await this.container.exec(["bash", "-c", `test -p ${FIFO_PATH} || mkfifo ${FIFO_PATH}`]);
+
         const terminal = await this.container.exec(
             await createCommand(this.descriptor, this.container, subject, args, uncommissioned),
             Terminal.Line,

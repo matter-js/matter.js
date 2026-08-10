@@ -338,8 +338,11 @@ if (typeof window === "undefined") {
             const test = new PromptDrivenPythonTest(stubDescriptor(), container, [], stubCx());
             await test.invoke(stubSubject(), () => {}, NO_PICS_LOOKUP_ARGS, false);
 
-            expect(commands).to.have.lengthOf(1);
-            const [command] = commands;
+            expect(commands).to.have.lengthOf(2);
+            const [pipeEnsure, command] = commands;
+            // CHIP's python runner validates --app-pipe existence at startup, so the fifo must be
+            // ensured before the script command runs
+            expect(pipeEnsure.join(" ")).to.include("mkfifo /command-pipe.fifo");
             expect(command).to.include("/src/python_testing/TC_SC_3_5.py");
             expect(command).to.include("--test-case");
             expect(command).to.include("test_TC_SC_3_5");

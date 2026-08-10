@@ -212,10 +212,17 @@ function realChipBinsDockerHandle(): ChipBinsDockerHandle {
             // `rm` would leave a stale binary from the old tag sitting under the new tag's stamp.
             // Uses docker run -v ... rather than `docker cp`, so extraction needs no tar-stream
             // dependency of its own.
+            //
+            // `cp -a src/.` also replicates /root/apps' root ownership onto the bind-mounted target,
+            // so on hosts where container root is real root (native Linux docker) a non-root invoker
+            // could no longer write the stamp file — restore ownership to the invoking user.
+            const uid = process.getuid?.();
+            const gid = process.getgid?.();
+            const restoreOwnership = uid !== undefined && gid !== undefined ? ` && chown -R ${uid}:${gid} /out` : "";
             const container = await docker.start({
                 image: imageRef,
                 platform,
-                command: ["bash", "-c", "rm -rf /out/* && cp -a /root/apps/. /out/"],
+                command: ["bash", "-c", `rm -rf /out/* && cp -a /root/apps/. /out/${restoreOwnership}`],
                 binds: { [targetDir]: "/out" },
                 autoRemove: true,
             });

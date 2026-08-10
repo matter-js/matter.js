@@ -17,6 +17,7 @@ import { chip } from "./chip/chip.js";
 import { defaultDescriptor, printReport } from "./print-report.js";
 import { TestRunner } from "./runner.js";
 import { TestDescriptor } from "./test-descriptor.js";
+import { wtf } from "./util/wtf.js";
 
 // A graceful session close can legitimately wait out a full MRP resubmission budget (several seconds) for an
 // unacked flush send. Override via MATTER_TEST_SHUTDOWN_TIMEOUT_MS for suites that exercise that path routinely.
@@ -37,6 +38,9 @@ interface Config {
 }
 
 export async function main(argv = process.argv) {
+    // Must run before any timers/handles are created or wtfnode cannot attribute them
+    await wtf.initialize();
+
     process.on("SIGINT", interrupt);
     process.on("SIGTERM", interrupt);
 
