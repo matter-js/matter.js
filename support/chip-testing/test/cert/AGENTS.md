@@ -652,24 +652,17 @@ both parts:
   `support/chip/support/build-one` never overrides either. A `chip-all-clusters-app` built by this
   repo's own `build-one` script, with no changes, would very likely already have fault injection
   compiled in. Not verified by an actual build (see below).
-- **There is no all-clusters-app binary reachable from the running container at all**, fault-injection
-  or otherwise. `ghcr.io/matter-js/chip:latest` (the base image `MATTER_CHIP_IMAGE` pulls, and the only
-  one confirmed present locally) ships `chip-tool` and the python/yaml test scripts, but no app binary,
-  and has no CHIP source/GN/ninja toolchain left in it (that's stage-4-only, stripped before the final
-  `chip`/`chip-app` stages — see `support/chip/Dockerfile`). `chip-docker`'s own per-app image convention
-  (`ghcr.io/matter-js/chip-<app>:latest`, `chip-app-subject.ts`'s `ChipDockerDevice`) would supply one,
-  but `ghcr.io/matter-js/chip-all-clusters` returns `denied` on both `docker pull` and
-  `docker manifest inspect` — consistent with every prior pilot's note that `chip-docker` has never
-  actually been exercised (no per-app images published yet). `chip-local`'s own `MATTER_CERT_APP_DIR`
-  convention needs a *host-native* binary (e.g. `darwin-arm64`), which can't run inside the Linux
-  container this script needs (`th_server_app_path` is resolved by the container's own `python3`
-  subprocess).
+- **The published base image now carries the app binaries.** `ghcr.io/matter-js/chip:latest` ships
+  `chip-all-clusters-app`, `chip-all-clusters-app-nlfaultinject` and `chip-bridge-app` alongside
+  `chip-tool` (`support/chip/Dockerfile`), published as a multi-arch amd64+arm64 manifest. Earlier
+  notes in this file describing the image as app-binary-free predate that. `chip-docker`'s own
+  per-app image convention (`ghcr.io/matter-js/chip-<app>:latest`, `chip-app-subject.ts`'s
+  `ChipDockerDevice`) is still unusable — nothing publishes those images and the bake targets that
+  named them have been removed — so `chip-docker` remains unexercised.
 
-**What would unblock a live run:** either build+push a `ghcr.io/matter-js/chip-all-clusters` image
-(exercising `chip-docker` for the first time in this series) and extract/mount its binary into the
-`chip` container's filesystem at a path passed via `MATTER_CERT_TH_SERVER_APP_PATH`, or extend the base
-`chip`/`chip-app` image to bundle a Linux all-clusters-app binary directly. Either is a docker-image
-change, out of scope for this task per its own instructions (report the gap, don't build one
-unprompted). `TC-SC-3.5.test.ts`'s single test checks `env.MATTER_CERT_TH_SERVER_APP_PATH` and calls
-`this.skip()` when unset, so the cert suite stays green without the binary; once it's set to a real
-in-container path, the test should run for real with no code changes.
+**How a live run is unblocked:** the base image bundles the binaries, so
+`MATTER_CERT_TH_SERVER_APP_PATH=/bin/chip-all-clusters-app-nlfaultinject` names a real in-container
+path (`chip-cert-tests.yml`'s own-built job) and the official `chip-cert-bins` image supplies the same
+binary at `/official-chip-bins/` for the cert-bins job. `TC-SC-3.5.test.ts`'s single test checks
+`env.MATTER_CERT_TH_SERVER_APP_PATH` and calls `this.skip()` when unset, so the matterjs flavor —
+which does not set it — stays green without a TH_SERVER binary.
