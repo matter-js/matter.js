@@ -196,9 +196,9 @@ jobs:
           cd support/chip
           ./bin/build chip-artifact
 
-      # The CHIP test jobs run against the amd64 image only, so this is the sole gate between an arm64 build and a
-      # published arm64 manifest. Exit status 126 or above means the shell could not execute the binary at all
-      # (wrong architecture, missing loader); anything below that proves it ran.
+      # test-core-arm64 exercises chip-tool against this image but never starts the app binaries, so they get an
+      # execution check here. Exit status 126 or above means the shell could not execute the binary at all (wrong
+      # architecture, missing loader); anything below that proves it ran.
       - name: Smoke-test arm64 image
         run: |
           docker load -i /tmp/chip.tar
@@ -240,6 +240,22 @@ jobs:
           image-source: ${{ needs.chip-image-amd64.outputs.source }}
           test-group: core
           use-local-controller: ${{ matrix.controller == 'matterjs' }}
+
+  # Every other test group runs against the amd64 image, so this is what stands between an arm64 build and the
+  # published manifest. The core group against chip-tool is the cheapest run that exercises the arm64 binaries for
+  # real rather than just proving they start.
+  test-core-arm64:
+    needs: [workflow-conditions, chip-image-arm64]
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Check out matter.js
+        uses: actions/checkout@v7
+
+      - uses: ./.github/actions/run-chip-tests
+        with:
+          image-source: ${{ needs.chip-image-arm64.outputs.source }}
+          artifact-name: chip-image-arm64
+          test-group: core
 
   test-app-fast:
     needs: [workflow-conditions, chip-image-amd64]
@@ -385,6 +401,7 @@ jobs:
       workflow-conditions,
       chip-image-arm64,
       test-core,
+      test-core-arm64,
       test-app-fast,
       test-app-slow,
       test-app-cc-1,
