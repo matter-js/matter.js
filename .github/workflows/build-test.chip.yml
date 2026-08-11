@@ -135,7 +135,7 @@ jobs:
   # Build the CHIP container if necessary. CHIP compiles natively per architecture (QEMU emulation of the toolchain
   # is prohibitively slow), so amd64 and arm64 are separate jobs on runners native to each; publish-manifest later
   # combines the two into a multi-arch manifest.
-  chip-image:
+  chip-image-amd64:
     needs: workflow-conditions
     runs-on: ubuntu-latest
     outputs:
@@ -225,7 +225,7 @@ jobs:
           path: /tmp/chip.tar
 
   test-core:
-    needs: [workflow-conditions, chip-image]
+    needs: [workflow-conditions, chip-image-amd64]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -237,12 +237,12 @@ jobs:
 
       - uses: ./.github/actions/run-chip-tests
         with:
-          image-source: ${{ needs.chip-image.outputs.source }}
+          image-source: ${{ needs.chip-image-amd64.outputs.source }}
           test-group: core
           use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
   test-app-fast:
-    needs: [workflow-conditions, chip-image]
+    needs: [workflow-conditions, chip-image-amd64]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -254,12 +254,12 @@ jobs:
 
       - uses: ./.github/actions/run-chip-tests
         with:
-          image-source: ${{ needs.chip-image.outputs.source }}
+          image-source: ${{ needs.chip-image-amd64.outputs.source }}
           test-group: app-fast
           use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
   test-app-slow:
-    needs: [workflow-conditions, chip-image]
+    needs: [workflow-conditions, chip-image-amd64]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -271,12 +271,12 @@ jobs:
 
       - uses: ./.github/actions/run-chip-tests
         with:
-          image-source: ${{ needs.chip-image.outputs.source }}
+          image-source: ${{ needs.chip-image-amd64.outputs.source }}
           test-group: app-slow
           use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
   test-app-cc-1:
-    needs: [workflow-conditions, chip-image]
+    needs: [workflow-conditions, chip-image-amd64]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -288,12 +288,12 @@ jobs:
 
       - uses: ./.github/actions/run-chip-tests
         with:
-          image-source: ${{ needs.chip-image.outputs.source }}
+          image-source: ${{ needs.chip-image-amd64.outputs.source }}
           test-group: app-cc-1
           use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
   test-app-cc-2:
-    needs: [workflow-conditions, chip-image]
+    needs: [workflow-conditions, chip-image-amd64]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -305,12 +305,12 @@ jobs:
 
       - uses: ./.github/actions/run-chip-tests
         with:
-          image-source: ${{ needs.chip-image.outputs.source }}
+          image-source: ${{ needs.chip-image-amd64.outputs.source }}
           test-group: app-cc-2
           use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
   test-icd:
-    needs: [workflow-conditions, chip-image]
+    needs: [workflow-conditions, chip-image-amd64]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -322,7 +322,7 @@ jobs:
 
       - uses: ./.github/actions/run-chip-tests
         with:
-          image-source: ${{ needs.chip-image.outputs.source }}
+          image-source: ${{ needs.chip-image-amd64.outputs.source }}
           test-group: icd
           use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
@@ -335,7 +335,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [
       workflow-conditions,
-      chip-image,
+      chip-image-amd64,
       test-core,
       test-app-fast,
       test-app-slow,
@@ -344,7 +344,7 @@ jobs:
       test-icd
     ]
     if: >-
-      needs.chip-image.outputs.source == 'artifact' &&
+      needs.chip-image-amd64.outputs.source == 'artifact' &&
       (
         github.event_name == 'schedule' ||
         github.event_name == 'workflow_dispatch'
@@ -423,7 +423,7 @@ jobs:
           ./bin/info
           ./bin/publish-arch arm64
 
-  # TODO - create PR to commit SHA from chip-image action?
+  # TODO - create PR to commit SHA from the chip-image-amd64 job?
   publish-manifest:
     name: Publish multi-arch manifest
     runs-on: ubuntu-latest
