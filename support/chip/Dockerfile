@@ -118,6 +118,16 @@ FROM source AS bins
 # Build chip-tool
 RUN build-one chip-tool
 
+# Build the all-clusters app twice: once plain, once with CHIP's nlfaultinjection GN arg so
+# TC-SC-3.5 and other CASE fault-injection cert tests can drive its FaultInjection cluster as
+# TH_SERVER. Binary name follows CHIP's own build_examples.py convention (host.py's ALL_CLUSTERS +
+# use_nl_fault_injection rename step) so th_server_app_path expectations line up.
+RUN build-one all-clusters-app/linux chip-all-clusters-app
+RUN build-one all-clusters-app/linux chip-all-clusters-app chip-all-clusters-app-nlfaultinject chip_with_nlfaultinjection=true
+
+# TC-ACT-3.2's TH app for the cert tests' chip-local flavor, which spawns from this image's /bin
+RUN build-one bridge-app/linux chip-bridge-app
+
 # Install Python stuff
 COPY support/install-chip-python /bin
 RUN install-chip-python
@@ -203,32 +213,3 @@ COPY --from=source /etc/chip-version /etc
 
 # Configure avahi
 RUN echo allow-interfaces
-
-
-################################################################################
-#
-# STAGE 6 - build example app
-#
-
-FROM install AS app-bins
-
-ARG APP_TARGET
-
-# Build binaries
-RUN build-one "$APP_TARGET"
-
-
-################################################################################
-#
-# STAGE 7 - augment base container with app
-#
-
-FROM chip AS chip-app
-
-ARG APP_BIN
-
-COPY --from=app-bins "/dist/bin/$APP_BIN" /bin
-
-ENV APP_BIN="$APP_BIN"
-
-ENTRYPOINT "/bin/$APP_BIN"
