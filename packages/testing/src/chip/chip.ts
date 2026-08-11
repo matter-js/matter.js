@@ -152,7 +152,7 @@ function createBuilder(initial: {
 
             const tests = TestDescriptor.filter(chip.tests.descriptor, {
                 includePaths: [...includePaths],
-                kinds: ["py", "yaml"],
+                kinds: ["py", "yaml", "cert"],
                 pics: subject?.pics ?? chip.defaultPics,
             });
 

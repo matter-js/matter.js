@@ -55,7 +55,7 @@ export function getParameters(name: string): string[] {
     return result;
 }
 
-const allocatedIds = new Set();
+const allocatedIds = new Set<string>();
 
 export abstract class TestInstance {
     static id = "test-node";
@@ -100,10 +100,10 @@ export abstract class TestInstance {
             const qualifiedId = `${this.#id}-${nextId++}`;
             if (!allocatedIds.has(qualifiedId)) {
                 this.#id = qualifiedId;
-                allocatedIds.add(this.#id);
                 break;
             }
         }
+        allocatedIds.add(this.#id);
     }
 
     abstract initialize(): Promise<void>;

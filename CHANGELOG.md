@@ -81,6 +81,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Deprecation: The generated `Cluster`, `Complete` and `<Name>Cluster` aliases and the `ClusterType.WithCompat` `with()` shim are scheduled for removal in 0.19
     - Fix: `Cluster.with()` rejects a feature the cluster does not define and returns one frozen namespace per selection
 
+- @matter/testing
+    - Enhancement: `certTest()` defines controller-side certification tests with per-step PICS gating, device-log expectations and evidence recording; devices run as chip apps (docker or local binary) or matter.js test apps, selected via `MATTER_CERT_DEVICE`
+    - Enhancement: `PromptDrivenPythonTest` drives chip python test scripts that prompt for manual commissioning steps
+    - Enhancement: `matter-test`'s post-test clean-exit grace period is overridable via `MATTER_TEST_SHUTDOWN_TIMEOUT_MS`
+    - Enhancement: `MATTER_CHIP_BINS_SOURCE=cert-bins` selects project-chip's official `connectedhomeip/chip-cert-bins` binaries for the classic yaml/python tests and `chip-local` cert-test subjects
+    - Enhancement: A cert test's attached device/controller logs now carry a banner marking each step's start and end, alongside its verdict
+
 - @project-chip/matter.js
     - Deprecation: Every class, type and function of the legacy controller API is now marked deprecated and scheduled for removal in 0.19; use the `ServerNode.peers` / `ClientNode` API of `@matter/node` instead
 

@@ -7,6 +7,14 @@
 import { PicsValues } from "./values.js";
 
 /**
+ * Thrown by a `Subject.pics` accessor (or `chip.defaultPics`) when no PICS file is available for
+ * the subject — e.g. the harness hasn't initialized one, or the device kind has none at all.
+ * Distinct from other errors a PICS accessor may raise: "no PICS" means PICS gating is simply
+ * inactive, not that something is broken (see `cert-test.ts`'s `resolvePicsFile`).
+ */
+export class PicsUnavailableError extends Error {}
+
+/**
  * In-memory Matter PICS file.
  *
  * Supports extended syntax for defining ranges of values of the form "NAMExx..yy=*" or "NAMExx..yy.SUFFIX=*" where xx
