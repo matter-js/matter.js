@@ -8,7 +8,7 @@ import { InternalError } from "@matter/main";
 import { Matter } from "@matter/model";
 import type { AttributePathSpec, CertStepContext, CheckRecord, LogFollower } from "@matter/testing";
 import { certTest } from "@matter/testing";
-import { CommissionedRefs, expectAdjacentLines } from "./tc-support.js";
+import { CommissionedRefs, expectAdjacentLines, expectChunkedTransfer } from "./tc-support.js";
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
 const ON_OFF = Matter.clusters.require("OnOff");
@@ -37,6 +37,13 @@ const SERVER_LIST = DESCRIPTOR.attributes.require("serverList");
 
 const ENDPOINT_0 = 0;
 const ENDPOINT_1 = 1;
+
+// Matter's MEI cluster-ID encoding puts a nonzero vendor-id prefix in the upper 16 bits for every
+// manufacturer-specific cluster; standard clusters always have a zero prefix. Verified against a
+// real chip-all-clusters-app's zap config, whose manufacturer-specific clusters (Fault Injection
+// 0xFFF1FC06, Unit Testing 0xFFF1FC05, Test Hidden Manufacturer Specific 0xFFF1FC21) all fall in
+// this range; matter.js's own all-clusters app defines none.
+const MANUFACTURER_SPECIFIC_CLUSTER_THRESHOLD = 0x10000;
 
 /** A single `AttributePathSpec`-wildcard entry read back from `readAttribute`. */
 interface WildcardEntry {
@@ -670,6 +677,9 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
         20,
         "DUT sends the Read Request Message to the TH to read something(Attribute) which is larger than 1 MTU(1280 bytes) and per spec can be chunked. For every chunked data message received, except the last one, DUT sends a status response.",
         commissioned.guardedWithRef("dut", async (cx, ref) => {
+            const th = cx.devices.th;
+            const from = th.log.mark();
+
             const spec: AttributePathSpec = {};
             const { value, logCheck } = await readAndCheckLog(cx, ref, spec);
             recordLogCheck(cx, logCheck);
@@ -686,6 +696,12 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
             if (!pass) {
                 throw new Error(`Expected a large wildcard read (>100 attributes), got ${entries.length}`);
             }
+
+            const chunkCheck = await expectChunkedTransfer(th.log, th.flavor, from, 15_000);
+            cx.recorder.check(chunkCheck);
+            if (chunkCheck.verdict === "fail") {
+                throw new Error(`Chunked-transfer log check failed: ${JSON.stringify(chunkCheck)}`);
+            }
         }),
         {
             expected:
@@ -696,24 +712,51 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
         21,
         "DUT sends the Read Request Message to the TH with Manufacturer specific clusters and attributes to read all attributes in all clusters and all endpoints Path = [[ ]]. On receipt of this message, TH should send a report data action with the attribute values to the DUT.",
         commissioned.guardedWithRef("dut", async (cx, ref) => {
+            const th = cx.devices.th;
             const spec: AttributePathSpec = {};
             const { value, logCheck } = await readAndCheckLog(cx, ref, spec);
             recordLogCheck(cx, logCheck);
 
             const entries = asWildcardEntries(value);
-            const pass = entries.length > 100;
+            const sizePass = entries.length > 100;
             cx.recorder.check({
                 type: "response",
-                verdict: pass ? "pass" : "fail",
-                detail:
-                    `${entries.length} attributes returned (neither cert flavor defines a manufacturer-specific ` +
-                    `cluster)`,
+                verdict: sizePass ? "pass" : "fail",
+                detail: `${entries.length} attributes returned`,
             });
 
-            await commissioned.decommissionAll(cx);
+            const manufacturerSpecificClusters = distinct(
+                entries
+                    .filter(entry => entry.cluster >= MANUFACTURER_SPECIFIC_CLUSTER_THRESHOLD)
+                    .map(entry => entry.cluster),
+            );
+            const foundIds = manufacturerSpecificClusters.map(id => `0x${id.toString(16)}`).join(", ");
 
-            if (!pass) {
-                throw new Error(`Expected a large wildcard read (>100 attributes), got ${entries.length}`);
+            if (th.flavor.startsWith("chip")) {
+                const msPass = manufacturerSpecificClusters.length > 0;
+                cx.recorder.check({
+                    type: "response",
+                    verdict: msPass ? "pass" : "fail",
+                    detail: msPass
+                        ? `Manufacturer-specific clusters found: ${foundIds}`
+                        : "No manufacturer-specific cluster (>=0x10000) found in the wildcard read",
+                });
+                await commissioned.decommissionAll(cx);
+                if (!sizePass || !msPass) {
+                    throw new Error(
+                        `Unexpected full-wildcard read result: ${entries.length} entries, MS clusters [${foundIds}]`,
+                    );
+                }
+            } else {
+                cx.recorder.check({
+                    type: "response",
+                    verdict: "unverified",
+                    detail: "matter.js all-clusters app defines no manufacturer-specific cluster",
+                });
+                await commissioned.decommissionAll(cx);
+                if (!sizePass) {
+                    throw new Error(`Expected a large wildcard read (>100 attributes), got ${entries.length}`);
+                }
             }
         }),
         { expected: "Verify that the TH receives the right Read Request Message." },

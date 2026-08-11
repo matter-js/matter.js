@@ -8,6 +8,7 @@ import type {
     CertDevice,
     CertStepContext,
     CertTestDefinition,
+    CheckRecord,
     Container,
     ControllerAdapter,
     DeviceExitInfo,
@@ -61,12 +62,29 @@ function stubRecorder(overrides: Partial<StepRecorder> = {}): StepRecorder {
     return {
         beginStep() {},
         check() {},
-        endStep() {},
+        endStep() {
+            return [];
+        },
         async flush() {
             return "";
         },
         ...overrides,
     };
+}
+
+/** A {@link stubRecorder} whose `endStep` returns whatever `check()` recorded since the last `endStep`. */
+function recordingRecorder(): StepRecorder {
+    let checks = new Array<CheckRecord>();
+    return stubRecorder({
+        check(record) {
+            checks.push(record);
+        },
+        endStep() {
+            const recorded = checks;
+            checks = [];
+            return recorded;
+        },
+    });
 }
 
 function stubSubject(pics: PicsFile): Subject {
@@ -204,6 +222,7 @@ describe("CertTest", () => {
             check() {},
             endStep(step, verdict, skipReason) {
                 endStepCalls.push({ number: step.number, verdict, skipReason });
+                return [];
             },
             async flush() {
                 flushed = true;
@@ -333,6 +352,7 @@ describe("CertTest", () => {
             recorder: stubRecorder({
                 endStep(step, verdict) {
                     endStepVerdicts.push({ number: step.number, verdict });
+                    return [];
                 },
             }),
         };
@@ -400,6 +420,7 @@ describe("CertTest", () => {
             recorder: stubRecorder({
                 endStep(step, verdict) {
                     endStepVerdicts.push({ number: step.number, verdict });
+                    return [];
                 },
             }),
         };
@@ -445,6 +466,7 @@ describe("CertTest", () => {
             recorder: stubRecorder({
                 endStep(step, verdict) {
                     endStepVerdicts.push({ number: step.number, verdict });
+                    return [];
                 },
             }),
         };
@@ -497,6 +519,7 @@ describe("CertTest", () => {
             recorder: stubRecorder({
                 endStep(step, verdict, skipReason) {
                     endStepCalls.push({ number: step.number, verdict, skipReason });
+                    return [];
                 },
             }),
         };
@@ -555,6 +578,7 @@ describe("CertTest", () => {
             recorder: stubRecorder({
                 endStep(step, verdict) {
                     endStepVerdicts.push({ number: step.number, verdict });
+                    return [];
                 },
                 deviceExited(info) {
                     deviceExitedCalls.push(info);
@@ -668,6 +692,7 @@ describe("CertTest", () => {
             recorder: stubRecorder({
                 endStep(step, verdict) {
                     endStepVerdicts.push({ number: step.number, verdict });
+                    return [];
                 },
                 deviceExited(info) {
                     deviceExitedCalls.push(info);
@@ -777,6 +802,96 @@ describe("CertTest", () => {
                 "-".repeat(70),
             ]);
         }
+    });
+
+    it("adds a step's single check as one unindexed line in the end banner", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step one text",
+                    run: async cx => {
+                        cx.recorder.check({ type: "response", verdict: "pass", detail: "single check detail" });
+                    },
+                },
+            ],
+        };
+
+        const deviceLog = new LogFollower(noLines(), "device");
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
+            recorder: recordingRecorder(),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+        const subject = stubSubject(new PicsFile([]));
+
+        await test.invoke(subject, () => {}, [], false);
+
+        const banners = deviceLog.lines.filter(line => line.synthetic).map(line => line.text);
+        expect(banners).deep.equal([
+            "-".repeat(70),
+            "TC-CADMIN-1.17 — Test Step 1: Step one text",
+            "-".repeat(70),
+            "-".repeat(70),
+            "TC-CADMIN-1.17 — Test Step 1: PASS",
+            "single check detail",
+            "-".repeat(70),
+        ]);
+    });
+
+    it("prefixes each line with its index when a step records more than one check, rendering device-log checks by pattern/matched", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step one text",
+                    run: async cx => {
+                        cx.recorder.check({
+                            type: "device-log",
+                            verdict: "pass",
+                            pattern: "AttributePathIB {}",
+                            matched: "raw log line",
+                            logLine: 42,
+                        });
+                        cx.recorder.check({ type: "response", verdict: "pass", detail: "second check detail" });
+                    },
+                },
+            ],
+        };
+
+        const deviceLog = new LogFollower(noLines(), "device");
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
+            recorder: recordingRecorder(),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+        const subject = stubSubject(new PicsFile([]));
+
+        await test.invoke(subject, () => {}, [], false);
+
+        const banners = deviceLog.lines.filter(line => line.synthetic).map(line => line.text);
+        expect(banners).deep.equal([
+            "-".repeat(70),
+            "TC-CADMIN-1.17 — Test Step 1: Step one text",
+            "-".repeat(70),
+            "-".repeat(70),
+            "TC-CADMIN-1.17 — Test Step 1: PASS",
+            "0: pattern=AttributePathIB {} matched=raw log line",
+            "1: second check detail",
+            "-".repeat(70),
+        ]);
     });
 
     it("injects only an end banner (SKIPPED) for a step the flavor gate skips before it starts", async () => {

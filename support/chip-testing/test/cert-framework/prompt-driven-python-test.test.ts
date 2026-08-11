@@ -143,7 +143,9 @@ function stubCx(): CertStepContext {
         recorder: {
             beginStep() {},
             check() {},
-            endStep() {},
+            endStep() {
+                return [];
+            },
             async flush() {
                 return "";
             },

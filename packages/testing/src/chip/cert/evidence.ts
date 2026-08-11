@@ -82,7 +82,7 @@ export class EvidenceRecorder implements StepRecorder {
         this.#current.checks.push(record);
     }
 
-    endStep(step: CertStepDefinition, verdict: StepVerdict, skipReason?: string): void {
+    endStep(step: CertStepDefinition, verdict: StepVerdict, skipReason?: string): CheckRecord[] {
         // No active step is fine (skipped/aborted steps never begin), but ending a *different*
         // step than the active one would silently discard the active step's checks.
         if (this.#current !== undefined && this.#current.def !== step) {
@@ -101,6 +101,8 @@ export class EvidenceRecorder implements StepRecorder {
             verdict,
             skipReason,
         });
+
+        return checks;
     }
 
     /**

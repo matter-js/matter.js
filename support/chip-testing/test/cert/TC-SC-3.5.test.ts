@@ -5,7 +5,7 @@
  */
 
 import { Duration, InternalError, Millis, Time } from "@matter/main";
-import type { CertStepContext, PromptHandler, Subject } from "@matter/testing";
+import type { CertStepContext, CertStepDefinition, PromptHandler, StepVerdict, Subject } from "@matter/testing";
 import { chip, EvidenceRecorder, PromptDrivenPythonTest } from "@matter/testing";
 import { join } from "node:path";
 import { env } from "node:process";
@@ -82,6 +82,17 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
             const passcode = extractPasscode(promptText);
             const dut = cx.controllers.dut;
 
+            // This file drives cx.recorder directly (see the module doc comment on
+            // manualPairingCodeHandler) rather than through certTest()'s step engine, so nothing
+            // else calls StepRecorder.beginStep/endStep — EvidenceRecorder.check() requires an
+            // active step.
+            const stepDef: CertStepDefinition = {
+                number: `attempt-${attempt}`,
+                text: promptText,
+                run: async () => {},
+            };
+            cx.recorder.beginStep(stepDef);
+
             const timeout = Time.sleep("TC-SC-3.5 commission timeout", Millis(COMMISSION_TIMEOUT_MS));
             let outcome: SettleOutcome;
             try {
@@ -94,11 +105,15 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
                 timeout.cancel();
             }
 
+            let verdict: StepVerdict;
+            let failure: Error | undefined;
+
             switch (outcome.kind) {
                 case "resolved":
+                    verdict = expectSuccess ? "pass" : "fail";
                     cx.recorder.check({
                         type: "response",
-                        verdict: expectSuccess ? "pass" : "fail",
+                        verdict,
                         detail: `commission() resolved on attempt ${attempt} (ref ${outcome.ref})`,
                     });
                     if (!expectSuccess) {
@@ -108,7 +123,7 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
                             .catch(e =>
                                 console.warn(`Failed to decommission unexpectedly-successful attempt ${attempt}:`, e),
                             );
-                        throw new Error(
+                        failure = new Error(
                             `DUT commissioning unexpectedly succeeded on attempt ${attempt} against a ` +
                                 "Sigma2-fault-injected TH_SERVER",
                         );
@@ -116,25 +131,34 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
                     break;
 
                 case "rejected":
+                    verdict = expectSuccess ? "fail" : "pass";
                     cx.recorder.check({
                         type: "response",
-                        verdict: expectSuccess ? "fail" : "pass",
+                        verdict,
                         detail: `commission() rejected on attempt ${attempt}: ${errorMessage(outcome.error)}`,
                     });
                     if (expectSuccess) {
-                        throw outcome.error instanceof Error ? outcome.error : new Error(errorMessage(outcome.error));
+                        failure =
+                            outcome.error instanceof Error ? outcome.error : new Error(errorMessage(outcome.error));
                     }
                     break;
 
                 case "timeout":
+                    verdict = "fail";
                     cx.recorder.check({
                         type: "response",
-                        verdict: "fail",
+                        verdict,
                         detail:
                             `commission() neither resolved nor rejected on attempt ${attempt} within ` +
                             Duration.format(Millis(COMMISSION_TIMEOUT_MS)),
                     });
-                    throw new Error(`DUT commissioning attempt ${attempt} timed out`);
+                    failure = new Error(`DUT commissioning attempt ${attempt} timed out`);
+                    break;
+            }
+
+            cx.recorder.endStep(stepDef, verdict);
+            if (failure) {
+                throw failure;
             }
 
             // TC_SC_3_5.py's wait_for_user_input() only blocks on a bare input() read (any text, or

@@ -5,7 +5,7 @@
  */
 
 import { InternalError, Time } from "@matter/main";
-import type { CertNodeRef, CertStepContext, LogFollower, LogLine } from "@matter/testing";
+import type { CertNodeRef, CertStepContext, CheckRecord, LogFollower, LogLine } from "@matter/testing";
 
 /**
  * Tracks commissioned node refs by role for one cert-test run and decommissions whatever's still
@@ -130,6 +130,55 @@ export async function expectAdjacentLines(
         }
         cursor = anchor.matched.index + 1;
     }
+}
+
+// chip's DMG log dumps a ReportDataMessage every time the read handler sends one chunk, and an
+// inbound StatusResponse every time it receives the DUT's per-chunk ack — verified against a real
+// chip-all-clusters-app's log for a >1-MTU wildcard read (repeated ReportDataMessage/StatusResponse
+// pairs). matter.js has no equivalent log line, so this is chip-only; see AGENTS.md's flavor-pattern
+// policy for the matterjs "unverified" fallback.
+const REPORT_DATA_SENT = /\[DMG\] ReportDataMessage =\s*$/;
+const STATUS_RESPONSE_RECEIVED = /Msg RX from.*\(IM:StatusResponse\)/;
+
+/**
+ * Confirms a chunked read actually chunked: at least one report chunk, an acking `StatusResponse`
+ * received from the DUT, and a further chunk after it. Returns `"unverified"` for the matterjs
+ * flavor (see AGENTS.md's flavor-pattern policy) rather than a `"pass"` a log-scrape can't back up.
+ */
+export async function expectChunkedTransfer(
+    log: LogFollower,
+    flavor: string,
+    from: number,
+    timeoutMs: number,
+): Promise<CheckRecord> {
+    const firstChunk = await log.expect({ chip: REPORT_DATA_SENT }, { flavor, timeoutMs, from });
+    if (firstChunk.verdict === "unverified") {
+        return { type: "device-log", verdict: "unverified" };
+    }
+
+    const ack = await log.expect(
+        { chip: STATUS_RESPONSE_RECEIVED },
+        { flavor, timeoutMs, from: firstChunk.matched.index + 1 },
+    );
+    if (ack.verdict === "unverified") {
+        return { type: "device-log", verdict: "unverified" };
+    }
+
+    const secondChunk = await log.expect(
+        { chip: REPORT_DATA_SENT },
+        { flavor, timeoutMs, from: ack.matched.index + 1 },
+    );
+    if (secondChunk.verdict === "unverified") {
+        return { type: "device-log", verdict: "unverified" };
+    }
+
+    return {
+        type: "device-log",
+        verdict: "pass",
+        pattern: "ReportDataMessage, StatusResponse, ReportDataMessage",
+        matched: secondChunk.matched.text,
+        logLine: secondChunk.matched.index,
+    };
 }
 
 /**

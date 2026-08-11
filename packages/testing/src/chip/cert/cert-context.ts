@@ -76,7 +76,8 @@ export interface StepRecorder {
      * A step signals failure by having its `run` throw, not by calling `check` with a failing verdict.
      */
     check(record: CheckRecord): void;
-    endStep(step: CertStepDefinition, verdict: StepVerdict, skipReason?: string): void;
+    /** Returns the checks recorded for `step` (empty if it never began), for the caller's own end-of-step reporting. */
+    endStep(step: CertStepDefinition, verdict: StepVerdict, skipReason?: string): CheckRecord[];
     /**
      * Records that a device exited unexpectedly while the run was in progress. {@link CertTest}
      * calls this and then fails the run itself; a recorder need only persist the information (see

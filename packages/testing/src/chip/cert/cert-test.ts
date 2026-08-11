@@ -15,6 +15,7 @@ import {
     CertStepContext,
     CertStepDefinition,
     CertTestDefinition,
+    CheckRecord,
     DeviceExitInfo,
     DeviceFlavor,
     StepRecorder,
@@ -24,7 +25,9 @@ import {
 const inertRecorder: StepRecorder = {
     beginStep() {},
     check() {},
-    endStep() {},
+    endStep() {
+        return [];
+    },
     async flush() {
         return "";
     },
@@ -72,21 +75,30 @@ export class CertTest extends BaseTest {
         try {
             for (const stepDef of this.#definition.steps) {
                 if (aborted) {
-                    announceStepEnd(cx, tc, stepDef, "aborted");
-                    recorder.endStep(stepDef, "aborted");
+                    announceStepEnd(cx, tc, stepDef, "aborted", recorder.endStep(stepDef, "aborted"));
                     continue;
                 }
 
                 try {
                     if (stepDef.flavors && flavor !== undefined && !stepDef.flavors.includes(flavor)) {
-                        announceStepEnd(cx, tc, stepDef, "skipped");
-                        recorder.endStep(stepDef, "skipped", `unsupported on device flavor "${flavor}"`);
+                        announceStepEnd(
+                            cx,
+                            tc,
+                            stepDef,
+                            "skipped",
+                            recorder.endStep(stepDef, "skipped", `unsupported on device flavor "${flavor}"`),
+                        );
                         continue;
                     }
 
                     if (!stepPicsMet(stepDef, picsFile)) {
-                        announceStepEnd(cx, tc, stepDef, "skipped");
-                        recorder.endStep(stepDef, "skipped", `PICS "${stepDef.pics}" not met`);
+                        announceStepEnd(
+                            cx,
+                            tc,
+                            stepDef,
+                            "skipped",
+                            recorder.endStep(stepDef, "skipped", `PICS "${stepDef.pics}" not met`),
+                        );
                         continue;
                     }
 
@@ -96,16 +108,14 @@ export class CertTest extends BaseTest {
 
                     await raceAgainstDeviceExit(stepDef.run(cx), deviceExitWatch.exit, tc, stepDef.number);
                 } catch (e) {
-                    announceStepEnd(cx, tc, stepDef, "fail");
-                    recorder.endStep(stepDef, "fail");
+                    announceStepEnd(cx, tc, stepDef, "fail", recorder.endStep(stepDef, "fail"));
                     aborted = true;
                     failed = true;
                     failure = e;
                     continue;
                 }
 
-                announceStepEnd(cx, tc, stepDef, "pass");
-                recorder.endStep(stepDef, "pass");
+                announceStepEnd(cx, tc, stepDef, "pass", recorder.endStep(stepDef, "pass"));
             }
         } finally {
             try {
@@ -223,10 +233,28 @@ function announceStepStart(cx: CertStepContext, tc: string, stepDef: CertStepDef
     announceStep(cx, [STEP_BANNER_RULE, `${tc} — Test Step ${stepDef.number}: ${stepDef.text}`, STEP_BANNER_RULE]);
 }
 
-function announceStepEnd(cx: CertStepContext, tc: string, stepDef: CertStepDefinition, verdict: StepVerdict): void {
+/** One evidence line for `check`: a device-log check names its pattern/match, others their own detail. */
+function formatCheckLine(check: CheckRecord): string {
+    if (check.type === "device-log") {
+        return `pattern=${check.pattern ?? "(none)"} matched=${check.matched ?? "(none)"}`;
+    }
+    return check.detail ?? "(no detail)";
+}
+
+function announceStepEnd(
+    cx: CertStepContext,
+    tc: string,
+    stepDef: CertStepDefinition,
+    verdict: StepVerdict,
+    checks: CheckRecord[],
+): void {
+    const checkLines = checks.map((check, index) =>
+        checks.length > 1 ? `${index}: ${formatCheckLine(check)}` : formatCheckLine(check),
+    );
     announceStep(cx, [
         STEP_BANNER_RULE,
         `${tc} — Test Step ${stepDef.number}: ${verdict.toUpperCase()}`,
+        ...checkLines,
         STEP_BANNER_RULE,
     ]);
 }
