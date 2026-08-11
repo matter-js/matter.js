@@ -54,7 +54,7 @@ jobs:
     outputs:
       build-needed: ${{ steps.check-rebuild.outputs.build-needed }}
       controllers: ${{ steps.controllers.outputs.controllers }}
-      rebuild-marker: ${{ steps.marker.outputs.present }}
+      chip-sha: ${{ steps.get-sha.outputs.chip-sha }}
     steps:
       - name: Check out matter.js
         uses: actions/checkout@v7
@@ -112,43 +112,53 @@ jobs:
             echo 'controllers=["chiptool"]' >> $GITHUB_OUTPUT
           fi
 
-  # Build the CHIP container if necessary
-  chip-image:
-    needs: workflow-conditions
-    runs-on: ubuntu-latest
-    outputs:
-      source: ${{ needs.workflow-conditions.outputs.build-needed == 'true' && 'artifact' || 'repository' }}
-      chip-sha: ${{ steps.get-sha.outputs.chip-sha }}
-    steps:
-      - name: Check out matter.js
-        if: needs.workflow-conditions.outputs.build-needed == 'true'
-        uses: actions/checkout@v7
-
       # A [rebuild-chip] rebuild exists to test against the current CHIP master, so refresh the SHA before building.
       # The resulting sha.txt is used only for this run's build; it is never committed on push/pull_request (see
-      # publish-image), so no SHA bump leaks into the PR.
+      # publish-manifest), so no SHA bump leaks into the PR. Computed once here (rather than once per architecture
+      # job) so the amd64 and arm64 builds compile the identical CHIP commit.
       - name: Increment CHIP SHA
         id: increment-sha
         if: >-
           github.event_name == 'schedule' ||
           (github.event_name == 'workflow_dispatch' && inputs.updateChipSha) ||
-          needs.workflow-conditions.outputs.rebuild-marker == 'true'
+          steps.marker.outputs.present == 'true'
         run: |
           cd support/chip
           ./bin/update-version
 
       - name: Get CHIP SHA
         id: get-sha
-        if: >-
-          github.event_name == 'schedule' ||
-          github.event_name == 'workflow_dispatch' ||
-          needs.workflow-conditions.outputs.rebuild-marker == 'true'
         run: |
           cd support/chip
           echo chip-sha=$(cat sha.txt) >> $GITHUB_OUTPUT
 
-      - name: Build chip image
+  # Build the CHIP container if necessary. CHIP compiles natively per architecture (QEMU emulation of the toolchain
+  # is prohibitively slow), so amd64 and arm64 are separate jobs on runners native to each; publish-manifest later
+  # combines the two into a multi-arch manifest.
+  chip-image-amd64:
+    needs: workflow-conditions
+    runs-on: ubuntu-latest
+    outputs:
+      source: ${{ needs.workflow-conditions.outputs.build-needed == 'true' && 'artifact' || 'repository' }}
+    steps:
+      - name: Maximize build space
         if: needs.workflow-conditions.outputs.build-needed == 'true'
+        uses: easimon/maximize-build-space@v10
+        with:
+          root-reserve-mb: 4096
+          temp-reserve-mb: 3096
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+
+      - name: Check out matter.js
+        if: needs.workflow-conditions.outputs.build-needed == 'true'
+        uses: actions/checkout@v7
+
+      - name: Build chip image (amd64)
+        if: needs.workflow-conditions.outputs.build-needed == 'true'
+        env:
+          CHIP_COMMIT: ${{ needs.workflow-conditions.outputs.chip-sha }}
         run: |
           cd support/chip
           ./bin/build chip-artifact
@@ -160,8 +170,62 @@ jobs:
           name: chip-image
           path: /tmp/chip.tar
 
+  chip-image-arm64:
+    needs: workflow-conditions
+    if: needs.workflow-conditions.outputs.build-needed == 'true'
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      source: ${{ needs.workflow-conditions.outputs.build-needed == 'true' && 'artifact' || 'repository' }}
+    steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@v10
+        with:
+          root-reserve-mb: 4096
+          temp-reserve-mb: 3096
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+
+      - name: Check out matter.js
+        uses: actions/checkout@v7
+
+      - name: Build chip image (arm64)
+        env:
+          CHIP_COMMIT: ${{ needs.workflow-conditions.outputs.chip-sha }}
+        run: |
+          cd support/chip
+          ./bin/build chip-artifact
+
+      # test-core-arm64 exercises chip-tool against this image but never starts the app binaries, so they get an
+      # execution check here. Exit status 126 or above means the shell could not execute the binary at all (wrong
+      # architecture, missing loader); anything below that proves it ran.
+      - name: Smoke-test arm64 image
+        run: |
+          docker load -i /tmp/chip.tar
+          arch=$(docker inspect --format '{{ .Architecture }}' ghcr.io/matter-js/chip:latest)
+          if [ "$arch" != "arm64" ]; then
+            echo "Built image reports architecture \"$arch\", expected arm64" >&2
+            exit 1
+          fi
+          docker run --rm --entrypoint /bin/sh ghcr.io/matter-js/chip:latest -c '
+            for bin in chip-tool chip-all-clusters-app chip-all-clusters-app-nlfaultinject chip-bridge-app; do
+              "$bin" --help >/dev/null 2>&1
+              status=$?
+              if [ "$status" -ge 126 ]; then
+                echo "$bin: exit $status, binary did not execute" >&2
+                exit 1
+              fi
+            done
+          '
+
+      - name: Upload chip artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: chip-image-arm64
+          path: /tmp/chip.tar
+
   test-core:
-    needs: [workflow-conditions, chip-image]
+    needs: [workflow-conditions, chip-image-amd64]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -173,12 +237,28 @@ jobs:
 
       - uses: ./.github/actions/run-chip-tests
         with:
-          image-source: ${{ needs.chip-image.outputs.source }}
+          image-source: ${{ needs.chip-image-amd64.outputs.source }}
           test-group: core
           use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
+  # Every other test group runs against the amd64 image, so this is what stands between an arm64 build and the
+  # published manifest. The core group against chip-tool is the cheapest run that exercises the arm64 binaries for
+  # real rather than just proving they start.
+  test-core-arm64:
+    needs: [workflow-conditions, chip-image-arm64]
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Check out matter.js
+        uses: actions/checkout@v7
+
+      - uses: ./.github/actions/run-chip-tests
+        with:
+          image-source: ${{ needs.chip-image-arm64.outputs.source }}
+          artifact-name: chip-image-arm64
+          test-group: core
+
   test-app-fast:
-    needs: [workflow-conditions, chip-image]
+    needs: [workflow-conditions, chip-image-amd64]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -190,12 +270,12 @@ jobs:
 
       - uses: ./.github/actions/run-chip-tests
         with:
-          image-source: ${{ needs.chip-image.outputs.source }}
+          image-source: ${{ needs.chip-image-amd64.outputs.source }}
           test-group: app-fast
           use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
   test-app-slow:
-    needs: [workflow-conditions, chip-image]
+    needs: [workflow-conditions, chip-image-amd64]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -207,12 +287,12 @@ jobs:
 
       - uses: ./.github/actions/run-chip-tests
         with:
-          image-source: ${{ needs.chip-image.outputs.source }}
+          image-source: ${{ needs.chip-image-amd64.outputs.source }}
           test-group: app-slow
           use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
   test-app-cc-1:
-    needs: [workflow-conditions, chip-image]
+    needs: [workflow-conditions, chip-image-amd64]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -224,12 +304,12 @@ jobs:
 
       - uses: ./.github/actions/run-chip-tests
         with:
-          image-source: ${{ needs.chip-image.outputs.source }}
+          image-source: ${{ needs.chip-image-amd64.outputs.source }}
           test-group: app-cc-1
           use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
   test-app-cc-2:
-    needs: [workflow-conditions, chip-image]
+    needs: [workflow-conditions, chip-image-amd64]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -241,12 +321,12 @@ jobs:
 
       - uses: ./.github/actions/run-chip-tests
         with:
-          image-source: ${{ needs.chip-image.outputs.source }}
+          image-source: ${{ needs.chip-image-amd64.outputs.source }}
           test-group: app-cc-2
           use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
   test-icd:
-    needs: [workflow-conditions, chip-image]
+    needs: [workflow-conditions, chip-image-amd64]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -258,17 +338,20 @@ jobs:
 
       - uses: ./.github/actions/run-chip-tests
         with:
-          image-source: ${{ needs.chip-image.outputs.source }}
+          image-source: ${{ needs.chip-image-amd64.outputs.source }}
           test-group: icd
           use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
-  # Publish if this is nightly run or triggered manually
-  # TODO - create PR to commit SHA from chip-image action?
-  publish-image:
-    name: Publish docker image
+  # Publish if this is nightly run or triggered manually. Each architecture pushes its natively-built image under an
+  # arch-suffixed tag (publish-arch); publish-manifest then combines those into the multi-arch "latest" and
+  # CHIP-commit tags. A PR-triggered run never reaches these jobs (see the "if" below), so it only builds and tests,
+  # never pushes.
+  publish-image-amd64:
+    name: Publish docker image (amd64)
     runs-on: ubuntu-latest
     needs: [
-      chip-image,
+      workflow-conditions,
+      chip-image-amd64,
       test-core,
       test-app-fast,
       test-app-slow,
@@ -277,7 +360,7 @@ jobs:
       test-icd
     ]
     if: >-
-      needs.chip-image.outputs.source == 'artifact' &&
+      needs.chip-image-amd64.outputs.source == 'artifact' &&
       (
         github.event_name == 'schedule' ||
         github.event_name == 'workflow_dispatch'
@@ -295,19 +378,95 @@ jobs:
 
       - name: Load image from artifact
         uses: ./.github/actions/load-chip
+        with:
+          artifact-name: chip-image
 
       - name: Sync CHIP SHA with built version
         env:
-          CHIP_SHA: ${{ needs.chip-image.outputs.chip-sha }}
+          CHIP_SHA: ${{ needs.workflow-conditions.outputs.chip-sha }}
         run: |
           cd support/chip
           echo "$CHIP_SHA" > sha.txt
 
-      - name: Publish docker image
+      - name: Publish amd64 image
         run: |
           cd support/chip
           ./bin/info
-          ./bin/publish
+          ./bin/publish-arch amd64
+
+  publish-image-arm64:
+    name: Publish docker image (arm64)
+    runs-on: ubuntu-24.04-arm
+    needs: [
+      workflow-conditions,
+      chip-image-arm64,
+      test-core,
+      test-core-arm64,
+      test-app-fast,
+      test-app-slow,
+      test-app-cc-1,
+      test-app-cc-2,
+      test-icd
+    ]
+    if: >-
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
+      needs.chip-image-arm64.outputs.source == 'artifact'
+    steps:
+      - name: Check out matter.js
+        uses: actions/checkout@v7
+
+      - name: Login to GitHub Docker Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: Automator77
+          password: ${{ secrets.MATTERJS_DOCKER_TOKEN }}
+
+      - name: Load image from artifact
+        uses: ./.github/actions/load-chip
+        with:
+          artifact-name: chip-image-arm64
+
+      - name: Sync CHIP SHA with built version
+        env:
+          CHIP_SHA: ${{ needs.workflow-conditions.outputs.chip-sha }}
+        run: |
+          cd support/chip
+          echo "$CHIP_SHA" > sha.txt
+
+      - name: Publish arm64 image
+        run: |
+          cd support/chip
+          ./bin/info
+          ./bin/publish-arch arm64
+
+  # TODO - create PR to commit SHA from the chip-image-amd64 job?
+  publish-manifest:
+    name: Publish multi-arch manifest
+    runs-on: ubuntu-latest
+    needs: [workflow-conditions, publish-image-amd64, publish-image-arm64]
+    steps:
+      - name: Check out matter.js
+        uses: actions/checkout@v7
+
+      - name: Login to GitHub Docker Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: Automator77
+          password: ${{ secrets.MATTERJS_DOCKER_TOKEN }}
+
+      - name: Sync CHIP SHA with built version
+        env:
+          CHIP_SHA: ${{ needs.workflow-conditions.outputs.chip-sha }}
+        run: |
+          cd support/chip
+          echo "$CHIP_SHA" > sha.txt
+
+      - name: Publish multi-arch manifest
+        run: |
+          cd support/chip
+          ./bin/publish-manifest amd64 arm64
 
       # TODO - right now we PR the CHIP SHA after publishing container.  Not exactly correct but it's not a big deal if
       # the SHA somehow doesn't get committed.  To fix we will need to figure out how to load the tar artifact from this
@@ -316,13 +475,13 @@ jobs:
         uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.PR_TOKEN }}
-          commit-message: "[CHIP BUILD] ${{ needs.chip-image.outputs.chip-sha }}"
+          commit-message: "[CHIP BUILD] ${{ needs.workflow-conditions.outputs.chip-sha }}"
           committer: Automator77 <github-automation@fischer-ka.de>
           author: Automator77 <github-automation@fischer-ka.de>
           signoff: false
           branch: chip-image
           delete-branch: true
-          title: "[CHIP BUILD] ${{ needs.chip-image.outputs.chip-sha }}"
+          title: "[CHIP BUILD] ${{ needs.workflow-conditions.outputs.chip-sha }}"
           body: |
             New CHIP SHA from CI container build
           labels: |
