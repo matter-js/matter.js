@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# @license
+# Copyright 2022-2026 Matter.js Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# Publishes the currently loaded "ghcr.io/matter-js/chip:latest" image under a per-architecture
+# tag. publish-manifest later combines these into the multi-arch "latest" and CHIP-commit tags.
+#
+# Usage: publish-arch <arch-suffix>   (e.g. "amd64" or "arm64")
+
+source "$(dirname "${BASH_SOURCE[0]}")/config.sh"
+
+ARCH_SUFFIX=$1
+if [ -z "$ARCH_SUFFIX" ]; then
+    echo "Usage: publish-arch <arch-suffix>" >&2
+    exit 1
+fi
+
+CHIP_COMMIT="$(cat "$CHIP_DIR/sha.txt")"
+TAG="ghcr.io/matter-js/chip:${CHIP_COMMIT}-${ARCH_SUFFIX}"
+
+docker tag ghcr.io/matter-js/chip:latest "$TAG"
+docker push "$TAG"

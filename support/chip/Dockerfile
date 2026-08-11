@@ -213,32 +213,3 @@ COPY --from=source /etc/chip-version /etc
 
 # Configure avahi
 RUN echo allow-interfaces
-
-
-################################################################################
-#
-# STAGE 6 - build example app
-#
-
-FROM install AS app-bins
-
-ARG APP_TARGET
-
-# Build binaries
-RUN build-one "$APP_TARGET"
-
-
-################################################################################
-#
-# STAGE 7 - augment base container with app
-#
-
-FROM chip AS chip-app
-
-ARG APP_BIN
-
-COPY --from=app-bins "/dist/bin/$APP_BIN" /bin
-
-ENV APP_BIN="$APP_BIN"
-
-ENTRYPOINT "/bin/$APP_BIN"
