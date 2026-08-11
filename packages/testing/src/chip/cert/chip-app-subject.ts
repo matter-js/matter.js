@@ -372,15 +372,17 @@ export class ChipDockerDevice implements CertDevice {
         this.#container = container;
         this.#exit = createExitDeferred();
 
+        // Deliberately not awaited — it runs for the container's whole lifetime and only settles
+        // #exit, which stop()/close() await separately. Its own try/catch means nothing is swallowed.
+        // Must stay ahead of anything that can throw below: #container/#exit are already installed,
+        // so a start() that fails later still leaves stop() an #exit that settles.
+        void this.#trackExit(container);
+
         // Attaching immediately after the container starts still risks losing whatever it printed
         // in that gap — Docker doesn't let us attach before start. Acceptable for now; Task 6 smoke-
         // tests this flavor end to end.
         const terminal = await container.attach(Terminal.Line);
         this.#pump = this.#hub.pump(terminal);
-
-        // Deliberately not awaited — it runs for the container's whole lifetime and only settles
-        // #exit, which stop()/close() await separately. Its own try/catch means nothing is swallowed.
-        void this.#trackExit(container);
     }
 
     async #trackExit(container: Container): Promise<void> {

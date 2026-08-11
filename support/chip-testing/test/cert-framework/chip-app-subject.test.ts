@@ -18,7 +18,7 @@ import { env } from "node:process";
  * `Terminal.Factory`, and this double only ever needs to support the one factory (`Terminal.Line`)
  * `ChipDockerDevice` passes.
  */
-function fakeContainer(): Container {
+function fakeContainer(overrides: Partial<Container> = {}): Container {
     const notImplemented = (member: string) => () => {
         throw new Error(`fakeContainer.${member}() is not implemented in this test`);
     };
@@ -57,6 +57,7 @@ function fakeContainer(): Container {
         edit: notImplemented("edit"),
         resolveGlob: notImplemented("resolveGlob"),
         createPipe: notImplemented("createPipe"),
+        ...overrides,
     } as unknown as Container;
 }
 
@@ -212,5 +213,45 @@ describe("ChipDockerSubject", () => {
         } finally {
             await device.close();
         }
+    });
+
+    it("settles the exit promise when attach() fails, so a later stop() completes", async function () {
+        this.timeout(5_000);
+
+        let killed = false;
+        const container = fakeContainer({
+            attach: async () => {
+                throw new Error("attach exploded");
+            },
+            kill: async () => {
+                killed = true;
+            },
+        });
+
+        const composition: CompositionHandle = {
+            async add() {
+                return container;
+            },
+            async close() {},
+        };
+
+        const docker: DockerHandle = {
+            async ensureVolume() {},
+            compose() {
+                return composition;
+            },
+            async containerStatus() {
+                return { isRunning: true };
+            },
+        };
+
+        const device = new ChipDockerDevice("test", "cert", undefined, docker);
+
+        await expect(device.start()).rejectedWith("attach exploded");
+
+        await device.close();
+
+        expect(killed).equal(true);
+        expect(await device.exit).deep.equal({ code: 0, signal: null });
     });
 });

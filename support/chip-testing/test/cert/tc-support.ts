@@ -5,7 +5,8 @@
  */
 
 import { InternalError, Time } from "@matter/main";
-import type { CertNodeRef, CertStepContext, CheckRecord, LogFollower, LogLine } from "@matter/testing";
+import type { CertNodeRef, CertStepContext, CheckRecord, LogExpectResult, LogFollower, LogLine } from "@matter/testing";
+import { CertLogClosedError, CertLogTimeoutError } from "@matter/testing";
 
 /**
  * Tracks commissioned node refs by role for one cert-test run and decommissions whatever's still
@@ -140,10 +141,16 @@ export async function expectAdjacentLines(
 const REPORT_DATA_SENT = /\[DMG\] ReportDataMessage =\s*$/;
 const STATUS_RESPONSE_RECEIVED = /Msg RX from.*\(IM:StatusResponse\)/;
 
+// How long a further report chunk may take to surface before the transfer counts as finished. The
+// read has already returned by the time a step checks, so this covers the follower's pump lag only.
+const CHUNK_QUIET_MS = 2_000;
+
 /**
- * Confirms a chunked read actually chunked: at least one report chunk, an acking `StatusResponse`
- * received from the DUT, and a further chunk after it. Returns `"unverified"` for the matterjs
- * flavor (see AGENTS.md's flavor-pattern policy) rather than a `"pass"` a log-scrape can't back up.
+ * Confirms a chunked read actually chunked and that the DUT acked every chunk but the last: at least
+ * two report chunks, with a `StatusResponse` received between every adjacent pair. Missing evidence
+ * comes back as a `"fail"` record rather than a thrown timeout, so the step's own reporting carries
+ * it. Returns `"unverified"` for the matterjs flavor (see AGENTS.md's flavor-pattern policy) rather
+ * than a `"pass"` a log-scrape can't back up.
  */
 export async function expectChunkedTransfer(
     log: LogFollower,
@@ -151,33 +158,69 @@ export async function expectChunkedTransfer(
     from: number,
     timeoutMs: number,
 ): Promise<CheckRecord> {
-    const firstChunk = await log.expect({ chip: REPORT_DATA_SENT }, { flavor, timeoutMs, from });
-    if (firstChunk.verdict === "unverified") {
-        return { type: "device-log", verdict: "unverified" };
+    const deadline = Time.nowMs + timeoutMs;
+    const remaining = () => Math.max(1, deadline - Time.nowMs);
+
+    const chunks = new Array<LogLine>();
+    for (;;) {
+        // The second chunk is what proves the read chunked at all, so it gets the whole remaining
+        // budget; every later one only has to outlast pump lag, and its absence ends the transfer.
+        const timeout = chunks.length > 1 ? Math.min(CHUNK_QUIET_MS, remaining()) : remaining();
+        let next: LogExpectResult;
+        try {
+            next = await log.expect(
+                { chip: REPORT_DATA_SENT },
+                { flavor, timeoutMs: timeout, from: chunks.length ? chunks[chunks.length - 1].index + 1 : from },
+            );
+        } catch (e) {
+            // A source that ends mid-wait is as much an end of the transfer as a quiet period is;
+            // whether the chunks seen so far are evidence enough is decided below, not here.
+            if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
+                break;
+            }
+            throw e;
+        }
+        if (next.verdict === "unverified") {
+            return { type: "device-log", verdict: "unverified" };
+        }
+        chunks.push(next.matched);
     }
 
-    const ack = await log.expect(
-        { chip: STATUS_RESPONSE_RECEIVED },
-        { flavor, timeoutMs, from: firstChunk.matched.index + 1 },
-    );
-    if (ack.verdict === "unverified") {
-        return { type: "device-log", verdict: "unverified" };
+    if (chunks.length < 2) {
+        return {
+            type: "device-log",
+            verdict: "fail",
+            pattern: String(REPORT_DATA_SENT),
+            detail: `${chunks.length} report chunks — the read did not chunk`,
+            logLine: chunks[0]?.index,
+        };
     }
 
-    const secondChunk = await log.expect(
-        { chip: REPORT_DATA_SENT },
-        { flavor, timeoutMs, from: ack.matched.index + 1 },
-    );
-    if (secondChunk.verdict === "unverified") {
-        return { type: "device-log", verdict: "unverified" };
+    const lines = log.lines;
+    for (let i = 1; i < chunks.length; i++) {
+        const acked = lines
+            .slice(chunks[i - 1].index + 1, chunks[i].index)
+            .some(line => !line.synthetic && STATUS_RESPONSE_RECEIVED.test(line.text));
+        if (!acked) {
+            return {
+                type: "device-log",
+                verdict: "fail",
+                pattern: String(STATUS_RESPONSE_RECEIVED),
+                detail:
+                    `No StatusResponse between the report chunks at log lines ${chunks[i - 1].index} and ` +
+                    `${chunks[i].index} (chunk ${i} of ${chunks.length} went unacked)`,
+                logLine: chunks[i].index,
+            };
+        }
     }
 
     return {
         type: "device-log",
         verdict: "pass",
-        pattern: "ReportDataMessage, StatusResponse, ReportDataMessage",
-        matched: secondChunk.matched.text,
-        logLine: secondChunk.matched.index,
+        pattern: "ReportDataMessage, StatusResponse between every adjacent pair",
+        detail: `${chunks.length} report chunks, each but the last followed by a StatusResponse`,
+        matched: chunks[chunks.length - 1].text,
+        logLine: chunks[chunks.length - 1].index,
     };
 }
 
