@@ -166,6 +166,22 @@ async function awaitState(node: ServerNode, id: string, ...states: string[]): Pr
     throw new Error(`Task ${id} did not reach state ${states.join("|")}`);
 }
 
+/**
+ * Pump until the task is parked in a specific phase. A gate parks whenever a peer it watches goes away, so a task
+ * can be parked transiently in an earlier phase that still had everything it needed.
+ */
+async function awaitParkedInPhase(node: ServerNode, id: string, phaseIndex: number): Promise<void> {
+    for (let i = 0; i < 2_000; i++) {
+        const p = await node.act(a => a.get(TaskManagerBehavior).state.tasks[id]);
+        if (p?.state === "parked" && p.phaseIndex === phaseIndex) {
+            return;
+        }
+        await MockTime.advance(100);
+        await MockTime.macrotask;
+    }
+    throw new Error(`Task ${id} did not park in phase ${phaseIndex}`);
+}
+
 /** Commission two member devices onto one controller and provision both into the shared key set 42. */
 async function twoMemberGroup(site: MockSite) {
     const controller = await site.addNode(ControllerRoot, {
@@ -568,10 +584,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         };
 
         await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
-        await awaitState(controller, ROTATE_ID, "parked");
-
-        const phaseIndex = await controller.act(a => a.get(TaskManagerBehavior).state.tasks[ROTATE_ID]?.phaseIndex);
-        expect(phaseIndex).equals(1); // parked in activate, not distribute
+        await awaitParkedInPhase(controller, ROTATE_ID, 1); // parked in activate, not distribute
 
         // Distribute committed the 2-key struct on both members (old key still present); activate never wrote.
         const parkedStartsA = deviceStarts(deviceA, GROUP_KEY_SET_ID);

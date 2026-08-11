@@ -23,8 +23,17 @@ export class TaskNotRevertibleError extends TaskError {}
 /** A new task was rejected because a live non-terminal task already holds its exclusive resource. */
 export class TaskConflictError extends TaskError {}
 
+/** No task is retained under the given id or external id, so there is nothing to observe or act on. */
+export class TaskNotFoundError extends TaskError {}
+
 /** A task refused to run because a member's current intent violates a required precondition. */
 export class RotationPreconditionError extends TaskError {}
+
+/**
+ * A request was refused because the manager is shutting down and could not record its outcome. A cancelled task
+ * keeps the non-terminal state it had, so the request must be re-issued after the next start.
+ */
+export class TaskManagerClosingError extends TaskError {}
 
 /** Internal signal a running gate throws when cancel is requested, so #drive stops cleanly (not "failed"). */
 export class TaskCancelledSignal extends TaskError {}

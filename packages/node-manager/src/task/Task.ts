@@ -12,7 +12,7 @@ export interface TaskPersistence {
     params: unknown;
     phaseIndex: number;
     state: TaskState;
-    externalId?: string;
+    externalIds?: string[];
     changeSet: ChangeEntry[];
     error?: string;
     revertTaskId?: string;
@@ -25,7 +25,13 @@ export abstract class Task<P = unknown> {
 
     readonly id: string;
     readonly params: P;
-    readonly externalId?: string;
+
+    /**
+     * Ids callers use to find this task instead of its internal id. Every request that dedups onto the task
+     * contributes its own, so each caller can observe and cancel the work it asked for.
+     */
+    readonly externalIds: Set<string>;
+
     progress: { phaseIndex: number; state: TaskState };
     changeSet: ChangeEntry[];
     error?: string;
@@ -35,7 +41,7 @@ export abstract class Task<P = unknown> {
     constructor(id: string, params: P, persisted?: Partial<TaskPersistence>) {
         this.id = id;
         this.params = params;
-        this.externalId = persisted?.externalId;
+        this.externalIds = new Set(persisted?.externalIds);
         this.progress = { phaseIndex: persisted?.phaseIndex ?? 0, state: persisted?.state ?? "running" };
         this.changeSet = persisted?.changeSet ?? new Array<ChangeEntry>();
         this.error = persisted?.error;
@@ -48,7 +54,7 @@ export abstract class Task<P = unknown> {
             type: this.type,
             state: this.progress.state,
             phaseIndex: this.progress.phaseIndex,
-            externalId: this.externalId,
+            externalIds: [...this.externalIds],
             error: this.error,
             revertTaskId: this.revertTaskId,
             revertOf: this.revertOf,
@@ -94,7 +100,7 @@ export abstract class Task<P = unknown> {
             params: this.params,
             phaseIndex: this.progress.phaseIndex,
             state: this.progress.state,
-            externalId: this.externalId,
+            externalIds: this.externalIds.size === 0 ? undefined : [...this.externalIds],
             changeSet: this.changeSet,
             error: this.error,
             revertTaskId: this.revertTaskId,

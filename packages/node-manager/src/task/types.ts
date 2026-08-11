@@ -12,7 +12,8 @@ export interface TaskStatus {
     type: string;
     state: TaskState;
     phaseIndex: number;
-    externalId?: string;
+    /** Every id a caller of `run` asked for this task under, in the order they arrived. */
+    externalIds: string[];
     error?: string;
     revertTaskId?: string;
     revertOf?: string;

@@ -9,7 +9,7 @@ import { asError, Logger, ObserverGroup } from "@matter/general";
 import { ClientNode, DesiredStateBehavior, itemMapKey, ItemMode, ManagedItem, NetworkClient } from "@matter/node";
 import { SustainedSubscription } from "@matter/protocol";
 import { Task } from "./Task.js";
-import { TaskPeerUnavailableError } from "./errors.js";
+import { TaskFailedError, TaskPeerUnavailableError } from "./errors.js";
 import { TaskContext, TaskState } from "./types.js";
 
 const logger = Logger.get("TaskContext");
@@ -85,12 +85,29 @@ export class RunningTaskContext implements TaskContext {
 
     async awaitCommitted(items: Array<{ peer: ClientNode; kind: string; key: string }>): Promise<void> {
         const peers = [...new Set(items.map(i => i.peer))];
-        await this.awaitGate(peers, () => items.every(i => this.#itemState(i.peer, i.kind, i.key) === "committed"));
+        await this.awaitGate(peers, () => {
+            this.#requireAwaited(items);
+            return items.every(i => this.#itemState(i.peer, i.kind, i.key) === "committed");
+        });
+    }
+
+    /**
+     * A commit gate only ever observes success, so an intent the reconciler gave up on — dropped after an
+     * unrecoverable device rejection — would park the task forever. Fail it into the driver's rollback path.
+     */
+    #requireAwaited(items: Array<{ peer: ClientNode; kind: string; key: string }>): void {
+        const gone = items.find(i => this.#itemState(i.peer, i.kind, i.key) === undefined);
+        if (gone !== undefined) {
+            throw new TaskFailedError(
+                `Task ${this.task.id}: awaited intent ${gone.kind}:${gone.key} on ${gone.peer.id} is gone — ` +
+                    `the reconciler dropped it, so it can no longer commit`,
+            );
+        }
     }
 
     /**
      * Suspend until `until` holds over the peers' desired-state items, re-evaluated by verify-reconcile.
-     * Watches each peer's `itemChanged` + subscription status via a per-gate {@link ObserverGroup} (NOT
+     * Watches each peer's item events + subscription status via a per-gate {@link ObserverGroup} (NOT
      * `reactTo`, which is same-node only). While any peer is unreachable the task parks; it runs otherwise.
      */
     async awaitGate(nodes: ClientNode[], until: (items: ManagedItem[]) => boolean): Promise<void> {
@@ -98,10 +115,6 @@ export class RunningTaskContext implements TaskContext {
         if (aborted !== undefined) {
             throw asError(aborted);
         }
-        if (await this.#evaluate(nodes, until)) {
-            return;
-        }
-
         await new Promise<void>((resolve, reject) => {
             const observers = new ObserverGroup();
             let unregisterAbort: (() => void) | undefined;
@@ -143,6 +156,11 @@ export class RunningTaskContext implements TaskContext {
                 evaluating = true;
                 const drain = (): void => {
                     this.#evaluate(nodes, until).then(done => {
+                        // An abort can settle the gate while an evaluation is in flight: a follow-up reconcile
+                        // would race the rollback a cancel spawns next, and nothing awaits it any more.
+                        if (settled) {
+                            return;
+                        }
                         if (done) {
                             finish();
                             return;
@@ -159,20 +177,24 @@ export class RunningTaskContext implements TaskContext {
             };
 
             for (const node of nodes) {
-                observers.on(node.eventsOf(DesiredStateBehavior).itemChanged, recheck);
+                const items = node.eventsOf(DesiredStateBehavior);
+                observers.on(items.itemChanged, recheck);
+                // A dropped item announces itself on `itemRemoved`, not `itemChanged`: without this a gate
+                // waiting on an item the reconciler gives up on parks with nothing left to wake it.
+                observers.on(items.itemRemoved, recheck);
                 observers.on(node.eventsOf(NetworkClient).subscriptionStatusChanged, recheck);
             }
             unregisterAbort = this.gate?.onAbort(recheck);
 
-            // An abort raised during the initial #evaluate await fired its wake before onAbort registered;
-            // re-check so that abort is not lost while the gate parks on (possibly silent) peer observers.
-            const lateAbort = this.gate?.aborted();
-            if (lateAbort !== undefined) {
-                finish(lateAbort);
-                return;
+            // The first evaluation must run with every wakeup source already registered, so that a change,
+            // removal, reachability flip or abort arriving while it is in flight coalesces into a follow-up
+            // evaluation instead of being announced before anything listens.
+            try {
+                recheck();
+            } catch (e) {
+                // Observers outliving the gate keep reconciling the peer on behalf of a task that is gone.
+                finish(e);
             }
-
-            this.#classify(nodes);
         });
 
         this.setState("running");
