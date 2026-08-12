@@ -761,25 +761,53 @@ of test that looks solid until it isn't. The fix: await each write's own ack ind
 "anchor and advance" discipline `expectAttributePathIB`'s field-by-field walk already uses — never
 take a synchronous snapshot count of something that arrives asynchronously.
 
-## Open item: `decommission()` fails at this TC's own cleanup, root cause not yet settled
+## Resolved: `decommission()` failed at this TC's own cleanup
 
-Every run of this TC (matterjs, both locally and so far in CI) logs, from step 5's own
-`commissioned.decommissionAll(cx)` call:
+Root cause: `CommissioningController` established a node-level wildcard subscription
+(`attributes: 1 events: 1`) at commission time (`autoSubscribe`), and this TC's own
+`InProcessCertNodeApi.subscribe` hardcoded `keepSubscriptions: false`, so its first step-1
+subscribe closed that node-level subscription as a same-peer replacement
+(`ClientInteraction.subscribe`, packages/protocol/src/action/client/ClientInteraction.ts). That
+closure was terminal, `PairedNode` moved `Connected` → `Reconnecting`
+(packages/matter.js/src/device/PairedNode.ts), and `decommission()` then refused:
 
 ```
 Failed to decommission dut while cleaning up: [implementation] This Node 1 is currently in a
 reconnect state, decommissioning is not possible.
 ```
 
-`CommissionedRefs.decommissionAll` catches this and only `console.warn`s, so the run's own verdict
-stays `"pass"` — but the DUT's fabric is genuinely never removed from the TH, and the underlying
-`PairedNode` is left `Reconnecting` when the process exits. Two root-cause theories have been
-proposed and both are currently open, not confirmed: an accumulation of same-peer subscriptions (a
-theory since retracted — `keepSubscriptions: false`'s own same-peer replacement means only one
-subscription is normally live), and the same replacement mechanism closing the *node-level*
-subscription `CommissioningController` establishes at commission time, not just this TC's own
-attribute subscriptions. This is being investigated separately from this TC's own step logic —
-`InProcessControllerAdapter`/`SubscribeOptions` are deliberately **not** touched by this TC to fix
-it (a planned migration off the deprecated `CommissioningController`/`PairedNode` stack may make the
-`Reconnecting`-state decommission guard moot anyway). Don't reflexively re-blame "accumulated
-subscriptions" without re-deriving it — that framing has already been wrong once.
+Fix, both halves: `autoSubscribe: false` on the `CommissioningController` constructed in
+`InProcessControllerAdapter` (no node-level subscription is ever established) plus
+`keepSubscriptions: true` on this API's own subscribes (matching CHIP's own capture for
+`Test_TC_IDM_4_1.yaml`). Verified across two full runs: no node-level subscription in the
+controller log, no "Removing subscription" replacement line, and the reconnect-state decommission
+failure absent from stdout in both.
+
+## Why the cert adapter also shortens its peer-connection timeout
+
+Disabling `autoSubscribe` above reproducibly broke `TC-CADMIN-1.17` step 8: a controlled
+experiment (fix applied → fail, fix stashed → pass, fix restored → fail again, 3 fails to 1 pass
+across four runs) showed `th_cr2`'s post-`RemoveFabric` `writeAttribute`/`readAttribute` neither
+resolving nor rejecting within the step's 25s `expectRejection` bound. The controller log showed
+why: the session TH_CE closed on `RemoveFabric` is followed by a CASE-resumption attempt that
+TH_CE correctly rejects (`NoSharedTrustRoots`) within milliseconds, but that rejection only feeds
+`PeerConnection`'s own retry/backoff schedule (next attempt 5m/2m out) — it does not by itself end
+the caller's `connect()` wait. With `autoSubscribe` on, the node-level subscription's own teardown
+had apparently been ending that wait fast enough that this TC never noticed; without it, the wait
+runs all the way out to `PeerTimingParameters.defaults.defaultConnectionTimeout` (90s, right for a
+real user's session, and CHIP's own harness capture for this device confirms `NoSharedTrustRoots`
+at device start is not reliably terminal — real devices have been seen reporting it transiently
+before working fine once their own initialization completes, which is also why an earlier attempt
+to surface it to callers as a terminal rejection was reverted; see git history). So this adapter
+sets its own `PeerSet.timing.defaultConnectionTimeout` to `CERT_PEER_CONNECTION_TIMEOUT` (15s,
+`InProcessControllerAdapter.ts`) right after `start()` — scoped to each cert controller's own
+environment via the existing `PeerSet.timing` setter (packages/protocol/src/peer/PeerSet.ts), not
+a change to `PeerTimingParameters.defaults`. Every other consumer (real users, other tests) keeps
+the 90s default.
+
+That timeout is also why `TC-CADMIN-1.17` step 8's own recorded evidence
+(`writeAttribute(NodeLabel) rejected after 15s: Operation aborted`) proves the *cert adapter's own
+bounded wait* elapsed, not that the controller promptly recognized the fabric removal — TH_CE's
+own `NoSharedTrustRoots` rejection lands in the log within milliseconds of the write, well before
+the 15s mark. Don't read that check as evidence the controller handles fabric removal promptly;
+it only proves the cert run's own timeout is short enough to stay inside the step's 25s budget.

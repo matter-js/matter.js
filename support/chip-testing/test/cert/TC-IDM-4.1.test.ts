@@ -58,13 +58,11 @@ const UPDATE_WAIT_TIMEOUT_MS = (MIN_INTERVAL_FLOOR_SECONDS + 20) * 1000;
 const ACK_WAIT_TIMEOUT_MS = 15_000;
 
 // chip's own decode dump for the request's top-level fields, verified against Test_TC_IDM_4_1.yaml's
-// step-1 capture. KeepSubscriptions is literally `false` here (not chip-tool's own `true`, used only
-// in that yaml's capture) because InProcessCertNodeApi.subscribe hardcodes
-// `keepSubscriptions: false` — SubscribeOptions has no way to request `true` today.
+// step-1 capture (--keepSubscriptions true).
 const SUBSCRIBE_ENVELOPE_SEQUENCE = [
     SUBSCRIBE_REQUEST_MESSAGE,
     /\{\s*$/,
-    /KeepSubscriptions = false,\s*$/,
+    /KeepSubscriptions = true,\s*$/,
     new RegExp(`MinIntervalFloorSeconds = 0x${MIN_INTERVAL_FLOOR_SECONDS.toString(16)},\\s*$`),
     new RegExp(`MaxIntervalCeilingSeconds = 0x${MAX_INTERVAL_CEILING_SECONDS.toString(16)},\\s*$`),
     /AttributePathIBs =\s*$/,
