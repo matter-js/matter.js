@@ -443,8 +443,11 @@ function addFeatureNode(
     }
 
     /**
-     * Determine the flags that exclude a feature from a choice set.  A choice set member's conformance expression is
-     * necessarily optional, so the flags that disallow the feature are the flags that remove it from the set.
+     * Determine the flags that exclude a feature from a choice set.  The specification allows a choice set member only
+     * optional conformance, so the flags that disallow the feature are the flags that remove it from the set.  An
+     * expression that instead requires the feature states the opposite of what a gate means and is refused.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 7.3.14
      */
     function participationGate(node: Conformance.Ast) {
         const exclusions = new Array<FeatureBitmap>();
@@ -459,7 +462,7 @@ function addFeatureNode(
         if (!exclusions.length) {
             return FeatureBitmap();
         }
-        if (exclusions.length > 1) {
+        if (exclusions.length > 1 || exclusions[0][feature.name] !== true) {
             unsupported();
         }
 

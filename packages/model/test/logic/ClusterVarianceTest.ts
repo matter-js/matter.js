@@ -281,6 +281,21 @@ describe("ClusterVariance", () => {
             ).deep.equal([{ FOO: false, BAZ: true }]);
         });
 
+        // The specification allows a choice set member only optional conformance
+        it("rejects a choice set whose members the expression makes mandatory", () => {
+            expect(() =>
+                illegalCombinations(
+                    { name: "AB", conformance: "O" },
+                    { name: "X", conformance: "AB.a" },
+                    { name: "Y", conformance: "AB.a" },
+                ),
+            ).throws(InternalError);
+
+            expect(() =>
+                illegalCombinations({ name: "X", conformance: "M.a" }, { name: "Y", conformance: "M.a" }),
+            ).throws(InternalError);
+        });
+
         it("rejects a choice set an earlier otherwise entry leaves optional", () => {
             expect(() =>
                 illegalCombinations(
