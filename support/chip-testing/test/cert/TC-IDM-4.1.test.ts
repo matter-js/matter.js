@@ -62,13 +62,20 @@ const UPDATE_WAIT_TIMEOUT_MS = (MIN_INTERVAL_FLOOR_SECONDS + 20) * 1000;
 const ACK_WAIT_TIMEOUT_MS = 15_000;
 
 // chip's own decode dump for the request's top-level fields, verified against Test_TC_IDM_4_1.yaml's
-// step-1 capture (--keepSubscriptions true).
+// step-1 capture (--keepSubscriptions true). MaxIntervalCeilingSeconds is matched by shape, not the
+// exact requested value: PhysicalDeviceProperties.subscriptionIntervalBoundsFor
+// (packages/protocol/src/peer/) adds a random, whole-seconds jitter (up to 10%, floor 10s) on top of
+// any non-ICD subscribe request before it reaches the wire, so the transmitted ceiling is >= the
+// requested one, not necessarily equal to it. The value actually observed is recorded in
+// expectSubscribeEnvelope's returned check instead.
+const MAX_INTERVAL_CEILING_LINE = /MaxIntervalCeilingSeconds = (0x[0-9a-f]+),\s*$/;
+
 const SUBSCRIBE_ENVELOPE_SEQUENCE = [
     SUBSCRIBE_REQUEST_MESSAGE,
     /\{\s*$/,
     /KeepSubscriptions = true,\s*$/,
     new RegExp(`MinIntervalFloorSeconds = 0x${MIN_INTERVAL_FLOOR_SECONDS.toString(16)},\\s*$`),
-    new RegExp(`MaxIntervalCeilingSeconds = 0x${MAX_INTERVAL_CEILING_SECONDS.toString(16)},\\s*$`),
+    MAX_INTERVAL_CEILING_LINE,
     /AttributePathIBs =\s*$/,
 ];
 
@@ -90,12 +97,21 @@ async function expectSubscribeEnvelope(
         if (result.verdict === "unverified") {
             return { type: "device-log", verdict: "unverified" };
         }
+        // MAX_INTERVAL_CEILING_LINE is the second-to-last entry in SUBSCRIBE_ENVELOPE_SEQUENCE, so
+        // the adjacency check above guarantees its match sits exactly one line before this one.
+        const ceilingLine = log.lines[result.last.index - 1]?.text;
+        const observedCeiling =
+            ceilingLine !== undefined ? MAX_INTERVAL_CEILING_LINE.exec(ceilingLine)?.[1] : undefined;
         return {
             type: "device-log",
             verdict: "pass",
             pattern:
                 "SubscribeRequestMessage envelope (KeepSubscriptions, MinIntervalFloorSeconds, MaxIntervalCeilingSeconds, AttributePathIBs)",
             matched: result.last.text,
+            detail:
+                observedCeiling === undefined
+                    ? undefined
+                    : `requested MaxIntervalCeilingSeconds = 0x${MAX_INTERVAL_CEILING_SECONDS.toString(16)}; observed on the wire: ${observedCeiling}`,
             logLine: result.last.index,
         };
     } catch (e) {

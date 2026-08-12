@@ -291,8 +291,9 @@ class InProcessCertNodeApi implements CertNodeApi {
  * A cert step's own checks bound how long they wait (e.g. TC-CADMIN-1.17 step 8's 25s
  * `expectRejection`), so a connect attempt that can't succeed must fail well inside that budget —
  * `PeerTimingParameters.defaults.defaultConnectionTimeout` (90s) is right for a real user's
- * session but would still be "pending" when a cert step's own check gives up. Scoped to each cert
- * adapter's own {@link PeerSet} below; every other consumer keeps the 90s default.
+ * session but would still be "pending" when a cert step's own check gives up. Test-ergonomics bound
+ * only, scoped to each cert adapter's own {@link PeerSet} below; every other consumer keeps the 90s
+ * default.
  */
 const CERT_PEER_CONNECTION_TIMEOUT = Seconds(15);
 
@@ -324,7 +325,6 @@ export class InProcessControllerAdapter implements ControllerAdapter {
         this.#controller = new CommissioningController({
             environment: { environment: env, id },
             autoConnect: false,
-            autoSubscribe: false,
             adminFabricLabel: id,
         });
         this.log = new LogFollower(this.#logStream.follow(), id);
