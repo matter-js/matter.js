@@ -21,7 +21,7 @@ import {
     ServerNode,
     Time,
 } from "@matter/main";
-import { GeneralCommissioning } from "@matter/main/clusters";
+import { GeneralCommissioning, OperationalCredentials } from "@matter/main/clusters";
 import {
     ClientRead,
     CommissionableDeviceIdentifiers,
@@ -349,7 +349,20 @@ class InProcessCertNodeApi implements CertNodeApi {
 
     decommission(): Promise<void> {
         return runTagged(this.#adapterId, async () => {
-            await this.#peer.decommission();
+            const peer = this.#peer;
+            try {
+                await peer.decommission();
+                return;
+            } catch (e) {
+                // Decommissioning acts through the peer's OperationalCredentials behavior, which exists only once a
+                // report has carried that cluster. A peer whose structure read aborted holds no such behavior.
+                if (!peer.lifecycle.isCommissioned) {
+                    throw e;
+                }
+                logger.info(`Decommissioning ${peer.id} failed, reading its credentials and retrying:`, e);
+            }
+            await this.readAttribute({ endpoint: 0, cluster: OperationalCredentials.id });
+            await peer.decommission();
         });
     }
 
