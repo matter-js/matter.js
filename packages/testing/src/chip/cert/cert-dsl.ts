@@ -53,6 +53,12 @@ export interface CertStepOptions {
      * entry). Absent runs the step on every flavor, matching prior behavior.
      */
     flavors?: DeviceFlavor[];
+    /**
+     * Marks a step the certification harness cannot execute — no attribute of the required data type
+     * exists to write, or the plan itself declares the step out of scope. The engine skips it with
+     * this text as the reason, so the evidence bundle carries why rather than an unexplained gap.
+     */
+    notApplicable?: string;
 }
 
 export interface CertTestBuilder {
@@ -62,6 +68,14 @@ export interface CertTestBuilder {
         run: (cx: CertStepContext) => Promise<void>,
         opts?: CertStepOptions,
     ): CertTestBuilder;
+
+    /**
+     * Registers this TC's cleanup. The engine runs it exactly once, after the last step and before
+     * the evidence is flushed, whether the steps passed, failed, were skipped by a
+     * `pics`/`flavors`/`notApplicable` gate, or were aborted. A throw is recorded as run-level
+     * evidence and fails the run, but never displaces an earlier step failure.
+     */
+    finalize(run: (cx: CertStepContext) => Promise<void>): CertTestBuilder;
 }
 
 /**
@@ -130,6 +144,13 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
                 );
             }
 
+            if (opts?.notApplicable !== undefined && opts.notApplicable.trim() === "") {
+                throw new Error(
+                    `certTest "${tc}" step ${number} declares an empty "notApplicable" reason, which would skip it ` +
+                        "with nothing recorded to explain why — give the reason, or omit the option to run the step",
+                );
+            }
+
             definition.steps.push({
                 number,
                 text,
@@ -137,7 +158,19 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
                 pics: opts?.pics,
                 expected: opts?.expected,
                 flavors: opts?.flavors,
+                notApplicable: opts?.notApplicable,
             });
+            return builder;
+        },
+
+        finalize(run) {
+            if (definition.finalize !== undefined) {
+                throw new Error(
+                    `certTest "${tc}" declares finalize() twice; the engine runs one finalizer, so the second ` +
+                        "declaration would silently replace the first — combine them into one callback",
+                );
+            }
+            definition.finalize = run;
             return builder;
         },
     };

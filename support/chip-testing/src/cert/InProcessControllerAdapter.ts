@@ -13,6 +13,7 @@ import {
     LogFormat,
     Logger,
     MockStorageService,
+    Seconds,
 } from "@matter/main";
 import { GeneralCommissioning } from "@matter/main/clusters";
 import {
@@ -25,7 +26,7 @@ import {
     StatusResponseError,
 } from "@matter/main/types";
 import { AttributeModel, ClusterModel, Matter } from "@matter/model";
-import { CommissionableDeviceIdentifiers, getOperationalDeviceQname } from "@matter/main/protocol";
+import { CommissionableDeviceIdentifiers, getOperationalDeviceQname, PeerSet } from "@matter/main/protocol";
 import { CommissioningController } from "@project-chip/matter.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import type {
@@ -243,7 +244,7 @@ class InProcessCertNodeApi implements CertNodeApi {
                     if (seeding) return;
                     opts.onUpdate?.(data.value);
                 },
-                keepSubscriptions: false,
+                keepSubscriptions: true,
             });
             seeding = false;
             if (isConcretePath(path)) {
@@ -287,6 +288,16 @@ class InProcessCertNodeApi implements CertNodeApi {
 }
 
 /**
+ * A cert step's own checks bound how long they wait (e.g. TC-CADMIN-1.17 step 8's 25s
+ * `expectRejection`), so a connect attempt that can't succeed must fail well inside that budget —
+ * `PeerTimingParameters.defaults.defaultConnectionTimeout` (90s) is right for a real user's
+ * session but would still be "pending" when a cert step's own check gives up. Test-ergonomics bound
+ * only, scoped to each cert adapter's own {@link PeerSet} below; every other consumer keeps the 90s
+ * default.
+ */
+const CERT_PEER_CONNECTION_TIMEOUT = Seconds(15);
+
+/**
  * Wraps a legacy {@link CommissioningController} as a {@link ControllerAdapter} for cert tests.
  *
  * Each instance gets its own {@link Environment} (child of {@link Environment.default}) with in-memory
@@ -322,7 +333,12 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     }
 
     start(): Promise<void> {
-        return runTagged(this.id, () => this.#controller.start());
+        return runTagged(this.id, async () => {
+            await this.#controller.start();
+            this.#controller.node.env.get(PeerSet).timing = {
+                defaultConnectionTimeout: CERT_PEER_CONNECTION_TIMEOUT,
+            };
+        });
     }
 
     async close(): Promise<void> {
