@@ -230,8 +230,7 @@ export async function expectAttributePathIB(
  * `AttributePathIB` block for `fields` follows it at or after that point (see
  * {@link expectAttributePathIB}). Anchoring on the request-message name first, not just the path
  * block on its own, rules out a differently-typed request landing at the same log position. Both
- * waits share `timeoutMs`'s deadline, the same budget-sharing {@link expectAdjacentLines} and
- * {@link expectChunkedTransfer} use; a timeout or closed source from either stage is recorded as a
+ * waits share `timeoutMs`'s deadline; a timeout or closed source from either stage is recorded as a
  * `"fail"` rather than propagating uncaught.
  */
 export async function expectMessageWithPath(
