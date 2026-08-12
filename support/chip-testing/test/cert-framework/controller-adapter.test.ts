@@ -166,7 +166,7 @@ describe("InProcessControllerAdapter", () => {
 
         expect(
             await rejectionOf(node.readAttribute({ endpoint: 0, cluster: ON_OFF.id, attribute: ON_OFF_ATTRIBUTE.id })),
-        ).to.be.instanceOf(Error);
+        ).to.be.instanceOf(StatusResponseError);
 
         const wildcard = await node.readAttribute({ endpoint: 0, cluster: BASIC_INFORMATION.id });
         expect(wildcard).to.be.an("array").that.is.not.empty;
