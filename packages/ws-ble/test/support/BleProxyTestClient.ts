@@ -16,7 +16,7 @@ import {
     createPromise,
     Logger,
     PromiseTimeoutError,
-    ProxyConnectionClosedError,
+    WsProxyConnectionClosedError,
     Seconds,
     withTimeout,
     type Duration,
@@ -63,12 +63,12 @@ export class BleProxyTestClient {
 
         const { done, value } = await reader.read();
         if (done || typeof value !== "string") {
-            throw new ProxyConnectionClosedError("BLE proxy connection closed during handshake");
+            throw new WsProxyConnectionClosedError("BLE proxy connection closed during handshake");
         }
 
         const response = JSON.parse(value) as Record<string, unknown>;
         if (response.type !== "hello_response" || response.error !== undefined) {
-            throw new ProxyConnectionClosedError(
+            throw new WsProxyConnectionClosedError(
                 `Handshake failed: ${response.error !== undefined ? String(response.error) : `unexpected message type ${String(response.type)}`}`,
             );
         }
@@ -185,7 +185,7 @@ export class BleProxyTestClient {
     async #write(message: HttpEndpoint.WsMessage): Promise<void> {
         const writer = this.#writer;
         if (!writer) {
-            throw new ProxyConnectionClosedError("BleProxyTestClient is not connected");
+            throw new WsProxyConnectionClosedError("BleProxyTestClient is not connected");
         }
         await writer.write(message);
     }

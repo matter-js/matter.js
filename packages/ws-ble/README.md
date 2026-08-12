@@ -9,7 +9,7 @@ including its Python reference proxy client.
 
 **The proxy endpoint is unauthenticated by design.** Any peer that can reach it gains BLE radio
 access on every proxy client connected to the hub — scanning, connecting, and reading/writing
-GATT characteristics. `BleProxyHandler` and `ProxyConnection` perform no authentication of their
+GATT characteristics. `BleProxyHandler` and `WsProxyConnection` perform no authentication of their
 own.
 
 The embedder that hosts the WebSocket endpoint is responsible for securing it: put

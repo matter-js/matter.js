@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ProxyConnection, type HttpEndpoint, type Observable } from "@matter/general";
+import { WsProxyConnection, type HttpEndpoint, type Observable } from "@matter/general";
 import {
     BLE_PROXY_PROTOCOL_VERSION,
     type BinaryFrame,
@@ -16,12 +16,12 @@ import {
 /**
  * Hub-side BLE proxy connection.
  *
- * A thin wrapper around {@link ProxyConnection} that fixes the responder role, the BLE proxy protocol version, and
+ * A thin wrapper around {@link WsProxyConnection} that fixes the responder role, the BLE proxy protocol version, and
  * the connection id prefix, and narrows the generic command/event vocabulary to the BLE proxy's. All handshake,
- * framing, and transport-failure handling is delegated to {@link ProxyConnection}.
+ * framing, and transport-failure handling is delegated to {@link WsProxyConnection}.
  */
 export class BleProxyConnection {
-    readonly #connection: ProxyConnection;
+    readonly #connection: WsProxyConnection;
 
     readonly binaryFrameReceived: Observable<[frame: BinaryFrame]>;
     readonly eventReceived: Observable<[event: BleProxyEventName, data: Record<string, unknown>]>;
@@ -29,7 +29,7 @@ export class BleProxyConnection {
     readonly closed: Observable<[]>;
 
     constructor(connection: HttpEndpoint.WsConnection) {
-        this.#connection = new ProxyConnection({
+        this.#connection = new WsProxyConnection({
             connection,
             version: BLE_PROXY_PROTOCOL_VERSION,
             role: "responder",
@@ -50,12 +50,12 @@ export class BleProxyConnection {
         return this.#connection.id;
     }
 
-    /** See {@link ProxyConnection.connected}. */
+    /** See {@link WsProxyConnection.connected}. */
     get connected(): boolean {
         return this.#connection.connected;
     }
 
-    /** Wait for the handshake to complete.  See {@link ProxyConnection.opened}. */
+    /** Wait for the handshake to complete.  See {@link WsProxyConnection.opened}. */
     opened(): Promise<void> {
         return this.#connection.opened();
     }
@@ -72,12 +72,12 @@ export class BleProxyConnection {
         return result as BleProxyCommandMap[C]["result"];
     }
 
-    /** Send a raw binary frame to the BLE proxy client.  See {@link ProxyConnection.sendFrame}. */
+    /** Send a raw binary frame to the BLE proxy client.  See {@link WsProxyConnection.sendFrame}. */
     sendBinaryFrame(opcode: number, connectionHandle: number, payload: Uint8Array): void {
         this.#connection.sendFrame(opcode, connectionHandle, payload);
     }
 
-    /** Close the connection, rejecting any pending commands.  See {@link ProxyConnection.close}. */
+    /** Close the connection, rejecting any pending commands.  See {@link WsProxyConnection.close}. */
     close(): Promise<void> {
         return this.#connection.close();
     }

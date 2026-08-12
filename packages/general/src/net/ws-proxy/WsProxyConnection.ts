@@ -14,18 +14,18 @@ import { errorOf } from "#util/Error.js";
 import { Observable } from "#util/Observable.js";
 import { createPromise, PromiseTimeoutError, withTimeout } from "#util/Promises.js";
 import type { HttpEndpoint } from "../http/HttpEndpoint.js";
-import { decodeProxyFrame, encodeProxyFrame, type ProxyFrame } from "./ProxyFrame.js";
+import { decodeWsProxyFrame, encodeWsProxyFrame, type WsProxyFrame } from "./WsProxyFrame.js";
 import {
-    ProxyCommandError,
-    ProxyConnectionClosedError,
-    type ProxyCommandMessage,
-    type ProxyEventMessage,
-    type ProxyHelloMessage,
-    type ProxyHelloResponseMessage,
-    type ProxyResponseMessage,
-} from "./ProxyMessage.js";
+    WsProxyCommandError,
+    WsProxyConnectionClosedError,
+    type WsProxyCommandMessage,
+    type WsProxyEventMessage,
+    type WsProxyHelloMessage,
+    type WsProxyHelloResponseMessage,
+    type WsProxyResponseMessage,
+} from "./WsProxyMessage.js";
 
-const logger = Logger.get("ProxyConnection");
+const logger = Logger.get("WsProxyConnection");
 
 const DEFAULT_HANDSHAKE_TIMEOUT = Seconds(10);
 const DEFAULT_COMMAND_TIMEOUT = Seconds(60);
@@ -58,7 +58,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  *
  * - JSON commands with correlated responses
  * - JSON events without responses
- * - binary frames (see {@link ProxyFrame})
+ * - binary frames (see {@link WsProxyFrame})
  *
  * A connection opens with a hello exchange.  The *initiator* sends the hello, the *responder* answers it.  Once the
  * handshake completes both roles are symmetric.
@@ -67,15 +67,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * Securing the endpoint (authentication in front of the upgrade, network isolation, a reverse proxy) is the
  * embedder's responsibility.
  */
-export class ProxyConnection {
+export class WsProxyConnection {
     readonly #connection: HttpEndpoint.WsConnection;
     readonly #version: number;
-    readonly #role: ProxyConnection.Role;
-    readonly #hello?: ProxyConnection.HelloFields;
+    readonly #role: WsProxyConnection.Role;
+    readonly #hello?: WsProxyConnection.HelloFields;
     readonly #handshakeTimeout: Duration;
     readonly #commandTimeout: Duration;
     readonly #id: string;
-    readonly #pendingCommands = new Map<number, ProxyConnection.PendingCommand>();
+    readonly #pendingCommands = new Map<number, WsProxyConnection.PendingCommand>();
 
     #reader?: ReadableStreamDefaultReader<HttpEndpoint.WsMessage>;
     #writer?: WritableStreamDefaultWriter<HttpEndpoint.WsMessage>;
@@ -83,7 +83,7 @@ export class ProxyConnection {
     #handshakeTimer?: Timer;
     #handshakeComplete = false;
     #closedEmitted = false;
-    #commandHandler?: ProxyConnection.CommandHandler;
+    #commandHandler?: WsProxyConnection.CommandHandler;
     #nextCommandId = 0;
 
     // An observer that throws must not abort emission or tear down the transport, so every observable installs an
@@ -101,9 +101,9 @@ export class ProxyConnection {
 
     readonly eventReceived = new Observable<[event: string, data: Record<string, unknown>]>(this.#observerFailed);
 
-    readonly frameReceived = new Observable<[frame: ProxyFrame]>(this.#observerFailed);
+    readonly frameReceived = new Observable<[frame: WsProxyFrame]>(this.#observerFailed);
 
-    constructor(options: ProxyConnection.Options) {
+    constructor(options: WsProxyConnection.Options) {
         this.#connection = options.connection;
         this.#version = options.version;
         this.#role = options.role;
@@ -151,7 +151,7 @@ export class ProxyConnection {
     /**
      * Wait for the handshake to complete.
      *
-     * Resolves immediately if the connection is already open and rejects with {@link ProxyConnectionClosedError} if
+     * Resolves immediately if the connection is already open and rejects with {@link WsProxyConnectionClosedError} if
      * the connection closes first, so consumers do not have to race {@link handshakeCompleted} against
      * {@link closed} themselves.
      */
@@ -161,7 +161,7 @@ export class ProxyConnection {
         }
 
         if (this.#closedEmitted) {
-            throw new ProxyConnectionClosedError(`[${this.#id}] Connection closed before the handshake completed`);
+            throw new WsProxyConnectionClosedError(`[${this.#id}] Connection closed before the handshake completed`);
         }
 
         const { promise, resolver, rejecter } = createPromise<void>();
@@ -173,7 +173,9 @@ export class ProxyConnection {
 
         const onClosed = () => {
             release();
-            rejecter(new ProxyConnectionClosedError(`[${this.#id}] Connection closed before the handshake completed`));
+            rejecter(
+                new WsProxyConnectionClosedError(`[${this.#id}] Connection closed before the handshake completed`),
+            );
         };
 
         const release = () => {
@@ -191,9 +193,9 @@ export class ProxyConnection {
      * Install the handler invoked for inbound commands.  Without a handler the peer receives a `not_supported`
      * error response.
      *
-     * Throw {@link ProxyCommandError} from the handler to select the error code reported to the peer.
+     * Throw {@link WsProxyCommandError} from the handler to select the error code reported to the peer.
      */
-    setCommandHandler(handler: ProxyConnection.CommandHandler) {
+    setCommandHandler(handler: WsProxyConnection.CommandHandler) {
         this.#commandHandler = handler;
     }
 
@@ -202,12 +204,12 @@ export class ProxyConnection {
      */
     async sendCommand(command: string, args?: Record<string, unknown>): Promise<Record<string, unknown> | undefined> {
         if (!this.connected) {
-            throw new ProxyConnectionClosedError(`[${this.#id}] Cannot send command ${command}, not connected`);
+            throw new WsProxyConnectionClosedError(`[${this.#id}] Cannot send command ${command}, not connected`);
         }
 
         const id = this.#allocateCommandId();
 
-        const message: ProxyCommandMessage = { id, command };
+        const message: WsProxyCommandMessage = { id, command };
         if (args !== undefined) {
             message.args = args;
         }
@@ -238,16 +240,16 @@ export class ProxyConnection {
 
     sendEvent(event: string, data: Record<string, unknown>) {
         if (!this.connected) {
-            throw new ProxyConnectionClosedError(`[${this.#id}] Cannot send event ${event}, not connected`);
+            throw new WsProxyConnectionClosedError(`[${this.#id}] Cannot send event ${event}, not connected`);
         }
 
-        const message: ProxyEventMessage = { event, data };
+        const message: WsProxyEventMessage = { event, data };
         this.#detach(this.#write(JSON.stringify(message)));
     }
 
     sendFrame(opcode: number, handle: number, payload: Uint8Array) {
         if (!this.connected) {
-            throw new ProxyConnectionClosedError(`[${this.#id}] Cannot send frame ${opcode}, not connected`);
+            throw new WsProxyConnectionClosedError(`[${this.#id}] Cannot send frame ${opcode}, not connected`);
         }
 
         // The frame header truncates silently, which would misroute the frame to a valid but different handle
@@ -258,7 +260,7 @@ export class ProxyConnection {
         logger.debug(
             `[${this.#id}] [FRAME] -> opcode=${opcode} handle=${handle} len=${payload.length} head=${frameHead(payload)}`,
         );
-        this.#detach(this.#write(encodeProxyFrame(opcode, handle, payload)));
+        this.#detach(this.#write(encodeWsProxyFrame(opcode, handle, payload)));
     }
 
     /**
@@ -329,7 +331,7 @@ export class ProxyConnection {
     }
 
     async #sendHello() {
-        const hello: ProxyHelloMessage = { type: "hello", version: this.#version, ...this.#hello };
+        const hello: WsProxyHelloMessage = { type: "hello", version: this.#version, ...this.#hello };
         await this.#write(JSON.stringify(hello));
     }
 
@@ -365,7 +367,7 @@ export class ProxyConnection {
         const { version } = message;
         if (version !== this.#version) {
             logger.warn(`[${this.#id}] Peer protocol version ${String(version)} is not supported`);
-            const response: ProxyHelloResponseMessage = {
+            const response: WsProxyHelloResponseMessage = {
                 type: "hello_response",
                 version: this.#version,
                 error: "unsupported_version",
@@ -375,7 +377,7 @@ export class ProxyConnection {
             return false;
         }
 
-        const response: ProxyHelloResponseMessage = { type: "hello_response", version: this.#version };
+        const response: WsProxyHelloResponseMessage = { type: "hello_response", version: this.#version };
         await this.#write(JSON.stringify(response));
 
         return this.#completeHandshake();
@@ -476,7 +478,7 @@ export class ProxyConnection {
         } else {
             const code = typeof message.error === "string" ? message.error : "unknown_error";
             const detail = typeof message.message === "string" ? message.message : `Command ${id} failed`;
-            pending.rejecter(new ProxyCommandError(code, detail));
+            pending.rejecter(new WsProxyCommandError(code, detail));
         }
     }
 
@@ -508,7 +510,7 @@ export class ProxyConnection {
         if (handler === undefined) {
             // Leaving a request unanswered would stall the peer until its own command timeout
             logger.warn(`[${this.#id}] Received command ${command} but no handler is installed`);
-            const response: ProxyResponseMessage = {
+            const response: WsProxyResponseMessage = {
                 id,
                 success: false,
                 error: "not_supported",
@@ -523,12 +525,12 @@ export class ProxyConnection {
     }
 
     async #invokeCommand(
-        handler: ProxyConnection.CommandHandler,
+        handler: WsProxyConnection.CommandHandler,
         id: number,
         command: string,
         args?: Record<string, unknown>,
     ) {
-        let response: ProxyResponseMessage;
+        let response: WsProxyResponseMessage;
 
         try {
             const result = await handler(command, args);
@@ -538,7 +540,7 @@ export class ProxyConnection {
             }
         } catch (cause) {
             const error = errorOf(cause);
-            if (error instanceof ProxyCommandError) {
+            if (error instanceof WsProxyCommandError) {
                 response = { id, success: false, error: error.code, message: error.detail };
             } else {
                 logger.error(`[${this.#id}] Command ${command} failed:`, error);
@@ -550,9 +552,9 @@ export class ProxyConnection {
     }
 
     #receiveFrame(message: Exclude<HttpEndpoint.WsMessage, string>) {
-        let frame: ProxyFrame;
+        let frame: WsProxyFrame;
         try {
-            frame = decodeProxyFrame(Bytes.of(message));
+            frame = decodeWsProxyFrame(Bytes.of(message));
         } catch (error) {
             logger.warn(`[${this.#id}] Failed to decode binary frame:`, error);
             return;
@@ -584,7 +586,7 @@ export class ProxyConnection {
     async #write(message: HttpEndpoint.WsMessage) {
         const writer = this.#writer;
         if (writer === undefined) {
-            throw new ProxyConnectionClosedError(`[${this.#id}] Cannot write, connection is not open`);
+            throw new WsProxyConnectionClosedError(`[${this.#id}] Cannot write, connection is not open`);
         }
 
         try {
@@ -592,7 +594,7 @@ export class ProxyConnection {
         } catch (cause) {
             const error = errorOf(cause);
             this.#fail(error);
-            throw new ProxyConnectionClosedError(`[${this.#id}] Write failed`, { cause: error });
+            throw new WsProxyConnectionClosedError(`[${this.#id}] Write failed`, { cause: error });
         }
     }
 
@@ -617,7 +619,7 @@ export class ProxyConnection {
         const pending = [...this.#pendingCommands.values()];
         this.#pendingCommands.clear();
         for (const { rejecter } of pending) {
-            rejecter(new ProxyConnectionClosedError(`[${this.#id}] Peer disconnected`));
+            rejecter(new WsProxyConnectionClosedError(`[${this.#id}] Peer disconnected`));
         }
 
         if (!this.#closedEmitted) {
@@ -690,7 +692,7 @@ export class ProxyConnection {
     }
 }
 
-export namespace ProxyConnection {
+export namespace WsProxyConnection {
     export type Role = "responder" | "initiator";
 
     /** Additive hello fields.  Version 1 peers ignore them. */
@@ -710,7 +712,7 @@ export namespace ProxyConnection {
         /** Protocol version we implement. */
         version: number;
 
-        /** A responder waits for the peer's hello; an initiator sends one on {@link ProxyConnection.start}. */
+        /** A responder waits for the peer's hello; an initiator sends one on {@link WsProxyConnection.start}. */
         role: Role;
 
         /** Prefix for the generated connection ID.  Defaults to "wsp". */

@@ -4,6 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export * from "./ProxyConnection.js";
-export * from "./ProxyFrame.js";
-export * from "./ProxyMessage.js";
+export * from "./WsProxyConnection.js";
+export * from "./WsProxyFrame.js";
+export * from "./WsProxyMessage.js";

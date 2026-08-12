@@ -49,32 +49,32 @@ export type BleProxyEventName = (typeof BleProxyEvent)[keyof typeof BleProxyEven
 // ─── Handshake + Envelope + Binary Frame Codec (shared ws-proxy layer) ───────
 
 import type {
-    ProxyCommandMessage,
-    ProxyEventMessage,
-    ProxyHelloMessage,
-    ProxyHelloResponseMessage,
+    WsProxyCommandMessage,
+    WsProxyEventMessage,
+    WsProxyHelloMessage,
+    WsProxyHelloResponseMessage,
 } from "@matter/general";
 
 export {
-    decodeProxyFrame as decodeBinaryFrame,
-    encodeProxyFrame as encodeBinaryFrame,
-    type ProxyFrame as BinaryFrame,
+    decodeWsProxyFrame as decodeBinaryFrame,
+    encodeWsProxyFrame as encodeBinaryFrame,
+    type WsProxyFrame as BinaryFrame,
 } from "@matter/general";
 export type {
-    ProxyHelloMessage as HelloMessage,
-    ProxyHelloResponseMessage as HelloResponseMessage,
-    ProxyResponseMessage as ResponseMessage,
-    ProxySuccessResponse as SuccessResponseMessage,
-    ProxyErrorResponse as ErrorResponseMessage,
+    WsProxyHelloMessage as HelloMessage,
+    WsProxyHelloResponseMessage as HelloResponseMessage,
+    WsProxyResponseMessage as ResponseMessage,
+    WsProxySuccessResponse as SuccessResponseMessage,
+    WsProxyErrorResponse as ErrorResponseMessage,
 } from "@matter/general";
 
-export type HandshakeMessage = ProxyHelloMessage | ProxyHelloResponseMessage;
+export type HandshakeMessage = WsProxyHelloMessage | WsProxyHelloResponseMessage;
 
-/** {@link ProxyCommandMessage} narrowed to the BLE proxy's command vocabulary. */
-export type CommandMessage = Omit<ProxyCommandMessage, "command"> & { command: BleProxyCommandName };
+/** {@link WsProxyCommandMessage} narrowed to the BLE proxy's command vocabulary. */
+export type CommandMessage = Omit<WsProxyCommandMessage, "command"> & { command: BleProxyCommandName };
 
-/** {@link ProxyEventMessage} narrowed to the BLE proxy's event vocabulary. */
-export type EventMessage = Omit<ProxyEventMessage, "event"> & { event: BleProxyEventName };
+/** {@link WsProxyEventMessage} narrowed to the BLE proxy's event vocabulary. */
+export type EventMessage = Omit<WsProxyEventMessage, "event"> & { event: BleProxyEventName };
 
 // ─── Command Args ────────────────────────────────────────────────────────────
 

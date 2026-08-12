@@ -7,7 +7,7 @@
 import { NetworkError } from "../Network.js";
 
 /** Peer rejected a command with an error response; `code` is the wire error code. */
-export class ProxyCommandError extends NetworkError {
+export class WsProxyCommandError extends NetworkError {
     /** The description as it appears in the wire `message` field, without the {@link code} prefix. */
     readonly detail: string;
 
@@ -22,9 +22,9 @@ export class ProxyCommandError extends NetworkError {
 }
 
 /** Connection closed while commands were pending or before use. */
-export class ProxyConnectionClosedError extends NetworkError {}
+export class WsProxyConnectionClosedError extends NetworkError {}
 
-export interface ProxyHelloMessage {
+export interface WsProxyHelloMessage {
     type: "hello";
     version: number;
 
@@ -35,35 +35,35 @@ export interface ProxyHelloMessage {
     features?: string[];
 }
 
-export interface ProxyHelloResponseMessage {
+export interface WsProxyHelloResponseMessage {
     type: "hello_response";
     version: number;
     error?: string;
     message?: string;
 }
 
-export interface ProxyCommandMessage {
+export interface WsProxyCommandMessage {
     id: number;
     command: string;
     args?: Record<string, unknown>;
 }
 
-export interface ProxySuccessResponse {
+export interface WsProxySuccessResponse {
     id: number;
     success: true;
     result?: Record<string, unknown>;
 }
 
-export interface ProxyErrorResponse {
+export interface WsProxyErrorResponse {
     id: number;
     success: false;
     error: string;
     message: string;
 }
 
-export type ProxyResponseMessage = ProxySuccessResponse | ProxyErrorResponse;
+export type WsProxyResponseMessage = WsProxySuccessResponse | WsProxyErrorResponse;
 
-export interface ProxyEventMessage {
+export interface WsProxyEventMessage {
     event: string;
     data: Record<string, unknown>;
 }

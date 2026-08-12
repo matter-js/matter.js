@@ -8,8 +8,8 @@ import {
     Bytes,
     MockWsConnection,
     NetworkError,
-    ProxyCommandError,
-    ProxyConnectionClosedError,
+    WsProxyCommandError,
+    WsProxyConnectionClosedError,
     type Observable,
 } from "@matter/general";
 import { BleProxyConnection } from "../src/BleProxyConnection.js";
@@ -101,7 +101,7 @@ describe("BleProxyConnection", () => {
 
         await send(client, { type: "something-else" });
 
-        errorOfType(await opened, ProxyConnectionClosedError);
+        errorOfType(await opened, WsProxyConnectionClosedError);
         expect(connection.connected).false;
 
         await connection.close();
@@ -131,7 +131,7 @@ describe("BleProxyConnection", () => {
         const { server } = MockWsConnection();
         const connection = new BleProxyConnection(server);
 
-        errorOfType(await settlement(connection.sendCommand(BleProxyCommand.StopScan)), ProxyConnectionClosedError);
+        errorOfType(await settlement(connection.sendCommand(BleProxyCommand.StopScan)), WsProxyConnectionClosedError);
 
         await connection.close();
     });
@@ -185,7 +185,7 @@ describe("BleProxyConnection", () => {
         });
         await send(client, { id: 0, success: false, error: "device_not_found", message: "Device not found" });
 
-        const error = errorOfType(await result, ProxyCommandError);
+        const error = errorOfType(await result, WsProxyCommandError);
         expect(error.code).equals("device_not_found");
         expect(error.message).equals("device_not_found: Device not found");
 
@@ -269,7 +269,7 @@ describe("BleProxyConnection", () => {
 
         await client.writable.close();
 
-        errorOfType(await pending, ProxyConnectionClosedError);
+        errorOfType(await pending, WsProxyConnectionClosedError);
         expect(connection.connected).false;
         expect(closeCount).equals(1);
 

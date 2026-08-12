@@ -11,9 +11,9 @@ import { ImplementationError } from "#MatterError.js";
 import type { HttpEndpoint } from "#net/http/HttpEndpoint.js";
 import { MockWsConnection } from "#net/http/MockWsConnection.js";
 import { NetworkError } from "#net/Network.js";
-import { ProxyConnection } from "#net/ws-proxy/ProxyConnection.js";
-import { decodeProxyFrame, encodeProxyFrame, type ProxyFrame } from "#net/ws-proxy/ProxyFrame.js";
-import { ProxyCommandError, ProxyConnectionClosedError } from "#net/ws-proxy/ProxyMessage.js";
+import { WsProxyConnection } from "#net/ws-proxy/WsProxyConnection.js";
+import { decodeWsProxyFrame, encodeWsProxyFrame, type WsProxyFrame } from "#net/ws-proxy/WsProxyFrame.js";
+import { WsProxyCommandError, WsProxyConnectionClosedError } from "#net/ws-proxy/WsProxyMessage.js";
 import { Millis, Seconds } from "#time/TimeUnit.js";
 import { Bytes } from "#util/Bytes.js";
 import type { Observable } from "#util/Observable.js";
@@ -30,7 +30,7 @@ async function receiveFrame(connection: HttpEndpoint.WsConnection) {
         if (value === undefined || typeof value === "string") {
             throw new NetworkError(`Expected a binary message but received ${typeof value}`);
         }
-        return decodeProxyFrame(Bytes.of(value));
+        return decodeWsProxyFrame(Bytes.of(value));
     } finally {
         reader.releaseLock();
     }
@@ -123,9 +123,9 @@ function faultyConnection() {
 /**
  * Create a responder that has completed its handshake, plus the far side of the connection.
  */
-async function connectResponder(options?: Partial<ProxyConnection.Options>) {
+async function connectResponder(options?: Partial<WsProxyConnection.Options>) {
     const { client, server } = MockWsConnection();
-    const connection = new ProxyConnection({
+    const connection = new WsProxyConnection({
         connection: server,
         version: VERSION,
         role: "responder",
@@ -140,13 +140,13 @@ async function connectResponder(options?: Partial<ProxyConnection.Options>) {
     return { client, connection };
 }
 
-describe("ProxyConnection", () => {
+describe("WsProxyConnection", () => {
     before(() => MockTime.enable());
 
     describe("handshake", () => {
         it("completes the responder handshake", async () => {
             const { client, server } = MockWsConnection();
-            const connection = new ProxyConnection({ connection: server, version: VERSION, role: "responder" });
+            const connection = new WsProxyConnection({ connection: server, version: VERSION, role: "responder" });
             const completed = nextEmit(connection.handshakeCompleted);
 
             connection.start();
@@ -163,7 +163,7 @@ describe("ProxyConnection", () => {
 
         it("rejects an unsupported responder version", async () => {
             const { client, server } = MockWsConnection();
-            const connection = new ProxyConnection({ connection: server, version: VERSION, role: "responder" });
+            const connection = new WsProxyConnection({ connection: server, version: VERSION, role: "responder" });
             const closed = nextEmit(connection.closed);
 
             connection.start();
@@ -183,7 +183,7 @@ describe("ProxyConnection", () => {
 
         it("closes when the first responder message is not a hello", async () => {
             const { client, server } = MockWsConnection();
-            const connection = new ProxyConnection({ connection: server, version: VERSION, role: "responder" });
+            const connection = new WsProxyConnection({ connection: server, version: VERSION, role: "responder" });
             const closed = nextEmit(connection.closed);
 
             connection.start();
@@ -196,7 +196,7 @@ describe("ProxyConnection", () => {
 
         it("completes the initiator handshake", async () => {
             const { client, server } = MockWsConnection();
-            const connection = new ProxyConnection({ connection: client, version: VERSION, role: "initiator" });
+            const connection = new WsProxyConnection({ connection: client, version: VERSION, role: "initiator" });
             const completed = nextEmit(connection.handshakeCompleted);
 
             connection.start();
@@ -212,7 +212,7 @@ describe("ProxyConnection", () => {
 
         it("includes additive hello fields and omits absent ones", async () => {
             const { client, server } = MockWsConnection();
-            const connection = new ProxyConnection({
+            const connection = new WsProxyConnection({
                 connection: client,
                 version: VERSION,
                 role: "initiator",
@@ -230,7 +230,7 @@ describe("ProxyConnection", () => {
 
         it("closes when the initiator hello is rejected", async () => {
             const { client, server } = MockWsConnection();
-            const connection = new ProxyConnection({ connection: client, version: VERSION, role: "initiator" });
+            const connection = new WsProxyConnection({ connection: client, version: VERSION, role: "initiator" });
             const closed = nextEmit(connection.closed);
 
             connection.start();
@@ -251,7 +251,7 @@ describe("ProxyConnection", () => {
 
         it("ignores a hello response that arrives after the connection closed", async () => {
             const faulty = faultyConnection();
-            const connection = new ProxyConnection({
+            const connection = new WsProxyConnection({
                 connection: faulty.connection,
                 version: VERSION,
                 role: "initiator",
@@ -282,7 +282,7 @@ describe("ProxyConnection", () => {
 
         it("closes when the handshake times out", async () => {
             const { client, server } = MockWsConnection();
-            const connection = new ProxyConnection({
+            const connection = new WsProxyConnection({
                 connection: server,
                 version: VERSION,
                 role: "responder",
@@ -302,7 +302,7 @@ describe("ProxyConnection", () => {
     describe("opened", () => {
         it("resolves when the handshake completes", async () => {
             const { client, server } = MockWsConnection();
-            const connection = new ProxyConnection({ connection: server, version: VERSION, role: "responder" });
+            const connection = new WsProxyConnection({ connection: server, version: VERSION, role: "responder" });
 
             connection.start();
             const opened = connection.opened();
@@ -325,30 +325,30 @@ describe("ProxyConnection", () => {
 
         it("rejects when the connection closes first", async () => {
             const { client, server } = MockWsConnection();
-            const connection = new ProxyConnection({ connection: server, version: VERSION, role: "responder" });
+            const connection = new WsProxyConnection({ connection: server, version: VERSION, role: "responder" });
 
             connection.start();
             const opened = settlement(connection.opened());
 
             await send(client, { type: "something-else" });
 
-            errorOfType(await opened, ProxyConnectionClosedError);
+            errorOfType(await opened, WsProxyConnectionClosedError);
 
             await connection.close();
         });
 
         it("rejects immediately when already closed", async () => {
             const { server } = MockWsConnection();
-            const connection = new ProxyConnection({ connection: server, version: VERSION, role: "responder" });
+            const connection = new WsProxyConnection({ connection: server, version: VERSION, role: "responder" });
 
             await connection.close();
 
-            await expect(connection.opened()).rejectedWith(ProxyConnectionClosedError);
+            await expect(connection.opened()).rejectedWith(WsProxyConnectionClosedError);
         });
 
         it("stops observing once settled", async () => {
             const { client, server } = MockWsConnection();
-            const connection = new ProxyConnection({ connection: server, version: VERSION, role: "responder" });
+            const connection = new WsProxyConnection({ connection: server, version: VERSION, role: "responder" });
 
             connection.start();
             const opened = connection.opened();
@@ -401,7 +401,7 @@ describe("ProxyConnection", () => {
             expect(await receive(client)).deep.equals({ id: 0, command: "boom" });
             await send(client, { id: 0, success: false, error: "not_connected", message: "no peripheral" });
 
-            const error = errorOfType(await result, ProxyCommandError);
+            const error = errorOfType(await result, WsProxyCommandError);
             expect(error.code).equals("not_connected");
             expect(error.message).equals("not_connected: no peripheral");
 
@@ -443,9 +443,9 @@ describe("ProxyConnection", () => {
 
         it("throws when sending a command while not connected", async () => {
             const { server } = MockWsConnection();
-            const connection = new ProxyConnection({ connection: server, version: VERSION, role: "responder" });
+            const connection = new WsProxyConnection({ connection: server, version: VERSION, role: "responder" });
 
-            await expect(connection.sendCommand("x")).rejectedWith(ProxyConnectionClosedError);
+            await expect(connection.sendCommand("x")).rejectedWith(WsProxyConnectionClosedError);
 
             await connection.close();
         });
@@ -467,7 +467,7 @@ describe("ProxyConnection", () => {
 
             expect(await first).deep.equals({ n: 0 });
             expect(await third).deep.equals({ n: 2 });
-            expect(await second).instanceOf(ProxyCommandError);
+            expect(await second).instanceOf(WsProxyCommandError);
 
             await connection.close();
         });
@@ -479,7 +479,7 @@ describe("ProxyConnection", () => {
             expect(await receive(client)).deep.equals({ id: 0, command: "boom" });
             await send(client, { id: 0, success: false });
 
-            const error = errorOfType(await result, ProxyCommandError);
+            const error = errorOfType(await result, WsProxyCommandError);
             expect(error.code).equals("unknown_error");
 
             await connection.close();
@@ -487,12 +487,12 @@ describe("ProxyConnection", () => {
 
         it("refuses to send anything before the handshake completes", async () => {
             const { client, server } = MockWsConnection();
-            const connection = new ProxyConnection({ connection: server, version: VERSION, role: "responder" });
+            const connection = new WsProxyConnection({ connection: server, version: VERSION, role: "responder" });
             connection.start();
 
-            await expect(connection.sendCommand("x")).rejectedWith(ProxyConnectionClosedError);
-            expect(() => connection.sendEvent("e", {})).throws(ProxyConnectionClosedError);
-            expect(() => connection.sendFrame(1, 1, new Uint8Array(0))).throws(ProxyConnectionClosedError);
+            await expect(connection.sendCommand("x")).rejectedWith(WsProxyConnectionClosedError);
+            expect(() => connection.sendEvent("e", {})).throws(WsProxyConnectionClosedError);
+            expect(() => connection.sendFrame(1, 1, new Uint8Array(0))).throws(WsProxyConnectionClosedError);
 
             await send(client, { type: "hello", version: VERSION });
 
@@ -510,7 +510,7 @@ describe("ProxyConnection", () => {
 
             await connection.close();
 
-            await expect(result).rejectedWith(ProxyConnectionClosedError);
+            await expect(result).rejectedWith(WsProxyConnectionClosedError);
         });
 
         it("emits closed exactly once across repeated closes", async () => {
@@ -547,11 +547,11 @@ describe("ProxyConnection", () => {
             await connection.close();
         });
 
-        it("answers with the wire code of a ProxyCommandError", async () => {
+        it("answers with the wire code of a WsProxyCommandError", async () => {
             const { client, connection } = await connectResponder();
 
             connection.setCommandHandler(async () => {
-                throw new ProxyCommandError("not_connected", "nope");
+                throw new WsProxyCommandError("not_connected", "nope");
             });
 
             await send(client, { id: 5, command: "ping" });
@@ -570,7 +570,7 @@ describe("ProxyConnection", () => {
             const { client, connection } = await connectResponder();
 
             connection.setCommandHandler(async () => {
-                throw new ProxyConnectionClosedError("kaboom");
+                throw new WsProxyConnectionClosedError("kaboom");
             });
 
             await send(client, { id: 7, command: "ping" });
@@ -689,9 +689,9 @@ describe("ProxyConnection", () => {
 
         it("throws when sending an event while not connected", async () => {
             const { server } = MockWsConnection();
-            const connection = new ProxyConnection({ connection: server, version: VERSION, role: "responder" });
+            const connection = new WsProxyConnection({ connection: server, version: VERSION, role: "responder" });
 
-            expect(() => connection.sendEvent("x", {})).throws(ProxyConnectionClosedError);
+            expect(() => connection.sendEvent("x", {})).throws(WsProxyConnectionClosedError);
 
             await connection.close();
         });
@@ -727,7 +727,7 @@ describe("ProxyConnection", () => {
         it("receives binary frames", async () => {
             const { client, connection } = await connectResponder();
 
-            const frames = new Array<ProxyFrame>();
+            const frames = new Array<WsProxyFrame>();
             const first = new Promise<void>(resolve =>
                 connection.frameReceived.on(frame => {
                     frames.push(frame);
@@ -735,7 +735,7 @@ describe("ProxyConnection", () => {
                 }),
             );
 
-            await sendBytes(client, encodeProxyFrame(3, 7, new Uint8Array([0x01, 0x02])));
+            await sendBytes(client, encodeWsProxyFrame(3, 7, new Uint8Array([0x01, 0x02])));
             await first;
 
             expect(frames).length(1);
@@ -748,15 +748,15 @@ describe("ProxyConnection", () => {
 
         it("ignores binary frames received before the handshake", async () => {
             const { client, server } = MockWsConnection();
-            const connection = new ProxyConnection({ connection: server, version: VERSION, role: "responder" });
+            const connection = new WsProxyConnection({ connection: server, version: VERSION, role: "responder" });
 
-            const frames = new Array<ProxyFrame>();
+            const frames = new Array<WsProxyFrame>();
             connection.frameReceived.on(frame => {
                 frames.push(frame);
             });
 
             connection.start();
-            await sendBytes(client, encodeProxyFrame(1, 1, new Uint8Array([0xff])));
+            await sendBytes(client, encodeWsProxyFrame(1, 1, new Uint8Array([0xff])));
 
             // The connection stays in handshake state and still accepts the hello
             await send(client, { type: "hello", version: VERSION });
@@ -770,7 +770,7 @@ describe("ProxyConnection", () => {
         it("ignores undecodable binary frames", async () => {
             const { client, connection } = await connectResponder();
 
-            const frames = new Array<ProxyFrame>();
+            const frames = new Array<WsProxyFrame>();
             const decoded = new Promise<void>(resolve =>
                 connection.frameReceived.on(frame => {
                     frames.push(frame);
@@ -779,7 +779,7 @@ describe("ProxyConnection", () => {
             );
 
             await sendBytes(client, new Uint8Array([0x01]));
-            await sendBytes(client, encodeProxyFrame(4, 4, new Uint8Array([0x05])));
+            await sendBytes(client, encodeWsProxyFrame(4, 4, new Uint8Array([0x05])));
             await decoded;
 
             expect(frames).length(1);
@@ -798,14 +798,14 @@ describe("ProxyConnection", () => {
             await connection.close();
 
             // A closed connection reports the closure, not the range
-            expect(() => connection.sendFrame(0x100, 1, new Uint8Array(0))).throws(ProxyConnectionClosedError);
+            expect(() => connection.sendFrame(0x100, 1, new Uint8Array(0))).throws(WsProxyConnectionClosedError);
         });
 
         it("throws when sending a frame while not connected", async () => {
             const { server } = MockWsConnection();
-            const connection = new ProxyConnection({ connection: server, version: VERSION, role: "responder" });
+            const connection = new WsProxyConnection({ connection: server, version: VERSION, role: "responder" });
 
-            expect(() => connection.sendFrame(1, 1, new Uint8Array(0))).throws(ProxyConnectionClosedError);
+            expect(() => connection.sendFrame(1, 1, new Uint8Array(0))).throws(WsProxyConnectionClosedError);
 
             await connection.close();
         });
@@ -857,7 +857,7 @@ describe("ProxyConnection", () => {
 
         it("ignores traffic that arrives after the connection closed", async () => {
             const faulty = faultyConnection();
-            const connection = new ProxyConnection({
+            const connection = new WsProxyConnection({
                 connection: faulty.connection,
                 version: VERSION,
                 role: "responder",
@@ -901,7 +901,7 @@ describe("ProxyConnection", () => {
 
         it("closes the transport when closed before start", async () => {
             const { client, server } = MockWsConnection();
-            const connection = new ProxyConnection({ connection: server, version: VERSION, role: "responder" });
+            const connection = new WsProxyConnection({ connection: server, version: VERSION, role: "responder" });
 
             await connection.close();
 
@@ -910,7 +910,7 @@ describe("ProxyConnection", () => {
 
         it("refuses to start a closed connection", async () => {
             const { server } = MockWsConnection();
-            const connection = new ProxyConnection({ connection: server, version: VERSION, role: "responder" });
+            const connection = new WsProxyConnection({ connection: server, version: VERSION, role: "responder" });
 
             await connection.close();
 
@@ -927,7 +927,7 @@ describe("ProxyConnection", () => {
 
         it("tears down when the inbound stream errors", async () => {
             const faulty = faultyConnection();
-            const connection = new ProxyConnection({
+            const connection = new WsProxyConnection({
                 connection: faulty.connection,
                 version: VERSION,
                 role: "responder",
@@ -943,7 +943,7 @@ describe("ProxyConnection", () => {
             faulty.breakInbound();
 
             await closed;
-            expect(await pending).instanceOf(ProxyConnectionClosedError);
+            expect(await pending).instanceOf(WsProxyConnectionClosedError);
             expect(connection.connected).false;
 
             await connection.close();
@@ -951,7 +951,7 @@ describe("ProxyConnection", () => {
 
         it("tears down when an outbound write fails", async () => {
             const faulty = faultyConnection();
-            const connection = new ProxyConnection({
+            const connection = new WsProxyConnection({
                 connection: faulty.connection,
                 version: VERSION,
                 role: "responder",
@@ -966,7 +966,7 @@ describe("ProxyConnection", () => {
             faulty.breakOutbound();
             const failed = settlement(connection.sendCommand("x"));
 
-            expect(await failed).instanceOf(ProxyConnectionClosedError);
+            expect(await failed).instanceOf(WsProxyConnectionClosedError);
             await closed;
             expect(connection.connected).false;
 
@@ -975,8 +975,8 @@ describe("ProxyConnection", () => {
 
         it("assigns distinct ids with the configured prefix", async () => {
             const { client, server } = MockWsConnection();
-            const first = new ProxyConnection({ connection: server, version: VERSION, role: "responder" });
-            const second = new ProxyConnection({
+            const first = new WsProxyConnection({ connection: server, version: VERSION, role: "responder" });
+            const second = new WsProxyConnection({
                 connection: client,
                 version: VERSION,
                 role: "initiator",

@@ -21,8 +21,8 @@ import {
     Logger,
     Observable,
     PromiseTimeoutError,
-    ProxyCommandError,
-    ProxyConnection,
+    WsProxyCommandError,
+    WsProxyConnection,
     Seconds,
     WebSocketClient,
     withTimeout,
@@ -103,7 +103,7 @@ function timeoutAfter<T>(promise: Promise<T>, timeout: Duration, message: string
 function requireString(args: Record<string, unknown>, key: string): string {
     const value = args[key];
     if (typeof value !== "string") {
-        throw new ProxyCommandError(BleProxyErrorCode.InternalError, `Command argument ${key} must be a string`);
+        throw new WsProxyCommandError(BleProxyErrorCode.InternalError, `Command argument ${key} must be a string`);
     }
     return value;
 }
@@ -111,7 +111,7 @@ function requireString(args: Record<string, unknown>, key: string): string {
 function requireNumber(args: Record<string, unknown>, key: string): number {
     const value = args[key];
     if (typeof value !== "number") {
-        throw new ProxyCommandError(BleProxyErrorCode.InternalError, `Command argument ${key} must be a number`);
+        throw new WsProxyCommandError(BleProxyErrorCode.InternalError, `Command argument ${key} must be a number`);
     }
     return value;
 }
@@ -122,7 +122,7 @@ function optionalFlag(args: Record<string, unknown>, key: string): boolean {
         return false;
     }
     if (typeof value !== "boolean") {
-        throw new ProxyCommandError(BleProxyErrorCode.InternalError, `Command argument ${key} must be a boolean`);
+        throw new WsProxyCommandError(BleProxyErrorCode.InternalError, `Command argument ${key} must be a boolean`);
     }
     return value;
 }
@@ -131,7 +131,7 @@ export class NobleBleProxyClient {
     readonly #serverUrl: string;
     readonly #hciId?: number;
     readonly #environment: Environment;
-    #connection?: ProxyConnection;
+    #connection?: WsProxyConnection;
     #noble?: Noble;
     #connections = new Map<number, ConnectionState>();
     #nextHandle = 1;
@@ -164,7 +164,7 @@ export class NobleBleProxyClient {
      * Open the local Bluetooth adapter, connect to the hub, and complete the protocol handshake.
      */
     async connect(): Promise<void> {
-        // One socket per instance: a second connect would abandon the previous ProxyConnection and stack another
+        // One socket per instance: a second connect would abandon the previous WsProxyConnection and stack another
         // pair of listeners on noble's process-wide singleton.  The sentinel is set before the first await so
         // concurrent callers cannot both pass the check.
         if (this.#started) {
@@ -178,7 +178,7 @@ export class NobleBleProxyClient {
 
         const connection = await this.#environment.get(WebSocketClient).connect(this.#serverUrl);
 
-        const proxy = new ProxyConnection({
+        const proxy = new WsProxyConnection({
             connection,
             version: BLE_PROXY_PROTOCOL_VERSION,
             role: "initiator",
@@ -340,7 +340,7 @@ export class NobleBleProxyClient {
                 return this.#handleRequestMtu(requireNumber(args, "connection_handle"), requireNumber(args, "mtu"));
 
             default:
-                throw new ProxyCommandError(BleProxyErrorCode.InternalError, `Unknown command: ${command}`);
+                throw new WsProxyCommandError(BleProxyErrorCode.InternalError, `Unknown command: ${command}`);
         }
     }
 
@@ -349,7 +349,7 @@ export class NobleBleProxyClient {
     async #handleStartScan(): Promise<void> {
         const noble = this.#noble;
         if (!noble) {
-            throw new ProxyCommandError(BleProxyErrorCode.BluetoothUnavailable, "Noble not initialized");
+            throw new WsProxyCommandError(BleProxyErrorCode.BluetoothUnavailable, "Noble not initialized");
         }
 
         this.#lastDiscoverFingerprint.clear();
@@ -382,12 +382,12 @@ export class NobleBleProxyClient {
             logger.error(
                 `[CONN] No peripheral found for address "${address}". Known: ${[...this.#discoveredPeripherals.keys()].join(", ")}`,
             );
-            throw new ProxyCommandError(BleProxyErrorCode.DeviceNotFound, `No device found for address ${address}`);
+            throw new WsProxyCommandError(BleProxyErrorCode.DeviceNotFound, `No device found for address ${address}`);
         }
 
         const noble = this.#noble;
         if (!noble) {
-            throw new ProxyCommandError(BleProxyErrorCode.BluetoothUnavailable, "Noble not initialized");
+            throw new WsProxyCommandError(BleProxyErrorCode.BluetoothUnavailable, "Noble not initialized");
         }
 
         const handle = this.#nextHandle++;
@@ -466,7 +466,7 @@ export class NobleBleProxyClient {
                     );
             }
             await this.#resumeScanIfRequested(noble, "after connect failure");
-            throw new ProxyCommandError(BleProxyErrorCode.InternalError, reason);
+            throw new WsProxyCommandError(BleProxyErrorCode.InternalError, reason);
         }
 
         // Resume scanning outside the connect try: a scan failure here must not tear down an interviewed
@@ -533,7 +533,7 @@ export class NobleBleProxyClient {
 
         const service = conn.services.get(serviceUuid);
         if (!service) {
-            throw new ProxyCommandError(BleProxyErrorCode.ServiceNotFound, `Service ${serviceUuid} not found`);
+            throw new WsProxyCommandError(BleProxyErrorCode.ServiceNotFound, `Service ${serviceUuid} not found`);
         }
 
         const cachedChars = service.characteristics ?? [];
@@ -634,7 +634,7 @@ export class NobleBleProxyClient {
             await this.#write(conn, writeChar, data, !writeResponse);
         } catch (error) {
             subscribeChar.removeListener("data", listener);
-            throw new ProxyCommandError(
+            throw new WsProxyCommandError(
                 BleProxyErrorCode.WriteFailed,
                 `write(${writeUuid}): ${errorOf(error).message}`,
             );
@@ -645,7 +645,7 @@ export class NobleBleProxyClient {
             await subscribeChar.subscribeAsync();
         } catch (error) {
             subscribeChar.removeListener("data", listener);
-            throw new ProxyCommandError(
+            throw new WsProxyCommandError(
                 BleProxyErrorCode.SubscribeFailed,
                 `subscribe(${subscribeUuid}): ${errorOf(error).message}`,
             );
@@ -658,7 +658,7 @@ export class NobleBleProxyClient {
 
         const subscription = conn.subscriptions.get(characteristicUuid);
         if (!subscription) {
-            throw new ProxyCommandError(BleProxyErrorCode.NotSubscribed, `Not subscribed to ${characteristicUuid}`);
+            throw new WsProxyCommandError(BleProxyErrorCode.NotSubscribed, `Not subscribed to ${characteristicUuid}`);
         }
 
         await subscription.characteristic.unsubscribeAsync();
@@ -813,7 +813,7 @@ export class NobleBleProxyClient {
     #requireConnection(connectionHandle: number): ConnectionState {
         const conn = this.#connections.get(connectionHandle);
         if (!conn) {
-            throw new ProxyCommandError(
+            throw new WsProxyCommandError(
                 BleProxyErrorCode.NotConnected,
                 `No connection with handle ${connectionHandle}`,
             );
@@ -828,7 +828,7 @@ export class NobleBleProxyClient {
             conn.characteristics.get(uuid.toLowerCase()) ??
             conn.characteristics.get(uuid.toUpperCase().replace(/-/g, "").toLowerCase());
         if (!char) {
-            throw new ProxyCommandError(BleProxyErrorCode.CharacteristicNotFound, `Characteristic ${uuid} not found`);
+            throw new WsProxyCommandError(BleProxyErrorCode.CharacteristicNotFound, `Characteristic ${uuid} not found`);
         }
         return char;
     }
