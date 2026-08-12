@@ -41,6 +41,8 @@ export interface RunRecord {
     steps: StepRecord[];
     verdict: "pass" | "fail" | "skipped";
     deviceExit?: { code: number | null; signal?: string };
+    /** Why the run's own cleanup failed, if it did (see {@link EvidenceRecorder.finalizationFailed}). */
+    finalizationError?: string;
 }
 
 // Colons aren't valid in a Windows path segment; CI here targets macOS/Linux, but a dash-for-colon
@@ -65,6 +67,7 @@ export class EvidenceRecorder implements StepRecorder {
     #logs = new Map<string, LogLine[]>();
     #current?: { def: CertStepDefinition; checks: CheckRecord[] };
     #deviceExit?: { code: number | null; signal?: string };
+    #finalizationError?: string;
 
     constructor(outDir: string, meta: RunRecord["run"] & { tc: string; plan: string }) {
         this.#outDir = outDir;
@@ -114,6 +117,15 @@ export class EvidenceRecorder implements StepRecorder {
     }
 
     /**
+     * Records that the run's own cleanup failed. A node left commissioned or a subscription left
+     * live on the TH outlasts this run and can break the next one, so this fails the run regardless
+     * of what its steps did (see {@link RunRecord.finalizationError}).
+     */
+    finalizationFailed(detail: string): void {
+        this.#finalizationError = detail;
+    }
+
+    /**
      * Attaches a raw log dump under `<name>.log`, e.g. `attachLog("controller", ...)` or
      * `attachLog("device-app1", ...)`.
      */
@@ -139,6 +151,7 @@ export class EvidenceRecorder implements StepRecorder {
             steps: this.#steps,
             verdict: this.#verdict(),
             deviceExit: this.#deviceExit,
+            finalizationError: this.#finalizationError,
         };
 
         await writeFile(join(dir, "result.json"), JSON.stringify(record, null, 4));
@@ -156,7 +169,7 @@ export class EvidenceRecorder implements StepRecorder {
      * what the run proved. Only a run with at least one non-skipped step can pass.
      */
     #verdict(): "pass" | "fail" | "skipped" {
-        if (this.#deviceExit) {
+        if (this.#deviceExit || this.#finalizationError !== undefined) {
             return "fail";
         }
         if (this.#steps.some(step => step.verdict === "fail" || step.verdict === "aborted")) {

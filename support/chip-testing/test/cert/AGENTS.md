@@ -11,7 +11,7 @@ A `TC-*.test.ts` here drives one certification test plan's steps against matter.
 **controller** (DUT), with a `CertDevice` (a real `chip-<app>-app` or a matter.js `TestInstance`) as
 the **TH** it's proving interop against — the reverse of this package's other test kinds
 (`test/app-fast`, `test/core`, …), which drive chip-tool/python against matter.js acting as
-**device**. Four pilots exist; each is the reference example for a different mechanic, not just
+**device**. Five pilots exist; each is the reference example for a different mechanic, not just
 another TC:
 
 - **`FRAMEWORK-SMOKE`** (`test/cert-framework/smoke.test.ts`) — the minimal shape: one device, one
@@ -26,6 +26,11 @@ another TC:
   (`flavors` option) for a cluster matterjs's test app doesn't have, and tolerating an
   implementation-specific non-success response as valid evidence rather than a step failure. See
   "Declaring a device-flavor capability gap" and "Invoke-only TCs" below.
+- **`TC-IDM-1.1`** (all-clusters) — a smaller invoke-only TC than `TC-ACT-3.2`: a mandatory,
+  no-field command (`OnOff.on`/`.off`) that must always succeed on every flavor (no `flavors`
+  restriction, no tolerated-failure response), and the first use of `CertStepOptions.notApplicable`
+  for a plan step the real certification harness itself marks "Out of Scope". See "A step the plan
+  itself calls out of scope" and "Promoting the command-path log check" below.
 - **`TC-CADMIN-1.17`** (all-clusters) — multiple controllers against one device, pairing-code
   (rather than passcode/discriminator) commissioning, non-fabric-filtered reads, and a bounded
   "this must fail" check. See "Multi-controller wiring" and "Bounded negative checks" below.
@@ -36,7 +41,7 @@ another TC:
 
 Each pilot's own section further down is written chronologically (what was found while building
 that TC), which is also a reasonable reading order: source lookup → single-device reads → invoking
-commands → multi-controller → the python-wrapped escape hatch.
+commands → a smaller invoke-only variant → multi-controller → the python-wrapped escape hatch.
 
 ## App → chip binary mapping
 
@@ -147,7 +152,7 @@ What a check's `type` should be:
 A step passing means its `run` callback didn't throw — `recorder.check(...)` only records evidence,
 it never fails the step by itself (see "Shape of a cert test" above; this is worth repeating because
 it's the single easiest mistake to make writing a new step). `RunRecord.verdict` is computed by
-`EvidenceRecorder`, not hand-set: `deviceExit` set ⇒ `"fail"`; any step `"fail"`/`"aborted"` ⇒
+`EvidenceRecorder`, not hand-set: `deviceExit` or `finalizationError` set ⇒ `"fail"`; any step `"fail"`/`"aborted"` ⇒
 `"fail"`; else any step `"pass"` ⇒ `"pass"`; else (every step skipped, or zero steps ran, e.g.
 `TC-ACT-3.2` under `matterjs` or `TC-SC-3.5` when its prerequisite is missing) ⇒ `"skipped"`. A
 `"skipped"` run-level verdict is a legitimate, expected outcome for a flavor-gapped or
@@ -189,18 +194,38 @@ certTest("TC-XXX-0.0", { plan: "n/a" | "<plan doc id>", pics: [], app: "all-clus
 
 Devices in this directory run in-process on the **shared host network** for the whole mocha process
 (see `NodeTestInstance`'s `Environment.default`-rooted environment) — a fabric/session left behind by
-one test can stall a *different* test's commissioning/decommissioning later in the same run. Always
-decommission what you commission, in a `try/finally` around the check that needs the commissioned
-node, not just at the end of a linear step (a thrown assertion should not skip cleanup):
+one test can stall a *different* test's commissioning/decommissioning later in the same run.
+
+**Cleanup belongs in `certTest(...).finalize(...)`, never in a step.** The engine runs the finalizer
+once after the last step whatever happened to the steps — passed, failed, aborted, or skipped by a
+`pics`/`flavors`/`notApplicable` gate — and before the evidence is flushed, so the decommission
+traffic still lands in the attached logs. A step's own body cannot own cleanup, because that step is
+skippable: `TC-IDM-4.1`'s cleanup rode on a step gated on
+`MCORE.IDM.C.SubscribeRequest.Attribute.DataType_UnsignedInteger`, so an unmet PICS would have ended
+the run with the node still commissioned and its subscriptions live.
 
 ```ts
-const ref = await dut.commission({ passcode: th.commissioning.passcode, discriminator: th.commissioning.discriminator });
-try {
-    // ... checks against ref ...
-} finally {
-    await dut.node(ref).decommission();
-}
+const commissioned = new CommissionedRefs();
+
+certTest("TC-XXX-0.0", { ... })
+    .step(1, "...", async cx => {
+        commissioned.set("dut", await cx.controllers.dut.commission({ ... }));
+        // ... checks ...
+    })
+    .step(2, "...", commissioned.withRef("dut", async (cx, ref) => { /* ... */ }))
+    .finalize(cx => commissioned.decommissionAll(cx));
 ```
+
+`decommissionAll` **throws** (`CertCleanupError`) when a node stays commissioned; the engine records
+that as `RunRecord.finalizationError`, which makes the run's verdict `"fail"` on its own. It does not
+displace an earlier step failure — that stays the run's outcome, with the cleanup failure alongside
+it in the evidence. A cleanup failure this suite swallowed into a `console.warn` once already went
+unnoticed across passing runs, which is why it is loud now.
+
+`CommissionedRefs.withRef(role, run)` only requires the role's ref up front and threads it in; the
+old `guarded()` wrapper, which decommissioned on a step's own failure, is gone — the finalizer covers
+that case, and a cleanup failure raised from inside a step's `catch` would have masked the step's own
+error.
 
 ## `expectMdns` (`src/cert/mdns-check.ts`)
 
@@ -345,19 +370,18 @@ This is a framework-level fix (`log-follower.ts`), not something an individual T
   an absent (wildcarded) field. `LogFollower.expect` only tests one pattern against one line at a time, so
   verifying "exactly these fields, in this order, nothing extra" means chaining `expect()` calls — each
   one's `from` set to the previous match's `index + 1` — and failing if a match doesn't land exactly there.
-  See `TC-IDM-2.1.test.ts`'s `expectAttributePathIB`/`attributePathIBSequence`. This is TC-local for now;
-  promote it to `log-follower.ts` if a second TC needs the same shape of check.
+  See `tc-support.ts`'s `expectAttributePathIB`/`attributePathIBSequence`, promoted there once
+  TC-IDM-3.1/TC-IDM-4.1 needed the same shape of check as this TC.
 - **Every log check in this TC supplies only a `chip` pattern, never a `matterjs` one** — matter.js's own
   logger doesn't emit an equivalent decode dump, so every log check against the matterjs flavor resolves to
   `"unverified"` by design (see `LogExpectPatterns`/the flavor-pattern policy already documented above).
   That's the intended dual-flavor split: response-shape assertions (`recorder.check({type: "response", ...})`)
   are what actually prove behavior on matterjs; the chip-side log check is additional protocol-level
   evidence only available for the chip flavor.
-- **Guard every step against leaving the DUT commissioned if it throws.** With ~21 steps sharing one
-  commissioned node, the step engine aborts (skips, doesn't run) every step after the one that threw — see
-  `cert-test.ts`'s `invoke()` — so a decommission written into only the *last* step never runs if an
-  earlier one fails. `TC-IDM-2.1.test.ts`'s `guarded()` wraps every step's body so a thrown assertion still
-  decommissions before propagating; only the actual last step decommissions on its own success path.
+- **Never leave the DUT commissioned.** With ~21 steps sharing one commissioned node, the step engine aborts
+  (skips, doesn't run) every step after the one that threw — see `cert-test.ts`'s `invoke()` — so a
+  decommission written into any single step is unreliable. `.finalize()` owns it instead (see
+  "Commission/decommission lifecycle" above).
 
 ## Declaring a device-flavor capability gap (`TC-ACT-3.2`)
 
@@ -407,11 +431,11 @@ the next step's `log.mark()`, even though it chronologically belongs to the *pre
 response's `CommandStatusIB → CommandPathIB` has the exact same `EndpointId`/`ClusterId`/`CommandId` line
 shape as a request's `CommandDataIB → CommandPathIB`, a check that only looks for that 3-line shape can
 lock onto the wrong step's trailing echo instead of the current step's own request — this reproduced
-reliably (step 3's check matching step 2's response echo) before the fix. `TC-ACT-3.2`'s
-`commandPathIBSequence` anchors on the request-side `CommandDataIB =` wrapper specifically (not just
-`CommandPathIB`) to rule this out; a command with a genuine data response (unlike this TC's status-only
-Actions commands) would need a different anchor, so this fix is TC-local like `TC-IDM-2.1`'s adjacency
-matcher, not promoted to `log-follower.ts`.
+reliably (step 3's check matching step 2's response echo) before the fix. `commandPathIBSequence`
+anchors on the request-side `CommandDataIB =` wrapper specifically (not just `CommandPathIB`) to rule
+this out; a command with a genuine data response (unlike TC-ACT-3.2/TC-IDM-1.1's status-only
+commands) would need a different anchor, so this fix lives in `tc-support.ts` alongside its
+read-side sibling matcher, not generalized into `log-follower.ts` itself.
 
 ## Known limitations carried forward from `TC-ACT-3.2`, not yet fixed
 
@@ -419,7 +443,9 @@ An adversarial review of this TC surfaced a few items judged real but out of thi
 here rather than silently dropped, for whoever picks up the next cert TC or a framework promotion pass:
 
 - **`commandPathIBSequence`'s adjacency chain only rules out a lagging *response* echo, not a
-  theoretically lagging *previous request*.** The fix above (anchoring on `CommandDataIB =`) is verified
+  theoretically lagging *previous request*.** Now shared via `tc-support.ts` (see "Promoting the
+  command-path log check" below), so this limitation applies to every caller, not just this TC. The
+  fix above (anchoring on `CommandDataIB =`) is verified
   against a real reproduction (step 3 matching step 2's response echo, before the fix). A previous step's
   own *request*-side log line landing after the next step's `log.mark()` would need the same kind of lag
   on the request side, which — unlike the response side — is written before chip can process and answer,
@@ -428,19 +454,11 @@ here rather than silently dropped, for whoever picks up the next cert TC or a fr
   to look; the general fix is restarting the whole chain from `anchor.index + 1` on a mismatch instead of
   failing immediately, bounded by the same deadline.
 - **A device that exits mid-step (`cert-test.ts`'s `raceAgainstDeviceExit`) leaves the step's own promise
-  running detached** (pre-existing, shared by every cert TC using `guarded()`, not introduced here): if
-  that orphaned promise later rejects, it's an unhandled rejection, and `guarded()`'s own cleanup catch
-  never runs since the step didn't throw *to* the caller. Combined with this file's module-level
-  `commissionedRef`, a second invocation of the same test file's steps in one process (a mocha retry) could
-  read a stale ref left over from an aborted run. Not touched here to avoid diverging from
-  `TC-IDM-2.1.test.ts`'s identical, already-shipped `guarded()`/`commissionedRef` shape with a one-off
-  partial fix; the real fix is structural (see next point).
-- **The `commissionedRef`/`decommissionIfNeeded`/`decommissionOnFailure`/`guarded()` scaffolding is now
-  byte-identical across `TC-IDM-2.1.test.ts` and `TC-ACT-3.2.test.ts`.** This file's own "AttributePathIB
-  line-adjacency matching stays TC-local... promote if a second TC needs the same shape" precedent applies
-  here too: a shared commission-guard helper owning the ref as instance state (not module state) would
-  fix the duplication and the staleness risk above in one place. Deferred rather than done as a drive-by
-  in this TC's own commit.
+  running detached** (pre-existing, shared by every cert TC, not introduced here): if that orphaned promise
+  later rejects, it's an unhandled rejection. Combined with a module-level `CommissionedRefs`, a second
+  invocation of the same test file's steps in one process (a mocha retry) could read a stale ref left over
+  from an aborted run — the `.finalize()` cleanup clears every ref it visits, so this needs a run that never
+  reached its own finalizer.
 - **Per-step PICS is inert on `chip-local`/`chip-docker`.** `ChipLocalDevice.pics`/`ChipDockerDevice.pics`
   both throw (`chip-app-subject.ts`), so `resolvePicsFile` always returns `undefined` for these flavors
   and every step's PICS is treated as met (see `cert-test.ts`'s `stepPicsMet`). The `pics: "ACT.C.C0x.Tx"`
@@ -455,6 +473,35 @@ e.g. `0x0 = 4097 (unsigned), ` (verified against a real chip-bridge-app capture;
 this (as a first draft naturally would, going only from the adoc/YAML's prose) matches nothing and times
 out rather than failing fast — same class of surprise as `TC-IDM-2.1`'s `AttributePathIB` hex-case
 mismatch, only derivable from a real capture.
+
+## A step the plan itself calls out of scope (`TC-IDM-1.1`)
+
+`Test_TC_IDM_1_1.yaml`'s own step-2 `verification:` text is the single word "Out of Scope" — CHIP's
+own certification harness declares this step (a wildcarded-endpoint invoke) untestable, not merely
+untested by this translation. `CertStepOptions.notApplicable` (added in an earlier task for exactly
+this case) is the right declaration: `.step(2, "...", async () => {}, { notApplicable: "Out of Scope
+in CHIP's certification harness" })`. The engine records the step `"skipped"` with the reason before
+ever calling `run` (`cert-test.ts`'s `invoke()` checks `notApplicable` first — ahead of the abort
+state an earlier step's failure sets, and ahead of `flavors` and per-step PICS), so the empty async
+body is never reached — it exists only because `.step()` requires a `run` callback. The ordering
+against the abort state is what keeps the declared reason in the evidence: a step that could never
+have run is not "aborted by step 3", and recording it that way loses the only thing it had to say. Don't reach for `flavors: []` or a `pics` expression that's always false to express
+this: both would still call `run` in a run configuration nobody expects, and neither carries a reason
+into the evidence bundle the way `notApplicable` does.
+
+## Promoting the command-path log check (`TC-IDM-1.1`)
+
+`TC-ACT-3.2`'s `commandPathIBSequence`/`expectCommandInvoke` (checking a `CommandDataIB`/`CommandPathIB`
+block for an invoked command, the write-side counterpart to `expectAttributePathIB`'s read-side check)
+were TC-local when only one TC needed them. `TC-IDM-1.1` needs the exact same shape of check — a
+different cluster (`OnOff` vs. `Actions`), a different endpoint constant, and no fields at all — which
+is the same "a second TC needs the same shape" trigger `TC-IDM-2.1`'s `attributePathIBSequence` was
+promoted on (see "Wildcard path idioms" above). Both helpers, plus a shared `requireId` and a renamed
+`CommandFieldValue` (was `FieldValue`), moved to `tc-support.ts`, parameterized on `endpoint`/`cluster`
+instead of reading TC-ACT-3.2's own module-level constants; `TC-ACT-3.2.test.ts` was updated to call the
+promoted versions rather than keep a second copy. Behavior is unchanged for `TC-ACT-3.2` — same sequence,
+same per-field pattern, same returned `CheckRecord` shape — only the call site gained two parameters
+(`endpoint`, `cluster`) it used to read from module scope.
 
 ## Multi-controller wiring (`TC-CADMIN-1.17`), first real exercise
 
@@ -666,3 +713,183 @@ path (`chip-cert-tests.yml`'s own-built job) and the official `chip-cert-bins` i
 binary at `/official-chip-bins/` for the cert-bins job. `TC-SC-3.5.test.ts`'s single test checks
 `env.MATTER_CERT_TH_SERVER_APP_PATH` and calls `this.skip()` when unset, so the matterjs flavor —
 which does not set it — stays green without a TH_SERVER binary.
+
+## The write-path idiom (`writeAndCheck`, `TC-IDM-3.1`)
+
+A "DUT writes an attribute on the TH" step needs the same two-sided proof a read does: the
+*response* (`ControllerAdapter.node(ref).writeAttribute(path, value)` resolving or rejecting) and
+the *TH's own log* showing chip received this specific `WriteRequestMessage`, not some other step's.
+`writeAndCheck` (`TC-IDM-3.1.test.ts`) is the shape every executable write step in this TC shares:
+mark the log, `writeAttribute`, record a `"response"` check either way, then call
+`expectMessageWithPath(log, flavor, WRITE_REQUEST_MESSAGE, path, from, timeoutMs)` (`tc-support.ts`)
+to confirm the message name and the request's `AttributePathIB` appear as a consecutive block after
+the mark — the same anchor-then-walk `expectAttributePathIB` does for reads (see "Wildcard path
+idioms" above), just anchored on `WRITE_REQUEST_MESSAGE` first. `expectMessageWithPath` is the
+write/subscribe-shared promotion of that pattern: `TC-IDM-4.1` reuses it verbatim with
+`SUBSCRIBE_REQUEST_MESSAGE` for its own priming subscribe (see below). `INVOKE_REQUEST_MESSAGE`'s
+`CommandDataIB` shape still needs `expectCommandInvoke` instead — a command's fields aren't an
+`AttributePathIB`.
+
+## No capability gap for `ThermostatUserInterfaceConfiguration`/`ColorControl` (`TC-IDM-3.1`)
+
+Before writing this TC, both clusters looked like plausible candidates for the device-flavor
+capability gap `TC-ACT-3.2` established (see "Declaring a device-flavor capability gap" above) —
+worth checking rather than assuming, since a `flavors` restriction is easy to reach for reflexively.
+`AllClustersTestInstance.ts` registers `ThermostatUserInterfaceConfigurationServer` and
+`ColorControlServer.with(...)` on endpoint 1, and both TC-IDM-3.1 steps that write into them
+(`temperatureDisplayMode`, `options`) passed under the `matterjs` flavor without any restriction.
+Don't assume a capability gap from a brief's own note without running the step first — the actual
+run is cheap and authoritative; the brief's caution here turned out to be unfounded.
+
+## Steps the plan defers to vendor discretion, with no worked capture at all (`TC-IDM-3.1`)
+
+Unlike `TC-IDM-1.1`'s step 2 (`Test_TC_IDM_1_1.yaml`'s own verification text is the single word
+"Out of Scope"), `Test_TC_IDM_3_1.yaml`'s steps 6-10 (signed integer, floating point, octet string,
+struct, list) read "DUT implementation required... If the Vendor DUT doesn't implement/supported
+this attribute, Please mark the test step as Not Applicable" — conditional on vendor capability, not
+a blanket "Out of Scope". `ci-pics-values` sets every `MCORE.IDM.C.WriteRequest.Attribute.DataType_*`
+key to `1`, including these five, which could be read as "CHIP considers this supported". That file
+is not curated per-TC evidence, though: it blanket-enables every `MCORE.IDM` PICS key (read, write,
+subscribe, client and server, all ten data types) uniformly, the same way it enables everything else
+in the file — it does not indicate a concrete demonstrated write. What's actually distinctive about
+steps 6-10 is the *absence* of a captured `./chip-tool ... write-by-id` command and log block, which
+steps 1/3/4/5/11/12 (and step 13, reusing step 4's own example) all have. `notApplicable` for these
+five records that absence ("CHIP's certification harness names no <type> attribute for this step"),
+not a claim that no vendor could ever demonstrate it. A future TC revisiting this: implementing these
+as executable writes would mean picking an attribute *matter.js itself* chooses as writable on the TH
+for each type — which conflicts with this series' own "mirror CHIP's attribute choices exactly, don't
+invent one" rule (see the task brief this TC was built from), since CHIP's own harness names none to
+mirror.
+
+## `CertNodeApi.subscribe` cannot carry more than one path (`TC-IDM-4.1`)
+
+`Test_TC_IDM_4_1.yaml`'s step 10 needs one `SubscribeRequestMessage` carrying three concrete
+`AttributePathIB`s. `CertNodeApi.subscribe(path: AttributePathSpec, opts: SubscribeOptions)`
+(`packages/testing/src/chip/cert/controller-adapter.ts`) only accepts one path, and
+`InProcessCertNodeApi.subscribe` (`InProcessControllerAdapter.ts`) hardcodes a one-element
+`attributes: [...]` array into `client.subscribeMultipleAttributesAndEvents` — even though that
+underlying matter.js call already accepts several. Sending three separate `subscribe()` calls
+instead would put three `SubscribeRequestMessage`s on the wire, not the one the step needs, so
+step 10 is `notApplicable` rather than faked. A real fix needs, at minimum: `subscribe(paths:
+AttributePathSpec | AttributePathSpec[], opts)`, an `InProcessCertNodeApi.subscribe` that passes
+every path through instead of one, a multi-path return shape, and an `onUpdate` that can attribute
+a report to *which* path it was for (today's `onUpdate?: (value: unknown) => void` can't) — a
+design decision for the maintainer, not something to improvise from inside a step.
+
+## Deterministic per-write report/ack evidence, not a snapshot count (`TC-IDM-4.1`)
+
+An early draft of `subscribeAndModify` took one `countMatches(STATUS_RESPONSE_SUCCESS, from)`
+snapshot after all of a step's writes had completed and asserted `>= values.length`. An
+independent review caught that this count is genuinely nondeterministic across otherwise-identical
+runs (it can read 2, 3, or 4 for three correct writes): whether the priming report's own ack falls
+inside the window is a race against exactly where `from` landed, and whether the *last* write's ack
+has been pumped into the log buffer yet is a race against `LogFollower`'s own async delivery — the
+two errors happened to cancel out in the runs that were checked by hand, which is exactly the kind
+of test that looks solid until it isn't. The fix: await each write's own ack individually via
+`log.expect`, chaining the next wait's `from` to the previous match's own line index + 1, the same
+"anchor and advance" discipline `expectAttributePathIB`'s field-by-field walk already uses — never
+take a synchronous snapshot count of something that arrives asynchronously.
+
+## Anchor a subscription ack on its own subscription id, not on a cursor (`TC-IDM-4.1`)
+
+Advancing a cursor is not enough once more than one subscription is live. Every step here subscribes
+with `keepSubscriptions: true` and a max interval (80s) shorter than the whole run, so from step 3
+onward the TH is periodically reporting on step 1's and step 2's subscriptions as well — and a
+`StatusResponse` waited for at "anywhere after this write" is satisfied by the DUT acking one of
+*those*, even if the write's own report was never acknowledged at all. The step passes on another
+subscription's evidence.
+
+`expectReportAck` closes that by anchoring on the report itself: chip's `ReportDataMessage` decode
+dump carries `SubscriptionId = 0x<id>,` as the block's first field, and the subscription's own
+`SubscribeResponseMessage` (read by `expectSubscriptionId`) is where the id comes from — unique per
+subscription, and the only `SubscribeResponse` in the step's own window. The ack search then starts
+at that report's line, not at a step boundary. Both blocks' rendering is captured verbatim in
+`Test_TC_IDM_4_4.yaml`; that the TH prints them for messages it *sends* follows from the same
+`--trace_decode 1` handler that already makes `ReportDataMessage` appear in a chip TH's log (see
+`expectChunkedTransfer`), and chip assigns the subscription id while processing the SubscribeRequest
+(`ReadHandler::ProcessSubscribeRequest`), before the priming report — so even the priming report
+carries the final id. Read from source, not from a chip-flavored run: only CI proves it.
+
+**Fixed** (was: the ack matched was the first Success `StatusResponse` anywhere after this
+subscription's report — restoring the automatic node-level subscription made this reachable, not
+just theoretical: several subscriptions' report/ack cycles are now genuinely concurrent, and the
+gap between a report and its own ack is the full multi-second network/log round trip, not a
+microseconds race). There is no subscription id on a `StatusResponseMessage` itself, but chip's own
+trace line for an outbound message (printed right before that message's decode dump) names the CHIP
+Exchange id it was sent on, and the same capture shows the DUT's ack line naming that identical id —
+Matter Core's MRP (§ 4.12) always acks a message on the exchange it arrived on. `expectReportAck` now
+reads that id off our own report's trace line and requires the ack to arrive on the same exchange;
+a different subscription's report/ack pair carries its own, different exchange id, so it can no
+longer stand in for ours. What this does not prove: chip's exchange-id counter is a plain, unbounded
+counter with no documented uniqueness guarantee beyond one run's lifetime, and the trace line's exact
+wording is chip-version-specific like every other pattern in this file.
+
+## A write that doesn't change the value produces no report — the "values must differ" precondition (`TC-IDM-4.1`)
+
+`subscribeAndModify` waits for exactly one `onUpdate` per write; that only holds if every write
+actually changes the attribute. `Datasource.#computePostCommitChanges`
+(`packages/node/src/behavior/state/managed/Datasource.ts`) short-circuits on
+`isDeepEqual(oldValue, newValue)` before any change event fires, so a write whose value equals the
+attribute's *current* value produces no subscription report at all — `waitForCount` then runs out
+its full `UPDATE_WAIT_TIMEOUT_MS` and fails the step, rather than hanging silently. Every `values`
+list `subscribeAndModify` is called with (steps 3-5) is chosen so each entry differs from the one
+before it, not only from the attribute's initial value — matching the plan's own "modify the
+attribute multiple times" wording, since writing the same value again isn't a modification. A
+future TC reusing `subscribeAndModify` with a `values` list that repeats a value back-to-back, or
+opens with the TH's own current default, will time out on that write rather than fail fast at the
+call site — there's no guard for it; the caller is expected to know the TH's starting value.
+
+## Subscription policy: the automatic node-level subscription stays on
+
+`InProcessControllerAdapter` does **not** disable `CommissioningController`'s automatic node-level
+wildcard subscription (`autoSubscribe`). That was tried: disabling it stalls every chip-flavor run
+at subject activation (chip-local's TH never gets past "activating subject", no step output, for
+25+ minutes) with no such symptom on the matterjs flavor — a CI bisection across three runs
+narrowed it to that one option (autoSubscribe:false present and hanging vs. absent/reverted and
+completing in under 5 minutes). Don't reach for `autoSubscribe: false` again for a chip-flavor
+concern; whatever it's meant to fix, it costs the entire chip-local run.
+
+What actually fixes `decommission()` refusing at cleanup (the bug `autoSubscribe: false` was
+originally shipped for) is `keepSubscriptions: true` on this TC's own subscribes
+(`InProcessCertNodeApi.subscribe`, `InProcessControllerAdapter.ts`) — verified alone, with
+`autoSubscribe` left at its default. Root cause: without it, a TC's own first `subscribe()` call
+closes the node-level subscription as a same-peer replacement
+(`ClientInteraction.subscribe`, packages/protocol/src/action/client/ClientInteraction.ts), which is
+terminal — `PairedNode` moves `Connected` → `Reconnecting`
+(packages/matter.js/src/device/PairedNode.ts) — and `decommission()` then refuses:
+
+```
+Failed to decommission dut while cleaning up: [implementation] This Node 1 is currently in a
+reconnect state, decommissioning is not possible.
+```
+
+`keepSubscriptions: true` also matches CHIP's own harness capture for this test case
+(`Test_TC_IDM_4_1.yaml` uses `--keepSubscriptions true`), which this TC's envelope check asserts on
+the wire.
+
+**Consequence: the automatic subscription is live, so its traffic is in every TH log window.** A
+step's log check can no longer assume "the next matching line belongs to my request" — a
+background `ReportDataMessage`/`StatusResponse` pair from the node-level subscription, or from an
+earlier step's own subscription (every step here keeps its subscriptions), can land inside the same
+window. Anchor by identity instead: the subscription id from the TH's own `SubscribeResponseMessage`
+(see "Anchor a subscription ack on its own subscription id" below), or `KeepSubscriptions = true` in
+the envelope itself to pick this TC's subscriptions out from the node-level one (which chip's capture
+shows as `KeepSubscriptions = false`). Never anchor on "first match after a mark".
+
+## Why the cert adapter shortens its peer-connection timeout
+
+`CERT_PEER_CONNECTION_TIMEOUT` (15s, `InProcessControllerAdapter.ts`) bounds how long a cert step's
+own connect attempt can stay pending before `PeerTimingParameters.defaults.defaultConnectionTimeout`
+(90s, right for a real user's session) would otherwise still be running — a cert step's own check
+(e.g. `TC-CADMIN-1.17` step 8's 25s `expectRejection`) gives up well before 90s, so an attempt that
+can't succeed needs to fail inside that budget, not after it. This is a test-ergonomics bound, not a
+fix for a specific protocol defect: it is set on the cert controller's own `PeerSet.timing`
+(packages/protocol/src/peer/PeerSet.ts) right after `start()`, scoped to each cert controller's own
+environment; every other consumer (real users, other tests) keeps the 90s default.
+
+That timeout is also why `TC-CADMIN-1.17` step 8's own recorded evidence
+(`writeAttribute(NodeLabel) rejected after 15s: Operation aborted`) proves the *cert adapter's own
+bounded wait* elapsed, not that the controller promptly recognized the fabric removal — TH_CE's
+own `NoSharedTrustRoots` rejection lands in the log within milliseconds of the write, well before
+the 15s mark. Don't read that check as evidence the controller handles fabric removal promptly;
+it only proves the cert run's own timeout is short enough to stay inside the step's 25s budget.
