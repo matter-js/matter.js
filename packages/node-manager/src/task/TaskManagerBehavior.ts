@@ -5,7 +5,7 @@
  */
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
-import { asError, Bytes, isDeepEqual, Lifecycle, Logger, Mutex, Observable } from "@matter/general";
+import { asError, Lifecycle, Logger, Mutex, Observable } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import { Agent, Behavior, ClientNode, DesiredStateBehavior, itemMapKey, Node, ServerNode } from "@matter/node";
 import {
@@ -30,48 +30,9 @@ const TERMINAL_STATES: ReadonlySet<TaskState> = new Set<TaskState>(["completed",
 
 const logger = Logger.get("TaskManager");
 
-/**
- * A value as a storage round-trip returns it: serialization drops properties whose value is undefined at every
- * depth, and leaves an array element that is undefined as a hole. Comparing raw values instead rejects an
- * idempotent re-issue of a request with a nested optional.
- *
- * A `Map` becomes its entries because a structural comparison sees no properties on one, and would therefore
- * accept any map in place of any other.
- */
-function asStored(value: unknown): unknown {
-    if (Array.isArray(value)) {
-        const stored = new Array<unknown>(value.length);
-        value.forEach((element, index) => {
-            if (element !== undefined) {
-                stored[index] = asStored(element);
-            }
-        });
-        return stored;
-    }
-    if (value instanceof Map) {
-        return [...value.entries()].map(asStored);
-    }
-    if (typeof value !== "object" || value === null || Bytes.isBytes(value)) {
-        return value;
-    }
-    const stored: Record<string, unknown> = {};
-    for (const [key, property] of Object.entries(value)) {
-        if (property !== undefined) {
-            stored[key] = asStored(property);
-        }
-    }
-    return stored;
-}
-
 export interface TaskHandle {
     readonly id: string;
     readonly status: TaskStatus;
-}
-
-/** The retention effect of one persist: ids joining the queue and ids leaving it with their records. */
-interface RetentionPlan {
-    retired: string[];
-    forgotten: string[];
 }
 
 export class TaskManagerBehavior extends Behavior {
@@ -99,35 +60,12 @@ export class TaskManagerBehavior extends Behavior {
         this.internal.registry = new TaskRegistry();
         this.internal.live = new Map();
         this.internal.gates = new Map();
-        this.#adoptInheritedTerminals();
         this.#registerBuiltins();
         // Driving acts on the node, so the resume pass must wait until the node is online.
         if (this.#rootNode.lifecycle.isOnline) {
             this.#resumePersisted();
         } else {
             this.reactTo(this.#rootNode.lifecycle.online, this.#resumePersisted);
-        }
-    }
-
-    /**
-     * Adopt terminal records from a previous start into the retention queue, dropping those beyond
-     * {@link terminalRetention} so a controller that restarts often does not accumulate finished tasks in storage
-     * forever. Their relative age is unknown, hence storage order.
-     */
-    #adoptInheritedTerminals(): void {
-        const inherited = Object.entries(this.state.tasks)
-            .filter(([, p]) => TERMINAL_STATES.has(p.state))
-            .map(([id]) => id);
-        const excess = inherited.length - this.terminalRetention;
-        if (excess > 0) {
-            const tasks = { ...this.state.tasks };
-            for (const id of inherited.splice(0, excess)) {
-                delete tasks[id];
-            }
-            this.state.tasks = tasks;
-        }
-        for (const id of inherited) {
-            this.internal.terminated.add(id);
         }
     }
 
@@ -168,24 +106,16 @@ export class TaskManagerBehavior extends Behavior {
         this.#resumeType(type);
     }
 
-    /**
-     * Load the persisted tasks of a registered type. A non-terminal task resumes driving; a terminal one becomes
-     * observable history — visible to {@link get} and {@link tasks} and still cancellable through its recorded
-     * changeSet — but is never driven again.
-     */
+    /** Resume persisted, non-terminal, not-yet-live tasks of a registered type. */
     #resumeType(type: string): void {
         if (!this.internal.registry.has(type)) {
             return;
         }
         for (const [id, p] of Object.entries(this.state.tasks)) {
-            if (p.type !== type || this.internal.live.has(id)) {
+            if (p.type !== type || TERMINAL_STATES.has(p.state) || this.internal.live.has(id)) {
                 continue;
             }
             const task = this.internal.registry.create(type, id, p.params, p);
-            if (TERMINAL_STATES.has(p.state)) {
-                this.internal.live.set(id, task);
-                continue;
-            }
             // A persisted `parked` task must re-drive; #drive only advances `running` tasks, and the phase's
             // gate re-parks from live reachability if the peer is still offline.
             if (task.progress.state === "parked") {
@@ -215,42 +145,32 @@ export class TaskManagerBehavior extends Behavior {
     }
 
     /**
-     * Start `type` with `params`, or join the live task an identical request already started. An `externalId`
-     * becomes an id this task answers to, whether the request started it or joined it, so every caller can
-     * observe and {@link cancel} the work it asked for. Ids are exclusive among unfinished work: one that
-     * already names another live task is refused rather than silently resolving elsewhere.
+     * Start `type` with `params`. The task's id is derived from type and params, and only one live task may hold
+     * it: a caller that passes an `externalId` re-issues its own request idempotently, and any other request for
+     * an id a live task already holds is refused rather than silently resolving onto work it did not ask for.
+     * The `externalId` is also the id the caller can {@link get} and {@link cancel} its task under.
      */
     run(type: string, params: unknown, opts?: { externalId?: string }): TaskHandle {
-        return this.#handle(this.#spawn(type, params, {}, opts?.externalId));
+        return this.#handle(this.#spawn(type, params, { externalId: opts?.externalId }));
     }
 
     /** Shared creation path so callers (e.g. #spawnRevert) can seed persisted fields before the first persist. */
-    #spawn(type: string, params: unknown, seed: Partial<TaskPersistence>, externalId?: string): Task {
+    #spawn(type: string, params: unknown, seed: Partial<TaskPersistence>): Task {
         const id = this.internal.registry.idFor(type, params);
         // Driving started now would outlive the dispose drain and write to peers after close, with no way to
         // record what it did.
         this.#refuseIfClosing(`Task ${id} cannot start`);
-        // A cancel of this id is mid-flight: deduping would hand the caller a task that is being torn down, and
+        // A cancel of this id is mid-flight: joining would hand the caller a task that is being torn down, and
         // replacing it would take over bookkeeping the cancel is still waiting on.
         if (this.internal.cancelling.has(id)) {
             throw new TaskConflictError(`Task ${id} rejected: a cancel of this task is still in flight`);
         }
-        if (externalId !== undefined) {
-            this.#requireClaimableExternalId(externalId, id);
-        }
         const existing = this.internal.live.get(id);
         if (existing !== undefined && !TERMINAL_STATES.has(existing.progress.state)) {
-            // Only an identical request is idempotent; reusing the id with other values would apply neither the
-            // running task's parameters nor the new ones the caller asked for.
-            if (!this.#sameParams(existing.params, params)) {
+            if (seed.externalId === undefined || seed.externalId !== existing.externalId) {
                 throw new TaskConflictError(
-                    `Task ${id} rejected: a live task with this id is running with different parameters`,
+                    `Task ${id} rejected: this id is held by a live task (${existing.progress.state})`,
                 );
-            }
-            if (externalId !== undefined && !existing.externalIds.has(externalId)) {
-                existing.externalIds.add(externalId);
-                // The joining caller's id must outlive this process, or a restart hands it a handle onto nothing.
-                this.#mutex.run(() => this.#writeRecord(existing));
             }
             return existing;
         }
@@ -261,9 +181,6 @@ export class TaskManagerBehavior extends Behavior {
             );
         }
         const task = this.internal.registry.create(type, id, params, seed);
-        if (externalId !== undefined) {
-            task.externalIds.add(externalId);
-        }
         // Synchronous exclusivity check: no await between reading `live` and live.set below, so there is no TOCTOU
         // window. The just-created task is discarded on throw (never tracked or persisted).
         const rk = task.resourceKey();
@@ -276,35 +193,9 @@ export class TaskManagerBehavior extends Behavior {
                 }
             }
         }
-        // A replaced terminal task must leave the retention queue with it, or its eviction would later drop the
-        // fresh task that now holds the id.
-        this.internal.terminated.delete(id);
         this.internal.live.set(id, task);
         this.#track(task);
         return task;
-    }
-
-    /**
-     * An external id must resolve to the task the caller asked for and to nothing else, so it may not name any
-     * retained task's own id, nor already belong to other unfinished work. A finished task keeps the ids it ran
-     * under, and {@link #find} prefers the live holder, so history does not block reuse of an id.
-     */
-    #requireClaimableExternalId(externalId: string, id: string): void {
-        const conflict = this.internal.live.get(externalId) ?? this.#liveHolderOf(externalId);
-        if (conflict !== undefined && conflict.id !== id) {
-            throw new TaskConflictError(
-                `Task ${id} rejected: external id "${externalId}" already refers to task ${conflict.id}`,
-            );
-        }
-    }
-
-    #liveHolderOf(externalId: string): Task | undefined {
-        for (const t of this.internal.live.values()) {
-            if (t.externalIds.has(externalId) && !TERMINAL_STATES.has(t.progress.state)) {
-                return t;
-            }
-        }
-        return undefined;
     }
 
     /** A rollback rewrites exactly the intents a re-run would re-apply, so the two must never overlap. */
@@ -315,14 +206,6 @@ export class TaskManagerBehavior extends Behavior {
             }
         }
         return undefined;
-    }
-
-    /**
-     * Whether two parameter sets describe the same request, compared as storage would hand them back: a resumed
-     * task's parameters would otherwise never match the request that started it.
-     */
-    #sameParams(a: unknown, b: unknown): boolean {
-        return isDeepEqual(asStored(a), asStored(b));
     }
 
     // A revert has no resourceKey of its own (so it is never rejected), but it rewrites the intents in its
@@ -349,19 +232,12 @@ export class TaskManagerBehavior extends Behavior {
         if (byId !== undefined) {
             return byId;
         }
-        // Finished work keeps the ids it ran under, so an id can have several holders: the live one is the one
-        // meant by it, and among finished ones the most recent.
-        let retained: Task | undefined;
         for (const t of this.internal.live.values()) {
-            if (!t.externalIds.has(idOrExternalId)) {
-                continue;
-            }
-            if (!TERMINAL_STATES.has(t.progress.state)) {
+            if (t.externalId === idOrExternalId) {
                 return t;
             }
-            retained = t;
         }
-        return retained;
+        return undefined;
     }
 
     #handle(task: Task): TaskHandle {
@@ -380,8 +256,7 @@ export class TaskManagerBehavior extends Behavior {
      * via the returned handle.
      *
      * Each outcome has exactly one meaning: a handle is the rollback, `undefined` is a task with nothing to roll
-     * back, and {@link TaskNotFoundError} is an id no retained task answers to (including a task whose recorded
-     * rollback retention has since forgotten).
+     * back, and {@link TaskNotFoundError} is an id no live task answers to.
      *
      * Throws {@link TaskManagerClosingError} if shutdown intervenes before the cancel can be recorded; the task
      * then keeps its non-terminal state and the cancel must be re-issued after the next start.
@@ -389,7 +264,7 @@ export class TaskManagerBehavior extends Behavior {
     async cancel(idOrExternalId: string): Promise<TaskHandle | undefined> {
         const task = this.#find(idOrExternalId);
         if (task === undefined) {
-            throw new TaskNotFoundError(`Cannot cancel "${idOrExternalId}": no task is retained under that id`);
+            throw new TaskNotFoundError(`Cannot cancel "${idOrExternalId}": no live task answers to that id`);
         }
         if (task.progress.state === "cancelled") {
             const revert = this.#revertOf(task);
@@ -467,16 +342,15 @@ export class TaskManagerBehavior extends Behavior {
         return revert;
     }
 
-    /** The rollback a task recorded, or undefined if it never had one. A record retention forgot is not "none". */
+    /** The rollback a task recorded, or undefined if it never had one. */
     #revertOf(task: Task): Task | undefined {
         if (task.revertTaskId === undefined) {
             return undefined;
         }
         const revert = this.#find(task.revertTaskId);
+        // `undefined` means "nothing to roll back", so a rollback that cannot be resolved must not read as that.
         if (revert === undefined) {
-            throw new TaskNotFoundError(
-                `Task ${task.id} names rollback ${task.revertTaskId}, which is no longer retained`,
-            );
+            throw new TaskNotFoundError(`Task ${task.id} names rollback ${task.revertTaskId}, which is not live`);
         }
         return revert;
     }
@@ -661,69 +535,15 @@ export class TaskManagerBehavior extends Behavior {
     // A task that names a revert and the revert itself go into one transaction: written separately, a crash
     // between the two loses the rollback while the forward record still promises it.
     async #writeRecord(task: Task, paired?: Task): Promise<void> {
-        const written = paired === undefined ? [task] : [task, paired];
+        const records = (paired === undefined ? [task] : [task, paired]).map(t => [t.id, t.toPersistence()] as const);
         await this.endpoint.act(agent => {
-            // Records, retention decision and its bookkeeping belong to one transaction: a task re-run between them
-            // would leave the queue disagreeing with the records, and a write that never gets here must touch
-            // neither.
-            const records = written.map(t => [t.id, t.toPersistence()] as const);
-            const retention = this.#planRetention(written);
             const self = agent.get(TaskManagerBehavior);
             const tasks = { ...self.state.tasks };
-            for (const id of retention.forgotten) {
-                delete tasks[id];
-            }
             for (const [id, record] of records) {
                 tasks[id] = record;
             }
             self.state.tasks = tasks;
-            this.#applyRetention(retention);
         });
-    }
-
-    /**
-     * Number of terminal tasks kept for observation through {@link get} and {@link tasks} before the oldest are
-     * forgotten. The bound covers retained records, which a restart makes observable again as soon as their type
-     * is registered. Override to tune how much finished history a controller retains.
-     */
-    protected get terminalRetention(): number {
-        return 50;
-    }
-
-    /**
-     * Choose the retention effect of one transaction: the tasks it retires and the oldest ids to forget beyond
-     * {@link terminalRetention}, so finished work stays observable for a while without growing without bound.
-     * The forgotten ids leave persisted state in the same write; {@link #applyRetention} commits the rest.
-     */
-    #planRetention(written: Task[]): RetentionPlan {
-        const retired = written.filter(
-            // A re-run may already own this id: retiring the previous run would expose the live task to eviction.
-            task => TERMINAL_STATES.has(task.progress.state) && this.internal.live.get(task.id) === task,
-        );
-        const queued = new Set([...this.internal.terminated, ...retired.map(task => task.id)]);
-        const writing = new Set(written.map(task => task.id));
-        const forgotten = new Array<string>();
-        for (const id of queued) {
-            if (queued.size - forgotten.length <= this.terminalRetention) {
-                break;
-            }
-            // An id this transaction writes may not be forgotten by it: the record would survive in storage while
-            // leaving both `live` and the queue, so nothing could observe or ever prune it again.
-            if (!writing.has(id)) {
-                forgotten.push(id);
-            }
-        }
-        return { retired: retired.map(task => task.id), forgotten };
-    }
-
-    #applyRetention({ retired, forgotten }: RetentionPlan): void {
-        for (const id of retired) {
-            this.internal.terminated.add(id);
-        }
-        for (const id of forgotten) {
-            this.internal.terminated.delete(id);
-            this.internal.live.delete(id);
-        }
     }
 
     override async [Symbol.asyncDispose]() {
@@ -753,7 +573,6 @@ export namespace TaskManagerBehavior {
         gates!: Map<string, GateState>;
         driving = new Map<string, Promise<void>>();
         cancelling = new Set<string>();
-        terminated = new Set<string>();
         persistMutex?: Mutex;
     }
 

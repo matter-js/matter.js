@@ -20,10 +20,10 @@ export class TaskCapacityExceededError extends TaskError {}
 /** cancel() was refused: the task passed its point of no return (e.g. a realized group-key rotation). */
 export class TaskNotRevertibleError extends TaskError {}
 
-/** A new task was rejected because a live non-terminal task already holds its exclusive resource. */
+/** A new task was rejected because live work already holds its id, its rollback or an exclusive resource. */
 export class TaskConflictError extends TaskError {}
 
-/** No task is retained under the given id or external id, so there is nothing to observe or act on. */
+/** No live task answers to the given id or external id, so there is nothing to observe or act on. */
 export class TaskNotFoundError extends TaskError {}
 
 /** A task refused to run because a member's current intent violates a required precondition. */

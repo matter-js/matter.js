@@ -6,10 +6,9 @@
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { TaskConflictError, TaskFailedError } from "#task/errors.js";
-import { Task } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { TaskPhase } from "#task/types.js";
-import { Environment, fromJson, toJson } from "@matter/general";
+import { Environment } from "@matter/general";
 import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
 import { FakePeer, SyntheticTask } from "./helpers.js";
@@ -27,11 +26,6 @@ class TestTaskManager extends TaskManagerBehavior {
     }
     protected override taskReconciler(): ReconcilerBehavior {
         return TestTaskManager.reconcilerPeer as unknown as ReconcilerBehavior;
-    }
-
-    /** True while a drive of `id` owns this id's gate and driving entries. */
-    isDriven(id: string): boolean {
-        return this.internal.driving.has(id) || this.internal.gates.has(id);
     }
 }
 
@@ -141,175 +135,7 @@ describe("Task lifecycle", () => {
             await node2.close();
         });
 
-        it("dedups an identical request against a resumed task whose optional parameter storage dropped", async () => {
-            const environment = new Environment("test");
-            const peer = new FakePeer("op");
-            TestTaskManager.peers.set("op", peer);
-            TestTaskManager.reconcilerPeer = peer;
-
-            class OptionalParamTask extends Task<{ tag: string; label?: string }> {
-                override readonly type = "optional";
-                override get phases(): TaskPhase[] {
-                    return [gatePhase("op", "groupMembership", "1")];
-                }
-                static override idFor(params: { tag: string }) {
-                    return `optional:${params.tag}`;
-                }
-            }
-
-            const node = await makeNode(environment);
-
-            // Serializing storage drops a property whose value is undefined, so a resumed task carries fewer
-            // parameter keys than the request that started it.
-            const params = fromJson(toJson({ tag: "o", label: undefined }));
-            expect(toJson(params)).equals(`{"tag":"o"}`);
-            await node.act(a => {
-                a.get(TestTaskManager).state.tasks = {
-                    "optional:o": { type: "optional", params, phaseIndex: 0, state: "running", changeSet: [] },
-                };
-            });
-            await node.act(a => a.get(TestTaskManager).register("optional", OptionalParamTask));
-            await awaitPhase(node, "optional:o", 0);
-
-            const handle = await node.act(a => a.get(TestTaskManager).run("optional", { tag: "o", label: undefined }));
-            expect(handle.id).equals("optional:o");
-            expect(await node.act(a => a.get(TestTaskManager).tasks.length)).equals(1);
-
-            // A value the resumed task does not carry is a different request, not an idempotent one.
-            await expect(
-                (async () => node.act(a => a.get(TestTaskManager).run("optional", { tag: "o", label: "x" })))(),
-            ).rejectedWith(TaskConflictError);
-            await node.close();
-        });
-
-        it("dedups an identical request against a resumed task whose nested optional storage dropped", async () => {
-            const environment = new Environment("test");
-            const peer = new FakePeer("np");
-            TestTaskManager.peers.set("np", peer);
-            TestTaskManager.reconcilerPeer = peer;
-
-            interface NestedParams {
-                tag: string;
-                entries: Array<{ key: string; prior?: { intent: unknown } }>;
-            }
-
-            class NestedParamTask extends Task<NestedParams> {
-                override readonly type = "nested";
-                override get phases(): TaskPhase[] {
-                    return [gatePhase("np", "groupMembership", "1")];
-                }
-                static override idFor(params: { tag: string }) {
-                    return `nested:${params.tag}`;
-                }
-            }
-
-            const node = await makeNode(environment);
-
-            // A revert's changeSet has this shape: an entry whose `prior` is absent for an intent the task created.
-            const request = { tag: "n", entries: [{ key: "k", prior: undefined }] };
-            const params = fromJson(toJson(request));
-            expect(toJson(params)).equals(`{"tag":"n","entries":[{"key":"k"}]}`);
-            await node.act(a => {
-                a.get(TestTaskManager).state.tasks = {
-                    "nested:n": { type: "nested", params, phaseIndex: 0, state: "running", changeSet: [] },
-                };
-            });
-            await node.act(a => a.get(TestTaskManager).register("nested", NestedParamTask));
-            await awaitPhase(node, "nested:n", 0);
-
-            const handle = await node.act(a => a.get(TestTaskManager).run("nested", request));
-            expect(handle.id).equals("nested:n");
-            expect(await node.act(a => a.get(TestTaskManager).tasks.length)).equals(1);
-
-            // A nested value the resumed task does not carry is still a different request.
-            await expect(
-                (async () =>
-                    node.act(a =>
-                        a.get(TestTaskManager).run("nested", {
-                            tag: "n",
-                            entries: [{ key: "k", prior: { intent: {} } }],
-                        }),
-                    ))(),
-            ).rejectedWith(TaskConflictError);
-            await node.close();
-        });
-
-        it("dedups an identical request against a resumed task whose array gap storage dropped", async () => {
-            const environment = new Environment("test");
-            const peer = new FakePeer("gp");
-            TestTaskManager.peers.set("gp", peer);
-            TestTaskManager.reconcilerPeer = peer;
-
-            class GapParamTask extends Task<{ tag: string; entries: Array<{ key: string } | undefined> }> {
-                override readonly type = "gap";
-                override get phases(): TaskPhase[] {
-                    return [gatePhase("gp", "groupMembership", "1")];
-                }
-                static override idFor(params: { tag: string }) {
-                    return `gap:${params.tag}`;
-                }
-            }
-
-            const node = await makeNode(environment);
-
-            // Storage returns an array element that is undefined as a gap, so the resumed array is not the same
-            // shape as the one the request carried.
-            const request = { tag: "g", entries: [undefined, { key: "k" }] };
-            await node.act(a => {
-                a.get(TestTaskManager).state.tasks = {
-                    "gap:g": {
-                        type: "gap",
-                        params: fromJson(toJson(request)),
-                        phaseIndex: 0,
-                        state: "running",
-                        changeSet: [],
-                    },
-                };
-            });
-            await node.act(a => a.get(TestTaskManager).register("gap", GapParamTask));
-            await awaitPhase(node, "gap:g", 0);
-
-            const handle = await node.act(a => a.get(TestTaskManager).run("gap", request));
-            expect(handle.id).equals("gap:g");
-            expect(await node.act(a => a.get(TestTaskManager).tasks.length)).equals(1);
-            await node.close();
-        });
-
-        it("rejects a re-run whose only difference is inside a map parameter", async () => {
-            const environment = new Environment("test");
-            const peer = new FakePeer("mp");
-            TestTaskManager.peers.set("mp", peer);
-            TestTaskManager.reconcilerPeer = peer;
-
-            class MapParamTask extends Task<{ tag: string; labels: Map<string, string> }> {
-                override readonly type = "mapped";
-                override get phases(): TaskPhase[] {
-                    return [gatePhase("mp", "groupMembership", "1")];
-                }
-                static override idFor(params: { tag: string }) {
-                    return `mapped:${params.tag}`;
-                }
-            }
-
-            const node = await makeNode(environment);
-            await node.act(a => a.get(TestTaskManager).register("mapped", MapParamTask));
-            await node.act(a => a.get(TestTaskManager).run("mapped", { tag: "m", labels: new Map([["a", "1"]]) }));
-            await awaitPhase(node, "mapped:m", 0);
-
-            const handle = await node.act(a =>
-                a.get(TestTaskManager).run("mapped", { tag: "m", labels: new Map([["a", "1"]]) }),
-            );
-            expect(handle.id).equals("mapped:m");
-
-            // A map compares by content: dedup here would drop the caller's parameters without applying them.
-            await expect(
-                (async () =>
-                    node.act(a => a.get(TestTaskManager).run("mapped", { tag: "m", labels: new Map([["a", "2"]]) })))(),
-            ).rejectedWith(TaskConflictError);
-            await node.close();
-        });
-
-        it("keeps the external id of a deduped caller across a restart", async () => {
+        it("still answers to its caller's external id after a restart", async () => {
             const environment = new Environment("test");
             const peer = new FakePeer("xp");
             peer.setReachable(false);
@@ -319,90 +145,14 @@ describe("Task lifecycle", () => {
 
             const node1 = await makeNode(environment);
             await node1.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
-            await node1.act(a => a.get(TestTaskManager).run("synthetic", { tag: "alias" }, { externalId: "first" }));
+            await node1.act(a => a.get(TestTaskManager).run("synthetic", { tag: "alias" }, { externalId: "owner" }));
             await awaitState(node1, "synthetic:alias", "parked");
-
-            const second = await node1.act(a =>
-                a.get(TestTaskManager).run("synthetic", { tag: "alias" }, { externalId: "second" }),
-            );
-            expect(second.id).equals("synthetic:alias");
-
-            // An id only in memory is lost on restart, leaving the second caller with a handle onto nothing.
-            for (let i = 0; i < 10_000; i++) {
-                const persisted = node1.stateOf(TestTaskManager).tasks["synthetic:alias"];
-                if (persisted?.externalIds?.includes("second")) {
-                    break;
-                }
-                await MockTime.advance(1);
-            }
-            expect(node1.stateOf(TestTaskManager).tasks["synthetic:alias"].externalIds).deep.equals([
-                "first",
-                "second",
-            ]);
+            expect(node1.stateOf(TestTaskManager).tasks["synthetic:alias"].externalId).equals("owner");
             await node1.close();
 
             const node2 = await makeNode(environment);
             await node2.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
-            expect(await node2.act(a => a.get(TestTaskManager).get("second")?.id)).equals("synthetic:alias");
-            await node2.close();
-        });
-
-        it("keeps a terminal task observable after a restart without driving it again", async () => {
-            const environment = new Environment("test");
-            let runs = 0;
-            SyntheticTask.phasesByTag["done"] = [
-                {
-                    name: "noop",
-                    run: async () => {
-                        runs++;
-                    },
-                },
-            ];
-            const node1 = await makeNode(environment);
-            await node1.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
-            await node1.act(a => a.get(TestTaskManager).run("synthetic", { tag: "done" }));
-            await awaitState(node1, "synthetic:done", "completed");
-            expect(runs).equals(1);
-            await node1.close();
-
-            const node2 = await makeNode(environment);
-            await node2.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
-            const status = await node2.act(a => a.get(TestTaskManager).get("synthetic:done")?.status);
-            expect(status?.state).equals("completed");
-            expect(await node2.act(a => a.get(TestTaskManager).tasks.map(t => t.id))).deep.equals(["synthetic:done"]);
-
-            // Retained history is observable, not work: it owns no driver bookkeeping, so nothing persists,
-            // gates or drains on its behalf, and its phase never runs a second time.
-            expect(await node2.act(a => a.get(TestTaskManager).isDriven("synthetic:done"))).equals(false);
-            for (let i = 0; i < 50; i++) {
-                await MockTime.advance(1);
-            }
-            expect(runs).equals(1);
-            await node2.close();
-        });
-
-        it("cancels a task that completed before the restart", async () => {
-            const environment = new Environment("test");
-            const peer = new FakePeer("cb");
-            peer.markHas("groupMembership", "1");
-            TestTaskManager.peers.set("cb", peer);
-            TestTaskManager.reconcilerPeer = peer;
-            SyntheticTask.phasesByTag["cancelafter"] = [gatePhase("cb", "groupMembership", "1")];
-
-            const node1 = await makeNode(environment);
-            await node1.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
-            await node1.act(a => a.get(TestTaskManager).run("synthetic", { tag: "cancelafter" }));
-            await awaitState(node1, "synthetic:cancelafter", "completed");
-            expect(peer.items[itemMapKey("groupMembership", "1")]?.status.state).equals("committed");
-            await node1.close();
-
-            // The changeSet of finished work is what makes it undoable, so a restart must not cost it that.
-            const node2 = await makeNode(environment);
-            await node2.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
-            const handle = await node2.act(a => a.get(TestTaskManager).cancel("synthetic:cancelafter"));
-            expect(handle?.id).equals("revert:synthetic:cancelafter");
-            await awaitState(node2, "revert:synthetic:cancelafter", "completed");
-            expect(peer.items[itemMapKey("groupMembership", "1")]).equals(undefined);
+            expect(await node2.act(a => a.get(TestTaskManager).get("owner")?.id)).equals("synthetic:alias");
             await node2.close();
         });
     });
@@ -604,12 +354,12 @@ describe("Task lifecycle", () => {
             await node.close();
         });
 
-        it("cancels through the external id of a caller that deduped onto the task", async () => {
+        it("cancels through the external id its caller ran the task under", async () => {
             const environment = new Environment("test");
             const peer = new FakePeer("ac");
             TestTaskManager.peers.set("ac", peer);
             TestTaskManager.reconcilerPeer = peer;
-            // The device never "has" the item, so the gate is still in flight when the second caller arrives.
+            // The device never "has" the item, so the gate is still in flight when the cancel arrives.
 
             SyntheticTask.phasesByTag["aliascancel"] = [gatePhase("ac", "groupMembership", "X")];
 
@@ -621,12 +371,9 @@ describe("Task lifecycle", () => {
             for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
                 await MockTime.advance(1);
             }
-            await node.act(a =>
-                a.get(TestTaskManager).run("synthetic", { tag: "aliascancel" }, { externalId: "joiner" }),
-            );
 
-            // The joiner's id must reach the same work, all the way to rolling it back.
-            const handle = await node.act(a => a.get(TestTaskManager).cancel("joiner"));
+            // The caller's own id must reach its work, all the way to rolling it back.
+            const handle = await node.act(a => a.get(TestTaskManager).cancel("owner"));
             expect(handle?.id).equals("revert:synthetic:aliascancel");
             const status = await node.act(a => a.get(TestTaskManager).get("owner")?.status);
             expect(status?.state).equals("cancelled");

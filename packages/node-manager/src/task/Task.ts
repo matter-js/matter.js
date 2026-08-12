@@ -12,7 +12,7 @@ export interface TaskPersistence {
     params: unknown;
     phaseIndex: number;
     state: TaskState;
-    externalIds?: string[];
+    externalId?: string;
     changeSet: ChangeEntry[];
     error?: string;
     revertTaskId?: string;
@@ -26,11 +26,8 @@ export abstract class Task<P = unknown> {
     readonly id: string;
     readonly params: P;
 
-    /**
-     * Ids callers use to find this task instead of its internal id. Every request that dedups onto the task
-     * contributes its own, so each caller can observe and cancel the work it asked for.
-     */
-    readonly externalIds: Set<string>;
+    /** Id the caller of `run` asked for this task under, so it can observe and cancel the work it asked for. */
+    readonly externalId?: string;
 
     progress: { phaseIndex: number; state: TaskState };
     changeSet: ChangeEntry[];
@@ -41,7 +38,7 @@ export abstract class Task<P = unknown> {
     constructor(id: string, params: P, persisted?: Partial<TaskPersistence>) {
         this.id = id;
         this.params = params;
-        this.externalIds = new Set(persisted?.externalIds);
+        this.externalId = persisted?.externalId;
         this.progress = { phaseIndex: persisted?.phaseIndex ?? 0, state: persisted?.state ?? "running" };
         this.changeSet = persisted?.changeSet ?? new Array<ChangeEntry>();
         this.error = persisted?.error;
@@ -54,7 +51,7 @@ export abstract class Task<P = unknown> {
             type: this.type,
             state: this.progress.state,
             phaseIndex: this.progress.phaseIndex,
-            externalIds: [...this.externalIds],
+            externalId: this.externalId,
             error: this.error,
             revertTaskId: this.revertTaskId,
             revertOf: this.revertOf,
@@ -100,7 +97,7 @@ export abstract class Task<P = unknown> {
             params: this.params,
             phaseIndex: this.progress.phaseIndex,
             state: this.progress.state,
-            externalIds: this.externalIds.size === 0 ? undefined : [...this.externalIds],
+            externalId: this.externalId,
             changeSet: this.changeSet,
             error: this.error,
             revertTaskId: this.revertTaskId,

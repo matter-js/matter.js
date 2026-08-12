@@ -264,19 +264,22 @@ describe("cancel robustness", () => {
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-rerun" });
         await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
 
-        // The re-run is attempted while the cancelled task unwinds, i.e. while cancel() waits on its drive.
+        // The re-run is attempted while the cancelled task unwinds, i.e. while cancel() waits on its drive. It
+        // re-issues under the external id the task runs with, so only the cancel in flight can refuse it.
         let rerun: unknown = "not attempted";
         SyntheticTask.phasesByTag["cancelrerun"] = [
             slowUnwindGatePhase("cx", "groupMembership", "C", async () => {
                 try {
-                    rerun = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "cancelrerun" }));
+                    rerun = await node.act(a =>
+                        a.get(TestTaskManager).run("synthetic", { tag: "cancelrerun" }, { externalId: "own" }),
+                    );
                 } catch (e) {
                     rerun = e;
                 }
             }),
         ];
 
-        await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "cancelrerun" }));
+        await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "cancelrerun" }, { externalId: "own" }));
         await pumpUntil("intent written", () => peer.items[itemMapKey("groupMembership", "C")] !== undefined);
 
         const handle = await MockTime.resolve(node.act(a => a.get(TestTaskManager).cancel("synthetic:cancelrerun")));

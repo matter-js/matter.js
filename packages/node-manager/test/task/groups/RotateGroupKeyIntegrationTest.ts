@@ -506,8 +506,8 @@ describe("RotateGroupKey task integration (two members)", () => {
             expect(Bytes.areEqual(deviceKey0(device, GROUP_KEY_SET_ID), KEY_A)).equals(true);
         }
 
-        // A distinct rotationId is a distinct task id, so this rotation actually runs instead of deduping onto the
-        // completed r1 handle — the recovery path (rotate a bad key to another) depends on it.
+        // A distinct rotationId is a distinct task id, so the recovery path — rotating a bad key to another —
+        // runs as its own task with its own record.
         await controller.act(a =>
             a.get(TaskManagerBehavior).run("rotateGroupKey", {
                 groupKeySetId: GROUP_KEY_SET_ID,
@@ -581,18 +581,33 @@ describe("RotateGroupKey task integration (two members)", () => {
         expect(await controller.act(a => a.get(TaskManagerBehavior).state.tasks[rotateId("r2")])).equals(undefined);
     });
 
-    it("dedups an idempotent re-issue of the same rotationId to the same handle", async () => {
+    it("refuses a re-issue of a live rotationId, and joins the caller that owns it", async () => {
         await using site = new MockSite();
         const { controller, peerB } = await twoMemberGroup(site);
 
         // Park so the task stays live/non-terminal across both issues.
         await MockTime.resolve(subscriptionOf(peerB).active.emit(false), { macrotasks: true });
-        const first = await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        const first = await controller.act(a =>
+            a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS, { externalId: "nightly" }),
+        );
+        expect(first.id).equals(ROTATE_ID);
         await awaitState(controller, ROTATE_ID, "parked");
 
-        const second = await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
-        expect(second.id).equals(first.id);
-        expect(second.id).equals(ROTATE_ID);
+        // `act` returns a MaybePromise, so normalize before asserting on the rejection.
+        await expect(
+            (async () => controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS)))(),
+        ).rejectedWith(TaskConflictError);
+
+        // The owner reaches the parked rotation itself: a replacement task under the same id would answer as
+        // freshly running and leave the parked one driving with nothing observing it.
+        const before = await controller.act(a => a.get(TaskManagerBehavior).tasks.length);
+        const again = await controller.act(a =>
+            a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS, { externalId: "nightly" }),
+        );
+        expect(again.id).equals(ROTATE_ID);
+        expect(again.status.state).equals("parked");
+        expect(again.status.phaseIndex).equals(0);
+        expect(await controller.act(a => a.get(TaskManagerBehavior).tasks.length)).equals(before);
     });
 
     it("declines cancel during the activate phase and leaves the rotation in place", async () => {
