@@ -731,3 +731,55 @@ as executable writes would mean picking an attribute *matter.js itself* chooses 
 for each type — which conflicts with this series' own "mirror CHIP's attribute choices exactly, don't
 invent one" rule (see the task brief this TC was built from), since CHIP's own harness names none to
 mirror.
+
+## `CertNodeApi.subscribe` cannot carry more than one path (`TC-IDM-4.1`)
+
+`Test_TC_IDM_4_1.yaml`'s step 10 needs one `SubscribeRequestMessage` carrying three concrete
+`AttributePathIB`s. `CertNodeApi.subscribe(path: AttributePathSpec, opts: SubscribeOptions)`
+(`packages/testing/src/chip/cert/controller-adapter.ts`) only accepts one path, and
+`InProcessCertNodeApi.subscribe` (`InProcessControllerAdapter.ts`) hardcodes a one-element
+`attributes: [...]` array into `client.subscribeMultipleAttributesAndEvents` — even though that
+underlying matter.js call already accepts several. Sending three separate `subscribe()` calls
+instead would put three `SubscribeRequestMessage`s on the wire, not the one the step needs, so
+step 10 is `notApplicable` rather than faked. A real fix needs, at minimum: `subscribe(paths:
+AttributePathSpec | AttributePathSpec[], opts)`, an `InProcessCertNodeApi.subscribe` that passes
+every path through instead of one, a multi-path return shape, and an `onUpdate` that can attribute
+a report to *which* path it was for (today's `onUpdate?: (value: unknown) => void` can't) — a
+design decision for the maintainer, not something to improvise from inside a step.
+
+## Deterministic per-write report/ack evidence, not a snapshot count (`TC-IDM-4.1`)
+
+An early draft of `subscribeAndModify` took one `countMatches(STATUS_RESPONSE_SUCCESS, from)`
+snapshot after all of a step's writes had completed and asserted `>= values.length`. An
+independent review caught that this count is genuinely nondeterministic across otherwise-identical
+runs (it can read 2, 3, or 4 for three correct writes): whether the priming report's own ack falls
+inside the window is a race against exactly where `from` landed, and whether the *last* write's ack
+has been pumped into the log buffer yet is a race against `LogFollower`'s own async delivery — the
+two errors happened to cancel out in the runs that were checked by hand, which is exactly the kind
+of test that looks solid until it isn't. The fix: await each write's own ack individually via
+`log.expect`, chaining the next wait's `from` to the previous match's own line index + 1, the same
+"anchor and advance" discipline `expectAttributePathIB`'s field-by-field walk already uses — never
+take a synchronous snapshot count of something that arrives asynchronously.
+
+## Open item: `decommission()` fails at this TC's own cleanup, root cause not yet settled
+
+Every run of this TC (matterjs, both locally and so far in CI) logs, from step 5's own
+`commissioned.decommissionAll(cx)` call:
+
+```
+Failed to decommission dut while cleaning up: [implementation] This Node 1 is currently in a
+reconnect state, decommissioning is not possible.
+```
+
+`CommissionedRefs.decommissionAll` catches this and only `console.warn`s, so the run's own verdict
+stays `"pass"` — but the DUT's fabric is genuinely never removed from the TH, and the underlying
+`PairedNode` is left `Reconnecting` when the process exits. Two root-cause theories have been
+proposed and both are currently open, not confirmed: an accumulation of same-peer subscriptions (a
+theory since retracted — `keepSubscriptions: false`'s own same-peer replacement means only one
+subscription is normally live), and the same replacement mechanism closing the *node-level*
+subscription `CommissioningController` establishes at commission time, not just this TC's own
+attribute subscriptions. This is being investigated separately from this TC's own step logic —
+`InProcessControllerAdapter`/`SubscribeOptions` are deliberately **not** touched by this TC to fix
+it (a planned migration off the deprecated `CommissioningController`/`PairedNode` stack may make the
+`Reconnecting`-state decommission guard moot anyway). Don't reflexively re-blame "accumulated
+subscriptions" without re-deriving it — that framing has already been wrong once.

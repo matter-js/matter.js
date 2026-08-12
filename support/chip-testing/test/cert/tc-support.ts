@@ -159,10 +159,14 @@ export const SUBSCRIBE_REQUEST_MESSAGE = /\[DMG\] SubscribeRequestMessage =\s*$/
 
 // chip's StatusResponseMessage decode dump carries the numeric status on its own nested line, not
 // on the same line as the message name — verified against Test_TC_IDM_4_1.yaml's captured
-// subscribe-establishment blocks (`Status = 0x00 (SUCCESS),`). This is the generic StatusIB shape,
-// so it also matches a write/invoke response's own success status, not only StatusResponseMessage's;
-// a caller relying on it for "N StatusResponseMessage successes" needs the cursor window to exclude
-// unrelated status lines itself.
+// subscribe-establishment blocks (`Status = 0x00 (SUCCESS),`). The capital "Status" is
+// StatusResponseMessage::Parser::PrettyPrint's own field specifically (StatusResponseMessage.cpp);
+// a write's AttributeStatusIB and an invoke's CommandStatusIB both delegate their nested status to
+// StatusIB::Parser::PrettyPrint, which prints lowercase "status" (StatusIB.cpp) — so this pattern
+// does not also match a write/invoke response's own per-item status, only a genuine
+// StatusResponseMessage. It does match any StatusResponseMessage regardless of which prior action
+// it acknowledges (a report, a write, ...); a caller needing to attribute one to a specific action
+// still needs to anchor on that action's own preceding log line, not on this pattern alone.
 export const STATUS_RESPONSE_SUCCESS = /Status = 0x00 \(SUCCESS\),?\s*$/;
 
 /**

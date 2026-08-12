@@ -10,7 +10,6 @@ import type { AttributePathSpec, CertNodeRef, CertStepContext, CheckRecord, LogF
 import { CertLogClosedError, CertLogTimeoutError, certTest } from "@matter/testing";
 import {
     CommissionedRefs,
-    countMatches,
     expectAdjacentLines,
     expectMessageWithPath,
     requireId,
@@ -52,6 +51,11 @@ const MAX_INTERVAL_CEILING_SECONDS = 80;
 // in subscribeAndModify waits for its own report before the next write is issued, so this bounds
 // that wait (floor plus slack for scheduling/CI jitter), not the write itself.
 const UPDATE_WAIT_TIMEOUT_MS = (MIN_INTERVAL_FLOOR_SECONDS + 20) * 1000;
+
+// Bounds waiting for a StatusResponseMessage that should already have been sent by the time this
+// wait starts (the controller's own report-processing acks a report as part of handling it) — this
+// only needs to cover the log follower's own pump lag, not any protocol-level delay.
+const ACK_WAIT_TIMEOUT_MS = 15_000;
 
 // chip's own decode dump for the request's top-level fields, verified against Test_TC_IDM_4_1.yaml's
 // step-1 capture. KeepSubscriptions is literally `false` here (not chip-tool's own `true`, used only
@@ -101,10 +105,49 @@ async function expectSubscribeEnvelope(
 }
 
 /**
+ * Waits for one {@link STATUS_RESPONSE_SUCCESS} line at or after `from`, converting a timeout/closed
+ * source into a recorded `"fail"` the same way {@link expectMessageWithPath} does, so a step's own
+ * evidence carries the failure instead of an uncaught throw. Event-driven (`log.expect`, not a
+ * synchronous snapshot count), so it tolerates the log follower's own pump lag; `"unverified"` for
+ * the matterjs flavor, since `STATUS_RESPONSE_SUCCESS` has no matterjs counterpart.
+ */
+async function expectStatusResponseSuccess(
+    log: LogFollower,
+    flavor: string,
+    from: number,
+    timeoutMs: number,
+): Promise<CheckRecord> {
+    try {
+        const result = await log.expect({ chip: STATUS_RESPONSE_SUCCESS }, { flavor, timeoutMs, from });
+        if (result.verdict === "unverified") {
+            return { type: "device-log", verdict: "unverified" };
+        }
+        return {
+            type: "device-log",
+            verdict: "pass",
+            pattern: String(STATUS_RESPONSE_SUCCESS),
+            matched: result.matched.text,
+            logLine: result.matched.index,
+        };
+    } catch (e) {
+        if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
+            return {
+                type: "device-log",
+                verdict: "fail",
+                pattern: String(STATUS_RESPONSE_SUCCESS),
+                detail: e.message,
+                logLine: from,
+            };
+        }
+        throw e;
+    }
+}
+
+/**
  * Waits until `getCount() >= target` or `timeoutMs` elapses, woken by `setNotify`'s callback firing
- * rather than polling on a bare sleep — the same bounded-wait idiom `TC-CADMIN-1.17.test.ts`'s
- * `expectRejection` uses. The timeout's own `Time.sleep` is always canceled once the race settles
- * (win or lose), so a lost race can't leave an armed timer outliving the step and racing teardown.
+ * rather than polling on a bare sleep. The timeout's own `Time.sleep` is always canceled once the
+ * race settles (win or lose), so a lost race can't leave an armed timer outliving the step and
+ * racing teardown.
  */
 async function waitForCount(
     getCount: () => number,
@@ -129,23 +172,16 @@ async function waitForCount(
 /**
  * Subscribes to `path`, verifies the SubscribeRequestMessage/AttributePathIB log shape, then writes
  * each of `values` in turn — waiting for that write's own subscription report (observed via
- * `onUpdate`) before issuing the next write. Firing every write first and only then waiting would let
- * MinIntervalFloor coalesce two writes landing inside the same floor window into a single report
- * (see `UPDATE_WAIT_TIMEOUT_MS`), so this is what makes "N writes -> N reports" hold rather than an
- * incidental pacing choice.
+ * `onUpdate`, and compared against the value just written) before issuing the next write. Firing
+ * every write first and only then waiting would let MinIntervalFloor coalesce two writes landing
+ * inside the same floor window into a single report, so this pacing is what makes "N writes -> N
+ * reports" hold, not an incidental choice.
  *
- * Records a `"response"` check that every write produced its own report (this is real on every
- * flavor, since `onUpdate` reflects an actual subscription report, not a log scrape — this is the
- * check that actually gates step failure), and — chip flavors only — a `"device-log"` check that at
- * least `values.length` StatusIB successes appear in `[afterSubscribe, now)`. Only one subscription
- * to this peer is ever live at a time — `keepSubscriptions: false` (hardcoded in
- * `InProcessControllerAdapter.subscribe`) makes every new `subscribe()` call close every earlier
- * subscription to the same peer on both sides (`ClientInteraction.subscribe` and
- * `InteractionServer`'s subscribe handling), not merely the window's own start/end points — so an
- * earlier step's subscription can't still be sending reports into this step's window. This is a
- * belt-and-suspenders check regardless: the `"response"` check above already throws on a genuine
- * reporting failure before this one runs, so even a miscounted window here couldn't turn a real
- * failure into a false pass.
+ * Each write's chip-flavor `StatusResponseMessage` ack is awaited individually too, chained forward
+ * from the previous write's own matched line — an aggregate snapshot count taken once at the end
+ * can't tell "the priming ack fell inside the window" apart from "the last write's ack hasn't been
+ * pumped into the log buffer yet", both of which make a single count nondeterministic across
+ * otherwise-identical runs.
  */
 async function subscribeAndModify<Value>(
     cx: CertStepContext,
@@ -158,12 +194,17 @@ async function subscribeAndModify<Value>(
     const from = th.log.mark();
 
     let updates = 0;
+    let mismatch: string | undefined;
     let notify: (() => void) | undefined;
     await cx.controllers.dut.node(ref).subscribe(path, {
         minIntervalFloorSeconds: MIN_INTERVAL_FLOOR_SECONDS,
         maxIntervalCeilingSeconds: MAX_INTERVAL_CEILING_SECONDS,
-        onUpdate: () => {
+        onUpdate: value => {
+            const expected = values[updates];
             updates++;
+            if (mismatch === undefined && value !== expected) {
+                mismatch = `update ${updates}/${values.length} reported ${JSON.stringify(value)}, expected the written value ${JSON.stringify(expected)}`;
+            }
             notify?.();
         },
     });
@@ -181,7 +222,7 @@ async function subscribeAndModify<Value>(
         throw new Error(`SubscribeRequestMessage log check failed for step ${step}: ${JSON.stringify(subscribeCheck)}`);
     }
 
-    const afterSubscribe = th.log.mark();
+    let ackCursor = th.log.mark();
     for (let i = 0; i < values.length; i++) {
         try {
             await cx.controllers.dut.node(ref).writeAttribute(path, values[i]);
@@ -203,28 +244,29 @@ async function subscribeAndModify<Value>(
             cx.recorder.check({ type: "response", verdict: "fail", detail });
             throw new Error(detail);
         }
+
+        const ackCheck = await expectStatusResponseSuccess(th.log, th.flavor, ackCursor, ACK_WAIT_TIMEOUT_MS);
+        cx.recorder.check(ackCheck);
+        if (ackCheck.verdict === "fail") {
+            throw new Error(
+                `StatusResponse ack check failed for step ${step}, write ${i + 1}/${values.length}: ${JSON.stringify(ackCheck)}`,
+            );
+        }
+        if (ackCheck.logLine !== undefined) {
+            ackCursor = ackCheck.logLine + 1;
+        }
+    }
+
+    if (mismatch !== undefined) {
+        const detail = `step ${step}: ${mismatch}`;
+        cx.recorder.check({ type: "response", verdict: "fail", detail });
+        throw new Error(detail);
     }
     cx.recorder.check({
         type: "response",
         verdict: "pass",
-        detail: `step ${step}: ${values.length} distinct writes to ${JSON.stringify(path)} each produced their own subscription report (onUpdate fired ${updates} times)`,
+        detail: `step ${step}: ${values.length} distinct writes to ${JSON.stringify(path)} each produced their own subscription report carrying the written value (onUpdate fired ${updates} times)`,
     });
-
-    const logCheck: CheckRecord = th.flavor.startsWith("chip")
-        ? (() => {
-              const count = countMatches(th.log, th.flavor, STATUS_RESPONSE_SUCCESS, afterSubscribe);
-              return {
-                  type: "device-log",
-                  verdict: count >= values.length ? "pass" : "fail",
-                  pattern: String(STATUS_RESPONSE_SUCCESS),
-                  detail: `${count} SUCCESS status lines between step ${step}'s subscribe and the end of its ${values.length} writes`,
-              } satisfies CheckRecord;
-          })()
-        : { type: "device-log", verdict: "unverified" };
-    cx.recorder.check(logCheck);
-    if (logCheck.verdict === "fail") {
-        throw new Error(`StatusResponse success-count check failed for step ${step}: ${JSON.stringify(logCheck)}`);
-    }
 }
 
 const commissioned = new CommissionedRefs();
@@ -258,6 +300,11 @@ certTest("TC-IDM-4.1", {
                 await dut.node(ref).subscribe(path, {
                     minIntervalFloorSeconds: MIN_INTERVAL_FLOOR_SECONDS,
                     maxIntervalCeilingSeconds: MAX_INTERVAL_CEILING_SECONDS,
+                });
+                cx.recorder.check({
+                    type: "response",
+                    verdict: "pass",
+                    detail: `subscribe() resolved for ${JSON.stringify(path)}`,
                 });
 
                 const pathCheck = await expectMessageWithPath(
@@ -309,17 +356,7 @@ certTest("TC-IDM-4.1", {
                 detail: "subscribe() resolved after receiving and acking the priming report",
             });
 
-            const logCheck: CheckRecord = th.flavor.startsWith("chip")
-                ? (() => {
-                      const count = countMatches(th.log, th.flavor, STATUS_RESPONSE_SUCCESS, from);
-                      return {
-                          type: "device-log",
-                          verdict: count >= 1 ? "pass" : "fail",
-                          pattern: String(STATUS_RESPONSE_SUCCESS),
-                          detail: `${count} SUCCESS status lines since this step's own subscribe`,
-                      } satisfies CheckRecord;
-                  })()
-                : { type: "device-log", verdict: "unverified" };
+            const logCheck = await expectStatusResponseSuccess(th.log, th.flavor, from, ACK_WAIT_TIMEOUT_MS);
             cx.recorder.check(logCheck);
             if (logCheck.verdict === "fail") {
                 throw new Error(`Priming-report status check failed: ${JSON.stringify(logCheck)}`);
@@ -422,5 +459,17 @@ certTest("TC-IDM-4.1", {
             notApplicable:
                 "Not verifiable/Out of scope in CHIP's certification harness: forcing the TH to withhold reports " +
                 "and replay an expired subscription id has no defined mechanism",
+        },
+    )
+    .step(
+        10,
+        "DUT sends a subscription request message to the target node/reference device for multiple attributes " +
+            "(>1 attributes).",
+        async () => {},
+        {
+            notApplicable:
+                "CertNodeApi.subscribe accepts a single AttributePathSpec and SubscribeOptions.onUpdate has no " +
+                "per-path attribution — one subscription cannot carry the three concrete paths this step needs " +
+                "without an adapter API change (see AGENTS.md)",
         },
     );
