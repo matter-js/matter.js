@@ -62,20 +62,16 @@ const UPDATE_WAIT_TIMEOUT_MS = (MIN_INTERVAL_FLOOR_SECONDS + 20) * 1000;
 const ACK_WAIT_TIMEOUT_MS = 15_000;
 
 // chip's own decode dump for the request's top-level fields, verified against Test_TC_IDM_4_1.yaml's
-// step-1 capture (--keepSubscriptions true). MaxIntervalCeilingSeconds is matched by shape, not the
-// exact requested value: PhysicalDeviceProperties.subscriptionIntervalBoundsFor
-// (packages/protocol/src/peer/) adds a random, whole-seconds jitter (up to 10%, floor 10s) on top of
-// any non-ICD subscribe request before it reaches the wire, so the transmitted ceiling is >= the
-// requested one, not necessarily equal to it. The value actually observed is recorded in
-// expectSubscribeEnvelope's returned check instead.
-const MAX_INTERVAL_CEILING_LINE = /MaxIntervalCeilingSeconds = (0x[0-9a-f]+),\s*$/;
-
+// step-1 capture (--keepSubscriptions true). Both intervals are pinned to the exact values this test
+// requests: PhysicalDeviceProperties.subscriptionIntervalBoundsFor (packages/protocol/src/peer/)
+// jitters only a ceiling it derived itself, so a caller-supplied one reaches the wire unchanged —
+// pinning it here is what keeps that guarantee under test.
 const SUBSCRIBE_ENVELOPE_SEQUENCE = [
     SUBSCRIBE_REQUEST_MESSAGE,
     /\{\s*$/,
     /KeepSubscriptions = true,\s*$/,
     new RegExp(`MinIntervalFloorSeconds = 0x${MIN_INTERVAL_FLOOR_SECONDS.toString(16)},\\s*$`),
-    MAX_INTERVAL_CEILING_LINE,
+    new RegExp(`MaxIntervalCeilingSeconds = 0x${MAX_INTERVAL_CEILING_SECONDS.toString(16)},\\s*$`),
     /AttributePathIBs =\s*$/,
 ];
 
@@ -97,21 +93,12 @@ async function expectSubscribeEnvelope(
         if (result.verdict === "unverified") {
             return { type: "device-log", verdict: "unverified" };
         }
-        // MAX_INTERVAL_CEILING_LINE is the second-to-last entry in SUBSCRIBE_ENVELOPE_SEQUENCE, so
-        // the adjacency check above guarantees its match sits exactly one line before this one.
-        const ceilingLine = log.lines[result.last.index - 1]?.text;
-        const observedCeiling =
-            ceilingLine !== undefined ? MAX_INTERVAL_CEILING_LINE.exec(ceilingLine)?.[1] : undefined;
         return {
             type: "device-log",
             verdict: "pass",
             pattern:
                 "SubscribeRequestMessage envelope (KeepSubscriptions, MinIntervalFloorSeconds, MaxIntervalCeilingSeconds, AttributePathIBs)",
             matched: result.last.text,
-            detail:
-                observedCeiling === undefined
-                    ? undefined
-                    : `requested MaxIntervalCeilingSeconds = 0x${MAX_INTERVAL_CEILING_SECONDS.toString(16)}; observed on the wire: ${observedCeiling}`,
             logLine: result.last.index,
         };
     } catch (e) {
@@ -188,12 +175,57 @@ async function expectSubscriptionId(
     }
 }
 
+// chip's own trace line for an outbound message — printed once, immediately before that message's
+// raw/decode dump — names the CHIP Exchange id it was sent on (verified against a real capture:
+// `>> to UDP:[...] | <msgCounter> | [Interaction Model  (1) / Report Data (0x05) / Session = <s> /
+// Exchange = <id>]`). Matter Core's MRP (§ 4.12) always acks a message on the exchange it was
+// received on, and the same capture shows the DUT's ack line naming that identical id, so this is
+// what ties one specific report to one specific ack even though the two lines aren't adjacent (a
+// variable amount of raw-frame/decode-dump content sits between a trace line and its own message
+// name line, depending on payload size).
+const REPORT_SENT_LINE = /\[DMG\] >> to UDP:.*\/ Report Data \(0x05\) \/ Session = \d+ \/ Exchange = (\d+)\]\s*$/;
+
+function reportAckedOnExchange(exchange: string): RegExp {
+    return new RegExp(
+        `\\[DMG\\] << from UDP:.*/ Status Response \\(0x01\\) / Session = \\d+ / Exchange = ${exchange}\\]\\s*$`,
+    );
+}
+
+// How far back from a matched ReportDataMessage's own decode dump to look for its trace line —
+// generous relative to the largest gap seen in a real capture (chunked multi-attribute priming
+// reports, tens of lines), so this is a runaway-loop guard, not a tuned bound.
+const EXCHANGE_LOOKBACK_LINES = 1000;
+
+/**
+ * The trace line naming a message's own Exchange id is the *nearest* one preceding that message's
+ * decode dump: chip logs one message at a time, so no other message's own trace line can land in
+ * between. Scanning backward from the decode dump (rather than forward from a fixed cursor) is what
+ * makes this correct regardless of how many raw-frame lines chip printed for this particular
+ * message's payload size.
+ */
+function exchangeIdBefore(log: LogFollower, beforeIndex: number): string | undefined {
+    const floor = Math.max(0, beforeIndex - EXCHANGE_LOOKBACK_LINES);
+    const lines = log.lines;
+    for (let i = beforeIndex - 1; i >= floor; i--) {
+        const match = REPORT_SENT_LINE.exec(lines[i].text);
+        if (match) {
+            return match[1];
+        }
+    }
+    return undefined;
+}
+
 /**
  * Confirms the TH sent a report on subscription `subscriptionId` at or after `from` and that the DUT
- * answered *that* report with a Success StatusResponse. The ack window opens at this subscription's
- * own ReportDataMessage rather than at a step boundary, so neither a periodic report from a
- * subscription an earlier step left live nor this step's own earlier write can supply the evidence.
- * `"unverified"` for the matterjs flavor (no `subscriptionId`, no chip decode dump to match).
+ * answered *that specific report* with a Success StatusResponse. The subscription id alone only
+ * proves the report is ours; several subscriptions' report/ack cycles can be in flight over the
+ * seconds it takes chip to send a report and receive its ack, so a plain "next Success StatusResponse
+ * after this report" search can still land on a different subscription's ack landing in that window.
+ * This closes that gap by reading the CHIP Exchange id our report was sent on (see
+ * {@link REPORT_SENT_LINE}) and requiring the ack to arrive on that same exchange — a different
+ * subscription's own report/ack pair carries its own, different exchange id, so it can no longer
+ * stand in for ours. `"unverified"` for the matterjs flavor (no `subscriptionId`, no chip decode
+ * dump to match).
  */
 async function expectReportAck(
     log: LogFollower,
@@ -208,7 +240,7 @@ async function expectReportAck(
 
     const deadline = Time.nowMs + timeoutMs;
     const remaining = () => Math.max(1, deadline - Time.nowMs);
-    const pattern = `ReportDataMessage(SubscriptionId = 0x${subscriptionId.toString(16)}) then ${STATUS_RESPONSE_SUCCESS}`;
+    const pattern = `ReportDataMessage(SubscriptionId = 0x${subscriptionId.toString(16)}) then its own ${STATUS_RESPONSE_SUCCESS} (matched by Exchange id)`;
 
     try {
         const report = await expectAdjacentLines(
@@ -222,9 +254,28 @@ async function expectReportAck(
             return { type: "device-log", verdict: "unverified" };
         }
 
+        const exchange = exchangeIdBefore(log, report.last.index);
+        if (exchange === undefined) {
+            return {
+                type: "device-log",
+                verdict: "fail",
+                pattern,
+                detail: `No outbound Report Data trace line (carrying an Exchange id) found before line ${report.last.index}`,
+                logLine: report.last.index,
+            };
+        }
+
+        const ackHeader = await log.expect(
+            { chip: reportAckedOnExchange(exchange) },
+            { flavor, timeoutMs: remaining(), from: report.last.index + 1 },
+        );
+        if (ackHeader.verdict === "unverified") {
+            return { type: "device-log", verdict: "unverified" };
+        }
+
         const ack = await log.expect(
             { chip: STATUS_RESPONSE_SUCCESS },
-            { flavor, timeoutMs: remaining(), from: report.last.index + 1 },
+            { flavor, timeoutMs: remaining(), from: ackHeader.matched.index + 1 },
         );
         if (ack.verdict === "unverified") {
             return { type: "device-log", verdict: "unverified" };

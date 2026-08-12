@@ -6,6 +6,7 @@
 
 import type {
     CertDevice,
+    CertNodeApi,
     CertStepContext,
     CertTestDefinition,
     CheckRecord,
@@ -19,6 +20,7 @@ import type {
     TestFileDescriptor,
 } from "@matter/testing";
 import { CertTest, LogFollower, PicsFile, PicsUnavailableError } from "@matter/testing";
+import { CommissionedRefs } from "../cert/tc-support.js";
 
 async function notImplemented(..._args: unknown[]): Promise<never> {
     throw new Error("Container access is not available in this unit test");
@@ -782,6 +784,72 @@ describe("CertTest", () => {
         await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith("boom");
 
         expect(finalizationFailures).deep.equal(["decommission failed"]);
+    });
+
+    it("still decommissions a role via finalize when a step defers CommissionedRefs.clear() until its own evidence check confirms removal", async () => {
+        // Mirrors TC-CADMIN-1.17 step 7: an invoke() resolving only proves the peer accepted the
+        // interaction, not that the follow-up evidence (a device-log check here, standing in for
+        // that TC's two) actually confirms what the invoke claimed. Surrendering the ref before that
+        // evidence is in would leave `commissioned` believing nothing needs cleanup while the fabric
+        // may still be live — this pins the fix: clear() must wait for the check, so a check failure
+        // leaves the role for the finalizer.
+        const decommissioned = new Array<string>();
+        const commissioned = new CommissionedRefs<"dut">();
+
+        function nodeFor(role: "dut"): CertNodeApi {
+            const unused = () => Promise.reject(new Error("not used by this test"));
+            return {
+                invoke: unused,
+                readAttribute: unused,
+                writeAttribute: unused,
+                subscribe: unused,
+                openCommissioningWindow: unused,
+                operationalMdnsInstanceName: unused,
+                decommission: async () => void decommissioned.push(role),
+            };
+        }
+        const noLines = async function* (): AsyncGenerator<string> {};
+        const controller: ControllerAdapter = {
+            id: "dut",
+            log: new LogFollower(noLines(), "dut"),
+            async start() {},
+            async close() {},
+            async commission() {
+                return "ref-dut";
+            },
+            node: () => nodeFor("dut"),
+        };
+
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 7,
+                    text: "Step that only clears its ref once a check confirms the claimed effect",
+                    run: async () => {
+                        commissioned.set("dut", "ref-dut");
+                        const evidenceConfirmedRemoval = false;
+                        if (!evidenceConfirmedRemoval) {
+                            throw new Error("evidence check failed");
+                        }
+                        commissioned.clear("dut");
+                    },
+                },
+            ],
+            finalize: cx => commissioned.decommissionAll(cx),
+        };
+
+        const cx: CertStepContext = { controllers: { dut: controller }, devices: {}, recorder: stubRecorder() };
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            "evidence check failed",
+        );
+
+        expect(decommissioned).deep.equal(["dut"]);
     });
 
     it("abandons cleanup that outlives its budget, so the evidence still gets flushed", async () => {

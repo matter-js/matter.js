@@ -38,8 +38,9 @@ type Role = "dut" | "th_cr2" | "th_cr3";
 const commissioned = new CommissionedRefs<Role>();
 const pendingPairingCode = new PendingPairingCode();
 let cr2FabricIndex: number | undefined;
-// TH_CE removed this fabric itself in step 7, so it is no longer the finalizer's to decommission —
-// but step 8 still needs the ref to prove its sessions are gone.
+// Set only once step 7's log checks confirm TH_CE actually removed th_cr2's fabric — until then
+// `commissioned` keeps owning th_cr2, so an inconclusive check leaves the finalizer able to
+// decommission it. Step 8 needs this ref to reach the now-decommissioned node.
 let removedCr2Ref: CertNodeRef | undefined;
 
 interface FabricEntry {
@@ -358,8 +359,6 @@ certTest("TC-CADMIN-1.17", {
 
             const from = th.log.mark();
             await dut.node(dutRef).invoke("OperationalCredentials", "removeFabric", { fabricIndex });
-            removedCr2Ref = commissioned.require("th_cr2");
-            commissioned.clear("th_cr2");
 
             const removed = await expectDeviceLog(
                 th.log,
@@ -379,6 +378,13 @@ certTest("TC-CADMIN-1.17", {
             if (expiring.check.verdict === "fail") {
                 throw new Error(`"Expiring all sessions" log check failed: ${JSON.stringify(expiring.check)}`);
             }
+
+            // Only surrender th_cr2 to step 8 once both checks above confirm TH_CE actually removed
+            // it — invoke() resolving only means the peer accepted the interaction, not that
+            // NOCsResponse carried success. Clearing any earlier left `commissioned` with no owner
+            // for a fabric that (per an ambiguous or timed-out log check) might still be live.
+            removedCr2Ref = commissioned.require("th_cr2");
+            commissioned.clear("th_cr2");
         },
         {
             pics: "OPCREDS.C.C0a.Tx",

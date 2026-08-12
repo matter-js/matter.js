@@ -810,10 +810,19 @@ at that report's line, not at a step boundary. Both blocks' rendering is capture
 (`ReadHandler::ProcessSubscribeRequest`), before the priming report — so even the priming report
 carries the final id. Read from source, not from a chip-flavored run: only CI proves it.
 
-Residual, and deliberate: the ack matched is the first Success `StatusResponse` after this
-subscription's report. A different subscription's report landing in the microseconds between our
-report and its ack would still let its ack stand in for ours. There is no subscription id on a
-`StatusResponseMessage` to close that last gap.
+**Fixed** (was: the ack matched was the first Success `StatusResponse` anywhere after this
+subscription's report — restoring the automatic node-level subscription made this reachable, not
+just theoretical: several subscriptions' report/ack cycles are now genuinely concurrent, and the
+gap between a report and its own ack is the full multi-second network/log round trip, not a
+microseconds race). There is no subscription id on a `StatusResponseMessage` itself, but chip's own
+trace line for an outbound message (printed right before that message's decode dump) names the CHIP
+Exchange id it was sent on, and the same capture shows the DUT's ack line naming that identical id —
+Matter Core's MRP (§ 4.12) always acks a message on the exchange it arrived on. `expectReportAck` now
+reads that id off our own report's trace line and requires the ack to arrive on the same exchange;
+a different subscription's report/ack pair carries its own, different exchange id, so it can no
+longer stand in for ours. What this does not prove: chip's exchange-id counter is a plain, unbounded
+counter with no documented uniqueness guarantee beyond one run's lifetime, and the trace line's exact
+wording is chip-version-specific like every other pattern in this file.
 
 ## A write that doesn't change the value produces no report — the "values must differ" precondition (`TC-IDM-4.1`)
 
