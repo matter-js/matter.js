@@ -701,6 +701,22 @@ binary at `/official-chip-bins/` for the cert-bins job. `TC-SC-3.5.test.ts`'s si
 `env.MATTER_CERT_TH_SERVER_APP_PATH` and calls `this.skip()` when unset, so the matterjs flavor —
 which does not set it — stays green without a TH_SERVER binary.
 
+## The write-path idiom (`writeAndCheck`, `TC-IDM-3.1`)
+
+A "DUT writes an attribute on the TH" step needs the same two-sided proof a read does: the
+*response* (`ControllerAdapter.node(ref).writeAttribute(path, value)` resolving or rejecting) and
+the *TH's own log* showing chip received this specific `WriteRequestMessage`, not some other step's.
+`writeAndCheck` (`TC-IDM-3.1.test.ts`) is the shape every executable write step in this TC shares:
+mark the log, `writeAttribute`, record a `"response"` check either way, then call
+`expectMessageWithPath(log, flavor, WRITE_REQUEST_MESSAGE, path, from, timeoutMs)` (`tc-support.ts`)
+to confirm the message name and the request's `AttributePathIB` appear as a consecutive block after
+the mark — the same anchor-then-walk `expectAttributePathIB` does for reads (see "Wildcard path
+idioms" above), just anchored on `WRITE_REQUEST_MESSAGE` first. `expectMessageWithPath` is the
+write/subscribe-shared promotion of that pattern: `TC-IDM-4.1` reuses it verbatim with
+`SUBSCRIBE_REQUEST_MESSAGE` for its own priming subscribe (see below). `INVOKE_REQUEST_MESSAGE`'s
+`CommandDataIB` shape still needs `expectCommandInvoke` instead — a command's fields aren't an
+`AttributePathIB`.
+
 ## No capability gap for `ThermostatUserInterfaceConfiguration`/`ColorControl` (`TC-IDM-3.1`)
 
 Before writing this TC, both clusters looked like plausible candidates for the device-flavor
@@ -760,6 +776,21 @@ of test that looks solid until it isn't. The fix: await each write's own ack ind
 `log.expect`, chaining the next wait's `from` to the previous match's own line index + 1, the same
 "anchor and advance" discipline `expectAttributePathIB`'s field-by-field walk already uses — never
 take a synchronous snapshot count of something that arrives asynchronously.
+
+## A write that doesn't change the value produces no report — the "values must differ" precondition (`TC-IDM-4.1`)
+
+`subscribeAndModify` waits for exactly one `onUpdate` per write; that only holds if every write
+actually changes the attribute. `Datasource.#computePostCommitChanges`
+(`packages/node/src/behavior/state/managed/Datasource.ts`) short-circuits on
+`isDeepEqual(oldValue, newValue)` before any change event fires, so a write whose value equals the
+attribute's *current* value produces no subscription report at all — `waitForCount` then runs out
+its full `UPDATE_WAIT_TIMEOUT_MS` and fails the step, rather than hanging silently. Every `values`
+list `subscribeAndModify` is called with (steps 3-5) is chosen so each entry differs from the one
+before it, not only from the attribute's initial value — matching the plan's own "modify the
+attribute multiple times" wording, since writing the same value again isn't a modification. A
+future TC reusing `subscribeAndModify` with a `values` list that repeats a value back-to-back, or
+opens with the TH's own current default, will time out on that write rather than fail fast at the
+call site — there's no guard for it; the caller is expected to know the TH's starting value.
 
 ## Resolved: `decommission()` failed at this TC's own cleanup
 

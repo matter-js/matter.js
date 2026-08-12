@@ -83,6 +83,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/testing
     - Enhancement: `certTest()` defines controller-side certification tests with per-step PICS gating, device-log expectations and evidence recording; devices run as chip apps (docker or local binary) or matter.js test apps, selected via `MATTER_CERT_DEVICE`
+    - Enhancement: A cert test step can declare itself `notApplicable`, recording it as skipped with a reason instead of running it
     - Enhancement: `PromptDrivenPythonTest` drives chip python test scripts that prompt for manual commissioning steps
     - Enhancement: `matter-test`'s post-test clean-exit grace period is overridable via `MATTER_TEST_SHUTDOWN_TIMEOUT_MS`
     - Enhancement: `MATTER_CHIP_BINS_SOURCE=cert-bins` selects project-chip's official `connectedhomeip/chip-cert-bins` binaries for the classic yaml/python tests and `chip-local` cert-test subjects
