@@ -85,6 +85,12 @@ export interface StepRecorder {
      */
     deviceExited?(info: DeviceExitInfo): void;
     /**
+     * Records that {@link CertTestDefinition.finalize} threw. {@link CertTest} calls this and then
+     * fails the run itself unless a step already failed; a recorder need only persist the
+     * information (see {@link EvidenceRecorder.finalizationFailed}).
+     */
+    finalizationFailed?(detail: string): void;
+    /**
      * Persists whatever evidence was recorded. Returns an implementation-defined locator for it
      * (e.g. {@link EvidenceRecorder} returns the directory it wrote to); a recorder with nothing to
      * persist returns an empty string.
@@ -111,6 +117,8 @@ export interface CertStepDefinition {
     pics?: string;
     /** Device flavors this step supports; absent runs on every flavor (see `cert-dsl.ts`'s `certTest`/`.step`). */
     flavors?: DeviceFlavor[];
+    /** Reason this step can never execute; present makes the engine skip it (see `cert-dsl.ts`'s `CertStepOptions`). */
+    notApplicable?: string;
     run: (cx: CertStepContext) => Promise<void>;
 }
 
@@ -123,4 +131,6 @@ export interface CertTestDefinition {
     pics: string[];
     app: string;
     steps: CertStepDefinition[];
+    /** Cleanup the engine runs after the last step whatever happened to it (see `cert-dsl.ts`'s `finalize`). */
+    finalize?: (cx: CertStepContext) => Promise<void>;
 }

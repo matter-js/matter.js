@@ -231,6 +231,27 @@ describe("EvidenceRecorder", () => {
         expect(resultJson.deviceExit).deep.equal({ code: null, signal: "SIGKILL" });
     });
 
+    it("marks the run failed when cleanup failed, even though every step passed", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "matterjs",
+            device: "chip-docker",
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.endStep(step1, "pass");
+        recorder.finalizationFailed("Failed to decommission dut: node is reconnecting");
+
+        const dir = await recorder.flush();
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+
+        expect(resultJson.verdict).equal("fail");
+        expect(resultJson.finalizationError).equal("Failed to decommission dut: node is reconnecting");
+    });
+
     it("throws when check() is called without an active step", () => {
         const recorder = new EvidenceRecorder(outDir, {
             tc: "TC-CADMIN-1.17",

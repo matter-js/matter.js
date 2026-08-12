@@ -173,6 +173,49 @@ describe("ClusterVariance", () => {
     });
 
     describe("illegal feature combinations", () => {
+        it("requires a feature the specification makes mandatory", () => {
+            expect(illegalCombinations({ name: "FOO", conformance: "M" })).deep.equal([{ FOO: false }]);
+        });
+
+        it("allows a feature the specification leaves optional, provisional or revision gated", () => {
+            expect(
+                illegalCombinations(
+                    { name: "FOO", conformance: "O" },
+                    { name: "BAR", conformance: "P" },
+                    { name: "BAZ", conformance: "Rev >= v2" },
+                ),
+            ).deep.equal([]);
+        });
+
+        it("disallows a feature the specification deprecates or forbids", () => {
+            expect(
+                illegalCombinations({ name: "FOO", conformance: "D" }, { name: "BAR", conformance: "X" }),
+            ).deep.equal([{ FOO: true }, { BAR: true }]);
+        });
+
+        it("requires a feature another feature mandates", () => {
+            expect(
+                illegalCombinations({ name: "FOO", conformance: "O" }, { name: "BAR", conformance: "FOO" }),
+            ).deep.equal([{ FOO: true, BAR: false }]);
+        });
+
+        it("requires a feature a conjunction of several features mandates", () => {
+            expect(
+                illegalCombinations(
+                    { name: "FOO", conformance: "O" },
+                    { name: "BAR", conformance: "O" },
+                    { name: "BAZ", conformance: "O" },
+                    { name: "QUX", conformance: "FOO & BAR & BAZ" },
+                ),
+            ).deep.equal([{ FOO: true, BAR: true, BAZ: true, QUX: false }]);
+        });
+
+        it("drops a rule a self-contradictory expression would carry", () => {
+            expect(
+                illegalCombinations({ name: "FOO", conformance: "O" }, { name: "BAR", conformance: "FOO & !FOO" }),
+            ).deep.equal([]);
+        });
+
         // OnOff: OFFONLY conformance "[!(LT | DF)]" is disallowed whenever LT or DF is enabled
         it("supports negated disjunction over features", () => {
             expect(
@@ -372,6 +415,17 @@ describe("ClusterVariance", () => {
             ]);
         });
 
+        // DeviceEnergyManagement: the "[!PA].a" set closes only where PA is selected, which the empty selection is not
+        it("reports a choice set closed by a selected feature as requiring a feature selection", () => {
+            expect(
+                analyzeFeatures(
+                    { name: "PA", conformance: "O" },
+                    { name: "PFR", conformance: "[!PA].a" },
+                    { name: "SFR", conformance: "[!PA].a" },
+                ).requiresFeatures,
+            ).equals(true);
+        });
+
         it("reports a gated choice set as requiring no feature selection", () => {
             expect(
                 analyzeFeatures(
@@ -409,14 +463,78 @@ describe("ClusterVariance", () => {
             ).throws(InternalError);
         });
 
-        it("rejects a disjunction the ruleset cannot analyze", () => {
-            expect(() =>
+        it("distributes a conjunction the disjuncts of an optional if mix in", () => {
+            expect(
                 illegalCombinations(
                     { name: "FOO", conformance: "O" },
                     { name: "BAR", conformance: "O" },
                     { name: "BAZ", conformance: "O" },
                     { name: "QUX", conformance: "[FOO | BAR & BAZ]" },
                 ),
+            ).deep.equal([
+                { QUX: true, FOO: false, BAR: false },
+                { QUX: true, FOO: false, BAZ: false },
+            ]);
+        });
+
+        it("rejects a choice set a member joins under a compound condition", () => {
+            for (const conformance of ["[A | B].a+", "[!(A & B)].a+"]) {
+                expect(() =>
+                    illegalCombinations(
+                        { name: "A", conformance: "O" },
+                        { name: "B", conformance: "O" },
+                        { name: "X", conformance },
+                        { name: "Y", conformance },
+                    ),
+                ).throws(InternalError);
+            }
+        });
+
+        it("keeps a choice set a member joins under a single condition", () => {
+            expect(
+                illegalCombinations(
+                    { name: "A", conformance: "O" },
+                    { name: "X", conformance: "[A].a+" },
+                    { name: "Y", conformance: "[A].a+" },
+                ),
+            ).deep.equal([
+                { X: true, A: false },
+                { Y: true, A: false },
+                { X: false, Y: false, A: true },
+            ]);
+        });
+
+        it("keeps both patterns a disjunction of one feature carries", () => {
+            expect(
+                illegalCombinations({ name: "A", conformance: "O" }, { name: "X", conformance: "A | !A" }),
+            ).deep.equal([
+                { A: true, X: false },
+                { A: false, X: false },
+            ]);
+        });
+
+        it("rejects a choice set the specification bounds from above", () => {
+            expect(() =>
+                illegalCombinations({ name: "X", conformance: "O.a-" }, { name: "Y", conformance: "O.a-" }),
+            ).throws(InternalError);
+        });
+
+        it("rejects a choice set of more than one required member", () => {
+            expect(() =>
+                illegalCombinations({ name: "X", conformance: "O.a2" }, { name: "Y", conformance: "O.a2" }),
+            ).throws(InternalError);
+        });
+
+        it("rejects an expression that does not test features", () => {
+            expect(() =>
+                illegalCombinations(
+                    { name: "FOO", conformance: "O" },
+                    { name: "QUX", conformance: "[Rev >= v2 & FOO]" },
+                ),
+            ).throws(InternalError);
+
+            expect(() =>
+                illegalCombinations({ name: "FOO", conformance: "O" }, { name: "QUX", conformance: "[FOO > 2]" }),
             ).throws(InternalError);
         });
 

@@ -9,7 +9,18 @@ import { Conformance } from "../../aspects/index.js";
 import { ClusterModel, FieldModel } from "../../models/index.js";
 import { FeatureBitmap } from "./FeatureBitmap.js";
 
-export type IllegalFeatureCombinations = FeatureBitmap[];
+/**
+ * A disjunction of flag sets, describing the states in which some condition holds.  An empty disjunction describes no
+ * state at all and a single empty flag set describes every state.
+ */
+type States = FeatureBitmap[];
+
+/**
+ * Feature combinations a cluster disallows.  A selection matching every flag of any one set violates conformance.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 7.3
+ */
+export type IllegalFeatureCombinations = States;
 
 type Choices = {
     [name: string]: {
@@ -27,36 +38,45 @@ type ChoiceMember = {
      */
     gate: FeatureBitmap;
 
+    /**
+     * True when the specification has yet to settle the member's conformance, so the set cannot require it.
+     */
     provisional: boolean;
 };
 
 /**
- * The position of a conformance node within an enclosing "otherwise" list.
+ * What an enclosing "otherwise" list establishes about one of its entries.  Conformance is a list of alternatives of
+ * which the first applicable governs, so an entry's meaning depends on the entries around it.
  */
-type OtherwiseEntry = {
+type EntryContext = {
     /**
-     * Where the list reaches the entry, as a disjunction of flag sets.
+     * The states in which the list reaches the entry.
      */
-    reachedWhen: IllegalFeatureCombinations;
+    reachedWhen: States;
 
     /**
-     * True when a later entry governs the states this one does not, so the entry alone disallows nothing.
+     * True when a later entry governs the states this one does not.  The entry then disallows nothing on its own, as
+     * the later entry states what applies instead.
      */
     hasFallback: boolean;
 
     /**
-     * True when the entries before this one require the feature wherever they govern, so a rule this entry contributes
-     * holds vacuously in the states they cover.
+     * True when each earlier entry requires the feature wherever it governs, so a rule this entry contributes holds
+     * vacuously in the states they cover.
      */
     mandatedBefore: boolean;
 
     /**
-     * True when a provisional qualifier precedes this entry, leaving what follows a statement of intent.
+     * True when a provisional qualifier precedes the entry, so a choice set this entry joins cannot require its
+     * members.
      */
     provisionalBefore: boolean;
 };
 
-const STANDALONE: OtherwiseEntry = {
+/**
+ * A conformance that is not an "otherwise" list is the sole alternative, reached in every state.
+ */
+const STANDALONE: EntryContext = {
     reachedWhen: [FeatureBitmap()],
     hasFallback: false,
     mandatedBefore: true,
@@ -68,13 +88,16 @@ const STANDALONE: OtherwiseEntry = {
  * conformance AST.
  *
  * Rule matching is not exhaustive but supports a significant subset of the conformance dialect that is inclusive of all
- * feature conformances used by the 1.1 specifications.
+ * feature conformances the specifications use.
  *
- * Throws an error if conformance does not adhere to supported rules.  This indicates the ruleset needs augmentation.
+ * Throws {@link NotImplementedError} if conformance does not adhere to supported rules.  This indicates the ruleset
+ * needs augmentation.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 7.3
  */
 export function IllegalFeatureCombinations(cluster: ClusterModel) {
-    const illegal = [] as IllegalFeatureCombinations;
-    const choices = {} as Choices;
+    const illegal = new Array<FeatureBitmap>();
+    const choices: Choices = {};
 
     function add(flags: FeatureBitmap) {
         if (!illegal.some(e => isDeepEqual(e, flags))) {
@@ -89,7 +112,8 @@ export function IllegalFeatureCombinations(cluster: ClusterModel) {
     let requiresFeatures = false;
 
     for (const [name, choice] of Object.entries(choices)) {
-        // If choices are mutually exclusive, reject any two flags in combination
+        const subject = `${cluster.path} choice "${name}"`;
+
         if (choice.exclusive) {
             for (const { feature: f1 } of choice.members) {
                 for (const { feature: f2 } of choice.members) {
@@ -113,38 +137,38 @@ export function IllegalFeatureCombinations(cluster: ClusterModel) {
 
         const gate = sharedGate(choice.members.map(member => member.gate));
         if (gate === undefined) {
-            throw new NotImplementedError(
-                `New rule required to support ${cluster.path} choice "${name}" with dissimilar member gates`,
-            );
+            notImplemented(subject, "members leave the set under differing conditions");
         }
         for (const [gated, value] of Object.entries(gate)) {
             if (gated in flags) {
-                throw new NotImplementedError(
-                    `New rule required to support ${cluster.path} choice "${name}" gated on member ${gated}`,
-                );
+                notImplemented(subject, `the set is gated on its own member ${gated}`);
             }
             flags[gated] = !value;
         }
 
         add(flags);
 
-        // A gate that no state satisfies leaves the selection unconstrained
+        // The empty selection violating the requirement is what makes a selection compulsory
         requiresFeatures ||= Object.values(flags).every(value => !value);
     }
 
     return { illegal, requiresFeatures };
 }
 
-function unsupportedConformance(feature: FieldModel): never {
-    throw new NotImplementedError(`New rule required to support ${feature.path} conformance "${feature.conformance}"`);
+function notImplemented(subject: string, detail: string): never {
+    throw new NotImplementedError(`New rule required to support ${subject}: ${detail}`);
+}
+
+function unsupportedConformance(feature: FieldModel, detail: string): never {
+    notImplemented(`${feature.path} conformance "${feature.conformance}"`, detail);
 }
 
 /**
  * Distribute conjunction over two disjunctions of flag sets.  Flag sets that contradict describe an unreachable state
  * and drop out.
  */
-function conjoin(lhs: IllegalFeatureCombinations, rhs: IllegalFeatureCombinations) {
-    const result: IllegalFeatureCombinations = [];
+function conjoin(lhs: States, rhs: States) {
+    const result = new Array<FeatureBitmap>();
 
     for (const l of lhs) {
         for (const r of rhs) {
@@ -182,10 +206,69 @@ function sharedGate(gates: FeatureBitmap[]) {
 }
 
 /**
- * Determine when an "otherwise" entry does not govern, as a disjunction of flag sets.  An empty disjunction means
- * the entry always governs, leaving the entries that follow it unreachable.
+ * Express the states in which a feature expression holds.
  */
-function inapplicable(feature: FieldModel, node: Conformance.Ast): IllegalFeatureCombinations {
+function whenTrue(feature: FieldModel, node: Conformance.Ast): States {
+    switch (node.type) {
+        case Conformance.Special.Name:
+            return [{ [node.param]: true }];
+
+        case Conformance.Operator.NOT:
+            return whenFalse(feature, node.param);
+
+        case Conformance.Operator.OR:
+            return [...whenTrue(feature, node.param.lhs), ...whenTrue(feature, node.param.rhs)];
+
+        case Conformance.Operator.AND:
+            return conjoin(whenTrue(feature, node.param.lhs), whenTrue(feature, node.param.rhs));
+
+        default:
+            unsupportedConformance(feature, `the expression "${Conformance.serialize(node)}" is not a feature test`);
+    }
+}
+
+/**
+ * Express the states in which a feature expression does not hold.
+ */
+function whenFalse(feature: FieldModel, node: Conformance.Ast): States {
+    switch (node.type) {
+        case Conformance.Special.Name:
+            return [{ [node.param]: false }];
+
+        case Conformance.Operator.NOT:
+            return whenTrue(feature, node.param);
+
+        case Conformance.Operator.OR:
+            return conjoin(whenFalse(feature, node.param.lhs), whenFalse(feature, node.param.rhs));
+
+        case Conformance.Operator.AND:
+            return [...whenFalse(feature, node.param.lhs), ...whenFalse(feature, node.param.rhs)];
+
+        default:
+            unsupportedConformance(feature, `the expression "${Conformance.serialize(node)}" is not a feature test`);
+    }
+}
+
+/**
+ * The combinations that violate a feature the expression makes mandatory.
+ */
+function requiredWhen(feature: FieldModel, node: Conformance.Ast) {
+    return conjoin(whenTrue(feature, node), [{ [feature.name]: false }]);
+}
+
+/**
+ * The combinations that violate a feature the expression makes available.  Outside those states the feature has no
+ * conformance to draw on and is disallowed.
+ */
+function disallowedUnless(feature: FieldModel, node: Conformance.Ast) {
+    return conjoin([{ [feature.name]: true }], whenFalse(feature, node));
+}
+
+/**
+ * Determine when an "otherwise" entry does not govern.  An empty disjunction means the entry always governs, leaving
+ * the entries that follow it unreachable.
+ */
+function inapplicable(feature: FieldModel, node: Conformance.Ast): States {
     switch (node.type) {
         case Conformance.Flag.Mandatory:
         case Conformance.Flag.Optional:
@@ -214,52 +297,85 @@ function inapplicable(feature: FieldModel, node: Conformance.Ast): IllegalFeatur
 }
 
 /**
- * Express the states in which a feature expression does not hold, as a disjunction of flag sets.
+ * Determine the flags that exclude a feature from a choice set.
+ *
+ * The specification allows a choice set member only optional conformance.  Anything else states that the member is
+ * required, which a set of alternatives cannot mean, so it is refused rather than read with its sense reversed.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 7.3.14
  */
-function whenFalse(feature: FieldModel, node: Conformance.Ast): IllegalFeatureCombinations {
+function choiceGate(feature: FieldModel, node: Conformance.Ast) {
     switch (node.type) {
-        case Conformance.Special.Name:
-            return [{ [node.param]: false }];
+        case Conformance.Flag.Optional:
+            return FeatureBitmap();
 
-        case Conformance.Operator.NOT:
-            return whenTrue(feature, node.param);
+        case Conformance.Special.OptionalIf: {
+            if (node.param.type === Conformance.Special.Revision) {
+                return FeatureBitmap();
+            }
 
-        case Conformance.Operator.OR:
-            return conjoin(whenFalse(feature, node.param.lhs), whenFalse(feature, node.param.rhs));
+            const gate = whenFalse(feature, node.param);
 
-        case Conformance.Operator.AND:
-            return [...whenFalse(feature, node.param.lhs), ...whenFalse(feature, node.param.rhs)];
+            // The set requires a member wherever a gate fails, and negating a gate of several flags yields alternatives
+            // that one flag set cannot hold
+            if (gate.length !== 1 || Object.keys(gate[0]).length > 1) {
+                unsupportedConformance(feature, "the choice set member leaves the set under a compound condition");
+            }
+
+            return gate[0];
+        }
 
         default:
-            unsupportedConformance(feature);
+            unsupportedConformance(feature, "the choice set member does not take optional conformance");
     }
 }
 
 /**
- * Express the states in which a feature expression holds, as a disjunction of flag sets.
+ * Enroll a feature in a choice set.
  */
-function whenTrue(feature: FieldModel, node: Conformance.Ast): IllegalFeatureCombinations {
-    switch (node.type) {
-        case Conformance.Special.Name:
-            return [{ [node.param]: true }];
+function addChoiceMember(
+    feature: FieldModel,
+    choice: Conformance.Ast.Choice,
+    add: (flags: FeatureBitmap) => void,
+    choices: Choices,
+    entry: EntryContext,
+) {
+    if (choice.num > 1) {
+        unsupportedConformance(feature, `a choice set requiring ${choice.num} members`);
+    }
 
-        case Conformance.Operator.NOT:
-            return whenFalse(feature, node.param);
+    // The AST reduces a range to its lower bound with "orLess", so an upper bound cannot be modeled faithfully
+    if (choice.orLess) {
+        unsupportedConformance(feature, "a choice set bounded from above");
+    }
 
-        case Conformance.Operator.OR:
-            return [...whenTrue(feature, node.param.lhs), ...whenTrue(feature, node.param.rhs)];
+    const gate = choiceGate(feature, choice.expr);
+    const reachedAlways = entry.reachedWhen.length === 1 && !Object.keys(entry.reachedWhen[0]).length;
 
-        case Conformance.Operator.AND:
-            return conjoin(whenTrue(feature, node.param.lhs), whenTrue(feature, node.param.rhs));
+    // Membership would otherwise depend on the enclosing conformance too, which a single flag set per member cannot
+    // express.  An entry the earlier ones already made mandatory adds nothing where they govern, so its membership does
+    // hold throughout
+    if (!reachedAlways && (Object.keys(gate).length || !entry.mandatedBefore)) {
+        unsupportedConformance(feature, "an earlier alternative conditions the choice set membership");
+    }
 
-        default:
-            unsupportedConformance(feature);
+    if (Object.keys(gate).length && !entry.hasFallback) {
+        add({ [feature.name]: true, ...gate });
+    }
+
+    const member: ChoiceMember = { feature: feature.name, gate, provisional: entry.provisionalBefore };
+
+    const existing = choices[choice.name];
+    if (existing) {
+        existing.members.push(member);
+    } else {
+        choices[choice.name] = { exclusive: !choice.orMore, members: [member] };
     }
 }
 
 /**
- * Apply the entries of an "otherwise" list.  The first applicable entry governs, so an entry's exclusions hold only
- * where every earlier entry is inapplicable.
+ * Apply the entries of an "otherwise" list.  The first applicable entry governs, so an entry's rules hold only where
+ * every earlier entry is inapplicable.
  */
 function addOtherwiseRules(
     feature: FieldModel,
@@ -267,7 +383,7 @@ function addOtherwiseRules(
     add: (flags: FeatureBitmap) => void,
     choices: Choices,
 ) {
-    let governs: IllegalFeatureCombinations = [FeatureBitmap()];
+    let governs: States = [FeatureBitmap()];
     let mandated = true;
     let provisional = false;
 
@@ -284,7 +400,9 @@ function addOtherwiseRules(
 
         conjoin(governs, exclusions).forEach(add);
 
+        // An entry contributing no rule at all requires nothing
         mandated &&= exclusions.some(exclusion => exclusion[feature.name] === false);
+
         governs = conjoin(governs, inapplicable(feature, rules[i]));
     }
 
@@ -309,6 +427,10 @@ function addFeatureNode(
         case Conformance.Flag.Provisional:
             break;
 
+        // Revision gates presence on the cluster revision rather than on features
+        case Conformance.Special.Revision:
+            break;
+
         case Conformance.Flag.Mandatory:
             add({ [feature.name]: false });
             break;
@@ -322,223 +444,24 @@ function addFeatureNode(
             addOtherwiseRules(feature, node.param, add, choices);
             break;
 
-        case Conformance.Special.Choice: {
-            if (node.param.num > 1) {
-                unsupported();
-            }
-            const gate = participationGate(node.param.expr);
-            const reachedAlways = entry.reachedWhen.length === 1 && !Object.keys(entry.reachedWhen[0]).length;
-
-            // Membership would otherwise depend on the enclosing conformance too, which a single flag set per member
-            // cannot express.  An entry the earlier ones already made mandatory adds nothing where they govern, so its
-            // membership does hold throughout
-            if (!reachedAlways && (Object.keys(gate).length || !entry.mandatedBefore)) {
-                unsupported();
-            }
-
-            if (Object.keys(gate).length && !entry.hasFallback) {
-                add({ [feature.name]: true, ...gate });
-            }
-
-            const member: ChoiceMember = {
-                feature: feature.name,
-                gate,
-                provisional: entry.provisionalBefore,
-            };
-
-            const choice = choices[node.param.name];
-            if (choice) {
-                choice.members.push(member);
-            } else {
-                choices[node.param.name] = { exclusive: !node.param.orMore, members: [member] };
-            }
-            break;
-        }
-
-        case Conformance.Special.Name:
-            add({ [node.param]: true, [feature.name]: false });
+        case Conformance.Special.Choice:
+            addChoiceMember(feature, node.param, add, choices, entry);
             break;
 
         case Conformance.Special.OptionalIf:
-            switch (node.param.type) {
-                case Conformance.AND:
-                case Conformance.OR:
-                case Conformance.Operator.NOT:
-                case Conformance.Special.Name:
-                    // Where the expression fails the fallback governs, so this entry alone disallows nothing
-                    if (!entry.hasFallback) {
-                        addDependencyRequirement(feature.name, node.param);
-                    }
-                    break;
-
-                case Conformance.Special.Revision:
-                    // Revision-gated optional feature — no feature variance implications
-                    break;
-
-                default:
-                    unsupported();
+            // Where the expression fails the fallback governs, so this entry alone disallows nothing
+            if (!entry.hasFallback && node.param.type !== Conformance.Special.Revision) {
+                disallowedUnless(feature, node.param).forEach(add);
             }
             break;
 
-        case Conformance.Operator.AND: {
-            // Handles simple conjunctions like "FOO & BAR" and "(STA|PAU|FA|CON) & !SFR"
-            const lhsFeatures = extractDisjunctFeatures(node.param.lhs);
-            const rhsFeature = extractFeatureFlag(node.param.rhs);
-
-            for (const lhsFeature in lhsFeatures) {
-                add({
-                    [feature.name]: false,
-                    [lhsFeature]: lhsFeatures[lhsFeature],
-                    ...rhsFeature,
-                });
-            }
-            break;
-        }
-
-        case Conformance.Operator.OR: {
-            // The feature is mandatory when any disjunct holds, so each disjunct without it is illegal
-            const features = extractDisjunctFeatures(node);
-            for (const name in features) {
-                add({ [name]: features[name], [feature.name]: false });
-            }
-            break;
-        }
-
-        case Conformance.Special.Revision:
-            // Revision-gated feature — no feature variance implications
+        case Conformance.Special.Name:
+        case Conformance.Operator.AND:
+        case Conformance.Operator.OR:
+            requiredWhen(feature, node).forEach(add);
             break;
 
         default:
-            unsupported();
-    }
-
-    function unsupported(): never {
-        unsupportedConformance(feature);
-    }
-
-    /**
-     * Extract a feature name.
-     */
-    function extractName(node: Conformance.Ast): string {
-        if (node.type === Conformance.Special.Name) {
-            return node.param;
-        }
-        unsupported();
-    }
-
-    /**
-     * Extract a flag for a single feature.  Fails unless the AST is for NAME or !NAME.
-     */
-    function extractFeatureFlag(node: Conformance.Ast) {
-        switch (node.type) {
-            case Conformance.Special.Name:
-                return { [node.param]: true };
-
-            case Conformance.Operator.NOT:
-                return { [extractName(node.param)]: false };
-
-            default:
-                unsupported();
-        }
-    }
-
-    /**
-     * Determine the flags that exclude a feature from a choice set.  The specification allows a choice set member only
-     * optional conformance, so the flags that disallow the feature are the flags that remove it from the set.  An
-     * expression that instead requires the feature states the opposite of what a gate means and is refused.
-     *
-     * @see {@link MatterSpecification.v16.Core} § 7.3.14
-     */
-    function participationGate(node: Conformance.Ast) {
-        const exclusions = new Array<FeatureBitmap>();
-        const nested: Choices = {};
-        addFeatureNode(feature, node, flags => exclusions.push(flags), nested);
-
-        // A choice of a choice would register a member the caller then registers again under its own set
-        if (Object.keys(nested).length) {
-            unsupported();
-        }
-
-        if (!exclusions.length) {
-            return FeatureBitmap();
-        }
-        if (exclusions.length > 1 || exclusions[0][feature.name] !== true) {
-            unsupported();
-        }
-
-        const gate = { ...exclusions[0] };
-        delete gate[feature.name];
-        return gate;
-    }
-
-    /**
-     * Add illegal feature sets for features that must be enabled based on the state of other features.
-     */
-    function addDependencyRequirement(feature: string, node: Conformance.Ast) {
-        switch (node.type) {
-            case Conformance.Special.Name:
-                add({ [feature]: true, [node.param]: false });
-                break;
-
-            case Conformance.AND:
-                addDependencyRequirement(feature, node.param.lhs);
-                addDependencyRequirement(feature, node.param.rhs);
-                break;
-
-            case Conformance.OR: {
-                // A disjunction is satisfied by any single disjunct, so the feature is only illegal when every disjunct
-                // fails
-                const flags = FeatureBitmap({ [feature]: true });
-                const disjuncts = extractDisjunctFeatures(node);
-                for (const name in disjuncts) {
-                    flags[name] = !disjuncts[name];
-                }
-                add(flags);
-                break;
-            }
-
-            case Conformance.Operator.NOT: {
-                // Each disjunct of a negated group independently makes the feature illegal
-                const disjuncts = extractDisjunctFeatures(node.param);
-                for (const name in disjuncts) {
-                    add({ [feature]: true, [name]: disjuncts[name] });
-                }
-                break;
-            }
-
-            default:
-                unsupported();
-        }
-    }
-
-    /**
-     * Extract a feature flag disjunction.  Supports | and !.
-     */
-    function extractDisjunctFeatures(node: Conformance.Ast) {
-        const result = {} as FeatureBitmap;
-
-        function extract(node: Conformance.Ast, invert = false) {
-            switch (node.type) {
-                case Conformance.Special.Name:
-                    result[node.param] = !invert;
-                    break;
-
-                case Conformance.Operator.OR:
-                    extract(node.param.lhs, invert);
-                    extract(node.param.rhs, invert);
-                    break;
-
-                case Conformance.Operator.NOT:
-                    extract(node.param, !invert);
-                    break;
-
-                default:
-                    unsupported();
-            }
-        }
-
-        extract(node);
-
-        return result;
+            unsupportedConformance(feature, `conformance of type "${node.type}" has no rule`);
     }
 }

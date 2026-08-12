@@ -38,6 +38,10 @@ type Role = "dut" | "th_cr2" | "th_cr3";
 const commissioned = new CommissionedRefs<Role>();
 const pendingPairingCode = new PendingPairingCode();
 let cr2FabricIndex: number | undefined;
+// Set only once step 7's log checks confirm TH_CE actually removed th_cr2's fabric — until then
+// `commissioned` keeps owning th_cr2, so an inconclusive check leaves the finalizer able to
+// decommission it. Step 8 needs this ref to reach the now-decommissioned node.
+let removedCr2Ref: CertNodeRef | undefined;
 
 interface FabricEntry {
     fabricIndex: number;
@@ -252,30 +256,25 @@ certTest("TC-CADMIN-1.17", {
             const th = cx.devices.th;
             const from = th.log.mark();
 
-            try {
-                const dutRef = await dut.commission({
-                    passcode: th.commissioning.passcode,
-                    discriminator: th.commissioning.discriminator,
-                });
-                commissioned.set("dut", dutRef);
-                await checkCommissioned(cx, dut, dutRef, "DUT_CR1", from);
-            } catch (e) {
-                await commissioned.decommissionAll(cx);
-                throw e;
-            }
+            const dutRef = await dut.commission({
+                passcode: th.commissioning.passcode,
+                discriminator: th.commissioning.discriminator,
+            });
+            commissioned.set("dut", dutRef);
+            await checkCommissioned(cx, dut, dutRef, "DUT_CR1", from);
         },
         { pics: "CADMIN.C", expected: "TH_CE is commissioned by DUT_CR1" },
     )
     .step(
         2,
         `DUT_CR1 sends command to TH_CE to open a commissioning window with a commissioning timeout of ${CW_DURATION_SECONDS} seconds using ECM`,
-        commissioned.guarded(openWindowAndCheck),
+        openWindowAndCheck,
         { pics: "CADMIN.C.C00.Tx", expected: "TH_CE opens its Commissioning window to allow a second commissioning" },
     )
     .step(
         3,
         "TH_CR2 starts a commissioning process with TH_CE",
-        commissioned.guarded(async cx => {
+        async cx => {
             const th_cr2 = cx.controllers.th_cr2;
             const th = cx.devices.th;
             const manualPairingCode = pendingPairingCode.require();
@@ -284,19 +283,19 @@ certTest("TC-CADMIN-1.17", {
             const th_cr2Ref = await th_cr2.commission({ manualPairingCode });
             commissioned.set("th_cr2", th_cr2Ref);
             await checkCommissioned(cx, th_cr2, th_cr2Ref, "TH_CR2", from);
-        }),
+        },
         { pics: "CADMIN.C", expected: "TH_CE is commissioned by TH_CR2" },
     )
     .step(
         4,
         `DUT_CR1 sends command to TH_CE to open a commissioning window with a commissioning timeout of ${CW_DURATION_SECONDS} seconds using ECM`,
-        commissioned.guarded(openWindowAndCheck),
+        openWindowAndCheck,
         { pics: "CADMIN.C.C00.Tx", expected: "TH_CE opens its Commissioning window to allow commissioning" },
     )
     .step(
         5,
         "TH_CR3 starts a commissioning process with TH_CE",
-        commissioned.guarded(async cx => {
+        async cx => {
             const th_cr3 = cx.controllers.th_cr3;
             const th = cx.devices.th;
             const manualPairingCode = pendingPairingCode.require();
@@ -305,13 +304,13 @@ certTest("TC-CADMIN-1.17", {
             const th_cr3Ref = await th_cr3.commission({ manualPairingCode });
             commissioned.set("th_cr3", th_cr3Ref);
             await checkCommissioned(cx, th_cr3, th_cr3Ref, "TH_CR3", from);
-        }),
+        },
         { pics: "CADMIN.C", expected: "TH_CE is commissioned by TH_CR3" },
     )
     .step(
         6,
         "DUT_CR1 sends command to TH_CE to read the list of Fabrics",
-        commissioned.guarded(async cx => {
+        async cx => {
             const dut = cx.controllers.dut;
             const dutRef = commissioned.require("dut");
 
@@ -331,13 +330,13 @@ certTest("TC-CADMIN-1.17", {
             if (!pass) {
                 throw new Error(`Expected 3 fabrics (dut, th_cr2, th_cr3), got ${fabrics.length}`);
             }
-        }),
+        },
         { pics: "OPCREDS.C.A0001", expected: "Verify TH_CE receives and processes the command successfully" },
     )
     .step(
         7,
         `DUT_CR1 sends RemoveFabric with FabricIndex = ${EXPECTED_CR2_FABRIC_INDEX} command to TH_CE`,
-        commissioned.guarded(async cx => {
+        async cx => {
             const dut = cx.controllers.dut;
             const th = cx.devices.th;
             const dutRef = commissioned.require("dut");
@@ -379,7 +378,14 @@ certTest("TC-CADMIN-1.17", {
             if (expiring.check.verdict === "fail") {
                 throw new Error(`"Expiring all sessions" log check failed: ${JSON.stringify(expiring.check)}`);
             }
-        }),
+
+            // Only surrender th_cr2 to step 8 once both checks above confirm TH_CE actually removed
+            // it — invoke() resolving only means the peer accepted the interaction, not that
+            // NOCsResponse carried success. Clearing any earlier left `commissioned` with no owner
+            // for a fabric that (per an ambiguous or timed-out log check) might still be live.
+            removedCr2Ref = commissioned.require("th_cr2");
+            commissioned.clear("th_cr2");
+        },
         {
             pics: "OPCREDS.C.C0a.Tx",
             expected: `Verify TH_CE responses with "RemoveFabric successful" and "Expiring all sessions for fabric 0x${EXPECTED_CR2_FABRIC_INDEX}"`,
@@ -388,10 +394,12 @@ certTest("TC-CADMIN-1.17", {
     .step(
         8,
         "TH_CR2 sends command to TH_CE to write and read the Basic Information Cluster's NodeLabel mandatory attribute",
-        commissioned.guarded(async cx => {
+        async cx => {
             const th_cr2 = cx.controllers.th_cr2;
-            const th_cr2Ref = commissioned.require("th_cr2");
-            const node = th_cr2.node(th_cr2Ref);
+            if (removedCr2Ref === undefined) {
+                throw new InternalError("Step ran before TH_CR2's fabric was removed");
+            }
+            const node = th_cr2.node(removedCr2Ref);
             const path = { endpoint: 0, cluster: BASIC_INFORMATION.id, attribute: NODE_LABEL.id };
 
             const writeCheck = await expectRejection(
@@ -403,18 +411,14 @@ certTest("TC-CADMIN-1.17", {
             const readCheck = await expectRejection("readAttribute(NodeLabel)", node.readAttribute(path));
             cx.recorder.check(readCheck);
 
-            const bothRejected = writeCheck.verdict === "pass" && readCheck.verdict === "pass";
-            if (bothRejected) {
-                // Confirmed gone: th_cr2's fabric no longer exists on TH_CE, nothing left to decommission
-                // via this role. If either check instead shows an unexpected success, the fabric is very
-                // much still there — th_cr2 must stay set so cleanup still decommissions it.
-                commissioned.clear("th_cr2");
-            } else {
+            if (writeCheck.verdict !== "pass" || readCheck.verdict !== "pass") {
+                // A call that succeeded proves the fabric outlived RemoveFabric, so cleanup owns it again.
+                commissioned.set("th_cr2", removedCr2Ref);
                 throw new Error(
                     `Expected both write and read to fail post-removal: ${JSON.stringify({ writeCheck, readCheck })}`,
                 );
             }
-        }),
+        },
         {
             pics: "BINFO.C.A0005",
             expected: "Verify read/write commands fail as expected since the TH_CR2 is no longer on the network",
@@ -423,7 +427,7 @@ certTest("TC-CADMIN-1.17", {
     .step(
         9,
         "DUT_CR1 sends command to TH_CE to read the list of Fabrics on TH_CE",
-        commissioned.guarded(async cx => {
+        async cx => {
             const dut = cx.controllers.dut;
             const dutRef = commissioned.require("dut");
 
@@ -440,13 +444,13 @@ certTest("TC-CADMIN-1.17", {
                     `Expected 2 fabrics (dut, th_cr3) with th_cr2 removed, got ${describeFabrics(fabrics)}`,
                 );
             }
-        }),
+        },
         { pics: "OPCREDS.C.A0001", expected: "Verify TH_CE receives and processes the command successfully" },
     )
     .step(
         10,
         "Verify TH_CE is now discoverable over DNS-SD with 2 Operational service records (_matter._tcp SRV records)",
-        commissioned.guarded(async cx => {
+        async cx => {
             const dut = cx.controllers.dut;
             const th_cr3 = cx.controllers.th_cr3;
             const th = cx.devices.th;
@@ -469,7 +473,7 @@ certTest("TC-CADMIN-1.17", {
                     `Expected exactly 2 operational mDNS records (dut + th_cr3), got ${JSON.stringify(result)}`,
                 );
             }
-        }),
+        },
         {
             expected:
                 "Verify TH_CE is now discoverable over DNS-SD with 2 Operational service records (_matter._tcp SRV records)",
@@ -478,7 +482,7 @@ certTest("TC-CADMIN-1.17", {
     .step(
         11,
         `DUT_CR1 sends command to TH_CE to open a commissioning window with a commissioning timeout of ${CW_DURATION_SECONDS} seconds using ECM`,
-        commissioned.guarded(openWindowAndCheck),
+        openWindowAndCheck,
         {
             pics: "CADMIN.C.C00.Tx",
             expected:
@@ -488,7 +492,7 @@ certTest("TC-CADMIN-1.17", {
     .step(
         12,
         "TH_CR2 starts a commissioning process with TH_CE",
-        commissioned.guarded(async cx => {
+        async cx => {
             const th_cr2 = cx.controllers.th_cr2;
             const th = cx.devices.th;
             const manualPairingCode = pendingPairingCode.require();
@@ -497,30 +501,27 @@ certTest("TC-CADMIN-1.17", {
             const th_cr2Ref = await th_cr2.commission({ manualPairingCode });
             commissioned.set("th_cr2", th_cr2Ref);
             await checkCommissioned(cx, th_cr2, th_cr2Ref, "TH_CR2", from);
-        }),
+        },
         { pics: "CADMIN.C", expected: "TH_CE is commissioned by TH_CR2" },
     )
     .step(
         13,
         "TH_CR2 sends command to TH_CE to read the list of Fabrics on TH_CE",
         async cx => {
-            try {
-                const th_cr2 = cx.controllers.th_cr2;
-                const th_cr2Ref = commissioned.require("th_cr2");
+            const th_cr2 = cx.controllers.th_cr2;
+            const th_cr2Ref = commissioned.require("th_cr2");
 
-                const fabrics = await readFabrics(th_cr2.node(th_cr2Ref));
-                const pass = fabrics.length === 3;
-                cx.recorder.check({
-                    type: "response",
-                    verdict: pass ? "pass" : "fail",
-                    detail: `${fabrics.length} fabrics: ${fabrics.map(entry => `${entry.label}#${entry.fabricIndex}`).join(", ")}`,
-                });
-                if (!pass) {
-                    throw new Error(`Expected 3 fabrics after th_cr2 re-commissioned, got ${fabrics.length}`);
-                }
-            } finally {
-                await commissioned.decommissionAll(cx);
+            const fabrics = await readFabrics(th_cr2.node(th_cr2Ref));
+            const pass = fabrics.length === 3;
+            cx.recorder.check({
+                type: "response",
+                verdict: pass ? "pass" : "fail",
+                detail: `${fabrics.length} fabrics: ${fabrics.map(entry => `${entry.label}#${entry.fabricIndex}`).join(", ")}`,
+            });
+            if (!pass) {
+                throw new Error(`Expected 3 fabrics after th_cr2 re-commissioned, got ${fabrics.length}`);
             }
         },
         { pics: "OPCREDS.C.A0001", expected: "Verify TH_CE receives and processes the command successfully" },
-    );
+    )
+    .finalize(cx => commissioned.decommissionAll(cx));

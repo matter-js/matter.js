@@ -75,6 +75,7 @@ jobs:
   prepare:
     if: github.repository == 'matter-js/matter.js'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       should-run: ${{ steps.resolve.outputs.should-run }}
       ref: ${{ steps.resolve.outputs.ref }}
@@ -143,6 +144,7 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.should-run == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Check out matter.js
         uses: actions/checkout@v7
@@ -194,6 +196,7 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.should-run == 'true' && needs.prepare.outputs.run-own-built == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Check out matter.js
         uses: actions/checkout@v7
@@ -278,6 +281,7 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.should-run == 'true' && needs.prepare.outputs.run-cert-bins == 'true'
     runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
     steps:
       - name: Check out matter.js
         uses: actions/checkout@v7
