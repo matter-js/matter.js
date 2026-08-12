@@ -4,21 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/main";
 import { Status, StatusResponseError, ValidationError } from "@matter/main/types";
 import { Matter } from "@matter/model";
-import type { CertStepContext, CheckRecord, DeviceFlavor, LogFollower } from "@matter/testing";
-import { CertLogClosedError, CertLogTimeoutError, certTest } from "@matter/testing";
-import { CommissionedRefs, expectAdjacentLines } from "./tc-support.js";
+import type { CertStepContext, DeviceFlavor } from "@matter/testing";
+import { certTest } from "@matter/testing";
+import type { CommandFieldValue } from "./tc-support.js";
+import { CommissionedRefs, expectCommandInvoke, requireId } from "./tc-support.js";
 
 const ACTIONS = Matter.clusters.require("Actions");
-
-function requireId(id: number | undefined, what: string): number {
-    if (id === undefined) {
-        throw new InternalError(`${what} has no numeric id`);
-    }
-    return id;
-}
 
 const ACTIONS_ID = requireId(ACTIONS.id, "Actions cluster");
 const ENDPOINT = 1;
@@ -44,102 +37,9 @@ interface FieldSpec {
     value: number;
 }
 
-interface FieldValue {
-    id: number;
-    value: number;
-}
-
 function fieldId(commandName: string, propertyName: string): number {
     const field = ACTIONS.commands.require(commandName).fields.require(propertyName);
     return requireId(field.id, `Actions.${commandName}.${propertyName}`);
-}
-
-/**
- * The literal, consecutive `CHIP:DMG` lines chip emits for one invoked command's `CommandDataIB`:
- * the request-side wrapper, then `CommandPathIB`'s Endpoint/Cluster/Command, each on its own line, in
- * that fixed order — mirrors `tc-support.ts`'s `attributePathIBSequence` for the read-side
- * equivalent. Endpoint/Cluster/Command are all bare lowercase hex here (verified against a real
- * chip-bridge-app capture), unlike `AttributePathIB`'s Attribute field, which needs an 8-digit padded
- * MEI.
- *
- * The leading `CommandDataIB =` line is load-bearing, not decorative: a status-only response's own
- * `CommandPathIB` echo nests under `CommandStatusIB =` instead — anchoring here is what stops this from
- * matching a trailing response echo instead of a fresh request. See AGENTS.md's "async log delivery
- * lag" section.
- */
-function commandPathIBSequence(commandId: number): RegExp[] {
-    return [
-        /CommandDataIB =\s*$/,
-        /\{\s*$/,
-        /CommandPathIB =\s*$/,
-        /\{\s*$/,
-        new RegExp(`EndpointId = 0x${ENDPOINT.toString(16)},\\s*$`),
-        new RegExp(`ClusterId = 0x${ACTIONS_ID.toString(16)},\\s*$`),
-        new RegExp(`CommandId = 0x${commandId.toString(16)},\\s*$`),
-    ];
-}
-
-/**
- * Confirms chip's `InvokeRequestMessage` log carries a `CommandPathIB` matching `commandId` as a
- * consecutive block at or after `from` (see {@link expectAdjacentLines}), then that every `fields`
- * entry appears afterward, in order, as its own `0x<id> = <value>,` line inside `CommandFields`. Field
- * lines aren't required adjacent to the `CommandPathIB` block itself — chip emits a blank `CHIP:DMG:`
- * separator line in between that isn't part of what this check verifies. A search always starts at or
- * after the previous match's own index (`log.expect`'s `from`), so this can't match a field line
- * belonging to an earlier invoke. Returns `"unverified"` for the matterjs flavor: matter.js's logger
- * doesn't emit this chip-specific decode dump.
- */
-async function expectCommandInvoke(
-    log: LogFollower,
-    flavor: string,
-    commandId: number,
-    fields: FieldValue[],
-    from: number,
-    timeoutMs: number,
-): Promise<CheckRecord> {
-    let cursor = from;
-    let last: { index: number; text: string } | undefined;
-
-    try {
-        const block = await expectAdjacentLines(log, flavor, commandPathIBSequence(commandId), from, timeoutMs);
-        if (block.verdict === "unverified") {
-            return { type: "device-log", verdict: "unverified" };
-        }
-        last = block.last;
-        cursor = block.last.index + 1;
-
-        for (const { id, value } of fields) {
-            // Every field in this TC is an unsigned int (uint16/uint32); chip's decode dump appends the
-            // TLV type name after the value (verified against a real chip-bridge-app capture).
-            const pattern = new RegExp(`0x${id.toString(16)} = ${value} \\(unsigned\\),\\s*$`);
-            const result = await log.expect({ chip: pattern }, { flavor, timeoutMs, from: cursor });
-            if (result.verdict === "unverified") {
-                return { type: "device-log", verdict: "unverified" };
-            }
-            last = result.matched;
-            cursor = result.matched.index + 1;
-        }
-    } catch (e) {
-        // A timed-out or closed-mid-wait `log.expect` throws rather than returning a verdict — without
-        // this, the step's log check would be missing from the evidence bundle entirely (only the
-        // always-present "response" check would survive), the one piece of evidence a failed log match
-        // most needs to carry.
-        if (e instanceof CertLogTimeoutError) {
-            return { type: "device-log", verdict: "fail", pattern: e.pattern, detail: e.message };
-        }
-        if (e instanceof CertLogClosedError) {
-            return { type: "device-log", verdict: "fail", detail: e.message };
-        }
-        throw e;
-    }
-
-    return {
-        type: "device-log",
-        verdict: "pass",
-        pattern: `CommandDataIB CommandId=0x${commandId.toString(16)}, fields=${JSON.stringify(fields)}`,
-        matched: last?.text,
-        logLine: last?.index,
-    };
 }
 
 /**
@@ -191,8 +91,20 @@ async function invokeAndCheck(
     await recordInvokeStatus(cx, invoke);
 
     const commandId = requireId(ACTIONS.commands.require(commandName).id, `Actions.${commandName}`);
-    const fieldValues = fields.map(({ propertyName, value }) => ({ id: fieldId(commandName, propertyName), value }));
-    const logCheck = await expectCommandInvoke(th.log, th.flavor, commandId, fieldValues, from, 15_000);
+    const fieldValues: CommandFieldValue[] = fields.map(({ propertyName, value }) => ({
+        id: fieldId(commandName, propertyName),
+        value,
+    }));
+    const logCheck = await expectCommandInvoke(
+        th.log,
+        th.flavor,
+        ENDPOINT,
+        ACTIONS_ID,
+        commandId,
+        fieldValues,
+        from,
+        15_000,
+    );
     cx.recorder.check(logCheck);
     if (logCheck.verdict === "fail") {
         throw new Error(

@@ -7,9 +7,12 @@
 import { LogFollower } from "@matter/testing";
 import {
     attributePathIBSequence,
+    commandPathIBSequence,
     countMatches,
     expectChunkedTransfer,
+    expectCommandInvoke,
     expectMessageWithPath,
+    requireId,
     STATUS_RESPONSE_SUCCESS,
     WRITE_REQUEST_MESSAGE,
 } from "../cert/tc-support.js";
@@ -208,6 +211,75 @@ describe("expectMessageWithPath", () => {
     it("reports unverified for a flavor with no pattern for the message", async () => {
         const record = await withFollower([WRITE, ...PATH], follower =>
             expectMessageWithPath(follower, "matterjs", WRITE_REQUEST_MESSAGE, FIELDS, 0, 1_000),
+        );
+
+        expect(record.verdict).equal("unverified");
+    });
+});
+
+describe("requireId", () => {
+    it("returns the id when defined", () => {
+        expect(requireId(5, "thing")).equal(5);
+    });
+
+    it("throws when the id is undefined", () => {
+        expect(() => requireId(undefined, "thing")).to.throw(/thing has no numeric id/);
+    });
+});
+
+describe("commandPathIBSequence", () => {
+    it("emits the CommandDataIB/CommandPathIB block in EndpointId/ClusterId/CommandId order", () => {
+        const sequence = commandPathIBSequence(1, 0x6, 0x1);
+
+        expect(sequence).to.have.lengthOf(7);
+        expect(sequence[0].test("[DMG] CommandDataIB =")).equal(true);
+        expect(sequence[2].test("[DMG] CommandPathIB =")).equal(true);
+        expect(sequence[4].test("[DMG] EndpointId = 0x1,")).equal(true);
+        expect(sequence[5].test("[DMG] ClusterId = 0x6,")).equal(true);
+        expect(sequence[6].test("[DMG] CommandId = 0x1,")).equal(true);
+    });
+});
+
+describe("expectCommandInvoke", () => {
+    const PATH = [
+        "[DMG] CommandDataIB =",
+        "[DMG] {",
+        "[DMG] CommandPathIB =",
+        "[DMG] {",
+        "[DMG] EndpointId = 0x1,",
+        "[DMG] ClusterId = 0x6,",
+        "[DMG] CommandId = 0x1,",
+        "[DMG] },",
+    ];
+    const FIELD = "[DMG] 0x0 = 4097 (unsigned),";
+
+    it("passes when the path block matches and every field line follows in order", async () => {
+        const record = await withFollower([...PATH, FIELD], follower =>
+            expectCommandInvoke(follower, "chip-local", 1, 0x6, 0x1, [{ id: 0, value: 4097 }], 0, 1_000),
+        );
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("fails when a field line never appears", async () => {
+        const record = await withFollower([...PATH], follower =>
+            expectCommandInvoke(follower, "chip-local", 1, 0x6, 0x1, [{ id: 0, value: 4097 }], 0, 1_000),
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("passes with no field checks when fields is empty", async () => {
+        const record = await withFollower([...PATH], follower =>
+            expectCommandInvoke(follower, "chip-local", 1, 0x6, 0x1, [], 0, 1_000),
+        );
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("reports unverified for a flavor with no pattern", async () => {
+        const record = await withFollower([...PATH], follower =>
+            expectCommandInvoke(follower, "matterjs", 1, 0x6, 0x1, [], 0, 1_000),
         );
 
         expect(record.verdict).equal("unverified");

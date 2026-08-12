@@ -20,8 +20,8 @@ import { CertLogClosedError, CertLogTimeoutError, matchableCopy } from "@matter/
  * Tracks commissioned node refs by role for one cert-test run and decommissions whatever's still
  * active on step failure. Each controller's own `decommission()` only removes *that controller's*
  * fabric via its own CASE session, so cleanup has to visit every role independently. Shared by
- * `TC-IDM-2.1.test.ts`/`TC-ACT-3.2.test.ts` (single "dut" role) and `TC-CADMIN-1.17.test.ts`
- * (multiple controller roles).
+ * `TC-IDM-2.1.test.ts`/`TC-ACT-3.2.test.ts`/`TC-IDM-1.1.test.ts` (single "dut" role) and
+ * `TC-CADMIN-1.17.test.ts` (multiple controller roles).
  */
 export class CommissionedRefs<Role extends string = "dut"> {
     #refs = new Map<Role, CertNodeRef>();
@@ -271,6 +271,116 @@ export async function expectMessageWithPath(
         }
         throw e;
     }
+}
+
+/** Throws if `id` is `undefined` — narrows a model element's optional numeric id for `.toString(16)`. */
+export function requireId(id: number | undefined, what: string): number {
+    if (id === undefined) {
+        throw new InternalError(`${what} has no numeric id`);
+    }
+    return id;
+}
+
+/** One `CommandFields` entry: a field id and its value, matched as `0x<id> = <value> (unsigned),`. */
+export interface CommandFieldValue {
+    id: number;
+    value: number;
+}
+
+/**
+ * The literal, consecutive `CHIP:DMG` lines chip emits for one invoked command's `CommandDataIB`:
+ * the request-side wrapper, then `CommandPathIB`'s Endpoint/Cluster/Command, each on its own line, in
+ * that fixed order — mirrors {@link attributePathIBSequence} for the read-side equivalent.
+ * Endpoint/Cluster/Command are all bare lowercase hex (verified against a real chip-bridge-app
+ * capture), unlike `AttributePathIB`'s Attribute field, which needs an 8-digit padded MEI.
+ *
+ * The leading `CommandDataIB =` line is load-bearing, not decorative: a status-only response's own
+ * `CommandPathIB` echo nests under `CommandStatusIB =` instead — anchoring here is what stops this
+ * from matching a trailing response echo instead of a fresh request. See AGENTS.md's "async log
+ * delivery lag" section.
+ */
+export function commandPathIBSequence(endpoint: number, cluster: number, command: number): RegExp[] {
+    return [
+        /CommandDataIB =\s*$/,
+        /\{\s*$/,
+        /CommandPathIB =\s*$/,
+        /\{\s*$/,
+        new RegExp(`EndpointId = 0x${endpoint.toString(16)},\\s*$`),
+        new RegExp(`ClusterId = 0x${cluster.toString(16)},\\s*$`),
+        new RegExp(`CommandId = 0x${command.toString(16)},\\s*$`),
+    ];
+}
+
+/**
+ * Confirms chip's `InvokeRequestMessage` log carries a `CommandPathIB` matching `endpoint`/`cluster`/
+ * `command` as a consecutive block at or after `from` (see {@link expectAdjacentLines}), then that
+ * every `fields` entry appears afterward, in order, as its own `0x<id> = <value>,` line inside
+ * `CommandFields`. Field lines aren't required adjacent to the `CommandPathIB` block itself — chip
+ * emits a blank `CHIP:DMG:` separator line in between that isn't part of what this check verifies. A
+ * search always starts at or after the previous match's own index (`log.expect`'s `from`), so this
+ * can't match a field line belonging to an earlier invoke. Returns `"unverified"` for the matterjs
+ * flavor: matter.js's logger doesn't emit this chip-specific decode dump.
+ */
+export async function expectCommandInvoke(
+    log: LogFollower,
+    flavor: string,
+    endpoint: number,
+    cluster: number,
+    command: number,
+    fields: CommandFieldValue[],
+    from: number,
+    timeoutMs: number,
+): Promise<CheckRecord> {
+    let cursor = from;
+    let last: { index: number; text: string } | undefined;
+
+    try {
+        const block = await expectAdjacentLines(
+            log,
+            flavor,
+            commandPathIBSequence(endpoint, cluster, command),
+            from,
+            timeoutMs,
+        );
+        if (block.verdict === "unverified") {
+            return { type: "device-log", verdict: "unverified" };
+        }
+        last = block.last;
+        cursor = block.last.index + 1;
+
+        for (const { id, value } of fields) {
+            // Every field checked by any TC using this helper so far is an unsigned int (uint16/uint32);
+            // chip's decode dump appends the TLV type name after the value (verified against a real
+            // chip-bridge-app capture).
+            const pattern = new RegExp(`0x${id.toString(16)} = ${value} \\(unsigned\\),\\s*$`);
+            const result = await log.expect({ chip: pattern }, { flavor, timeoutMs, from: cursor });
+            if (result.verdict === "unverified") {
+                return { type: "device-log", verdict: "unverified" };
+            }
+            last = result.matched;
+            cursor = result.matched.index + 1;
+        }
+    } catch (e) {
+        // A timed-out or closed-mid-wait `log.expect` throws rather than returning a verdict — without
+        // this, the step's log check would be missing from the evidence bundle entirely (only the
+        // always-present "response" check would survive), the one piece of evidence a failed log match
+        // most needs to carry.
+        if (e instanceof CertLogTimeoutError) {
+            return { type: "device-log", verdict: "fail", pattern: e.pattern, detail: e.message };
+        }
+        if (e instanceof CertLogClosedError) {
+            return { type: "device-log", verdict: "fail", detail: e.message };
+        }
+        throw e;
+    }
+
+    return {
+        type: "device-log",
+        verdict: "pass",
+        pattern: `CommandDataIB CommandId=0x${command.toString(16)}, fields=${JSON.stringify(fields)}`,
+        matched: last?.text,
+        logLine: last?.index,
+    };
 }
 
 /**

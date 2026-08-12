@@ -11,7 +11,7 @@ A `TC-*.test.ts` here drives one certification test plan's steps against matter.
 **controller** (DUT), with a `CertDevice` (a real `chip-<app>-app` or a matter.js `TestInstance`) as
 the **TH** it's proving interop against — the reverse of this package's other test kinds
 (`test/app-fast`, `test/core`, …), which drive chip-tool/python against matter.js acting as
-**device**. Four pilots exist; each is the reference example for a different mechanic, not just
+**device**. Five pilots exist; each is the reference example for a different mechanic, not just
 another TC:
 
 - **`FRAMEWORK-SMOKE`** (`test/cert-framework/smoke.test.ts`) — the minimal shape: one device, one
@@ -26,6 +26,11 @@ another TC:
   (`flavors` option) for a cluster matterjs's test app doesn't have, and tolerating an
   implementation-specific non-success response as valid evidence rather than a step failure. See
   "Declaring a device-flavor capability gap" and "Invoke-only TCs" below.
+- **`TC-IDM-1.1`** (all-clusters) — a smaller invoke-only TC than `TC-ACT-3.2`: a mandatory,
+  no-field command (`OnOff.on`/`.off`) that must always succeed on every flavor (no `flavors`
+  restriction, no tolerated-failure response), and the first use of `CertStepOptions.notApplicable`
+  for a plan step the real certification harness itself marks "Out of Scope". See "A step the plan
+  itself calls out of scope" and "Promoting the command-path log check" below.
 - **`TC-CADMIN-1.17`** (all-clusters) — multiple controllers against one device, pairing-code
   (rather than passcode/discriminator) commissioning, non-fabric-filtered reads, and a bounded
   "this must fail" check. See "Multi-controller wiring" and "Bounded negative checks" below.
@@ -36,7 +41,7 @@ another TC:
 
 Each pilot's own section further down is written chronologically (what was found while building
 that TC), which is also a reasonable reading order: source lookup → single-device reads → invoking
-commands → multi-controller → the python-wrapped escape hatch.
+commands → a smaller invoke-only variant → multi-controller → the python-wrapped escape hatch.
 
 ## App → chip binary mapping
 
@@ -407,11 +412,11 @@ the next step's `log.mark()`, even though it chronologically belongs to the *pre
 response's `CommandStatusIB → CommandPathIB` has the exact same `EndpointId`/`ClusterId`/`CommandId` line
 shape as a request's `CommandDataIB → CommandPathIB`, a check that only looks for that 3-line shape can
 lock onto the wrong step's trailing echo instead of the current step's own request — this reproduced
-reliably (step 3's check matching step 2's response echo) before the fix. `TC-ACT-3.2`'s
-`commandPathIBSequence` anchors on the request-side `CommandDataIB =` wrapper specifically (not just
-`CommandPathIB`) to rule this out; a command with a genuine data response (unlike this TC's status-only
-Actions commands) would need a different anchor, so this fix is TC-local like `TC-IDM-2.1`'s adjacency
-matcher, not promoted to `log-follower.ts`.
+reliably (step 3's check matching step 2's response echo) before the fix. `commandPathIBSequence`
+anchors on the request-side `CommandDataIB =` wrapper specifically (not just `CommandPathIB`) to rule
+this out; a command with a genuine data response (unlike TC-ACT-3.2/TC-IDM-1.1's status-only
+commands) would need a different anchor, so this fix lives in `tc-support.ts` alongside its
+read-side sibling matcher, not generalized into `log-follower.ts` itself.
 
 ## Known limitations carried forward from `TC-ACT-3.2`, not yet fixed
 
@@ -419,7 +424,9 @@ An adversarial review of this TC surfaced a few items judged real but out of thi
 here rather than silently dropped, for whoever picks up the next cert TC or a framework promotion pass:
 
 - **`commandPathIBSequence`'s adjacency chain only rules out a lagging *response* echo, not a
-  theoretically lagging *previous request*.** The fix above (anchoring on `CommandDataIB =`) is verified
+  theoretically lagging *previous request*.** Now shared via `tc-support.ts` (see "Promoting the
+  command-path log check" below), so this limitation applies to every caller, not just this TC. The
+  fix above (anchoring on `CommandDataIB =`) is verified
   against a real reproduction (step 3 matching step 2's response echo, before the fix). A previous step's
   own *request*-side log line landing after the next step's `log.mark()` would need the same kind of lag
   on the request side, which — unlike the response side — is written before chip can process and answer,
@@ -455,6 +462,33 @@ e.g. `0x0 = 4097 (unsigned), ` (verified against a real chip-bridge-app capture;
 this (as a first draft naturally would, going only from the adoc/YAML's prose) matches nothing and times
 out rather than failing fast — same class of surprise as `TC-IDM-2.1`'s `AttributePathIB` hex-case
 mismatch, only derivable from a real capture.
+
+## A step the plan itself calls out of scope (`TC-IDM-1.1`)
+
+`Test_TC_IDM_1_1.yaml`'s own step-2 `verification:` text is the single word "Out of Scope" — CHIP's
+own certification harness declares this step (a wildcarded-endpoint invoke) untestable, not merely
+untested by this translation. `CertStepOptions.notApplicable` (added in an earlier task for exactly
+this case) is the right declaration: `.step(2, "...", async () => {}, { notApplicable: "Out of Scope
+in CHIP's certification harness" })`. The engine records the step `"skipped"` with the reason before
+ever calling `run` (`cert-test.ts`'s `invoke()` checks `notApplicable` first, ahead of `flavors` and
+per-step PICS), so the empty async body is never reached — it exists only because `.step()` requires
+a `run` callback. Don't reach for `flavors: []` or a `pics` expression that's always false to express
+this: both would still call `run` in a run configuration nobody expects, and neither carries a reason
+into the evidence bundle the way `notApplicable` does.
+
+## Promoting the command-path log check (`TC-IDM-1.1`)
+
+`TC-ACT-3.2`'s `commandPathIBSequence`/`expectCommandInvoke` (checking a `CommandDataIB`/`CommandPathIB`
+block for an invoked command, the write-side counterpart to `expectAttributePathIB`'s read-side check)
+were TC-local when only one TC needed them. `TC-IDM-1.1` needs the exact same shape of check — a
+different cluster (`OnOff` vs. `Actions`), a different endpoint constant, and no fields at all — which
+is the same "a second TC needs the same shape" trigger `TC-IDM-2.1`'s `attributePathIBSequence` was
+promoted on (see "Wildcard path idioms" above). Both helpers, plus a shared `requireId` and a renamed
+`CommandFieldValue` (was `FieldValue`), moved to `tc-support.ts`, parameterized on `endpoint`/`cluster`
+instead of reading TC-ACT-3.2's own module-level constants; `TC-ACT-3.2.test.ts` was updated to call the
+promoted versions rather than keep a second copy. Behavior is unchanged for `TC-ACT-3.2` — same sequence,
+same per-field pattern, same returned `CheckRecord` shape — only the call site gained two parameters
+(`endpoint`, `cluster`) it used to read from module scope.
 
 ## Multi-controller wiring (`TC-CADMIN-1.17`), first real exercise
 
