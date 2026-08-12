@@ -4,14 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Package } from "@nacho-iot/js-tools";
 import { readFile } from "node:fs/promises";
 import { isAbsolute } from "node:path";
-import { State } from "../state.js";
+import type { Container } from "../../docker/container.js";
 import { PicsFile } from "./file.js";
 
 const dataCache = new WeakMap<PicsSource, PicsFile>();
-const filenameCache = new WeakMap<PicsFile, string>();
+// Keyed per-container: the same PicsFile installed into two containers needs two filenames, one
+// actually written into each.
+const filenameCache = new WeakMap<Container, WeakMap<PicsFile, string>>();
 
 let nextFileNo = 1;
 
@@ -25,9 +26,11 @@ export namespace PicsSource {
     /**
      * Load a {@link PicsFile} defined by a {@link PicsSource}.
      *
-     * Caches results so a source always returns the same {@link PicsFile} instance.
+     * Caches results so a source always returns the same {@link PicsFile} instance. `container` is
+     * only actually read for a `"chip"`-kind source; callers that know their sources never resolve to
+     * one may omit it.
      */
-    export async function load(source: PicsSource): Promise<PicsFile> {
+    export async function load(source: PicsSource, container?: Container): Promise<PicsFile> {
         let file = dataCache.get(source);
         if (file) {
             return file;
@@ -36,7 +39,7 @@ export namespace PicsSource {
         switch (source.kind) {
             case "composite":
                 for (const subsource of source.sources) {
-                    const sourceFile = await load(subsource);
+                    const sourceFile = await load(subsource, container);
                     if (file) {
                         file.patch(sourceFile);
                     } else {
@@ -49,11 +52,14 @@ export namespace PicsSource {
                 break;
 
             case "chip":
-                file = new PicsFile(await State.container.read(source.name));
+                if (!container) {
+                    throw new Error(`Loading PICS source "${source.name}" requires a container`);
+                }
+                file = new PicsFile(await container.read(source.name));
                 break;
 
             case "file":
-                file = new PicsFile(await readFile(resolve(source.name), "utf-8"));
+                file = new PicsFile(await readFile(await resolve(source.name), "utf-8"));
                 break;
 
             case "lines":
@@ -76,14 +82,14 @@ export namespace PicsSource {
     /**
      * Save a {@link PicsFile} to the a {@link ChipFile} or {@link LocalFile}.
      */
-    export async function save(target: ChipFile | LocalFile, file: PicsFile): Promise<void> {
+    export async function save(container: Container, target: ChipFile | LocalFile, file: PicsFile): Promise<void> {
         switch (target.kind) {
             case "chip":
-                await State.container.write(target.name, file.toString());
+                await container.write(target.name, file.toString());
                 break;
 
             case "file":
-                await State.container.write(resolve(target.name), file.toString());
+                await container.write(await resolve(target.name), file.toString());
                 break;
 
             default:
@@ -92,14 +98,20 @@ export namespace PicsSource {
     }
 
     /**
-     * Install a {@link PicsSource} into the test container.
+     * Install a {@link PicsSource} into `container`.
      *
      * Returns the name of the file in the container.
      *
      * Results are cached so the same source always returns the same filename.
      */
-    export async function install(file: PicsFile): Promise<string> {
-        let filename = filenameCache.get(file);
+    export async function install(container: Container, file: PicsFile): Promise<string> {
+        let byFile = filenameCache.get(container);
+        if (!byFile) {
+            byFile = new WeakMap<PicsFile, string>();
+            filenameCache.set(container, byFile);
+        }
+
+        let filename = byFile.get(file);
         if (filename) {
             return filename;
         }
@@ -107,10 +119,10 @@ export namespace PicsSource {
         filename = `/pics-${nextFileNo++}.properties`;
 
         try {
-            filenameCache.set(file, filename);
-            await save({ kind: "chip", name: filename }, file);
+            byFile.set(file, filename);
+            await save(container, { kind: "chip", name: filename }, file);
         } catch (e) {
-            filenameCache.delete(file);
+            byFile.delete(file);
             throw e;
         }
 
@@ -145,15 +157,23 @@ export namespace PicsSource {
     export type Source = ChipFile | LocalFile | Lines | Values;
 }
 
-function resolve(path: string): string {
+// A "file"-kind PICS source is a rare, local-dev-only path (unused by any test in this suite).
+// @nacho-iot/js-tools pulls in Node build tooling that isn't browser-bundleable; importing it lazily,
+// only when this branch actually runs, keeps every other PicsSource kind (and everything that only
+// ever installs/loads those) free of that dependency. The specifier is built at runtime, not written
+// as a literal, so esbuild's Web test bundle can't trace and inline it (a literal `import("@nacho-iot/js-tools")`
+// would drag its build-tooling submodules into that bundle even though this branch never runs there).
+async function resolve(path: string): Promise<string> {
     if (isAbsolute(path)) {
         return path;
     }
 
+    const jsToolsSpecifier = ["@nacho-iot", "js-tools"].join("/");
+    const { Package }: typeof import("@nacho-iot/js-tools") = await import(jsToolsSpecifier);
     const testing = Package.findPackage("@matter/testing");
     if (testing.hasFile(path)) {
         return testing.resolve(path);
     }
 
-    return resolve(path);
+    throw new Error(`PICS file "${path}" not found relative to @matter/testing`);
 }

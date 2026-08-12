@@ -26,6 +26,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A cluster's feature table no longer selects features; a feature the specification makes unconditionally mandatory is always selected
     - Fix: Feature selection records against `operationalIsSupported` so a feature's `default` conveys only the specification's fallback value
     - Fix: A feature mandated by any of several alternatives, such as `DoorLock.User`, is now reported as required
+    - Fix: A feature conformance that is a bracketed disjunction, such as `[VDO | SNP]`, is illegal only when none of its alternatives is selected
+    - Fix: A choice set whose members are gated on a conformance expression, such as `[!PA].a` or `[PS].b`, requires a selection only where the gate admits a member, and rejects a member the gate excludes
+    - Fix: An entry of an otherwise conformance applies only where the entries preceding it do not, and a feature is disallowed where no entry applies
+    - Fix: A choice set whose members are all provisional, such as the `Groupcast` and `AmbientContextSensing` feature sets, no longer requires a selection
 
 - @matter/node
     - Breaking: Default server exports no longer inherit the features their base implementation enables internally.
@@ -39,6 +43,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Struct validation resolves a member stored under its TLV tag number, so a constraint violation there is caught and a mandatory member present only at its id no longer raises a conformance error
     - Breaking: Adding a server cluster to an endpoint fails when its selected features violate the conformance of its FeatureMap
     - Breaking: Provisional elements are no longer implemented by default; supply a state value or use `ClusterBehavior.enable()` to implement one
+    - Breaking: `SoftwareUpdateManager.addUpdateConsent()` and `forceUpdate()` take the update as an object instead of three positional arguments, so it can carry per-update options
     - Feature: Added `ServerNode.peers.commissioned` returning the commissioned `ClientNode`s
     - Feature: Added `ClientNode.disable()`/`enable()` to persistently disable/enable a commissioned peer
     - Feature: Added a `ClientNode` connection-state engine — `lifecycle.connectionState`/`connectionStateChanged`/`isConnected` and the `NodeConnectionState` enum
@@ -47,6 +52,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Added `openBasicCommissioningWindow`/`openEnhancedCommissioningWindow` on `CommissioningClient`/`ClientNode` to open a commissioning window on a commissioned peer
     - Feature: Added split/delegated commissioning — `CommissioningClient.CommissioningOptions.finalizeCommissioning` plus `ServerNode.peers.completeCommissioning(nodeId, discoveryData?, options?)`
     - Feature: Added `NetworkServer.autoStartCommissionedPeers` (default true) to opt out of auto-starting commissioned peers when the node goes online
+    - Enhancement: `SoftwareUpdateManager` caps the BDX block size for OTA transfers via `maxBdxBlockSize` and overrides their MRP retransmission margin via `bdxAdditionalMrpDelay`, either generally in its state or per update when giving consent
+    - Enhancement: `network.profiles` accepts `bdxAdditionalMrpDelay`
     - Adjustment: A node with commissioning disabled (e.g. a controller) now binds an ephemeral operational port instead of the standard Matter port (5540) when `NetworkServer.port` is unset; commissionable nodes still default to 5540 and an explicit port is always honored
     - Fix: `endpoints.size` no longer double-counts the root endpoint
     - Removed: `StructManager.assertDirectReadAuthorized()` and the direct-read authorization it backed, unused since the legacy cluster API was dropped
@@ -67,6 +74,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/protocol
     - Deprecation: The legacy `DecodedDataReport` / `Decoded{Attribute,Event}Report*` types and the `normalize*` / `normalizeAndDecode*` helpers now announce removal in 0.19 instead of 0.18
     - Deprecation: The legacy `ClusterType` command request surface (`Invoke.LegacyCommandRequest`, `Specifier.ClusterTypeCommand`) and `SessionManager.owner` are scheduled for removal in 0.19
+    - Enhancement: Network profiles accept a separate `bdxAdditionalMrpDelay` for bulk transfer, defaulting to the profile's messaging margin
+    - Fix: A subscription's `maxIntervalCeiling` is transmitted exactly as requested; jitter now applies only when we derive the ceiling ourselves
 
 - @matter/react-native
     - Fix: The `storage.clear` variable now clears the storage on start as it does on Node.js
@@ -78,6 +87,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Deprecation: The generated `Cluster`, `Complete` and `<Name>Cluster` aliases and the `ClusterType.WithCompat` `with()` shim are scheduled for removal in 0.19
     - Fix: `Cluster.with()` rejects a feature the cluster does not define and returns one frozen namespace per selection
 
+- @matter/testing
+    - Enhancement: `certTest()` defines controller-side certification tests with per-step PICS gating, device-log expectations and evidence recording; devices run as chip apps (docker or local binary) or matter.js test apps, selected via `MATTER_CERT_DEVICE`
+    - Enhancement: `PromptDrivenPythonTest` drives chip python test scripts that prompt for manual commissioning steps
+    - Enhancement: `matter-test`'s post-test clean-exit grace period is overridable via `MATTER_TEST_SHUTDOWN_TIMEOUT_MS`
+    - Enhancement: `MATTER_CHIP_BINS_SOURCE=cert-bins` selects project-chip's official `connectedhomeip/chip-cert-bins` binaries for the classic yaml/python tests and `chip-local` cert-test subjects
+    - Enhancement: A cert test's attached device/controller logs now carry a banner marking each step's start and end, alongside its verdict
+
 - @matter/ws-ble
     - Feature: Added as new package — BLE-over-WebSocket proxy (hub, `Ble` consumer stack, noble reference client and `matter-ble-proxy` CLI)
 
@@ -88,7 +104,6 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/protocol
     - Enhancement: A BDX exchange retransmits its pending message early when a duplicate proves the peer is awake and still waiting for it
-    - Enhancement: Network profiles accept a separate `bdxAdditionalMrpDelay` for bulk transfer, defaulting to the profile's messaging margin
     - Fix: The peer's medium-specific MRP retransmission margin now applies to peer-initiated exchanges (e.g. subscription data reports) and to exchanges created without peer context
     - Fix: BDX retransmission intervals are capped so the whole MRP schedule fits inside the peer's BDX response budget, which acknowledgements do not extend; the peer's idle cadence does not raise the cap, since a peer holding an open exchange is in active mode
     - Fix: A retransmission timer is no longer armed for a message that was acknowledged while an earlier transmission of it was still in flight, which left the timer running unreferenced
@@ -99,9 +114,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensure that the end of a session is logged also when its channel was detached before; channel detach is now logged as debug
 
 - @matter/node
-    - Breaking: `SoftwareUpdateManager.addUpdateConsent()` and `forceUpdate()` take the update as an object instead of three positional arguments, so it can carry per-update options
-    - Enhancement: `SoftwareUpdateManager` caps the BDX block size for OTA transfers via `maxBdxBlockSize` and overrides their MRP retransmission margin via `bdxAdditionalMrpDelay`, either generally in its state or per update when giving consent
-    - Enhancement: `network.profiles` accepts `bdxAdditionalMrpDelay`
     - Enhancement: `network.timing` accepts the kick and address-change parameters
     - Enhancement: Managed state derives a member's container key through one shared implementation (no functional change)
     - Fix: Client node state reads and writes struct- and list-valued fields nested inside an attribute value
