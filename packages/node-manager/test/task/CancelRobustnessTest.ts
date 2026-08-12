@@ -5,7 +5,7 @@
  */
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
-import { TaskConflictError, TaskManagerClosingError } from "#task/errors.js";
+import { TaskConflictError, TaskFailedError, TaskManagerClosingError } from "#task/errors.js";
 import { TaskPersistence } from "#task/Task.js";
 import { TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { TaskPhase, TaskState } from "#task/types.js";
@@ -32,6 +32,23 @@ class TestTaskManager extends TaskManagerBehavior {
     /** True once cancel() has accepted the request, before it settles. */
     isCancelling(id: string): boolean {
         return this.internal.cancelling.has(id);
+    }
+
+    /** True while a task's drive promise has not settled. */
+    isDriven(id: string): boolean {
+        return this.internal.driving.has(id);
+    }
+
+    /** Occupy the persist mutex so the next persist queues behind the returned release. */
+    holdPersistMutex(): () => void {
+        const mutex = this.internal.persistMutex;
+        if (mutex === undefined) {
+            throw new Error("The persist mutex does not exist yet; run a task first");
+        }
+        let release!: () => void;
+        const held = new Promise<void>(resolve => (release = resolve));
+        mutex.run(() => held);
+        return release;
     }
 
     protected override taskReconciler(): ReconcilerBehavior {
@@ -337,6 +354,51 @@ describe("cancel robustness", () => {
         await node2.close();
     });
 
+    it("refuses a cancel whose record cannot be written because shutdown began while it queued", async () => {
+        const environment = new Environment("test");
+        const peer = new FakePeer("qw");
+        TestTaskManager.peers.set("qw", peer);
+        TestTaskManager.reconcilerPeer = peer;
+
+        SyntheticTask.phasesByTag["queued"] = [gatePhase("qw", "groupMembership", "Q")];
+
+        const node1 = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-queued" });
+        await node1.act(a => a.get(TestTaskManager).register("synthetic", TracedTask));
+        let manager!: TestTaskManager;
+        await node1.act(a => {
+            manager = a.get(TestTaskManager);
+        });
+        await node1.act(a => a.get(TestTaskManager).run("synthetic", { tag: "queued" }));
+        await pumpUntil("intent written", () => peer.items[itemMapKey("groupMembership", "Q")] !== undefined);
+
+        // Hold the mutex so the cancel's write cannot run when it is enqueued, then start shutdown in that window:
+        // a synchronous check before the enqueue cannot see the shutdown that begins after it.
+        const release = await node1.act(a => a.get(TestTaskManager).holdPersistMutex());
+        const cancelling = node1.act(a => a.get(TestTaskManager).cancel("synthetic:queued"));
+        await pumpUntil("cancel write enqueued", () => manager.get("synthetic:queued")?.status.state === "cancelled");
+
+        const closing = node1.close();
+        await pumpUntil("node no longer active", () => node1.construction.status !== Lifecycle.Status.Active);
+        release();
+
+        await expect(MockTime.resolve(cancelling)).rejectedWith(TaskManagerClosingError);
+        await MockTime.resolve(closing);
+
+        // The refused write leaves no trace: state as it was, no rollback linked, none live, nothing rolled back.
+        const task = TracedTask.instance("synthetic:queued");
+        expect(task.progress.state).equals("running");
+        expect(task.revertTaskId).equals(undefined);
+        expect(manager.tasks.map(t => t.id)).deep.equals(["synthetic:queued"]);
+        expect(peer.removeOrder).deep.equals([]);
+
+        const node2 = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-queued" });
+        const persisted = node2.stateOf(TestTaskManager).tasks;
+        expect(persisted["synthetic:queued"].state).equals("running");
+        expect(persisted["synthetic:queued"].revertTaskId).equals(undefined);
+        expect(persisted["revert:synthetic:queued"]).equals(undefined);
+        await node2.close();
+    });
+
     it("does not report a crashed manager as shutting down", async () => {
         const environment = new Environment("test");
         const peer = new FakePeer("cd");
@@ -408,6 +470,51 @@ describe("cancel robustness", () => {
         expect(persisted["synthetic:shutfail"].state).equals("running");
         expect(persisted["revert:synthetic:shutfail"]).equals(undefined);
         await node2.close();
+    });
+
+    it("leaves no rollback behind when a failure state cannot be recorded", async () => {
+        const environment = new Environment("test");
+        const peer = new FakePeer("cf");
+        TestTaskManager.peers.set("cf", peer);
+        TestTaskManager.reconcilerPeer = peer;
+
+        let releasePhase!: () => void;
+        const held = new Promise<void>(resolve => (releasePhase = resolve));
+        let phaseEntered = false;
+        SyntheticTask.phasesByTag["failwrite"] = [
+            {
+                name: "touch",
+                run: async ctx => {
+                    await ctx.setIntent(ctx.resolvePeer("cf"), "groupMembership", "W", {});
+                    phaseEntered = true;
+                    await held;
+                    throw new TaskFailedError("forced failure");
+                },
+            },
+        ];
+
+        const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-failwrite" });
+        await node.act(a => a.get(TestTaskManager).register("synthetic", TracedTask));
+        let manager!: TestTaskManager;
+        await node.act(a => {
+            manager = a.get(TestTaskManager);
+        });
+        await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "failwrite" }));
+        await pumpUntil("phase in flight", () => phaseEntered);
+
+        // The task fails against a crashed node, so neither the failure nor a rollback of it can be recorded.
+        node.construction.setStatus(Lifecycle.Status.Crashed);
+        releasePhase();
+        await pumpUntil("drive settled", () => !manager.isDriven("synthetic:failwrite"));
+        expect(manager.get("synthetic:failwrite")?.status.state).equals("failed");
+
+        // A rollback the record does not name must not exist: it would block every future run of the id, and
+        // nothing would ever drive it.
+        expect(manager.get("synthetic:failwrite")?.status.revertTaskId).equals(undefined);
+        expect(manager.tasks.map(t => t.id)).deep.equals(["synthetic:failwrite"]);
+        expect(peer.removeOrder).deep.equals([]);
+
+        await node.close();
     });
 
     it("refuses a task started while the manager is shutting down", async () => {

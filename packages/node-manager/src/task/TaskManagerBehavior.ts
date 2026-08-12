@@ -35,6 +35,25 @@ export interface TaskHandle {
     readonly status: TaskStatus;
 }
 
+/**
+ * A task's rollback with the two operations that keep it consistent with its record: {@link discard} forgets a
+ * rollback whose record was refused, {@link start} begins driving one whose record is durable.
+ */
+interface PreparedRevert {
+    readonly task?: Task;
+    discard(): void;
+    start(): void;
+}
+
+/** The rollback of a task that has nothing to roll back: nothing to write, start or forget. */
+const NO_REVERT: PreparedRevert = { discard() {}, start() {} };
+
+/** A task registered as live, and whether the caller joined a live task that is already being driven. */
+interface SpawnedTask {
+    task: Task;
+    joined: boolean;
+}
+
 export class TaskManagerBehavior extends Behavior {
     static override readonly id = "taskManager";
     static override readonly early = true;
@@ -151,11 +170,19 @@ export class TaskManagerBehavior extends Behavior {
      * The `externalId` is also the id the caller can {@link get} and {@link cancel} its task under.
      */
     run(type: string, params: unknown, opts?: { externalId?: string }): TaskHandle {
-        return this.#handle(this.#spawn(type, params, { externalId: opts?.externalId }));
+        const { task, joined } = this.#spawn(type, params, { externalId: opts?.externalId });
+        if (!joined) {
+            this.#track(task);
+        }
+        return this.#handle(task);
     }
 
-    /** Shared creation path so callers (e.g. #spawnRevert) can seed persisted fields before the first persist. */
-    #spawn(type: string, params: unknown, seed: Partial<TaskPersistence>): Task {
+    /**
+     * Shared creation path so callers (e.g. #prepareRevert) can seed persisted fields before the first persist.
+     * Registers a new task as live but does not drive it: a task whose record must be durable before it touches a
+     * peer starts with {@link #track} once the write lands.
+     */
+    #spawn(type: string, params: unknown, seed: Partial<TaskPersistence>): SpawnedTask {
         const id = this.internal.registry.idFor(type, params);
         // Driving started now would outlive the dispose drain and write to peers after close, with no way to
         // record what it did.
@@ -172,7 +199,7 @@ export class TaskManagerBehavior extends Behavior {
                     `Task ${id} rejected: this id is held by a live task (${existing.progress.state})`,
                 );
             }
-            return existing;
+            return { task: existing, joined: true };
         }
         const pendingRevert = this.#pendingRevertFor(id);
         if (pendingRevert !== undefined) {
@@ -194,8 +221,7 @@ export class TaskManagerBehavior extends Behavior {
             }
         }
         this.internal.live.set(id, task);
-        this.#track(task);
-        return task;
+        return { task, joined: false };
     }
 
     /** A rollback rewrites exactly the intents a re-run would re-apply, so the two must never overlap. */
@@ -292,15 +318,24 @@ export class TaskManagerBehavior extends Behavior {
         // unreverted rather than claiming a cancel that storage would contradict on the next start.
         this.#refuseIfClosing(`Task ${task.id} cannot be cancelled`);
 
-        // Spawned before the state changes: a refused rollback must leave the task as it was, not cancelled in
+        // Prepared before the state changes: a refused rollback must leave the task as it was, not cancelled in
         // memory and unchanged in storage.
-        const revert = this.#spawnRevert(task);
+        const revert = this.#prepareRevert(task);
+        const stateBeforeCancel = task.progress.state;
         // running/parked → cancelled; an already-terminal (completed/failed) task keeps its truthful state.
-        if (task.progress.state === "running" || task.progress.state === "parked") {
+        if (stateBeforeCancel === "running" || stateBeforeCancel === "parked") {
             task.progress.state = "cancelled";
         }
-        await this.#persist(task, revert);
-        return revert === undefined ? undefined : this.#handle(revert);
+        try {
+            await this.#persist(task, revert.task);
+        } catch (e) {
+            task.progress.state = stateBeforeCancel;
+            revert.discard();
+            throw e;
+        }
+        // The rollback mutates peers, so it may not drive before the record that names it is durable.
+        revert.start();
+        return revert.task === undefined ? undefined : this.#handle(revert.task);
     }
 
     // Teardown starts at the node, not at this behavior: `Construction.close` applies `Destroying` before it runs
@@ -317,29 +352,40 @@ export class TaskManagerBehavior extends Behavior {
         }
     }
 
-    /** Spawn (or reuse) the revert task for `task`, linking both directions. Returns undefined if no changeSet. */
-    #spawnRevert(task: Task): Task | undefined {
+    /** Create (or reuse) the revert task for `task`, linking both directions, without driving it. */
+    #prepareRevert(task: Task): PreparedRevert {
         // A failed revert surfaces as `failed` for operator attention; reverting a revert would recurse unbounded.
         if (task.type === REVERT_TYPE) {
-            return undefined;
+            return NO_REVERT;
         }
         // Past a task's point of no return there is nothing to roll back to; suppress auto-rollback too.
         if (!task.revertible) {
-            return undefined;
+            return NO_REVERT;
         }
         if (task.revertTaskId !== undefined) {
-            return this.#revertOf(task);
+            return { task: this.#revertOf(task), discard() {}, start() {} };
         }
         if (task.changeSet.length === 0) {
-            return undefined;
+            return NO_REVERT;
         }
-        const revert = this.#spawn(
+        const { task: revert, joined } = this.#spawn(
             REVERT_TYPE,
             { originalId: task.id, entries: task.changeSet },
             { revertOf: task.id },
         );
         task.revertTaskId = revert.id;
-        return revert;
+        // A joined rollback is already live and driving, so it is not ours to start or to forget.
+        if (joined) {
+            return { task: revert, discard() {}, start() {} };
+        }
+        return {
+            task: revert,
+            discard: () => {
+                task.revertTaskId = undefined;
+                this.internal.live.delete(revert.id);
+            },
+            start: () => this.#track(revert),
+        };
     }
 
     /** The rollback a task recorded, or undefined if it never had one. */
@@ -459,17 +505,21 @@ export class TaskManagerBehavior extends Behavior {
             logger.error(`Task ${task.id} failed`, e);
             // Neither a rollback this manager refuses nor a failing persist may re-reject the (otherwise handled)
             // drive promise: that turns into an unhandled rejection and a cancel awaiting this task throws.
-            let revert: Task | undefined;
+            let revert = NO_REVERT;
             try {
-                revert = this.#spawnRevert(task);
+                revert = this.#prepareRevert(task);
             } catch (revertError) {
                 logger.error(`Task ${task.id}: cannot roll back`, revertError);
             }
             try {
-                await this.#persist(task, revert);
+                await this.#persist(task, revert.task);
             } catch (persistError) {
+                revert.discard();
                 logger.error(`Task ${task.id}: failed to persist failure state`, persistError);
+                return;
             }
+            // The rollback mutates peers, so it may not drive before the record that names it is durable.
+            revert.start();
         }
     }
 
@@ -535,6 +585,8 @@ export class TaskManagerBehavior extends Behavior {
     // A task that names a revert and the revert itself go into one transaction: written separately, a crash
     // between the two loses the rollback while the forward record still promises it.
     async #writeRecord(task: Task, paired?: Task): Promise<void> {
+        // Serialized with the write, so a shutdown that began while this queued behind the mutex cannot slip past.
+        this.#refuseIfClosing(`Task ${task.id} state cannot be recorded`);
         const records = (paired === undefined ? [task] : [task, paired]).map(t => [t.id, t.toPersistence()] as const);
         await this.endpoint.act(agent => {
             const self = agent.get(TaskManagerBehavior);
