@@ -103,11 +103,12 @@ async function expectSubscribeEnvelope(
 }
 
 /**
- * Waits for one {@link STATUS_RESPONSE_SUCCESS} line at or after `from`, converting a timeout/closed
- * source into a recorded `"fail"` the same way {@link expectMessageWithPath} does, so a step's own
- * evidence carries the failure instead of an uncaught throw. Event-driven (`log.expect`, not a
- * synchronous snapshot count), so it tolerates the log follower's own pump lag; `"unverified"` for
- * the matterjs flavor, since `STATUS_RESPONSE_SUCCESS` has no matterjs counterpart.
+ * Waits for one {@link STATUS_RESPONSE_SUCCESS} line to arrive at or after `from`, within
+ * `timeoutMs` — tolerating the log follower's own pump lag between the line being written and this
+ * call observing it. Converts a timeout/closed source into a recorded `"fail"` the same way
+ * {@link expectMessageWithPath} does, so a step's own evidence carries the failure instead of an
+ * uncaught throw. `"unverified"` for the matterjs flavor, since `STATUS_RESPONSE_SUCCESS` has no
+ * matterjs counterpart.
  */
 async function expectStatusResponseSuccess(
     log: LogFollower,
@@ -175,10 +176,12 @@ async function waitForCount(
  * inside the same floor window into a single report, so this pacing is what makes "N writes -> N
  * reports" hold, not an incidental choice.
  *
- * Each write's chip-flavor `StatusResponseMessage` ack is awaited individually, chained forward from
- * the previous write's own matched line — every write's evidence is anchored to a specific,
- * already-occurred log event, never to how many matching lines happen to be buffered at one
- * arbitrary instant.
+ * Each write's chip-flavor `StatusResponseMessage` ack is awaited individually: write 1 chains from
+ * the priming ack's own matched line (consumed explicitly, right below, before the loop starts),
+ * every later write chains from the previous write's. Every window's start is therefore a specific,
+ * already-occurred log event, never a bare mark — subscribe() resolving only means the client has
+ * sent the priming ack, not that this log has received and decoded it yet, so a bare mark taken at
+ * that point could still race it.
  */
 async function subscribeAndModify<Value>(
     cx: CertStepContext,
@@ -219,7 +222,12 @@ async function subscribeAndModify<Value>(
         throw new Error(`SubscribeRequestMessage log check failed for step ${step}: ${JSON.stringify(subscribeCheck)}`);
     }
 
-    let ackCursor = th.log.mark();
+    const primingAckCheck = await expectStatusResponseSuccess(th.log, th.flavor, from, ACK_WAIT_TIMEOUT_MS);
+    cx.recorder.check(primingAckCheck);
+    if (primingAckCheck.verdict === "fail") {
+        throw new Error(`Priming-report status check failed for step ${step}: ${JSON.stringify(primingAckCheck)}`);
+    }
+    let ackCursor = primingAckCheck.logLine !== undefined ? primingAckCheck.logLine + 1 : th.log.mark();
     for (let i = 0; i < values.length; i++) {
         try {
             await cx.controllers.dut.node(ref).writeAttribute(path, values[i]);
