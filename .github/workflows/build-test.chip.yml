@@ -170,14 +170,15 @@ jobs:
           name: chip-image
           path: /tmp/chip.tar
 
+  # This job must complete on every run because skipping a required dependency also skips test-core-arm64.
   chip-image-arm64:
     needs: workflow-conditions
-    if: needs.workflow-conditions.outputs.build-needed == 'true'
     runs-on: ubuntu-24.04-arm
     outputs:
       source: ${{ needs.workflow-conditions.outputs.build-needed == 'true' && 'artifact' || 'repository' }}
     steps:
       - name: Maximize build space
+        if: needs.workflow-conditions.outputs.build-needed == 'true'
         uses: easimon/maximize-build-space@v10
         with:
           root-reserve-mb: 4096
@@ -187,9 +188,11 @@ jobs:
           remove-haskell: 'true'
 
       - name: Check out matter.js
+        if: needs.workflow-conditions.outputs.build-needed == 'true'
         uses: actions/checkout@v7
 
       - name: Build chip image (arm64)
+        if: needs.workflow-conditions.outputs.build-needed == 'true'
         env:
           CHIP_COMMIT: ${{ needs.workflow-conditions.outputs.chip-sha }}
         run: |
@@ -200,6 +203,7 @@ jobs:
       # execution check here. Exit status 126 or above means the shell could not execute the binary at all (wrong
       # architecture, missing loader); anything below that proves it ran.
       - name: Smoke-test arm64 image
+        if: needs.workflow-conditions.outputs.build-needed == 'true'
         run: |
           docker load -i /tmp/chip.tar
           arch=$(docker inspect --format '{{ .Architecture }}' ghcr.io/matter-js/chip:latest)
@@ -219,6 +223,7 @@ jobs:
           '
 
       - name: Upload chip artifact
+        if: needs.workflow-conditions.outputs.build-needed == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: chip-image-arm64
