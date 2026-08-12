@@ -57,7 +57,7 @@ function fieldId(commandName: string, propertyName: string): number {
 /**
  * The literal, consecutive `CHIP:DMG` lines chip emits for one invoked command's `CommandDataIB`:
  * the request-side wrapper, then `CommandPathIB`'s Endpoint/Cluster/Command, each on its own line, in
- * that fixed order — mirrors `TC-IDM-2.1.test.ts`'s `attributePathIBSequence` for the read-side
+ * that fixed order — mirrors `tc-support.ts`'s `attributePathIBSequence` for the read-side
  * equivalent. Endpoint/Cluster/Command are all bare lowercase hex here (verified against a real
  * chip-bridge-app capture), unlike `AttributePathIB`'s Attribute field, which needs an 8-digit padded
  * MEI.

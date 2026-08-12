@@ -5,8 +5,16 @@
  */
 
 import { InternalError, Time } from "@matter/main";
-import type { CertNodeRef, CertStepContext, CheckRecord, LogExpectResult, LogFollower, LogLine } from "@matter/testing";
-import { CertLogClosedError, CertLogTimeoutError } from "@matter/testing";
+import type {
+    AttributePathSpec,
+    CertNodeRef,
+    CertStepContext,
+    CheckRecord,
+    LogExpectResult,
+    LogFollower,
+    LogLine,
+} from "@matter/testing";
+import { CertLogClosedError, CertLogTimeoutError, matchableCopy } from "@matter/testing";
 
 /**
  * Tracks commissioned node refs by role for one cert-test run and decommissions whatever's still
@@ -140,6 +148,142 @@ export async function expectAdjacentLines(
 // policy for the matterjs "unverified" fallback.
 const REPORT_DATA_SENT = /\[DMG\] ReportDataMessage =\s*$/;
 const STATUS_RESPONSE_RECEIVED = /Msg RX from.*\(IM:StatusResponse\)/;
+
+// chip's DMG log names the top-level request message before dumping its payload, the same shape as
+// REPORT_DATA_SENT above — verified against connectedhomeip's captures: WriteRequestMessage in
+// Test_TC_IDM_3_1.yaml, SubscribeRequestMessage in Test_TC_IDM_4_1.yaml, InvokeRequestMessage in
+// Test_TC_IDM_1_1.yaml.
+export const WRITE_REQUEST_MESSAGE = /\[DMG\] WriteRequestMessage =\s*$/;
+export const INVOKE_REQUEST_MESSAGE = /\[DMG\] InvokeRequestMessage =\s*$/;
+export const SUBSCRIBE_REQUEST_MESSAGE = /\[DMG\] SubscribeRequestMessage =\s*$/;
+
+// chip's StatusResponseMessage decode dump carries the numeric status on its own nested line, not
+// on the same line as the message name — verified against Test_TC_IDM_4_1.yaml's captured
+// subscribe-establishment blocks (`Status = 0x00 (SUCCESS),`). This is the generic StatusIB shape,
+// so it also matches a write/invoke response's own success status, not only StatusResponseMessage's;
+// a caller relying on it for "N StatusResponseMessage successes" needs the cursor window to exclude
+// unrelated status lines itself.
+export const STATUS_RESPONSE_SUCCESS = /Status = 0x00 \(SUCCESS\),?\s*$/;
+
+/**
+ * The literal, consecutive `CHIP:DMG` lines chip emits for one `AttributePathIB`: an opening
+ * `AttributePathIB =` / `{`, one line per present field in Endpoint/Cluster/Attribute order, and a
+ * closing `}`. A wildcard (absent) field has no line at all, which is why {@link expectAttributePathIB}
+ * walks this whole sequence rather than testing a single "does X appear" pattern — that's what proves
+ * the shape matches exactly, not just that the concrete fields happen to appear somewhere.
+ */
+export function attributePathIBSequence(fields: AttributePathSpec): RegExp[] {
+    const sequence = [/AttributePathIB =\s*$/, /\{\s*$/];
+    if (fields.endpoint !== undefined) {
+        sequence.push(new RegExp(`Endpoint = 0x${fields.endpoint.toString(16)},\\s*$`));
+    }
+    if (fields.cluster !== undefined) {
+        sequence.push(new RegExp(`Cluster = 0x${fields.cluster.toString(16)},\\s*$`));
+    }
+    if (fields.attribute !== undefined) {
+        sequence.push(new RegExp(`Attribute = 0x${attributeHex(fields.attribute)},\\s*$`));
+    }
+    sequence.push(/\}\s*$/);
+    return sequence;
+}
+
+// chip prints Endpoint/Cluster as bare lowercase hex (no padding, e.g. 0x1d) but Attribute as an
+// 8-digit, underscore-grouped, uppercase MEI (e.g. 0x0000_FFFD) — verified against a real
+// chip-all-clusters-app's `--trace_decode 1` output; see AGENTS.md's "wildcard path idioms" section.
+function attributeHex(id: number): string {
+    const hex = id.toString(16).toUpperCase().padStart(8, "0");
+    return `${hex.slice(0, 4)}_${hex.slice(4)}`;
+}
+
+/**
+ * Confirms chip's log carries exactly the `AttributePathIB` shape `fields` describes as a
+ * consecutive block at or after `from` (see {@link expectAdjacentLines} — a wildcard sequence is a
+ * strict prefix of a concrete one, so a block with extra field lines is a different block, not a
+ * match). Returns `"unverified"` for the matterjs flavor (see AGENTS.md's flavor-pattern policy):
+ * matter.js doesn't emit this chip-specific log shape.
+ */
+export async function expectAttributePathIB(
+    log: LogFollower,
+    flavor: string,
+    fields: AttributePathSpec,
+    from: number,
+    timeoutMs: number,
+): Promise<CheckRecord> {
+    const result = await expectAdjacentLines(log, flavor, attributePathIBSequence(fields), from, timeoutMs);
+    if (result.verdict === "unverified") {
+        return { type: "device-log", verdict: "unverified" };
+    }
+
+    return {
+        type: "device-log",
+        verdict: "pass",
+        pattern: `AttributePathIB ${JSON.stringify(fields)}`,
+        matched: result.last.text,
+        logLine: result.last.index,
+    };
+}
+
+/**
+ * Confirms `message` (e.g. {@link WRITE_REQUEST_MESSAGE} or {@link SUBSCRIBE_REQUEST_MESSAGE} — a
+ * request kind whose payload carries an `AttributePathIB`, not {@link INVOKE_REQUEST_MESSAGE}, whose
+ * `CommandDataIB` needs a different matcher) appears at or after `from`, then that the
+ * `AttributePathIB` block for `fields` follows it at or after that point (see
+ * {@link expectAttributePathIB}). Anchoring on the request-message name first, not just the path
+ * block on its own, rules out a differently-typed request landing at the same log position. Both
+ * waits share `timeoutMs`'s deadline, the same budget-sharing {@link expectAdjacentLines} and
+ * {@link expectChunkedTransfer} use; a timeout or closed source from either stage is recorded as a
+ * `"fail"` rather than propagating uncaught.
+ */
+export async function expectMessageWithPath(
+    log: LogFollower,
+    flavor: string,
+    message: RegExp,
+    fields: AttributePathSpec,
+    from: number,
+    timeoutMs: number,
+): Promise<CheckRecord> {
+    const deadline = Time.nowMs + timeoutMs;
+    const remaining = () => Math.max(1, deadline - Time.nowMs);
+
+    let anchor: LogExpectResult;
+    try {
+        anchor = await log.expect({ chip: message }, { flavor, timeoutMs: remaining(), from });
+    } catch (e) {
+        if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
+            return { type: "device-log", verdict: "fail", pattern: String(message), detail: e.message, logLine: from };
+        }
+        throw e;
+    }
+    if (anchor.verdict === "unverified") {
+        return { type: "device-log", verdict: "unverified" };
+    }
+
+    try {
+        return await expectAttributePathIB(log, flavor, fields, anchor.matched.index + 1, remaining());
+    } catch (e) {
+        if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
+            return {
+                type: "device-log",
+                verdict: "fail",
+                pattern: `AttributePathIB ${JSON.stringify(fields)}`,
+                detail: e.message,
+                logLine: anchor.matched.index,
+            };
+        }
+        throw e;
+    }
+}
+
+/**
+ * Synchronous count of lines at or after `from` matching `pattern`, skipping
+ * {@link LogLine.synthetic} lines the same way {@link LogFollower.expect} does — for a "repeat N
+ * times, expect N successes" check. `flavor` is currently unused; every pattern this module exports
+ * is chip-only.
+ */
+export function countMatches(log: LogFollower, _flavor: string, pattern: RegExp, from: number): number {
+    const matchable = matchableCopy(pattern);
+    return log.lines.slice(from).filter(line => !line.synthetic && matchable.test(line.text)).length;
+}
 
 // How long a further report chunk may take to surface before the transfer counts as finished. The
 // read has already returned by the time a step checks, so this covers the follower's pump lag only.

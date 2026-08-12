@@ -6,9 +6,9 @@
 
 import { InternalError } from "@matter/main";
 import { Matter } from "@matter/model";
-import type { AttributePathSpec, CertStepContext, CheckRecord, LogFollower } from "@matter/testing";
+import type { AttributePathSpec, CertStepContext, CheckRecord } from "@matter/testing";
 import { certTest } from "@matter/testing";
-import { CommissionedRefs, expectAdjacentLines, expectChunkedTransfer } from "./tc-support.js";
+import { CommissionedRefs, expectAttributePathIB, expectChunkedTransfer } from "./tc-support.js";
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
 const ON_OFF = Matter.clusters.require("OnOff");
@@ -78,64 +78,6 @@ function asWildcardEntries(value: unknown): WildcardEntry[] {
 
 function distinct<T>(values: T[]): T[] {
     return [...new Set(values)];
-}
-
-// chip prints Endpoint/Cluster as bare lowercase hex (no padding, e.g. 0x1d) but Attribute as an
-// 8-digit, underscore-grouped, uppercase MEI (e.g. 0x0000_FFFD) — verified against a real
-// chip-all-clusters-app's `--trace_decode 1` output; see AGENTS.md's "wildcard path idioms" section.
-function attributeHex(id: number): string {
-    const hex = id.toString(16).toUpperCase().padStart(8, "0");
-    return `${hex.slice(0, 4)}_${hex.slice(4)}`;
-}
-
-/**
- * The literal, consecutive `CHIP:DMG` lines chip emits for one `AttributePathIB`: an opening
- * `AttributePathIB =` / `{`, one line per present field in Endpoint/Cluster/Attribute order, and a
- * closing `}`. A wildcard (absent) field has no line at all, which is why {@link expectAttributePathIB}
- * walks this whole sequence rather than testing a single "does X appear" pattern — that's what proves
- * the shape matches exactly, not just that the concrete fields happen to appear somewhere.
- */
-function attributePathIBSequence(fields: AttributePathSpec): RegExp[] {
-    const sequence = [/AttributePathIB =\s*$/, /\{\s*$/];
-    if (fields.endpoint !== undefined) {
-        sequence.push(new RegExp(`Endpoint = 0x${fields.endpoint.toString(16)},\\s*$`));
-    }
-    if (fields.cluster !== undefined) {
-        sequence.push(new RegExp(`Cluster = 0x${fields.cluster.toString(16)},\\s*$`));
-    }
-    if (fields.attribute !== undefined) {
-        sequence.push(new RegExp(`Attribute = 0x${attributeHex(fields.attribute)},\\s*$`));
-    }
-    sequence.push(/\}\s*$/);
-    return sequence;
-}
-
-/**
- * Confirms chip's `ReadRequestMessage` log carries exactly the `AttributePathIB` shape `fields`
- * describes as a consecutive block at or after `from` (see {@link expectAdjacentLines} — a wildcard
- * sequence is a strict prefix of a concrete one, so a block with extra field lines is a different
- * block, not a match). Returns `"unverified"` for the matterjs flavor (see AGENTS.md's
- * flavor-pattern policy): matter.js doesn't emit this chip-specific log shape.
- */
-async function expectAttributePathIB(
-    log: LogFollower,
-    flavor: string,
-    fields: AttributePathSpec,
-    from: number,
-    timeoutMs: number,
-): Promise<CheckRecord> {
-    const result = await expectAdjacentLines(log, flavor, attributePathIBSequence(fields), from, timeoutMs);
-    if (result.verdict === "unverified") {
-        return { type: "device-log", verdict: "unverified" };
-    }
-
-    return {
-        type: "device-log",
-        verdict: "pass",
-        pattern: `AttributePathIB ${JSON.stringify(fields)}`,
-        matched: result.last.text,
-        logLine: result.last.index,
-    };
 }
 
 /** Reads `spec` from `th` via `dut`, and checks the chip log for the matching `AttributePathIB`. */

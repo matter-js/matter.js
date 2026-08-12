@@ -345,8 +345,8 @@ This is a framework-level fix (`log-follower.ts`), not something an individual T
   an absent (wildcarded) field. `LogFollower.expect` only tests one pattern against one line at a time, so
   verifying "exactly these fields, in this order, nothing extra" means chaining `expect()` calls — each
   one's `from` set to the previous match's `index + 1` — and failing if a match doesn't land exactly there.
-  See `TC-IDM-2.1.test.ts`'s `expectAttributePathIB`/`attributePathIBSequence`. This is TC-local for now;
-  promote it to `log-follower.ts` if a second TC needs the same shape of check.
+  See `tc-support.ts`'s `expectAttributePathIB`/`attributePathIBSequence`, promoted there once
+  TC-IDM-3.1/TC-IDM-4.1 needed the same shape of check as this TC.
 - **Every log check in this TC supplies only a `chip` pattern, never a `matterjs` one** — matter.js's own
   logger doesn't emit an equivalent decode dump, so every log check against the matterjs flavor resolves to
   `"unverified"` by design (see `LogExpectPatterns`/the flavor-pattern policy already documented above).
