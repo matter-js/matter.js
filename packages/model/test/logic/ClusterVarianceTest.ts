@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/general";
 import { ClusterElement, ClusterModel, ClusterVariance, Conformance, FeatureMap, MatterModel } from "#index.js";
 import { IllegalFeatureCombinations } from "#logic/cluster-variance/IllegalFeatureCombinations.js";
 import { InferredComponent } from "#logic/cluster-variance/InferredComponents.js";
@@ -185,10 +186,247 @@ describe("ClusterVariance", () => {
                 { DF: true, OFFONLY: true },
             ]);
         });
+
+        it("supports a negated disjunction of three features", () => {
+            expect(
+                illegalCombinations(
+                    { name: "FOO", conformance: "O" },
+                    { name: "BAR", conformance: "O" },
+                    { name: "BAZ", conformance: "O" },
+                    { name: "QUX", conformance: "[!(FOO | BAR | BAZ)]" },
+                ),
+            ).deep.equal([
+                { QUX: true, FOO: true },
+                { QUX: true, BAR: true },
+                { QUX: true, BAZ: true },
+            ]);
+        });
+
+        // ClosureDimension: TR and RO conformance "[PS].b" join choice set "b" only while PS is selected
+        it("applies a gated choice set only where it has members", () => {
+            expect(
+                illegalCombinations(
+                    { name: "PS", conformance: "O" },
+                    { name: "TR", conformance: "[PS].b" },
+                    { name: "RO", conformance: "[PS].b" },
+                ),
+            ).deep.equal([
+                { TR: true, PS: false },
+                { RO: true, PS: false },
+                { TR: true, RO: true },
+                { TR: false, RO: false, PS: true },
+            ]);
+        });
+
+        // DeviceEnergyManagement: PFR is "[!PA].a, ..." so a later entry supersedes the gate, SFR is "[!PA].a" alone
+        it("ignores a choice member gate when a later otherwise entry admits the feature", () => {
+            expect(
+                illegalCombinations(
+                    { name: "PA", conformance: "O" },
+                    { name: "STA", conformance: "O" },
+                    { name: "PFR", conformance: "[!PA].a, STA, O" },
+                    { name: "SFR", conformance: "[!PA].a" },
+                ),
+            ).deep.equal([
+                { PA: true, STA: true, PFR: false },
+                { SFR: true, PA: true },
+                { PFR: true, SFR: true },
+                { PFR: false, SFR: false, PA: false },
+            ]);
+        });
+
+        it("applies an otherwise entry only where the entries before it do not", () => {
+            expect(
+                illegalCombinations(
+                    { name: "FOO", conformance: "O" },
+                    { name: "BAR", conformance: "O" },
+                    { name: "BAZ", conformance: "[FOO], BAR" },
+                ),
+            ).deep.equal([
+                { FOO: false, BAR: true, BAZ: false },
+                { FOO: false, BAR: false, BAZ: true },
+            ]);
+        });
+
+        it("drops an otherwise entry an unconditional entry precedes", () => {
+            expect(
+                illegalCombinations(
+                    { name: "FOO", conformance: "O" },
+                    { name: "BAR", conformance: "O" },
+                    { name: "BAZ", conformance: "O, FOO, BAR" },
+                ),
+            ).deep.equal([]);
+        });
+
+        it("treats a failing conjunction as the disjunction of its negated conjuncts", () => {
+            expect(
+                illegalCombinations(
+                    { name: "FOO", conformance: "O" },
+                    { name: "BAR", conformance: "O" },
+                    { name: "BAZ", conformance: "O" },
+                    { name: "QUX", conformance: "FOO & BAR, BAZ" },
+                ),
+            ).deep.equal([
+                { FOO: true, BAR: true, QUX: false },
+                { FOO: false, BAZ: true, QUX: false },
+                { BAR: false, BAZ: true, QUX: false },
+                { FOO: false, BAZ: false, QUX: true },
+                { BAR: false, BAZ: false, QUX: true },
+            ]);
+        });
+
+        it("requires nothing of a choice set whose members are all provisional", () => {
+            expect(
+                illegalCombinations({ name: "LN", conformance: "P, O.a+" }, { name: "SD", conformance: "P, O.a+" }),
+            ).deep.equal([]);
+        });
+
+        it("keeps a choice set one settled member can satisfy", () => {
+            expect(
+                illegalCombinations({ name: "PWRNUM", conformance: "O.a" }, { name: "WATTS", conformance: "P, O.a" }),
+            ).deep.equal([
+                { PWRNUM: true, WATTS: true },
+                { PWRNUM: false, WATTS: false },
+            ]);
+        });
+
+        it("leaves an ungated choice set unconditional", () => {
+            expect(
+                illegalCombinations({ name: "WI", conformance: "O.a" }, { name: "TH", conformance: "O.a" }),
+            ).deep.equal([
+                { WI: true, TH: true },
+                { WI: false, TH: false },
+            ]);
+        });
+
+        it("applies a choice set a single ungated member keeps populated", () => {
+            expect(
+                illegalCombinations(
+                    { name: "PS", conformance: "O" },
+                    { name: "TR", conformance: "[PS].b" },
+                    { name: "RO", conformance: "O.b" },
+                ),
+            ).deep.equal([
+                { TR: true, PS: false },
+                { TR: true, RO: true },
+                { TR: false, RO: false },
+            ]);
+        });
+
+        it("applies the gate the last entry of an otherwise list carries", () => {
+            expect(
+                illegalCombinations(
+                    { name: "PA", conformance: "O" },
+                    { name: "PFR", conformance: "Rev >= v2, [!PA].a" },
+                    { name: "SFR", conformance: "Rev >= v2, [!PA].a" },
+                ),
+            ).deep.equal([
+                { PFR: true, PA: true },
+                { SFR: true, PA: true },
+                { PFR: true, SFR: true },
+                { PFR: false, SFR: false, PA: false },
+            ]);
+        });
+
+        it("reports a gated choice set as requiring no feature selection", () => {
+            expect(
+                analyzeFeatures(
+                    { name: "FOO", conformance: "O" },
+                    { name: "BAR", conformance: "[FOO].a" },
+                    { name: "BAZ", conformance: "[FOO].a" },
+                ).requiresFeatures,
+            ).equals(false);
+
+            expect(
+                analyzeFeatures({ name: "WI", conformance: "O.a" }, { name: "TH", conformance: "O.a" })
+                    .requiresFeatures,
+            ).equals(true);
+        });
+
+        it("rejects a gated choice set an earlier otherwise entry makes conditional", () => {
+            expect(() =>
+                illegalCombinations(
+                    { name: "FOO", conformance: "O" },
+                    { name: "PA", conformance: "O" },
+                    { name: "X", conformance: "[FOO], [!PA].a" },
+                    { name: "Y", conformance: "[FOO], [!PA].a" },
+                ),
+            ).throws(InternalError);
+        });
+
+        it("rejects a choice set whose members close under differing conditions", () => {
+            expect(() =>
+                illegalCombinations(
+                    { name: "FOO", conformance: "O" },
+                    { name: "BAR", conformance: "O" },
+                    { name: "BAZ", conformance: "[FOO].a" },
+                    { name: "QUX", conformance: "[BAR].a" },
+                ),
+            ).throws(InternalError);
+        });
+
+        it("rejects a disjunction the ruleset cannot analyze", () => {
+            expect(() =>
+                illegalCombinations(
+                    { name: "FOO", conformance: "O" },
+                    { name: "BAR", conformance: "O" },
+                    { name: "BAZ", conformance: "O" },
+                    { name: "QUX", conformance: "[FOO | BAR & BAZ]" },
+                ),
+            ).throws(InternalError);
+        });
+
+        // CameraAvStreamManagement: ICTL conformance "[VDO | SNP]" is available while either VDO or SNP is enabled
+        it("supports disjunction of two features in an optional if", () => {
+            expect(
+                illegalCombinations(
+                    { name: "VDO", conformance: "O" },
+                    { name: "SNP", conformance: "O" },
+                    { name: "ICTL", conformance: "[VDO | SNP]" },
+                ),
+            ).deep.equal([{ ICTL: true, VDO: false, SNP: false }]);
+        });
+
+        // CameraAvSettingsUserLevelManagement: MPRESETS conformance "[MPAN | MTILT | MZOOM]" parses as nested ORs
+        it("supports disjunction of three features in an optional if", () => {
+            expect(
+                illegalCombinations(
+                    { name: "MPAN", conformance: "O" },
+                    { name: "MTILT", conformance: "O" },
+                    { name: "MZOOM", conformance: "O" },
+                    { name: "MPRESETS", conformance: "[MPAN | MTILT | MZOOM]" },
+                ),
+            ).deep.equal([{ MPRESETS: true, MPAN: false, MTILT: false, MZOOM: false }]);
+        });
+
+        it("supports a negated disjunct in an optional if", () => {
+            expect(
+                illegalCombinations(
+                    { name: "FOO", conformance: "O" },
+                    { name: "BAR", conformance: "O" },
+                    { name: "BAZ", conformance: "[FOO | !BAR]" },
+                ),
+            ).deep.equal([{ BAZ: true, FOO: false, BAR: true }]);
+        });
+
+        // Switch: MSL conformance "[MS & (MSR | AS)]" mixes conjunction with a disjunct group
+        it("supports a disjunction nested in a conjunction in an optional if (characterization)", () => {
+            expect(
+                illegalCombinations(
+                    { name: "MS", conformance: "O" },
+                    { name: "MSR", conformance: "O" },
+                    { name: "AS", conformance: "O" },
+                    { name: "MSL", conformance: "[MS & (MSR | AS)]" },
+                ),
+            ).deep.equal([
+                { MSL: true, MS: false },
+                { MSL: true, MSR: false, AS: false },
+            ]);
+        });
     });
 });
 
-function illegalCombinations(...features: { name: string; conformance: string }[]) {
+function analyzeFeatures(...features: { name: string; conformance: string }[]) {
     const cluster = new ClusterModel({
         id: 1,
         name: "Cluster",
@@ -203,7 +441,11 @@ function illegalCombinations(...features: { name: string; conformance: string }[
         ],
     });
     new MatterModel({ name: "Matter", children: [cluster] });
-    return IllegalFeatureCombinations(cluster).illegal;
+    return IllegalFeatureCombinations(cluster);
+}
+
+function illegalCombinations(...features: { name: string; conformance: string }[]) {
+    return analyzeFeatures(...features).illegal;
 }
 
 type AttributeDefinition = { name: string; conformance: Conformance.Definition } | string[];

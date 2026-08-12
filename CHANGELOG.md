@@ -25,6 +25,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A cluster's feature table no longer selects features; a feature the specification makes unconditionally mandatory is always selected
     - Fix: Feature selection records against `operationalIsSupported` so a feature's `default` conveys only the specification's fallback value
     - Fix: A feature mandated by any of several alternatives, such as `DoorLock.User`, is now reported as required
+    - Fix: A feature conformance that is a bracketed disjunction, such as `[VDO | SNP]`, is illegal only when none of its alternatives is selected
+    - Fix: A choice set whose members are gated on a conformance expression, such as `[!PA].a` or `[PS].b`, requires a selection only where the gate admits a member, and rejects a member the gate excludes
+    - Fix: An entry of an otherwise conformance applies only where the entries preceding it do not, and a feature is disallowed where no entry applies
+    - Fix: A choice set whose members are all provisional, such as the `Groupcast` and `AmbientContextSensing` feature sets, no longer requires a selection
+    - Enhancement: New `Conformance.isProvisional` tells whether conformance describes what an element requires only once it leaves provisional state
 
 - @matter/node
     - Breaking: Default server exports no longer inherit the features their base implementation enables internally.
