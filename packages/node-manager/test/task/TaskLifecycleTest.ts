@@ -27,6 +27,11 @@ class TestTaskManager extends TaskManagerBehavior {
     protected override taskReconciler(): ReconcilerBehavior {
         return TestTaskManager.reconcilerPeer as unknown as ReconcilerBehavior;
     }
+
+    /** True while a drive of `id` owns this id's gate and driving entries. */
+    isDriven(id: string): boolean {
+        return this.internal.driving.has(id) && this.internal.gates.has(id);
+    }
 }
 
 const RootEndpoint = MockServerNode.RootEndpoint.with(TestTaskManager);
@@ -273,10 +278,15 @@ describe("Task lifecycle", () => {
                 (async () => node.act(a => a.get(TestTaskManager).cancel("synthetic:blockedcancel")))(),
             ).rejectedWith(TaskConflictError);
 
-            // Memory must not claim a cancel that storage never saw.
+            // Memory must not claim a cancel that storage never saw. Liveness bookkeeping may differ transiently:
+            // a declined cancel re-drives the task, and the driver re-persists parked/running as it goes.
             const status = await node.act(a => a.get(TestTaskManager).get("synthetic:blockedcancel")?.status);
             expect(status?.state).does.not.equal("cancelled");
-            expect(node.stateOf(TestTaskManager).tasks["synthetic:blockedcancel"].state).equals(status?.state);
+            expect(node.stateOf(TestTaskManager).tasks["synthetic:blockedcancel"].state).does.not.equal("cancelled");
+
+            // The abort stopped the driver and dropped the gate; declining the cancel must give both back, or the
+            // task sits non-terminal with nothing left to advance it until a restart.
+            expect(await node.act(a => a.get(TestTaskManager).isDriven("synthetic:blockedcancel"))).equals(true);
             await node.close();
         });
     });

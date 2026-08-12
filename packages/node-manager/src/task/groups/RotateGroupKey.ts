@@ -17,7 +17,11 @@ export const ROTATE_GROUP_KEY_TYPE = "rotateGroupKey";
 export interface RotateGroupKeyParams {
     groupKeySetId: number;
     newEpochKey: Uint8Array;
-    /** Unique per rotation operation; re-issuing the same rotationId is idempotent, a new one starts a new rotation. */
+    /**
+     * Unique per rotation operation: a new `rotationId` starts a new rotation. Re-issuing a live one is refused
+     * unless the request carries the `externalId` that rotation was started under; once it is terminal, the same
+     * `rotationId` may be run again.
+     */
     rotationId: string;
     groupKeySecurityPolicy?: GroupKeyManagement.GroupKeySecurityPolicy;
 }

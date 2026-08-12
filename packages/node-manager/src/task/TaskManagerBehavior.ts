@@ -135,14 +135,20 @@ export class TaskManagerBehavior extends Behavior {
                 continue;
             }
             const task = this.internal.registry.create(type, id, p.params, p);
-            // A persisted `parked` task must re-drive; #drive only advances `running` tasks, and the phase's
-            // gate re-parks from live reachability if the peer is still offline.
-            if (task.progress.state === "parked") {
-                task.progress.state = "running";
-            }
             this.internal.live.set(id, task);
-            this.#track(task);
+            this.#redrive(task);
         }
+    }
+
+    /**
+     * Begin (or resume) driving a live non-terminal task. A `parked` task becomes `running` first: {@link #drive}
+     * only advances a running task, and the phase's gate re-parks from live reachability if the peer is still gone.
+     */
+    #redrive(task: Task): void {
+        if (task.progress.state === "parked") {
+            task.progress.state = "running";
+        }
+        this.#track(task);
     }
 
     // The gate must exist before driving starts — it is the only home for an abort reason, so a cancel or shutdown
@@ -320,7 +326,15 @@ export class TaskManagerBehavior extends Behavior {
 
         // Prepared before the state changes: a refused rollback must leave the task as it was, not cancelled in
         // memory and unchanged in storage.
-        const revert = this.#prepareRevert(task);
+        let revert: PreparedRevert;
+        try {
+            revert = this.#prepareRevert(task);
+        } catch (e) {
+            // The abort above stopped the driver and dropped its gate. A task the manager declines to cancel keeps
+            // its state, so it must keep its driver too, or it sits non-terminal with nothing left to advance it.
+            this.#redrive(task);
+            throw e;
+        }
         const stateBeforeCancel = task.progress.state;
         // running/parked → cancelled; an already-terminal (completed/failed) task keeps its truthful state.
         if (stateBeforeCancel === "running" || stateBeforeCancel === "parked") {
