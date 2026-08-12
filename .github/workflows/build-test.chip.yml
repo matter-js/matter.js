@@ -170,14 +170,17 @@ jobs:
           name: chip-image
           path: /tmp/chip.tar
 
+  # Mirrors chip-image's shape rather than carrying a job-level "if": the job always runs so test-core-arm64 can
+  # depend on it, and its steps build only when a build is needed. Without this the arm64 test job would skip
+  # whenever the image isn't rebuilt, leaving every ordinary code change with no arm64 coverage at all.
   chip-image-arm64:
     needs: workflow-conditions
-    if: needs.workflow-conditions.outputs.build-needed == 'true'
     runs-on: ubuntu-24.04-arm
     outputs:
       source: ${{ needs.workflow-conditions.outputs.build-needed == 'true' && 'artifact' || 'repository' }}
     steps:
       - name: Maximize build space
+        if: needs.workflow-conditions.outputs.build-needed == 'true'
         uses: easimon/maximize-build-space@v10
         with:
           root-reserve-mb: 4096
@@ -187,9 +190,11 @@ jobs:
           remove-haskell: 'true'
 
       - name: Check out matter.js
+        if: needs.workflow-conditions.outputs.build-needed == 'true'
         uses: actions/checkout@v7
 
       - name: Build chip image (arm64)
+        if: needs.workflow-conditions.outputs.build-needed == 'true'
         env:
           CHIP_COMMIT: ${{ needs.workflow-conditions.outputs.chip-sha }}
         run: |
@@ -200,6 +205,7 @@ jobs:
       # execution check here. Exit status 126 or above means the shell could not execute the binary at all (wrong
       # architecture, missing loader); anything below that proves it ran.
       - name: Smoke-test arm64 image
+        if: needs.workflow-conditions.outputs.build-needed == 'true'
         run: |
           docker load -i /tmp/chip.tar
           arch=$(docker inspect --format '{{ .Architecture }}' ghcr.io/matter-js/chip:latest)
@@ -219,6 +225,7 @@ jobs:
           '
 
       - name: Upload chip artifact
+        if: needs.workflow-conditions.outputs.build-needed == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: chip-image-arm64
