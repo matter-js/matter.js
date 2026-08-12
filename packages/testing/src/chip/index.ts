@@ -45,7 +45,7 @@ export type {
 export { resolveDeviceFlavor } from "./cert/device-config.js";
 export { EvidenceRecorder } from "./cert/evidence.js";
 export type { RunRecord, StepRecord } from "./cert/evidence.js";
-export { CertLogClosedError, CertLogTimeoutError, LogFollower, matchableCopy } from "./cert/log-follower.js";
+export { CertLogClosedError, CertLogTimeoutError, LogFollower } from "./cert/log-follower.js";
 export type { LogExpectOptions, LogExpectPatterns, LogExpectResult, LogLine } from "./cert/log-follower.js";
 export { registerMatterJsCertSubject } from "./cert/matterjs-subject-registry.js";
 export { PromptDrivenPythonTest } from "./cert/prompt-driven-python-test.js";

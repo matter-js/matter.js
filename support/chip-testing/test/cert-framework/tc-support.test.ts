@@ -215,6 +215,24 @@ describe("expectMessageWithPath", () => {
 
         expect(record.verdict).equal("unverified");
     });
+
+    it("gives up within roughly one timeoutMs budget when the path block never arrives, not two", async () => {
+        // The message must arrive partway through the budget, not be already buffered — otherwise
+        // stage 1 costs ~0ms and remaining() is indistinguishable from a fresh timeoutMs, hiding a
+        // shared-vs-fresh-budget regression in stage 2 instead of catching it.
+        const timeoutMs = 600;
+        const source = new OpenSource();
+        const follower = new LogFollower(source, "th");
+        setTimeout(() => source.push(WRITE), 300);
+
+        const start = Date.now();
+        const record = await expectMessageWithPath(follower, "chip-local", WRITE_REQUEST_MESSAGE, FIELDS, 0, timeoutMs);
+        const elapsed = Date.now() - start;
+        await follower.close();
+
+        expect(record.verdict).equal("fail");
+        expect(elapsed).lessThan(timeoutMs * 1.25);
+    });
 });
 
 describe("requireId", () => {

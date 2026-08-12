@@ -14,7 +14,7 @@ import type {
     LogFollower,
     LogLine,
 } from "@matter/testing";
-import { CertLogClosedError, CertLogTimeoutError, matchableCopy } from "@matter/testing";
+import { CertLogClosedError, CertLogTimeoutError } from "@matter/testing";
 
 /**
  * Tracks commissioned node refs by role for one cert-test run and decommissions whatever's still
@@ -149,10 +149,10 @@ export async function expectAdjacentLines(
 const REPORT_DATA_SENT = /\[DMG\] ReportDataMessage =\s*$/;
 const STATUS_RESPONSE_RECEIVED = /Msg RX from.*\(IM:StatusResponse\)/;
 
-// chip's DMG log names the top-level request message before dumping its payload, the same shape as
-// REPORT_DATA_SENT above — verified against connectedhomeip's captures: WriteRequestMessage in
-// Test_TC_IDM_3_1.yaml, SubscribeRequestMessage in Test_TC_IDM_4_1.yaml, InvokeRequestMessage in
-// Test_TC_IDM_1_1.yaml.
+// chip's raw stdout, as LogFollower captures it, names the top-level request message in the
+// `[DMG] <MessageName> =` shape below — the same shape as REPORT_DATA_SENT above. The connectedhomeip
+// YAML docs print these captures as `CHIP:DMG: <MessageName> =` instead; that's the docs' own
+// rendering, not the text LogFollower ever sees.
 export const WRITE_REQUEST_MESSAGE = /\[DMG\] WriteRequestMessage =\s*$/;
 export const INVOKE_REQUEST_MESSAGE = /\[DMG\] InvokeRequestMessage =\s*$/;
 export const SUBSCRIBE_REQUEST_MESSAGE = /\[DMG\] SubscribeRequestMessage =\s*$/;
@@ -381,6 +381,13 @@ export async function expectCommandInvoke(
         matched: last?.text,
         logLine: last?.index,
     };
+}
+
+// A caller-supplied /g or /y pattern keeps lastIndex between calls; reused as-is across the repeated
+// test() calls below, that state silently skips matches. Stripping once yields a pattern countMatches
+// can test() against every line safely (mirrors LogFollower.expect's own private copy of this fix).
+function matchableCopy(pattern: RegExp): RegExp {
+    return new RegExp(pattern.source, pattern.flags.replace(/[gy]/g, ""));
 }
 
 /**

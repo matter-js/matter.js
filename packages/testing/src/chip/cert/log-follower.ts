@@ -82,10 +82,10 @@ function patternFor(patterns: LogExpectPatterns, flavor: string): RegExp | undef
     return undefined;
 }
 
-// A caller-supplied /g or /y pattern keeps lastIndex between calls; reused as-is across
-// repeated test() calls against different lines, that state silently skips or misattributes
-// matches. Stripping once yields a pattern any caller can test() any number of times safely.
-export function matchableCopy(pattern: RegExp): RegExp {
+// A caller-supplied /g or /y pattern keeps lastIndex between calls; reused as-is across the
+// repeated buffer scans in expect()'s wait loop, that state silently skips or misattributes
+// matches. Stripping once yields a pattern expect() can test() any number of times safely.
+function matchableCopy(pattern: RegExp): RegExp {
     return new RegExp(pattern.source, pattern.flags.replace(/[gy]/g, ""));
 }
 
