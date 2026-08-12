@@ -170,9 +170,7 @@ jobs:
           name: chip-image
           path: /tmp/chip.tar
 
-  # Mirrors chip-image's shape rather than carrying a job-level "if": the job always runs so test-core-arm64 can
-  # depend on it, and its steps build only when a build is needed. Without this the arm64 test job would skip
-  # whenever the image isn't rebuilt, leaving every ordinary code change with no arm64 coverage at all.
+  # This job must complete on every run because skipping a required dependency also skips test-core-arm64.
   chip-image-arm64:
     needs: workflow-conditions
     runs-on: ubuntu-24.04-arm
