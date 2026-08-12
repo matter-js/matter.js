@@ -80,6 +80,17 @@ export class CertTest extends BaseTest {
                 }
 
                 try {
+                    if (stepDef.notApplicable !== undefined) {
+                        announceStepEnd(
+                            cx,
+                            tc,
+                            stepDef,
+                            "skipped",
+                            recorder.endStep(stepDef, "skipped", stepDef.notApplicable),
+                        );
+                        continue;
+                    }
+
                     if (stepDef.flavors && flavor !== undefined && !stepDef.flavors.includes(flavor)) {
                         announceStepEnd(
                             cx,

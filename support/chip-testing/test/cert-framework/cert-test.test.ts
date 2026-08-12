@@ -537,6 +537,80 @@ describe("CertTest", () => {
         ]);
     });
 
+    it("never runs a step declared not applicable, and records the reason ahead of any flavor or PICS gate", async () => {
+        let step1Ran = false;
+        let step2Ran = false;
+
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "A step CHIP's harness cannot execute",
+                    notApplicable: "Out of Scope in CHIP's harness",
+                    run: async () => {
+                        step1Ran = true;
+                    },
+                },
+                {
+                    number: 2,
+                    text: "A step that is also flavor-restricted and PICS-gated",
+                    notApplicable: "No attribute of the required data type exists",
+                    flavors: ["chip-docker"],
+                    pics: "CADMIN.S.UnmetToken",
+                    run: async () => {
+                        step2Ran = true;
+                    },
+                },
+            ],
+        };
+
+        const beginStepNumbers = new Array<number | string>();
+        const endStepCalls = new Array<{ number: number | string; verdict: StepVerdict; skipReason?: string }>();
+        const deviceLog = new LogFollower(noLines(), "device");
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
+            recorder: stubRecorder({
+                beginStep(step) {
+                    beginStepNumbers.push(step.number);
+                },
+                endStep(step, verdict, skipReason) {
+                    endStepCalls.push({ number: step.number, verdict, skipReason });
+                    return [];
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+        const subject = stubSubject(new PicsFile([]));
+
+        const reportedTitles = new Array<string>();
+        await test.invoke(subject, title => reportedTitles.push(title), [], false);
+
+        expect(step1Ran).equal(false);
+        expect(step2Ran).equal(false);
+        expect(reportedTitles).deep.equal([]);
+        expect(beginStepNumbers).deep.equal([]);
+        expect(endStepCalls).deep.equal([
+            { number: 1, verdict: "skipped", skipReason: "Out of Scope in CHIP's harness" },
+            { number: 2, verdict: "skipped", skipReason: "No attribute of the required data type exists" },
+        ]);
+
+        const banners = deviceLog.lines.filter(line => line.synthetic).map(line => line.text);
+        expect(banners).deep.equal([
+            "-".repeat(70),
+            "TC-CADMIN-1.17 — Test Step 1: SKIPPED",
+            "-".repeat(70),
+            "-".repeat(70),
+            "TC-CADMIN-1.17 — Test Step 2: SKIPPED",
+            "-".repeat(70),
+        ]);
+    });
+
     it("fails the run and reports deviceExited when a device exits mid-step", async () => {
         let exit!: (info: DeviceExitInfo) => void;
         const exitPromise = new Promise<DeviceExitInfo>(resolve => {

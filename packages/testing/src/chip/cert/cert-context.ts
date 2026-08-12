@@ -111,6 +111,8 @@ export interface CertStepDefinition {
     pics?: string;
     /** Device flavors this step supports; absent runs on every flavor (see `cert-dsl.ts`'s `certTest`/`.step`). */
     flavors?: DeviceFlavor[];
+    /** Reason this step can never execute; present makes the engine skip it (see `cert-dsl.ts`'s `CertStepOptions`). */
+    notApplicable?: string;
     run: (cx: CertStepContext) => Promise<void>;
 }
 
