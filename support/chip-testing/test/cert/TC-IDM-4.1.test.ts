@@ -177,11 +177,10 @@ async function waitForCount(
  * inside the same floor window into a single report, so this pacing is what makes "N writes -> N
  * reports" hold, not an incidental choice.
  *
- * Each write's chip-flavor `StatusResponseMessage` ack is awaited individually too, chained forward
- * from the previous write's own matched line — an aggregate snapshot count taken once at the end
- * can't tell "the priming ack fell inside the window" apart from "the last write's ack hasn't been
- * pumped into the log buffer yet", both of which make a single count nondeterministic across
- * otherwise-identical runs.
+ * Each write's chip-flavor `StatusResponseMessage` ack is awaited individually, chained forward from
+ * the previous write's own matched line — every write's evidence is anchored to a specific,
+ * already-occurred log event, never to how many matching lines happen to be buffered at one
+ * arbitrary instant.
  */
 async function subscribeAndModify<Value>(
     cx: CertStepContext,
