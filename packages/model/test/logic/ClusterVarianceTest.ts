@@ -275,6 +275,35 @@ describe("ClusterVariance", () => {
             ]);
         });
 
+        it("drops an otherwise entry rule the states reaching it contradict", () => {
+            expect(
+                illegalCombinations({ name: "FOO", conformance: "O" }, { name: "BAZ", conformance: "[FOO], FOO" }),
+            ).deep.equal([{ FOO: false, BAZ: true }]);
+        });
+
+        it("rejects a choice set an earlier otherwise entry leaves optional", () => {
+            expect(() =>
+                illegalCombinations(
+                    { name: "FOO", conformance: "O" },
+                    { name: "X", conformance: "[FOO], O.a" },
+                    { name: "Y", conformance: "[FOO], O.a" },
+                ),
+            ).throws(InternalError);
+        });
+
+        it("applies a choice set a provisional entry follows", () => {
+            expect(
+                illegalCombinations(
+                    { name: "FOO", conformance: "O" },
+                    { name: "X", conformance: "[FOO].a, P, O" },
+                    { name: "Y", conformance: "[FOO].a, P, O" },
+                ),
+            ).deep.equal([
+                { X: true, Y: true },
+                { X: false, Y: false, FOO: true },
+            ]);
+        });
+
         it("requires nothing of a choice set whose members are all provisional", () => {
             expect(
                 illegalCombinations({ name: "LN", conformance: "P, O.a+" }, { name: "SD", conformance: "P, O.a+" }),

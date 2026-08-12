@@ -43,9 +43,25 @@ type OtherwiseEntry = {
      * True when a later entry governs the states this one does not, so the entry alone disallows nothing.
      */
     hasFallback: boolean;
+
+    /**
+     * True when the entries before this one require the feature wherever they govern, so a rule this entry contributes
+     * holds vacuously in the states they cover.
+     */
+    mandatedBefore: boolean;
+
+    /**
+     * True when a provisional qualifier precedes this entry, leaving what follows a statement of intent.
+     */
+    provisionalBefore: boolean;
 };
 
-const STANDALONE: OtherwiseEntry = { reachedWhen: [FeatureBitmap()], hasFallback: false };
+const STANDALONE: OtherwiseEntry = {
+    reachedWhen: [FeatureBitmap()],
+    hasFallback: false,
+    mandatedBefore: true,
+    provisionalBefore: false,
+};
 
 /**
  * Analyzes feature conformance to ascertain feature combinations that are unsupported.  Uses rules to match the
@@ -252,29 +268,30 @@ function addOtherwiseRules(
     choices: Choices,
 ) {
     let governs: IllegalFeatureCombinations = [FeatureBitmap()];
+    let mandated = true;
+    let provisional = false;
 
     for (let i = 0; i < rules.length && governs.length; i++) {
         const exclusions = new Array<FeatureBitmap>();
         addFeatureNode(feature, rules[i], flags => exclusions.push(flags), choices, {
             reachedWhen: governs,
             hasFallback: i < rules.length - 1,
+            mandatedBefore: mandated,
+            provisionalBefore: provisional,
         });
 
-        for (const condition of governs) {
-            for (const exclusion of exclusions) {
-                add({ ...condition, ...exclusion });
-            }
-        }
+        provisional ||= rules[i].type === Conformance.Flag.Provisional;
 
+        conjoin(governs, exclusions).forEach(add);
+
+        mandated &&= exclusions.some(exclusion => exclusion[feature.name] === false);
         governs = conjoin(governs, inapplicable(feature, rules[i]));
     }
 
     // Where no entry governs the feature is not applicable at all.  A list of entries that carry no feature condition
     // is exhausted only in the sense that none of them ever applied, which says nothing about the feature
     if (governs.some(condition => Object.keys(condition).length)) {
-        for (const condition of governs) {
-            add({ ...condition, [feature.name]: true });
-        }
+        conjoin(governs, [{ [feature.name]: true }]).forEach(add);
     }
 }
 
@@ -310,22 +327,23 @@ function addFeatureNode(
                 unsupported();
             }
             const gate = participationGate(node.param.expr);
-            if (Object.keys(gate).length) {
-                // Membership would then depend on the enclosing conformance too, which a single flag set per member
-                // cannot express
-                if (entry.reachedWhen.length !== 1 || Object.keys(entry.reachedWhen[0]).length) {
-                    unsupported();
-                }
+            const reachedAlways = entry.reachedWhen.length === 1 && !Object.keys(entry.reachedWhen[0]).length;
 
-                if (!entry.hasFallback) {
-                    add({ [feature.name]: true, ...gate });
-                }
+            // Membership would otherwise depend on the enclosing conformance too, which a single flag set per member
+            // cannot express.  An entry the earlier ones already made mandatory adds nothing where they govern, so its
+            // membership does hold throughout
+            if (!reachedAlways && (Object.keys(gate).length || !entry.mandatedBefore)) {
+                unsupported();
+            }
+
+            if (Object.keys(gate).length && !entry.hasFallback) {
+                add({ [feature.name]: true, ...gate });
             }
 
             const member: ChoiceMember = {
                 feature: feature.name,
                 gate,
-                provisional: feature.conformance.isProvisional,
+                provisional: entry.provisionalBefore,
             };
 
             const choice = choices[node.param.name];

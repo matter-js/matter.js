@@ -100,30 +100,6 @@ export class Conformance extends Aspect<Conformance.Definition> {
     }
 
     /**
-     * Is the associated element provisional?
-     *
-     * Conformance following a provisional flag states what the element requires once it leaves provisional state, so it
-     * does not bind an implementation today.
-     */
-    get isProvisional() {
-        const conformance = this.ast;
-        if (conformance.type === Conformance.Flag.Provisional) {
-            return true;
-        }
-        if (conformance.type === Conformance.Special.Otherwise) {
-            for (const c of conformance.param) {
-                if (c.type === Conformance.Flag.Provisional) {
-                    return true;
-                }
-                if (c.type === Conformance.Flag.Mandatory) {
-                    return false;
-                }
-            }
-        }
-        return false;
-    }
-
-    /**
      * Is the associated element disallowed?
      */
     get isDisallowed() {
