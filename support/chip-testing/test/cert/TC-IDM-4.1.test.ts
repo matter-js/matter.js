@@ -12,9 +12,13 @@ import {
     CommissionedRefs,
     expectAdjacentLines,
     expectMessageWithPath,
+    REPORT_DATA_MESSAGE,
     requireId,
     STATUS_RESPONSE_SUCCESS,
     SUBSCRIBE_REQUEST_MESSAGE,
+    SUBSCRIBE_RESPONSE_MESSAGE,
+    subscriptionIdPattern,
+    SUBSCRIPTION_ID_LINE,
 } from "./tc-support.js";
 
 const ON_OFF = Matter.clusters.require("OnOff");
@@ -102,41 +106,124 @@ async function expectSubscribeEnvelope(
     }
 }
 
+/** What the TH's own SubscribeResponse says about the subscription a step just established. */
+interface SubscriptionIdLookup {
+    check: CheckRecord;
+    /** Absent when the lookup failed, and for the matterjs flavor. */
+    subscriptionId?: number;
+}
+
 /**
- * Waits for one {@link STATUS_RESPONSE_SUCCESS} line to arrive at or after `from`, within
- * `timeoutMs` — tolerating the log follower's own pump lag between the line being written and this
- * call observing it. Converts a timeout/closed source into a recorded `"fail"` the same way
- * {@link expectMessageWithPath} does, so a step's own evidence carries the failure instead of an
- * uncaught throw. `"unverified"` for the matterjs flavor, since `STATUS_RESPONSE_SUCCESS` has no
- * matterjs counterpart.
+ * Reads back the id the TH minted for the subscription whose SubscribeResponse it sends at or after
+ * `from`. Every step here keeps its subscriptions (`keepSubscriptions: true`) and their max interval
+ * is shorter than the whole run, so several subscriptions report concurrently from step 3 onward —
+ * the id is what tells one step's reports from another's. `"unverified"` for the matterjs flavor,
+ * whose logger emits no decode dump to read an id out of.
  */
-async function expectStatusResponseSuccess(
+async function expectSubscriptionId(
     log: LogFollower,
     flavor: string,
     from: number,
     timeoutMs: number,
-): Promise<CheckRecord> {
+): Promise<SubscriptionIdLookup> {
+    const sequence = [SUBSCRIBE_RESPONSE_MESSAGE, /\{\s*$/, SUBSCRIPTION_ID_LINE];
     try {
-        const result = await log.expect({ chip: STATUS_RESPONSE_SUCCESS }, { flavor, timeoutMs, from });
+        const result = await expectAdjacentLines(log, flavor, sequence, from, timeoutMs);
         if (result.verdict === "unverified") {
-            return { type: "device-log", verdict: "unverified" };
+            return { check: { type: "device-log", verdict: "unverified" } };
         }
+
+        const id = SUBSCRIPTION_ID_LINE.exec(result.last.text)?.[1];
+        if (id === undefined) {
+            return {
+                check: {
+                    type: "device-log",
+                    verdict: "fail",
+                    pattern: String(SUBSCRIPTION_ID_LINE),
+                    detail: `SubscribeResponseMessage carries no readable subscription id: ${result.last.text}`,
+                    logLine: result.last.index,
+                },
+            };
+        }
+
         return {
-            type: "device-log",
-            verdict: "pass",
-            pattern: String(STATUS_RESPONSE_SUCCESS),
-            matched: result.matched.text,
-            logLine: result.matched.index,
+            subscriptionId: parseInt(id, 16),
+            check: {
+                type: "device-log",
+                verdict: "pass",
+                pattern: String(SUBSCRIBE_RESPONSE_MESSAGE),
+                matched: result.last.text,
+                logLine: result.last.index,
+            },
         };
     } catch (e) {
         if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
             return {
-                type: "device-log",
-                verdict: "fail",
-                pattern: String(STATUS_RESPONSE_SUCCESS),
-                detail: e.message,
-                logLine: from,
+                check: {
+                    type: "device-log",
+                    verdict: "fail",
+                    pattern: String(SUBSCRIBE_RESPONSE_MESSAGE),
+                    detail: e.message,
+                    logLine: from,
+                },
             };
+        }
+        throw e;
+    }
+}
+
+/**
+ * Confirms the TH sent a report on subscription `subscriptionId` at or after `from` and that the DUT
+ * answered *that* report with a Success StatusResponse. The ack window opens at this subscription's
+ * own ReportDataMessage rather than at a step boundary, so neither a periodic report from a
+ * subscription an earlier step left live nor this step's own earlier write can supply the evidence.
+ * `"unverified"` for the matterjs flavor (no `subscriptionId`, no chip decode dump to match).
+ */
+async function expectReportAck(
+    log: LogFollower,
+    flavor: string,
+    subscriptionId: number | undefined,
+    from: number,
+    timeoutMs: number,
+): Promise<CheckRecord> {
+    if (subscriptionId === undefined) {
+        return { type: "device-log", verdict: "unverified" };
+    }
+
+    const deadline = Time.nowMs + timeoutMs;
+    const remaining = () => Math.max(1, deadline - Time.nowMs);
+    const pattern = `ReportDataMessage(SubscriptionId = 0x${subscriptionId.toString(16)}) then ${STATUS_RESPONSE_SUCCESS}`;
+
+    try {
+        const report = await expectAdjacentLines(
+            log,
+            flavor,
+            [REPORT_DATA_MESSAGE, /\{\s*$/, subscriptionIdPattern(subscriptionId)],
+            from,
+            remaining(),
+        );
+        if (report.verdict === "unverified") {
+            return { type: "device-log", verdict: "unverified" };
+        }
+
+        const ack = await log.expect(
+            { chip: STATUS_RESPONSE_SUCCESS },
+            { flavor, timeoutMs: remaining(), from: report.last.index + 1 },
+        );
+        if (ack.verdict === "unverified") {
+            return { type: "device-log", verdict: "unverified" };
+        }
+
+        return {
+            type: "device-log",
+            verdict: "pass",
+            pattern,
+            matched: ack.matched.text,
+            logLine: ack.matched.index,
+        };
+    } catch (e) {
+        if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
+            return { type: "device-log", verdict: "fail", pattern, detail: e.message, logLine: from };
         }
         throw e;
     }
@@ -176,9 +263,9 @@ async function waitForCount(
  * inside the same floor window into a single report, so this pacing is what makes "N writes -> N
  * reports" hold, not an incidental choice.
  *
- * Each write's chip-flavor `StatusResponseMessage` ack is awaited individually: write 1 chains from
- * the priming ack's own matched line (consumed explicitly, right below, before the loop starts),
- * every later write chains from the previous write's. Every window's start is therefore a specific,
+ * Each write's chip-flavor ack is awaited individually and anchored on the report that carries this
+ * subscription's own id (see {@link expectReportAck}): write 1 chains from the priming report's ack,
+ * every later write from the previous write's. Every window's start is therefore a specific,
  * already-occurred log event, never a bare mark — subscribe() resolving only means the client has
  * sent the priming ack, not that this log has received and decoded it yet, so a bare mark taken at
  * that point could still race it.
@@ -222,7 +309,24 @@ async function subscribeAndModify<Value>(
         throw new Error(`SubscribeRequestMessage log check failed for step ${step}: ${JSON.stringify(subscribeCheck)}`);
     }
 
-    const primingAckCheck = await expectStatusResponseSuccess(th.log, th.flavor, from, ACK_WAIT_TIMEOUT_MS);
+    // The follower pumps the device stream asynchronously, so a previous step's SubscribeResponse
+    // can surface after this step marked — reading the id out of that one pins every later check to
+    // the wrong subscription.
+    const established = subscribeCheck.logLine !== undefined ? subscribeCheck.logLine + 1 : from;
+
+    const idLookup = await expectSubscriptionId(th.log, th.flavor, established, ACK_WAIT_TIMEOUT_MS);
+    cx.recorder.check(idLookup.check);
+    if (idLookup.check.verdict === "fail") {
+        throw new Error(`Subscription-id lookup failed for step ${step}: ${JSON.stringify(idLookup.check)}`);
+    }
+
+    const primingAckCheck = await expectReportAck(
+        th.log,
+        th.flavor,
+        idLookup.subscriptionId,
+        established,
+        ACK_WAIT_TIMEOUT_MS,
+    );
     cx.recorder.check(primingAckCheck);
     if (primingAckCheck.verdict === "fail") {
         throw new Error(`Priming-report status check failed for step ${step}: ${JSON.stringify(primingAckCheck)}`);
@@ -250,7 +354,13 @@ async function subscribeAndModify<Value>(
             throw new Error(detail);
         }
 
-        const ackCheck = await expectStatusResponseSuccess(th.log, th.flavor, ackCursor, ACK_WAIT_TIMEOUT_MS);
+        const ackCheck = await expectReportAck(
+            th.log,
+            th.flavor,
+            idLookup.subscriptionId,
+            ackCursor,
+            ACK_WAIT_TIMEOUT_MS,
+        );
         cx.recorder.check(ackCheck);
         if (ackCheck.verdict === "fail") {
             throw new Error(
@@ -295,44 +405,39 @@ certTest("TC-IDM-4.1", {
             });
             commissioned.set("dut", ref);
 
-            try {
-                const from = th.log.mark();
-                const path: AttributePathSpec = {
-                    endpoint: ENDPOINT_1,
-                    cluster: ON_OFF_ID,
-                    attribute: ON_OFF_ATTRIBUTE,
-                };
-                await dut.node(ref).subscribe(path, {
-                    minIntervalFloorSeconds: MIN_INTERVAL_FLOOR_SECONDS,
-                    maxIntervalCeilingSeconds: MAX_INTERVAL_CEILING_SECONDS,
-                });
-                cx.recorder.check({
-                    type: "response",
-                    verdict: "pass",
-                    detail: `subscribe() resolved for ${JSON.stringify(path)}`,
-                });
+            const from = th.log.mark();
+            const path: AttributePathSpec = {
+                endpoint: ENDPOINT_1,
+                cluster: ON_OFF_ID,
+                attribute: ON_OFF_ATTRIBUTE,
+            };
+            await dut.node(ref).subscribe(path, {
+                minIntervalFloorSeconds: MIN_INTERVAL_FLOOR_SECONDS,
+                maxIntervalCeilingSeconds: MAX_INTERVAL_CEILING_SECONDS,
+            });
+            cx.recorder.check({
+                type: "response",
+                verdict: "pass",
+                detail: `subscribe() resolved for ${JSON.stringify(path)}`,
+            });
 
-                const pathCheck = await expectMessageWithPath(
-                    th.log,
-                    th.flavor,
-                    SUBSCRIBE_REQUEST_MESSAGE,
-                    path,
-                    from,
-                    15_000,
-                );
-                cx.recorder.check(pathCheck);
-                if (pathCheck.verdict === "fail") {
-                    throw new Error(`SubscribeRequestMessage log check failed: ${JSON.stringify(pathCheck)}`);
-                }
+            const pathCheck = await expectMessageWithPath(
+                th.log,
+                th.flavor,
+                SUBSCRIBE_REQUEST_MESSAGE,
+                path,
+                from,
+                15_000,
+            );
+            cx.recorder.check(pathCheck);
+            if (pathCheck.verdict === "fail") {
+                throw new Error(`SubscribeRequestMessage log check failed: ${JSON.stringify(pathCheck)}`);
+            }
 
-                const envelopeCheck = await expectSubscribeEnvelope(th.log, th.flavor, from, 15_000);
-                cx.recorder.check(envelopeCheck);
-                if (envelopeCheck.verdict === "fail") {
-                    throw new Error(`SubscribeRequestMessage envelope check failed: ${JSON.stringify(envelopeCheck)}`);
-                }
-            } catch (e) {
-                await commissioned.decommissionAll(cx);
-                throw e;
+            const envelopeCheck = await expectSubscribeEnvelope(th.log, th.flavor, from, 15_000);
+            cx.recorder.check(envelopeCheck);
+            if (envelopeCheck.verdict === "fail") {
+                throw new Error(`SubscribeRequestMessage envelope check failed: ${JSON.stringify(envelopeCheck)}`);
             }
         },
         {
@@ -346,7 +451,7 @@ certTest("TC-IDM-4.1", {
         2,
         "DUT sends the subscription request message to TH. TH sends a report data. DUT sends the status " +
             "response back to TH.",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const th = cx.devices.th;
             const from = th.log.mark();
             const path: AttributePathSpec = { endpoint: ENDPOINT_1, cluster: ON_OFF_ID, attribute: ON_OFF_ATTRIBUTE };
@@ -361,7 +466,36 @@ certTest("TC-IDM-4.1", {
                 detail: "subscribe() resolved after receiving and acking the priming report",
             });
 
-            const logCheck = await expectStatusResponseSuccess(th.log, th.flavor, from, ACK_WAIT_TIMEOUT_MS);
+            const requestCheck = await expectMessageWithPath(
+                th.log,
+                th.flavor,
+                SUBSCRIBE_REQUEST_MESSAGE,
+                path,
+                from,
+                15_000,
+            );
+            cx.recorder.check(requestCheck);
+            if (requestCheck.verdict === "fail") {
+                throw new Error(`SubscribeRequestMessage log check failed: ${JSON.stringify(requestCheck)}`);
+            }
+
+            // Steps 1 and 2 subscribe to the same path, so only the request line tells their
+            // SubscribeResponses apart (see subscribeAndModify).
+            const established = requestCheck.logLine !== undefined ? requestCheck.logLine + 1 : from;
+
+            const idLookup = await expectSubscriptionId(th.log, th.flavor, established, ACK_WAIT_TIMEOUT_MS);
+            cx.recorder.check(idLookup.check);
+            if (idLookup.check.verdict === "fail") {
+                throw new Error(`Subscription-id lookup failed: ${JSON.stringify(idLookup.check)}`);
+            }
+
+            const logCheck = await expectReportAck(
+                th.log,
+                th.flavor,
+                idLookup.subscriptionId,
+                established,
+                ACK_WAIT_TIMEOUT_MS,
+            );
             cx.recorder.check(logCheck);
             if (logCheck.verdict === "fail") {
                 throw new Error(`Priming-report status check failed: ${JSON.stringify(logCheck)}`);
@@ -377,7 +511,7 @@ certTest("TC-IDM-4.1", {
         "Activate the subscription between the DUT and the TH for an attribute of data type boolean. Modify " +
             "that attribute on the TH. TH should send the modified data to the DUT. Modify the attribute " +
             "multiple times (3 times).",
-        commissioned.guardedWithRef("dut", (cx, ref) => {
+        commissioned.withRef("dut", (cx, ref) => {
             const path: AttributePathSpec = {
                 endpoint: ENDPOINT_0,
                 cluster: BASIC_INFORMATION_ID,
@@ -396,7 +530,7 @@ certTest("TC-IDM-4.1", {
         "Activate the subscription between the DUT and the TH for an attribute of data type string. Modify " +
             "that attribute on the TH. TH should send the modified data to the DUT. Modify the attribute " +
             "multiple times (3 times).",
-        commissioned.guardedWithRef("dut", (cx, ref) => {
+        commissioned.withRef("dut", (cx, ref) => {
             const path: AttributePathSpec = {
                 endpoint: ENDPOINT_0,
                 cluster: BASIC_INFORMATION_ID,
@@ -415,14 +549,13 @@ certTest("TC-IDM-4.1", {
         "Activate the subscription between the DUT and the TH for an attribute of data type unsigned integer. " +
             "Modify that attribute on the TH. TH should send the modified data to the DUT. Modify the attribute " +
             "multiple times (3 times).",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const path: AttributePathSpec = {
                 endpoint: ENDPOINT_1,
                 cluster: LEVEL_CONTROL_ID,
                 attribute: ON_OFF_TRANSITION_TIME,
             };
             await subscribeAndModify(cx, ref, 5, path, [1, 2, 3]);
-            await commissioned.decommissionAll(cx);
         }),
         {
             pics: "MCORE.IDM.C.SubscribeRequest.Attribute.DataType_UnsignedInteger",
@@ -477,4 +610,5 @@ certTest("TC-IDM-4.1", {
                 "per-path attribution — one subscription cannot carry the three concrete paths this step needs " +
                 "without an adapter API change (see AGENTS.md)",
         },
-    );
+    )
+    .finalize(cx => commissioned.decommissionAll(cx));

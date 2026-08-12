@@ -152,7 +152,7 @@ What a check's `type` should be:
 A step passing means its `run` callback didn't throw — `recorder.check(...)` only records evidence,
 it never fails the step by itself (see "Shape of a cert test" above; this is worth repeating because
 it's the single easiest mistake to make writing a new step). `RunRecord.verdict` is computed by
-`EvidenceRecorder`, not hand-set: `deviceExit` set ⇒ `"fail"`; any step `"fail"`/`"aborted"` ⇒
+`EvidenceRecorder`, not hand-set: `deviceExit` or `finalizationError` set ⇒ `"fail"`; any step `"fail"`/`"aborted"` ⇒
 `"fail"`; else any step `"pass"` ⇒ `"pass"`; else (every step skipped, or zero steps ran, e.g.
 `TC-ACT-3.2` under `matterjs` or `TC-SC-3.5` when its prerequisite is missing) ⇒ `"skipped"`. A
 `"skipped"` run-level verdict is a legitimate, expected outcome for a flavor-gapped or
@@ -194,18 +194,38 @@ certTest("TC-XXX-0.0", { plan: "n/a" | "<plan doc id>", pics: [], app: "all-clus
 
 Devices in this directory run in-process on the **shared host network** for the whole mocha process
 (see `NodeTestInstance`'s `Environment.default`-rooted environment) — a fabric/session left behind by
-one test can stall a *different* test's commissioning/decommissioning later in the same run. Always
-decommission what you commission, in a `try/finally` around the check that needs the commissioned
-node, not just at the end of a linear step (a thrown assertion should not skip cleanup):
+one test can stall a *different* test's commissioning/decommissioning later in the same run.
+
+**Cleanup belongs in `certTest(...).finalize(...)`, never in a step.** The engine runs the finalizer
+once after the last step whatever happened to the steps — passed, failed, aborted, or skipped by a
+`pics`/`flavors`/`notApplicable` gate — and before the evidence is flushed, so the decommission
+traffic still lands in the attached logs. A step's own body cannot own cleanup, because that step is
+skippable: `TC-IDM-4.1`'s cleanup rode on a step gated on
+`MCORE.IDM.C.SubscribeRequest.Attribute.DataType_UnsignedInteger`, so an unmet PICS would have ended
+the run with the node still commissioned and its subscriptions live.
 
 ```ts
-const ref = await dut.commission({ passcode: th.commissioning.passcode, discriminator: th.commissioning.discriminator });
-try {
-    // ... checks against ref ...
-} finally {
-    await dut.node(ref).decommission();
-}
+const commissioned = new CommissionedRefs();
+
+certTest("TC-XXX-0.0", { ... })
+    .step(1, "...", async cx => {
+        commissioned.set("dut", await cx.controllers.dut.commission({ ... }));
+        // ... checks ...
+    })
+    .step(2, "...", commissioned.withRef("dut", async (cx, ref) => { /* ... */ }))
+    .finalize(cx => commissioned.decommissionAll(cx));
 ```
+
+`decommissionAll` **throws** (`CertCleanupError`) when a node stays commissioned; the engine records
+that as `RunRecord.finalizationError`, which makes the run's verdict `"fail"` on its own. It does not
+displace an earlier step failure — that stays the run's outcome, with the cleanup failure alongside
+it in the evidence. A cleanup failure this suite swallowed into a `console.warn` once already went
+unnoticed across passing runs, which is why it is loud now.
+
+`CommissionedRefs.withRef(role, run)` only requires the role's ref up front and threads it in; the
+old `guarded()` wrapper, which decommissioned on a step's own failure, is gone — the finalizer covers
+that case, and a cleanup failure raised from inside a step's `catch` would have masked the step's own
+error.
 
 ## `expectMdns` (`src/cert/mdns-check.ts`)
 
@@ -358,11 +378,10 @@ This is a framework-level fix (`log-follower.ts`), not something an individual T
   That's the intended dual-flavor split: response-shape assertions (`recorder.check({type: "response", ...})`)
   are what actually prove behavior on matterjs; the chip-side log check is additional protocol-level
   evidence only available for the chip flavor.
-- **Guard every step against leaving the DUT commissioned if it throws.** With ~21 steps sharing one
-  commissioned node, the step engine aborts (skips, doesn't run) every step after the one that threw — see
-  `cert-test.ts`'s `invoke()` — so a decommission written into only the *last* step never runs if an
-  earlier one fails. `TC-IDM-2.1.test.ts`'s `guarded()` wraps every step's body so a thrown assertion still
-  decommissions before propagating; only the actual last step decommissions on its own success path.
+- **Never leave the DUT commissioned.** With ~21 steps sharing one commissioned node, the step engine aborts
+  (skips, doesn't run) every step after the one that threw — see `cert-test.ts`'s `invoke()` — so a
+  decommission written into any single step is unreliable. `.finalize()` owns it instead (see
+  "Commission/decommission lifecycle" above).
 
 ## Declaring a device-flavor capability gap (`TC-ACT-3.2`)
 
@@ -435,19 +454,11 @@ here rather than silently dropped, for whoever picks up the next cert TC or a fr
   to look; the general fix is restarting the whole chain from `anchor.index + 1` on a mismatch instead of
   failing immediately, bounded by the same deadline.
 - **A device that exits mid-step (`cert-test.ts`'s `raceAgainstDeviceExit`) leaves the step's own promise
-  running detached** (pre-existing, shared by every cert TC using `guarded()`, not introduced here): if
-  that orphaned promise later rejects, it's an unhandled rejection, and `guarded()`'s own cleanup catch
-  never runs since the step didn't throw *to* the caller. Combined with this file's module-level
-  `commissionedRef`, a second invocation of the same test file's steps in one process (a mocha retry) could
-  read a stale ref left over from an aborted run. Not touched here to avoid diverging from
-  `TC-IDM-2.1.test.ts`'s identical, already-shipped `guarded()`/`commissionedRef` shape with a one-off
-  partial fix; the real fix is structural (see next point).
-- **The `commissionedRef`/`decommissionIfNeeded`/`decommissionOnFailure`/`guarded()` scaffolding is now
-  byte-identical across `TC-IDM-2.1.test.ts` and `TC-ACT-3.2.test.ts`.** This file's own "AttributePathIB
-  line-adjacency matching stays TC-local... promote if a second TC needs the same shape" precedent applies
-  here too: a shared commission-guard helper owning the ref as instance state (not module state) would
-  fix the duplication and the staleness risk above in one place. Deferred rather than done as a drive-by
-  in this TC's own commit.
+  running detached** (pre-existing, shared by every cert TC, not introduced here): if that orphaned promise
+  later rejects, it's an unhandled rejection. Combined with a module-level `CommissionedRefs`, a second
+  invocation of the same test file's steps in one process (a mocha retry) could read a stale ref left over
+  from an aborted run — the `.finalize()` cleanup clears every ref it visits, so this needs a run that never
+  reached its own finalizer.
 - **Per-step PICS is inert on `chip-local`/`chip-docker`.** `ChipLocalDevice.pics`/`ChipDockerDevice.pics`
   both throw (`chip-app-subject.ts`), so `resolvePicsFile` always returns `undefined` for these flavors
   and every step's PICS is treated as met (see `cert-test.ts`'s `stepPicsMet`). The `pics: "ACT.C.C0x.Tx"`
@@ -470,9 +481,11 @@ own certification harness declares this step (a wildcarded-endpoint invoke) unte
 untested by this translation. `CertStepOptions.notApplicable` (added in an earlier task for exactly
 this case) is the right declaration: `.step(2, "...", async () => {}, { notApplicable: "Out of Scope
 in CHIP's certification harness" })`. The engine records the step `"skipped"` with the reason before
-ever calling `run` (`cert-test.ts`'s `invoke()` checks `notApplicable` first, ahead of `flavors` and
-per-step PICS), so the empty async body is never reached — it exists only because `.step()` requires
-a `run` callback. Don't reach for `flavors: []` or a `pics` expression that's always false to express
+ever calling `run` (`cert-test.ts`'s `invoke()` checks `notApplicable` first — ahead of the abort
+state an earlier step's failure sets, and ahead of `flavors` and per-step PICS), so the empty async
+body is never reached — it exists only because `.step()` requires a `run` callback. The ordering
+against the abort state is what keeps the declared reason in the evidence: a step that could never
+have run is not "aborted by step 3", and recording it that way loses the only thing it had to say. Don't reach for `flavors: []` or a `pics` expression that's always false to express
 this: both would still call `run` in a run configuration nobody expects, and neither carries a reason
 into the evidence bundle the way `notApplicable` does.
 
@@ -776,6 +789,31 @@ of test that looks solid until it isn't. The fix: await each write's own ack ind
 `log.expect`, chaining the next wait's `from` to the previous match's own line index + 1, the same
 "anchor and advance" discipline `expectAttributePathIB`'s field-by-field walk already uses — never
 take a synchronous snapshot count of something that arrives asynchronously.
+
+## Anchor a subscription ack on its own subscription id, not on a cursor (`TC-IDM-4.1`)
+
+Advancing a cursor is not enough once more than one subscription is live. Every step here subscribes
+with `keepSubscriptions: true` and a max interval (80s) shorter than the whole run, so from step 3
+onward the TH is periodically reporting on step 1's and step 2's subscriptions as well — and a
+`StatusResponse` waited for at "anywhere after this write" is satisfied by the DUT acking one of
+*those*, even if the write's own report was never acknowledged at all. The step passes on another
+subscription's evidence.
+
+`expectReportAck` closes that by anchoring on the report itself: chip's `ReportDataMessage` decode
+dump carries `SubscriptionId = 0x<id>,` as the block's first field, and the subscription's own
+`SubscribeResponseMessage` (read by `expectSubscriptionId`) is where the id comes from — unique per
+subscription, and the only `SubscribeResponse` in the step's own window. The ack search then starts
+at that report's line, not at a step boundary. Both blocks' rendering is captured verbatim in
+`Test_TC_IDM_4_4.yaml`; that the TH prints them for messages it *sends* follows from the same
+`--trace_decode 1` handler that already makes `ReportDataMessage` appear in a chip TH's log (see
+`expectChunkedTransfer`), and chip assigns the subscription id while processing the SubscribeRequest
+(`ReadHandler::ProcessSubscribeRequest`), before the priming report — so even the priming report
+carries the final id. Read from source, not from a chip-flavored run: only CI proves it.
+
+Residual, and deliberate: the ack matched is the first Success `StatusResponse` after this
+subscription's report. A different subscription's report landing in the microseconds between our
+report and its ack would still let its ack stand in for ours. There is no subscription id on a
+`StatusResponseMessage` to close that last gap.
 
 ## A write that doesn't change the value produces no report — the "values must differ" precondition (`TC-IDM-4.1`)
 

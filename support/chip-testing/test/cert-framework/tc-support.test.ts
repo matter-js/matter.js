@@ -4,9 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { CertNodeApi, CertStepContext, ControllerAdapter } from "@matter/testing";
 import { LogFollower } from "@matter/testing";
 import {
     attributePathIBSequence,
+    CertCleanupError,
+    CommissionedRefs,
     commandPathIBSequence,
     countMatches,
     expectChunkedTransfer,
@@ -353,5 +356,94 @@ describe("countMatches", () => {
             },
             { drain: true },
         );
+    });
+});
+
+describe("CommissionedRefs", () => {
+    function contextWith(decommission: (role: string) => Promise<void>): CertStepContext {
+        function nodeFor(role: string): CertNodeApi {
+            const unused = () => Promise.reject(new Error("not used by these tests"));
+            return {
+                invoke: unused,
+                readAttribute: unused,
+                writeAttribute: unused,
+                subscribe: unused,
+                openCommissioningWindow: unused,
+                operationalMdnsInstanceName: unused,
+                decommission: () => decommission(role),
+            };
+        }
+
+        // An ended source lets the follower close itself; this file's OpenSource would leave one
+        // pending consume promise per controller per test.
+        const noLines = async function* (): AsyncGenerator<string> {};
+
+        const controllerFor = (role: string): ControllerAdapter => ({
+            id: role,
+            log: new LogFollower(noLines(), role),
+            async start() {},
+            async close() {},
+            async commission() {
+                return "ref";
+            },
+            node: () => nodeFor(role),
+        });
+
+        return {
+            controllers: { dut: controllerFor("dut"), th_cr2: controllerFor("th_cr2") },
+            devices: {},
+            recorder: {
+                beginStep() {},
+                check() {},
+                endStep() {
+                    return [];
+                },
+                async flush() {
+                    return "";
+                },
+            },
+        };
+    }
+
+    it("decommissions every role that holds a ref", async () => {
+        const decommissioned = new Array<string>();
+        const refs = new CommissionedRefs<"dut" | "th_cr2">();
+        refs.set("dut", "ref-dut");
+        refs.set("th_cr2", "ref-cr2");
+
+        await refs.decommissionAll(contextWith(async role => void decommissioned.push(role)));
+
+        expect(decommissioned).deep.equal(["dut", "th_cr2"]);
+        expect(refs.get("dut")).equal(undefined);
+    });
+
+    it("throws naming every role whose decommission failed, rather than warning", async () => {
+        const refs = new CommissionedRefs<"dut" | "th_cr2">();
+        refs.set("dut", "ref-dut");
+        refs.set("th_cr2", "ref-cr2");
+
+        const cx = contextWith(async role => {
+            if (role === "th_cr2") {
+                throw new Error("node is reconnecting");
+            }
+        });
+
+        await expect(refs.decommissionAll(cx)).rejectedWith(CertCleanupError, /th_cr2: node is reconnecting/);
+    });
+
+    it("drops a failed role's ref so a second pass doesn't retry it", async () => {
+        const attempts = new Array<string>();
+        const refs = new CommissionedRefs();
+        refs.set("dut", "ref-dut");
+
+        const cx = contextWith(async role => {
+            attempts.push(role);
+            throw new Error("node is reconnecting");
+        });
+
+        await expect(refs.decommissionAll(cx)).rejected;
+        await refs.decommissionAll(cx);
+
+        expect(attempts).deep.equal(["dut"]);
     });
 });

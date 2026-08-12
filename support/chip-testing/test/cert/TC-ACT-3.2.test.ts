@@ -133,22 +133,17 @@ certTest("TC-ACT-3.2", { plan: "actions.adoc", pics: ["ACT.C"], app: "bridge" })
             });
             commissioned.set("dut", ref);
 
-            try {
-                await invokeAndCheck(cx, ref, 1, "instantAction", [
-                    { propertyName: "actionId", value: ACTION_ID },
-                    { propertyName: "invokeId", value: invokeIdFor(1) },
-                ]);
-            } catch (e) {
-                await commissioned.decommissionAll(cx);
-                throw e;
-            }
+            await invokeAndCheck(cx, ref, 1, "instantAction", [
+                { propertyName: "actionId", value: ACTION_ID },
+                { propertyName: "invokeId", value: invokeIdFor(1) },
+            ]);
         },
         { pics: "ACT.C.C00.Tx", expected: EXPECTED_ACTION_ID_AND_INVOKE_ID, flavors: CHIP_FLAVORS },
     )
     .step(
         2,
         "DUT issues an StartAction command to TH",
-        commissioned.guardedWithRef("dut", (cx, ref) =>
+        commissioned.withRef("dut", (cx, ref) =>
             invokeAndCheck(cx, ref, 2, "startAction", [
                 { propertyName: "actionId", value: ACTION_ID },
                 { propertyName: "invokeId", value: invokeIdFor(2) },
@@ -159,7 +154,7 @@ certTest("TC-ACT-3.2", { plan: "actions.adoc", pics: ["ACT.C"], app: "bridge" })
     .step(
         3,
         "DUT issues an StopAction command to TH",
-        commissioned.guardedWithRef("dut", (cx, ref) =>
+        commissioned.withRef("dut", (cx, ref) =>
             invokeAndCheck(cx, ref, 3, "stopAction", [
                 { propertyName: "actionId", value: ACTION_ID },
                 { propertyName: "invokeId", value: invokeIdFor(3) },
@@ -170,7 +165,7 @@ certTest("TC-ACT-3.2", { plan: "actions.adoc", pics: ["ACT.C"], app: "bridge" })
     .step(
         4,
         "DUT issues an PauseAction command to TH",
-        commissioned.guardedWithRef("dut", (cx, ref) =>
+        commissioned.withRef("dut", (cx, ref) =>
             invokeAndCheck(cx, ref, 4, "pauseAction", [
                 { propertyName: "actionId", value: ACTION_ID },
                 { propertyName: "invokeId", value: invokeIdFor(4) },
@@ -181,7 +176,7 @@ certTest("TC-ACT-3.2", { plan: "actions.adoc", pics: ["ACT.C"], app: "bridge" })
     .step(
         5,
         "DUT issues an ResumeAction command to TH",
-        commissioned.guardedWithRef("dut", (cx, ref) =>
+        commissioned.withRef("dut", (cx, ref) =>
             invokeAndCheck(cx, ref, 5, "resumeAction", [
                 { propertyName: "actionId", value: ACTION_ID },
                 { propertyName: "invokeId", value: invokeIdFor(5) },
@@ -192,7 +187,7 @@ certTest("TC-ACT-3.2", { plan: "actions.adoc", pics: ["ACT.C"], app: "bridge" })
     .step(
         6,
         "DUT issues an EnableAction command to TH",
-        commissioned.guardedWithRef("dut", (cx, ref) =>
+        commissioned.withRef("dut", (cx, ref) =>
             invokeAndCheck(cx, ref, 6, "enableAction", [
                 { propertyName: "actionId", value: ACTION_ID },
                 { propertyName: "invokeId", value: invokeIdFor(6) },
@@ -203,7 +198,7 @@ certTest("TC-ACT-3.2", { plan: "actions.adoc", pics: ["ACT.C"], app: "bridge" })
     .step(
         7,
         "DUT issues an DisableAction command to TH",
-        commissioned.guardedWithRef("dut", (cx, ref) =>
+        commissioned.withRef("dut", (cx, ref) =>
             invokeAndCheck(cx, ref, 7, "disableAction", [
                 { propertyName: "actionId", value: ACTION_ID },
                 { propertyName: "invokeId", value: invokeIdFor(7) },
@@ -214,7 +209,7 @@ certTest("TC-ACT-3.2", { plan: "actions.adoc", pics: ["ACT.C"], app: "bridge" })
     .step(
         8,
         "DUT issues an StartActionWithDuration command to TH",
-        commissioned.guardedWithRef("dut", (cx, ref) =>
+        commissioned.withRef("dut", (cx, ref) =>
             invokeAndCheck(cx, ref, 8, "startActionWithDuration", [
                 { propertyName: "actionId", value: ACTION_ID },
                 { propertyName: "invokeId", value: invokeIdFor(8) },
@@ -226,7 +221,7 @@ certTest("TC-ACT-3.2", { plan: "actions.adoc", pics: ["ACT.C"], app: "bridge" })
     .step(
         9,
         "DUT issues an PauseActionWithDuration command to TH",
-        commissioned.guardedWithRef("dut", (cx, ref) =>
+        commissioned.withRef("dut", (cx, ref) =>
             invokeAndCheck(cx, ref, 9, "pauseActionWithDuration", [
                 { propertyName: "actionId", value: ACTION_ID },
                 { propertyName: "invokeId", value: invokeIdFor(9) },
@@ -238,7 +233,7 @@ certTest("TC-ACT-3.2", { plan: "actions.adoc", pics: ["ACT.C"], app: "bridge" })
     .step(
         10,
         "DUT issues an EnableActionWithDuration command to TH",
-        commissioned.guardedWithRef("dut", (cx, ref) =>
+        commissioned.withRef("dut", (cx, ref) =>
             invokeAndCheck(cx, ref, 10, "enableActionWithDuration", [
                 { propertyName: "actionId", value: ACTION_ID },
                 { propertyName: "invokeId", value: invokeIdFor(10) },
@@ -250,7 +245,7 @@ certTest("TC-ACT-3.2", { plan: "actions.adoc", pics: ["ACT.C"], app: "bridge" })
     .step(
         11,
         "DUT issues an DisableActionWithDuration command to TH",
-        commissioned.guardedWithRef("dut", (cx, ref) =>
+        commissioned.withRef("dut", (cx, ref) =>
             invokeAndCheck(cx, ref, 11, "disableActionWithDuration", [
                 { propertyName: "actionId", value: ACTION_ID },
                 { propertyName: "invokeId", value: invokeIdFor(11) },
@@ -262,13 +257,13 @@ certTest("TC-ACT-3.2", { plan: "actions.adoc", pics: ["ACT.C"], app: "bridge" })
     .step(
         12,
         "DUT issues an InstantActionWithTransition command to TH",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             await invokeAndCheck(cx, ref, 12, "instantActionWithTransition", [
                 { propertyName: "actionId", value: ACTION_ID },
                 { propertyName: "invokeId", value: invokeIdFor(12) },
                 { propertyName: "transitionTime", value: TRANSITION_TIME },
             ]);
-            await commissioned.decommissionAll(cx);
         }),
         { pics: "ACT.C.C01.Tx", expected: EXPECTED_WITH_TRANSITION_TIME, flavors: CHIP_FLAVORS },
-    );
+    )
+    .finalize(cx => commissioned.decommissionAll(cx));

@@ -117,23 +117,18 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
             });
             commissioned.set("dut", ref);
 
-            try {
-                const spec: AttributePathSpec = {
-                    endpoint: ENDPOINT_0,
-                    cluster: BASIC_INFORMATION.id,
-                    attribute: VENDOR_ID.id,
-                };
-                const { value, logCheck } = await readAndCheckLog(cx, ref, spec);
-                recordLogCheck(cx, logCheck);
+            const spec: AttributePathSpec = {
+                endpoint: ENDPOINT_0,
+                cluster: BASIC_INFORMATION.id,
+                attribute: VENDOR_ID.id,
+            };
+            const { value, logCheck } = await readAndCheckLog(cx, ref, spec);
+            recordLogCheck(cx, logCheck);
 
-                const pass = value === 0xfff1;
-                cx.recorder.check({ type: "response", verdict: pass ? "pass" : "fail", detail: `VendorID = ${value}` });
-                if (!pass) {
-                    throw new Error(`Expected VendorID 0xfff1, got ${JSON.stringify(value)}`);
-                }
-            } catch (e) {
-                await commissioned.decommissionAll(cx);
-                throw e;
+            const pass = value === 0xfff1;
+            cx.recorder.check({ type: "response", verdict: pass ? "pass" : "fail", detail: `VendorID = ${value}` });
+            if (!pass) {
+                throw new Error(`Expected VendorID 0xfff1, got ${JSON.stringify(value)}`);
             }
         },
         { expected: "Verify that the TH receives the right Read Request Message." },
@@ -141,7 +136,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         2,
         "DUT sends the Read Request Message to the TH to read all attributes on a given cluster and Endpoint AttributePath = [[Endpoint = Specific Endpoint, Cluster = Specific ClusterID]] On receipt of this message, TH should send a report data action with the attribute value to the DUT.",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const spec: AttributePathSpec = { endpoint: ENDPOINT_0, cluster: BASIC_INFORMATION.id };
             const { value, logCheck } = await readAndCheckLog(cx, ref, spec);
             recordLogCheck(cx, logCheck);
@@ -166,7 +161,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         3,
         "DUT sends the Read Request Message to the TH to read all attributes in all clusters and all endpoints Path = [[ ]] On receipt of this message, TH should send a report data action with the attribute values to the DUT.",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const spec: AttributePathSpec = {};
             const { value, logCheck } = await readAndCheckLog(cx, ref, spec);
             recordLogCheck(cx, logCheck);
@@ -193,7 +188,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         4,
         "DUT sends the Read Request Message to the TH to read a specific attribute from all endpoints and all clusters. AttributePath = [[ Attribute = Specific Attribute]] On receipt of this message, TH should send a report data action with the attribute value to the DUT.",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const spec: AttributePathSpec = { attribute: CLUSTER_REVISION.id };
             const { value, logCheck } = await readAndCheckLog(cx, ref, spec);
             recordLogCheck(cx, logCheck);
@@ -219,7 +214,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         5,
         "DUT sends the Read Request Message to the TH to read all attributes from a specific cluster on all endpoints AttributePath = [[ Cluster = Specific ClusterID]] On receipt of this message, TH should send a report data action with the attribute value to the DUT.",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const spec: AttributePathSpec = { cluster: DESCRIPTOR.id };
             const { value, logCheck } = await readAndCheckLog(cx, ref, spec);
             recordLogCheck(cx, logCheck);
@@ -244,7 +239,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         6,
         "DUT sends the Read Request Message to the TH to read a specific attribute from a given cluster on all endpoints. AttributePath = [[ Cluster = Specific Cluster, Attribute = specific attribute]] On receipt of this message, TH should send a report data action with the attribute value to the DUT.",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const spec: AttributePathSpec = { cluster: DESCRIPTOR.id, attribute: SERVER_LIST.id };
             const { value, logCheck } = await readAndCheckLog(cx, ref, spec);
             recordLogCheck(cx, logCheck);
@@ -270,7 +265,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         7,
         "DUT sends the Read Request Message to the TH to read all attributes from all clusters at a given endpoint. AttributePath = [[ Endpoint = Specific Endpoint]] On receipt of this message, TH should send a report data action with the attribute value to the DUT.",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const spec: AttributePathSpec = { endpoint: ENDPOINT_1 };
             const { value, logCheck } = await readAndCheckLog(cx, ref, spec);
             recordLogCheck(cx, logCheck);
@@ -293,7 +288,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         8,
         "DUT sends the Read Request Message to the TH to a specific endpoint to read a particular attribute from all the clusters at that endpoint AttributePath = [[ Endpoint = Specific Endpoint, Attribute = specific attribute]] On receipt of this message, TH should send a report data action with the attribute value to the DUT.",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const spec: AttributePathSpec = { endpoint: ENDPOINT_1, attribute: CLUSTER_REVISION.id };
             const { value, logCheck } = await readAndCheckLog(cx, ref, spec);
             recordLogCheck(cx, logCheck);
@@ -318,7 +313,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         9,
         "DUT sends the Read Request Message to the TH to read an attribute of data type bool.",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const spec: AttributePathSpec = {
                 endpoint: ENDPOINT_1,
                 cluster: ON_OFF.id,
@@ -345,7 +340,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         10,
         "DUT sends the Read Request Message to the TH to read an attribute of data type string.",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const spec: AttributePathSpec = {
                 endpoint: ENDPOINT_1,
                 cluster: MODE_SELECT.id,
@@ -372,7 +367,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         11,
         "DUT sends the Read Request Message to the TH to read an attribute of data type unsigned integer.",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const spec: AttributePathSpec = {
                 endpoint: ENDPOINT_1,
                 cluster: LEVEL_CONTROL.id,
@@ -399,7 +394,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         12,
         "DUT sends the Read Request Message to the TH to read an attribute of data type signed integer.",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const spec: AttributePathSpec = {
                 endpoint: ENDPOINT_1,
                 cluster: PRESSURE_MEASUREMENT.id,
@@ -426,7 +421,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         13,
         "DUT sends the Read Request Message to the TH to read an attribute of data type floating point.",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const spec: AttributePathSpec = {
                 endpoint: ENDPOINT_1,
                 cluster: CO2_MEASUREMENT.id,
@@ -453,7 +448,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         14,
         "DUT sends the Read Request Message to the TH to read an attribute of data type Octet String.",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const spec: AttributePathSpec = {
                 endpoint: ENDPOINT_0,
                 cluster: OPERATIONAL_CREDENTIALS.id,
@@ -480,7 +475,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         15,
         "DUT sends the Read Request Message to the TH to read an attribute of data type Struct.",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const spec: AttributePathSpec = {
                 endpoint: ENDPOINT_0,
                 cluster: GENERAL_COMMISSIONING.id,
@@ -511,7 +506,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         16,
         "DUT sends the Read Request Message to the TH to read an attribute of data type List.",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const spec: AttributePathSpec = {
                 endpoint: ENDPOINT_1,
                 cluster: MODE_SELECT.id,
@@ -538,7 +533,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         17,
         "DUT sends the Read Request Message to the TH to read an attribute of data type enum.",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const spec: AttributePathSpec = {
                 endpoint: ENDPOINT_1,
                 cluster: OCCUPANCY_SENSING.id,
@@ -565,7 +560,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         18,
         "DUT sends the Read Request Message to the TH to read an attribute of data type bitmap.",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const spec: AttributePathSpec = { endpoint: ENDPOINT_1, cluster: LEVEL_CONTROL.id, attribute: OPTIONS.id };
             const { value, logCheck } = await readAndCheckLog(cx, ref, spec);
             recordLogCheck(cx, logCheck);
@@ -588,7 +583,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         19,
         "DUT sends the Read Request Message to the TH to read an attribute Repeat the above steps 3 times.",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const spec: AttributePathSpec = {
                 endpoint: ENDPOINT_1,
                 cluster: ON_OFF.id,
@@ -618,7 +613,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         20,
         "DUT sends the Read Request Message to the TH to read something(Attribute) which is larger than 1 MTU(1280 bytes) and per spec can be chunked. For every chunked data message received, except the last one, DUT sends a status response.",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const th = cx.devices.th;
             const from = th.log.mark();
 
@@ -653,7 +648,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         21,
         "DUT sends the Read Request Message to the TH with Manufacturer specific clusters and attributes to read all attributes in all clusters and all endpoints Path = [[ ]]. On receipt of this message, TH should send a report data action with the attribute values to the DUT.",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const th = cx.devices.th;
             const spec: AttributePathSpec = {};
             const { value, logCheck } = await readAndCheckLog(cx, ref, spec);
@@ -683,7 +678,6 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                         ? `Manufacturer-specific clusters found: ${foundIds}`
                         : "No manufacturer-specific cluster (>=0x10000) found in the wildcard read",
                 });
-                await commissioned.decommissionAll(cx);
                 if (!sizePass || !msPass) {
                     throw new Error(
                         `Unexpected full-wildcard read result: ${entries.length} entries, MS clusters [${foundIds}]`,
@@ -695,11 +689,11 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                     verdict: "unverified",
                     detail: "matter.js all-clusters app defines no manufacturer-specific cluster",
                 });
-                await commissioned.decommissionAll(cx);
                 if (!sizePass) {
                     throw new Error(`Expected a large wildcard read (>100 attributes), got ${entries.length}`);
                 }
             }
         }),
         { expected: "Verify that the TH receives the right Read Request Message." },
-    );
+    )
+    .finalize(cx => commissioned.decommissionAll(cx));

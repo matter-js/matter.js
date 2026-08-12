@@ -94,6 +94,21 @@ describe("InProcessControllerAdapter", () => {
         await node.decommission();
     });
 
+    it("decommissions after subscribing, so the adapter's own subscription settings can't strand the node", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        const node = adapter.node(ref);
+
+        const value = await node.subscribe(
+            { endpoint: 1, cluster: ON_OFF.id, attribute: ON_OFF_ATTRIBUTE.id },
+            { minIntervalFloorSeconds: 1, maxIntervalCeilingSeconds: 10 },
+        );
+        expect(value).to.be.a("boolean");
+
+        await node.decommission();
+    });
+
     it("throws when constructing a second adapter with an id already registered", () => {
         expect(() => new InProcessControllerAdapter("dut")).to.throw(InternalError, /already registered/);
     });

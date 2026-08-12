@@ -80,17 +80,12 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
             });
             commissioned.set("dut", ref);
 
-            try {
-                const path: AttributePathSpec = {
-                    endpoint: ENDPOINT_1,
-                    cluster: LEVEL_CONTROL_ID,
-                    attribute: requireId(ON_LEVEL.id, "LevelControl.onLevel"),
-                };
-                await writeAndCheck(cx, ref, "1", path, 2);
-            } catch (e) {
-                await commissioned.decommissionAll(cx);
-                throw e;
-            }
+            const path: AttributePathSpec = {
+                endpoint: ENDPOINT_1,
+                cluster: LEVEL_CONTROL_ID,
+                attribute: requireId(ON_LEVEL.id, "LevelControl.onLevel"),
+            };
+            await writeAndCheck(cx, ref, "1", path, 2);
         },
         { expected: "Verify on the TH that the correct WriteRequestMessage has been received." },
     )
@@ -104,7 +99,7 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         3,
         "DUT sends the WriteRequestMessage to the TH to write an attribute of data type bool.",
-        commissioned.guardedWithRef("dut", (cx, ref) => {
+        commissioned.withRef("dut", (cx, ref) => {
             const path: AttributePathSpec = {
                 endpoint: ENDPOINT_0,
                 cluster: BASIC_INFORMATION_ID,
@@ -120,7 +115,7 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         4,
         "DUT sends the WriteRequestMessage to the TH to write an attribute of data type string.",
-        commissioned.guardedWithRef("dut", (cx, ref) => {
+        commissioned.withRef("dut", (cx, ref) => {
             const path: AttributePathSpec = {
                 endpoint: ENDPOINT_0,
                 cluster: BASIC_INFORMATION_ID,
@@ -136,7 +131,7 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         5,
         "DUT sends the WriteRequestMessage to the TH to write an attribute of data type unsigned integer.",
-        commissioned.guardedWithRef("dut", (cx, ref) => {
+        commissioned.withRef("dut", (cx, ref) => {
             const path: AttributePathSpec = {
                 endpoint: ENDPOINT_1,
                 cluster: LEVEL_CONTROL_ID,
@@ -176,7 +171,7 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         11,
         "DUT sends the WriteRequestMessage to the TH to write an attribute of data type enum.",
-        commissioned.guardedWithRef("dut", (cx, ref) => {
+        commissioned.withRef("dut", (cx, ref) => {
             const path: AttributePathSpec = {
                 endpoint: ENDPOINT_1,
                 cluster: THERMOSTAT_USER_INTERFACE_CONFIGURATION_ID,
@@ -195,7 +190,7 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         12,
         "DUT sends the WriteRequestMessage to the TH to write an attribute of data type bitmap.",
-        commissioned.guardedWithRef("dut", (cx, ref) => {
+        commissioned.withRef("dut", (cx, ref) => {
             const path: AttributePathSpec = {
                 endpoint: ENDPOINT_1,
                 cluster: COLOR_CONTROL_ID,
@@ -222,7 +217,7 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
         14,
         "DUT sends the WriteRequestMessage to the TH to write one attribute on a given cluster and endpoint. " +
             "Repeat the above steps 3 times.",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const path: AttributePathSpec = {
                 endpoint: ENDPOINT_1,
                 cluster: THERMOSTAT_USER_INTERFACE_CONFIGURATION_ID,
@@ -234,7 +229,6 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
             for (let attempt = 1; attempt <= 3; attempt++) {
                 await writeAndCheck(cx, ref, `14 (attempt ${attempt})`, path, 1);
             }
-            await commissioned.decommissionAll(cx);
         }),
         { expected: "Verify on the TH that the correct WriteRequestMessage has been received. for all the 3 times." },
     )
@@ -246,4 +240,5 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
             "the previous step) to modify the value of an attribute.",
         async () => {},
         { notApplicable: "Out of Scope per the test plan (data-version-conditional write)" },
-    );
+    )
+    .finalize(cx => commissioned.decommissionAll(cx));

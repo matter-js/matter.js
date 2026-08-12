@@ -57,13 +57,8 @@ certTest("TC-IDM-1.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
             });
             commissioned.set("dut", ref);
 
-            try {
-                const from = th.log.mark();
-                await invokeOnOffAndCheck(cx, ref, "on", from);
-            } catch (e) {
-                await commissioned.decommissionAll(cx);
-                throw e;
-            }
+            const from = th.log.mark();
+            await invokeOnOffAndCheck(cx, ref, "on", from);
         },
         { expected: "On the TH verify the received request message has the same paths as provided in the command." },
     )
@@ -79,7 +74,7 @@ certTest("TC-IDM-1.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
         "DUT sends the Invoke Request Message to the TH. The Message should contain one valid CommandDataIB, " +
             "which has the specific Endpoint, Specific Cluster and Specific Command. Send 2 more Invoke Request " +
             "Messages to the TH.",
-        commissioned.guardedWithRef("dut", async (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             let from = cx.devices.th.log.mark();
             for (let i = 0; i < 3; i++) {
                 const logCheck = await invokeOnOffAndCheck(cx, ref, "off", from);
@@ -87,7 +82,7 @@ certTest("TC-IDM-1.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                     from = logCheck.logLine + 1;
                 }
             }
-            await commissioned.decommissionAll(cx);
         }),
         { expected: "On the TH verify the received request messages have the same paths as provided in the command." },
-    );
+    )
+    .finalize(cx => commissioned.decommissionAll(cx));

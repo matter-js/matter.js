@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError, Time } from "@matter/main";
+import { InternalError, MatterError, Time } from "@matter/main";
 import type {
     AttributePathSpec,
     CertNodeRef,
@@ -16,12 +16,18 @@ import type {
 } from "@matter/testing";
 import { CertLogClosedError, CertLogTimeoutError } from "@matter/testing";
 
+/** A cert run left a fabric (and whatever it carries) behind on the TH. */
+export class CertCleanupError extends MatterError {}
+
 /**
- * Tracks commissioned node refs by role for one cert-test run and decommissions whatever's still
- * active on step failure. Each controller's own `decommission()` only removes *that controller's*
- * fabric via its own CASE session, so cleanup has to visit every role independently. Shared by
- * `TC-IDM-2.1.test.ts`/`TC-ACT-3.2.test.ts`/`TC-IDM-1.1.test.ts` (single "dut" role) and
- * `TC-CADMIN-1.17.test.ts` (multiple controller roles).
+ * Tracks commissioned node refs by role for one cert-test run. Each controller's own
+ * `decommission()` only removes *that controller's* fabric via its own CASE session, so cleanup has
+ * to visit every role independently. Shared by `TC-IDM-2.1.test.ts`/`TC-ACT-3.2.test.ts`/
+ * `TC-IDM-1.1.test.ts` (single "dut" role) and `TC-CADMIN-1.17.test.ts` (multiple controller roles).
+ *
+ * {@link decommissionAll} belongs in a TC's `certTest(...).finalize(...)` callback, which the engine
+ * runs however the steps ended. So does anything else that keeps this map true to the TH: a
+ * {@link clear} owed by a fabric the TH itself removed must not sit in a skippable step either.
  */
 export class CommissionedRefs<Role extends string = "dut"> {
     #refs = new Map<Role, CertNodeRef>();
@@ -47,45 +53,38 @@ export class CommissionedRefs<Role extends string = "dut"> {
         return ref;
     }
 
+    /**
+     * Decommissions every role still holding a ref. A role is dropped before its own attempt, so a
+     * failure is reported once rather than retried on a later call; every failure is collected and
+     * thrown together, since a fabric surviving on the TH outlives this run and breaks the next one.
+     */
     async decommissionAll(cx: CertStepContext): Promise<void> {
+        const failures = new Array<string>();
         for (const [role, ref] of [...this.#refs]) {
             this.#refs.delete(role);
             try {
                 await cx.controllers[role].node(ref).decommission();
             } catch (e) {
-                console.warn(`Failed to decommission ${role} while cleaning up:`, e);
+                failures.push(`${role}: ${e instanceof Error ? e.message : String(e)}`);
             }
+        }
+        if (failures.length) {
+            throw new CertCleanupError(`Failed to decommission ${failures.join("; ")}`);
         }
     }
 
     /**
-     * Wraps a step so a thrown assertion still decommissions every active role before propagating —
-     * the step engine (`cert-test.ts`'s `invoke`) aborts every later step without running it, so only
-     * the step that actually threw gets a chance to clean up.
+     * Requires `role`'s ref up front and threads it into `run`, matching the `(cx, ref)` shape most
+     * single-DUT steps want.
      */
-    guarded(run: (cx: CertStepContext) => Promise<void>): (cx: CertStepContext) => Promise<void> {
-        return async cx => {
-            try {
-                await run(cx);
-            } catch (e) {
-                await this.decommissionAll(cx);
-                throw e;
-            }
-        };
-    }
-
-    /**
-     * {@link guarded} for the common single-role case: also requires `role`'s ref up front and
-     * threads it into `run`, matching the `(cx, ref)` shape most single-DUT steps want.
-     */
-    guardedWithRef(
+    withRef(
         role: Role,
         run: (cx: CertStepContext, ref: CertNodeRef) => Promise<void>,
     ): (cx: CertStepContext) => Promise<void> {
-        return this.guarded(async cx => {
+        return async cx => {
             const ref = this.require(role, `Step ran before the ${role.toUpperCase()} was commissioned`);
             await run(cx, ref);
-        });
+        };
     }
 }
 
@@ -146,11 +145,22 @@ export async function expectAdjacentLines(
 // chip-all-clusters-app's log for a >1-MTU wildcard read (repeated ReportDataMessage/StatusResponse
 // pairs). matter.js has no equivalent log line, so this is chip-only; see AGENTS.md's flavor-pattern
 // policy for the matterjs "unverified" fallback.
-const REPORT_DATA_SENT = /\[DMG\] ReportDataMessage =\s*$/;
+export const REPORT_DATA_MESSAGE = /\[DMG\] ReportDataMessage =\s*$/;
 const STATUS_RESPONSE_RECEIVED = /Msg RX from.*\(IM:StatusResponse\)/;
 
+// A subscription's own reports and its SubscribeResponse both carry the id the TH minted for it,
+// printed as the block's first field in chip's own unpadded lowercase hex — captured verbatim in
+// Test_TC_IDM_4_4.yaml. Correlating on it is what attributes a report to one subscription when
+// several are live at once.
+export const SUBSCRIBE_RESPONSE_MESSAGE = /\[DMG\] SubscribeResponseMessage =\s*$/;
+export const SUBSCRIPTION_ID_LINE = /SubscriptionId = 0x([0-9a-f]+),\s*$/;
+
+export function subscriptionIdPattern(subscriptionId: number): RegExp {
+    return new RegExp(`SubscriptionId = 0x${subscriptionId.toString(16)},\\s*$`);
+}
+
 // chip's raw stdout, as LogFollower captures it, names the top-level request message in the
-// `[DMG] <MessageName> =` shape below — the same shape as REPORT_DATA_SENT above. The connectedhomeip
+// `[DMG] <MessageName> =` shape below — the same shape as REPORT_DATA_MESSAGE above. The connectedhomeip
 // YAML docs print these captures as `CHIP:DMG: <MessageName> =` instead; that's the docs' own
 // rendering, not the text LogFollower ever sees.
 export const WRITE_REQUEST_MESSAGE = /\[DMG\] WriteRequestMessage =\s*$/;
@@ -433,7 +443,7 @@ export async function expectChunkedTransfer(
         let next: LogExpectResult;
         try {
             next = await log.expect(
-                { chip: REPORT_DATA_SENT },
+                { chip: REPORT_DATA_MESSAGE },
                 { flavor, timeoutMs: timeout, from: chunks.length ? chunks[chunks.length - 1].index + 1 : from },
             );
         } catch (e) {
@@ -454,7 +464,7 @@ export async function expectChunkedTransfer(
         return {
             type: "device-log",
             verdict: "fail",
-            pattern: String(REPORT_DATA_SENT),
+            pattern: String(REPORT_DATA_MESSAGE),
             detail: `${chunks.length} report chunks — the read did not chunk`,
             logLine: chunks[0]?.index,
         };
