@@ -369,23 +369,40 @@ class InProcessCertNodeApi implements CertNodeApi {
 const CERT_PEER_CONNECTION_TIMEOUT = Seconds(15);
 
 /**
- * Bounds the wait for a freshly commissioned peer's structure. `lifecycle.seeded` never emits for a peer that
- * went offline between commissioning and its first report, and an unbounded wait there would hang the step
- * rather than fail it.
+ * Bounds the wait for a freshly commissioned peer. Neither signal below ever arrives for a peer that went
+ * offline right after commissioning, and an unbounded wait there would hang the step rather than fail it.
  */
-const CERT_PEER_SEEDING_TIMEOUT = Seconds(30);
+const CERT_PEER_READY_TIMEOUT = Seconds(30);
 
-async function awaitSeeded(peer: ClientNode) {
-    if (peer.lifecycle.isSeeded) {
+/**
+ * Resolves once the peer holds its structure and its sustained subscription (`isConnected` tracks
+ * `subscriptionActive`).
+ *
+ * A step's own subscription must not be in flight while that sustained one is still establishing: it carries
+ * `keepSubscriptions: false`, so the device drops the step's subscription and answers it `InvalidAction`.
+ */
+async function awaitPeerReady(peer: ClientNode) {
+    const isReady = () => peer.lifecycle.isSeeded && peer.lifecycle.isConnected;
+    if (isReady()) {
         return;
     }
     const observers = new ObserverGroup();
-    const expiry = Time.sleep("cert peer seeding", CERT_PEER_SEEDING_TIMEOUT);
+    const expiry = Time.sleep("cert peer readiness", CERT_PEER_READY_TIMEOUT);
     try {
-        const seeded = new Promise<void>(resolve => observers.on(peer.lifecycle.seeded, () => resolve()));
-        if (!(await Promise.race([seeded.then(() => true), expiry.then(() => false)]))) {
+        const ready = new Promise<void>(resolve => {
+            const check = () => {
+                if (isReady()) {
+                    resolve();
+                }
+            };
+            observers.on(peer.lifecycle.seeded, check);
+            observers.on(peer.lifecycle.connectionStateChanged, check);
+            check();
+        });
+        if (!(await Promise.race([ready.then(() => true), expiry.then(() => false)]))) {
             throw new InternalError(
-                `Peer ${peer.id} did not report its structure within ${Duration.format(CERT_PEER_SEEDING_TIMEOUT)}`,
+                `Peer ${peer.id} was not ready within ${Duration.format(CERT_PEER_READY_TIMEOUT)} ` +
+                    `(seeded: ${peer.lifecycle.isSeeded}, connected: ${peer.lifecycle.isConnected})`,
             );
         }
     } finally {
@@ -491,9 +508,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
             if (address === undefined) {
                 throw new InternalError(`Commissioned peer ${peer.id} has no peer address`);
             }
-            // A step may operate on the peer's clusters in the line after commissioning, so resolve only once
-            // its structure has arrived — the behaviors a cluster operation needs do not exist before that.
-            await awaitSeeded(peer);
+            await awaitPeerReady(peer);
             return address.nodeId.toString();
         });
     }
