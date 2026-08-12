@@ -25,7 +25,9 @@ import {
     DnsMessage,
     DnsRecordType,
     Environment,
+    ImplementationError,
     InternalError,
+    Lifecycle,
     isObject,
     MemoryStorageDriver,
     MockCrypto,
@@ -39,9 +41,11 @@ import {
 import { AccessLevel, BasicInformation, ElementTag, FeatureMap } from "@matter/model";
 import {
     AttestationCertificateManager,
+    CertificateAuthority,
     CertificationDeclaration,
     NodeSession,
     OccurrenceManager,
+    PeerSet,
     ProtocolMocks,
     Val,
 } from "@matter/protocol";
@@ -49,6 +53,7 @@ import { FabricIndex, VendorId } from "@matter/types";
 import { BasicInformation as BasicInformationCluster } from "@matter/types/clusters/basic-information";
 import { PumpConfigurationAndControl } from "@matter/types/clusters/pump-configuration-and-control";
 import { MockServerNode } from "./mock-server-node.js";
+import { MockSite } from "./mock-site.js";
 import { CommissioningHelper, FAILSAFE_LENGTH_S, testFactoryReset } from "./node-helpers.js";
 
 const commissioning = CommissioningHelper();
@@ -61,6 +66,26 @@ class CrashingServer extends Behavior {
 
     override initialize() {
         throw new InternalError(CRASH_MESSAGE);
+    }
+}
+
+function storageKeysUnder(storage: Record<string, unknown>, context: string) {
+    return Object.keys(storage).filter(key => key === context || key.startsWith(`${context}.`));
+}
+
+/** Commission {@link device} onto {@link controller}, entropy enabled as {@link MockSite} does for pairing. */
+async function commissionOnto(controller: ServerNode, device: ServerNode) {
+    const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+    const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+    controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+    try {
+        const { passcode, discriminator } = device.state.commissioning;
+        await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
+            macrotasks: true,
+        });
+    } finally {
+        controllerCrypto.entropic = deviceCrypto.entropic = false;
     }
 }
 
@@ -421,6 +446,97 @@ describe("ServerNode", () => {
 
     it("handles factory resets when online but in parallel offline is called correctly", async () => {
         await testFactoryReset("offline-during-reset");
+    });
+
+    it("factory reset of a controller erases peers and CA key material", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const storage = site.storageFor(controller.id);
+        expect(storageKeysUnder(storage, "nodes")).not.deep.equals([]);
+        expect(storageKeysUnder(storage, "certificates")).not.deep.equals([]);
+
+        const ca = controller.env.get(CertificateAuthority);
+        expect(ca.rootCert).not.equals(undefined);
+
+        await MockTime.resolve(controller.erase(), { macrotasks: true });
+
+        expect(storageKeysUnder(storage, "nodes")).deep.equals([]);
+        expect(storageKeysUnder(storage, "certificates")).deep.equals([]);
+        expect([...controller.peers].length).equals(0);
+
+        // The authority caches the erased key material, so a holder that kept a reference must fail rather than sign
+        expect(() => ca.rootCert).throws();
+    });
+
+    it("completes factory reset when a peer cannot be torn down", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const storage = site.storageFor(controller.id);
+        const peer = [...controller.peers][0];
+        const address = peer.peerAddress!;
+        peer.delete = async () => {
+            throw new ImplementationError("Cannot delete");
+        };
+
+        await MockTime.resolve(controller.erase(), { macrotasks: true });
+
+        expect(storageKeysUnder(storage, "nodes")).deep.equals([]);
+        expect([...controller.peers].length).equals(0);
+        expect(peer.construction.status).equals(Lifecycle.Status.Destroyed);
+        expect(controller.env.get(PeerSet).get(address)).equals(undefined);
+        expect(controller.construction.status).equals(Lifecycle.Status.Active);
+        expect(controller.lifecycle.isOnline).equals(true);
+    });
+
+    it("erases remaining areas when one fails during factory reset", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const storage = site.storageFor(controller.id);
+        const events = controller.env.get(OccurrenceManager);
+        events.clear = async () => {
+            throw new ImplementationError("Cannot clear events");
+        };
+
+        await MockTime.resolve(expect(controller.erase()).rejectedWith("Error during factory reset"), {
+            macrotasks: true,
+        });
+
+        // Areas sequenced after the failure must still be erased or key material outlives the reset
+        expect(storageKeysUnder(storage, "certificates")).deep.equals([]);
+        expect(storageKeysUnder(storage, "nodes")).deep.equals([]);
+    });
+
+    it("commissions again on the same controller instance after factory reset", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        await MockTime.resolve(controller.erase(), { macrotasks: true });
+
+        await commissionOnto(controller, await site.addDevice());
+
+        expect(controller.peers.commissioned.length).equals(1);
+        expect(controller.env.owns(CertificateAuthority)).equals(true);
+    });
+
+    it("commissions again after factory reset of a controller with commissioned peers", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const id = controller.id;
+
+        await MockTime.resolve(controller.erase(), { macrotasks: true });
+        await controller.close();
+
+        // Boot a new node on the storage the erased controller left behind
+        const rebooted = await site.addController({ id });
+        expect([...rebooted.peers].length).equals(0);
+        await rebooted.start();
+
+        await commissionOnto(rebooted, await site.addDevice());
+
+        expect(rebooted.peers.commissioned.length).equals(1);
     });
 
     it("commissions twice", async () => {

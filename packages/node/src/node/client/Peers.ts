@@ -56,6 +56,7 @@ import {
     Peer,
     PeerAddress,
     PeerLeftError,
+    PeerSet,
     SessionManager,
 } from "@matter/protocol";
 import { FabricIndex, NodeId, Status } from "@matter/types";
@@ -442,6 +443,42 @@ export class Peers extends EndpointContainer<ClientNode> {
             });
 
             return node;
+        });
+    }
+
+    /**
+     * Delete every known node and its persisted data.
+     *
+     * A node we cannot tear down cleanly is closed and dropped instead, so it cannot block the factory reset this
+     * serves.
+     */
+    async erase() {
+        await this.#mutex.produce(async () => {
+            for (const node of [...this]) {
+                const address = node.maybeStateOf(CommissioningClient)?.peerAddress;
+
+                try {
+                    await node.delete();
+                    continue;
+                } catch (error) {
+                    MatterError.accept(error);
+                    logger.warn(`Error deleting ${node}:`, error);
+                }
+
+                try {
+                    await node.close();
+                } catch (error) {
+                    MatterError.accept(error);
+                    logger.warn(`Error closing ${node}:`, error);
+                }
+
+                // ClientNode.delete() does this itself; without it the peer outlives the fabric it is addressed on
+                if (address !== undefined) {
+                    await this.owner.env.maybeGet(PeerSet)?.get(address)?.delete();
+                }
+
+                this.delete(node);
+            }
         });
     }
 

@@ -114,6 +114,42 @@ export class ClientNodeStores {
         return Object.keys(this.#stores);
     }
 
+    /**
+     * Discard all persisted node data.  The collection remains usable and IDs are reassigned from the start.
+     */
+    async erase() {
+        this.#construction.assert();
+
+        const stores = Object.values(this.#stores);
+        this.#stores = {};
+
+        const errors = new Array<unknown>();
+        for (const store of stores) {
+            try {
+                await store.erase();
+            } catch (error) {
+                errors.push(error);
+
+                // erase() closes the store itself; a store that failed partway still holds an open construction and
+                // its cache registration
+                try {
+                    await store.construction.close();
+                } catch (closeError) {
+                    errors.push(closeError);
+                }
+            }
+        }
+
+        // Data a store failed to erase must still go: the in-memory index is gone either way, so anything left behind
+        // would resurrect on the next lookup
+        await this.#storage.clearAll();
+        this.#nextAutomaticId = 1;
+
+        if (errors.length) {
+            throw new MatterAggregateError(errors, "Error while erasing client stores");
+        }
+    }
+
     async close() {
         await this.construction.close(async () => {
             const stores = Object.values(this.#stores);

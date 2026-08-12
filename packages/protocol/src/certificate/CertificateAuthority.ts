@@ -53,6 +53,7 @@ export class CertificateAuthority {
     #nextCertificateId = BigInt(1);
     #construction: Construction<CertificateAuthority>;
     #icacProps?: IcacProps;
+    #storage?: StorageContext;
 
     get crypto() {
         return this.#crypto;
@@ -64,6 +65,19 @@ export class CertificateAuthority {
 
     close() {
         return this.#construction.close();
+    }
+
+    /**
+     * Discard the key material this authority holds, persisted and in memory.
+     *
+     * The authority is unusable afterwards so a holder that keeps signing with the erased root fails loudly rather
+     * than issuing certificates no fabric can validate.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 13.4
+     */
+    async erase() {
+        await this.#storage?.clearAll();
+        await this.#construction.close();
     }
 
     /**
@@ -109,6 +123,10 @@ export class CertificateAuthority {
             if (typeof options === "boolean") {
                 generateIntermediateCert = options;
                 options = undefined;
+            }
+
+            if (options instanceof StorageContext) {
+                this.#storage = options;
             }
 
             const certValues = options instanceof StorageContext ? await options.values() : (options ?? {});
