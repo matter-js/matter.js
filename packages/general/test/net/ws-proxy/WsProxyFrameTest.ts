@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ImplementationError } from "#MatterError.js";
 import { decodeWsProxyFrame, encodeWsProxyFrame, WsProxyFrameError } from "#net/ws-proxy/WsProxyFrame.js";
 
 describe("WsProxyFrame", () => {
@@ -75,6 +76,43 @@ describe("WsProxyFrame", () => {
 
             const decoded = decodeWsProxyFrame(encoded);
             expect(decoded.handle).to.equal(0);
+        });
+
+        it("should accept the maximum opcode", () => {
+            const encoded = encodeWsProxyFrame(0xff, 0, new Uint8Array(0));
+            expect(decodeWsProxyFrame(encoded).opcode).to.equal(0xff);
+        });
+
+        it("should throw on an opcode outside a byte", () => {
+            expect(() => encodeWsProxyFrame(0x100, 1, new Uint8Array(0))).to.throw(
+                ImplementationError,
+                "Binary frame opcode must be an integer from 0 to 255",
+            );
+            expect(() => encodeWsProxyFrame(-1, 1, new Uint8Array(0))).to.throw(
+                ImplementationError,
+                "Binary frame opcode must be an integer from 0 to 255",
+            );
+        });
+
+        it("should throw on a handle outside two bytes", () => {
+            expect(() => encodeWsProxyFrame(0x01, 0x10000, new Uint8Array(0))).to.throw(
+                ImplementationError,
+                "Binary frame handle must be an integer from 0 to 65535",
+            );
+            expect(() => encodeWsProxyFrame(0x01, -1, new Uint8Array(0))).to.throw(
+                ImplementationError,
+                "Binary frame handle must be an integer from 0 to 65535",
+            );
+        });
+
+        it("should throw on a non-integer opcode or handle", () => {
+            expect(() => encodeWsProxyFrame(1.5, 1, new Uint8Array(0))).to.throw(ImplementationError);
+            expect(() => encodeWsProxyFrame(Number.NaN, 1, new Uint8Array(0))).to.throw(ImplementationError);
+            expect(() => encodeWsProxyFrame(0x01, 1.5, new Uint8Array(0))).to.throw(ImplementationError);
+            expect(() => encodeWsProxyFrame(0x01, Number.NaN, new Uint8Array(0))).to.throw(ImplementationError);
+            expect(() => encodeWsProxyFrame(0x01, Number.POSITIVE_INFINITY, new Uint8Array(0))).to.throw(
+                ImplementationError,
+            );
         });
 
         it("should throw on frame too short", () => {

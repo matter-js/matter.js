@@ -113,6 +113,13 @@ export class ProxyBleCentralInterface implements Transport {
         let detachObservers: (() => void) | undefined;
 
         try {
+            // The client chooses the handle and every frame of this channel is addressed with it
+            if (!Number.isInteger(connection_handle) || connection_handle < 0 || connection_handle > 0xffff) {
+                throw new BleError(
+                    `BLE proxy client returned invalid connection handle ${connection_handle} for ${peripheralAddress}`,
+                );
+            }
+
             const { services } = await connection.sendCommand(BleProxyCommand.DiscoverServices, {
                 connection_handle,
             });

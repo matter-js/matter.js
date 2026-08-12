@@ -252,8 +252,14 @@ export class WsProxyConnection {
             throw new WsProxyConnectionClosedError(`[${this.#id}] Cannot send frame ${opcode}, not connected`);
         }
 
-        // The frame header truncates silently, which would misroute the frame to a valid but different handle
-        if (opcode < 0 || opcode > 0xff || handle < 0 || handle > 0xffff) {
+        if (
+            !Number.isInteger(opcode) ||
+            opcode < 0 ||
+            opcode > 0xff ||
+            !Number.isInteger(handle) ||
+            handle < 0 ||
+            handle > 0xffff
+        ) {
             throw new ImplementationError(`[${this.#id}] Frame opcode ${opcode} or handle ${handle} is out of range`);
         }
 

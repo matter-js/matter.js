@@ -54,6 +54,9 @@ const INTERVIEW_TIMEOUT = Seconds(30);
 const LAZY_DISCOVERY_TIMEOUT = Seconds(10);
 const ADAPTER_POWER_ON_TIMEOUT = Seconds(10);
 
+/** Connection handles travel in the binary frame's two-byte handle field. */
+const MAX_CONNECTION_HANDLE = 0xffff;
+
 type NobleFactory = (options: { extended: boolean }) => Noble;
 
 type NotificationListener = (data: Buffer) => void;
@@ -141,6 +144,8 @@ export class NobleBleProxyClient {
     #closing = false;
     /** Hub's last commanded scan state, independent of whether noble is actually scanning right now. */
     #hubScanRequested = false;
+    /** Increments per scan command so a slow start_scan cannot roll back the intent of a newer one. */
+    #scanCommandEpoch = 0;
     #closePromise?: Promise<void>;
     #nobleWarningListener?: (message: string) => void;
     #nobleStateListener?: (state: string) => void;
@@ -353,24 +358,43 @@ export class NobleBleProxyClient {
         }
 
         this.#lastDiscoverFingerprint.clear();
-        // A repeated scan would otherwise stack listeners and emit each advertisement more than once
-        noble.removeAllListeners("discover");
+        // Remove only the listener we installed; a repeated scan would otherwise emit each advertisement more than once
+        if (this.#nobleDiscoverListener !== undefined) {
+            noble.removeListener("discover", this.#nobleDiscoverListener);
+        }
         this.#nobleDiscoverListener = (peripheral: Peripheral) => this.#onDiscover(peripheral);
         noble.on("discover", this.#nobleDiscoverListener);
 
+        // Commands are dispatched concurrently, so a stop_scan arriving while the radio is still starting must see
+        // the intent this command establishes
+        const epoch = ++this.#scanCommandEpoch;
+        this.#hubScanRequested = true;
         try {
             await noble.startScanningAsync([MATTER_SERVICE_UUID], true);
         } catch (error) {
             // The command failed, so the hub does not believe scanning is active; a later connect must not
-            // resume it on the hub's behalf
-            this.#hubScanRequested = false;
+            // resume it on the hub's behalf.  A newer scan command owns the intent, so only the newest may clear it.
+            if (this.#scanCommandEpoch === epoch) {
+                this.#hubScanRequested = false;
+            }
             throw error;
         }
-        this.#hubScanRequested = true;
+
+        if (!this.#hubScanRequested) {
+            try {
+                await noble.stopScanningAsync();
+            } catch (error) {
+                logger.warn("[SCAN] failed to stop scanning after a concurrent stop_scan:", error);
+            }
+            logger.info("[SCAN] BLE scan started and immediately stopped by a concurrent stop_scan");
+            return;
+        }
+
         logger.info(`[SCAN] BLE scan started (filter: ${MATTER_SERVICE_UUID})`);
     }
 
     async #handleStopScan(): Promise<void> {
+        this.#scanCommandEpoch++;
         this.#hubScanRequested = false;
         await this.#noble?.stopScanningAsync();
         logger.info("[SCAN] BLE scan stopped");
@@ -390,7 +414,7 @@ export class NobleBleProxyClient {
             throw new WsProxyCommandError(BleProxyErrorCode.BluetoothUnavailable, "Noble not initialized");
         }
 
-        const handle = this.#nextHandle++;
+        const handle = this.#allocateHandle();
         const connState: ConnectionState = {
             peripheral,
             services: new Map(),
@@ -795,7 +819,12 @@ export class NobleBleProxyClient {
             logger.debug(`Dropping frame opcode=${opcode} handle=${connectionHandle}, connection is not open`);
             return;
         }
-        connection.sendFrame(opcode, connectionHandle, payload);
+        try {
+            connection.sendFrame(opcode, connectionHandle, payload);
+        } catch (error) {
+            // Notifications arrive on a noble listener, where a throw would surface as an uncaught exception
+            logger.error(`Failed to send frame opcode=${opcode} handle=${connectionHandle}:`, error);
+        }
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -808,6 +837,27 @@ export class NobleBleProxyClient {
         const write = conn.writes.then(() => char.writeAsync(data, withoutResponse));
         conn.writes = write.catch(() => {});
         return write;
+    }
+
+    /**
+     * Allocate a connection handle within the two-byte range the binary frame header carries, skipping handles still
+     * in use so a wrap cannot address a live connection.
+     */
+    #allocateHandle(): number {
+        if (this.#connections.size >= MAX_CONNECTION_HANDLE) {
+            throw new WsProxyCommandError(
+                BleProxyErrorCode.InternalError,
+                `All ${MAX_CONNECTION_HANDLE} connection handles are in use`,
+            );
+        }
+
+        let handle = this.#nextHandle;
+        while (this.#connections.has(handle)) {
+            handle = handle === MAX_CONNECTION_HANDLE ? 1 : handle + 1;
+        }
+        this.#nextHandle = handle === MAX_CONNECTION_HANDLE ? 1 : handle + 1;
+
+        return handle;
     }
 
     #requireConnection(connectionHandle: number): ConnectionState {

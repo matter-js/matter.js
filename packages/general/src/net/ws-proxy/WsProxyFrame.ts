@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ImplementationError } from "#MatterError.js";
 import { NetworkError } from "../Network.js";
 
 /** Framing error on a WS-proxy binary frame. */
@@ -22,9 +23,16 @@ export interface WsProxyFrame {
 }
 
 export function encodeWsProxyFrame(opcode: number, handle: number, payload: Uint8Array): Uint8Array {
+    if (!Number.isInteger(opcode) || opcode < 0 || opcode > 0xff) {
+        throw new ImplementationError(`Binary frame opcode must be an integer from 0 to 255, got ${opcode}`);
+    }
+    if (!Number.isInteger(handle) || handle < 0 || handle > 0xffff) {
+        throw new ImplementationError(`Binary frame handle must be an integer from 0 to 65535, got ${handle}`);
+    }
+
     const frame = new Uint8Array(HEADER_SIZE + payload.length);
-    frame[0] = opcode & 0xff;
-    frame[1] = (handle >> 8) & 0xff;
+    frame[0] = opcode;
+    frame[1] = handle >>> 8;
     frame[2] = handle & 0xff;
     frame.set(payload, HEADER_SIZE);
     return frame;

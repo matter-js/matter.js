@@ -788,12 +788,15 @@ describe("WsProxyConnection", () => {
             await connection.close();
         });
 
-        it("rejects an out-of-range opcode or handle", async () => {
+        it("rejects an out-of-range or non-integer opcode or handle", async () => {
             const { connection } = await connectResponder();
 
             expect(() => connection.sendFrame(0x100, 1, new Uint8Array(0))).throws(ImplementationError);
             expect(() => connection.sendFrame(1, 0x10000, new Uint8Array(0))).throws(ImplementationError);
             expect(() => connection.sendFrame(1, -1, new Uint8Array(0))).throws(ImplementationError);
+            expect(() => connection.sendFrame(1, 1.5, new Uint8Array(0))).throws(ImplementationError);
+            expect(() => connection.sendFrame(1, Number.NaN, new Uint8Array(0))).throws(ImplementationError);
+            expect(() => connection.sendFrame(Number.NaN, 1, new Uint8Array(0))).throws(ImplementationError);
 
             await connection.close();
 
