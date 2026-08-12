@@ -159,19 +159,26 @@ function stubSubjectWithoutPics(): Subject {
  */
 class TestCertTest extends CertTest {
     #cx: CertStepContext;
+    #finalizationTimeoutMs?: number;
 
     constructor(
         definition: CertTestDefinition,
         descriptor: TestFileDescriptor,
         container: Container,
         cx: CertStepContext,
+        finalizationTimeoutMs?: number,
     ) {
         super(definition, descriptor, container);
         this.#cx = cx;
+        this.#finalizationTimeoutMs = finalizationTimeoutMs;
     }
 
     protected override contextFor(_subject: Subject): CertStepContext {
         return this.#cx;
+    }
+
+    protected override get finalizationTimeoutMs(): number {
+        return this.#finalizationTimeoutMs ?? super.finalizationTimeoutMs;
     }
 }
 
@@ -609,6 +616,278 @@ describe("CertTest", () => {
             "TC-CADMIN-1.17 — Test Step 2: SKIPPED",
             "-".repeat(70),
         ]);
+    });
+
+    it("records a not-applicable step's own reason even after an earlier step failed", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Failing step",
+                    run: async () => {
+                        throw new Error("boom");
+                    },
+                },
+                {
+                    number: 2,
+                    text: "Step the plan itself declares untestable",
+                    notApplicable: "Out of Scope in CHIP's harness",
+                    run: async () => {},
+                },
+                {
+                    number: 3,
+                    text: "Step that would have run",
+                    run: async () => {},
+                },
+            ],
+        };
+
+        const endStepCalls = new Array<{ number: number | string; verdict: StepVerdict; skipReason?: string }>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                endStep(step, verdict, skipReason) {
+                    endStepCalls.push({ number: step.number, verdict, skipReason });
+                    return [];
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith("boom");
+
+        expect(endStepCalls).deep.equal([
+            { number: 1, verdict: "fail", skipReason: undefined },
+            { number: 2, verdict: "skipped", skipReason: "Out of Scope in CHIP's harness" },
+            { number: 3, verdict: "aborted", skipReason: undefined },
+        ]);
+    });
+
+    it("runs finalize after a step whose PICS skipped it, and flushes evidence afterward", async () => {
+        const order = new Array<string>();
+
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step gated on an unmet PICS",
+                    pics: "CADMIN.S.UnmetToken",
+                    run: async () => {
+                        order.push("step1");
+                    },
+                },
+            ],
+            finalize: async () => {
+                order.push("finalize");
+            },
+        };
+
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                async flush() {
+                    order.push("flush");
+                    return "";
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await test.invoke(stubSubject(new PicsFile([])), () => {}, [], false);
+
+        expect(order).deep.equal(["finalize", "flush"]);
+    });
+
+    it("fails the run and records the reason when finalize throws after passing steps", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [{ number: 1, text: "Passing step", run: async () => {} }],
+            finalize: async () => {
+                throw new Error("decommission failed");
+            },
+        };
+
+        const finalizationFailures = new Array<string>();
+        const deviceLog = new LogFollower(noLines(), "device");
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
+            recorder: stubRecorder({
+                finalizationFailed(detail) {
+                    finalizationFailures.push(detail);
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            "decommission failed",
+        );
+
+        expect(finalizationFailures).deep.equal(["decommission failed"]);
+        expect(deviceLog.lines.filter(line => line.synthetic).map(line => line.text)).to.include(
+            "TC-CADMIN-1.17 — Finalization: FAIL",
+        );
+    });
+
+    it("keeps a step failure as the run's outcome when finalize also fails", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Failing step",
+                    run: async () => {
+                        throw new Error("boom");
+                    },
+                },
+            ],
+            finalize: async () => {
+                throw new Error("decommission failed");
+            },
+        };
+
+        const finalizationFailures = new Array<string>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                finalizationFailed(detail) {
+                    finalizationFailures.push(detail);
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith("boom");
+
+        expect(finalizationFailures).deep.equal(["decommission failed"]);
+    });
+
+    it("abandons cleanup that outlives its budget, so the evidence still gets flushed", async () => {
+        let flushed = false;
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [{ number: 1, text: "Passing step", run: async () => {} }],
+            finalize: () => new Promise<void>(() => {}),
+        };
+
+        const finalizationFailures = new Array<string>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                finalizationFailed(detail) {
+                    finalizationFailures.push(detail);
+                },
+                async flush() {
+                    flushed = true;
+                    return "";
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, 10);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            "cleanup did not finish within 10ms",
+        );
+
+        expect(finalizationFailures).to.have.lengthOf(1);
+        expect(flushed).equal(true);
+    });
+
+    it("abandons cleanup when a device exits while it is running", async () => {
+        let exitDevice!: (info: DeviceExitInfo) => void;
+        const exitPromise = new Promise<DeviceExitInfo>(resolve => {
+            exitDevice = resolve;
+        });
+
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [{ number: 1, text: "Passing step", run: async () => {} }],
+            finalize: () =>
+                new Promise<void>(() => {
+                    exitDevice({ code: 1, signal: null });
+                }),
+        };
+
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: { th: stubCertDevice(exitPromise) },
+            recorder: stubRecorder(),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            "a device exited before the run's cleanup finished",
+        );
+    });
+
+    it("contains an abandoned cleanup's eventual rejection instead of letting it escape unhandled", async () => {
+        let rejectCleanup!: (e: unknown) => void;
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [{ number: 1, text: "Passing step", run: async () => {} }],
+            finalize: () =>
+                new Promise<void>((_, reject) => {
+                    rejectCleanup = reject;
+                }),
+        };
+
+        const cx: CertStepContext = { controllers: {}, devices: {}, recorder: stubRecorder() };
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, 10);
+
+        const unhandled = new Array<unknown>();
+        const onUnhandledRejection = (reason: unknown) => unhandled.push(reason);
+        const originalWarn = console.warn;
+        process.on("unhandledRejection", onUnhandledRejection);
+        console.warn = () => {};
+        try {
+            await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+                "cleanup did not finish within 10ms",
+            );
+
+            rejectCleanup(new Error("teardown closed the controller out from under the abandoned cleanup"));
+
+            await new Promise(resolve => setTimeout(resolve, 0));
+            await new Promise(resolve => setTimeout(resolve, 0));
+        } finally {
+            process.off("unhandledRejection", onUnhandledRejection);
+            console.warn = originalWarn;
+        }
+
+        expect(unhandled).deep.equal([]);
     });
 
     it("fails the run and reports deviceExited when a device exits mid-step", async () => {

@@ -73,4 +73,21 @@ describe("certTest step declaration guard", () => {
             Reflect.set(globalThis, "describe", originalDescribe);
         }
     });
+
+    it("rejects a second finalize declaration at declaration time", () => {
+        const originalDescribe = Reflect.get(globalThis, "describe");
+        Reflect.set(globalThis, "describe", () => {});
+        try {
+            const builder = certTest("TC-DOUBLE-FINALIZE-GUARD-0.0", {
+                plan: "n/a",
+                pics: [],
+                app: "all-clusters",
+            });
+
+            expect(() => builder.finalize(async () => {})).to.not.throw();
+            expect(() => builder.finalize(async () => {})).to.throw("declares finalize() twice");
+        } finally {
+            Reflect.set(globalThis, "describe", originalDescribe);
+        }
+    });
 });

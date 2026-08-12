@@ -7,6 +7,7 @@
 import type { Subject } from "../../device/subject.js";
 import { BaseTest } from "../../device/test.js";
 import type { Container } from "../../docker/container.js";
+import { delay } from "../../util/async.js";
 import { TestDescriptor, TestFileDescriptor } from "../../test-descriptor.js";
 import { PicsExpression } from "../pics/expression.js";
 import { PicsUnavailableError, type PicsFile } from "../pics/file.js";
@@ -74,23 +75,24 @@ export class CertTest extends BaseTest {
 
         try {
             for (const stepDef of this.#definition.steps) {
+                // A step that can never execute keeps its declared reason; "aborted by step N" loses it.
+                if (stepDef.notApplicable !== undefined) {
+                    announceStepEnd(
+                        cx,
+                        tc,
+                        stepDef,
+                        "skipped",
+                        recorder.endStep(stepDef, "skipped", stepDef.notApplicable),
+                    );
+                    continue;
+                }
+
                 if (aborted) {
                     announceStepEnd(cx, tc, stepDef, "aborted", recorder.endStep(stepDef, "aborted"));
                     continue;
                 }
 
                 try {
-                    if (stepDef.notApplicable !== undefined) {
-                        announceStepEnd(
-                            cx,
-                            tc,
-                            stepDef,
-                            "skipped",
-                            recorder.endStep(stepDef, "skipped", stepDef.notApplicable),
-                        );
-                        continue;
-                    }
-
                     if (stepDef.flavors && flavor !== undefined && !stepDef.flavors.includes(flavor)) {
                         announceStepEnd(
                             cx,
@@ -129,6 +131,26 @@ export class CertTest extends BaseTest {
                 announceStepEnd(cx, tc, stepDef, "pass", recorder.endStep(stepDef, "pass"));
             }
         } finally {
+            const finalize = this.#definition.finalize;
+            if (finalize !== undefined) {
+                try {
+                    await runFinalizer(finalize, cx, deviceExitWatch.exit, tc, this.finalizationTimeoutMs);
+                } catch (e) {
+                    // Cleanup that failed left state behind on the TH, which the evidence must say —
+                    // but a step failure is the run's own outcome and keeps precedence over it.
+                    if (!failed) {
+                        failed = true;
+                        failure = e;
+                    }
+                    try {
+                        announceFinalizationFailure(cx, tc, e);
+                        recorder.finalizationFailed?.(errorText(e));
+                    } catch (reportError) {
+                        console.warn("Cert test finalization reporting failed:", reportError);
+                    }
+                }
+            }
+
             try {
                 await this.beforeFlush(cx);
             } catch (e) {
@@ -172,6 +194,11 @@ export class CertTest extends BaseTest {
             devices: {},
             recorder: inertRecorder,
         };
+    }
+
+    /** How long {@link CertTestDefinition.finalize} may run before the run abandons it. */
+    protected get finalizationTimeoutMs(): number {
+        return FINALIZATION_TIMEOUT_MS;
     }
 
     /**
@@ -242,6 +269,63 @@ function announceStep(cx: CertStepContext, lines: string[]): void {
 
 function announceStepStart(cx: CertStepContext, tc: string, stepDef: CertStepDefinition): void {
     announceStep(cx, [STEP_BANNER_RULE, `${tc} — Test Step ${stepDef.number}: ${stepDef.text}`, STEP_BANNER_RULE]);
+}
+
+function errorText(e: unknown): string {
+    return e instanceof Error ? e.message : String(e);
+}
+
+/**
+ * Nothing else bounds cleanup the way {@link raceAgainstDeviceExit} bounds a step: an unreachable TH
+ * makes each role's decommission wait out its own MRP budget, and the evidence flush queues behind
+ * all of them, so the run can hit the mocha timeout having written no bundle at all.
+ */
+const FINALIZATION_TIMEOUT_MS = 120_000;
+
+/**
+ * Runs `finalize`, abandoning it if a device exits or `timeoutMs` elapses first — either way cleanup
+ * can no longer succeed, and the caller records the failure and moves on to the evidence flush. An
+ * abandoned run settles on its own time; its eventual rejection is observed rather than cancelled,
+ * the same way {@link raceAgainstDeviceExit} treats an orphaned step.
+ */
+async function runFinalizer(
+    finalize: (cx: CertStepContext) => Promise<void>,
+    cx: CertStepContext,
+    deviceExit: Promise<DeviceExitInfo>,
+    tc: string,
+    timeoutMs: number,
+): Promise<void> {
+    const run = finalize(cx);
+    const timeout = delay(timeoutMs);
+
+    let outcome: "done" | "exited" | "timeout";
+    try {
+        outcome = await Promise.race([
+            run.then((): "done" => "done"),
+            deviceExit.then((): "exited" => "exited"),
+            timeout.promise,
+        ]);
+    } finally {
+        timeout.cancel();
+    }
+
+    if (outcome === "done") {
+        return;
+    }
+
+    void run.catch(e => {
+        console.warn(`Cert test ${tc}: abandoned cleanup settled after the run stopped waiting for it:`, e);
+    });
+
+    throw new Error(
+        outcome === "exited"
+            ? `Cert test ${tc}: a device exited before the run's cleanup finished`
+            : `Cert test ${tc}: cleanup did not finish within ${timeoutMs}ms`,
+    );
+}
+
+function announceFinalizationFailure(cx: CertStepContext, tc: string, e: unknown): void {
+    announceStep(cx, [STEP_BANNER_RULE, `${tc} — Finalization: FAIL`, errorText(e), STEP_BANNER_RULE]);
 }
 
 /** One evidence line for `check`: a device-log check names its pattern/match, others their own detail. */
