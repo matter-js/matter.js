@@ -90,6 +90,21 @@ export class RotateGroupKey extends Task<RotateGroupKeyParams> {
                 }
             }
         }
+        // A member is re-derived per phase, so one whose intent appeared after distribute would activate without
+        // holding the new key and could not decrypt traffic from members that already flipped to it.
+        if (phase === "activate") {
+            for (const peer of members) {
+                const current = this.#currentIntent(peer);
+                if (current === undefined || !this.#holdsNewKey(current)) {
+                    throw new RotationPreconditionError(
+                        `Cannot activate group key set ${this.params.groupKeySetId}: peer ${peer.id} does not hold ` +
+                            `this rotation's new key, so it joined the key set after the distribute phase. The ` +
+                            `distributed keys remain dormant; rotate again with a new rotation id so every member ` +
+                            `receives the key before activation.`,
+                    );
+                }
+            }
+        }
         for (const peer of members) {
             await ctx.setIntent(peer, "groupKey", key, this.#struct(peer, phase), "converge");
         }
@@ -104,9 +119,11 @@ export class RotateGroupKey extends Task<RotateGroupKeyParams> {
     // A single-key steady state is the required starting point; a member already carrying THIS rotation's new key in
     // slot 1 is our own distribute output on a park/resume re-drive, not a foreign multi-epoch keyset, so accept it.
     #isRotatable(current: GroupKeyGrant): boolean {
-        if (isSingleKeySteadyState(current)) {
-            return true;
-        }
+        return isSingleKeySteadyState(current) || this.#holdsNewKey(current);
+    }
+
+    /** Whether the member carries this rotation's new key in slot 1 — the output of distribute or of activate. */
+    #holdsNewKey(current: GroupKeyGrant): boolean {
         const slot1 = current.epochKey1;
         return slot1 !== null && slot1 !== undefined && Bytes.areEqual(slot1, this.params.newEpochKey);
     }

@@ -183,7 +183,8 @@ async function awaitParkedInPhase(node: ServerNode, id: string, phaseIndex: numb
 }
 
 /** Commission two member devices onto one controller and provision both into the shared key set 42. */
-async function twoMemberGroup(site: MockSite) {
+async function twoMemberGroup(site: MockSite, options: { addB?: boolean } = {}) {
+    const { addB = true } = options;
     const controller = await site.addNode(ControllerRoot, {
         online: false,
         id: "controller1",
@@ -219,7 +220,7 @@ async function twoMemberGroup(site: MockSite) {
     await subscribedPeer(controller, peerA.id);
     await subscribedPeer(controller, peerB.id);
 
-    for (const peer of peers) {
+    for (const peer of addB ? peers : peers.slice(0, 1)) {
         await controller.act(a => a.get(TaskManagerBehavior).run("addNodeToGroup", addParamsFor(peer.id)));
         await awaitState(controller, addTaskId(peer.id), "completed");
     }
@@ -267,6 +268,32 @@ describe("RotateGroupKey task integration (two members)", () => {
             expect(intentState(peer, GROUP_KEY_SET_ID)).equals("committed");
             expect(intentStarts(peer, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
         }
+    });
+
+    it("refuses to activate when a member joined the key set after distribute", async () => {
+        await using site = new MockSite();
+        const { controller, deviceA, deviceB, peerA, peerB } = await twoMemberGroup(site, { addB: false });
+
+        // Park the rotation at distribute so the second member can join the key set mid-rotation.
+        await MockTime.resolve(subscriptionOf(peerA).active.emit(false), { macrotasks: true });
+        await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        await awaitParkedInPhase(controller, ROTATE_ID, 0);
+
+        writesA.length = writesB.length = 0;
+        await controller.act(a => a.get(TaskManagerBehavior).run("addNodeToGroup", addParamsFor(peerB.id)));
+        await awaitState(controller, addTaskId(peerB.id), "completed");
+
+        await MockTime.resolve(subscriptionOf(peerA).active.emit(true), { macrotasks: true });
+        await awaitState(controller, ROTATE_ID, "failed");
+
+        const status = await controller.act(a => a.get(TaskManagerBehavior).get(ROTATE_ID)?.status);
+        expect(status?.error).contains("joined the key set after the distribute phase");
+
+        // A saw distribute only (2 starts, the new key future-dated and dormant); neither member was activated.
+        expect(writesA.map(s => s.length)).deep.equals([2]);
+        expect(writesB.map(s => s.length)).deep.equals([1]);
+        expect(deviceStarts(deviceB, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
+        expect(deviceKey0(deviceA, GROUP_KEY_SET_ID)).deep.equals(OP_KEY);
     });
 
     it("parks when a member is offline, holding the barrier, then converges once it returns", async () => {
