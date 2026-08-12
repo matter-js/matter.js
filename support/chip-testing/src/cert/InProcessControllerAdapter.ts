@@ -85,6 +85,8 @@ Boot.init(() => {
     });
 });
 
+const logger = Logger.get("CertControllerAdapter");
+
 function runTagged<T>(id: string, fn: () => Promise<T>): Promise<T> {
     return activeAdapterId.run(id, fn);
 }
@@ -368,41 +370,39 @@ class InProcessCertNodeApi implements CertNodeApi {
  */
 const CERT_PEER_CONNECTION_TIMEOUT = Seconds(15);
 
-/**
- * Bounds the wait for a freshly commissioned peer. Neither signal below ever arrives for a peer that went
- * offline right after commissioning, and an unbounded wait there would hang the step rather than fail it.
- */
-const CERT_PEER_READY_TIMEOUT = Seconds(30);
+const CERT_PEER_SETTLE_TIMEOUT = Seconds(30);
 
 /**
- * Resolves once the peer holds its structure and its sustained subscription (`isConnected` tracks
- * `subscriptionActive`).
+ * Waits for the peer's sustained subscription to become active (`isConnected` tracks `subscriptionActive`,
+ * and the subscription bootstraps with the structure read, so this covers both).
  *
  * A step's own subscription must not be in flight while that sustained one is still establishing: it carries
  * `keepSubscriptions: false`, so the device drops the step's subscription and answers it `InvalidAction`.
+ *
+ * A peer that never gets there is reported, not failed: a step addresses the peer through raw interaction
+ * paths, which work without a subscription, so refusing to continue would fail test cases whose device holds
+ * a cluster matter.js cannot build a behavior for.
  */
-async function awaitPeerReady(peer: ClientNode) {
-    const isReady = () => peer.lifecycle.isSeeded && peer.lifecycle.isConnected;
-    if (isReady()) {
+async function settlePeer(peer: ClientNode) {
+    if (peer.lifecycle.isConnected) {
         return;
     }
     const observers = new ObserverGroup();
-    const expiry = Time.sleep("cert peer readiness", CERT_PEER_READY_TIMEOUT);
+    const expiry = Time.sleep("cert peer settling", CERT_PEER_SETTLE_TIMEOUT);
     try {
-        const ready = new Promise<void>(resolve => {
+        const connected = new Promise<void>(resolve => {
             const check = () => {
-                if (isReady()) {
+                if (peer.lifecycle.isConnected) {
                     resolve();
                 }
             };
-            observers.on(peer.lifecycle.seeded, check);
             observers.on(peer.lifecycle.connectionStateChanged, check);
             check();
         });
-        if (!(await Promise.race([ready.then(() => true), expiry.then(() => false)]))) {
-            throw new InternalError(
-                `Peer ${peer.id} was not ready within ${Duration.format(CERT_PEER_READY_TIMEOUT)} ` +
-                    `(seeded: ${peer.lifecycle.isSeeded}, connected: ${peer.lifecycle.isConnected})`,
+        if (!(await Promise.race([connected.then(() => true), expiry.then(() => false)]))) {
+            logger.warn(
+                `Peer ${peer.id} held no subscription after ${Duration.format(CERT_PEER_SETTLE_TIMEOUT)} ` +
+                    `(seeded: ${peer.lifecycle.isSeeded}, state: ${peer.lifecycle.connectionState}); continuing`,
             );
         }
     } finally {
@@ -508,7 +508,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
             if (address === undefined) {
                 throw new InternalError(`Commissioned peer ${peer.id} has no peer address`);
             }
-            await awaitPeerReady(peer);
+            await settlePeer(peer);
             return address.nodeId.toString();
         });
     }
