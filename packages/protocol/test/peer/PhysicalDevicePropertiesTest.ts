@@ -178,12 +178,38 @@ describe("PhysicalDeviceProperties", () => {
                 expectJittered(maxIntervalCeiling, 60);
             });
 
-            it("applies jitter to an explicitly requested ceiling", () => {
+            it("passes an explicitly requested ceiling through unchanged, with no jitter", () => {
+                // Run enough times that a regression to unconditional jitter would show up: jitter is randomized,
+                // so any single run has a nonzero chance of coincidentally landing on the un-jittered value.
+                for (let i = 0; i < 200; i++) {
+                    const { maxIntervalCeiling } = subscriptionIntervalBoundsFor({
+                        request: { maxIntervalCeiling: Seconds(80) },
+                    });
+
+                    expect(maxIntervalCeiling).to.equal(Seconds(80));
+                }
+            });
+
+            it("still derives jitter when the caller omits a ceiling", () => {
+                // Collect distinct values across many runs: bounds-only checks would still pass a jitter-free
+                // implementation (the un-jittered base value satisfies "at least/at most" trivially), so proving
+                // jitter is actually applied requires observing more than one outcome.
+                const observed = new Set<number>();
+                for (let i = 0; i < 200; i++) {
+                    const { maxIntervalCeiling } = subscriptionIntervalBoundsFor();
+
+                    expectJittered(maxIntervalCeiling, 60);
+                    observed.add(maxIntervalCeiling);
+                }
+                expect(observed.size).to.be.greaterThan(1);
+            });
+
+            it("clamps an explicitly requested ceiling below the floor up to the floor", () => {
                 const { maxIntervalCeiling } = subscriptionIntervalBoundsFor({
-                    request: { maxIntervalCeiling: Seconds(45) },
+                    request: { minIntervalFloor: Seconds(30), maxIntervalCeiling: Seconds(10) },
                 });
 
-                expectJittered(maxIntervalCeiling, 45);
+                expect(maxIntervalCeiling).to.equal(Seconds(30));
             });
 
             it("applies jitter regardless of network type", () => {
