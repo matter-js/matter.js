@@ -700,3 +700,34 @@ path (`chip-cert-tests.yml`'s own-built job) and the official `chip-cert-bins` i
 binary at `/official-chip-bins/` for the cert-bins job. `TC-SC-3.5.test.ts`'s single test checks
 `env.MATTER_CERT_TH_SERVER_APP_PATH` and calls `this.skip()` when unset, so the matterjs flavor —
 which does not set it — stays green without a TH_SERVER binary.
+
+## No capability gap for `ThermostatUserInterfaceConfiguration`/`ColorControl` (`TC-IDM-3.1`)
+
+Before writing this TC, both clusters looked like plausible candidates for the device-flavor
+capability gap `TC-ACT-3.2` established (see "Declaring a device-flavor capability gap" above) —
+worth checking rather than assuming, since a `flavors` restriction is easy to reach for reflexively.
+`AllClustersTestInstance.ts` registers `ThermostatUserInterfaceConfigurationServer` and
+`ColorControlServer.with(...)` on endpoint 1, and both TC-IDM-3.1 steps that write into them
+(`temperatureDisplayMode`, `options`) passed under the `matterjs` flavor without any restriction.
+Don't assume a capability gap from a brief's own note without running the step first — the actual
+run is cheap and authoritative; the brief's caution here turned out to be unfounded.
+
+## Steps the plan defers to vendor discretion, with no worked capture at all (`TC-IDM-3.1`)
+
+Unlike `TC-IDM-1.1`'s step 2 (`Test_TC_IDM_1_1.yaml`'s own verification text is the single word
+"Out of Scope"), `Test_TC_IDM_3_1.yaml`'s steps 6-10 (signed integer, floating point, octet string,
+struct, list) read "DUT implementation required... If the Vendor DUT doesn't implement/supported
+this attribute, Please mark the test step as Not Applicable" — conditional on vendor capability, not
+a blanket "Out of Scope". `ci-pics-values` sets every `MCORE.IDM.C.WriteRequest.Attribute.DataType_*`
+key to `1`, including these five, which could be read as "CHIP considers this supported". That file
+is not curated per-TC evidence, though: it blanket-enables every `MCORE.IDM` PICS key (read, write,
+subscribe, client and server, all ten data types) uniformly, the same way it enables everything else
+in the file — it does not indicate a concrete demonstrated write. What's actually distinctive about
+steps 6-10 is the *absence* of a captured `./chip-tool ... write-by-id` command and log block, which
+steps 1/3/4/5/11/12 (and step 13, reusing step 4's own example) all have. `notApplicable` for these
+five records that absence ("CHIP's certification harness names no <type> attribute for this step"),
+not a claim that no vendor could ever demonstrate it. A future TC revisiting this: implementing these
+as executable writes would mean picking an attribute *matter.js itself* chooses as writable on the TH
+for each type — which conflicts with this series' own "mirror CHIP's attribute choices exactly, don't
+invent one" rule (see the task brief this TC was built from), since CHIP's own harness names none to
+mirror.
