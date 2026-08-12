@@ -365,7 +365,13 @@ export class TaskManagerBehavior extends Behavior {
     }
 
     #handle(task: Task): TaskHandle {
-        return { id: task.id, status: task.status };
+        // A held handle must keep answering for the task it names; a snapshot would freeze at creation time.
+        return {
+            id: task.id,
+            get status() {
+                return task.status;
+            },
+        };
     }
 
     /**

@@ -132,6 +132,19 @@ describe("TaskManagerBehavior", () => {
         expect(status?.state).equals("completed");
     });
 
+    it("keeps a handle answering for its task as the task progresses", async () => {
+        await using node = await makeNode();
+        SyntheticTask.phasesByTag["held"] = [{ name: "a", run: async () => {} }];
+        await node.act(async agent => {
+            agent.get(TaskManagerBehavior).register("synthetic", SyntheticTask);
+        });
+        const handle = await node.act(agent => agent.get(TaskManagerBehavior).run("synthetic", { tag: "held" }));
+        expect(handle.status.state).equals("running");
+
+        await awaitTaskDone(node, "synthetic:held");
+        expect(handle.status.state).equals("completed");
+    });
+
     it("dedups an in-flight task by deterministic id, and re-runs a terminal one", async () => {
         await using node = await makeNode();
         let runs = 0;
