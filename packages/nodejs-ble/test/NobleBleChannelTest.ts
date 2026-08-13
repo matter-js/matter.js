@@ -44,6 +44,7 @@ class FakePeripheral extends EventEmitter {
 
     readonly #attemptWaiters = new Map<number, () => void>();
     #disconnected?: () => void;
+    #discoveryStarted?: () => void;
 
     constructor(private readonly onAttempt: (peripheral: FakePeripheral, attempt: number) => void) {
         super();
@@ -73,6 +74,7 @@ class FakePeripheral extends EventEmitter {
             return new Promise<void>(() => {});
         }
         this.state = "disconnected";
+        this.emit("disconnect", undefined);
         this.#disconnected?.();
     }
 
@@ -81,10 +83,22 @@ class FakePeripheral extends EventEmitter {
         return new Promise<void>(resolve => (this.#disconnected = resolve));
     }
 
-    cancelConnect() {}
+    cancelConnects = 0;
+
+    cancelConnect() {
+        this.cancelConnects++;
+        this.state = "disconnected";
+    }
+
+    /** Set to leave `discoverServicesAsync()` pending, holding the attempt inside the interview. */
+    discoveryHangs = false;
 
     async discoverServicesAsync(_serviceUuids?: string[]) {
         this.serviceDiscoveries++;
+        this.#discoveryStarted?.();
+        if (this.discoveryHangs) {
+            return new Promise<Service[]>(() => {});
+        }
         if (this.discoveryFailures > 0) {
             this.discoveryFailures--;
             this.state = "disconnected";
@@ -106,6 +120,11 @@ class FakePeripheral extends EventEmitter {
     dropConnection(reason: unknown) {
         this.state = "disconnected";
         this.emit("disconnect", reason);
+    }
+
+    /** Resolves once `discoverServicesAsync()` has run. */
+    whenDiscoveryStarts() {
+        return new Promise<void>(resolve => (this.#discoveryStarted = resolve));
     }
 
     /** Resolves once `connectAsync()` has run for the given attempt. Register before the attempt can start. */
@@ -399,6 +418,57 @@ describe("NobleBleCentralInterface", () => {
             expect(peripheral.connectAttempts).equals(3);
             expect(listeners.size).equals(0);
             await central.close();
+        });
+
+        it("disconnects the peripheral when the abort lands during the interview", async () => {
+            const aborter = new AbortController();
+            const peripheral = new FakePeripheral(p => p.completeConnect());
+            peripheral.discoveryHangs = true;
+            const central = centralInterfaceFor(peripheral);
+
+            const disconnected = peripheral.whenDisconnected();
+            const opening = central.openChannel(ADDRESS, { abort: aborter.signal });
+            await peripheral.whenDiscoveryStarts();
+
+            aborter.abort();
+            await expect(opening).rejectedWith(`Connection to peripheral ${PERIPHERAL_ADDRESS} was aborted`);
+
+            // The interview never reached #openChannels, so nothing else would ever release this link
+            await disconnected;
+            expect(peripheral.state).equals("disconnected");
+            await central.close();
+        });
+
+        it("cancels a pending connect when the abort lands before the peripheral answers", async () => {
+            const aborter = new AbortController();
+            const peripheral = new FakePeripheral(() => {});
+            const central = centralInterfaceFor(peripheral);
+
+            const opening = central.openChannel(ADDRESS, { abort: aborter.signal });
+            await peripheral.whenAttemptStarts(1);
+
+            aborter.abort();
+            await expect(opening).rejectedWith(`Connection to peripheral ${PERIPHERAL_ADDRESS} was aborted`);
+
+            expect(peripheral.cancelConnects).equals(1);
+            await central.close();
+        });
+
+        it("rejects rather than throws when a disconnect-driven retry races the interface closing", async () => {
+            const peripheral = new FakePeripheral(() => {});
+            const central = centralInterfaceFor(peripheral);
+
+            const opening = central.openChannel(ADDRESS).then(
+                () => "resolved",
+                (error: unknown) => (error instanceof Error ? error.message : `${error}`),
+            );
+            await peripheral.whenAttemptStarts(1);
+            await central.close();
+
+            // noble delivers this from its own emit, so the retry must not throw back into it
+            peripheral.dropConnection(undefined);
+
+            expect(await opening).equals("Network interface is closed");
         });
 
         it("closes a channel that completes after the caller aborted", async () => {

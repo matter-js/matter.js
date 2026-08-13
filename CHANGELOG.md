@@ -74,7 +74,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A peripheral whose connection attempt failed is no longer rejected as unusable for the lifetime of the process
     - Fix: Giving up on a peripheral reports the last connection failure as cause
     - Fix: A disconnect that never completes no longer leaves the channel request pending forever
-    - Fix: Aborting a BLE connection attempt now stops its retries and closes a connection that completed anyway
+    - Fix: Aborting a BLE connection attempt now stops its retries and releases a link the attempt already established
 
 - @matter/nodejs-shell
     - Feature: Added `--cleanup-legacy-storage` to irreversibly remove the leftover pre-0.16 storage artifacts once they have been migrated to the current format
