@@ -56,6 +56,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `network.profiles` accepts `bdxAdditionalMrpDelay`
     - Adjustment: A node with commissioning disabled (e.g. a controller) now binds an ephemeral operational port instead of the standard Matter port (5540) when `NetworkServer.port` is unset; commissionable nodes still default to 5540 and an explicit port is always honored
     - Fix: `endpoints.size` no longer double-counts the root endpoint
+    - Fix: A commissioned peer's fabric label is reconciled to the controller's once after its subscription is first established on start, so a label changed while the peer was offline is pushed to the device instead of drifting
     - Removed: `StructManager.assertDirectReadAuthorized()` and the direct-read authorization it backed, unused since the legacy cluster API was dropped
     - Deprecation: `ClientNodeInteraction.localStateFor()` is scheduled for removal in 0.19 together with the legacy controller API
     - Fix: `IdentifyServer` no longer offers the optional `TriggerEffect` command unless the device type requires it, an own command implementation has been added via an override or suppression is disabled; `IdentifyServer.enable({ commands: { triggerEffect: true } })`, `IdentifyServer.alter({ commands: { triggerEffect: { optional: false } } })` and an override of `suppressTriggerEffect()` also offer it

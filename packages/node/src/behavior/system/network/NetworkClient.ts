@@ -6,16 +6,18 @@
 
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
 import { IcdClient } from "#behavior/system/icd/IcdClient.js";
+import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
 import { ClientNodePhysicalProperties } from "#node/client/ClientNodePhysicalProperties.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { NodeConnectionState } from "#node/ClientNodeLifecycle.js";
 import { Node } from "#node/Node.js";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
-import { ChannelType, Observable, ServerAddress } from "@matter/general";
+import { ChannelType, Logger, Observable, ServerAddress } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import {
     ClientSubscription,
+    FabricManager,
     OperationalAddress,
     PeerSet,
     SessionParameters,
@@ -24,6 +26,9 @@ import {
     Val,
 } from "@matter/protocol";
 import { EventNumber } from "@matter/types";
+import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
+
+const logger = Logger.get("NetworkClient");
 import { ClientNetworkRuntime } from "./ClientNetworkRuntime.js";
 import { NetworkBehavior } from "./NetworkBehavior.js";
 
@@ -47,6 +52,8 @@ export class NetworkClient extends NetworkBehavior {
             this.reactTo(this.events.subscriptionStatusChanged, this.#recomputeConnectionState);
             this.reactTo(this.events.isDisabled$Changed, this.#recomputeConnectionState);
             this.reactTo(this.#node.lifecycle.decommissioned, this.#recomputeConnectionState);
+
+            this.reactTo(this.events.subscriptionAlive, this.#reconcileFabricLabel);
         }
     }
 
@@ -262,6 +269,57 @@ export class NetworkClient extends NetworkBehavior {
         this.#recomputeConnectionState();
     }
 
+    /**
+     * Push the controller's fabric label to the peer once per start, if the peer's stored label has drifted (e.g. the
+     * label changed while the peer was offline).  Runs after the sustained subscription is first live so the peer's
+     * `OperationalCredentials` state is primed and the device is reachable.
+     *
+     * TODO: this is only the once-on-start reconciliation. Ownership of fabric-label propagation — pushing on every
+     * reconnect and to a peer the moment it comes online — belongs in the node-management layer once it exists.
+     */
+    async #reconcileFabricLabel() {
+        if (this.internal.fabricLabelReconciled) {
+            return;
+        }
+        // Latch before the first await so repeated subscriptionAlive emits don't re-enter.
+        this.internal.fabricLabelReconciled = true;
+
+        const peerAddress = this.#node.state.commissioning.peerAddress;
+        if (peerAddress === undefined || !this.#node.behaviors.has(OperationalCredentialsClient)) {
+            return;
+        }
+
+        // FabricManager lives on the controller (owner), not the client node's own environment.
+        const owner = this.#node.owner;
+        if (owner === undefined || !owner.env.has(FabricManager)) {
+            return;
+        }
+        const label = owner.env
+            .get(FabricManager)
+            .find(fabric => fabric.fabricIndex === peerAddress.fabricIndex)?.label;
+        if (label === undefined) {
+            return;
+        }
+
+        const opCreds = this.#node.stateOf(OperationalCredentialsClient);
+        let fabrics = opCreds.fabrics;
+        if (fabrics.length !== 1) {
+            fabrics = fabrics.filter(fabric => fabric.fabricIndex === opCreds.currentFabricIndex);
+        }
+        if (fabrics.length !== 1 || fabrics[0].label === label) {
+            return;
+        }
+
+        try {
+            const response = await this.#node.commandsOf(OperationalCredentialsClient).updateFabricLabel({ label });
+            if (response?.statusCode !== OperationalCredentials.NodeOperationalCertStatus.Ok) {
+                logger.warn(`Could not reconcile fabric label on ${this.#node}: status ${response?.statusCode}`);
+            }
+        } catch (error) {
+            logger.warn(`Failed to reconcile fabric label on ${this.#node}`, error);
+        }
+    }
+
     override async [Symbol.asyncDispose]() {
         // Clean up any active subscription
         this.internal.activeSubscription?.close();
@@ -352,6 +410,9 @@ export namespace NetworkClient {
          * disabled/stopped.  Drives {@link NodeConnectionState.WaitingForDeviceDiscovery}.
          */
         likelyOffline = false;
+
+        /** Set once the peer's fabric label has been reconciled after start, so it runs at most once per start. */
+        fabricLabelReconciled = false;
     }
 
     export class State extends NetworkBehavior.State {
