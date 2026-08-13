@@ -287,6 +287,11 @@ describe("Task lifecycle", () => {
             // The abort stopped the driver and dropped the gate; declining the cancel must give both back, or the
             // task sits non-terminal with nothing left to advance it until a restart.
             expect(await node.act(a => a.get(TestTaskManager).isDriven("synthetic:blockedcancel"))).equals(true);
+
+            // ...and it still converges once the device has the item, which it cannot do without a driver.
+            peer.markHas("groupMembership", "K");
+            peer.setReachable(true);
+            await awaitState(node, "synthetic:blockedcancel", "completed");
             await node.close();
         });
     });
