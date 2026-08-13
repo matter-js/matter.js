@@ -11,6 +11,20 @@ import type { RemoteWriter } from "./RemoteWriter.js";
 
 const logger = Logger.get("RemoteWriteParticipant");
 
+// A peer ID is unique only within one controller, but a transaction may span peers of several controllers, so the
+// diagnostic name — which the transaction requires to be unique — carries an ordinal derived from writer identity
+const writerOrdinals = new WeakMap<RemoteWriter, number>();
+let nextWriterOrdinal = 0;
+
+function ordinalFor(writer: RemoteWriter) {
+    let ordinal = writerOrdinals.get(writer);
+    if (ordinal === undefined) {
+        ordinal = nextWriterOrdinal++;
+        writerOrdinals.set(writer, ordinal);
+    }
+    return ordinal;
+}
+
 /**
  * A transaction participant that persists changes to a remote node.
  *
@@ -119,13 +133,12 @@ export class RemoteWriteParticipant implements Transaction.Participant {
     }
 
     toString() {
-        // Transaction participant names must be unique, and one transaction may write to several peers
         return `remote-writer<${this.#name}>`;
     }
 
     constructor(writer: RemoteWriter, name: string) {
         this.#writer = writer;
-        this.#name = name;
+        this.#name = `${name}#${ordinalFor(writer)}`;
     }
 }
 
