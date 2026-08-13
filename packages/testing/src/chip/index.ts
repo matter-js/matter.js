@@ -34,6 +34,7 @@ export type { CompositionHandle, DockerHandle } from "./cert/chip-app-subject.js
 export { registerControllerAdapterFactory } from "./cert/controller-adapter.js";
 export type {
     AttributePathSpec,
+    AttributeReadEntry,
     AttributeWriteEntry,
     AttributeWriteStatus,
     CertNodeApi,

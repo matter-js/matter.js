@@ -79,24 +79,21 @@ async function writeAndCheck(
 }
 
 /**
- * The data version the device reports for `path`'s cluster, obtained through a cluster-level (non-concrete)
- * read — a concrete read returns the bare value, which carries no version.
+ * Data versions for `paths`' clusters, obtained from one ReadRequest carrying every path — the step's
+ * procedure describes a single read of two clusters, so one request per cluster would be a different
+ * interaction.
  */
-async function clusterVersion(node: CertNodeApi, path: AttributePathSpec): Promise<number> {
-    const entries = await node.readAttribute({ endpoint: path.endpoint, cluster: path.cluster });
-    if (Array.isArray(entries)) {
-        for (const entry of entries) {
-            if (
-                typeof entry === "object" &&
-                entry !== null &&
-                "version" in entry &&
-                typeof entry.version === "number"
-            ) {
-                return entry.version;
-            }
+async function clusterVersions(node: CertNodeApi, paths: AttributePathSpec[]): Promise<number[]> {
+    const entries = await node.readAttributes(paths);
+    return paths.map(({ endpoint, cluster }) => {
+        const version = entries.find(
+            entry => entry.endpoint === endpoint && entry.cluster === cluster && entry.version !== undefined,
+        )?.version;
+        if (version === undefined) {
+            throw new Error(`TH reported no data version for cluster ${cluster} on endpoint ${endpoint}`);
         }
-    }
-    throw new Error(`TH reported no data version for cluster ${path.cluster} on endpoint ${path.endpoint}`);
+        return version;
+    });
 }
 
 const commissioned = new CommissionedRefs();
@@ -331,8 +328,7 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 attribute: requireId(ON_LEVEL.id, "LevelControl.onLevel"),
             };
 
-            const labelVersion = await clusterVersion(node, labelPath);
-            const levelVersion = await clusterVersion(node, levelPath);
+            const [labelVersion, levelVersion] = await clusterVersions(node, [labelPath, levelPath]);
             cx.recorder.check({
                 type: "response",
                 verdict: "pass",
@@ -384,7 +380,7 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
             const stale = await node.writeAttributes([
                 { path: labelPath, value: "tc-idm-3-1-stale", dataVersion: labelVersion },
             ]);
-            const rejected = stale.every(({ status }) => status === Status.DataVersionMismatch);
+            const rejected = stale.length === 1 && stale[0].status === Status.DataVersionMismatch;
             cx.recorder.check({
                 type: "response",
                 verdict: rejected ? "pass" : "fail",

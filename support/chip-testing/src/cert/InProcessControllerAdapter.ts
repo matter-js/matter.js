@@ -49,6 +49,7 @@ import {
 import { AttributeModel, ClusterModel, Matter } from "@matter/model";
 import type {
     AttributePathSpec,
+    AttributeReadEntry,
     AttributeWriteEntry,
     AttributeWriteStatus,
     CertNodeApi,
@@ -281,6 +282,27 @@ class InProcessCertNodeApi implements CertNodeApi {
             // A wildcard expansion legitimately mixes data with per-item statuses (e.g.
             // UNSUPPORTED_ATTRIBUTE for a path the expansion reached but that doesn't apply there) —
             // unlike a concrete path's status, that's not itself a read failure.
+            return toWireValues(values);
+        });
+    }
+
+    readAttributes(paths: AttributePathSpec[], options?: ReadAttributeOptions): Promise<AttributeReadEntry[]> {
+        return runTagged(this.#adapterId, async () => {
+            if (paths.length === 0) {
+                throw new ImplementationError("readAttributes requires at least one path");
+            }
+            const values = new Array<ReadResult.AttributeValue>();
+            const request: ClientRead = {
+                ...Read({ attributes: paths.map(toIds), fabricFilter: options?.fabricFiltered }),
+                includeKnownVersions: true,
+            };
+            for await (const chunk of this.#peer.interaction.read(request)) {
+                for await (const report of chunk) {
+                    if (report.kind === "attr-value") {
+                        values.push(report);
+                    }
+                }
+            }
             return toWireValues(values);
         });
     }
