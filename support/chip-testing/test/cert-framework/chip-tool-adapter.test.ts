@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto, Environment, ImplementationError, InternalError } from "@matter/main";
+import { Bytes, Crypto, Environment, ImplementationError, InternalError, UnexpectedDataError } from "@matter/main";
 import { CertificateAuthority, getOperationalDeviceQname, Rcac } from "@matter/main/protocol";
 import { FabricId, GlobalFabricId, NodeId, Status, StatusResponseError } from "@matter/main/types";
 import { Matter } from "@matter/model";
@@ -31,6 +31,8 @@ const IDENTIFY = Matter.clusters.require("Identify");
 const GENERAL_COMMISSIONING = Matter.clusters.require("GeneralCommissioning");
 const OPERATIONAL_CREDENTIALS = Matter.clusters.require("OperationalCredentials");
 const TRUSTED_ROOT_CERTIFICATES = OPERATIONAL_CREDENTIALS.attributes.require("trustedRootCertificates");
+const FABRICS = OPERATIONAL_CREDENTIALS.attributes.require("fabrics");
+const FABRIC_DESCRIPTOR = FABRICS.members.require("entry");
 const OPTIONS = LEVEL_CONTROL.attributes.require("options");
 const NODE_LABEL = BASIC_INFORMATION.attributes.require("nodeLabel");
 const VENDOR_ID = BASIC_INFORMATION.attributes.require("vendorId");
@@ -73,6 +75,36 @@ function requireId(id: number | undefined, what: string) {
         throw new InternalError(`Model element ${what} has no id`);
     }
     return id;
+}
+
+/** A `FabricDescriptorStruct` field's key in chip-tool's output, which renders a struct by field id. */
+function fabricField(name: string) {
+    return String(requireId(FABRIC_DESCRIPTOR.members.require(name).id, `FabricDescriptorStruct.${name}`));
+}
+
+/** What chip-tool answers a read of `OperationalCredentials.Fabrics` with. */
+function fabricsReply(entries: unknown[]) {
+    return {
+        results: [
+            {
+                clusterId: OPERATIONAL_CREDENTIALS.id,
+                endpointId: 0,
+                attributeId: requireId(FABRICS.id, "fabrics"),
+                value: entries,
+            },
+        ],
+    };
+}
+
+function fabricEntry(rootPublicKey: Bytes, fabricId: number, fabricIndex = 1) {
+    return {
+        [fabricField("rootPublicKey")]: `base64:${Bytes.toBase64(rootPublicKey)}`,
+        [fabricField("vendorId")]: 0xfff1,
+        [fabricField("fabricId")]: fabricId,
+        [fabricField("nodeId")]: 112233,
+        [fabricField("label")]: "",
+        [fabricField("fabricIndex")]: fabricIndex,
+    };
 }
 
 describe("ChipToolControllerAdapter", function () {
@@ -660,7 +692,7 @@ describe("ChipToolControllerAdapter", function () {
 
         // A failed derivation must not become the cached answer: the next caller retries
         const ca = await CertificateAuthority.create(Environment.default.get(Crypto));
-        fake.reply = () => ({ results: [{ value: { RCAC: `base64:${Bytes.toBase64(ca.rootCert)}` } }] });
+        fake.reply = () => fabricsReply([fabricEntry(Rcac.publicKeyOfTlv(ca.rootCert), 1)]);
         expect(await node.operationalMdnsInstanceName()).match(/\._matter\._tcp\.local$/);
     });
 
@@ -777,28 +809,65 @@ describe("ChipToolControllerAdapter", function () {
         expect(fake.commands[0]).equal(`pairing open-commissioning-window ${FIRST_NODE} 0 180 1000 0`);
     });
 
-    it("derives the operational mDNS instance name from chip-tool's own root certificate", async () => {
-        const { ref, node } = await commissioned();
+    it("derives the operational mDNS instance name from the fabric the node reports for this session", async () => {
+        const started = await start();
+        const ref = await started.commission({ passcode: 20202021, discriminator: 3840 });
+        const node = started.node(ref);
+        fake.commands.splice(0);
         const crypto = Environment.default.get(Crypto);
         const ca = await CertificateAuthority.create(crypto);
+        const rootPublicKey = Rcac.publicKeyOfTlv(ca.rootCert);
 
-        fake.reply = () => ({ results: [{ value: { RCAC: `base64:${Bytes.toBase64(ca.rootCert)}` } }] });
+        // A fabric id no commissioner-name mapping produces for this adapter: the name must come from
+        // the descriptor the node reports, which is the only account of the fabric a command ran on
+        const fabricId = 2;
+        fake.reply = () => fabricsReply([fabricEntry(rootPublicKey, fabricId)]);
 
-        // "alpha" is chip-tool's first commissioner identity, whose fabric id is 1
         const expected = getOperationalDeviceQname(
-            await GlobalFabricId.compute(crypto, FabricId(1), Rcac.publicKeyOfTlv(ca.rootCert)),
+            await GlobalFabricId.compute(crypto, FabricId(fabricId), rootPublicKey),
             NodeId(ref),
         );
 
         expect(await node.operationalMdnsInstanceName()).equal(expected);
+        // Fabric-filtered, so the one entry that comes back is the accessing fabric's own
+        expect(fake.commands).deep.equal([`any read-by-id 0x3e 0x1 ${ref} 0`]);
 
-        // The certificate cannot change, so concurrent and later callers must reuse one derivation
-        // rather than each issuing the command again
+        // A node's fabric cannot change, so concurrent and later callers must reuse one derivation
+        // rather than each issuing the read again
         const second = node.operationalMdnsInstanceName();
-        const third = adapter?.node(ref).operationalMdnsInstanceName();
+        const third = started.node(ref).operationalMdnsInstanceName();
         expect(await second).equal(expected);
         expect(await third).equal(expected);
-        expect(fake.commands).deep.equal(["pairing get-commissioner-root-certificate"]);
+        expect(fake.commands.length).equal(1);
+
+        // Another node of the same adapter answers for its own session rather than inheriting this one
+        const secondRef = await started.commission({ passcode: 20202021, discriminator: 3840 });
+        expect(await started.node(secondRef).operationalMdnsInstanceName()).equal(
+            getOperationalDeviceQname(
+                await GlobalFabricId.compute(crypto, FabricId(fabricId), rootPublicKey),
+                NodeId(secondRef),
+            ),
+        );
+        expect(fake.commands[fake.commands.length - 1]).equal(`any read-by-id 0x3e 0x1 ${secondRef} 0`);
+    });
+
+    it("rejects an instance name the reported fabrics cannot decide", async () => {
+        const { node } = await commissioned();
+        const crypto = Environment.default.get(Crypto);
+        const rootPublicKey = Rcac.publicKeyOfTlv((await CertificateAuthority.create(crypto)).rootCert);
+
+        // Neither an empty list nor one the device did not filter says which fabric this controller
+        // acts on, and a guessed compressed id would attribute someone else's SRV record to this node
+        fake.reply = () => fabricsReply([]);
+        expect(await rejectionOf(node.operationalMdnsInstanceName())).instanceOf(UnexpectedDataError);
+
+        fake.reply = () => fabricsReply([fabricEntry(rootPublicKey, 1, 1), fabricEntry(rootPublicKey, 2, 2)]);
+        expect(await rejectionOf(node.operationalMdnsInstanceName())).instanceOf(UnexpectedDataError);
+
+        // Nor does a descriptor missing the fields the compressed id is computed from
+        fake.reply = () =>
+            fabricsReply([{ [fabricField("rootPublicKey")]: `base64:${Bytes.toBase64(rootPublicKey)}` }]);
+        expect(await rejectionOf(node.operationalMdnsInstanceName())).instanceOf(UnexpectedDataError);
     });
 
     describe("subscribe", () => {

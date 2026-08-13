@@ -248,9 +248,13 @@ error.
   `operationalRecords` is requested without `operationalInstanceName`, specifically so this mistake is
   loud rather than an intermittently-flaky check.
 - Both `ControllerAdapter` implementations report `operationalMdnsInstanceName()`, and they agree:
-  `ChipToolControllerAdapter` derives the compressed fabric id from chip-tool's own root certificate
-  (`pairing get-commissioner-root-certificate`) and the fabric id its `--commissioner-name` fixes,
-  then feeds the same `getOperationalDeviceQname`.
+  `ChipToolControllerAdapter` reads the accessing fabric's own `RootPublicKey` and `FabricId` from a
+  fabric-filtered `OperationalCredentials.Fabrics` read on that node, computes the compressed fabric id
+  from those, then feeds the same `getOperationalDeviceQname`. Do not reintroduce a derivation from
+  chip-tool's `--commissioner-name`: that argument is per command and defaults to `alpha`, so a
+  launch-time value does not describe the fabric a later command actually runs on — every role but one
+  then computes a name the node never advertises, which is a failure the mDNS check reports as a
+  missing record rather than as a wrong name.
 
 ## Framework gotcha: `Boot.init`, not a one-time guard, for anything touching `Logger.destinations`
 

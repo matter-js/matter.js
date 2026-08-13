@@ -14,7 +14,8 @@ import {
     MatterError,
     UnexpectedDataError,
 } from "@matter/main";
-import { getOperationalDeviceQname, Rcac } from "@matter/main/protocol";
+import { OperationalCredentials } from "@matter/main/clusters";
+import { getOperationalDeviceQname } from "@matter/main/protocol";
 import { FabricId, GlobalFabricId, NodeId, Status, StatusResponseError } from "@matter/main/types";
 import { ClusterModel, CommandModel, Matter, ValueModel } from "@matter/model";
 import type {
@@ -56,21 +57,24 @@ const MAX_PATHS_PER_COMMAND = 64;
 /** `chip::Crypto::kSpake2p_Min_PBKDF_Iterations`, the cheapest verifier chip-tool accepts. */
 const PBKDF_ITERATIONS = 1000;
 
-/** `--commissioner-name` fixes the fabric id (`examples/chip-tool/commands/common/CHIPCommand.cpp`). */
-const FABRIC_IDS: Record<ChipToolCommissionerName, number> = { alpha: 1, beta: 2, gamma: 3 };
+/**
+ * A range of {@link ChipToolControllerAdapter.mintDiscriminator} values per commissioner name, so two
+ * adapters opening a window at the same time pick different discriminators.
+ */
+const DISCRIMINATOR_RANGES: Record<ChipToolCommissionerName, number> = { alpha: 1, beta: 2, gamma: 3 };
 
 /**
  * Assigned to adapters in this order, so a run's first controller role is chip-tool's `alpha`. These
- * are the identities {@link FABRIC_IDS} knows a fabric id for; chip-tool's own `SetIdentity` also
- * accepts `null-fabric-commissioner` and any integer from 4 up.
+ * are the identities chip-tool names; its `GetIdentity` also accepts `null-fabric-commissioner` and
+ * any integer from 4 up (`examples/chip-tool/commands/common/CHIPCommand.cpp`).
  */
 const COMMISSIONER_NAMES: ChipToolCommissionerName[] = ["alpha", "beta", "gamma"];
 
 /**
- * Commissioner names live adapters hold, so each controller role gets a distinct fabric id and is
- * legible in chip-tool's own logs. Sharing a name across two adapters would not merge their fabrics —
- * their storage directories give them different CA keys, hence different compressed fabric ids — but
- * it would make a run's logs and evidence ambiguous about which role acted.
+ * Commissioner names live adapters hold, so each controller role is legible in chip-tool's own logs.
+ * Sharing a name across two adapters would not merge their fabrics — their storage directories give
+ * them different CA keys, hence different compressed fabric ids — but it would make a run's logs and
+ * evidence ambiguous about which role acted.
  */
 const claimedCommissioners = new Map<ChipToolCommissionerName, ChipToolControllerAdapter>();
 
@@ -241,8 +245,6 @@ interface ChipReply {
      * no interaction status to say how.
      */
     commandFailed: boolean;
-    /** Entries with a shape no interaction produces (e.g. `pairing get-commissioner-root-certificate`). */
-    other: unknown[];
 }
 
 /**
@@ -287,7 +289,6 @@ function interpretReply(results: unknown[], isOwnPath: OwnPathTest): ChipReply {
         statuses: new Array<ChipPathStatus>(),
         globalStatuses: new Array<ChipStatus>(),
         commandFailed: false,
-        other: new Array<unknown>(),
     };
 
     // `AsJsonString` appends the marker after everything the command recorded, so only a trailing bare
@@ -309,7 +310,6 @@ function interpretReply(results: unknown[], isOwnPath: OwnPathTest): ChipReply {
         }
 
         if (!isObject(result)) {
-            reply.other.push(result);
             continue;
         }
 
@@ -336,7 +336,6 @@ function interpretReply(results: unknown[], isOwnPath: OwnPathTest): ChipReply {
         }
 
         if (cluster === undefined || endpoint === undefined) {
-            reply.other.push(result);
             continue;
         }
 
@@ -353,10 +352,7 @@ function interpretReply(results: unknown[], isOwnPath: OwnPathTest): ChipReply {
                 value: result.value,
                 version: numberOf(result, "dataVersion"),
             });
-            continue;
         }
-
-        reply.other.push(result);
     }
 
     return reply;
@@ -716,7 +712,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
     }
 
     async operationalMdnsInstanceName(): Promise<string> {
-        return getOperationalDeviceQname(await this.#adapter.globalFabricId(), this.#nodeId);
+        return getOperationalDeviceQname(await this.#adapter.globalFabricId(this.#nodeId), this.#nodeId);
     }
 
     #read(paths: AttributePathSpec[], options?: ReadAttributeOptions) {
@@ -802,7 +798,7 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
     #client?: ChipToolClient;
     #nextNodeId = FIRST_NODE_ID;
     #nextDiscriminator = 0;
-    #globalFabricId?: Promise<GlobalFabricId>;
+    readonly #globalFabricIds = new Map<string, Promise<GlobalFabricId>>();
     #closed = false;
 
     constructor(id: string) {
@@ -822,7 +818,7 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
         this.log = new LogFollower(this.#logStream.follow(), id);
     }
 
-    /** The commissioner identity this adapter's chip-tool runs as, and with it the fabric id. */
+    /** The commissioner identity this adapter's chip-tool process was launched with. */
     get commissionerName() {
         return this.#commissionerName;
     }
@@ -932,32 +928,48 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
     }
 
     /**
-     * The compressed fabric id of the fabric this adapter's chip-tool commissions onto, computed from
-     * chip-tool's own root certificate and the fabric id its commissioner name fixes — the same value
-     * matter.js's `Fabric` derives for a fabric it created itself.
+     * The compressed fabric id `node` computes for the fabric this adapter's own session runs on — the
+     * same value matter.js's `Fabric` derives, so the two controllers' instance names agree.
      *
-     * The in-flight promise is what's memoized, not its result: two nodes asking at once would
-     * otherwise each issue `get-commissioner-root-certificate` for an answer that cannot change.
+     * Read from the node rather than derived from this adapter's commissioner name: chip-tool's
+     * `GetIdentity` takes the name from the command being run and falls back to `alpha`
+     * (`examples/chip-tool/commands/common/CHIPCommand.cpp`), so the name a role was launched under
+     * says nothing about the fabric a later command acts on. What the node reports does.
+     *
+     * Memoized per node: the fabric of a commissioned node cannot change, but one adapter holds
+     * several nodes and each read is a separate node's answer. The in-flight promise is what's cached,
+     * so two callers asking at once share one read.
      */
-    globalFabricId(): Promise<GlobalFabricId> {
-        return (this.#globalFabricId ??= this.#computeGlobalFabricId());
+    globalFabricId(node: NodeId): Promise<GlobalFabricId> {
+        const key = node.toString();
+        const memoized = this.#globalFabricIds.get(key);
+        if (memoized !== undefined) {
+            return memoized;
+        }
+
+        const pending = this.#readGlobalFabricId(node).catch(e => {
+            // A rejected promise must not be the cached answer for the rest of the run
+            if (this.#globalFabricIds.get(key) === pending) {
+                this.#globalFabricIds.delete(key);
+            }
+            throw e;
+        });
+        this.#globalFabricIds.set(key, pending);
+        return pending;
     }
 
-    async #computeGlobalFabricId(): Promise<GlobalFabricId> {
-        try {
-            const reply = await this.execute("pairing get-commissioner-root-certificate");
-            assertCommandSucceeded(reply, "get-commissioner-root-certificate");
+    async #readGlobalFabricId(node: NodeId): Promise<GlobalFabricId> {
+        const fabrics = await this.node(node.toString()).readAttribute(
+            {
+                endpoint: 0,
+                cluster: OperationalCredentials.id,
+                attribute: OperationalCredentials.attributes.fabrics.id,
+            },
+            { fabricFiltered: true },
+        );
 
-            return await GlobalFabricId.compute(
-                Environment.default.get(Crypto),
-                FabricId(FABRIC_IDS[this.#commissionerName]),
-                Rcac.publicKeyOfTlv(findRcac(reply.other)),
-            );
-        } catch (e) {
-            // A rejected promise must not be the cached answer for the rest of the run
-            this.#globalFabricId = undefined;
-            throw e;
-        }
+        const { rootPublicKey, fabricId } = accessingFabricOf(fabrics, node);
+        return GlobalFabricId.compute(Environment.default.get(Crypto), fabricId, rootPublicKey);
     }
 
     #releaseCommissionerName() {
@@ -1073,26 +1085,38 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
      * 256 windows, which no cert test comes close to.
      */
     mintDiscriminator() {
-        return (this.#nextDiscriminator++ + FABRIC_IDS[this.#commissionerName] * 0x100) & 0xfff;
+        return (this.#nextDiscriminator++ + DISCRIMINATOR_RANGES[this.#commissionerName] * 0x100) & 0xfff;
     }
 }
 
-function findRcac(results: unknown[]): Bytes {
-    for (const result of results) {
-        if (!isObject(result) || !isObject(result.value)) {
-            continue;
-        }
-        const rcac = result.value.RCAC;
-        if (typeof rcac !== "string") {
-            continue;
-        }
-        if (!rcac.startsWith("base64:")) {
-            throw new InternalError(`chip-tool reported an RCAC without a "base64:" prefix: ${rcac}`);
-        }
-        return Bytes.fromBase64(rcac.slice("base64:".length));
+/**
+ * The descriptor of the fabric a fabric-filtered read of `OperationalCredentials.Fabrics` ran on: a
+ * fabric-filtered read indicates only entries associated with the accessing fabric, so the accessing
+ * fabric's own entry is the only one. Any other count leaves the fabric undecided, and a guessed
+ * compressed id would attribute another fabric's advertisement to this node.
+ */
+function accessingFabricOf(fabrics: unknown, node: NodeId): { rootPublicKey: Bytes; fabricId: FabricId } {
+    if (!Array.isArray(fabrics) || fabrics.length !== 1) {
+        throw new UnexpectedDataError(
+            `Node ${node} answered a fabric-filtered read of OperationalCredentials.Fabrics with something other ` +
+                `than the one accessing fabric: ${stringifyChipJson({ fabrics })}`,
+        );
     }
 
-    throw new InternalError(
-        `chip-tool answered get-commissioner-root-certificate without an RCAC: ${JSON.stringify(results)}`,
-    );
+    const [entry] = fabrics;
+    if (!isObject(entry)) {
+        throw new UnexpectedDataError(
+            `Node ${node} reported a fabric that is not a struct: ${stringifyChipJson({ entry })}`,
+        );
+    }
+
+    const { rootPublicKey, fabricId } = entry;
+    if (!Bytes.isBytes(rootPublicKey) || (typeof fabricId !== "number" && typeof fabricId !== "bigint")) {
+        throw new UnexpectedDataError(
+            `Node ${node} reported a fabric without a usable rootPublicKey and fabricId: ` +
+                stringifyChipJson({ entry }),
+        );
+    }
+
+    return { rootPublicKey, fabricId: FabricId(fabricId) };
 }
