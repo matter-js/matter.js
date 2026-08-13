@@ -53,7 +53,8 @@ export class NetworkClient extends NetworkBehavior {
             this.reactTo(this.events.isDisabled$Changed, this.#recomputeConnectionState);
             this.reactTo(this.#node.lifecycle.decommissioned, this.#recomputeConnectionState);
 
-            this.reactTo(this.events.subscriptionAlive, this.#reconcileFabricLabel);
+            // Async, and subscriptionAlive emits from within the subscription's action context, so isolate it.
+            this.reactTo(this.events.subscriptionAlive, this.#reconcileFabricLabel, { offline: true });
         }
     }
 
