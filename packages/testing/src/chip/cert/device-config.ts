@@ -31,3 +31,32 @@ export function resolveDeviceFlavor(): DeviceFlavor {
 
     throw new Error(`Unknown MATTER_CERT_DEVICE "${value}" (expected "chip-docker", "chip-local", or "matterjs")`);
 }
+
+/**
+ * Which controller stack a cert-test run drives the DUT with.
+ */
+export type ControllerImplementation = "chip-tool" | "matterjs";
+
+function isControllerImplementation(value: string): value is ControllerImplementation {
+    return value === "matterjs" || value === "chip-tool";
+}
+
+/**
+ * Resolve which controller implementation cert tests run with, from `MATTER_CERT_CONTROLLER`.
+ *
+ * Unset defaults to `matterjs`, the only implementation that works with no configuration at all:
+ * `chip-tool` needs the Linux-only chip-tool binary, so it would guarantee a failing default run.
+ */
+export function resolveControllerImplementation(): ControllerImplementation {
+    const value = env.MATTER_CERT_CONTROLLER;
+
+    if (value === undefined || value === "") {
+        return "matterjs";
+    }
+
+    if (isControllerImplementation(value)) {
+        return value;
+    }
+
+    throw new Error(`Unknown MATTER_CERT_CONTROLLER "${value}" (expected "chip-tool" or "matterjs")`);
+}

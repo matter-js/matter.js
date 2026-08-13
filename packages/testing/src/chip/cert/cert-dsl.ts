@@ -28,7 +28,7 @@ import {
 } from "./cert-context.js";
 import { CertTest, registerCertTestFactory } from "./cert-test.js";
 import { ControllerAdapter, createControllerAdapter } from "./controller-adapter.js";
-import { resolveDeviceFlavor } from "./device-config.js";
+import { ControllerImplementation, resolveControllerImplementation, resolveDeviceFlavor } from "./device-config.js";
 import { EvidenceRecorder } from "./evidence.js";
 import { matterJsCertSubjectFor } from "./matterjs-subject-registry.js";
 
@@ -233,6 +233,13 @@ function defineCertTest(
 ) {
     describe(descriptor.name, () => {
         const flavor = resolveDeviceFlavor();
+        // Eager, like `flavor` above: validates MATTER_CERT_CONTROLLER at test-collection time, so
+        // a bad value fails immediately rather than only once this specific test's body runs. The
+        // value a run actually records as evidence is re-resolved at run time in #buildContext,
+        // right beside createControllerAdapter()'s own resolution, rather than captured here — an
+        // env value another test in the same process mutates between collection and run time must
+        // not leave this run's evidence disagreeing with the controller it actually used.
+        resolveControllerImplementation();
         const primaryRole = primaryDeviceRole(deviceRoles, definition.app);
         const factory = subjectFactoryFor(flavor, definition.app);
 
@@ -306,6 +313,24 @@ async function chipLocalMarkerRevision(): Promise<string | undefined> {
     const text = await readFile(join(dir, "CHIP_REF"), "utf-8");
     const trimmed = text.trim();
     return trimmed === "" ? undefined : trimmed;
+}
+
+/**
+ * Best-effort chip-tool build reference. `resolveChipLocalAppDir`'s directory is the one
+ * `resolveChipToolBinary` (`support/chip-testing`) also resolves chip-tool's binary from — app and
+ * chip-tool binaries extract from the same `chip-cert-bins` tag — so its stamp file names chip-tool's
+ * build too, independent of the run's device flavor (a "matterjs" device has no chip-local directory
+ * of its own, but the chip-tool controller commissioning it still does).
+ */
+async function chipToolRefFor(implementation: ControllerImplementation): Promise<string | undefined> {
+    if (implementation !== "chip-tool") {
+        return undefined;
+    }
+    try {
+        return await chipLocalMarkerRevision();
+    } catch {
+        return undefined;
+    }
 }
 
 /**
@@ -394,6 +419,9 @@ class WiredCertTest extends CertTest {
 
         // A failure partway through must still close whatever this loop already started —
         // `invoke()`'s own finally only runs #teardown once #buildContext has returned successfully.
+        // Extends over the metadata/recorder construction below too: an evidence directory this
+        // run never gets to use should not leak the controllers/devices it already started.
+        let recorder: EvidenceRecorder;
         try {
             for (const [role, app] of Object.entries(this.#deviceRoles)) {
                 if (role === this.#primaryRole) {
@@ -407,31 +435,39 @@ class WiredCertTest extends CertTest {
                 devices[role] = device;
             }
 
+            // Resolved here, immediately beside the loop that resolves it again inside
+            // createControllerAdapter(), so the value this run records as evidence can't diverge
+            // from the one that actually picked the controller factory.
+            const controllerImplementation = resolveControllerImplementation();
+
             for (const name of Object.keys(this.#controllerRoles)) {
                 const controller = createControllerAdapter(name);
                 controllers[name] = controller;
                 await controller.start();
             }
+
+            const [matterJsRef, chipRef, chipToolRef] = await Promise.all([
+                matterJsCommit(),
+                chipRefFor(this.#flavor, this.definition.app),
+                chipToolRefFor(controllerImplementation),
+            ]);
+
+            recorder = new EvidenceRecorder(evidenceOutDir(), {
+                tc: this.definition.tc,
+                plan: this.definition.plan,
+                timestamp: new Date().toISOString(),
+                controller: Object.keys(this.#controllerRoles).join(","),
+                controllerImplementation,
+                device: `${this.#flavor}:${this.definition.app}`,
+                matterJsCommit: matterJsRef,
+                chipRef,
+                chipToolRef,
+            });
         } catch (e) {
             this.#extraDevices = extra;
             await this.#teardown(controllers);
             throw e;
         }
-
-        const [matterJsRef, chipRef] = await Promise.all([
-            matterJsCommit(),
-            chipRefFor(this.#flavor, this.definition.app),
-        ]);
-
-        const recorder = new EvidenceRecorder(evidenceOutDir(), {
-            tc: this.definition.tc,
-            plan: this.definition.plan,
-            timestamp: new Date().toISOString(),
-            controller: Object.keys(this.#controllerRoles).join(","),
-            device: `${this.#flavor}:${this.definition.app}`,
-            matterJsCommit: matterJsRef,
-            chipRef,
-        });
 
         this.#extraDevices = extra;
         this.#recorder = recorder;

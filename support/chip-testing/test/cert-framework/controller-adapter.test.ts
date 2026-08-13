@@ -8,9 +8,33 @@ import { InternalError } from "@matter/main";
 import { Status, StatusResponseError } from "@matter/main/types";
 import { Matter } from "@matter/model";
 import { expect } from "chai";
+import { env } from "node:process";
 import { AllClustersTestInstance } from "../../src/AllClustersTestInstance.js";
+import { ChipToolControllerAdapter } from "../../src/cert/ChipToolControllerAdapter.js";
 import { InProcessControllerAdapter } from "../../src/cert/InProcessControllerAdapter.js";
-import type { AttributePathSpec, CertNodeApi } from "@matter/testing";
+import {
+    createControllerAdapter,
+    LineQueue,
+    LogFollower,
+    registerControllerAdapterFactory,
+    resetControllerAdapterFactoryForTesting,
+} from "@matter/testing";
+import type { AttributePathSpec, CertNodeApi, ControllerAdapter } from "@matter/testing";
+
+function fakeControllerAdapter(id: string): ControllerAdapter {
+    return {
+        id,
+        log: new LogFollower(new LineQueue(), id),
+        async start() {},
+        async close() {},
+        async commission() {
+            throw new InternalError("not used in this test");
+        },
+        node() {
+            throw new InternalError("not used in this test");
+        },
+    };
+}
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
 const ON_OFF = Matter.clusters.require("OnOff");
@@ -259,5 +283,72 @@ describe("InProcessControllerAdapter", () => {
 
     it("throws when constructing a second adapter with an id already registered", () => {
         expect(() => new InProcessControllerAdapter("dut")).to.throw(InternalError, /already registered/);
+    });
+});
+
+describe("ControllerAdapter registry", () => {
+    const originalController = env.MATTER_CERT_CONTROLLER;
+
+    afterEach(() => {
+        if (originalController === undefined) {
+            delete env.MATTER_CERT_CONTROLLER;
+        } else {
+            env.MATTER_CERT_CONTROLLER = originalController;
+        }
+    });
+
+    it("throws when registering an implementation name that already has a factory", () => {
+        // test/test.config.ts imports support/chip-testing/src/cert/index.ts once before any spec
+        // file runs, which registers "matterjs" — so this throw needs no setup of its own here.
+        expect(() => registerControllerAdapterFactory("matterjs", fakeControllerAdapter)).to.throw(
+            /already registered/,
+        );
+    });
+
+    it("dispatches through the matterjs factory by default", async () => {
+        delete env.MATTER_CERT_CONTROLLER;
+
+        const adapter = createControllerAdapter("registry-test-default");
+        expect(adapter).to.be.instanceOf(InProcessControllerAdapter);
+        await adapter.close();
+    });
+
+    it("dispatches through the chip-tool factory when the run selects it", async () => {
+        env.MATTER_CERT_CONTROLLER = "chip-tool";
+
+        const adapter = createControllerAdapter("registry-test-chip-tool");
+        try {
+            expect(adapter).to.be.instanceOf(ChipToolControllerAdapter);
+        } finally {
+            // Construction spawns nothing, but it does claim a commissioner identity
+            await adapter.close();
+        }
+    });
+
+    it("throws naming the implementation and where to register it when no factory is registered", () => {
+        env.MATTER_CERT_CONTROLLER = "chip-tool";
+        resetControllerAdapterFactoryForTesting("chip-tool");
+
+        try {
+            expect(() => createControllerAdapter("registry-test-unregistered")).to.throw(/chip-tool/);
+            expect(() => createControllerAdapter("registry-test-unregistered")).to.throw(
+                /registerControllerAdapterFactory/,
+            );
+
+            const builtIds = new Array<string>();
+            registerControllerAdapterFactory("chip-tool", id => {
+                builtIds.push(id);
+                return fakeControllerAdapter(id);
+            });
+
+            const adapter = createControllerAdapter("registry-test-dispatch");
+            expect(adapter.id).to.equal("registry-test-dispatch");
+            expect(builtIds).to.deep.equal(["registry-test-dispatch"]);
+        } finally {
+            // Restore what src/cert/index.ts registered at load time, for any later suite that
+            // resolves "chip-tool" through the registry.
+            resetControllerAdapterFactoryForTesting("chip-tool");
+            registerControllerAdapterFactory("chip-tool", id => new ChipToolControllerAdapter(id));
+        }
     });
 });
