@@ -252,6 +252,20 @@ describe("ChipToolClient", function () {
         expect(result.results).deep.equal([]);
     });
 
+    it("carries the child's own last output into a startup failure", async () => {
+        // A failed start() leaves the cert run with no recorder, so this message is the only place the
+        // child's account of itself survives
+        const chipTool = await create('echo "chip-tool: error while loading shared libraries" >&2\nexit 127\n');
+
+        await expect(chipTool.start()).rejectedWith(/error while loading shared libraries/);
+    });
+
+    it("says a silent exit wrote nothing, rather than reporting a bare code", async () => {
+        const chipTool = await create("exit 127\n");
+
+        await expect(chipTool.start()).rejectedWith(/without writing any output/);
+    });
+
     it("does not connect before the readiness line, even to a listening port", async () => {
         const chipTool = await create(NEVER_READY_BODY, Millis(300));
 

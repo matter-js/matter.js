@@ -37,6 +37,7 @@ const CONNECT_ATTEMPTS = 5;
 const CONNECT_RETRY_INTERVAL = Seconds(1);
 const DEFAULT_CONNECT_TIMEOUT = Seconds(5);
 const STOP_TIMEOUT = Seconds(5);
+const RECENT_OUTPUT_LINES = 20;
 
 /** Thrown when chip-tool never becomes usable: no readiness line, or no reachable WebSocket. */
 export class ChipToolStartupError extends MatterError {}
@@ -260,6 +261,7 @@ export class ChipToolClient {
     #exit = deferred<ExitInfo>();
     #exited?: ExitInfo;
     #readiness = deferred<void>();
+    #recentOutput = new Array<string>();
     #failure?: Error;
     #starting = false;
     #closing = false;
@@ -431,6 +433,18 @@ export class ChipToolClient {
         });
     }
 
+    /**
+     * The child's own last words, for a startup failure's message. A failed `start()` leaves the cert
+     * run with no {@link EvidenceRecorder}, so nothing flushes the log this client fed line by line —
+     * without this a loader failure surfaces as a bare exit code.
+     */
+    #outputForDiagnosis() {
+        if (this.#recentOutput.length === 0) {
+            return " and without writing any output (a 127 exit is typically a missing shared library)";
+        }
+        return `; its last output was:\n${this.#recentOutput.map(line => `    ${line}`).join("\n")}`;
+    }
+
     async #awaitReadiness(timeout: Duration) {
         const outcome = await Promise.race([
             this.#readiness.promise.then(() => "ready" as const),
@@ -445,12 +459,13 @@ export class ChipToolClient {
             case "exited":
                 throw new ChipToolStartupError(
                     `chip-tool ${describeExit(this.#exited ?? { code: null, signal: null })} before printing ` +
-                        `"${CHIP_TOOL_READY_MESSAGE}"`,
+                        `"${CHIP_TOOL_READY_MESSAGE}"${this.#outputForDiagnosis()}`,
                 );
 
             default:
                 throw new ChipToolStartupError(
-                    `chip-tool did not print "${CHIP_TOOL_READY_MESSAGE}" within ${Duration.format(timeout)}`,
+                    `chip-tool did not print "${CHIP_TOOL_READY_MESSAGE}" within ` +
+                        `${Duration.format(timeout)}${this.#outputForDiagnosis()}`,
                 );
         }
     }
@@ -547,6 +562,10 @@ export class ChipToolClient {
         let buffer = "";
 
         const emit = (line: string) => {
+            this.#recentOutput.push(line);
+            if (this.#recentOutput.length > RECENT_OUTPUT_LINES) {
+                this.#recentOutput.shift();
+            }
             this.#options.onLog(line);
             if (line.includes(CHIP_TOOL_READY_MESSAGE)) {
                 this.#readiness.resolve();

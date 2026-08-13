@@ -148,7 +148,7 @@ jobs:
   # Cheap flavor: in-process matter.js TestInstance TH, no Docker app binaries. Still needs the
   # shared dbus/mdns/chip harness containers (the published image is fine here), so this validates
   # the suite's controller-side step logic independent of either binary-source path above.
-  test-cert-matterjs:
+  test-cert-matterjs-vs-matterjs:
     needs: prepare
     if: needs.prepare.outputs.should-run == 'true'
     runs-on: ubuntu-latest
@@ -179,7 +179,7 @@ jobs:
           cd support/chip-testing
           npm run test-cert-framework -- --no-pull
 
-      - name: Run certification controller tests (matterjs flavor)
+      - name: Run certification controller tests (matter.js controller vs matterjs device)
         env:
           MATTER_CERT_DEVICE: matterjs
           MATTER_TEST_SHUTDOWN_TIMEOUT_MS: 15000
@@ -192,7 +192,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: cert-evidence-matterjs.zip
+          name: cert-evidence-matterjs-vs-matterjs.zip
           path: support/chip-testing/build/cert-evidence/**
           if-no-files-found: ignore
 
@@ -200,7 +200,7 @@ jobs:
   # chip-all-clusters-app for TC-IDM-2.1/TC-ACT-3.2/TC-CADMIN-1.17, and
   # chip-all-clusters-app-nlfaultinject — reachable inside the running harness container at
   # /bin/chip-all-clusters-app-nlfaultinject with no extra bind-mount — as TC-SC-3.5's TH_SERVER.
-  test-cert-own-built:
+  test-cert-matterjs-vs-own-built:
     needs: prepare
     if: needs.prepare.outputs.should-run == 'true' && needs.prepare.outputs.run-own-built == 'true'
     runs-on: ubuntu-latest
@@ -262,7 +262,7 @@ jobs:
           cd support/chip-testing
           npm run test-cert-framework -- --no-pull
 
-      - name: Run certification controller tests (own-built binaries)
+      - name: Run certification controller tests (matter.js controller vs own-built chip device)
         env:
           MATTER_CERT_DEVICE: chip-local
           MATTER_CERT_APP_DIR: /tmp/cert-app-dir
@@ -277,7 +277,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: cert-evidence-own-built.zip
+          name: cert-evidence-matterjs-vs-own-built.zip
           path: support/chip-testing/build/cert-evidence/**
           if-no-files-found: ignore
 
@@ -285,7 +285,7 @@ jobs:
   # runs on a native arm64 runner). Extraction and the officialChipBinsDir bind-mount are handled by
   # packages/testing/src/chip/chip-bins.ts + chip/state.ts; chip-cert-bins already ships
   # chip-all-clusters-app-nlfaultinject, so TC-SC-3.5's TH_SERVER path needs no separate wiring.
-  test-cert-cert-bins:
+  test-cert-matterjs-vs-cert-bins:
     needs: prepare
     if: needs.prepare.outputs.should-run == 'true' && needs.prepare.outputs.run-cert-bins == 'true'
     runs-on: ubuntu-24.04-arm
@@ -328,7 +328,7 @@ jobs:
           cd support/chip-testing
           npm run test-cert-framework -- --no-pull
 
-      - name: Run certification controller tests (cert-bins binaries)
+      - name: Run certification controller tests (matter.js controller vs cert-bins chip device)
         env:
           MATTER_CHIP_PLATFORM: linux/arm64
           MATTER_CHIP_BINS_SOURCE: cert-bins
@@ -345,17 +345,17 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: cert-evidence-cert-bins.zip
+          name: cert-evidence-matterjs-vs-cert-bins.zip
           path: support/chip-testing/build/cert-evidence/**
           if-no-files-found: ignore
 
   # Differential-oracle leg: the in-process matterjs TH (no chip-local device binaries needed),
   # driven by project-chip's chip-tool instead of matter.js's own controller stack. chip-tool is
-  # extracted from chip-cert-bins the same way test-cert-cert-bins's device binaries are
+  # extracted from chip-cert-bins the same way test-cert-matterjs-vs-cert-bins's device binaries are
   # (MATTER_CHIP_BINS_SOURCE=cert-bins, extraction handled lazily by prepareChipBins() at test
   # time — no separate extraction step here either), so it inherits that image's arm64-only
   # platform and this job's runner and harness container must match it.
-  test-cert-chip-tool:
+  test-cert-chiptool-vs-matterjs:
     needs: prepare
     if: needs.prepare.outputs.should-run == 'true'
     runs-on: ubuntu-24.04-arm
@@ -383,10 +383,16 @@ jobs:
       # needs the host's avahi/dbus stack to discover the matterjs device's on-network mDNS
       # records — even though that device advertises them itself over plain UDP multicast and
       # needs no avahi on its own side. See the own-built/cert-bins jobs' step of the same name.
-      - name: Start host mDNS responder
+      #
+      # The library list is the runtime one from support/chip/Dockerfile, which exists because these
+      # same binaries run inside that image; chip-tool links more than the chip-<app>-app binaries do
+      # (libpcsclite, libavahi-client, libevent), and a missing one exits 127 before it prints
+      # anything. Unlike the chip-local jobs, this one spawns chip-tool on the runner itself, so the
+      # runner needs them.
+      - name: Start host mDNS responder and install chip-tool's runtime libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y avahi-daemon
+          sudo apt-get install -y avahi-daemon libavahi-client3 libglib2.0-0 libpcsclite1 libevent-dev
           sudo systemctl start avahi-daemon
 
       # Framework self-tests are hermetic logic proofs — they manage their own fixtures and must
@@ -400,7 +406,7 @@ jobs:
           cd support/chip-testing
           npm run test-cert-framework -- --no-pull
 
-      - name: Run certification controller tests (chip-tool controller, matterjs device)
+      - name: Run certification controller tests (chip-tool controller vs matterjs device)
         env:
           MATTER_CHIP_PLATFORM: linux/arm64
           MATTER_CHIP_BINS_SOURCE: cert-bins
@@ -417,6 +423,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: cert-evidence-chip-tool.zip
+          name: cert-evidence-chiptool-vs-matterjs.zip
           path: support/chip-testing/build/cert-evidence/**
           if-no-files-found: ignore
