@@ -17,7 +17,11 @@ export const ROTATE_GROUP_KEY_TYPE = "rotateGroupKey";
 export interface RotateGroupKeyParams {
     groupKeySetId: number;
     newEpochKey: Uint8Array;
-    /** Unique per rotation operation; re-issuing the same rotationId is idempotent, a new one starts a new rotation. */
+    /**
+     * Unique per rotation operation: a new `rotationId` starts a new rotation. Re-issuing a live one is refused
+     * unless the request carries the `externalId` that rotation was started under; once it is terminal, the same
+     * `rotationId` may be run again.
+     */
     rotationId: string;
     groupKeySecurityPolicy?: GroupKeyManagement.GroupKeySecurityPolicy;
 }
@@ -90,10 +94,48 @@ export class RotateGroupKey extends Task<RotateGroupKeyParams> {
                 }
             }
         }
+        // A member is re-derived per phase, so one whose intent appeared after distribute would activate without
+        // holding the new key and could not decrypt traffic from members that already flipped to it.
+        if (phase === "activate") {
+            const late = this.#memberWithoutNewKey(ctx, key);
+            if (late !== undefined) {
+                throw new RotationPreconditionError(
+                    `Cannot activate group key set ${this.params.groupKeySetId}: peer ${late.id} does not hold ` +
+                        `this rotation's new key, so it joined the key set after the distribute phase. The ` +
+                        `distributed keys remain dormant; rotate again with this same new key so every member ` +
+                        `receives it before activation.`,
+                );
+            }
+        }
         for (const peer of members) {
             await ctx.setIntent(peer, "groupKey", key, this.#struct(peer, phase), "converge");
         }
         await ctx.awaitCommitted(members.map(peer => ({ peer, kind: "groupKey", key })));
+        // The writes and the barrier above both yield, and provisioning a group takes no lock on its key set, so
+        // the member set can grow after the check at phase entry.
+        if (phase === "activate") {
+            const late = this.#memberWithoutNewKey(ctx, key);
+            if (late !== undefined) {
+                throw new RotationPreconditionError(
+                    `Cannot complete activation of group key set ${this.params.groupKeySetId}: peer ${late.id} ` +
+                        `joined the key set during the activate phase and does not hold this rotation's new key, ` +
+                        `so it cannot decrypt traffic from the members that already transmit with it. The old key ` +
+                        `is still present on those members; rotate again with this same new key, which covers ` +
+                        `every current member.`,
+                );
+            }
+        }
+    }
+
+    /** A member holding an intent for this key set that does not carry this rotation's new key, if there is one. */
+    #memberWithoutNewKey(ctx: TaskContext, key: string): ClientNode | undefined {
+        for (const peer of ctx.peersWithIntent("groupKey", key)) {
+            const current = this.#currentIntent(peer);
+            if (current === undefined || !this.#holdsNewKey(current)) {
+                return peer;
+            }
+        }
+        return undefined;
     }
 
     #currentIntent(peer: ClientNode): GroupKeyGrant | undefined {
@@ -104,9 +146,11 @@ export class RotateGroupKey extends Task<RotateGroupKeyParams> {
     // A single-key steady state is the required starting point; a member already carrying THIS rotation's new key in
     // slot 1 is our own distribute output on a park/resume re-drive, not a foreign multi-epoch keyset, so accept it.
     #isRotatable(current: GroupKeyGrant): boolean {
-        if (isSingleKeySteadyState(current)) {
-            return true;
-        }
+        return isSingleKeySteadyState(current) || this.#holdsNewKey(current);
+    }
+
+    /** Whether the member carries this rotation's new key in slot 1 — the output of distribute or of activate. */
+    #holdsNewKey(current: GroupKeyGrant): boolean {
         const slot1 = current.epochKey1;
         return slot1 !== null && slot1 !== undefined && Bytes.areEqual(slot1, this.params.newEpochKey);
     }

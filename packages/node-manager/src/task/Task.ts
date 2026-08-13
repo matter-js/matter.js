@@ -25,7 +25,10 @@ export abstract class Task<P = unknown> {
 
     readonly id: string;
     readonly params: P;
+
+    /** Id the caller of `run` asked for this task under, so it can observe and cancel the work it asked for. */
     readonly externalId?: string;
+
     progress: { phaseIndex: number; state: TaskState };
     changeSet: ChangeEntry[];
     error?: string;

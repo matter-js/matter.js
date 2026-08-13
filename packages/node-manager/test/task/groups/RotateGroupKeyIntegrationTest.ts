@@ -52,6 +52,12 @@ const writesB = new Array<bigint[]>();
 let afterWriteB: ((starts: bigint[]) => void) | undefined;
 
 /**
+ * Fires after device A commits a keySetWrite, with that write's start-time set. Symmetric to {@link afterWriteB}:
+ * flipping A offline as its distribute write lands parks the rotation inside activate's barrier.
+ */
+let afterWriteA: ((starts: bigint[]) => void) | undefined;
+
+/**
  * When armed, pauses #drive inside distribute's phase AFTER it commits but BEFORE the driver advances to
  * activate — the exact between-phase gap the cancel-race guard closes. `releaseDistribute` unblocks it.
  */
@@ -93,7 +99,7 @@ function recordingRoot(sink: bigint[][], afterWrite?: (starts: bigint[]) => void
     return MockServerNode.RootEndpoint.with(RecordingGroupKeyManagementServer);
 }
 
-const DeviceRootA = recordingRoot(writesA);
+const DeviceRootA = recordingRoot(writesA, s => afterWriteA?.(s));
 const DeviceRootB = recordingRoot(writesB, s => afterWriteB?.(s));
 
 function addParamsFor(peerId: string): AddNodeToGroupParams {
@@ -166,8 +172,25 @@ async function awaitState(node: ServerNode, id: string, ...states: string[]): Pr
     throw new Error(`Task ${id} did not reach state ${states.join("|")}`);
 }
 
+/**
+ * Pump until the task is parked in a specific phase. A gate parks whenever a peer it watches goes away, so a task
+ * can be parked transiently in an earlier phase that still had everything it needed.
+ */
+async function awaitParkedInPhase(node: ServerNode, id: string, phaseIndex: number): Promise<void> {
+    for (let i = 0; i < 2_000; i++) {
+        const p = await node.act(a => a.get(TaskManagerBehavior).state.tasks[id]);
+        if (p?.state === "parked" && p.phaseIndex === phaseIndex) {
+            return;
+        }
+        await MockTime.advance(100);
+        await MockTime.macrotask;
+    }
+    throw new Error(`Task ${id} did not park in phase ${phaseIndex}`);
+}
+
 /** Commission two member devices onto one controller and provision both into the shared key set 42. */
-async function twoMemberGroup(site: MockSite) {
+async function twoMemberGroup(site: MockSite, options: { addB?: boolean } = {}) {
+    const { addB = true } = options;
     const controller = await site.addNode(ControllerRoot, {
         online: false,
         id: "controller1",
@@ -203,7 +226,7 @@ async function twoMemberGroup(site: MockSite) {
     await subscribedPeer(controller, peerA.id);
     await subscribedPeer(controller, peerB.id);
 
-    for (const peer of peers) {
+    for (const peer of addB ? peers : peers.slice(0, 1)) {
         await controller.act(a => a.get(TaskManagerBehavior).run("addNodeToGroup", addParamsFor(peer.id)));
         await awaitState(controller, addTaskId(peer.id), "completed");
     }
@@ -216,6 +239,7 @@ describe("RotateGroupKey task integration (two members)", () => {
     beforeEach(() => {
         writesA.length = 0;
         writesB.length = 0;
+        afterWriteA = undefined;
         afterWriteB = undefined;
         armBarrier = false;
         releaseDistribute = undefined;
@@ -250,6 +274,97 @@ describe("RotateGroupKey task integration (two members)", () => {
             expect(deviceStarts(device, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
             expect(intentState(peer, GROUP_KEY_SET_ID)).equals("committed");
             expect(intentStarts(peer, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
+        }
+    });
+
+    it("refuses to activate when a member joined the key set after distribute", async () => {
+        await using site = new MockSite();
+        const { controller, deviceA, deviceB, peerA, peerB } = await twoMemberGroup(site, { addB: false });
+
+        // Park the rotation at distribute so the second member can join the key set mid-rotation.
+        await MockTime.resolve(subscriptionOf(peerA).active.emit(false), { macrotasks: true });
+        await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        await awaitParkedInPhase(controller, ROTATE_ID, 0);
+
+        writesA.length = writesB.length = 0;
+        await controller.act(a => a.get(TaskManagerBehavior).run("addNodeToGroup", addParamsFor(peerB.id)));
+        await awaitState(controller, addTaskId(peerB.id), "completed");
+
+        await MockTime.resolve(subscriptionOf(peerA).active.emit(true), { macrotasks: true });
+        await awaitState(controller, ROTATE_ID, "failed");
+
+        const status = await controller.act(a => a.get(TaskManagerBehavior).get(ROTATE_ID)?.status);
+        expect(status?.error).contains("joined the key set after the distribute phase");
+
+        // A saw distribute only (2 starts, the new key future-dated and dormant); neither member was activated.
+        expect(writesA.map(s => s.length)).deep.equals([2]);
+        expect(writesB.map(s => s.length)).deep.equals([1]);
+        expect(deviceStarts(deviceB, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
+        expect(deviceKey0(deviceA, GROUP_KEY_SET_ID)).deep.equals(OP_KEY);
+    });
+
+    it("refuses to complete activation when a member joined the key set during the activate phase", async () => {
+        await using site = new MockSite();
+        const { controller, deviceA, deviceB, peerA, peerB } = await twoMemberGroup(site, { addB: false });
+
+        // Flip A offline as its distribute write lands: activate then writes its intent but parks in the barrier,
+        // which is the window in which a member can join after activate's opening check.
+        const subscriptionA = subscriptionOf(peerA);
+        let flipped = false;
+        afterWriteA = s => {
+            if (!flipped && s.length === 2) {
+                flipped = true;
+                subscriptionA.active.emit(false);
+            }
+        };
+
+        await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        await awaitParkedInPhase(controller, ROTATE_ID, 1);
+
+        writesA.length = writesB.length = 0;
+        await controller.act(a => a.get(TaskManagerBehavior).run("addNodeToGroup", addParamsFor(peerB.id)));
+        await awaitState(controller, addTaskId(peerB.id), "completed");
+
+        await MockTime.resolve(subscriptionA.active.emit(true), { macrotasks: true });
+        await awaitState(controller, ROTATE_ID, "failed");
+
+        const status = await controller.act(a => a.get(TaskManagerBehavior).get(ROTATE_ID)?.status);
+        expect(status?.error).contains("during the activate phase");
+
+        // Cleanup never ran, so no member lost the old key: A holds the 3-key activate struct, B only its own
+        // provisioning write, and the late member still holds the old key material.
+        expect(writesA.some(s => s.length === 1)).equals(false);
+        expect(writesB.some(s => s.length === 1)).equals(true); // the join itself
+        expect(writesB.some(s => s.length === 3)).equals(false);
+        expect(deviceStarts(deviceA, GROUP_KEY_SET_ID).length).equals(3);
+        expect(deviceStarts(deviceB, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
+        expect(Bytes.areEqual(deviceKey0(deviceB, GROUP_KEY_SET_ID), OP_KEY)).equals(true);
+
+        // The rotation stopped at its point of no return, so it is not rolled back.
+        expect(status?.revertTaskId).equals(undefined);
+
+        // The remedy the failure prescribes must work: rotating to a DIFFERENT key is refused while the members
+        // still carry the dormant one, so only the same key can finish what this rotation started.
+        await controller.act(a =>
+            a.get(TaskManagerBehavior).run("rotateGroupKey", {
+                groupKeySetId: GROUP_KEY_SET_ID,
+                newEpochKey: new Uint8Array(16).fill(0xef),
+                rotationId: "rOther",
+            }),
+        );
+        await awaitState(controller, rotateId("rOther"), "failed");
+        const otherStatus = await controller.act(a => a.get(TaskManagerBehavior).get(rotateId("rOther"))?.status);
+        expect(otherStatus?.error).contains("single-key steady state");
+
+        // Re-issued with the same new key, distribute covers the whole current member set, so the late member is
+        // carried through the rotation with everyone else.
+        await controller.act(a =>
+            a.get(TaskManagerBehavior).run("rotateGroupKey", { ...ROTATE_PARAMS, rotationId: "r2" }),
+        );
+        await awaitState(controller, rotateId("r2"), "completed");
+        for (const device of [deviceA, deviceB]) {
+            expect(deviceStarts(device, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
+            expect(Bytes.areEqual(deviceKey0(device, GROUP_KEY_SET_ID), NEW_KEY)).equals(true);
         }
     });
 
@@ -463,8 +578,8 @@ describe("RotateGroupKey task integration (two members)", () => {
             expect(Bytes.areEqual(deviceKey0(device, GROUP_KEY_SET_ID), KEY_A)).equals(true);
         }
 
-        // A distinct rotationId is a distinct task id, so this rotation actually runs instead of deduping onto the
-        // completed r1 handle — the recovery path (rotate a bad key to another) depends on it.
+        // A distinct rotationId is a distinct task id, so the recovery path — rotating a bad key to another —
+        // runs as its own task with its own record.
         await controller.act(a =>
             a.get(TaskManagerBehavior).run("rotateGroupKey", {
                 groupKeySetId: GROUP_KEY_SET_ID,
@@ -538,18 +653,33 @@ describe("RotateGroupKey task integration (two members)", () => {
         expect(await controller.act(a => a.get(TaskManagerBehavior).state.tasks[rotateId("r2")])).equals(undefined);
     });
 
-    it("dedups an idempotent re-issue of the same rotationId to the same handle", async () => {
+    it("refuses a re-issue of a live rotationId, and joins the caller that owns it", async () => {
         await using site = new MockSite();
         const { controller, peerB } = await twoMemberGroup(site);
 
         // Park so the task stays live/non-terminal across both issues.
         await MockTime.resolve(subscriptionOf(peerB).active.emit(false), { macrotasks: true });
-        const first = await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        const first = await controller.act(a =>
+            a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS, { externalId: "nightly" }),
+        );
+        expect(first.id).equals(ROTATE_ID);
         await awaitState(controller, ROTATE_ID, "parked");
 
-        const second = await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
-        expect(second.id).equals(first.id);
-        expect(second.id).equals(ROTATE_ID);
+        // `act` returns a MaybePromise, so normalize before asserting on the rejection.
+        await expect(
+            (async () => controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS)))(),
+        ).rejectedWith(TaskConflictError);
+
+        // The owner reaches the parked rotation itself: a replacement task under the same id would answer as
+        // freshly running and leave the parked one driving with nothing observing it.
+        const before = await controller.act(a => a.get(TaskManagerBehavior).tasks.length);
+        const again = await controller.act(a =>
+            a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS, { externalId: "nightly" }),
+        );
+        expect(again.id).equals(ROTATE_ID);
+        expect(again.status.state).equals("parked");
+        expect(again.status.phaseIndex).equals(0);
+        expect(await controller.act(a => a.get(TaskManagerBehavior).tasks.length)).equals(before);
     });
 
     it("declines cancel during the activate phase and leaves the rotation in place", async () => {
@@ -568,10 +698,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         };
 
         await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
-        await awaitState(controller, ROTATE_ID, "parked");
-
-        const phaseIndex = await controller.act(a => a.get(TaskManagerBehavior).state.tasks[ROTATE_ID]?.phaseIndex);
-        expect(phaseIndex).equals(1); // parked in activate, not distribute
+        await awaitParkedInPhase(controller, ROTATE_ID, 1); // parked in activate, not distribute
 
         // Distribute committed the 2-key struct on both members (old key still present); activate never wrote.
         const parkedStartsA = deviceStarts(deviceA, GROUP_KEY_SET_ID);

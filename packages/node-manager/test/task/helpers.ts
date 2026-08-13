@@ -8,6 +8,12 @@ import { Task } from "#task/Task.js";
 import { PlannedChange, TaskPhase } from "#task/types.js";
 import { Observable } from "@matter/general";
 import { ClientNode, DesiredStateBehavior, ItemKind, ItemMode, ItemState, ManagedItem, itemMapKey } from "@matter/node";
+import { Status } from "@matter/types";
+
+/** Mirrors the reconciler's default recoverability rule for a failure status code. */
+function recoverable(code?: number): boolean {
+    return code === Status.Timeout || code === Status.Busy;
+}
 
 /** A synthetic task whose phases are supplied inline; for unit-testing the manager/driver. */
 export class SyntheticTask extends Task<{ tag: string }> {
@@ -30,11 +36,19 @@ export class SyntheticTask extends Task<{ tag: string }> {
  * `DesiredStateBehavior` items + `itemChanged`, `NetworkClient` subscription status, and the reachability
  * source of truth (`behaviors.internalsOf(NetworkClient).activeSubscription`). The fake doubles as the
  * reconciler: `reconcile(node, {verify})` flips the peer's items to `committed` for keys the device "has".
+ *
+ * One simplification of the real engine: a key the device neither has nor fails stays `pending` instead of
+ * committing, which is how a test holds a gate parked.
  */
 export class FakePeer {
     readonly items: Record<string, ManagedItem> = {};
     readonly has = new Set<string>();
+    /** Keys the device rejects with an unrecoverable status: apply fails, and the following pass drops them. */
+    readonly rejects = new Set<string>();
+    /** Remaining recoverable apply failures per key: each pass consumes one, then the key behaves normally. */
+    readonly transientFailures = new Map<string, number>();
     readonly itemChanged = new Observable<[item: ManagedItem]>();
+    readonly itemRemoved = new Observable<[kind: string, key: string]>();
     readonly subscriptionStatusChanged = new Observable<[isActive: boolean]>();
     #subscribed = true;
     reconciles = 0;
@@ -107,25 +121,74 @@ export class FakePeer {
         this.has.add(itemMapKey(kind, key));
     }
 
-    setState(kind: string, key: string, state: ItemState) {
+    /** Mark a key the device refuses with an unrecoverable status. */
+    markRejects(kind: string, key: string) {
+        this.rejects.add(itemMapKey(kind, key));
+    }
+
+    /** Mark a key whose next `times` applies fail with a recoverable status, so the reconciler retries them. */
+    markFailsRecoverably(kind: string, key: string, times: number) {
+        this.transientFailures.set(itemMapKey(kind, key), times);
+    }
+
+    /** DesiredStateBehavior.dropItem stand-in: forget the item and announce it on `itemRemoved`. */
+    dropItem(kind: string, key: string) {
+        if (this.items[itemMapKey(kind, key)] === undefined) {
+            return;
+        }
+        delete this.items[itemMapKey(kind, key)];
+        this.itemRemoved.emit(kind, key);
+    }
+
+    setState(kind: string, key: string, state: ItemState, failureCode?: number) {
         const item = this.items[itemMapKey(kind, key)];
-        item.status = { ...item.status, state };
+        item.status = { ...item.status, state, failureCode };
         this.itemChanged.emit(item);
     }
 
-    /** Fake ReconcilerBehavior.reconcile: on verify, commit pending items the device "has" while reachable. */
+    /**
+     * Fake ReconcilerBehavior.reconcile over one peer's items, one pass per call, mirroring what
+     * `planActions`/`executeActions` do with each item state: apply a pending item, retry or drop a failed one
+     * by the recoverability of its status code, and drop a removal once the device has taken it.
+     */
     async reconcile(node: ClientNode, options?: { verify?: boolean }) {
         this.reconciles++;
         if (!options?.verify || !this.#subscribed) {
             return;
         }
-        const items = (node as unknown as FakePeer).items;
-        for (const item of Object.values(items)) {
-            if (item.status.state === "pending" && this.has.has(itemMapKey(item.kind, item.key))) {
-                item.status = { ...item.status, state: "committed" };
-            } else if (item.status.state === "deletePending") {
-                delete items[itemMapKey(item.kind, item.key)];
+        const peer = node as unknown as FakePeer;
+        for (const item of Object.values(peer.items)) {
+            switch (item.status.state) {
+                case "pending":
+                    peer.#apply(item);
+                    break;
+                case "commitFailed":
+                    if (recoverable(item.status.failureCode)) {
+                        peer.#apply(item);
+                    } else {
+                        peer.dropItem(item.kind, item.key);
+                    }
+                    break;
+                case "deletePending":
+                    peer.dropItem(item.kind, item.key);
+                    break;
+                case "committed":
+                    break;
             }
+        }
+    }
+
+    /** One apply attempt against the device, with the status it writes back. */
+    #apply(item: ManagedItem) {
+        const id = itemMapKey(item.kind, item.key);
+        const transient = this.transientFailures.get(id) ?? 0;
+        if (transient > 0) {
+            this.transientFailures.set(id, transient - 1);
+            this.setState(item.kind, item.key, "commitFailed", Status.Busy);
+        } else if (this.rejects.has(id)) {
+            this.setState(item.kind, item.key, "commitFailed", Status.ConstraintError);
+        } else if (this.has.has(id)) {
+            this.setState(item.kind, item.key, "committed");
         }
     }
 
@@ -136,7 +199,7 @@ export class FakePeer {
 
     eventsOf(type: unknown): unknown {
         return type === DesiredStateBehavior
-            ? { itemChanged: this.itemChanged }
+            ? { itemChanged: this.itemChanged, itemRemoved: this.itemRemoved }
             : { subscriptionStatusChanged: this.subscriptionStatusChanged };
     }
 

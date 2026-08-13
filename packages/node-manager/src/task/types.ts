@@ -12,6 +12,7 @@ export interface TaskStatus {
     type: string;
     state: TaskState;
     phaseIndex: number;
+    /** Id the caller of `run` asked for this task under, if it supplied one. */
     externalId?: string;
     error?: string;
     revertTaskId?: string;
