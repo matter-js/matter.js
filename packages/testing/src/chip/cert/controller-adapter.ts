@@ -53,6 +53,48 @@ export interface SubscribeOptions {
     onUpdate?: (value: unknown) => void;
 }
 
+/**
+ * One attribute of a {@link CertNodeApi.writeAttributes} request.
+ */
+export interface AttributeWriteEntry {
+    /**
+     * Omitting `endpoint` writes the attribute on every endpoint that has the cluster (TC-IDM-3.1
+     * step 2).
+     */
+    path: AttributePathSpec;
+
+    value: unknown;
+
+    /**
+     * Writes only if the cluster still holds this data version (TC-IDM-3.1 step 15). Matter Core
+     * § 8.9.2.8.1 forbids a data version on a wildcard path, so this requires a concrete `endpoint`.
+     */
+    dataVersion?: number;
+}
+
+/**
+ * One attribute of a {@link CertNodeApi.readAttributes} response.
+ */
+export interface AttributeReadEntry {
+    endpoint: number;
+    cluster: number;
+    attribute: number;
+    value: unknown;
+    /** The cluster's data version, which a version-conditional write sends back (TC-IDM-3.1 step 15). */
+    version?: number;
+}
+
+/**
+ * The device's per-path answer to one attribute of a write request.
+ */
+export interface AttributeWriteStatus {
+    endpoint: number;
+    cluster: number;
+    attribute: number;
+    /** Matter Core § 8.10 interaction status; `0` is success. */
+    status: number;
+}
+
 export interface ReadAttributeOptions {
     /**
      * Whether the read is fabric-filtered (Matter Core § 8.9.2's `FabricFiltered` flag; default
@@ -70,7 +112,33 @@ export interface ReadAttributeOptions {
 export interface CertNodeApi {
     invoke(cluster: string | number, command: string, args?: object, endpoint?: number): Promise<unknown>;
     readAttribute(path: AttributePathSpec, options?: ReadAttributeOptions): Promise<unknown>;
+
+    /**
+     * Reads several attribute paths in one request.
+     *
+     * A step needing the data versions of two clusters (TC-IDM-3.1 step 15) must obtain them from a
+     * single `ReadRequest`, which is what the plan's procedure describes; issuing one read per cluster
+     * would exercise a different interaction.
+     */
+    readAttributes(paths: AttributePathSpec[], options?: ReadAttributeOptions): Promise<AttributeReadEntry[]>;
     writeAttribute(path: AttributePathSpec, value: unknown): Promise<void>;
+
+    /**
+     * Writes several attributes in one request, optionally through wildcard paths or conditional on a
+     * data version.
+     *
+     * Unlike {@link writeAttribute}, a rejected path is reported rather than thrown, so the step
+     * decides which statuses it expected.
+     *
+     * A wildcard path yields a status only for the attributes actually written: Matter Core § 8.9.2.8
+     * has the device skip an endpoint that lacks the cluster, an attribute it does not have, and one
+     * it may not write, silently. A path missing from the result was therefore not written — it is not
+     * a protocol failure, and a step that needs to know an attribute changed reads it back.
+     *
+     * An adapter whose controller cannot express a multi-path, wildcard or version-conditional write
+     * throws {@link NotImplementedError}; a step that needs it then declares the flavors it runs on.
+     */
+    writeAttributes(entries: AttributeWriteEntry[]): Promise<AttributeWriteStatus[]>;
     subscribe(path: AttributePathSpec, opts: SubscribeOptions): Promise<unknown>;
     openCommissioningWindow(opts: {
         timeout: number;

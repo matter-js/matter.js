@@ -5,19 +5,22 @@
  */
 
 import { InternalError } from "@matter/main";
-import { StatusResponseError } from "@matter/main/types";
+import { Status, StatusResponseError } from "@matter/main/types";
 import { Matter } from "@matter/model";
 import { expect } from "chai";
 import { AllClustersTestInstance } from "../../src/AllClustersTestInstance.js";
 import { InProcessControllerAdapter } from "../../src/cert/InProcessControllerAdapter.js";
+import type { AttributePathSpec, CertNodeApi } from "@matter/testing";
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
 const ON_OFF = Matter.clusters.require("OnOff");
+const IDENTIFY = Matter.clusters.require("Identify");
 const OPERATIONAL_CREDENTIALS = Matter.clusters.require("OperationalCredentials");
 const VENDOR_ID_ATTRIBUTE = BASIC_INFORMATION.attributes.require("vendorId");
 const ON_OFF_ATTRIBUTE = ON_OFF.attributes.require("onOff");
 const NODE_LABEL_ATTRIBUTE = BASIC_INFORMATION.attributes.require("nodeLabel");
 const FABRICS_ATTRIBUTE = OPERATIONAL_CREDENTIALS.attributes.require("fabrics");
+const IDENTIFY_TIME_ATTRIBUTE = IDENTIFY.attributes.require("identifyTime");
 
 async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
     try {
@@ -36,6 +39,20 @@ async function waitFor(condition: () => boolean) {
         }
         await new Promise(resolve => setTimeout(resolve, 20));
     }
+}
+
+/** The data version the peer reports for a path's cluster, read through a cluster-level (non-concrete) path. */
+async function versionOf(node: CertNodeApi, path: AttributePathSpec) {
+    const entries = await node.readAttribute({ endpoint: path.endpoint, cluster: path.cluster });
+    if (!Array.isArray(entries)) {
+        throw new InternalError("Expected a cluster-level read to return entries");
+    }
+    for (const entry of entries) {
+        if (typeof entry === "object" && entry !== null && "version" in entry && typeof entry.version === "number") {
+            return entry.version;
+        }
+    }
+    throw new InternalError(`No data version reported for cluster ${path.cluster}`);
 }
 
 describe("InProcessControllerAdapter", () => {
@@ -191,6 +208,51 @@ describe("InProcessControllerAdapter", () => {
         await node.invoke("OnOff", "toggle", {}, 1);
         await waitFor(() => updates.length > 0);
         expect(updates).to.deep.equal([!seed]);
+
+        await node.decommission();
+    });
+
+    it("writes one attribute across every endpoint that has the cluster", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        const node = adapter.node(ref);
+
+        const statuses = await node.writeAttributes([
+            { path: { cluster: IDENTIFY.id, attribute: IDENTIFY_TIME_ATTRIBUTE.id }, value: 5 },
+        ]);
+
+        const written = statuses.filter(({ status }) => status === Status.Success);
+        expect(written.length).to.be.greaterThan(1);
+        for (const { endpoint } of written) {
+            expect(
+                await node.readAttribute({
+                    endpoint,
+                    cluster: IDENTIFY.id,
+                    attribute: IDENTIFY_TIME_ATTRIBUTE.id,
+                }),
+            ).to.be.a("number");
+        }
+
+        await node.decommission();
+    });
+
+    it("honors a data version, rejecting a write that carries a stale one", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        const node = adapter.node(ref);
+
+        const path = { endpoint: 0, cluster: BASIC_INFORMATION.id, attribute: NODE_LABEL_ATTRIBUTE.id };
+        const version = await versionOf(node, path);
+
+        expect(await node.writeAttributes([{ path, value: "version-a", dataVersion: version }])).to.deep.equal([
+            { endpoint: 0, cluster: BASIC_INFORMATION.id, attribute: NODE_LABEL_ATTRIBUTE.id, status: Status.Success },
+        ]);
+
+        const stale = await node.writeAttributes([{ path, value: "version-b", dataVersion: version }]);
+        expect(stale.map(({ status }) => status)).to.deep.equal([Status.DataVersionMismatch]);
+        expect(await node.readAttribute(path)).to.equal("version-a");
 
         await node.decommission();
     });
