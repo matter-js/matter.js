@@ -20,6 +20,7 @@ import type { RemoteWriter } from "./RemoteWriter.js";
  */
 export class DatasourceCache implements Datasource.ExternallyMutableStore, RemoteWriteParticipant.Compensator {
     #writer: RemoteWriter;
+    #nodeId: string;
     #endpointNumber: EndpointNumber;
     #behaviorId: string;
     #localWriter?: LocalWriter;
@@ -34,6 +35,7 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
 
     constructor(options: DatasourceCache.Options) {
         this.#writer = options.writer;
+        this.#nodeId = options.nodeId;
         this.#endpointNumber = options.endpointNumber;
         this.#behaviorId = options.behaviorId;
         this.#localWriter = options.localWriter;
@@ -69,7 +71,7 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
     async set(transaction: Transaction, values: Val.Struct) {
         let participant = transaction.getParticipant(this.#writer);
         if (participant === undefined) {
-            participant = new RemoteWriteParticipant(this.#writer);
+            participant = new RemoteWriteParticipant(this.#writer, this.#nodeId);
             transaction.addParticipants(participant);
         }
         const previousValues = this.#consumer?.readValues(new Set(Object.keys(values))) ?? {};
@@ -270,6 +272,7 @@ export namespace DatasourceCache {
 
     export interface Options {
         writer: RemoteWriter;
+        nodeId: string;
         endpointNumber: EndpointNumber;
         behaviorId: string;
         initialValues?: Val.Struct;

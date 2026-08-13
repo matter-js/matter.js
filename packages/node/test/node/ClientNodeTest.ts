@@ -11,7 +11,7 @@ import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavi
 import { DiscoveryError } from "#behavior/system/controller/discovery/DiscoveryError.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { AccessControlClient } from "#behaviors/access-control";
-import { BasicInformationBehavior, BasicInformationServer } from "#behaviors/basic-information";
+import { BasicInformationBehavior, BasicInformationClient, BasicInformationServer } from "#behaviors/basic-information";
 import {
     BooleanStateConfigurationClient,
     BooleanStateConfigurationServer,
@@ -77,12 +77,13 @@ import {
     TlvAny,
 } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { Descriptor } from "@matter/types/clusters/descriptor";
 import { OnOff } from "@matter/types/clusters/on-off";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
 import { MockSite } from "./mock-site.js";
-import { subscribedPeer } from "./node-helpers.js";
+import { seedPeerCache, subscribedPeer } from "./node-helpers.js";
 
 describe("ClientNode", () => {
     before(() => {
@@ -1154,6 +1155,188 @@ describe("ClientNode", () => {
             expect(caught).instanceOf(MatterAggregateError);
             expect(await readClientCurrentSensitivityLevel(ep1Client)).equals(0);
             expect(await readClientIdentifyTime(ep1Client)).equals(0);
+        });
+    });
+
+    describe("sends writes the local cache would otherwise absorb", () => {
+        // A write of an attribute that is neither writable nor non-volatile is still a request to change the peer.  It
+        // must be adjudicated — by the device, or locally where the peer's cluster type cannot express it — instead of
+        // becoming a local fiction the caller cannot distinguish from an accepted write.
+
+        async function setup() {
+            const site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+            return { site, peer1, device };
+        }
+
+        it("declines a write of a read-only fixed attribute and leaves the cache intact", async () => {
+            const { site, peer1, device } = await setup();
+            await using _site = site;
+
+            const originalVendorName = peer1.stateOf(BasicInformationClient).vendorName;
+            const observed = new Array<string>();
+            peer1.eventsOf(BasicInformationClient).vendorName$Changed.on(value => {
+                observed.push(value);
+            });
+
+            const caught = await captureRejection(() =>
+                peer1.setStateOf(BasicInformationClient, { vendorName: "Overwritten Vendor" }),
+            );
+
+            expect(caught).instanceOf(StatusResponseError);
+            expect((caught as StatusResponseError).code).equals(Status.UnsupportedWrite);
+            // The forward notification is queued but never emitted, because a commit-phase-two rejection skips the
+            // transaction's post-commit phase.  What remains is compensation's restore, which travels the same path a
+            // subscription update does.  So the value the caller invented is never announced.
+            expect(observed).deep.equals([originalVendorName]);
+            expect(peer1.stateOf(BasicInformationClient).vendorName).equals(originalVendorName);
+            expect(device.stateOf(BasicInformationServer).vendorName).equals(originalVendorName);
+        });
+
+        it("declines a write of a global attribute locally and leaves the cache intact", async () => {
+            const { site, peer1 } = await setup();
+            await using _site = site;
+
+            const originalRevision = peer1.stateOf("basicInformation").clusterRevision;
+            expect(originalRevision).a("number");
+            expect(originalRevision).not.equals(0xffff);
+
+            const caught = await captureRejection(() =>
+                peer1.setStateOf("basicInformation", { clusterRevision: 0xffff }),
+            );
+
+            expect(caught).instanceOf(StatusResponseError);
+            expect((caught as StatusResponseError).code).equals(Status.UnsupportedWrite);
+            expect(peer1.stateOf("basicInformation").clusterRevision).equals(originalRevision);
+        });
+
+        it("declines a changes-omitted attribute, which no report would ever correct", async () => {
+            const { site, peer1 } = await setup();
+            await using _site = site;
+
+            // upTime carries quality C, so the peer never reports it in a subscription: a value absorbed locally would
+            // stay wrong for the lifetime of the cache
+            const caught = await captureRejection(() => peer1.setStateOf("generalDiagnostics", { upTime: 999999 }));
+
+            expect(caught).instanceOf(StatusResponseError);
+            expect((caught as StatusResponseError).code).equals(Status.UnsupportedWrite);
+            expect(peer1.stateOf("generalDiagnostics").upTime).not.equals(999999);
+        });
+    });
+
+    describe("applies an accepted write to the local cache", () => {
+        // The peer's report is the authority for a mirror, but a report is not guaranteed to follow an accepted write
+        // (a changes-omitted attribute never reports, and an unsubscribed peer reports nothing).  So an accepted write
+        // is itself authoritative for the cache, and a declined one must leave no trace.
+        //
+        // The two accepted-write cases are characterization tests: startUpOnOff is writable, so it always reached the
+        // wire.  Only the declined case discriminates.
+
+        it("with an active subscription", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair();
+
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const ep1Client = peer1.parts.get("ep1")!;
+
+            await MockTime.resolve(ep1Client.setStateOf(OnOffClient, { startUpOnOff: OnOff.StartUpOnOff.Toggle }));
+
+            expect(ep1Client.stateOf(OnOffClient).startUpOnOff).equals(OnOff.StartUpOnOff.Toggle);
+            expect((device.parts.get(1) as Endpoint<OnOffLightDevice>).state.onOff.startUpOnOff).equals(
+                OnOff.StartUpOnOff.Toggle,
+            );
+        });
+
+        it("with no subscription to report the value back", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addUncommissionedPair();
+
+            const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+            const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+            controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+            await controller.start();
+            const { passcode, discriminator } = device.state.commissioning;
+            await MockTime.resolve(
+                controller.peers.commission({ passcode, discriminator, timeout: Seconds(90), autoSubscribe: false }),
+                { macrotasks: true },
+            );
+            controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+            const peer1 = controller.peers.get("peer1")!;
+            expect(peer1.stateOf(NetworkClient).autoSubscribe).equals(false);
+
+            const ep1Client = peer1.parts.get("ep1")!;
+            expect(ep1Client.stateOf(OnOffClient).startUpOnOff).equals(null);
+
+            await MockTime.resolve(ep1Client.setStateOf(OnOffClient, { startUpOnOff: OnOff.StartUpOnOff.Toggle }), {
+                macrotasks: true,
+            });
+
+            expect(ep1Client.stateOf(OnOffClient).startUpOnOff).equals(OnOff.StartUpOnOff.Toggle);
+            expect((device.parts.get(1) as Endpoint<OnOffLightDevice>).state.onOff.startUpOnOff).equals(
+                OnOff.StartUpOnOff.Toggle,
+            );
+        });
+
+        it("and leaves alone a value the peer reported while the write was in flight", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair();
+
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            // A report landing mid-transaction does not refresh the already-cloned reference, so afterwards our copy
+            // of every untouched attribute diverges from canonical.  Only what this transaction wrote may go to the
+            // peer: writing a stale read-only attribute back is declined, which would fail the caller's own accepted
+            // write and then compensate the fresh value away.
+            const caught = await captureRejection(() =>
+                MockTime.resolve(
+                    peer1.act(async agent => {
+                        agent.get(BasicInformationClient).state.nodeLabel = "Written Label";
+                        await seedPeerCache(
+                            peer1,
+                            peer1,
+                            BasicInformationClient,
+                            new Map([[BasicInformation.attributes.vendorName.id, "Reported Vendor"]]),
+                        );
+                    }),
+                ),
+            );
+
+            expect(caught).undefined;
+            expect(peer1.stateOf(BasicInformationClient).nodeLabel).equals("Written Label");
+            expect(device.stateOf(BasicInformationServer).nodeLabel).equals("Written Label");
+        });
+
+        it("but not a declined one, with no subscription to repair the cache", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addUncommissionedPair();
+
+            const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+            const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+            controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+            await controller.start();
+            const { passcode, discriminator } = device.state.commissioning;
+            await MockTime.resolve(
+                controller.peers.commission({ passcode, discriminator, timeout: Seconds(90), autoSubscribe: false }),
+                { macrotasks: true },
+            );
+            controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+            const peer1 = controller.peers.get("peer1")!;
+            const originalVendorName = peer1.stateOf(BasicInformationClient).vendorName;
+
+            const caught = await captureRejection(() =>
+                MockTime.resolve(peer1.setStateOf(BasicInformationClient, { vendorName: "Overwritten Vendor" }), {
+                    macrotasks: true,
+                }),
+            );
+
+            expect(caught).instanceOf(StatusResponseError);
+            expect((caught as StatusResponseError).code).equals(Status.UnsupportedWrite);
+            expect(peer1.stateOf(BasicInformationClient).vendorName).equals(originalVendorName);
         });
     });
 

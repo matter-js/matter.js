@@ -19,6 +19,7 @@ function createCache(options?: {
 }) {
     return new DatasourceCache({
         writer: (() => {}) as any,
+        nodeId: "test-peer",
         endpointNumber: EndpointNumber(1),
         behaviorId: "test",
         localWriter: options?.localWriter as any,

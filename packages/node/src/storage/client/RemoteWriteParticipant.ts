@@ -19,6 +19,7 @@ const logger = Logger.get("RemoteWriteParticipant");
 export class RemoteWriteParticipant implements Transaction.Participant {
     #request: RemoteWriter.Request = [];
     #writer: RemoteWriter;
+    #name: string;
     #snapshots = new Map<string, RemoteWriteParticipant.Snapshot>();
 
     /**
@@ -118,11 +119,13 @@ export class RemoteWriteParticipant implements Transaction.Participant {
     }
 
     toString() {
-        return `remote-writer`;
+        // Transaction participant names must be unique, and one transaction may write to several peers
+        return `remote-writer<${this.#name}>`;
     }
 
-    constructor(writer: RemoteWriter) {
+    constructor(writer: RemoteWriter, name: string) {
         this.#writer = writer;
+        this.#name = name;
     }
 }
 

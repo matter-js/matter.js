@@ -5,7 +5,7 @@
  */
 
 import { GlobalAttributeState } from "#behavior/cluster/ClusterState.js";
-import { DatasourceCache } from "#endpoint/index.js";
+import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { SupportedElements } from "#endpoint/properties/Behaviors.js";
 import { MaybePromise } from "@matter/general";
 import { ClusterModel } from "@matter/model";
@@ -77,7 +77,10 @@ export class ClientBehaviorBacking extends BehaviorBacking {
 
     override close(): MaybePromise {
         // Prepare the store for reuse in the case of reset
-        (this.store as DatasourceCache).reclaimValues?.();
+        const { store } = this;
+        if (Datasource.ExternallyMutableStore.is(store)) {
+            store.reclaimValues?.();
+        }
 
         // Omit the agent to skip disposal logic as client behaviors have none
         return super.close();
