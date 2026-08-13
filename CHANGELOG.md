@@ -108,6 +108,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @project-chip/matter.js
     - Deprecation: Every class, type and function of the legacy controller API is now marked deprecated and scheduled for removal in 0.19; use the `ServerNode.peers` / `ClientNode` API of `@matter/node` instead
+    - Fix: `PairedNode` no longer re-pushes the fabric label on every reconnect; the reconciliation now runs once when its backing `ClientNode` first establishes its subscription
 
 ## 0.17.9 (2026-08-06)
 

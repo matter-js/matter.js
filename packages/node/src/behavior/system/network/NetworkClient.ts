@@ -275,8 +275,9 @@ export class NetworkClient extends NetworkBehavior {
      * label changed while the peer was offline).  Runs after the sustained subscription is first live so the peer's
      * `OperationalCredentials` state is primed and the device is reachable.
      *
-     * TODO: this is only the once-on-start reconciliation. Ownership of fabric-label propagation — pushing on every
-     * reconnect and to a peer the moment it comes online — belongs in the node-management layer once it exists.
+     * TODO: this is only the once-on-start reconciliation. Ownership of fabric-label propagation — pushing to a peer
+     * the moment it comes online, and watching the peer's stored label to correct an unexpected change — belongs in
+     * the node-management layer once it exists.
      */
     async #reconcileFabricLabel() {
         if (this.internal.fabricLabelReconciled) {
