@@ -454,6 +454,8 @@ export class Peers extends EndpointContainer<ClientNode> {
      */
     async erase() {
         await this.#mutex.produce(async () => {
+            const peers = this.owner.env.maybeGet(PeerSet);
+
             for (const node of [...this]) {
                 const address = node.maybeStateOf(CommissioningClient)?.peerAddress;
 
@@ -461,20 +463,22 @@ export class Peers extends EndpointContainer<ClientNode> {
                     await node.delete();
                     continue;
                 } catch (error) {
-                    MatterError.accept(error);
                     logger.warn(`Error deleting ${node}:`, error);
                 }
 
                 try {
                     await node.close();
                 } catch (error) {
-                    MatterError.accept(error);
                     logger.warn(`Error closing ${node}:`, error);
                 }
 
                 // ClientNode.delete() does this itself; without it the peer outlives the fabric it is addressed on
                 if (address !== undefined) {
-                    await this.owner.env.maybeGet(PeerSet)?.get(address)?.delete();
+                    try {
+                        await peers?.get(address)?.delete();
+                    } catch (error) {
+                        logger.warn(`Error removing peer for ${node}:`, error);
+                    }
                 }
 
                 this.delete(node);

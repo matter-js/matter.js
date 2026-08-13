@@ -76,8 +76,18 @@ export class CertificateAuthority {
      * @see {@link MatterSpecification.v16.Core} § 13.4
      */
     async erase() {
-        await this.#storage?.clearAll();
-        await this.#construction.close();
+        // Signing reads these directly rather than through construction, so discarding them is what actually stops a
+        // retained authority from issuing certificates against the erased root
+        this.#rootKeyPair = undefined;
+        this.#rootKeyIdentifier = undefined;
+        this.#rootCertBytes = undefined;
+        this.#icacProps = undefined;
+
+        try {
+            await this.#storage?.clearAll();
+        } finally {
+            await this.#construction.close();
+        }
     }
 
     /**

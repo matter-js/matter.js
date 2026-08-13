@@ -18,6 +18,7 @@ import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { LocalActorContext } from "#index.js";
 import { ServerEnvironment } from "#node/server/ServerEnvironment.js";
 import { ServerNode } from "#node/ServerNode.js";
+import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import {
     Bytes,
     Crypto,
@@ -49,7 +50,7 @@ import {
     ProtocolMocks,
     Val,
 } from "@matter/protocol";
-import { FabricIndex, VendorId } from "@matter/types";
+import { FabricId, FabricIndex, NodeId, VendorId } from "@matter/types";
 import { BasicInformation as BasicInformationCluster } from "@matter/types/clusters/basic-information";
 import { PumpConfigurationAndControl } from "@matter/types/clusters/pump-configuration-and-control";
 import { MockServerNode } from "./mock-server-node.js";
@@ -467,6 +468,8 @@ describe("ServerNode", () => {
 
         // The authority caches the erased key material, so a holder that kept a reference must fail rather than sign
         expect(() => ca.rootCert).throws();
+        const { publicKey } = await controller.env.get(Crypto).createKeyPair();
+        await expect(ca.generateNoc(publicKey, FabricId(1), NodeId(1))).rejected;
     });
 
     it("completes factory reset when a peer cannot be torn down", async () => {
@@ -488,6 +491,54 @@ describe("ServerNode", () => {
         expect(controller.env.get(PeerSet).get(address)).equals(undefined);
         expect(controller.construction.status).equals(Lifecycle.Status.Active);
         expect(controller.lifecycle.isOnline).equals(true);
+    });
+
+    it("completes factory reset when removing the protocol peer fails", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peer = [...controller.peers][0];
+        peer.delete = async () => {
+            throw new ImplementationError("Cannot delete");
+        };
+        const protocolPeer = controller.env.get(PeerSet).get(peer.peerAddress!)!;
+        protocolPeer.delete = async () => {
+            throw new ImplementationError("Cannot remove peer");
+        };
+
+        await MockTime.resolve(controller.erase(), { macrotasks: true });
+
+        expect([...controller.peers].length).equals(0);
+        expect(controller.lifecycle.isOnline).equals(true);
+    });
+
+    it("erases every peer endpoint store when one fails", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peer = [...controller.peers][0];
+        const store = controller.env.get(ServerNodeStore).clientStores.storeForNode(peer.id);
+        const [failing, ...rest] = [...store.endpointStores];
+        expect(rest.length).greaterThan(0);
+
+        failing.erase = async () => {
+            throw new ImplementationError("Cannot erase endpoint");
+        };
+
+        // A cache the cascade skips stays registered with ClientCacheBuffer and flushes into the cleared context
+        let erased = 0;
+        for (const endpointStore of rest) {
+            const erase = endpointStore.erase.bind(endpointStore);
+            endpointStore.erase = async () => {
+                erased++;
+                await erase();
+            };
+        }
+
+        await MockTime.resolve(controller.erase(), { macrotasks: true });
+
+        expect(erased).equals(rest.length);
+        expect([...controller.peers].length).equals(0);
     });
 
     it("erases remaining areas when one fails during factory reset", async () => {

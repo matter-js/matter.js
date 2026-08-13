@@ -255,8 +255,11 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
             return;
         }
 
-        await this.env.get(CertificateAuthority).erase();
-        this.env.delete(CertificateAuthority);
+        try {
+            await this.env.get(CertificateAuthority).erase();
+        } finally {
+            this.env.delete(CertificateAuthority);
+        }
     }
 
     /**
