@@ -40,7 +40,6 @@
     "devDependencies": {
         "@matter/node": "*",
         "@matter/nodejs": "*",
-        "@matter/nodejs-ws": "*",
         "@matter/testing": "*"
     },
     "engines": {
