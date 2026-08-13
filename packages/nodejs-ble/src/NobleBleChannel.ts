@@ -102,14 +102,14 @@ export class NobleBleCentralInterface implements Transport {
     }
 
     openChannel(address: ServerAddress, options?: Transport.OpenChannelOptions): Promise<Channel<Bytes>> {
-        return this.#openChannel(address, 1, undefined, options?.abort);
+        return this.#openChannel(address, 1, options?.abort);
     }
 
     #openChannel(
         address: ServerAddress,
         tryCount: number,
-        lastError?: unknown,
         abort?: AbortSignal,
+        lastError?: unknown,
     ): Promise<Channel<Bytes>> {
         if (this.#closed) {
             // A retry can reach this from an event listener, where a synchronous throw escapes into noble's emit
@@ -292,7 +292,7 @@ export class NobleBleCentralInterface implements Transport {
                 }
 
                 // Try again and chain promises
-                this.#openChannel(address, tryCount + 1, cause, abort)
+                this.#openChannel(address, tryCount + 1, abort, cause)
                     .then(resolveOnce)
                     .catch(rejectOnce);
             };
