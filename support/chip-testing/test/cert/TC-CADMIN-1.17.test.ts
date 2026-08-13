@@ -28,7 +28,12 @@ const CURRENT_FABRIC_INDEX = OPERATIONAL_CREDENTIALS.attributes.require("current
 
 const CW_DURATION_SECONDS = 180;
 const EXPECTED_CR2_FABRIC_INDEX = 2;
-const POST_REMOVAL_TIMEOUT_MS = 25_000;
+// Must outlast the slowest controller's own give-up: chip-tool retries operational discovery for a
+// node it can no longer reach for ~45s ("Checking node lookup status ... after 45025 ms") before
+// failing the command, which is longer than its 20s ModelCommand wait because the wait starts after
+// resolution. A budget under that reports "neither resolved nor rejected" for a controller that was
+// about to reject.
+const POST_REMOVAL_TIMEOUT_MS = 60_000;
 
 const WINDOW_OPEN_PATTERN = /Commissioning window is now open/;
 const COMMISSIONING_COMPLETE_PATTERN = /Commissioning completed successfully/;

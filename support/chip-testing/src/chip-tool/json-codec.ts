@@ -149,6 +149,12 @@ function listElementModel(model: ValueModel): ValueModel {
 }
 
 function decodeOctetString(value: string): Bytes {
+    // chip-tool's own JSON encoder (`TlvJson.cpp`, `kTLVType_ByteString` case) writes the `base64:`
+    // header only inside `if (encodedLen)`: `Base64Encode` of a zero-length span returns 0, so a
+    // zero-length octet string comes back as `""` with no prefix at all.
+    if (value === "") {
+        return Bytes.fromHex("");
+    }
     if (value.startsWith("base64:")) {
         return Bytes.fromBase64(value.slice(7));
     }

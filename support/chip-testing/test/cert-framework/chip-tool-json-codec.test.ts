@@ -111,6 +111,16 @@ describe("chip-tool json codec", () => {
         expect(Bytes.isBytes(decoded) && Bytes.toHex(decoded)).to.equal(Bytes.toHex(bytes));
     });
 
+    it("decodes an empty octet string with no prefix as an empty byte array, and encodes back with a prefix", () => {
+        const decoded = chipJsonToMatter("", LAST_NETWORK_ID_ATTRIBUTE, NETWORK_COMMISSIONING);
+        expect(Bytes.isBytes(decoded) && Bytes.toHex(decoded)).to.equal("");
+
+        expect(matterToChipJson(decoded, LAST_NETWORK_ID_ATTRIBUTE, NETWORK_COMMISSIONING, "hex")).to.equal("hex:");
+        expect(matterToChipJson(decoded, LAST_NETWORK_ID_ATTRIBUTE, NETWORK_COMMISSIONING, "base64")).to.equal(
+            "base64:",
+        );
+    });
+
     it("rejects an octet string with neither a base64: nor a hex: prefix", () => {
         expect(() => chipJsonToMatter("not-a-prefix:abcd", LAST_NETWORK_ID_ATTRIBUTE, NETWORK_COMMISSIONING)).to.throw(
             UnexpectedDataError,
