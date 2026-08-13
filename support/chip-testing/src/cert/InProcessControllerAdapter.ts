@@ -49,6 +49,8 @@ import {
 import { AttributeModel, ClusterModel, Matter } from "@matter/model";
 import type {
     AttributePathSpec,
+    AttributeWriteEntry,
+    AttributeWriteStatus,
     CertNodeApi,
     CertNodeRef,
     CommissioningTarget,
@@ -104,12 +106,22 @@ function isConcretePath(path: AttributePathSpec) {
 }
 
 function toWireValues(values: ReadResult.AttributeValue[]) {
-    return values.map(({ path: { endpointId, clusterId, attributeId }, value }) => ({
+    return values.map(({ path: { endpointId, clusterId, attributeId }, value, version }) => ({
         endpoint: endpointId,
         cluster: clusterId,
         attribute: attributeId,
         value,
+        version,
     }));
+}
+
+function attributeSpecFor(cluster: number, attribute: number, value: unknown) {
+    const clusterModel = Matter.clusters(cluster);
+    const attributeModel = clusterModel?.attributes(attribute) ?? inferAttributeModel(attribute, value);
+    return {
+        cluster: { id: ClusterId(cluster), name: clusterModel?.name ?? `cluster_${cluster}` },
+        attributes: { id: AttributeId(attribute), name: attributeModel.name, schema: attributeModel },
+    };
 }
 
 /**
@@ -279,23 +291,46 @@ class InProcessCertNodeApi implements CertNodeApi {
             if (endpoint === undefined || cluster === undefined || attribute === undefined) {
                 throw new ImplementationError("writeAttribute requires a concrete endpoint/cluster/attribute path");
             }
-            const clusterModel = Matter.clusters(cluster);
-            const attributeModel = clusterModel?.attributes(attribute) ?? inferAttributeModel(attribute, value);
             const result = await this.#peer.interaction.write(
                 Write(
                     Write.Attribute({
                         endpoint: EndpointNumber(endpoint),
-                        cluster: { id: ClusterId(cluster), name: clusterModel?.name ?? `cluster_${cluster}` },
-                        attributes: {
-                            id: AttributeId(attribute),
-                            name: attributeModel.name,
-                            schema: attributeModel,
-                        },
+                        ...attributeSpecFor(cluster, attribute, value),
                         value,
                     }),
                 ),
             );
             WriteResult.assertSuccess(result);
+        });
+    }
+
+    writeAttributes(entries: AttributeWriteEntry[]): Promise<AttributeWriteStatus[]> {
+        return runTagged(this.#adapterId, async () => {
+            if (entries.length === 0) {
+                throw new ImplementationError("writeAttributes requires at least one attribute");
+            }
+            const attributes = entries.map(({ path: { endpoint, cluster, attribute }, value, dataVersion }) => {
+                if (cluster === undefined || attribute === undefined) {
+                    throw new ImplementationError("writeAttributes requires a concrete cluster and attribute");
+                }
+                const spec = attributeSpecFor(cluster, attribute, value);
+                if (endpoint === undefined) {
+                    return Write.Attribute({ ...spec, value, version: dataVersion });
+                }
+                return Write.Attribute({
+                    endpoint: EndpointNumber(endpoint),
+                    ...spec,
+                    value,
+                    version: dataVersion,
+                });
+            });
+            const result = await this.#peer.interaction.write(Write(...attributes));
+            return result.map(({ path: { endpointId, clusterId, attributeId }, status }) => ({
+                endpoint: endpointId,
+                cluster: clusterId,
+                attribute: attributeId,
+                status,
+            }));
         });
     }
 

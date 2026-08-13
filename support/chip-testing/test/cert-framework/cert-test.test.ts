@@ -802,6 +802,7 @@ describe("CertTest", () => {
                 invoke: unused,
                 readAttribute: unused,
                 writeAttribute: unused,
+                writeAttributes: unused,
                 subscribe: unused,
                 openCommissioningWindow: unused,
                 operationalMdnsInstanceName: unused,
