@@ -15,7 +15,15 @@ import { SubscriptionsServer } from "#behavior/system/subscriptions/Subscription
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import type { Environment } from "@matter/general";
-import { asyncNew, Construction, DiagnosticSource, errorOf, Identity, MatterError } from "@matter/general";
+import {
+    asyncNew,
+    Construction,
+    DiagnosticSource,
+    errorOf,
+    Identity,
+    MatterAggregateError,
+    MatterError,
+} from "@matter/general";
 import {
     FabricManager,
     Interactable,
@@ -213,10 +221,19 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
      * @see {@link MatterSpecification.v16.Core} § 13.4
      */
     protected async resetStorage() {
-        await this.env.get(SessionManager).clear();
-        await this.env.get(FabricManager).clear();
-        await this.env.get(OccurrenceManager).clear();
-        await this.env.get(ServerNodeStore).erase();
+        await MatterAggregateError.settleSeries(
+            [
+                // Peers first so their teardown still sees the fabrics and sessions it depends on
+                () => this.#peers?.erase(),
+
+                () => this.env.get(SessionManager).clear(),
+                () => this.env.get(FabricManager).clear(),
+                () => this.env.get(OccurrenceManager).clear(),
+                () => ServerEnvironment.eraseCredentials(this),
+                () => this.env.get(ServerNodeStore).erase(),
+            ],
+            `Error erasing storage of ${this}`,
+        );
     }
 
     /**
