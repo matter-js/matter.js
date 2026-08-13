@@ -69,6 +69,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: `FileStorageDriver`'s constructor no longer accepts a `clear` argument; clearing is handled by `StorageService`
     - Fix: Ensure that `--storage-clear`/`MATTER_STORAGE_CLEAR` is honored again and clears the storage on start
 
+- @matter/nodejs-ble
+    - Fix: A connection attempt that BLE reports as failed is retried instead of failing commissioning on the first try
+    - Fix: A peripheral whose connection attempt failed is no longer rejected as unusable for the lifetime of the process
+    - Fix: Giving up on a peripheral reports the last connection failure as cause
+    - Fix: A disconnect that never completes no longer leaves the channel request pending forever
+    - Fix: Aborting a BLE connection attempt now stops its retries and closes a connection that completed anyway
+
 - @matter/nodejs-shell
     - Feature: Added `--cleanup-legacy-storage` to irreversibly remove the leftover pre-0.16 storage artifacts once they have been migrated to the current format
 
@@ -77,6 +84,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Deprecation: The legacy `ClusterType` command request surface (`Invoke.LegacyCommandRequest`, `Specifier.ClusterTypeCommand`) and `SessionManager.owner` are scheduled for removal in 0.19
     - Enhancement: Network profiles accept a separate `bdxAdditionalMrpDelay` for bulk transfer, defaulting to the profile's messaging margin
     - Enhancement: New `CertificateAuthority.erase()` discards the authority's key material, persisted and in memory
+    - Fix: Cancelling BLE commissioning aborts the in-flight channel open
     - Fix: A subscription's `maxIntervalCeiling` is transmitted exactly as requested; jitter now applies only when we derive the ceiling ourselves
 
 - @matter/react-native
