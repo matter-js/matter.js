@@ -123,31 +123,17 @@ export class ClientNodeStores {
         const stores = Object.values(this.#stores);
         this.#stores = {};
 
-        const errors = new Array<unknown>();
-        for (const store of stores) {
-            try {
-                await store.erase();
-            } catch (error) {
-                errors.push(error);
+        await MatterAggregateError.settleSeries(
+            [
+                ...stores.map(store => () => store.erase()),
 
-                // erase() closes the store itself; a store that failed partway still holds an open construction and
-                // its cache registration
-                try {
-                    await store.construction.close();
-                } catch (closeError) {
-                    errors.push(closeError);
-                }
-            }
-        }
-
-        // Data a store failed to erase must still go: the in-memory index is gone either way, so anything left behind
-        // would resurrect on the next lookup
-        await this.#storage.clearAll();
-        this.#nextAutomaticId = 1;
-
-        if (errors.length) {
-            throw new MatterAggregateError(errors, "Error while erasing client stores");
-        }
+                // Data a store failed to erase must still go: the index is gone either way, so anything left behind
+                // resurrects on the next lookup
+                () => this.#storage.clearAll(),
+                () => void (this.#nextAutomaticId = 1),
+            ],
+            "Error while erasing client stores",
+        );
     }
 
     async close() {

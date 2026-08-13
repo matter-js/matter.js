@@ -86,31 +86,24 @@ export class ClientNodeStore extends NodeStore {
     }
 
     override async erase() {
-        // Cascade so caches unregister from the shared ClientCacheBuffer before storage is cleared.  Every endpoint is
-        // visited even if one fails; a cache left registered flushes stale data back into the cleared context
-        const errors = new Array<unknown>();
-        for (const store of this.#stores.values()) {
-            try {
-                await store.erase();
-            } catch (error) {
-                errors.push(error);
-            }
-        }
+        const stores = [...this.#stores.values()];
 
-        this.#stores = new Map();
-        this.#onErase?.();
+        await MatterAggregateError.settleSeries(
+            [
+                // Cascade so caches unregister from the shared ClientCacheBuffer before storage is cleared; one that
+                // stays registered flushes stale data back into the cleared context
+                ...stores.map(store => () => store.erase()),
 
-        try {
-            await this.#storage?.clearAll();
-        } catch (error) {
-            errors.push(error);
-        }
+                () => {
+                    this.#stores = new Map();
+                    this.#onErase?.();
+                    return this.#storage?.clearAll();
+                },
 
-        await this.construction.close();
-
-        if (errors.length) {
-            throw new MatterAggregateError(errors, `Error while erasing ${this}`);
-        }
+                () => this.construction.close(),
+            ],
+            `Error while erasing ${this}`,
+        );
     }
 
     override storeForEndpoint(endpoint: Endpoint) {

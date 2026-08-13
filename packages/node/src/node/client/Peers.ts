@@ -56,7 +56,6 @@ import {
     Peer,
     PeerAddress,
     PeerLeftError,
-    PeerSet,
     SessionManager,
 } from "@matter/protocol";
 import { FabricIndex, NodeId, Status } from "@matter/types";
@@ -447,18 +446,15 @@ export class Peers extends EndpointContainer<ClientNode> {
     }
 
     /**
-     * Delete every known node and its persisted data.
+     * Delete every known node.
      *
      * A node we cannot tear down cleanly is closed and dropped instead, so it cannot block the factory reset this
-     * serves.
+     * serves; its persisted data outlives this call and is the caller's to discard.  Failures are logged rather than
+     * raised for the same reason.
      */
     async erase() {
         await this.#mutex.produce(async () => {
-            const peers = this.owner.env.maybeGet(PeerSet);
-
             for (const node of [...this]) {
-                const address = node.maybeStateOf(CommissioningClient)?.peerAddress;
-
                 try {
                     await node.delete();
                     continue;
@@ -470,15 +466,6 @@ export class Peers extends EndpointContainer<ClientNode> {
                     await node.close();
                 } catch (error) {
                     logger.warn(`Error closing ${node}:`, error);
-                }
-
-                // ClientNode.delete() does this itself; without it the peer outlives the fabric it is addressed on
-                if (address !== undefined) {
-                    try {
-                        await peers?.get(address)?.delete();
-                    } catch (error) {
-                        logger.warn(`Error removing peer for ${node}:`, error);
-                    }
                 }
 
                 this.delete(node);

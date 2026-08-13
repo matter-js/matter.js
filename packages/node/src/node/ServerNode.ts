@@ -25,7 +25,6 @@ import {
     MatterError,
 } from "@matter/general";
 import {
-    CertificateAuthority,
     FabricManager,
     Interactable,
     OccurrenceManager,
@@ -222,44 +221,19 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
      * @see {@link MatterSpecification.v16.Core} § 13.4
      */
     protected async resetStorage() {
-        // Peers first so their teardown still sees the fabrics and sessions it depends on.  Every area is erased even
-        // if an earlier one fails, so a partial reset cannot leave key material behind
-        const errors = new Array<unknown>();
+        await MatterAggregateError.settleSeries(
+            [
+                // Peers first so their teardown still sees the fabrics and sessions it depends on
+                () => this.#peers?.erase(),
 
-        for (const erase of [
-            () => this.#peers?.erase(),
-            () => this.env.get(SessionManager).clear(),
-            () => this.env.get(FabricManager).clear(),
-            () => this.env.get(OccurrenceManager).clear(),
-            () => this.#eraseCertificateAuthority(),
-            () => this.env.get(ServerNodeStore).erase(),
-        ]) {
-            try {
-                await erase();
-            } catch (error) {
-                errors.push(error);
-            }
-        }
-
-        if (errors.length) {
-            throw new MatterAggregateError(errors, `Error erasing storage of ${this}`);
-        }
-    }
-
-    /**
-     * The authority caches its key material for the lifetime of the instance, so it is dropped from the environment
-     * along with the material it persists.  An authority the node did not create belongs to whoever supplied it.
-     */
-    async #eraseCertificateAuthority() {
-        if (!this.env.owns(CertificateAuthority)) {
-            return;
-        }
-
-        try {
-            await this.env.get(CertificateAuthority).erase();
-        } finally {
-            this.env.delete(CertificateAuthority);
-        }
+                () => this.env.get(SessionManager).clear(),
+                () => this.env.get(FabricManager).clear(),
+                () => this.env.get(OccurrenceManager).clear(),
+                () => ServerEnvironment.eraseCredentials(this),
+                () => this.env.get(ServerNodeStore).erase(),
+            ],
+            `Error erasing storage of ${this}`,
+        );
     }
 
     /**

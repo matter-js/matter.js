@@ -479,8 +479,10 @@ describe("ServerNode", () => {
         const storage = site.storageFor(controller.id);
         const peer = [...controller.peers][0];
         const address = peer.peerAddress!;
-        peer.delete = async () => {
-            throw new ImplementationError("Cannot delete");
+
+        // Fail inside delete() rather than replacing it, so its own teardown guarantees still apply
+        peer.erase = async () => {
+            throw new ImplementationError("Cannot erase");
         };
 
         await MockTime.resolve(controller.erase(), { macrotasks: true });
@@ -498,9 +500,6 @@ describe("ServerNode", () => {
         const { controller } = await site.addCommissionedPair();
 
         const peer = [...controller.peers][0];
-        peer.delete = async () => {
-            throw new ImplementationError("Cannot delete");
-        };
         const protocolPeer = controller.env.get(PeerSet).get(peer.peerAddress!)!;
         protocolPeer.delete = async () => {
             throw new ImplementationError("Cannot remove peer");
@@ -510,6 +509,24 @@ describe("ServerNode", () => {
 
         expect([...controller.peers].length).equals(0);
         expect(controller.lifecycle.isOnline).equals(true);
+    });
+
+    it("erases CA key material the node never loaded", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const id = controller.id;
+        const storage = site.storageFor(id);
+
+        await controller.close();
+        expect(storageKeysUnder(storage, "certificates")).not.deep.equals([]);
+
+        // A node that has not commissioned this session never instantiates the authority
+        const rebooted = await site.addNode(undefined, { id, device: undefined, commissioning: { enabled: false } });
+        expect(rebooted.env.has(CertificateAuthority)).equals(false);
+
+        await MockTime.resolve(rebooted.erase(), { macrotasks: true });
+
+        expect(storageKeysUnder(storage, "certificates")).deep.equals([]);
     });
 
     it("erases every peer endpoint store when one fails", async () => {
@@ -525,7 +542,6 @@ describe("ServerNode", () => {
             throw new ImplementationError("Cannot erase endpoint");
         };
 
-        // A cache the cascade skips stays registered with ClientCacheBuffer and flushes into the cleared context
         let erased = 0;
         for (const endpointStore of rest) {
             const erase = endpointStore.erase.bind(endpointStore);
