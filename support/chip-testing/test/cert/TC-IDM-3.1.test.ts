@@ -6,7 +6,7 @@
 
 import { Status } from "@matter/main/types";
 import { Matter } from "@matter/model";
-import type { AttributePathSpec, CertNodeApi, CertNodeRef, CertStepContext } from "@matter/testing";
+import type { AttributePathSpec, CertNodeApi, CertNodeRef, CertStepContext, DeviceFlavor } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import { CommissionedRefs, expectMessageWithPath, requireId, WRITE_REQUEST_MESSAGE } from "./tc-support.js";
 
@@ -35,6 +35,13 @@ const IDENTIFY_TIME = IDENTIFY.attributes.require("identifyTime");
 
 /** Seconds the step-2 wildcard write puts into Identify.identifyTime on every endpoint that has it. */
 const IDENTIFY_TIME_VALUE = 5;
+
+/**
+ * Step 2's wildcard-endpoint write is valid per Matter Core § 8.9.2.7, but the chip apps answer it
+ * `InvalidAction` after failing to decode the path ("TLVReader.cpp:656: End of TLV"), so the step can
+ * only run against a matter.js TH.
+ */
+const STEP_2_FLAVORS: DeviceFlavor[] = ["matterjs"];
 
 const ENDPOINT_0 = 0;
 const ENDPOINT_1 = 1;
@@ -161,7 +168,10 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 });
             }
         }),
-        { expected: "Verify on the TH that the correct WriteRequestMessage has been received." },
+        {
+            expected: "Verify on the TH that the correct WriteRequestMessage has been received.",
+            flavors: STEP_2_FLAVORS,
+        },
     )
     .step(
         3,
