@@ -20,7 +20,7 @@ import { CERT_BINS_PLATFORM, prepareChipBins, resolveChipBinsSource } from "@mat
 import { ChildProcess, spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { join } from "node:path";
-import { env, platform as hostPlatform } from "node:process";
+import { arch as hostArch, env, platform as hostPlatform } from "node:process";
 import type { Readable } from "node:stream";
 import { WebSocket } from "ws";
 import { parseChipJson } from "./json-codec.js";
@@ -128,13 +128,14 @@ function describeExit({ code, signal }: ExitInfo) {
  * exec-format spawn failure. Mirrors `resolveChipLocalAppDir`'s guard for the chip-app binaries beside
  * them.
  */
-export function assertChipToolHostSupported(platform: string) {
-    if (platform !== "linux") {
+export function assertChipToolHostSupported(platform: string, arch: string = hostArch) {
+    const host = `${platform}/${arch}`;
+    if (host !== CERT_BINS_PLATFORM) {
         throw new ImplementationError(
-            `MATTER_CHIP_BINS_SOURCE=cert-bins selects Linux/${CERT_BINS_PLATFORM} binaries that a chip-tool ` +
-                `controller spawns directly on the host; this host is "${platform}", which cannot run them. Use a ` +
-                "Linux host or CI runner for MATTER_CERT_CONTROLLER=chip-tool with cert-bins, or unset " +
-                "MATTER_CHIP_BINS_SOURCE and point MATTER_CERT_APP_DIR at a chip-tool built for this platform.",
+            `MATTER_CHIP_BINS_SOURCE=cert-bins selects ${CERT_BINS_PLATFORM} binaries that a chip-tool ` +
+                `controller spawns directly on the host; this host is "${host}", which cannot run them. Use a ` +
+                `${CERT_BINS_PLATFORM} host or CI runner for MATTER_CERT_CONTROLLER=chip-tool with cert-bins, or ` +
+                "unset MATTER_CHIP_BINS_SOURCE and point MATTER_CERT_APP_DIR at a chip-tool built for this platform.",
         );
     }
 }

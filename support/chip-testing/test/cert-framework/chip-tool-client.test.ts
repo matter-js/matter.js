@@ -473,7 +473,9 @@ describe("resolveChipToolBinary", () => {
     });
 
     it("explains an unsupported host rather than letting spawn fail", () => {
-        expect(() => assertChipToolHostSupported("linux")).not.to.throw();
-        expect(() => assertChipToolHostSupported("darwin")).to.throw(/darwin/);
+        expect(() => assertChipToolHostSupported("linux", "arm64")).not.to.throw();
+        expect(() => assertChipToolHostSupported("darwin", "arm64")).to.throw(/darwin/);
+        // The extraction is arm64-only, so an x64 Linux host cannot exec what it unpacks either
+        expect(() => assertChipToolHostSupported("linux", "x64")).to.throw(/linux\/x64/);
     });
 });

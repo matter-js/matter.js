@@ -595,6 +595,31 @@ describe("ChipToolControllerAdapter", function () {
         expect(StatusResponseError.of(failure)?.code).equal(Status.UnsupportedEndpoint);
     });
 
+    it("fails an invoke that exited non-zero beside a response payload", async () => {
+        const { node } = await commissioned();
+
+        // `ClusterCommand::OnResponse` logs the response before decoding it for the text log, so a
+        // response chip-tool could not decode reaches the reply beside the exit marker and nothing
+        // else — and a payload is no account of the failure
+        fake.reply = () => ({
+            results: [
+                {
+                    clusterId: GENERAL_COMMISSIONING.id,
+                    endpointId: 0,
+                    commandId: requireId(ARM_FAIL_SAFE.responseModel?.id, "ArmFailSafeResponse"),
+                    value: { "0": 0, "1": "ok" },
+                },
+            ],
+            status: 1,
+        });
+
+        expect(
+            await rejectionOf(
+                node.invoke("GeneralCommissioning", "armFailSafe", { expiryLengthSeconds: 60, breadcrumb: 1n }, 0),
+            ),
+        ).instanceOf(ChipToolCommandError);
+    });
+
     it("recovers the enhanced window's pairing codes from the reply's own logs", async () => {
         const { node } = await commissioned();
 
@@ -951,6 +976,24 @@ describe("ChipToolControllerAdapter", function () {
                 const { node } = await subscribedThenFailing();
 
                 expect(await rejectionOf(node.readAttribute(VENDOR_ID_PATH))).instanceOf(ChipToolCommandError);
+            });
+
+            it("fails a write to the subscribed path itself, which TC-IDM-4.1 performs", async () => {
+                const { node } = await subscribedThenFailing();
+
+                // The write asked about this path, so the report on it is the command's own — but a
+                // value says nothing about why the command exited non-zero, and treating it as the
+                // failure's account would report a failed write as a success
+                expect(await rejectionOf(node.writeAttribute(PATH, true))).instanceOf(ChipToolCommandError);
+                expect(await rejectionOf(node.writeAttributes([{ path: PATH, value: true }]))).instanceOf(
+                    ChipToolCommandError,
+                );
+            });
+
+            it("fails a read of the subscribed path itself, whose value the report is not", async () => {
+                const { node } = await subscribedThenFailing();
+
+                expect(await rejectionOf(node.readAttribute(PATH))).instanceOf(ChipToolCommandError);
             });
 
             it("reports the device's own status for a write to a path a subscription also covers", async () => {

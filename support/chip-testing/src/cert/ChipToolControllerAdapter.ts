@@ -259,15 +259,22 @@ function isExitFailureMarker(result: unknown) {
  */
 type OwnPathTest = (path: { endpoint: number; cluster: number; attribute: number }) => boolean;
 
-function isOwnEntry(result: unknown, isOwnPath: OwnPathTest) {
-    if (!isObject(result)) {
-        return true;
+/**
+ * Whether `result` accounts for the command's non-zero exit, which only an interaction status can:
+ * one chip-tool logged for the interaction as a whole (`RemoteDataModelLogger::LogErrorAsJSON(const
+ * CHIP_ERROR &)`), or one for a path this command itself could have asked about. An attribute value or
+ * a command response says nothing about why the command failed.
+ */
+function accountsForFailure(result: unknown, isOwnPath: OwnPathTest) {
+    if (!isObject(result) || !("error" in result)) {
+        return false;
     }
     const endpoint = numberOf(result, "endpointId");
     const cluster = numberOf(result, "clusterId");
     const attribute = numberOf(result, "attributeId");
     if (endpoint === undefined || cluster === undefined || attribute === undefined) {
-        // A report always carries its whole attribute path, so anything less is the command's own
+        // Only an attribute status carries a whole attribute path, so a status with less than one
+        // cannot be a subscription's report and is this command's own
         return true;
     }
     return isOwnPath({ endpoint, cluster, attribute });
@@ -287,14 +294,13 @@ function interpretReply(results: unknown[], isOwnPath: OwnPathTest): ChipReply {
     // FAILURE is that marker: an earlier one is a status chip-tool derived from a `StatusIB`.
     const markerIndex = isExitFailureMarker(results[results.length - 1]) ? results.length - 1 : -1;
 
-    // The marker is redundant once the reply accounts for the failure itself — a wildcard read's
-    // per-path statuses, say; the SDK's own chip-tool adapter drops it then too
-    // (`scripts/tests/chipyaml/adapters/chiptool/decoder.py`). Only an entry this command could have
-    // produced is such an account: chip-tool records a subscription report into whichever frame owns
-    // its result slot, so a failed command's reply can consist of the marker and one of those reports
-    // alone, and dropping the marker there would report the failure as a success.
+    // The marker is redundant once the reply carries the failure's own account — a wildcard read's
+    // per-path statuses, say. Nothing else in a reply is such an account: chip-tool records values and
+    // subscription reports into whichever frame owns its result slot, so a failed command's reply can
+    // consist of the marker beside a value on a path the command itself asked about, and taking that
+    // for an account would report the failure as a success.
     const accountedFor =
-        markerIndex !== -1 && results.slice(0, markerIndex).some(result => isOwnEntry(result, isOwnPath));
+        markerIndex !== -1 && results.slice(0, markerIndex).some(result => accountsForFailure(result, isOwnPath));
 
     for (const [index, result] of results.entries()) {
         if (index === markerIndex) {
