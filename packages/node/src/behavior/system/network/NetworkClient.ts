@@ -17,6 +17,7 @@ import { DatatypeModel, FieldElement } from "@matter/model";
 import {
     ClientSubscription,
     OperationalAddress,
+    Peer,
     PeerSet,
     SessionParameters,
     Subscribe,
@@ -87,10 +88,12 @@ export class NetworkClient extends NetworkBehavior {
                 peer.transportPreference = pref === "tcp" ? ChannelType.TCP : undefined;
 
                 if (this.#node.nodeType !== "group") {
+                    this.internal.peer = peer;
                     // These emit synchronously from the peer's retransmission/session paths with no context, so the
                     // handlers run in an isolated transaction (offline) and a fault cannot escape into those paths.
                     this.reactTo(peer.establishmentUnresponsive, this.#markLikelyOffline, { offline: true });
                     this.reactTo(peer.sessions.added, this.#onSessionEstablished, { offline: true });
+                    this.reactTo(peer.sessions.deleted, this.#recomputeConnectionState, { offline: true });
                 }
             }
         }
@@ -224,9 +227,13 @@ export class NetworkClient extends NetworkBehavior {
      */
     #recomputeConnectionState() {
         const { lifecycle } = this.#node;
+        const peer = this.internal.peer;
 
         let state: NodeConnectionState;
-        if (this.subscriptionActive) {
+        // A `SustainedSubscription` keeps its liveness flag set until it observes the loss itself, which for a sleepy
+        // device lags the actual session teardown by up to its subscription interval.  Require a live session so
+        // connection state falls promptly on session loss rather than a stale subscription reading Connected.
+        if (this.subscriptionActive && (peer === undefined || peer.sessions.size > 0)) {
             this.internal.likelyOffline = false;
             state = NodeConnectionState.Connected;
         } else if (this.state.isDisabled || lifecycle.shouldBeOffline) {
@@ -352,6 +359,12 @@ export namespace NetworkClient {
          * disabled/stopped.  Drives {@link NodeConnectionState.WaitingForDeviceDiscovery}.
          */
         likelyOffline = false;
+
+        /**
+         * The operational peer backing this node, once wired at startup.  Its session set feeds
+         * {@link NodeConnectionState} recomputation.  Undefined for group nodes and before startup.
+         */
+        peer?: Peer;
     }
 
     export class State extends NetworkBehavior.State {
