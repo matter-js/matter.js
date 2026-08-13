@@ -15,7 +15,10 @@
 #
 #   * A push whose head commit message contains [execute-certtests]
 #
-# One job definition, test-cert, covers the whole controller × device interop matrix; it expands
+# test-cert-framework runs the framework's own logic proofs once, as a gate: they are hermetic, so a
+# defect there would otherwise be diagnosed six times over from six device-specific runs.
+#
+# One job definition, test-cert, then covers the whole controller × device interop matrix; it expands
 # into test-cert-<controller>-vs-<device> from the table `prepare` emits.
 #
 # Controllers:
@@ -236,8 +239,44 @@ jobs:
 
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
-  test-cert:
+  # The framework's own logic proofs: hermetic, no device and no chip binaries, so they are the same
+  # everywhere and run once as a gate rather than once per leg. A framework defect fails here instead
+  # of being diagnosed six times over from six device-specific runs.
+  test-cert-framework:
     needs: prepare
+    if: needs.prepare.outputs.should-run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out matter.js
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.x
+
+      - name: Install matter.js
+        run: npm ci --foreground-scripts
+
+      - name: Pull chip harness image from repository
+        run: docker pull --platform linux/amd64 ghcr.io/matter-js/chip
+
+      # No binary-flavor environment here: these tests manage their own fixtures, and inheriting one
+      # would have them pull a device image they never use.
+      - name: Run certification framework tests
+        env:
+          MATTER_CHIP_PLATFORM: linux/amd64
+          MATTER_TEST_SHUTDOWN_TIMEOUT_MS: 15000
+          MATTER_WTF: 1
+        run: |
+          cd support/chip-testing
+          npm run test-cert-framework -- --no-pull
+
+  test-cert:
+    needs: [prepare, test-cert-framework]
     if: needs.prepare.outputs.should-run == 'true'
     name: test-cert-${{ matrix.controller }}-vs-${{ matrix.device }}
     runs-on: ${{ matrix.runner }}
@@ -332,18 +371,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ${{ matrix.apt-packages }}
           sudo systemctl start avahi-daemon
-
-      # Framework self-tests are hermetic logic proofs — they manage their own fixtures and must not
-      # inherit the controller/device configuration of the real TC run below (the container platform
-      # still has to match the runner)
-      - name: Run certification framework tests (prerequisite proof)
-        env:
-          MATTER_CHIP_PLATFORM: ${{ matrix.chip-platform }}
-          MATTER_TEST_SHUTDOWN_TIMEOUT_MS: 15000
-          MATTER_WTF: 1
-        run: |
-          cd support/chip-testing
-          npm run test-cert-framework -- --no-pull
 
       - name: Run certification controller tests (${{ matrix.controller }} controller vs ${{ matrix.device }} device)
         env:
