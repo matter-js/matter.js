@@ -960,7 +960,34 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
             return;
         }
 
+        this.#adoptConcurrentChanges();
+
         this.#internals.values = this.#values;
+    }
+
+    /**
+     * Take over values that changed externally while this session held its clone.  Our clone is only authoritative for
+     * what this session wrote; making it canonical wholesale would discard a peer report that arrived meanwhile.
+     *
+     * Values are copied into the clone rather than merged into a new object so the state class instance, and with it
+     * any {@link Val.properties} implementation, survives.
+     */
+    #adoptConcurrentChanges() {
+        const base = this.#baseValues;
+        const canonical = this.#internals.values;
+
+        // Only an externally mutable store mutates values outside a transaction, so for every other datasource
+        // canonical is still the object we cloned from and there is nothing to adopt
+        if (base === undefined || canonical === base) {
+            return;
+        }
+
+        for (const name in canonical) {
+            const value = canonical[name];
+            if (this.#values[name] !== value && !this.#wasWrittenHere(name, this.#values[name])) {
+                this.#values[name] = value;
+            }
+        }
     }
 
     /**

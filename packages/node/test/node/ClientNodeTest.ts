@@ -1307,6 +1307,35 @@ describe("ClientNode", () => {
             expect(caught).undefined;
             expect(peer1.stateOf(BasicInformationClient).nodeLabel).equals("Written Label");
             expect(device.stateOf(BasicInformationServer).nodeLabel).equals("Written Label");
+            // …and the report survives the commit rather than being reverted to the value our clone captured
+            expect(peer1.stateOf(BasicInformationClient).vendorName).equals("Reported Vendor");
+        });
+
+        it("and keeps a same-value assignment from reverting a concurrent report", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const originalVendorName = peer1.stateOf(BasicInformationClient).vendorName;
+
+            // Assigning the value the cache already holds is not a change, so nothing is written.  The commit must
+            // still not resurrect that value over the report that landed while we held the clone.
+            const caught = await captureRejection(() =>
+                MockTime.resolve(
+                    peer1.act(async agent => {
+                        agent.get(BasicInformationClient).state.vendorName = originalVendorName;
+                        await seedPeerCache(
+                            peer1,
+                            peer1,
+                            BasicInformationClient,
+                            new Map([[BasicInformation.attributes.vendorName.id, "Reported Vendor"]]),
+                        );
+                    }),
+                ),
+            );
+
+            expect(caught).undefined;
+            expect(peer1.stateOf(BasicInformationClient).vendorName).equals("Reported Vendor");
         });
 
         it("but not a declined one, with no subscription to repair the cache", async () => {
