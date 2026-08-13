@@ -383,7 +383,12 @@ class InProcessCertNodeApi implements CertNodeApi {
  */
 const CERT_PEER_CONNECTION_TIMEOUT = Seconds(15);
 
-const CERT_PEER_SETTLE_TIMEOUT = Seconds(30);
+/**
+ * Long enough to cover one interaction-timeout-and-retry cycle: a peer that stops mid-report leaves the
+ * controller waiting out its message timeout before it reads again, and only that second read reaches the
+ * subscription.
+ */
+const CERT_PEER_SETTLE_TIMEOUT = Seconds(45);
 
 /**
  * Waits for the peer's sustained subscription to become active (`isConnected` tracks `subscriptionActive`,
