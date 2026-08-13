@@ -17,11 +17,11 @@ import { DatatypeModel, FieldElement } from "@matter/model";
 import {
     ClientSubscription,
     OperationalAddress,
-    Peer,
     PeerSet,
     SessionParameters,
     Subscribe,
     SustainedSubscription,
+    type Peer,
     Val,
 } from "@matter/protocol";
 import { EventNumber } from "@matter/types";
