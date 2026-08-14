@@ -800,6 +800,7 @@ describe("CertTest", () => {
             const unused = () => Promise.reject(new Error("not used by this test"));
             return {
                 invoke: unused,
+                invokeBatch: unused,
                 readAttribute: unused,
                 readAttributes: unused,
                 writeAttribute: unused,

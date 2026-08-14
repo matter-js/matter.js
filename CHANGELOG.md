@@ -126,6 +126,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: TC-SC-3.5 turns off `PICS_SDK_CI_ONLY` so the script prompts for commissioning instead of acting as its own commissioner, and drives whichever controller `MATTER_CERT_CONTROLLER` selects
     - Enhancement: A cert test's controller reads and subscribes to events via `CertNodeApi.readEvents()`/`subscribeEvents()`, on both the matter.js and the chip-tool controller
     - Enhancement: A cert test's controller sends an invoke or attribute write as a timed interaction via `CertNodeApi`'s `timedInteractionTimeoutMs`, on both the matter.js and the chip-tool controller
+    - Enhancement: A cert test's controller invokes several commands in one request via `CertNodeApi.invokeBatch()`, which reports each answer in arrival order
+    - Enhancement: `certTest()` accepts `appVariant` to run a variant of the device app CHIP builds as its own binary, such as `nlfaultinject`
+    - Enhancement: A cert test declares a cluster outside the Matter specification with the model annotations and `registerCertCustomCluster()`, and both controllers then address it
 
 - @project-chip/matter.js
     - Deprecation: Every class, type, and function of the legacy controller API is now marked deprecated and scheduled for removal in 0.19; use the `ServerNode.peers` / `ClientNode` API of `@matter/node` instead

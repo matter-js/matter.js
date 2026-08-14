@@ -39,6 +39,13 @@ export interface CertTestOptions {
     plan: string;
     pics: string[];
     app: string;
+
+    /**
+     * Selects a variant of `app` CHIP builds as its own binary — `nlfaultinject`, whose fault-injection
+     * hooks TC-IDM-1.3 arms. Only the `chip-local` flavor can run one, so a test declaring a variant
+     * restricts its steps to that flavor.
+     */
+    appVariant?: string;
     /** Role name → "dut" (device under test) or "helper" (auxiliary controller). Default: `{ dut: "dut" }`. */
     controllers?: Record<string, "dut" | "helper">;
     /** Role name → app name. Default: `{ th: options.app }`. */
@@ -120,6 +127,7 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
         plan: options.plan,
         pics: options.pics,
         app: options.app,
+        appVariant: options.appVariant,
         steps: new Array<CertStepDefinition>(),
     };
 
@@ -188,14 +196,16 @@ function primaryDeviceRole(deviceRoles: Record<string, string>, app: string): st
     throw new Error(`certTest options.devices has no role for app "${app}" (the app the harness activates)`);
 }
 
-function subjectFactoryFor(flavor: DeviceFlavor, app: string): CertDeviceFactory {
+function subjectFactoryFor(flavor: DeviceFlavor, app: string, appVariant?: string): CertDeviceFactory {
     switch (flavor) {
         case "chip-docker":
-            return ChipDockerSubject(app);
+            return ChipDockerSubject(app, appVariant);
 
         case "chip-local":
-            return ChipLocalSubject(app);
+            return ChipLocalSubject(app, appVariant);
 
+        // A matterjs subject has no binary to vary, so `appVariant` does not apply to it; a TC needing a
+        // variant gates its steps on the flavor instead.
         case "matterjs": {
             const factory = matterJsCertSubjectFor(app);
             if (!factory) {
@@ -242,7 +252,7 @@ function defineCertTest(
         // not leave this run's evidence disagreeing with the controller it actually used.
         resolveControllerImplementation();
         const primaryRole = primaryDeviceRole(deviceRoles, definition.app);
-        const factory = subjectFactoryFor(flavor, definition.app);
+        const factory = subjectFactoryFor(flavor, definition.app, definition.appVariant);
 
         registerCertTestFactory(
             descriptor,
@@ -430,7 +440,7 @@ class WiredCertTest extends CertTest {
                 if (role === this.#primaryRole) {
                     continue;
                 }
-                const factory = subjectFactoryFor(this.#flavor, app);
+                const factory = subjectFactoryFor(this.#flavor, app, this.definition.appVariant);
                 const device = factory(`${this.descriptor.name}-${role}`);
                 extra.push(device);
                 await device.initialize();
@@ -461,7 +471,9 @@ class WiredCertTest extends CertTest {
                 timestamp: new Date().toISOString(),
                 controller: Object.keys(this.#controllerRoles).join(","),
                 controllerImplementation,
-                device: `${this.#flavor}:${this.definition.app}`,
+                device: `${this.#flavor}:${this.definition.app}${
+                    this.definition.appVariant === undefined ? "" : `-${this.definition.appVariant}`
+                }`,
                 matterJsCommit: matterJsRef,
                 chipRef,
                 chipToolRef,

@@ -143,6 +143,8 @@ export interface CertTestDefinition {
     plan: string;
     pics: string[];
     app: string;
+    /** Variant of `app` to run, where the flavor supports one (see `cert-dsl.ts`'s `CertTestOptions`). */
+    appVariant?: string;
     steps: CertStepDefinition[];
     /** Cleanup the engine runs after the last step whatever happened to it (see `cert-dsl.ts`'s `finalize`). */
     finalize?: (cx: CertStepContext) => Promise<void>;

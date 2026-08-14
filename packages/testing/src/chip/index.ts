@@ -41,6 +41,8 @@ export type {
     AttributeReadEntry,
     AttributeWriteEntry,
     AttributeWriteStatus,
+    BatchCommandResult,
+    BatchCommandSpec,
     CertNodeApi,
     CertNodeRef,
     CommissioningTarget,

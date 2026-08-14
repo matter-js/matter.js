@@ -5,7 +5,7 @@
  */
 
 import type { CertDevice, CompositionHandle, Container, DockerHandle, Subject } from "@matter/testing";
-import { ChipDockerDevice, ChipLocalSubject, HARNESS_DBUS_CONTAINER } from "@matter/testing";
+import { ChipDockerDevice, ChipDockerSubject, ChipLocalSubject, HARNESS_DBUS_CONTAINER } from "@matter/testing";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -149,6 +149,30 @@ describe("ChipLocalSubject", () => {
         }
     });
 
+    it("spawns the variant binary CHIP builds beside the plain one", async function () {
+        this.timeout(15_000);
+
+        const variant = "nlfaultinject";
+        await writeFile(join(appDir, `chip-${app}-app-${variant}`), "#!/bin/sh\necho variant-line\nexec sleep 300\n", {
+            mode: 0o755,
+        });
+
+        const device = ChipLocalSubject(app, variant)("cert");
+        if (!isCertDevice(device)) {
+            throw new Error("Expected a CertDevice");
+        }
+
+        await device.initialize();
+        await device.start();
+
+        try {
+            expect(await collectLines(device.log.follow(), 1, 5_000)).deep.equal(["variant-line"]);
+        } finally {
+            await device.stop();
+            await device.close();
+        }
+    });
+
     it("fails clearly at start() when MATTER_CERT_APP_DIR is unset, rather than spawning an undefined path", async () => {
         delete env.MATTER_CERT_APP_DIR;
 
@@ -162,6 +186,12 @@ describe("ChipLocalSubject", () => {
 });
 
 describe("ChipDockerSubject", () => {
+    it("refuses an app variant, which its per-app image has no binary for", async () => {
+        const device = ChipDockerSubject("all-clusters", "nlfaultinject")("cert");
+
+        await expect(device.initialize()).rejectedWith(/nlfaultinject/);
+    });
+
     it("throws instead of starting its own dbus/mdns sidecars when the harness dbus container isn't running", async () => {
         const composeCalls = new Array<string>();
         const docker: DockerHandle = {

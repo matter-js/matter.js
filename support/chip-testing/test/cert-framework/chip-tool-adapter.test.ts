@@ -21,7 +21,9 @@ import {
     ChipToolControllerAdapter,
     ChipToolUnmappedStatusError,
 } from "../../src/cert/ChipToolControllerAdapter.js";
+import { registerCertCustomCluster } from "../../src/cert/custom-clusters.js";
 import { ChipToolExitError } from "../../src/chip-tool/chip-tool-client.js";
+import { FaultInjectionCluster } from "../cert/fault-injection.js";
 import { delay, FakeChipTool, waitFor, writeStandInBinary } from "./fake-chip-tool.js";
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
@@ -1078,6 +1080,48 @@ describe("ChipToolControllerAdapter", function () {
             await delay(50);
 
             expect(updates).deep.equal([]);
+        });
+    });
+
+    describe("batched invoke", () => {
+        it("refuses a batch, since chip-tool sends one command per request", async () => {
+            const { node } = await commissioned();
+
+            const rejection = await rejectionOf(
+                node.invokeBatch([
+                    { cluster: requireId(ON_OFF.id, "OnOff"), command: "on", endpoint: 1 },
+                    { cluster: requireId(ON_OFF.id, "OnOff"), command: "off", endpoint: 1 },
+                ]),
+            );
+
+            expect(rejection).instanceOf(UnsupportedByControllerError);
+            expect(fake.commands).deep.equal([]);
+        });
+    });
+
+    describe("custom clusters", () => {
+        it("invokes a command of a cluster outside the standard model", async () => {
+            registerCertCustomCluster(FaultInjectionCluster);
+            const { ref, node } = await commissioned();
+
+            fake.reply = () => ({ results: [] });
+            await node.invoke(
+                0xfff1fc06,
+                "failAtFault",
+                { type: 3, id: 12, numCallsToSkip: 3, numCallsToFail: 1, takeMutex: false },
+                0,
+            );
+
+            expect(fake.commands).deep.equal([
+                `any command-by-id 0xfff1fc06 0x0 {"0":3,"1":12,"2":3,"3":1,"4":false} ${ref} 0`,
+            ]);
+        });
+
+        it("refuses a command of a cluster nobody registered", async () => {
+            const { node } = await commissioned();
+
+            expect(await rejectionOf(node.invoke(0xfff1fc07, "failAtFault", {}, 0))).instanceOf(ImplementationError);
+            expect(fake.commands).deep.equal([]);
         });
     });
 
