@@ -423,7 +423,7 @@ export namespace NetworkClient {
          * {@link NodeConnectionState} recomputation.  Undefined for group nodes and before startup.
          */
         peer?: Peer;
-  
+
         /** Was the fabric label already checked? */
         fabricLabelReconciled = false;
     }
