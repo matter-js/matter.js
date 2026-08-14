@@ -101,29 +101,27 @@ export class PromptDrivenPythonTest extends PythonTest {
 
                 MockLogger.injectExternalMessage("CHIP", spiffy(line));
             }
+            // A script that prompts for out-of-band action runs to a verdict of its own either way, so one that never
+            // prompted reached that verdict without a counterparty and proves nothing about the DUT. The diagnosis is
+            // the same whether it passed or failed, so it accompanies both.
+            const unprompted = this.#handlers.length && handled === 0 ? this.#unpromptedDiagnosis() : "";
+
+            if (!passed) {
+                throw new Error(`Python test exited without error but did not indicate successful test${unprompted}`);
+            }
+
+            if (unprompted) {
+                throw new Error(
+                    `Python test ${this.descriptor.name} reported success but nothing drove the DUT${unprompted}`,
+                );
+            }
         } catch (e) {
-            // A handler that threw (e.g. an unexpected commissioning outcome) leaves the script still
-            // blocked on its own `input()` read; closing forces that read to fail instead of hanging
-            // the run for the full mocha timeout.
+            // A handler or verdict check that threw leaves the script still blocked on its own `input()` read; closing
+            // forces that read to fail instead of hanging the run for the full mocha timeout.
             await terminal.close().catch(closeError => {
                 console.warn("Error closing prompt-driven python test terminal:", closeError);
             });
             throw e;
-        }
-
-        // A script that prompts for out-of-band action runs to a verdict of its own either way, so one that never
-        // prompted reached that verdict without a counterparty and proves nothing about the DUT. The diagnosis is the
-        // same whether it passed or failed, so it accompanies both.
-        const unprompted = this.#handlers.length && handled === 0 ? this.#unpromptedDiagnosis() : "";
-
-        if (!passed) {
-            throw new Error(`Python test exited without error but did not indicate successful test${unprompted}`);
-        }
-
-        if (unprompted) {
-            throw new Error(
-                `Python test ${this.descriptor.name} reported success but nothing drove the DUT${unprompted}`,
-            );
         }
     }
 

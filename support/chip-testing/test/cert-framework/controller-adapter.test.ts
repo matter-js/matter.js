@@ -106,6 +106,20 @@ describe("InProcessControllerAdapter", () => {
         await device?.close();
     });
 
+    it("still commissions a healthy device when asked for a single handshake attempt", async function () {
+        this.timeout(30_000);
+
+        // The bound this requests is short enough to rule out a retry, so a positive commissioning has to fit inside it
+        // — the whole operational handshake, discovery included.
+        const ref = await adapter.commission({
+            passcode: 20202021,
+            discriminator: 3840,
+            singleHandshakeAttempt: true,
+        });
+
+        await adapter.node(ref).decommission();
+    });
+
     it("commissions, reads an attribute, invokes a command, and decommissions", async function () {
         this.timeout(30_000);
 

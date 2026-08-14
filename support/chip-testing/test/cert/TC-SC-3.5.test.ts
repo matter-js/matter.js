@@ -105,7 +105,16 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
             let outcome: SettleOutcome;
             try {
                 outcome = await Promise.race([
-                    settled(dut.commission({ passcode, discriminator: TH_SERVER_DISCRIMINATOR })),
+                    settled(
+                        dut.commission({
+                            passcode,
+                            discriminator: TH_SERVER_DISCRIMINATOR,
+                            // The script arms each fault for one handshake only, so a commissioner that retries gets a
+                            // clean one and commissions successfully. Step 1b injects no fault and must be free to
+                            // recover like any healthy commissioning.
+                            singleHandshakeAttempt: !expectSuccess,
+                        }),
+                    ),
                     timeout.then((): SettleOutcome => ({ kind: "timeout" })),
                 ]);
             } finally {
@@ -143,7 +152,10 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
                     cx.recorder.check({
                         type: "response",
                         verdict,
-                        detail: `commission() rejected on attempt ${attempt}: ${errorMessage(outcome.error)}`,
+                        // Deliberately reports only that commissioning did not complete. What the DUT answered the
+                        // corrupted Sigma2 with is in the attached controller log, and TH_SERVER's own view of the
+                        // handshake plus its commissioning-window assertion are in the script's.
+                        detail: `commission() did not complete on attempt ${attempt}: ${errorMessage(outcome.error)}`,
                     });
                     if (expectSuccess) {
                         failure =
@@ -180,15 +192,28 @@ function errorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
 
+// TC_SC_3_5.py gates every wait_for_user_input on PICS_SDK_CI_ONLY: with it set the script commissions TH_SERVER with
+// a second python controller of its own instead of prompting, so no DUT is ever driven. chip.defaultPics composes
+// CHIP's ci-pics-values, which sets it.
+function promptDrivenPics() {
+    const pics = chip.defaultPics.with({ PICS_SDK_CI_ONLY: 0 });
+    // A PICS file listing a key twice keeps its trailing occurrence, which would discard this override in the one way
+    // that leaves the run looking healthy.
+    if (pics.values.PICS_SDK_CI_ONLY !== 0) {
+        throw new InternalError(
+            "Overriding PICS_SDK_CI_ONLY to 0 did not take effect, so TC_SC_3_5.py would commission TH_SERVER itself " +
+                "instead of prompting the DUT",
+        );
+    }
+    return pics;
+}
+
 function stubSubject(): Subject {
     return {
         id: "TC-SC-3.5",
         app: "",
         commissioning: { kind: "on-network", passcode: 0, discriminator: 0, qrPairingCode: "" },
-        // TC_SC_3_5.py gates every wait_for_user_input on PICS_SDK_CI_ONLY: with it set the script
-        // commissions TH_SERVER with a second python controller of its own instead of prompting, so no
-        // DUT is ever driven. chip.defaultPics composes CHIP's ci-pics-values, which sets it.
-        pics: chip.defaultPics.with({ PICS_SDK_CI_ONLY: 0 }),
+        pics: promptDrivenPics(),
         async initialize() {},
         async start() {},
         async stop() {},

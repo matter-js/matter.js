@@ -772,10 +772,21 @@ handshake therefore commissions successfully on its second attempt, and the step
 "the DUT must reject this" passes.
 
 matter.js retries deliberately — real devices sometimes need more than one chance — so the harness has
-to bound the attempt instead. `InProcessControllerAdapter` passes `caseConnectionTimeout` (10s) to
-commissioning, below the 15s `delayBeforeNextAddress` that governs the earliest retry, so a handshake
-the device fails ends commissioning rather than becoming an attempt a retry recovers. The production
-default (4m15s) keeps the retries.
+to bound the attempt instead. A step sets `CommissioningTarget.singleHandshakeAttempt`, which
+`InProcessControllerAdapter` turns into a `caseConnectionTimeout` (10s) below every retry interval
+commissioning's operational connection uses, so commissioning ends on the first handshake outcome. The
+production default (4m15s) keeps the retries.
+
+**Set it only on a step that expects a refusal.** The same short budget removes the recovery a healthy
+commissioning legitimately needs — a second candidate address (`delayBeforeNextAddress`, 15s), a device
+answering the first handshake with `NoSharedTrustRoots` (15s), a transient network error (15s) — so a
+step that expects to succeed must leave it alone. TC-SC-3.5 sets it for every attempt but its first.
+
+**It bounds our wait, not the handshake.** `Peer.connect`'s `connectionTimeout` is documented as
+orthogonal to abort: the connection process continues after the caller gives up. So the rejection it
+produces reports a budget that expired, not what the device answered — TC-SC-3.5's step evidence says
+exactly that, and the device's own answer is read from the attached controller log and from the script's.
+Cancelling the attempt outright needs an abort that reaches past PASE, which does not exist yet.
 
 Two things obscured this while it was being diagnosed. The script's prompt says "Input anything once
 commissioning has *started*", and a human answering there lets the script check `WindowStatus` and

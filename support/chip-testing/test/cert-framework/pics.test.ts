@@ -38,6 +38,7 @@ describe("PicsFile", () => {
 
 describe("PicsSource", () => {
     describe("composite", () => {
+        // Characterization: composition order predates this suite.
         it("applies later sources over earlier ones", async () => {
             const composed = await PicsSource.load({
                 kind: "composite",

@@ -353,6 +353,7 @@ describe("PromptDrivenPythonTest", () => {
         );
     });
 
+    // Characterization: pins the boundary of the guard above, and passes with or without it.
     it("does not require a handler to fire when the test declares none", async () => {
         const terminal = new FakeTerminal(["no prompts at all", PASS_LINE]);
         const { container } = fakeContainer(terminal);
