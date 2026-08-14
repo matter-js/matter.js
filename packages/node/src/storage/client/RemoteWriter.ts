@@ -79,13 +79,10 @@ export function RemoteWriter(node: ClientNode, structure: ClientStructure): Remo
             // Without an answer we cannot know what the peer applied.  The caller sees this write as failed, so the
             // mirror must not keep the values either; a later report corrects us if the device did apply them.
             if (onFailure) {
-                await onFailure(
-                    [
-                        ...attempted.map(path => ({ kind: "attr-status", path, status: Status.Failure }) as const),
-                        ...declined,
-                    ],
-                    true,
-                );
+                await onFailure([
+                    ...attempted.map(path => ({ kind: "attr-status", path, status: Status.Failure }) as const),
+                    ...declined,
+                ]);
             }
             throw e;
         }

@@ -93,13 +93,12 @@ export class RemoteWriteParticipant implements Transaction.Participant {
         this.#request = [];
         this.#snapshots = new Map();
 
-        await this.#writer(request, (failures, unanswered) => this.#compensate(snapshots, failures, unanswered));
+        await this.#writer(request, failures => this.#compensate(snapshots, failures));
     }
 
     async #compensate(
         snapshots: Map<string, RemoteWriteParticipant.Snapshot>,
         failures: WriteResult.AttributeStatus[],
-        unanswered?: boolean,
     ) {
         if (!snapshots.size) {
             return;
@@ -126,7 +125,7 @@ export class RemoteWriteParticipant implements Transaction.Participant {
                     failedIds,
                     snapshot.previousValues,
                     snapshot.writtenValues,
-                    unanswered ? { reportEpoch: snapshot.reportEpoch } : undefined,
+                    snapshot.reportEpoch,
                 );
             } catch (compensateError) {
                 logger.warn(`Failed to restore local state for ${key} after remote write decline:`, compensateError);
@@ -155,28 +154,20 @@ function snapshotKey(endpointNumber: EndpointNumber | number, behaviorId: string
 
 export namespace RemoteWriteParticipant {
     /**
-     * Restores local cache state for attribute writes the remote device declined.
+     * Restores local cache state for attribute writes the remote device did not accept.
      *
      * The participant invokes this with the failed attribute keys after a write fails.  Implementations should only
-     * restore values for keys present in {@link previousValues} AND only when the current local value still equals
-     * what was just written — leaving concurrently-mutated values alone.
+     * restore values for keys present in {@link previousValues}, only when the current local value still equals what
+     * was just written, and only when the peer has said nothing about the attribute since {@link reportEpoch} — the
+     * device defines its own state, so anything it told us during the write outranks our pre-write snapshot.
      */
     export interface Compensator {
         compensate(
             failedAttributeIds: Set<string>,
             previousValues: Val.Struct,
             writtenValues: Val.Struct,
-            unanswered?: Unanswered,
+            reportEpoch: number,
         ): Promise<void>;
-    }
-
-    /**
-     * Present when the peer never answered the write, carrying the {@link SnapshotInput.reportEpoch} captured when it
-     * was queued.  A peer that explicitly declined leaves this absent: its answer is authoritative, so the value is
-     * restored regardless of what the peer reported meanwhile.
-     */
-    export interface Unanswered {
-        reportEpoch: number;
     }
 
     /**

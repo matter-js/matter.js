@@ -90,13 +90,13 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
      * Only restores keys that:
      *   - had a captured pre-write value (skip if the snapshot doesn't know the prior state), AND
      *   - still hold the value we attempted to write (skip if a concurrent subscription update already moved on), AND
-     *   - the peer has not reported since the write was queued, when the peer never answered at all.
+     *   - the peer has said nothing about the attribute since the write was queued.
      */
     async compensate(
         failedAttributeIds: Set<string>,
         previousValues: Val.Struct,
         writtenValues: Val.Struct,
-        unanswered?: RemoteWriteParticipant.Unanswered,
+        reportEpoch: number,
     ) {
         if (this.#erased || this.#reclaimed || !this.#consumer) {
             return;
@@ -114,10 +114,10 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
             if (current[id] !== writtenValues[id]) {
                 continue;
             }
-            // A report carrying the value we wrote is discarded as unchanged, so it leaves the reference alone and the
-            // check above cannot see it.  Without an answer from the peer that report is the only evidence of what the
-            // device actually holds, and it says our write landed.
-            if (unanswered !== undefined && (this.#reportedAt.get(id) ?? -1) > unanswered.reportEpoch) {
+            // The device defines its own state: anything it reported while the write was in flight outranks our
+            // pre-write snapshot.  A report carrying the value we wrote is discarded as unchanged, so it leaves the
+            // reference alone and the check above cannot see it — this is its only trace.
+            if ((this.#reportedAt.get(id) ?? -1) > reportEpoch) {
                 continue;
             }
             restore.set(id, previousValues[id]);
