@@ -15,6 +15,7 @@ import {
     LogDestination,
     LogFormat,
     Logger,
+    Millis,
     MockStorageService,
     ObserverGroup,
     Seconds,
@@ -63,6 +64,7 @@ import type {
     ReadEventOptions,
     SubscribeEventOptions,
     SubscribeOptions,
+    TimedInteractionOptions,
 } from "@matter/testing";
 import { LineQueue, LogFollower } from "@matter/testing";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -105,6 +107,20 @@ function toIds(path: AttributePathSpec) {
         clusterId: path.cluster !== undefined ? ClusterId(path.cluster) : undefined,
         attributeId: path.attribute !== undefined ? AttributeId(path.attribute) : undefined,
     };
+}
+
+/**
+ * `Invoke`/`Write` derive `timedRequest` from either flag, and a zero timeout is falsy — asking for one
+ * without `timed` would send the interaction untimed, where chip-tool sends a real timed request for
+ * the same call. An absent option stays absent rather than becoming a default the caller did not ask
+ * for.
+ */
+function timedInteraction(options?: TimedInteractionOptions) {
+    const { timedInteractionTimeoutMs } = options ?? {};
+    if (timedInteractionTimeoutMs === undefined) {
+        return {};
+    }
+    return { timed: true, timeout: Millis(timedInteractionTimeoutMs) };
 }
 
 function isConcretePath(path: AttributePathSpec) {
@@ -265,7 +281,13 @@ class InProcessCertNodeApi implements CertNodeApi {
         return peer;
     }
 
-    invoke(cluster: string | number, command: string, args?: object, endpoint = 0): Promise<unknown> {
+    invoke(
+        cluster: string | number,
+        command: string,
+        args?: object,
+        endpoint = 0,
+        options?: TimedInteractionOptions,
+    ): Promise<unknown> {
         return runTagged(this.#adapterId, async () => {
             const { model: clusterModel, id: clusterId } = clusterModelFor(cluster);
             const commandModel = clusterModel.commands(command);
@@ -273,6 +295,7 @@ class InProcessCertNodeApi implements CertNodeApi {
                 throw new ImplementationError(`Unknown command "${command}" on cluster ${cluster}`);
             }
             const request = Invoke({
+                ...timedInteraction(options),
                 commands: [
                     Invoke.ConcreteCommandRequest({
                         endpoint: EndpointNumber(endpoint),
@@ -365,7 +388,7 @@ class InProcessCertNodeApi implements CertNodeApi {
         });
     }
 
-    writeAttribute(path: AttributePathSpec, value: unknown): Promise<void> {
+    writeAttribute(path: AttributePathSpec, value: unknown, options?: TimedInteractionOptions): Promise<void> {
         return runTagged(this.#adapterId, async () => {
             const { endpoint, cluster, attribute } = path;
             if (endpoint === undefined || cluster === undefined || attribute === undefined) {
@@ -373,6 +396,7 @@ class InProcessCertNodeApi implements CertNodeApi {
             }
             const result = await this.#peer.interaction.write(
                 Write(
+                    timedInteraction(options),
                     Write.Attribute({
                         endpoint: EndpointNumber(endpoint),
                         ...attributeSpecFor(cluster, attribute, value),

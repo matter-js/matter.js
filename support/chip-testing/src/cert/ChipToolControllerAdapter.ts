@@ -33,6 +33,7 @@ import type {
     ReadEventOptions,
     SubscribeEventOptions,
     SubscribeOptions,
+    TimedInteractionOptions,
 } from "@matter/testing";
 import { LineQueue, LogFollower, UnsupportedByControllerError } from "@matter/testing";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -100,6 +101,13 @@ function quoteArg(value: string) {
         return value;
     }
     return `'${value.replace(/[\\']/g, match => `\\${match}`)}'`;
+}
+
+/** chip-tool's own name for the timed-interaction timeout, on `command-by-id` and `write-by-id` alike. */
+function timedArg(options?: TimedInteractionOptions) {
+    return options?.timedInteractionTimeoutMs === undefined
+        ? ""
+        : ` --timedInteractionTimeoutMs ${options.timedInteractionTimeoutMs}`;
 }
 
 function clusterArg(path: AttributePathSpec) {
@@ -648,7 +656,13 @@ class ChipToolCertNodeApi implements CertNodeApi {
         return this.#nodeId.toString();
     }
 
-    async invoke(cluster: string | number, command: string, args?: object, endpoint = 0): Promise<unknown> {
+    async invoke(
+        cluster: string | number,
+        command: string,
+        args?: object,
+        endpoint = 0,
+        options?: TimedInteractionOptions,
+    ): Promise<unknown> {
         const { cluster: clusterModel, clusterId, command: commandModel } = commandModelFor(cluster, command);
         const fields =
             args !== undefined && Object.keys(args).length > 0
@@ -657,7 +671,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
 
         const reply = await this.#adapter.execute(
             `any command-by-id ${hex(clusterId)} ${hex(commandModel.id)} ${quoteArg(fields)} ` +
-                `${this.#node} ${endpoint}`,
+                `${this.#node} ${endpoint}${timedArg(options)}`,
         );
 
         const operation = `invoke ${clusterModel.name}.${commandModel.name}`;
@@ -726,13 +740,13 @@ class ChipToolCertNodeApi implements CertNodeApi {
         return toReadEntries(reply.values);
     }
 
-    async writeAttribute(path: AttributePathSpec, value: unknown): Promise<void> {
+    async writeAttribute(path: AttributePathSpec, value: unknown, options?: TimedInteractionOptions): Promise<void> {
         const { endpoint, cluster, attribute } = path;
         if (endpoint === undefined || cluster === undefined || attribute === undefined) {
             throw new ImplementationError("writeAttribute requires a concrete endpoint/cluster/attribute path");
         }
 
-        const reply = await this.#write([{ path, value }], "writeAttribute");
+        const reply = await this.#write([{ path, value }], "writeAttribute", options);
         assertNoFailure(reply, `write ${JSON.stringify(path)}`);
 
         const status = statusFor(reply.statuses, { endpoint, cluster, attribute });
@@ -945,7 +959,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
         return this.#adapter.execute(command, { attributes: paths });
     }
 
-    #write(entries: AttributeWriteEntry[], operation: string) {
+    #write(entries: AttributeWriteEntry[], operation: string, options?: TimedInteractionOptions) {
         const values = entries.map(({ path: { cluster, endpoint, attribute }, value }) => {
             if (cluster === undefined || attribute === undefined) {
                 throw new ImplementationError(`${operation} requires a concrete cluster and attribute`);
@@ -971,6 +985,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
         if (versions.length) {
             command += ` --data-version ${versions.join(",")}`;
         }
+        command += timedArg(options);
 
         return this.#adapter.execute(command, { attributes: entries.map(({ path }) => path) });
     }
