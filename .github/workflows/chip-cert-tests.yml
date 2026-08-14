@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # This workflow executes the certification controller tests (support/chip-testing's `test-cert`
-# suite, test/cert/**/*.test.ts) — matter.js's own controller stack driving real Matter
-# certification test plan steps against a TH (test harness) implementation. It is triggered by:
+# suite, test/cert/**/*.test.ts) — a controller stack driving real Matter certification test plan
+# steps against a TH (test harness) implementation. It is triggered by:
 #
 #   * A daily schedule
 #
@@ -15,21 +15,41 @@
 #
 #   * A push whose head commit message contains [execute-certtests]
 #
-# Device binary sources for the chip-local flavor (test/cert's real-chip-binary TH):
+# test-cert-framework runs the framework's own logic proofs once, as a gate: they are hermetic, so a
+# defect there would otherwise be diagnosed six times over from six device-specific runs.
 #
-#   * "cert-bins" — project-chip's official connectedhomeip/chip-cert-bins image. Published
-#     linux/arm64 only, so this runs on an arm64 runner (ubuntu-24.04-arm) with the harness "chip"
-#     container itself also running linux/arm64 (chip/state.ts rejects a platform mismatch)
+# One job definition, test-cert, then covers the whole controller × device interop matrix; it expands
+# into test-cert-<controller>-vs-<device> from the table `prepare` emits.
+#
+# Controllers:
+#
+#   * "matterjs" — matter.js's own in-process controller stack
+#
+#   * "chiptool" — project-chip's chip-tool binary (MATTER_CERT_CONTROLLER=chip-tool), as a
+#     differential oracle. chip-tool is a Linux binary spawned on the runner itself, so those legs
+#     also install its runtime libraries
+#
+# Devices:
+#
+#   * "matterjs" — an in-process TestInstance TH, no Docker app binaries. Always runs, cheaply, and
+#     validates the suite's controller-side step logic even when both binary paths below have issues
 #
 #   * "own-built" — the app binaries matter.js builds itself (support/chip/Dockerfile), taken from
 #     the published ghcr.io/matter-js/chip image: chip-all-clusters-app,
 #     chip-all-clusters-app-nlfaultinject and chip-bridge-app. Published as a multi-arch manifest,
-#     so each job pulls the variant matching its runner
+#     so each leg pulls the variant matching its runner. Runs when run-own-built is selected
 #
-# A third "matterjs" flavor always runs, cheaply: an in-process TestInstance TH, no Docker app
-# binaries, validating the suite's controller-side step logic even when both binary paths above
-# have issues. TC-SC-3.5 self-skips there — it runs only where MATTER_CERT_TH_SERVER_APP_PATH names
-# a TH_SERVER binary, which the two binary-source jobs set and this one does not.
+#   * "cert-bins" — project-chip's official connectedhomeip/chip-cert-bins image. Published
+#     linux/arm64 only, so any leg touching it runs on an arm64 runner (ubuntu-24.04-arm) with the
+#     harness "chip" container also running linux/arm64 (chip/state.ts rejects a platform mismatch).
+#     Runs when run-cert-bins is selected
+#
+# chiptool-vs-cert-bins and chiptool-vs-own-built are control legs: CHIP drives CHIP, with no
+# matter.js protocol code in the path. A failure there is a defect in the test step definitions or
+# in the CHIP binaries themselves, not an interop finding about matter.js.
+#
+# TC-SC-3.5 runs only where MATTER_CERT_TH_SERVER_APP_PATH names a TH_SERVER binary, so it
+# self-skips on the matterjs device.
 
 name: Chip Certification Controller Tests
 
@@ -82,6 +102,7 @@ jobs:
       run-cert-bins: ${{ steps.flags.outputs.cert-bins }}
       run-own-built: ${{ steps.flags.outputs.own-built }}
       chip-bins-tag: ${{ steps.resolve.outputs.chip-bins-tag }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
       - name: Resolve trigger inputs
         id: resolve
@@ -137,66 +158,95 @@ jobs:
             *) echo "::error::Unknown binaries source '$SOURCE'"; exit 1 ;;
           esac
 
-  # Cheap flavor: in-process matter.js TestInstance TH, no Docker app binaries. Still needs the
-  # shared dbus/mdns/chip harness containers (the published image is fine here), so this validates
-  # the suite's controller-side step logic independent of either binary-source path above.
-  test-cert-matterjs:
+      # The interop table, one entry per controller × device combination, filtered down to the
+      # device binary sources this run selected. The device gate lives here rather than in the
+      # test-cert job's `if` because a job-level `if` cannot see the matrix context.
+      #
+      # Each entry carries everything the shared job definition varies on:
+      #
+      #   controller/device        leg identity — job name, artifact name, and which steps apply
+      #   runner                   GitHub runner label
+      #   chip-platform            MATTER_CHIP_PLATFORM: harness container and image pull platform
+      #   chip-bins-source         MATTER_CHIP_BINS_SOURCE, empty for "matter.js's own build"
+      #   cert-controller          MATTER_CERT_CONTROLLER
+      #   cert-device              MATTER_CERT_DEVICE
+      #   app-dir                  MATTER_CERT_APP_DIR, empty where no host binaries are needed
+      #   th-server-app-path       MATTER_CERT_TH_SERVER_APP_PATH, empty where TC-SC-3.5 self-skips
+      #   apt-packages             host packages to install, empty to skip that step entirely
+      - name: Build the controller/device matrix
+        id: matrix
+        env:
+          RUN_CERT_BINS: ${{ steps.flags.outputs.cert-bins }}
+          RUN_OWN_BUILT: ${{ steps.flags.outputs.own-built }}
+        run: |
+          matrix=$(jq -nc --arg certBins "$RUN_CERT_BINS" --arg ownBuilt "$RUN_OWN_BUILT" '
+            [
+              {
+                "controller": "matterjs", "device": "matterjs",
+                "runner": "ubuntu-latest", "chip-platform": "linux/amd64",
+                "chip-bins-source": "", "cert-controller": "matterjs", "cert-device": "matterjs",
+                "app-dir": "", "th-server-app-path": "",
+                "apt-packages": ""
+              },
+              {
+                "controller": "matterjs", "device": "own-built",
+                "runner": "ubuntu-latest", "chip-platform": "linux/amd64",
+                "chip-bins-source": "", "cert-controller": "matterjs", "cert-device": "chip-local",
+                "app-dir": "/tmp/cert-app-dir", "th-server-app-path": "/bin/chip-all-clusters-app-nlfaultinject",
+                "apt-packages": "avahi-daemon"
+              },
+              {
+                "controller": "matterjs", "device": "cert-bins",
+                "runner": "ubuntu-24.04-arm", "chip-platform": "linux/arm64",
+                "chip-bins-source": "cert-bins", "cert-controller": "matterjs", "cert-device": "chip-local",
+                "app-dir": "", "th-server-app-path": "/official-chip-bins/chip-all-clusters-app-nlfaultinject",
+                "apt-packages": "avahi-daemon"
+              },
+              {
+                "controller": "chiptool", "device": "matterjs",
+                "runner": "ubuntu-24.04-arm", "chip-platform": "linux/arm64",
+                "chip-bins-source": "cert-bins", "cert-controller": "chip-tool", "cert-device": "matterjs",
+                "app-dir": "", "th-server-app-path": "",
+                "apt-packages": "avahi-daemon libavahi-client3 libglib2.0-0 libpcsclite1 libevent-dev"
+              },
+              {
+                "controller": "chiptool", "device": "cert-bins",
+                "runner": "ubuntu-24.04-arm", "chip-platform": "linux/arm64",
+                "chip-bins-source": "cert-bins", "cert-controller": "chip-tool", "cert-device": "chip-local",
+                "app-dir": "", "th-server-app-path": "/official-chip-bins/chip-all-clusters-app-nlfaultinject",
+                "apt-packages": "avahi-daemon libavahi-client3 libglib2.0-0 libpcsclite1 libevent-dev"
+              },
+              {
+                "controller": "chiptool", "device": "own-built",
+                "runner": "ubuntu-24.04-arm", "chip-platform": "linux/arm64",
+                "chip-bins-source": "", "cert-controller": "chip-tool", "cert-device": "chip-local",
+                "app-dir": "/tmp/cert-app-dir", "th-server-app-path": "/bin/chip-all-clusters-app-nlfaultinject",
+                "apt-packages": "avahi-daemon libavahi-client3 libglib2.0-0 libpcsclite1 libevent-dev"
+              }
+            ]
+            | map(select(.device != "cert-bins" or $certBins == "true"))
+            | map(select(.device != "own-built" or $ownBuilt == "true"))
+          ')
+
+          echo "$matrix" | jq -r '.[] | "selected: test-cert-\(.controller)-vs-\(.device) on \(.runner)"'
+
+          count=$(echo "$matrix" | jq 'length')
+          if [ "$count" -eq 0 ]; then
+            echo "::error::No controller/device combination selected (cert-bins=$RUN_CERT_BINS," \
+              "own-built=$RUN_OWN_BUILT). A run that tests nothing must not report success."
+            exit 1
+          fi
+
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  # The framework's own logic proofs: hermetic, no device and no chip binaries, so they are the same
+  # everywhere and run once as a gate rather than once per leg. A framework defect fails here instead
+  # of being diagnosed six times over from six device-specific runs.
+  test-cert-framework:
     needs: prepare
     if: needs.prepare.outputs.should-run == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Check out matter.js
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.prepare.outputs.ref }}
-
-      - name: Use Node.js 22.x
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22.x
-
-      - name: Install matter.js
-        run: npm ci --foreground-scripts
-
-      - name: Pull chip harness image from repository
-        run: docker pull ghcr.io/matter-js/chip
-
-      - name: Run certification framework tests (prerequisite proof)
-        env:
-          MATTER_CERT_DEVICE: matterjs
-          MATTER_TEST_SHUTDOWN_TIMEOUT_MS: 15000
-          MATTER_WTF: 1
-        run: |
-          cd support/chip-testing
-          npm run test-cert-framework -- --no-pull
-
-      - name: Run certification controller tests (matterjs flavor)
-        env:
-          MATTER_CERT_DEVICE: matterjs
-          MATTER_TEST_SHUTDOWN_TIMEOUT_MS: 15000
-          MATTER_WTF: 1
-        run: |
-          cd support/chip-testing
-          npm run test-cert -- --no-pull
-
-      - name: Upload cert evidence
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: cert-evidence-matterjs.zip
-          path: support/chip-testing/build/cert-evidence/**
-          if-no-files-found: ignore
-
-  # chip-local flavor using binaries baked into matter.js's own published chip image:
-  # chip-all-clusters-app for TC-IDM-2.1/TC-ACT-3.2/TC-CADMIN-1.17, and
-  # chip-all-clusters-app-nlfaultinject — reachable inside the running harness container at
-  # /bin/chip-all-clusters-app-nlfaultinject with no extra bind-mount — as TC-SC-3.5's TH_SERVER.
-  test-cert-own-built:
-    needs: prepare
-    if: needs.prepare.outputs.should-run == 'true' && needs.prepare.outputs.run-own-built == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - name: Check out matter.js
         uses: actions/checkout@v7
@@ -214,74 +264,29 @@ jobs:
       - name: Pull chip harness image from repository
         run: docker pull --platform linux/amd64 ghcr.io/matter-js/chip
 
-      - name: Extract chip-local app binaries from the published image
-        run: |
-          mkdir -p /tmp/cert-app-dir
-          docker run --rm -v /tmp/cert-app-dir:/out ghcr.io/matter-js/chip:latest \
-            bash -c "cp -a /bin/chip-all-clusters-app* /bin/chip-bridge-app /out/"
-          # cert-dsl.ts's chipLocalMarkerRevision() reads this to populate evidence's chipRef; the
-          # image carries the same connectedhomeip commit in its org.opencontainers.image.revision
-          # label (baked by docker-bake.hcl from CHIP_COMMIT).
-          docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' \
-            ghcr.io/matter-js/chip:latest > /tmp/cert-app-dir/CHIP_REF
-
-      - name: Verify TH_SERVER/DUT binaries were extracted
-        run: |
-          for bin in chip-all-clusters-app chip-all-clusters-app-nlfaultinject chip-bridge-app; do
-            if [ ! -x "/tmp/cert-app-dir/$bin" ]; then
-              echo "::error::$bin is missing from the published ghcr.io/matter-js/chip image." \
-                "support/chip/Dockerfile's own-built binaries changed shape, or the image pipeline" \
-                "silently failed to produce it; the own-built cert-test binaries path cannot proceed."
-              exit 1
-            fi
-          done
-
-      # chip-local spawns the chip apps on the host; they are built with platform mdns and
-      # advertise via avahi over the system dbus, neither of which GitHub runners provide
-      - name: Start host mDNS responder
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y avahi-daemon
-          sudo systemctl start avahi-daemon
-
-      # Framework self-tests are hermetic logic proofs — they manage their own fixtures and must
-      # not inherit the binary-flavor environment of the real TC run below
-      - name: Run certification framework tests (prerequisite proof)
+      # No binary-flavor environment here: these tests manage their own fixtures, and inheriting one
+      # would have them pull a device image they never use.
+      - name: Run certification framework tests
         env:
+          MATTER_CHIP_PLATFORM: linux/amd64
           MATTER_TEST_SHUTDOWN_TIMEOUT_MS: 15000
           MATTER_WTF: 1
         run: |
           cd support/chip-testing
           npm run test-cert-framework -- --no-pull
 
-      - name: Run certification controller tests (own-built binaries)
-        env:
-          MATTER_CERT_DEVICE: chip-local
-          MATTER_CERT_APP_DIR: /tmp/cert-app-dir
-          MATTER_CERT_TH_SERVER_APP_PATH: /bin/chip-all-clusters-app-nlfaultinject
-          MATTER_TEST_SHUTDOWN_TIMEOUT_MS: 15000
-          MATTER_WTF: 1
-        run: |
-          cd support/chip-testing
-          npm run test-cert -- --no-pull
-
-      - name: Upload cert evidence
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: cert-evidence-own-built.zip
-          path: support/chip-testing/build/cert-evidence/**
-          if-no-files-found: ignore
-
-  # chip-local flavor using project-chip's official chip-cert-bins binaries (arm64-only, so this
-  # runs on a native arm64 runner). Extraction and the officialChipBinsDir bind-mount are handled by
-  # packages/testing/src/chip/chip-bins.ts + chip/state.ts; chip-cert-bins already ships
-  # chip-all-clusters-app-nlfaultinject, so TC-SC-3.5's TH_SERVER path needs no separate wiring.
-  test-cert-cert-bins:
-    needs: prepare
-    if: needs.prepare.outputs.should-run == 'true' && needs.prepare.outputs.run-cert-bins == 'true'
-    runs-on: ubuntu-24.04-arm
+  test-cert:
+    needs: [prepare, test-cert-framework]
+    if: needs.prepare.outputs.should-run == 'true'
+    name: test-cert-${{ matrix.controller }}-vs-${{ matrix.device }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
+    strategy:
+      # Legs are independent: one broken combination must not cancel the evidence from the others.
+      fail-fast: false
+      matrix:
+        # Forks skip prepare on its repository gate, so the output can be absent entirely here.
+        include: ${{ fromJSON(needs.prepare.outputs.matrix || '[]') }}
     steps:
       - name: Check out matter.js
         uses: actions/checkout@v7
@@ -296,37 +301,86 @@ jobs:
       - name: Install matter.js
         run: npm ci --foreground-scripts
 
-      # chip/state.ts rejects a harness container whose platform doesn't match the arm64-only
-      # cert-bins binaries, so this must resolve the arm64 variant of the multi-arch manifest.
+      # chip/state.ts rejects a harness container whose platform doesn't match bind-mounted cert-bins
+      # binaries, and an arm64 runner cannot usefully run an amd64 container, so the pull resolves
+      # the matching variant of the multi-arch manifest rather than the default one.
       - name: Pull chip harness image from repository
-        run: docker pull --platform linux/arm64 ghcr.io/matter-js/chip
+        run: docker pull --platform ${{ matrix.chip-platform }} ghcr.io/matter-js/chip
 
-      # See the own-built job's step of the same name
-      - name: Start host mDNS responder
+      # Only the own-built device needs binaries placed on the host: cert-bins extracts its own
+      # lazily at test time (chip-bins.ts's prepareChipBins) and the matterjs device runs in-process.
+      - name: Extract chip-local app binaries from the published image
+        if: matrix.device == 'own-built'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y avahi-daemon
-          sudo systemctl start avahi-daemon
+          mkdir -p /tmp/cert-app-dir
+          docker run --rm -v /tmp/cert-app-dir:/out ghcr.io/matter-js/chip:latest \
+            bash -c "cp -a /bin/chip-all-clusters-app* /bin/chip-bridge-app /out/"
+          # cert-dsl.ts's chipLocalMarkerRevision() reads this to populate evidence's chipRef; the
+          # image carries the same connectedhomeip commit in its org.opencontainers.image.revision
+          # label (baked by docker-bake.hcl from CHIP_COMMIT).
+          docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' \
+            ghcr.io/matter-js/chip:latest > /tmp/cert-app-dir/CHIP_REF
 
-      # Framework self-tests are hermetic logic proofs — they manage their own fixtures and must
-      # not inherit the binary-flavor environment of the real TC run below (the container platform
-      # still has to match this arm64 runner)
-      - name: Run certification framework tests (prerequisite proof)
+      - name: Verify TH_SERVER/DUT binaries were extracted
+        if: matrix.device == 'own-built'
+        run: |
+          for bin in chip-all-clusters-app chip-all-clusters-app-nlfaultinject chip-bridge-app; do
+            if [ ! -x "/tmp/cert-app-dir/$bin" ]; then
+              echo "::error::$bin is missing from the published ghcr.io/matter-js/chip image." \
+                "support/chip/Dockerfile's own-built binaries changed shape, or the image pipeline" \
+                "silently failed to produce it; the own-built cert-test binaries path cannot proceed."
+              exit 1
+            fi
+          done
+
+      # chiptool-vs-own-built is the one combination the code cannot resolve from a single source:
+      # MATTER_CHIP_BINS_SOURCE=cert-bins makes resolveChipLocalAppDir() (chip-app-subject.ts) ignore
+      # MATTER_CERT_APP_DIR and hand back the cert-bins directory, forcing a cert-bins device. With
+      # the source left unset, resolveChipToolBinary() (chip-tool-client.ts) looks for chip-tool in
+      # MATTER_CERT_APP_DIR — so the official binary joins the own-built apps there, arm64 like them.
+      - name: Add the official chip-tool to the app directory
+        if: matrix.controller == 'chiptool' && matrix.device == 'own-built'
         env:
-          MATTER_CHIP_PLATFORM: linux/arm64
-          MATTER_TEST_SHUTDOWN_TIMEOUT_MS: 15000
-          MATTER_WTF: 1
+          MATTER_CHIP_BINS_TAG: ${{ needs.prepare.outputs.chip-bins-tag }}
         run: |
           cd support/chip-testing
-          npm run test-cert-framework -- --no-pull
+          node --input-type=module -e '
+            import { copyFile } from "node:fs/promises";
+            import { join } from "node:path";
+            import { prepareChipBins } from "@matter/testing";
+            const { dir, tag } = await prepareChipBins();
+            await copyFile(join(dir, "chip-tool"), "/tmp/cert-app-dir/chip-tool");
+            console.log(`Copied chip-tool from chip-cert-bins:${tag}`);
+          '
+          if [ ! -x /tmp/cert-app-dir/chip-tool ]; then
+            echo "::error::chip-cert-bins yielded no executable chip-tool; a chip-tool controller" \
+              "cannot run against the own-built device binaries."
+            exit 1
+          fi
 
-      - name: Run certification controller tests (cert-bins binaries)
+      # chip-local spawns the chip apps on the host; they are built with platform mdns and advertise
+      # via avahi over the system dbus, neither of which GitHub runners provide. A chip-tool
+      # controller runs on the host too and needs avahi to discover the device even when that device
+      # advertises over plain UDP multicast itself; it also links more than the chip-<app>-app
+      # binaries do (libpcsclite, libavahi-client, libevent — the runtime list from
+      # support/chip/Dockerfile, where these same binaries normally run), and a missing one exits 127
+      # before printing anything.
+      - name: Start host mDNS responder and install chip runtime libraries
+        if: matrix.apt-packages != ''
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ matrix.apt-packages }}
+          sudo systemctl start avahi-daemon
+
+      - name: Run certification controller tests (${{ matrix.controller }} controller vs ${{ matrix.device }} device)
         env:
-          MATTER_CHIP_PLATFORM: linux/arm64
-          MATTER_CHIP_BINS_SOURCE: cert-bins
+          MATTER_CHIP_PLATFORM: ${{ matrix.chip-platform }}
+          MATTER_CHIP_BINS_SOURCE: ${{ matrix.chip-bins-source }}
           MATTER_CHIP_BINS_TAG: ${{ needs.prepare.outputs.chip-bins-tag }}
-          MATTER_CERT_DEVICE: chip-local
-          MATTER_CERT_TH_SERVER_APP_PATH: /official-chip-bins/chip-all-clusters-app-nlfaultinject
+          MATTER_CERT_CONTROLLER: ${{ matrix.cert-controller }}
+          MATTER_CERT_DEVICE: ${{ matrix.cert-device }}
+          MATTER_CERT_APP_DIR: ${{ matrix.app-dir }}
+          MATTER_CERT_TH_SERVER_APP_PATH: ${{ matrix.th-server-app-path }}
           MATTER_TEST_SHUTDOWN_TIMEOUT_MS: 15000
           MATTER_WTF: 1
         run: |
@@ -337,6 +391,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: cert-evidence-cert-bins.zip
+          name: cert-evidence-${{ matrix.controller }}-vs-${{ matrix.device }}.zip
           path: support/chip-testing/build/cert-evidence/**
           if-no-files-found: ignore

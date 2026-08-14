@@ -48,6 +48,7 @@ describe("EvidenceRecorder", () => {
             plan: "multiplefabrics.adoc",
             timestamp: "2026-08-07T12:34:56.789Z",
             controller: "matterjs",
+            controllerImplementation: "matterjs",
             device: "chip-docker",
             matterJsCommit: "abc1234",
         });
@@ -85,6 +86,7 @@ describe("EvidenceRecorder", () => {
             run: {
                 timestamp: "2026-08-07T12:34:56.789Z",
                 controller: "matterjs",
+                controllerImplementation: "matterjs",
                 device: "chip-docker",
                 matterJsCommit: "abc1234",
             },
@@ -133,6 +135,7 @@ describe("EvidenceRecorder", () => {
             plan: "multiplefabrics.adoc",
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "matterjs",
+            controllerImplementation: "matterjs",
             device: "chip-docker",
             matterJsCommit: "abc1234",
         });
@@ -161,6 +164,7 @@ describe("EvidenceRecorder", () => {
             plan: "multiplefabrics.adoc",
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "matterjs",
+            controllerImplementation: "matterjs",
             device: "chip-docker",
             matterJsCommit: "abc1234",
         });
@@ -180,6 +184,7 @@ describe("EvidenceRecorder", () => {
             plan: "multiplefabrics.adoc",
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "matterjs",
+            controllerImplementation: "matterjs",
             device: "chip-docker",
             matterJsCommit: "abc1234",
         });
@@ -196,6 +201,7 @@ describe("EvidenceRecorder", () => {
             plan: "multiplefabrics.adoc",
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "matterjs",
+            controllerImplementation: "matterjs",
             device: "chip-docker",
             matterJsCommit: "abc1234",
         });
@@ -216,6 +222,7 @@ describe("EvidenceRecorder", () => {
             plan: "multiplefabrics.adoc",
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "matterjs",
+            controllerImplementation: "matterjs",
             device: "chip-docker",
             matterJsCommit: "abc1234",
         });
@@ -237,6 +244,7 @@ describe("EvidenceRecorder", () => {
             plan: "multiplefabrics.adoc",
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "matterjs",
+            controllerImplementation: "matterjs",
             device: "chip-docker",
             matterJsCommit: "abc1234",
         });
@@ -258,6 +266,7 @@ describe("EvidenceRecorder", () => {
             plan: "multiplefabrics.adoc",
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "matterjs",
+            controllerImplementation: "matterjs",
             device: "chip-docker",
             matterJsCommit: "abc1234",
         });
@@ -273,11 +282,132 @@ describe("EvidenceRecorder", () => {
             plan: "multiplefabrics.adoc",
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "matterjs",
+            controllerImplementation: "matterjs",
             device: "chip-docker",
             matterJsCommit: "abc1234",
         });
 
         recorder.beginStep(step1);
         expect(() => recorder.endStep(step2, "pass")).throws("endStep(2) called while step 1 is active");
+    });
+
+    it("writes controllerImplementation and chipToolRef into the persisted metadata when supplied", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "chip-tool",
+            device: "matterjs:all-clusters",
+            matterJsCommit: "abc1234",
+            chipToolRef: "df8bd0308caa0680e2a78cda724a959e5b385205",
+        });
+
+        const dir = await recorder.flush();
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+
+        expect(resultJson.run.controllerImplementation).equal("chip-tool");
+        expect(resultJson.run.chipToolRef).equal("df8bd0308caa0680e2a78cda724a959e5b385205");
+    });
+
+    it("persists the controller-unsupported skip count, so a bare result.json says the run proved less", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-IDM-3.1",
+            plan: "interactiondatamodel.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "chip-tool",
+            device: "matterjs:all-clusters",
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.endStep(step1, "pass");
+        recorder.recordControllerUnsupportedSkips(2);
+
+        const dir = await recorder.flush();
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+
+        // A pass verdict alongside a nonzero count is exactly the case the field exists for.
+        expect(resultJson.verdict).equal("pass");
+        expect(resultJson.controllerUnsupportedSkips).equal(2);
+    });
+
+    it("omits the skip count from the persisted metadata when nothing was skipped that way", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-IDM-3.1",
+            plan: "interactiondatamodel.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "matterjs",
+            device: "matterjs:all-clusters",
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.endStep(step1, "pass");
+
+        const dir = await recorder.flush();
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+
+        expect("controllerUnsupportedSkips" in resultJson).equal(false);
+    });
+
+    it("omits chipToolRef from the persisted metadata when the run has none", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "matterjs",
+            device: "matterjs:all-clusters",
+            matterJsCommit: "abc1234",
+        });
+
+        const dir = await recorder.flush();
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+
+        expect("chipToolRef" in resultJson.run).equal(false);
+    });
+
+    it("renders a run header naming the TC, plan, device, controller (with roles), matter.js commit, chip ref, and the eventual evidence directory", () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-IDM-3.1",
+            plan: "interactionmodel.adoc",
+            timestamp: "2026-08-07T12:34:56.789Z",
+            controller: "dut,helper",
+            controllerImplementation: "chip-tool",
+            device: "matterjs:all-clusters",
+            matterJsCommit: "f97efb011",
+            chipRef: "df8bd0308caa0680e2a78cda724a959e5b385205",
+            chipToolRef: "df8bd0308caa0680e2a78cda724a959e5b385205",
+        });
+
+        expect(recorder.runHeaderLines()).deep.equal([
+            "===== TC-IDM-3.1 =====",
+            "plan       : interactionmodel.adoc",
+            "device     : matterjs:all-clusters",
+            "controller : chip-tool (dut,helper, df8bd0308caa0680e2a78cda724a959e5b385205)",
+            "matter.js  : f97efb011",
+            "chip ref   : df8bd0308caa0680e2a78cda724a959e5b385205",
+            `evidence   : ${pathMod.join(outDir, "2026-08-07T12-34-56.789Z-TC-IDM-3.1")}`,
+        ]);
+    });
+
+    it("renders the controller line without a chip-tool reference, and falls back to '(unknown)' for a missing chip ref", () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-IDM-3.1",
+            plan: "interactionmodel.adoc",
+            timestamp: "2026-08-07T12:34:56.789Z",
+            controller: "dut",
+            controllerImplementation: "matterjs",
+            device: "matterjs:all-clusters",
+            matterJsCommit: "f97efb011",
+        });
+
+        const lines = recorder.runHeaderLines();
+
+        expect(lines).to.include("controller : matterjs (dut)");
+        expect(lines).to.include("chip ref   : (unknown)");
     });
 });

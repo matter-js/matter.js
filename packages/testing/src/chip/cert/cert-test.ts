@@ -22,6 +22,7 @@ import {
     StepRecorder,
     StepVerdict,
 } from "./cert-context.js";
+import { UnsupportedByControllerError } from "./controller-adapter.js";
 
 const inertRecorder: StepRecorder = {
     beginStep() {},
@@ -72,8 +73,17 @@ export class CertTest extends BaseTest {
         let aborted = false;
         let failure: unknown;
         let failed = false;
+        let controllerUnsupportedSkips = 0;
 
         try {
+            // Provenance reporting must never be why a run that would otherwise pass its steps
+            // aborts before running any of them.
+            try {
+                announceRunHeader(cx, recorder);
+            } catch (e) {
+                console.warn("Cert test run-header reporting failed:", e);
+            }
+
             for (const stepDef of this.#definition.steps) {
                 // A step that can never execute keeps its declared reason; "aborted by step N" loses it.
                 if (stepDef.notApplicable !== undefined) {
@@ -121,6 +131,12 @@ export class CertTest extends BaseTest {
 
                     await raceAgainstDeviceExit(stepDef.run(cx), deviceExitWatch.exit, tc, stepDef.number);
                 } catch (e) {
+                    if (e instanceof UnsupportedByControllerError) {
+                        controllerUnsupportedSkips++;
+                        announceStepEnd(cx, tc, stepDef, "skipped", recorder.endStep(stepDef, "skipped", e.message));
+                        continue;
+                    }
+
                     announceStepEnd(cx, tc, stepDef, "fail", recorder.endStep(stepDef, "fail"));
                     aborted = true;
                     failed = true;
@@ -129,6 +145,15 @@ export class CertTest extends BaseTest {
                 }
 
                 announceStepEnd(cx, tc, stepDef, "pass", recorder.endStep(stepDef, "pass"));
+            }
+
+            // Every remaining step in a run can skip as controller-unsupported without ever failing
+            // it (verdict stays "pass" if at least one earlier step passed) — the log banner and the
+            // recorded count are what would tell a reader the run proved less than its verdict
+            // suggests; a raw result.json with no attached logs must say it too.
+            if (controllerUnsupportedSkips > 0) {
+                announceControllerSkipSummary(cx, tc, controllerUnsupportedSkips);
+                recorder.recordControllerUnsupportedSkips?.(controllerUnsupportedSkips);
             }
         } finally {
             const finalize = this.#definition.finalize;
@@ -269,6 +294,26 @@ function announceStep(cx: CertStepContext, lines: string[]): void {
 
 function announceStepStart(cx: CertStepContext, tc: string, stepDef: CertStepDefinition): void {
     announceStep(cx, [STEP_BANNER_RULE, `${tc} — Test Step ${stepDef.number}: ${stepDef.text}`, STEP_BANNER_RULE]);
+}
+
+/**
+ * Emits the run's configuration (see {@link StepRecorder.runHeaderLines}) before the first step, so
+ * a log excerpt carries its own provenance. A recorder with nothing to say (e.g. tests that stub
+ * {@link StepRecorder} without this hook) emits no header.
+ */
+function announceRunHeader(cx: CertStepContext, recorder: StepRecorder): void {
+    const lines = recorder.runHeaderLines?.();
+    if (lines && lines.length > 0) {
+        announceStep(cx, lines);
+    }
+}
+
+function announceControllerSkipSummary(cx: CertStepContext, tc: string, count: number): void {
+    announceStep(cx, [
+        STEP_BANNER_RULE,
+        `${tc} — ${count} step${count === 1 ? "" : "s"} skipped as unsupported by the controller`,
+        STEP_BANNER_RULE,
+    ]);
 }
 
 function errorText(e: unknown): string {

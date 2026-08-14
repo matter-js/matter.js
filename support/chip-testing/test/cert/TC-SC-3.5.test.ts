@@ -209,6 +209,7 @@ describe("TC-SC-3.5", () => {
             plan: "securechannel.adoc",
             timestamp: new Date().toISOString(),
             controller: "dut",
+            controllerImplementation: "matterjs",
             device: `python-wrapped:${DESCRIPTOR.path}`,
             matterJsCommit: "(not recorded)",
         });

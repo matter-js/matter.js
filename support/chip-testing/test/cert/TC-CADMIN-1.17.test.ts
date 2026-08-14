@@ -24,10 +24,16 @@ const VENDOR_ID = BASIC_INFORMATION.attributes.require("vendorId");
 const NODE_LABEL = BASIC_INFORMATION.attributes.require("nodeLabel");
 const OPERATIONAL_CREDENTIALS = Matter.clusters.require("OperationalCredentials");
 const FABRICS = OPERATIONAL_CREDENTIALS.attributes.require("fabrics");
+const CURRENT_FABRIC_INDEX = OPERATIONAL_CREDENTIALS.attributes.require("currentFabricIndex");
 
 const CW_DURATION_SECONDS = 180;
 const EXPECTED_CR2_FABRIC_INDEX = 2;
-const POST_REMOVAL_TIMEOUT_MS = 25_000;
+// Must outlast the slowest controller's own give-up: chip-tool retries operational discovery for a
+// node it can no longer reach for ~45s ("Checking node lookup status ... after 45025 ms") before
+// failing the command, which is longer than its 20s ModelCommand wait because the wait starts after
+// resolution. A budget under that reports "neither resolved nor rejected" for a controller that was
+// about to reject.
+const POST_REMOVAL_TIMEOUT_MS = 60_000;
 
 const WINDOW_OPEN_PATTERN = /Commissioning window is now open/;
 const COMMISSIONING_COMPLETE_PATTERN = /Commissioning completed successfully/;
@@ -69,10 +75,23 @@ function asFabricEntries(value: unknown[]): FabricEntry[] {
 }
 
 /**
- * The Fabrics attribute is fabric-scoped, so this read must not be fabric-filtered: a
- * multi-controller TC needs to see (and label-match) fabrics the reading controller didn't itself
- * create.
+ * The fabric index the TH assigned to `node`'s own controller, read over that controller's own session
+ * — the only discriminator every controller has without setup. A fabric's `Label` is empty until an
+ * admin writes one (Core § 11.18.6.2) and the plan's own `FabricIndex = 2` assumes commissioning order,
+ * so neither identifies a fabric for a harness that must work with any controller implementation.
  */
+async function readOwnFabricIndex(node: CertNodeApi): Promise<number> {
+    const value = await node.readAttribute({
+        endpoint: 0,
+        cluster: OPERATIONAL_CREDENTIALS.id,
+        attribute: CURRENT_FABRIC_INDEX.id,
+    });
+    if (typeof value !== "number") {
+        throw new InternalError(`Expected CurrentFabricIndex to read as a number, got ${JSON.stringify(value)}`);
+    }
+    return value;
+}
+
 async function readFabrics(node: CertNodeApi): Promise<FabricEntry[]> {
     const value = await node.readAttribute(
         { endpoint: 0, cluster: OPERATIONAL_CREDENTIALS.id, attribute: FABRICS.id },
@@ -315,11 +334,13 @@ certTest("TC-CADMIN-1.17", {
             const dutRef = commissioned.require("dut");
 
             const fabrics = await readFabrics(dut.node(dutRef));
-            const cr2Entry = fabrics.find(entry => entry.label === "th_cr2");
-            if (!cr2Entry) {
-                throw new Error(`Expected a fabric entry labeled "th_cr2", got ${describeFabrics(fabrics)}`);
+            cr2FabricIndex = await readOwnFabricIndex(cx.controllers.th_cr2.node(commissioned.require("th_cr2")));
+            if (!fabrics.some(entry => entry.fabricIndex === cr2FabricIndex)) {
+                throw new Error(
+                    `TH_CR2 reports fabric index ${cr2FabricIndex}, absent from DUT_CR1's own read: ` +
+                        describeFabrics(fabrics),
+                );
             }
-            cr2FabricIndex = cr2Entry.fabricIndex;
 
             const pass = fabrics.length === 3;
             cx.recorder.check({
@@ -432,16 +453,18 @@ certTest("TC-CADMIN-1.17", {
             const dutRef = commissioned.require("dut");
 
             const fabrics = await readFabrics(dut.node(dutRef));
-            const stillHasCr2 = fabrics.some(entry => entry.label === "th_cr2");
+            const stillHasCr2 = fabrics.some(entry => entry.fabricIndex === cr2FabricIndex);
             const pass = fabrics.length === 2 && !stillHasCr2;
             cx.recorder.check({
                 type: "response",
                 verdict: pass ? "pass" : "fail",
-                detail: `${fabrics.length} fabrics after removal: ${fabrics.map(entry => entry.label).join(", ")}`,
+                detail:
+                    `${fabrics.length} fabrics after removing index ${cr2FabricIndex}: ` +
+                    fabrics.map(entry => entry.fabricIndex).join(", "),
             });
             if (!pass) {
                 throw new Error(
-                    `Expected 2 fabrics (dut, th_cr3) with th_cr2 removed, got ${describeFabrics(fabrics)}`,
+                    `Expected 2 fabrics with index ${cr2FabricIndex} (TH_CR2) removed, got ` + describeFabrics(fabrics),
                 );
             }
         },
