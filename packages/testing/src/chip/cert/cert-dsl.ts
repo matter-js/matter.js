@@ -15,6 +15,7 @@ import { Docker } from "../../docker/docker.js";
 import { Image } from "../../docker/image.js";
 import { afterOne, beforeOne } from "../../mocha.js";
 import { TestFileDescriptor } from "../../test-descriptor.js";
+import { resolveChipBinsSource } from "../chip-bins.js";
 import { chip } from "../chip.js";
 import { State } from "../state.js";
 import { chipImageBase, ChipDockerSubject, ChipLocalSubject, resolveChipLocalAppDir } from "./chip-app-subject.js";
@@ -316,14 +317,16 @@ async function chipLocalMarkerRevision(): Promise<string | undefined> {
 }
 
 /**
- * Best-effort chip-tool build reference. `resolveChipLocalAppDir`'s directory is the one
- * `resolveChipToolBinary` (`support/chip-testing`) also resolves chip-tool's binary from — app and
- * chip-tool binaries extract from the same `chip-cert-bins` tag — so its stamp file names chip-tool's
- * build too, independent of the run's device flavor (a "matterjs" device has no chip-local directory
- * of its own, but the chip-tool controller commissioning it still does).
+ * Best-effort chip-tool build reference, reported only when this run's own configuration says where
+ * chip-tool came from: `resolveChipToolBinary` (`support/chip-testing`) resolves it out of the
+ * `chip-cert-bins` extraction whose stamp `chipLocalMarkerRevision` reads, but only while
+ * `MATTER_CHIP_BINS_SOURCE=cert-bins`. Without that the binary comes from `MATTER_CERT_APP_DIR`,
+ * whose stamp describes whatever else was extracted there — naming it would attribute a chip-tool
+ * build this run cannot actually identify, and evidence that lies is worse than evidence that is
+ * absent.
  */
 async function chipToolRefFor(implementation: ControllerImplementation): Promise<string | undefined> {
-    if (implementation !== "chip-tool") {
+    if (implementation !== "chip-tool" || resolveChipBinsSource() !== "cert-bins") {
         return undefined;
     }
     try {

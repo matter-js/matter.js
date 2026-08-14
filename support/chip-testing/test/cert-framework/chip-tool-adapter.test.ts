@@ -775,18 +775,32 @@ describe("ChipToolControllerAdapter", function () {
         expect(fake.commands[fake.commands.length - 1]).equal(`any command-by-id 0x6 0x1 {} ${ref} 1`);
     });
 
-    it("reports a device Failure status chip-tool logged ahead of the exit marker", async () => {
+    it("reports a pathless status the device could have answered, and a bare pathless Failure as neither", async () => {
         const { node } = await commissioned();
+        const path = { endpoint: 0, cluster: BASIC_INFORMATION.id, attribute: VENDOR_ID.id };
 
-        // `ReportCommand::OnError` logs the interaction's own StatusIB, and `AsJsonString` appends its
-        // marker after everything the command recorded, so only the trailing entry is that marker
+        // `ReportCommand::OnError` and its write and invoke siblings hand a raw CHIP_ERROR to
+        // `RemoteDataModelLogger::LogErrorAsJSON`, where `ClusterStatusCode(CHIP_ERROR)` maps a
+        // response timeout, a send failure or a dropped session to plain Failure too, so a bare
+        // pathless FAILURE is no evidence the device answered anything
         fake.reply = () => ({ results: [{ error: "FAILURE" }], status: 1 });
+        const ambiguous = await rejectionOf(node.readAttribute(path));
+        expect(ambiguous).instanceOf(ChipToolCommandError);
+        expect(ambiguous).not.instanceOf(StatusResponseError);
 
-        const failure = await rejectionOf(
-            node.readAttribute({ endpoint: 0, cluster: BASIC_INFORMATION.id, attribute: VENDOR_ID.id }),
+        // Only the IM global-status part of a CHIP_ERROR yields a status other than Failure
+        fake.reply = () => ({ results: [{ error: "UNSUPPORTED_ACCESS" }], status: 1 });
+        expect(StatusResponseError.of(await rejectionOf(node.readAttribute(path)))?.code).equal(
+            Status.UnsupportedAccess,
         );
-        expect(failure).instanceOf(StatusResponseError);
-        expect(StatusResponseError.of(failure)?.code).equal(Status.Failure);
+
+        // ...and only its IM cluster-status part yields a cluster code, which is how a device's
+        // cluster-specific answer to an invoke reaches chip-tool's non-extendable CommandSender
+        // callback (`CommandSender::ProcessInvokeResponseIB`)
+        fake.reply = () => ({ results: [{ error: "FAILURE", clusterError: 3 }], status: 1 });
+        const clusterSpecific = StatusResponseError.of(await rejectionOf(node.invoke("OnOff", "on", {}, 1)));
+        expect(clusterSpecific?.code).equal(Status.Failure);
+        expect(clusterSpecific?.clusterCode).equal(3);
     });
 
     it("rejects an enhanced window whose reply logged no pairing code", async () => {
@@ -1001,6 +1015,69 @@ describe("ChipToolControllerAdapter", function () {
             await waitFor(() => updates.length === 1, "the report to reach onUpdate");
 
             expect(abandoned).deep.equal([]);
+        });
+
+        it("rejects a subscribe whose own path the device rejected, and registers nothing", async () => {
+            const { node } = await commissioned();
+            const abandoned = new Array<unknown>();
+
+            function rejectedPath(status: number) {
+                return {
+                    results: [
+                        {
+                            clusterId: ON_OFF.id,
+                            endpointId: 1,
+                            attributeId: requireId(ON_OFF_ATTRIBUTE.id, "onOff"),
+                            error: "UNSUPPORTED_ATTRIBUTE",
+                        },
+                    ],
+                    status,
+                };
+            }
+
+            // `SubscribeCommand::OnSubscriptionEstablished` sets a zero exit status, so a device that
+            // answers the subscribed path with a status and establishes anyway leaves the path status
+            // as the reply's only account of itself
+            for (const status of [1, 0]) {
+                fake.reply = () => rejectedPath(status);
+
+                const failure = await rejectionOf(
+                    node.subscribe(PATH, { ...INTERVALS, onUpdate: value => abandoned.push(value) }),
+                );
+                expect(failure, `exit status ${status}`).instanceOf(StatusResponseError);
+                expect(StatusResponseError.of(failure)?.code, `exit status ${status}`).equal(
+                    Status.UnsupportedAttribute,
+                );
+            }
+
+            // A subscription the device refused has no reports to pump, and a later report on its path
+            // belongs to nobody
+            await delay(50);
+            expect(fake.armings).deep.equal([]);
+            expect(fake.pushReport(report(1, false))).equal("dropped");
+            expect(abandoned).deep.equal([]);
+        });
+
+        it("subscribes a wildcard the device rejected one path of, whose status is a per-item one", async () => {
+            const { node } = await commissioned();
+
+            fake.reply = () => ({
+                results: [
+                    report(1, true, 3),
+                    {
+                        clusterId: ON_OFF.id,
+                        endpointId: 2,
+                        attributeId: requireId(ON_OFF_ATTRIBUTE.id, "onOff"),
+                        error: "UNSUPPORTED_ACCESS",
+                    },
+                ],
+                status: 1,
+            });
+
+            expect(await node.subscribe({ cluster: ON_OFF.id }, INTERVALS)).deep.equal([
+                { endpoint: 1, cluster: ON_OFF.id, attribute: ON_OFF_ATTRIBUTE.id, value: true, version: 3 },
+            ]);
+            await waitFor(() => fake.armings.length === 1, "the adapter to park a report frame");
         });
 
         describe("a failed command whose reply carries a report", () => {

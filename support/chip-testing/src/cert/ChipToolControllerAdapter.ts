@@ -230,16 +230,23 @@ interface ChipPathStatus {
     clusterStatus?: number;
 }
 
+/** A non-success status chip-tool reported without naming a path. */
+interface ChipGlobalStatus {
+    status: ChipStatus;
+    clusterStatus?: number;
+}
+
 interface ChipReply {
     values: ChipAttributeValue[];
     responses: ChipCommandResponse[];
     /** Statuses carrying a path: for a wildcard expansion these are per-item, not a command failure. */
     statuses: ChipPathStatus[];
     /**
-     * Statuses carrying no path, which chip-tool derives from the interaction's own `StatusIB`
-     * (`ReportCommand::OnError` and its siblings): they apply to the whole interaction.
+     * Statuses carrying no path, which chip-tool derives from a raw `CHIP_ERROR`
+     * (`ReportCommand::OnError` and its siblings): they apply to the whole interaction, and the device
+     * may or may not be behind them — see {@link assertNoFailure}.
      */
-    globalStatuses: ChipStatus[];
+    globalStatuses: ChipGlobalStatus[];
     /**
      * Whether the reply's exit-status marker was the command's only account of itself: it failed, with
      * no interaction status to say how.
@@ -287,7 +294,7 @@ function interpretReply(results: unknown[], isOwnPath: OwnPathTest): ChipReply {
         values: new Array<ChipAttributeValue>(),
         responses: new Array<ChipCommandResponse>(),
         statuses: new Array<ChipPathStatus>(),
-        globalStatuses: new Array<ChipStatus>(),
+        globalStatuses: new Array<ChipGlobalStatus>(),
         commandFailed: false,
     };
 
@@ -328,7 +335,7 @@ function interpretReply(results: unknown[], isOwnPath: OwnPathTest): ChipReply {
                 clusterStatus: numberOf(result, "clusterError"),
             };
             if (cluster === undefined && endpoint === undefined) {
-                reply.globalStatuses.push(status.status);
+                reply.globalStatuses.push({ status: status.status, clusterStatus: status.clusterStatus });
             } else {
                 reply.statuses.push(status);
             }
@@ -433,23 +440,34 @@ function statusFor(statuses: ChipPathStatus[], path: { endpoint?: number; cluste
 }
 
 /**
- * A chip-tool command that failed with no interaction-model status behind it. chip-tool funnels
- * discovery, PASE, attestation, CASE, timeout and argument-parse failures alike into the bare
- * `{"error": "FAILURE"}` marker its exit status produces, so reporting one as a
+ * A chip-tool command that failed with no interaction-model status of the device's behind it.
+ * chip-tool funnels discovery, PASE, attestation, CASE, timeout and argument-parse failures alike into
+ * the bare `{"error": "FAILURE"}` marker its exit status produces, and a local failure of a live
+ * interaction into a pathless `Failure` indistinguishable from the device's own; reporting either as a
  * {@link StatusResponseError} would invent a status the device never sent — and let a spec-negative
  * step asserting `Failure` pass without the device ever having answered.
  */
 export class ChipToolCommandError extends MatterError {}
 
 /**
- * For read/write/invoke. A status chip-tool reported without a path is one it derived from the
- * interaction's own `StatusIB`, so it is the device's answer to the whole interaction; the exit-status
- * marker is not an interaction status at all.
+ * For read/write/invoke. A pathless status is one chip-tool derived from a raw `CHIP_ERROR`
+ * (`RemoteDataModelLogger::LogErrorAsJSON(const CHIP_ERROR &)`, called from `ReportCommand::OnError`
+ * and its write and invoke siblings), and `ClusterStatusCode(CHIP_ERROR)` maps only the error's IM
+ * global-status part to that status and its IM cluster-status part to `Failure` plus a cluster code —
+ * a response timeout, a send failure, a dropped session and every other local failure fall through to
+ * a bare `Failure`. So only a pathless status that is not `Failure`, or one carrying a cluster code,
+ * can be attributed to the device; a bare `Failure` says no more than the exit-status marker does.
  */
 function assertNoFailure(reply: ChipReply, operation: string) {
-    const [status] = reply.globalStatuses;
-    if (status !== undefined) {
-        throw new StatusResponseError(`chip-tool ${operation} failed`, codeOf(status, operation));
+    const [global] = reply.globalStatuses;
+    if (global !== undefined) {
+        const code = codeOf(global.status, operation);
+        if (code !== Status.Failure || global.clusterStatus !== undefined) {
+            throw new StatusResponseError(`chip-tool ${operation} failed`, code, global.clusterStatus);
+        }
+        throw new ChipToolCommandError(
+            `chip-tool ${operation} failed with a bare Failure, which says nothing about whether the device answered`,
+        );
     }
     if (reply.commandFailed) {
         throw new ChipToolCommandError(`chip-tool ${operation} failed`);
@@ -460,7 +478,7 @@ function assertNoFailure(reply: ChipReply, operation: string) {
 function assertCommandSucceeded(reply: ChipReply, operation: string) {
     const [global] = reply.globalStatuses;
     if (global !== undefined) {
-        throw new ChipToolCommandError(`chip-tool ${operation} failed: ${describeStatus(global)}`);
+        throw new ChipToolCommandError(`chip-tool ${operation} failed: ${describeStatus(global.status)}`);
     }
     if (reply.commandFailed) {
         throw new ChipToolCommandError(`chip-tool ${operation} failed`);
@@ -917,6 +935,20 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
             [path],
         );
         assertNoFailure(reply, `subscribe ${JSON.stringify(path)}`);
+
+        const { endpoint, cluster, attribute } = path;
+        if (endpoint !== undefined && cluster !== undefined && attribute !== undefined) {
+            // A concrete path's status is the device refusing this subscription itself; a wildcard's
+            // statuses are per-item, as in a read, and leave the subscription established.
+            const status = statusFor(reply.statuses, { endpoint, cluster, attribute });
+            if (status !== undefined) {
+                throw new StatusResponseError(
+                    `subscribe ${JSON.stringify(path)} failed`,
+                    codeOf(status.status, "subscribe"),
+                    status.clusterStatus,
+                );
+            }
+        }
 
         // Registering only now is what draws the seeding boundary: the priming values chip-tool
         // recorded into this reply were dispatched while no subscription claimed this path, so they are
