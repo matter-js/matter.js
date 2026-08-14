@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { argv, exit, stdout } from "node:process";
 import { ConsumerProject } from "./consumer-project.js";
 import { ContributorProject } from "./contributor-project.js";

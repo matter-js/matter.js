@@ -3,6 +3,7 @@
  * Copyright 2022-2023 Project CHIP Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { Subject } from "#action/server/Subject.js";
 import type { Fabric } from "#fabric/Fabric.js";
 import { Diagnostic, InternalError, Logger, MatterFlowError } from "@matter/general";

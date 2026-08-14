@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, GeneratedClass, ImplementationError, isObject } from "@matter/general";
+import { camelize, deepCopy, GeneratedClass, isObject } from "@matter/general";
 import type { Schema } from "@matter/model";
-import { Access, ElementTag, FieldValue, Metatype, ValueModel } from "@matter/model";
+import { Access, ElementTag, FieldValue, MandatoryDefaultValue, Metatype, ValueModel } from "@matter/model";
 import { AccessControl, PhantomReferenceError, SchemaImplementationError, Val } from "@matter/protocol";
 import { FabricIndex } from "@matter/types";
 import { RootSupervisor } from "../../../supervision/RootSupervisor.js";
@@ -14,11 +14,16 @@ import type { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
 import { Instrumentation } from "../Instrumentation.js";
 import { Internal } from "../Internal.js";
 import { ManagedReference } from "../ManagedReference.js";
+import {
+    memberFallbackKeyFor,
+    memberKeyFor,
+    memberReadFallbackKeyFor,
+    memberSlotOf,
+    memberValueOf,
+} from "../MemberKeys.js";
 import { NameResolver } from "../NameResolver.js";
 import type { ValReference } from "../ValReference.js";
 import { PrimitiveManager } from "./PrimitiveManager.js";
-
-const AUTHORIZE_READ = Symbol("authorize-read");
 
 /**
  * Internal view of struct.
@@ -26,11 +31,6 @@ const AUTHORIZE_READ = Symbol("authorize-read");
 interface Struct extends Val.Struct {
     [Internal.session]: ValueSupervisor.Session;
     [Internal.reference]: ValReference<Val.Struct>;
-
-    /**
-     * Direct read authorization.
-     */
-    [AUTHORIZE_READ](attributeId: number): void;
 }
 
 /**
@@ -47,26 +47,12 @@ export function StructManager(owner: RootSupervisor, schema: Schema): ValueSuper
         // [Symbol.toStringTag]: {
         //     value: name,
         // },
-
         // TODO - makes Mocha diffs pretty useless.  Best fix is probably customized diff but leaving out for now
         // toString: {
         //     value() {
         //         return serialize(this);
         //     }
         // },
-
-        // AUTHORIZE_READ is effectively a protected method, see StructManager.assertDirectReadAuthorized below
-        [AUTHORIZE_READ]: {
-            value(this: Struct, attributeId: number) {
-                const access = propertyAccessControls[attributeId];
-
-                if (access === undefined) {
-                    throw new ImplementationError(`Direct read of unknown property ${attributeId}`);
-                }
-
-                access.authorizeRead(this[Internal.session], this[Internal.reference].location);
-            },
-        },
     } as PropertyDescriptorMap;
 
     /**
@@ -74,7 +60,6 @@ export function StructManager(owner: RootSupervisor, schema: Schema): ValueSuper
      */
     const instanceDescriptors = {} as PropertyDescriptorMap;
 
-    const propertyAccessControls = {} as Record<number, AccessControl>;
     let hasFabricIndex = false;
     const isCluster = schema.tag === ElementTag.Cluster;
 
@@ -82,12 +67,11 @@ export function StructManager(owner: RootSupervisor, schema: Schema): ValueSuper
     for (const member of owner.membersOf(schema)) {
         const name = member.propertyName;
 
-        const { access, descriptor } = configureProperty(owner, member);
+        const { descriptor } = configureProperty(owner, member);
 
         instanceDescriptors[name] = descriptor;
         if (member.id !== undefined) {
             prototypeDescriptors[member.id] = { ...descriptor, enumerable: false };
-            propertyAccessControls[member.id] = access;
         }
 
         if (member.name === "FabricIndex") {
@@ -149,25 +133,6 @@ export function StructManager(owner: RootSupervisor, schema: Schema): ValueSuper
     };
 }
 
-export namespace StructManager {
-    /**
-     * If a struct is referenced as a whole, fields for which the session are unauthorized are simply omitted.
-     *
-     * This function instead throws an error for unauthorized access.  It must be invoked before direct property reads.
-     *
-     * @deprecated remove with old API
-     *
-     * @param struct a managed struct
-     * @param attributeId the AttributeId to read
-     */
-    export function assertDirectReadAuthorized(struct: Val.Struct, attributeId: number) {
-        if (!(struct as Struct)?.[AUTHORIZE_READ]) {
-            throw new ImplementationError("Cannot authorize read of unmanaged value");
-        }
-        return (struct as Struct)[AUTHORIZE_READ](attributeId);
-    }
-}
-
 function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
     const name = schema.propertyName;
     const id = schema.id;
@@ -185,6 +150,36 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
         defaultReader = NameResolver(supervisor, schema.parent, camelize(FieldValue.referenced(schema.default)!));
     }
 
+    // A member mandatory under the mirror's active features always reads a value even when the peer's
+    // AttributeList omits it, and an optional member stays undefined even when the peer's AttributeList reports
+    // it -- this mirrors the conformance-aware TypeScript typings, which know nothing about runtime AttributeList
+    // data. The container itself never holds this value, so it can't masquerade as peer data in persistence,
+    // change detection or external-change integration.
+    const scope = supervisor.scope;
+    const isMandatory = scope.isMandatory(schema);
+
+    // The template is memoized but every value handed out is a fresh copy: an explicit schema default is
+    // model-owned shared state.
+    let template: Val | undefined;
+    let templated = false;
+    const synthesizeDefault = isMandatory
+        ? () => {
+              if (!templated) {
+                  template = MandatoryDefaultValue(scope, schema);
+                  templated = true;
+              }
+              return deepCopy(template);
+          }
+        : undefined;
+
+    // Rebind so the closure below narrows: TS doesn't narrow a captured `let` across a nested function boundary.
+    const referencedDefault = defaultReader;
+    const readDefault: ((self: Struct) => Val | undefined) | undefined = synthesizeDefault
+        ? referencedDefault
+            ? (self: Struct) => referencedDefault(self) ?? synthesizeDefault()
+            : () => synthesizeDefault()
+        : undefined;
+
     const descriptor: PropertyDescriptor = {
         enumerable: true,
 
@@ -193,21 +188,12 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
 
             // We allow attribute/field name or id as key.  If name is present id is ignored
             const pk = this[Internal.reference].primaryKey;
-            let key = pk === "id" ? (id ?? name) : name;
-            let storedKey: undefined | number | string;
-            if (key in this[Internal.reference].value) {
-                storedKey = key;
-            } else if (pk === "id") {
-                if (name in this[Internal.reference].value) {
-                    storedKey = name;
-                }
-            } else if (id !== undefined) {
-                if (id in this[Internal.reference].value) {
-                    storedKey = id;
-                }
-            }
+            let key = memberKeyFor(pk, name, id);
+            let storedKey = memberSlotOf(this[Internal.reference].value, key, memberFallbackKeyFor(pk, name, id));
 
-            const oldValue = storedKey === undefined ? undefined : this[Internal.reference].value[storedKey];
+            // Rollback and the fabric-scoped-list merge check must see stored truth — never the write-migration
+            // slot above and never a synthesized default
+            const oldValue = memberValueOf(this[Internal.reference].value, key, memberReadFallbackKeyFor(pk, name, id));
 
             const self = this;
 
@@ -216,6 +202,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
 
                 // Identify the target.  Usually just "struct" except when struct supports Val.Dynamic
                 let target;
+                let previousValue = oldValue;
                 if (Val.properties in struct) {
                     const properties = (struct as Val.Dynamic)[Val.properties](
                         this[Internal.reference].rootOwner,
@@ -224,6 +211,13 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                     if (name in properties) {
                         key = storedKey = name;
                         target = properties;
+                        if (isFabricScopedList || validate) {
+                            // A dynamic member's previous value lives in the provider, not the container slot;
+                            // read it only when rollback or the fabric-scoped merge check may consume it, as the
+                            // provider's getter may be costly.  Unmanage in case the provider serves a managed
+                            // value — rollback must not plant a proxy that expires with this session
+                            previousValue = Internal.unmanage(properties[name]);
+                        }
                     } else {
                         target = struct;
                     }
@@ -235,10 +229,10 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 value = Internal.unmanage(value);
 
                 // Modify the value
-                if (isFabricScopedList && Array.isArray(value) && Array.isArray(oldValue)) {
+                if (isFabricScopedList && Array.isArray(value) && Array.isArray(previousValue)) {
                     // In the case of fabric-scoped write to established list we use the managed proxy to perform update
                     // as it will sort through values and only modify those with correct fabricIndex
-                    const proxy = self[name] as Val.List;
+                    const proxy = self[memberKeyFor(pk, name, id)] as Val.List;
                     for (let i = 0; i < value.length; i++) {
                         proxy[i] = value[i];
                     }
@@ -267,8 +261,14 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                         });
                     } catch (e) {
                         // Undo our change on error.  Rollback will take care of this when transactional but this
-                        // handles the cases of 1.) no transaction, and 2.) error is caught within transaction
-                        target[key] = oldValue;
+                        // handles the cases of 1.) no transaction, and 2.) error is caught within transaction.
+                        // A previously absent member must not leave a slot behind — consumers enumerate slot keys to
+                        // discover which members hold values
+                        if (previousValue === undefined) {
+                            delete target[key];
+                        } else {
+                            target[key] = previousValue;
+                        }
 
                         throw e;
                     }
@@ -295,17 +295,13 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                     }
                 }
 
-                const key = this[Internal.reference].primaryKey === "id" ? (id ?? name) : name;
-                if (key in struct) {
-                    return struct[key];
-                }
-
-                const key2 = this[Internal.reference].primaryKey === "id" ? name : id;
-                if (key2 !== undefined && key2 in struct) {
-                    return struct[key2];
-                }
-
-                return undefined;
+                const primaryKey = this[Internal.reference].primaryKey;
+                const value = memberValueOf(
+                    struct,
+                    memberKeyFor(primaryKey, name, id),
+                    memberReadFallbackKeyFor(primaryKey, name, id),
+                );
+                return value === undefined && primaryKey === "id" ? readDefault?.(this) : value;
             }
         };
     } else {
@@ -337,9 +333,9 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
             let value;
 
             // Obtain the value.  Normally just struct[key] except in the case of Val.Dynamic
-            const pk = this[Internal.reference].primaryKey;
             const struct = this[Internal.reference].value;
-            const key = pk === "id" ? (id ?? name) : name;
+            const primaryKey = this[Internal.reference].primaryKey;
+            const key = memberKeyFor(primaryKey, name, id);
             if ((struct as Val.Dynamic)[Val.properties]) {
                 const properties = (struct as Val.Dynamic)[Val.properties](
                     this[Internal.reference].rootOwner,
@@ -348,17 +344,10 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 if (name in properties) {
                     value = properties[name];
                 } else {
-                    value = struct[name];
+                    value = memberValueOf(struct, key, memberReadFallbackKeyFor(primaryKey, name, id));
                 }
             } else {
-                if (key in struct) {
-                    value = struct[key];
-                } else {
-                    const key2 = pk === "id" ? id : name;
-                    if (key2 !== undefined && key2 in struct) {
-                        value = struct[key2];
-                    }
-                }
+                value = memberValueOf(struct, key, memberReadFallbackKeyFor(primaryKey, name, id));
             }
 
             // Note that we only mask values that are unreadable.  This is appropriate when the parent object is
@@ -369,7 +358,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
             }
 
             if (value === undefined) {
-                return defaultReader?.(this);
+                return primaryKey === "name" ? defaultReader?.(this) : readDefault?.(this);
             }
 
             // Value is null or a dynamic property, so just return it
@@ -378,7 +367,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 return value;
             }
 
-            const managed = this[Internal.reference].subrefs?.[name];
+            const managed = this[Internal.reference].subrefs?.[key];
             if (managed) {
                 return managed.owner;
             }
@@ -397,7 +386,6 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
             // Clone the container before write
             const ref = new ManagedReference(
                 this[Internal.reference],
-                pk,
                 name,
                 id,
                 assertWriteOk,

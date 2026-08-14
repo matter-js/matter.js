@@ -318,12 +318,12 @@ export declare namespace WaterHeaterMode {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link WaterHeaterMode}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link WaterHeaterMode}.
      */
     export const Cluster: ClusterType.WithCompat<typeof WaterHeaterMode, WaterHeaterMode>;
 
     /**
-     * @deprecated Use {@link WaterHeaterMode}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link WaterHeaterMode}.
      */
     export const Complete: typeof WaterHeaterMode;
 
@@ -331,7 +331,7 @@ export declare namespace WaterHeaterMode {
 }
 
 /**
- * @deprecated Use {@link WaterHeaterMode}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link WaterHeaterMode}.
  */
 export declare const WaterHeaterModeCluster: typeof WaterHeaterMode;
 

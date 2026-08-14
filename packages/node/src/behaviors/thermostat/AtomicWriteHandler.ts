@@ -142,7 +142,7 @@ export class AtomicWriteHandler {
                 initialValues,
             );
             this.#pendingWrites.add(state);
-            state.closed.on(() => void this.#pendingWrites.delete(state));
+            state.closed.once(() => void this.#pendingWrites.delete(state));
             state.start();
             logger.debug("Added atomic write state:", state);
             return state;

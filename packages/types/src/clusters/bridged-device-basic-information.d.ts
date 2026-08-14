@@ -616,12 +616,12 @@ export declare namespace BridgedDeviceBasicInformation {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link BridgedDeviceBasicInformation}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link BridgedDeviceBasicInformation}.
      */
     export const Cluster: ClusterType.WithCompat<typeof BridgedDeviceBasicInformation, BridgedDeviceBasicInformation>;
 
     /**
-     * @deprecated Use {@link BridgedDeviceBasicInformation}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link BridgedDeviceBasicInformation}.
      */
     export const Complete: typeof BridgedDeviceBasicInformation;
 
@@ -629,7 +629,7 @@ export declare namespace BridgedDeviceBasicInformation {
 }
 
 /**
- * @deprecated Use {@link BridgedDeviceBasicInformation}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link BridgedDeviceBasicInformation}.
  */
 export declare const BridgedDeviceBasicInformationCluster: typeof BridgedDeviceBasicInformation;
 

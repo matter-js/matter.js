@@ -148,12 +148,12 @@ export declare namespace RelativeHumidityMeasurement {
     export const attributes: ClusterType.AttributeObjects<Attributes>;
 
     /**
-     * @deprecated Use {@link RelativeHumidityMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link RelativeHumidityMeasurement}.
      */
     export const Cluster: typeof RelativeHumidityMeasurement;
 
     /**
-     * @deprecated Use {@link RelativeHumidityMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link RelativeHumidityMeasurement}.
      */
     export const Complete: typeof RelativeHumidityMeasurement;
 
@@ -161,7 +161,7 @@ export declare namespace RelativeHumidityMeasurement {
 }
 
 /**
- * @deprecated Use {@link RelativeHumidityMeasurement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link RelativeHumidityMeasurement}.
  */
 export declare const RelativeHumidityMeasurementCluster: typeof RelativeHumidityMeasurement;
 

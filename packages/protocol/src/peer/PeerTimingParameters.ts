@@ -4,7 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Hours, merge as mergeObjects, Millis, Minutes, Seconds } from "@matter/general";
+import {
+    DeepPartial,
+    Duration,
+    Hours,
+    isObject,
+    merge as mergeObjects,
+    Millis,
+    Minutes,
+    Seconds,
+} from "@matter/general";
 
 /**
  * Parameters that control network timing for Matter sessions controlled by matter.js.
@@ -129,18 +138,28 @@ interface Internal extends PeerTimingParameters {
     [complete]: true;
 }
 
-export function PeerTimingParameters(options?: Partial<PeerTimingParameters>) {
+export function PeerTimingParameters(options?: DeepPartial<PeerTimingParameters>) {
     if (options && (options as Internal)[complete]) {
         return options as PeerTimingParameters;
     }
 
-    const result = { ...PeerTimingParameters.defaults } as Record<string | symbol, unknown>;
-    if (options) {
-        for (const key of Object.keys(options)) {
-            const value = (options as Record<string, unknown>)[key];
-            if (value !== undefined) {
-                result[key] = value;
+    return applyOverrides(PeerTimingParameters.defaults, options);
+}
+
+/**
+ * Layer overrides onto a complete parameter set.  Grouped parameters merge field-wise, so overriding one member of a
+ * group leaves its siblings at their prior value rather than dropping them.
+ */
+function applyOverrides(base: PeerTimingParameters, overrides?: DeepPartial<PeerTimingParameters>) {
+    const result = { ...base } as Record<string | symbol, unknown>;
+    if (overrides) {
+        for (const key of Object.keys(overrides)) {
+            const value = (overrides as Record<string, unknown>)[key];
+            if (value === undefined) {
+                continue;
             }
+            const current = result[key];
+            result[key] = isObject(current) && isObject(value) ? mergeObjects(current, value) : value;
         }
     }
     result[complete] = true;
@@ -155,10 +174,11 @@ export namespace PeerTimingParameters {
      * Unlike calling {@link PeerTimingParameters} directly (which merges on top of {@link defaults}), this starts from
      * an arbitrary base.  Only override fields that are explicitly defined and non-undefined are applied.
      */
-    export function merge(base: PeerTimingParameters, overrides: Partial<PeerTimingParameters>): PeerTimingParameters {
-        const result = mergeObjects(base, overrides) as Internal;
-        result[complete] = true;
-        return result;
+    export function merge(
+        base: PeerTimingParameters,
+        overrides: DeepPartial<PeerTimingParameters>,
+    ): PeerTimingParameters {
+        return applyOverrides(base, overrides);
     }
 
     const maxInitialContactRetryInterval = Minutes(2);

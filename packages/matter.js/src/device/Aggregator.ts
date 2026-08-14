@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { AggregatorDt } from "@matter/model";
 import { Endpoint as NodeEndpoint } from "@matter/node";
 import { ComposedDevice } from "./ComposedDevice.js";
@@ -13,6 +14,8 @@ import { Endpoint, EndpointOptions } from "./Endpoint.js";
 /**
  * An Aggregator is a special endpoint that exposes multiple devices as a "bridge" into the matter ecosystem.
  * Devices added must already have the BridgedDeviceBasicInformationCluster configured.
+ *
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export class Aggregator extends Endpoint {
     /**

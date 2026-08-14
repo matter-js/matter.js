@@ -18,6 +18,7 @@ import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { LocalActorContext } from "#index.js";
 import { ServerEnvironment } from "#node/server/ServerEnvironment.js";
 import { ServerNode } from "#node/ServerNode.js";
+import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import {
     Bytes,
     Crypto,
@@ -25,29 +26,35 @@ import {
     DnsMessage,
     DnsRecordType,
     Environment,
+    ImplementationError,
     InternalError,
+    Lifecycle,
     isObject,
     MemoryStorageDriver,
     MockCrypto,
     MockUdpSocket,
     NetworkSimulator,
     Seconds,
+    STANDARD_MATTER_PORT,
     StorageManager,
     StorageService,
 } from "@matter/general";
 import { AccessLevel, BasicInformation, ElementTag, FeatureMap } from "@matter/model";
 import {
     AttestationCertificateManager,
+    CertificateAuthority,
     CertificationDeclaration,
     NodeSession,
     OccurrenceManager,
+    PeerSet,
     ProtocolMocks,
     Val,
 } from "@matter/protocol";
-import { FabricIndex, VendorId } from "@matter/types";
+import { FabricId, FabricIndex, NodeId, VendorId } from "@matter/types";
 import { BasicInformation as BasicInformationCluster } from "@matter/types/clusters/basic-information";
 import { PumpConfigurationAndControl } from "@matter/types/clusters/pump-configuration-and-control";
 import { MockServerNode } from "./mock-server-node.js";
+import { MockSite } from "./mock-site.js";
 import { CommissioningHelper, FAILSAFE_LENGTH_S, testFactoryReset } from "./node-helpers.js";
 
 const commissioning = CommissioningHelper();
@@ -60,6 +67,26 @@ class CrashingServer extends Behavior {
 
     override initialize() {
         throw new InternalError(CRASH_MESSAGE);
+    }
+}
+
+function storageKeysUnder(storage: Record<string, unknown>, context: string) {
+    return Object.keys(storage).filter(key => key === context || key.startsWith(`${context}.`));
+}
+
+/** Commission {@link device} onto {@link controller}, entropy enabled as {@link MockSite} does for pairing. */
+async function commissionOnto(controller: ServerNode, device: ServerNode) {
+    const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+    const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+    controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+    try {
+        const { passcode, discriminator } = device.state.commissioning;
+        await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
+            macrotasks: true,
+        });
+    } finally {
+        controllerCrypto.entropic = deviceCrypto.entropic = false;
     }
 }
 
@@ -234,6 +261,59 @@ describe("ServerNode", () => {
         expect(expiration?.answers[0]?.ttl).equals(0);
     });
 
+    describe("operational port", () => {
+        it("binds the standard Matter port for a commissionable node without an explicit port", async () => {
+            const node = await MockServerNode.createOnline({
+                type: MockServerNode.RootEndpoint,
+                commissioning: { enabled: true },
+            });
+
+            expect(node.state.network.port).equals(STANDARD_MATTER_PORT);
+            expect(node.state.network.operationalPort).equals(STANDARD_MATTER_PORT);
+
+            await node.close();
+        });
+
+        it("uses an ephemeral operational port for a controller node without an explicit port", async () => {
+            const node = await MockServerNode.createOnline({
+                type: MockServerNode.RootEndpoint,
+                commissioning: { enabled: false },
+            });
+
+            expect(node.state.network.port).equals(undefined);
+            expect(node.state.network.operationalPort).greaterThan(0);
+            expect(node.state.network.operationalPort).not.equals(STANDARD_MATTER_PORT);
+
+            await node.close();
+        });
+
+        it("honors an explicit port on a commissionable node", async () => {
+            const node = await MockServerNode.createOnline({
+                type: MockServerNode.RootEndpoint,
+                commissioning: { enabled: true },
+                network: { port: 5555 },
+            });
+
+            expect(node.state.network.port).equals(5555);
+            expect(node.state.network.operationalPort).equals(5555);
+
+            await node.close();
+        });
+
+        it("honors an explicit port on a controller node", async () => {
+            const node = await MockServerNode.createOnline({
+                type: MockServerNode.RootEndpoint,
+                commissioning: { enabled: false },
+                network: { port: 5555 },
+            });
+
+            expect(node.state.network.port).equals(5555);
+            expect(node.state.network.operationalPort).equals(5555);
+
+            await node.close();
+        });
+    });
+
     it("commissions", async () => {
         const { node } = await commissioning.commission();
 
@@ -367,6 +447,163 @@ describe("ServerNode", () => {
 
     it("handles factory resets when online but in parallel offline is called correctly", async () => {
         await testFactoryReset("offline-during-reset");
+    });
+
+    it("factory reset of a controller erases peers and CA key material", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const storage = site.storageFor(controller.id);
+        expect(storageKeysUnder(storage, "nodes")).not.deep.equals([]);
+        expect(storageKeysUnder(storage, "certificates")).not.deep.equals([]);
+
+        const ca = controller.env.get(CertificateAuthority);
+        expect(ca.rootCert).not.equals(undefined);
+
+        await MockTime.resolve(controller.erase(), { macrotasks: true });
+
+        expect(storageKeysUnder(storage, "nodes")).deep.equals([]);
+        expect(storageKeysUnder(storage, "certificates")).deep.equals([]);
+        expect([...controller.peers].length).equals(0);
+
+        // The authority caches the erased key material, so a holder that kept a reference must fail rather than sign
+        expect(() => ca.rootCert).throws();
+        const { publicKey } = await controller.env.get(Crypto).createKeyPair();
+        await expect(ca.generateNoc(publicKey, FabricId(1), NodeId(1))).rejected;
+    });
+
+    it("completes factory reset when a peer cannot be torn down", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const storage = site.storageFor(controller.id);
+        const peer = [...controller.peers][0];
+        const address = peer.peerAddress!;
+
+        // Fail inside delete() rather than replacing it, so its own teardown guarantees still apply
+        peer.erase = async () => {
+            throw new ImplementationError("Cannot erase");
+        };
+
+        await MockTime.resolve(controller.erase(), { macrotasks: true });
+
+        expect(storageKeysUnder(storage, "nodes")).deep.equals([]);
+        expect([...controller.peers].length).equals(0);
+        expect(peer.construction.status).equals(Lifecycle.Status.Destroyed);
+        expect(controller.env.get(PeerSet).get(address)).equals(undefined);
+        expect(controller.construction.status).equals(Lifecycle.Status.Active);
+        expect(controller.lifecycle.isOnline).equals(true);
+    });
+
+    it("completes factory reset when removing the protocol peer fails", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peer = [...controller.peers][0];
+        const protocolPeer = controller.env.get(PeerSet).get(peer.peerAddress!)!;
+        protocolPeer.delete = async () => {
+            throw new ImplementationError("Cannot remove peer");
+        };
+
+        await MockTime.resolve(controller.erase(), { macrotasks: true });
+
+        expect([...controller.peers].length).equals(0);
+        expect(controller.lifecycle.isOnline).equals(true);
+    });
+
+    it("erases CA key material the node never loaded", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const id = controller.id;
+        const storage = site.storageFor(id);
+
+        await controller.close();
+        expect(storageKeysUnder(storage, "certificates")).not.deep.equals([]);
+
+        // A node that has not commissioned this session never instantiates the authority
+        const rebooted = await site.addNode(undefined, { id, device: undefined, commissioning: { enabled: false } });
+        expect(rebooted.env.has(CertificateAuthority)).equals(false);
+
+        await MockTime.resolve(rebooted.erase(), { macrotasks: true });
+
+        expect(storageKeysUnder(storage, "certificates")).deep.equals([]);
+    });
+
+    it("erases every peer endpoint store when one fails", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peer = [...controller.peers][0];
+        const store = controller.env.get(ServerNodeStore).clientStores.storeForNode(peer.id);
+        const [failing, ...rest] = [...store.endpointStores];
+        expect(rest.length).greaterThan(0);
+
+        failing.erase = async () => {
+            throw new ImplementationError("Cannot erase endpoint");
+        };
+
+        let erased = 0;
+        for (const endpointStore of rest) {
+            const erase = endpointStore.erase.bind(endpointStore);
+            endpointStore.erase = async () => {
+                erased++;
+                await erase();
+            };
+        }
+
+        await MockTime.resolve(controller.erase(), { macrotasks: true });
+
+        expect(erased).equals(rest.length);
+        expect([...controller.peers].length).equals(0);
+    });
+
+    it("erases remaining areas when one fails during factory reset", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const storage = site.storageFor(controller.id);
+        const events = controller.env.get(OccurrenceManager);
+        events.clear = async () => {
+            throw new ImplementationError("Cannot clear events");
+        };
+
+        await MockTime.resolve(expect(controller.erase()).rejectedWith("Error during factory reset"), {
+            macrotasks: true,
+        });
+
+        // Areas sequenced after the failure must still be erased or key material outlives the reset
+        expect(storageKeysUnder(storage, "certificates")).deep.equals([]);
+        expect(storageKeysUnder(storage, "nodes")).deep.equals([]);
+    });
+
+    it("commissions again on the same controller instance after factory reset", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        await MockTime.resolve(controller.erase(), { macrotasks: true });
+
+        await commissionOnto(controller, await site.addDevice());
+
+        expect(controller.peers.commissioned.length).equals(1);
+        expect(controller.env.owns(CertificateAuthority)).equals(true);
+    });
+
+    it("commissions again after factory reset of a controller with commissioned peers", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const id = controller.id;
+
+        await MockTime.resolve(controller.erase(), { macrotasks: true });
+        await controller.close();
+
+        // Boot a new node on the storage the erased controller left behind
+        const rebooted = await site.addController({ id });
+        expect([...rebooted.peers].length).equals(0);
+        await rebooted.start();
+
+        await commissionOnto(rebooted, await site.addDevice());
+
+        expect(rebooted.peers.commissioned.length).equals(1);
     });
 
     it("commissions twice", async () => {

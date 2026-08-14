@@ -5,7 +5,7 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
-import type { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
+import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { NodeActivity } from "#behavior/context/NodeActivity.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
@@ -31,7 +31,7 @@ import {
 } from "@matter/general";
 import { ClusterModel } from "@matter/model";
 import { ClusterTypeProtocol, Val } from "@matter/protocol";
-import type { ClusterType } from "@matter/types";
+import type { ClusterId, ClusterType } from "@matter/types";
 import type { Agent } from "../Agent.js";
 import type { Endpoint } from "../Endpoint.js";
 import { BehaviorInitializationError, EndpointBehaviorsError } from "../errors.js";
@@ -82,6 +82,18 @@ export class Behaviors {
         }
 
         return supported as T;
+    }
+
+    /**
+     * Obtain the {@link ClusterBehavior.Type} the endpoint uses to implement a given cluster, if supported.
+     */
+    forCluster(clusterId: ClusterId): ClusterBehavior.Type | undefined {
+        for (const type of Object.values(this.#supported)) {
+            if (ClusterBehavior.is(type) && type.cluster.id === clusterId) {
+                return type;
+            }
+        }
+        return undefined;
     }
 
     /**

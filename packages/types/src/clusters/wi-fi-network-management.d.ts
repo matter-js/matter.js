@@ -200,12 +200,12 @@ export declare namespace WiFiNetworkManagement {
     export const commands: ClusterType.CommandObjects<Commands>;
 
     /**
-     * @deprecated Use {@link WiFiNetworkManagement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link WiFiNetworkManagement}.
      */
     export const Cluster: typeof WiFiNetworkManagement;
 
     /**
-     * @deprecated Use {@link WiFiNetworkManagement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link WiFiNetworkManagement}.
      */
     export const Complete: typeof WiFiNetworkManagement;
 
@@ -213,7 +213,7 @@ export declare namespace WiFiNetworkManagement {
 }
 
 /**
- * @deprecated Use {@link WiFiNetworkManagement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link WiFiNetworkManagement}.
  */
 export declare const WiFiNetworkManagementCluster: typeof WiFiNetworkManagement;
 

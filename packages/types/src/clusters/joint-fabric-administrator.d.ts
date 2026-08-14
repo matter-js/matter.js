@@ -352,12 +352,12 @@ export declare namespace JointFabricAdministrator {
     export const commands: ClusterType.CommandObjects<Commands>;
 
     /**
-     * @deprecated Use {@link JointFabricAdministrator}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link JointFabricAdministrator}.
      */
     export const Cluster: typeof JointFabricAdministrator;
 
     /**
-     * @deprecated Use {@link JointFabricAdministrator}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link JointFabricAdministrator}.
      */
     export const Complete: typeof JointFabricAdministrator;
 
@@ -365,7 +365,7 @@ export declare namespace JointFabricAdministrator {
 }
 
 /**
- * @deprecated Use {@link JointFabricAdministrator}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link JointFabricAdministrator}.
  */
 export declare const JointFabricAdministratorCluster: typeof JointFabricAdministrator;
 

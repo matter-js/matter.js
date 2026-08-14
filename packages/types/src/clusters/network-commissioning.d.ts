@@ -1511,12 +1511,12 @@ export declare namespace NetworkCommissioning {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link NetworkCommissioning}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link NetworkCommissioning}.
      */
     export const Cluster: ClusterType.WithCompat<typeof NetworkCommissioning, NetworkCommissioning>;
 
     /**
-     * @deprecated Use {@link NetworkCommissioning}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link NetworkCommissioning}.
      */
     export const Complete: typeof NetworkCommissioning;
 
@@ -1524,7 +1524,7 @@ export declare namespace NetworkCommissioning {
 }
 
 /**
- * @deprecated Use {@link NetworkCommissioning}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link NetworkCommissioning}.
  */
 export declare const NetworkCommissioningCluster: typeof NetworkCommissioning;
 

@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { Behavior, Hours, Logger, Millis, Minutes, Node, Seconds, Time, Timer } from "@matter/main";
 import { ServiceAreaServer } from "@matter/main/behaviors/service-area";
 import { RvcOperationalState } from "@matter/main/clusters/rvc-operational-state";

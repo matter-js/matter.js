@@ -91,7 +91,7 @@ export class ObjectSchema<F extends TlvFields> extends TlvSchema<TypeFromFields<
         this.isFabricScoped = isFabricScoped;
     }
 
-    /** @deprecated Part of old ClusterType() compat layer. */
+    /** @deprecated Part of old ClusterType() compat layer.  Scheduled for removal in 0.19. */
     override get element(): TlvSchema.Element {
         const children: FieldElement[] = [];
 

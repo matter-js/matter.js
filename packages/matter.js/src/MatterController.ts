@@ -7,7 +7,7 @@
 /**
  * Important note: This file is part of the legacy matter-node (internal) API and should not be used anymore directly!
  * Please use the new API classes!
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 
 import { ClusterClient } from "#cluster/client/ClusterClient.js";
@@ -94,6 +94,9 @@ import {
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export type CommissionedNodeDetails = {
     operationalServerAddress?: OperationalAddress;
     discoveryData?: DiscoveryData;
@@ -110,6 +113,9 @@ type CommissionedPeer = PeerDescriptor & { deviceData?: DeviceInformationData };
 // Backward-compatible persistence record for nodes
 type StoredOperationalPeer = [NodeId, CommissionedNodeDetails];
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export type PairedNodeDetails = {
     nodeId: NodeId;
     operationalAddress?: string;
@@ -121,6 +127,9 @@ export type PairedNodeDetails = {
     };
 };
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export class MatterController {
     public static async create(options: {
         id: string;
@@ -888,6 +897,9 @@ export class MatterController {
     }
 }
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export namespace MatterController {
     export interface ConnectOptions extends PeerConnectionOptions {
         allowUnknownPeer?: boolean;
@@ -941,33 +953,39 @@ class CommissionedNodeStore {
                         if ((ignorePeer !== undefined && peer.id === ignorePeer) || !peer.lifecycle.isCommissioned) {
                             return undefined;
                         }
-                        const commissioningState = peer.maybeStateOf(CommissioningClient);
-                        const address = commissioningState?.peerAddress;
-                        const operationalServerAddress = commissioningState?.addresses?.[0];
-                        const discoveryData =
-                            commissioningState !== undefined
-                                ? RemoteDescriptor.fromLongForm(commissioningState)
-                                : undefined;
-                        const deviceData = {
-                            meta: ClientNodePhysicalProperties(peer),
-                            basicInformation: peer.maybeStateOf(BasicInformationClient),
-                        };
+                        try {
+                            const commissioningState = peer.maybeStateOf(CommissioningClient);
+                            const address = commissioningState?.peerAddress;
+                            const operationalServerAddress = commissioningState?.addresses?.[0];
+                            const discoveryData =
+                                commissioningState !== undefined
+                                    ? RemoteDescriptor.fromLongForm(commissioningState)
+                                    : undefined;
+                            const deviceData = {
+                                meta: ClientNodePhysicalProperties(peer),
+                                basicInformation: peer.maybeStateOf(BasicInformationClient),
+                            };
 
-                        if (address === undefined) {
-                            return;
+                            if (address === undefined) {
+                                return;
+                            }
+                            return [
+                                address.nodeId,
+                                {
+                                    operationalServerAddress: OperationalAddress.from(
+                                        operationalServerAddress !== undefined
+                                            ? ServerAddress(operationalServerAddress)
+                                            : undefined,
+                                    ),
+                                    discoveryData,
+                                    deviceData,
+                                },
+                            ] satisfies StoredOperationalPeer;
+                        } catch (error) {
+                            MatterError.accept(error);
+                            logger.info(`Not storing legacy record for node ${peer.id} because of error:`, error);
+                            return undefined;
                         }
-                        return [
-                            address.nodeId,
-                            {
-                                operationalServerAddress: OperationalAddress.from(
-                                    operationalServerAddress !== undefined
-                                        ? ServerAddress(operationalServerAddress)
-                                        : undefined,
-                                ),
-                                discoveryData,
-                                deviceData,
-                            },
-                        ] satisfies StoredOperationalPeer;
                     })
                     .filter(details => details !== undefined) as SupportedStorageTypes,
             ),

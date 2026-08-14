@@ -5,7 +5,7 @@
  */
 
 import { ServerSubscriptionConfig } from "#node/server/ServerSubscription.js";
-import { Duration, Logger, Minutes } from "@matter/general";
+import { DeepPartial, Duration, Logger, Minutes } from "@matter/general";
 import { duration, field, uint16 } from "@matter/model";
 import { Ble, FabricManager, NetworkProfiles, PeerTimingParameters } from "@matter/protocol";
 import { DiscoveryCapabilitiesBitmap, TypeFromPartialBitSchema } from "@matter/types";
@@ -78,7 +78,25 @@ export namespace NetworkServer {
         declare runtime: ServerNetworkRuntime;
     }
 
-    export class TimingConfig implements Partial<PeerTimingParameters> {
+    export class KickRestartCooldownConfig implements Partial<PeerTimingParameters["kickRestartCooldown"]> {
+        @field(duration)
+        addressChange?: Duration;
+
+        @field(duration)
+        connect?: Duration;
+    }
+
+    export class AddressChangeProbeCooldownConfig implements Partial<
+        PeerTimingParameters["addressChangeProbeCooldown"]
+    > {
+        @field(duration)
+        minimum?: Duration;
+
+        @field(duration)
+        maximum?: Duration;
+    }
+
+    export class TimingConfig implements DeepPartial<PeerTimingParameters> {
         @field(duration)
         defaultConnectionTimeout?: Duration;
 
@@ -98,7 +116,22 @@ export namespace NetworkServer {
         delayAfterUnhandledError?: Duration;
 
         @field(duration)
-        minimumTimeBetweenMrpKicks?: Duration;
+        kickThrottleInterval?: Duration;
+
+        @field(uint16)
+        kickMinRetransmissions?: number;
+
+        @field(duration)
+        kickMinRestartSaving?: Duration;
+
+        @field(KickRestartCooldownConfig)
+        kickRestartCooldown?: KickRestartCooldownConfig;
+
+        @field(duration)
+        addressChangeStabilizationDelay?: Duration;
+
+        @field(AddressChangeProbeCooldownConfig)
+        addressChangeProbeCooldown?: AddressChangeProbeCooldownConfig;
     }
 
     export class ConcreteLimitsConfig implements Partial<NetworkProfiles.ConcreteLimits> {
@@ -116,6 +149,9 @@ export namespace NetworkServer {
     }
 
     export class LimitsConfig extends ConcreteLimitsConfig {
+        @field(duration)
+        bdxAdditionalMrpDelay?: Duration;
+
         @field(ConcreteLimitsConfig)
         connect?: ConcreteLimitsConfig;
 
@@ -146,6 +182,23 @@ export namespace NetworkServer {
         icdLit?: LimitsConfig;
     }
 
+    type Mismatched<A, B> = Exclude<keyof A, keyof B> | Exclude<keyof B, keyof A>;
+    type SameFields<_Mismatched extends never> = unknown;
+
+    /**
+     * The config classes above restate their source's fields because {@link field} needs real property declarations,
+     * and `implements Partial<Source>` catches neither a field they fail to declare nor one the source has dropped.
+     * This does: either divergence breaks the build here, naming the offending field.
+     */
+    export type ConfigMatchesItsSource = [
+        SameFields<Mismatched<PeerTimingParameters, TimingConfig>>,
+        SameFields<Mismatched<PeerTimingParameters["kickRestartCooldown"], KickRestartCooldownConfig>>,
+        SameFields<Mismatched<PeerTimingParameters["addressChangeProbeCooldown"], AddressChangeProbeCooldownConfig>>,
+        SameFields<Mismatched<NetworkProfiles.ConcreteLimits, ConcreteLimitsConfig>>,
+        SameFields<Mismatched<NetworkProfiles.Limits, LimitsConfig>>,
+        SameFields<Mismatched<NetworkProfiles.Templates, ProfilesConfig>>,
+    ];
+
     export class State extends NetworkBehavior.State {
         listeningAddressIpv4?: string = undefined;
         listeningAddressIpv6?: string = undefined;
@@ -167,6 +220,20 @@ export namespace NetworkServer {
          * Preferred transport for outgoing connections. Defaults to UDP when not set.
          */
         transportPreference?: "tcp" | "udp";
+
+        /**
+         * Controller-level connection policy for commissioned peers.
+         *
+         * When true (default), the node auto-connects every commissioned, non-disabled peer as it goes online — the
+         * right choice for a headless controller or bridge that wants all peers live.
+         *
+         * When false, no peer is connected on online and the consumer starts peers on demand (`ClientNode.start()` /
+         * `ClientNode.enable()`).  Use this for interactive or debug controllers that manage connections themselves
+         * (e.g. the nodejs shell).  This is orthogonal to per-node `ClientNode.disable()`: this flag is a controller
+         * policy that leaves peers enabled, whereas disabling a peer is a persisted per-node "this node is off" state
+         * (a seasonal device, say) that the bulk connect skips regardless of this flag.
+         */
+        autoStartCommissionedPeers = true;
 
         /**
          * Network profile describing our own (local) network — the sender-side MRP additive-delay

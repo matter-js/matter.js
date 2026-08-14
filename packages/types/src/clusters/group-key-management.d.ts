@@ -149,7 +149,7 @@ export declare namespace GroupKeyManagement {
          *
          * @see {@link MatterSpecification.v16.Core} § 11.2.6.5
          */
-        groupcastAdoption: GroupcastAdoption[];
+        groupcastAdoption?: GroupcastAdoption[];
     }
 
     /**
@@ -604,12 +604,12 @@ export declare namespace GroupKeyManagement {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link GroupKeyManagement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link GroupKeyManagement}.
      */
     export const Cluster: ClusterType.WithCompat<typeof GroupKeyManagement, GroupKeyManagement>;
 
     /**
-     * @deprecated Use {@link GroupKeyManagement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link GroupKeyManagement}.
      */
     export const Complete: typeof GroupKeyManagement;
 
@@ -617,7 +617,7 @@ export declare namespace GroupKeyManagement {
 }
 
 /**
- * @deprecated Use {@link GroupKeyManagement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link GroupKeyManagement}.
  */
 export declare const GroupKeyManagementCluster: typeof GroupKeyManagement;
 

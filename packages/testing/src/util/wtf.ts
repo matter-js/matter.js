@@ -18,7 +18,9 @@ export const wtf = {
         }
 
         const { dump } = await import("wtfnode");
-        this.dump = () => dump();
+        // Full stacks capture each timer's creation site — the callback alone only points at the
+        // shared Time-abstraction wrapper
+        this.dump = () => dump({ fullStacks: true });
     },
 
     dump() {},

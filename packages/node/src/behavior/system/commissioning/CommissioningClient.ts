@@ -7,6 +7,7 @@
 import { Behavior } from "#behavior/Behavior.js";
 import { Events as BaseEvents } from "#behavior/Events.js";
 import { SoftwareUpdateManager } from "#behavior/system/software-update/SoftwareUpdateManager.js";
+import { AdministratorCommissioningClient } from "#behaviors/administrator-commissioning";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
@@ -16,6 +17,8 @@ import type { ServerNode } from "#node/ServerNode.js";
 import {
     causedBy,
     ClassExtends,
+    Crypto,
+    CRYPTO_PBKDF_ITERATIONS_MIN,
     Diagnostic,
     Duration,
     ImplementationError,
@@ -61,6 +64,7 @@ import {
     FabricRemovedError,
     LocatedNodeCommissioningOptions,
     OperationalAddress,
+    PaseClient,
     Peer,
     PeerAddress,
     PeerInitiatedCloseError,
@@ -74,14 +78,20 @@ import {
 } from "@matter/protocol";
 import {
     CaseAuthenticatedTag,
+    CommissioningFlowType,
     DeviceTypeId,
     DiscoveryCapabilitiesBitmap,
+    DiscoveryCapabilitiesSchema,
     FabricIndex,
     ManualPairingCodeCodec,
     NodeId,
+    QrPairingCodeCodec,
+    Status,
+    StatusResponseError,
     TypeFromPartialBitSchema,
     VendorId,
 } from "@matter/types";
+import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
 import { ControllerBehavior } from "../controller/ControllerBehavior.js";
 import { NetworkClient } from "../network/NetworkClient.js";
@@ -251,6 +261,7 @@ export class CommissioningClient extends Behavior {
             regulatoryCountryCode: options.regulatoryCountryCode,
             timeout: options.timeout,
             caseConnectionTiming: options.caseConnectionTiming ?? defaultCaseConnectionTiming,
+            caseConnectionTimeout: options.caseConnectionTimeout,
         };
 
         // Check if our server has an OTA Provider (later: and no custom one is provided) and register the location
@@ -400,6 +411,103 @@ export class CommissioningClient extends Behavior {
             );
         } finally {
             leaveEvents?.off(onLeave);
+        }
+    }
+
+    /**
+     * Open a Basic Commissioning Window (uses the passcode originally printed on the device).
+     *
+     * This is an optional feature and not all devices support it; use {@link openEnhancedCommissioningWindow} unless
+     * you specifically need the basic commissioning method.
+     */
+    async openBasicCommissioningWindow(commissioningTimeout: Duration = Seconds(900)) {
+        if (!this.endpoint.featuresOf(AdministratorCommissioningClient).basic) {
+            throw new ImplementationError(`${this.endpoint} does not support the basic commissioning method`);
+        }
+
+        const adminCommissioning = this.agent.get(AdministratorCommissioningClient);
+        await this.#revokeStaleCommissioningWindow(adminCommissioning);
+
+        await adminCommissioning.openBasicCommissioningWindow({
+            commissioningTimeout: Seconds.of(commissioningTimeout),
+        });
+    }
+
+    /**
+     * Open an Enhanced Commissioning Window using a freshly generated random passcode.
+     *
+     * The peer's BasicInformation must be seeded — its vendor/product IDs are encoded into the QR pairing code — so
+     * this throws (before opening any window) if it is not.
+     *
+     * @returns the manual and QR pairing codes encoding the generated passcode.
+     */
+    async openEnhancedCommissioningWindow(
+        commissioningTimeout: Duration = Seconds(900),
+    ): Promise<{ manualPairingCode: string; qrPairingCode: string }> {
+        const basicInformation = this.endpoint.maybeStateOf(BasicInformationClient);
+        if (basicInformation === undefined) {
+            throw new ImplementationError(
+                `${this.endpoint} must be seeded (BasicInformation) before opening an enhanced commissioning window; its vendor/product IDs are encoded in the QR pairing code`,
+            );
+        }
+
+        const adminCommissioning = this.agent.get(AdministratorCommissioningClient);
+        await this.#revokeStaleCommissioningWindow(adminCommissioning);
+
+        const crypto = this.env.get(Crypto);
+        const discriminator = PaseClient.generateRandomDiscriminator(crypto);
+        const passcode = PaseClient.generateRandomPasscode(crypto);
+        const salt = crypto.randomBytes(32);
+        const iterations = CRYPTO_PBKDF_ITERATIONS_MIN;
+        const pakePasscodeVerifier = await PaseClient.generatePakePasscodeVerifier(crypto, passcode, {
+            iterations,
+            salt,
+        });
+
+        await adminCommissioning.openCommissioningWindow({
+            commissioningTimeout: Seconds.of(commissioningTimeout),
+            pakePasscodeVerifier,
+            salt,
+            iterations,
+            discriminator,
+        });
+
+        const { vendorId, productId } = basicInformation;
+
+        // TODO: If the timeout is shorter than 15 minutes, also encode it in the QR code's TLV data.
+        const qrPairingCode = QrPairingCodeCodec.encode([
+            {
+                version: 0,
+                vendorId,
+                productId,
+                flowType: CommissioningFlowType.Standard,
+                discriminator,
+                passcode,
+                discoveryCapabilities: DiscoveryCapabilitiesSchema.encode({ onIpNetwork: true }),
+            },
+        ]);
+
+        return {
+            manualPairingCode: ManualPairingCodeCodec.encode({
+                discriminator,
+                passcode,
+                flowType: CommissioningFlowType.Standard,
+            }),
+            qrPairingCode,
+        };
+    }
+
+    /** Tolerates the device reporting that no window is currently open, so a stale window can be revoked blindly. */
+    async #revokeStaleCommissioningWindow(adminCommissioning: AdministratorCommissioningClient) {
+        try {
+            await adminCommissioning.revokeCommissioning();
+        } catch (error) {
+            if (
+                !StatusResponseError.is(error, Status.Failure) ||
+                StatusResponseError.of(error)?.clusterCode !== AdministratorCommissioning.StatusCode.WindowNotOpen
+            ) {
+                throw error;
+            }
         }
     }
 
@@ -1005,15 +1113,19 @@ export namespace CommissioningClient {
         regulatoryCountryCode?: ControllerCommissioningFlowOptions["regulatoryCountryCode"];
 
         /**
-         * Override the final commissioning step.
+         * Override the final operational step of commissioning.
          *
-         * When provided, matter.js completes commissioning over PASE and then calls this function instead of performing
-         * the CASE reconnection and "CommissioningComplete" command internally.  The function must connect to the device
-         * operationally and invoke "CommissioningComplete" itself.
+         * The flow runs PASE, arm-failsafe, CSR and AddNOC as usual, then invokes this hook **instead of** connecting
+         * to the device operationally and sending "CommissioningComplete" itself, and awaits it. The hook owns the
+         * finalization and must drive it to completion before resolving: resolve on success, throw on failure.
+         * `commission()` resolves or rejects with this hook's outcome — a throw rolls the commissioning back.
          *
-         * This is used by {@link PaseCommissioner} so that a lightweight commissioner can perform the PASE phase and
-         * then hand off to a full controller to finish commissioning.
-         * TODO: Revisit when we decide how to continue with the PaseCommissioner approach at all
+         * For a delegated/split flow, hand `address.nodeId` and `discoveryData` to the controller that will finish
+         * (typically a separate, network-side controller sharing this fabric) and **await** its
+         * `serverNode.peers.completeCommissioning(nodeId, discoveryData)` from within this hook. Do not return before
+         * that completes: the PASE session is held open across the hook and the device's failsafe stays armed until
+         * "CommissioningComplete" arrives, so returning early leaves the device mid-commission and it reverts,
+         * discarding the freshly issued NOC. See docs/MIGRATION_CONTROLLER_018.md for the full recipe.
          */
         finalizeCommissioning?: (address: ProtocolPeerAddress, discoveryData?: DiscoveryData) => Promise<void>;
 
@@ -1027,6 +1139,25 @@ export namespace CommissioningClient {
          * Defaults to `{ delayBeforeNextAddress: Seconds(15), maxDelayBetweenInitialContactRetries: Seconds(60), delayAfterPeerError: Minutes(2) }`.
          */
         caseConnectionTiming?: Partial<PeerTimingParameters>;
+
+        /**
+         * Wall-clock budget for the step-18 CASE reconnect, across every candidate address and retry.
+         *
+         * Defaults to `DEFAULT_CASE_CONNECTION_TIMEOUT`, which leaves room for two server-side retry windows.  Lower it
+         * to bound commissioning to a single handshake attempt, so a handshake the device fails is a commissioning
+         * failure rather than something a retry can recover.
+         *
+         * On an IP transport, raising it past the failsafe armed for this step (up to 5 minutes for the reconnect,
+         * clamped by the device's own `MaxCumulativeFailsafeSeconds`) has the device roll `addNOC` back mid-connect, so a
+         * longer budget cannot succeed; the concurrent BLE flow keeps re-arming instead.  A non-finite budget is
+         * rejected.
+         *
+         * Expiry fails commissioning, which deletes the peer and so aborts the connection it was still attempting.  The
+         * rejection therefore reports a budget that ran out, not what the device answered.  No effect where
+         * {@link finalizeCommissioning} owns the operational step, nor on the connection
+         * `peers.completeCommissioning()` makes.
+         */
+        caseConnectionTimeout?: Duration;
     }
 
     export interface PasscodeOptions extends BaseCommissioningOptions {

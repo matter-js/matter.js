@@ -86,7 +86,9 @@ export async function buildRootNode(opts: RootNodeOptions): Promise<ServerNode> 
     const rootEndpoint = opts.groupcast
         ? // Seam 3: Groupcast Listener requires Auxiliary ACL support
           ServerNode.RootEndpoint.with(
-              AccessControlServer.with("Auxiliary", "Extension"),
+              AccessControlServer.with("Auxiliary", "Extension").enable({
+                  events: { auxiliaryAccessUpdated: true },
+              }),
               GroupcastServer.with("Listener", "Sender", "PerGroup"),
               ...commonBehaviors,
           )

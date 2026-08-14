@@ -8,6 +8,7 @@ import { Message, MessageCodec, SessionType } from "#codec/MessageCodec.js";
 import { Fabric } from "#fabric/Fabric.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import { MessageCounter } from "#protocol/MessageCounter.js";
+import type { MessageExchange } from "#protocol/MessageExchange.js";
 import { GroupSession, GroupSessionNoKeyError } from "#session/GroupSession.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { b$, Bytes, Key, MemoryStorageDriver, PrivateKey, StandardCrypto, StorageContext } from "@matter/general";
@@ -64,6 +65,28 @@ describe("SecureSession", () => {
             isInitiator: true,
         });
     }
+
+    describe("peer loss", () => {
+        it("conveys the initiating exchange to its subscriptions", async () => {
+            const session = secureSession();
+            const currentExchange = {} as MessageExchange;
+            const received = new Array<MessageExchange | undefined>();
+
+            session.subscriptions.add({
+                subscriptionId: 1,
+                isTerminated: false,
+                async handlePeerCancel() {},
+                async close(_flushViaSession, exchange) {
+                    received.push(exchange);
+                },
+            });
+
+            await session.handlePeerLoss({ cause: new Error("unresponsive"), currentExchange });
+
+            // A subscription sending on this exchange must be able to recognize the teardown as its own doing
+            expect(received[0]).equals(currentExchange);
+        });
+    });
 
     describe("decrypt", () => {
         it("decrypts a message", () => {

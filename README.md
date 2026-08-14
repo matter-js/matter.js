@@ -1,6 +1,6 @@
 # JavaScript/TypeScript based Matter Implementation
 
-[![license](https://img.shields.io/badge/license-Apache2-green.svg)](https://raw.githubusercontent.com/matter-js/matter.js/master/LICENSE)
+[![license](https://img.shields.io/badge/license-Apache2-green.svg)](https://raw.githubusercontent.com/matter-js/matter.js/main/LICENSE)
 
 ## What is Matter?
 
@@ -52,7 +52,8 @@ matter.js has already been successfully used in certified products, but there ar
 
 ## JavaScript/Node.js compatibility
 * At least ES2022 needs to be used as build target for your project!
-* The published packages are supports all LTS Node.js versions starting with 20.x
+* The published packages support all LTS Node.js versions starting with 20.x
+* Developing matter.js itself needs Node.js 22.12 or newer, because the build toolchain declares that range. Node.js 20 still builds and passes the tests, but `npm install` reports an engine warning.
 
 Please also see the additional [TypeScript notes](./packages/main/README.md#typescript-note).
 
@@ -84,18 +85,22 @@ If your project is not based on Node.js you need to implement the platform speci
 
 ### Run the examples
 
-The templates we use when you bootstrap a new application are available as examples you can run directly.  You can
-install them in Node.js as follows:
+The templates we use when you bootstrap a new application are available as examples you can run directly. Bootstrap one
+with the project creator:
 
 ```bash
-npm install @matter/examples
+npm init @matter
 ```
 
-Please refer to the Examples readme for information regarding their usage: [examples](examples/README.md)
+The examples also live in this repository and can be run from a clone with `npm run <example-name>` — see the root
+`package.json` for the available scripts. Please refer to the Examples readme for information regarding their usage:
+[examples](examples/README.md)
+
+> The examples were published as a single `@matter/examples` package up to version 0.15.x only.
 
 ### Extending and contributing to matter.js
 
-We welcome contributions!  If you have Node.js installed, prepare your development environment as follows:
+We welcome contributions! With Node.js 22.12 or newer installed, prepare your development environment as follows:
 
 ```bash
 git clone https://github.com/matter-js/matter.js
@@ -105,8 +110,18 @@ npm install
 
 This will install all dependencies and create symlinks between the packages, so that it can be used locally. It also builds all packages.
 
-On Windows, in order to successfully build all the packages (tested on Windows 11 Pro) make sure to have installed Node.js 20+, the windows-build-tools and node-gyp version 10.
+On Windows, in order to successfully build all the packages (tested on Windows 11 Pro) make sure to have installed the windows-build-tools and node-gyp version 10.
 On Non-Windows platforms and having Python 3.12+ installed, please also make sure to use npm 10.2.3+.
+
+Please read the [contributing guide](./CONTRIBUTING.md) before opening an issue or pull request.
+
+## AI policy
+
+This project follows the [Open Home Foundation AI Policy](./AI_POLICY.md).
+
+AI tools are welcome as an aid, but you must fully understand and be able to explain every
+change you submit. Contributions created by autonomous agents — issues, pull requests, or
+comments posted without human review — are not accepted and will be closed.
 
 ## Connecting with the community
 
@@ -180,14 +195,14 @@ To allow a simple use of the matter.js Monorepo based project in other projects,
 
 matter.js relies very much on TypeScript and tries to be as type safe as possible. Please prevent using ts-ignore or other "hacks" as best as possible and try to find and fix the real typing issue if you encounter cases where you need to use them. You can also always join discord or ask in GitHub discussions if you need help.
 
-The project contains eslint as linter and prettier as formatter. The configuration files are located in the root directory and are valid for all packages.
+The project contains oxlint as linter and oxfmt as formatter. The configuration files are located in the root directory and are valid for all packages.
 
 The following commands are available:
 
-- `npm run lint`: runs eslint on all packages and outputs the results and errors
-- `npm run lint-fix`: runs eslint on all packages and tries to fix the errors
-- `npm run format`: runs typescript-formatter on all packages and formats the code. Files will be changed in place.
-- `npm run format-verify`: runs typescript-formatter on all packages and checks if the code is formatted correctly. If not it will output the files that need to be formatted.
+- `npm run lint`: runs oxlint on all packages and outputs the results and errors
+- `npm run lint-fix`: runs oxlint on all packages and tries to fix the errors
+- `npm run format`: runs oxfmt on all packages and formats the code. Files will be changed in place.
+- `npm run format-verify`: runs oxfmt on all packages and checks if the code is formatted correctly. If not it will output the files that need to be formatted.
 
 If you want to contribute to the project please make sure to check linting and formatting before creating a PR. The GitHub CI also verifies this and will fail if the code is not formatted correctly.
 
@@ -201,7 +216,7 @@ You can use `npm run build-clean` on the root level to build all packages from s
 
 You can use `npm run test` on the root level to run all tests for all packages.
 
-Special testing using the Chip-Tool-Certification tests is available in the package chip-testing. Please refer to the [README.md](chip-testing/README.md) in the package for more details.
+Special testing using the Chip-Tool-Certification tests is available in the package chip-testing. Please refer to the [README.md](./support/chip-testing/README.md) in the package for more details.
 
 ## API documentation
 

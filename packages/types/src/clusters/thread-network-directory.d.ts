@@ -283,12 +283,12 @@ export declare namespace ThreadNetworkDirectory {
     export const commands: ClusterType.CommandObjects<Commands>;
 
     /**
-     * @deprecated Use {@link ThreadNetworkDirectory}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ThreadNetworkDirectory}.
      */
     export const Cluster: typeof ThreadNetworkDirectory;
 
     /**
-     * @deprecated Use {@link ThreadNetworkDirectory}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ThreadNetworkDirectory}.
      */
     export const Complete: typeof ThreadNetworkDirectory;
 
@@ -296,7 +296,7 @@ export declare namespace ThreadNetworkDirectory {
 }
 
 /**
- * @deprecated Use {@link ThreadNetworkDirectory}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link ThreadNetworkDirectory}.
  */
 export declare const ThreadNetworkDirectoryCluster: typeof ThreadNetworkDirectory;
 

@@ -285,12 +285,12 @@ export declare namespace EcosystemInformation {
     export const attributes: ClusterType.AttributeObjects<Attributes>;
 
     /**
-     * @deprecated Use {@link EcosystemInformation}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link EcosystemInformation}.
      */
     export const Cluster: typeof EcosystemInformation;
 
     /**
-     * @deprecated Use {@link EcosystemInformation}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link EcosystemInformation}.
      */
     export const Complete: typeof EcosystemInformation;
 
@@ -298,7 +298,7 @@ export declare namespace EcosystemInformation {
 }
 
 /**
- * @deprecated Use {@link EcosystemInformation}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link EcosystemInformation}.
  */
 export declare const EcosystemInformationCluster: typeof EcosystemInformation;
 

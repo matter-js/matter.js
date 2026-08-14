@@ -7,11 +7,13 @@
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import type { ClusterBehaviorType } from "#behavior/cluster/ClusterBehaviorType.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
+import { memberValueOf } from "#behavior/state/managed/MemberKeys.js";
+import type { ValReference } from "#behavior/state/managed/ValReference.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { RootEndpoint } from "#endpoints/root";
-import type { Node } from "#node/Node.js";
 import type { StateStream } from "#node/integration/StateStream.js";
+import type { Node } from "#node/Node.js";
 import { DatasourceCache } from "#storage/client/DatasourceCache.js";
 import {
     capitalize,
@@ -32,7 +34,6 @@ import {
     DeviceClassification,
     FeatureMap,
     GeneratedCommandList,
-    Matter,
     type FeatureBitmap,
 } from "@matter/model";
 import { ReadScope, Val, type Read, type ReadResult } from "@matter/protocol";
@@ -63,13 +64,13 @@ const SERVER_LIST_ATTR_NAME = "serverList";
 const PARTS_LIST_ATTR_NAME = "partsList";
 
 /**
- * Read a value from store initial values using either numeric attribute ID or property name.
+ * Read a value from store initial values, preferring the numeric attribute ID slot over the property name slot.
  */
 function getStoreValue(values: Record<string | number, unknown> | undefined, id: number, name: string): unknown {
     if (values === undefined) {
         return undefined;
     }
-    return id in values ? values[id] : values[name];
+    return memberValueOf(values, id, name);
 }
 
 /**
@@ -399,7 +400,8 @@ export class ClientStructure {
                 const state = this.#node.state as Record<string, unknown>;
                 const network = state?.network as undefined | Record<string, unknown>;
                 const defaultSubscription = network?.defaultSubscription as
-                    undefined | { isFabricFiltered?: boolean; fabricFiltered?: boolean };
+                    | undefined
+                    | { isFabricFiltered?: boolean; fabricFiltered?: boolean };
                 if (defaultSubscription) {
                     this.#subscribedFabricFiltered =
                         ("isFabricFiltered" in defaultSubscription
@@ -689,6 +691,7 @@ export class ClientStructure {
                 if (this.#commandFactory) {
                     shape.commandFactory = this.#commandFactory;
                 }
+                shape.matter = this.#node.matter;
                 const behaviorType = PeerBehavior(shape);
 
                 if (endpoint.lifecycle.isInstalled) {
@@ -721,7 +724,8 @@ export class ClientStructure {
         const { endpoint } = structure;
 
         const deviceTypeList = getStoreValue(attrs, DEVICE_TYPE_LIST_ATTR_ID, DEVICE_TYPE_LIST_ATTR_NAME) as
-            Descriptor.DeviceType[] | undefined;
+            | Descriptor.DeviceType[]
+            | undefined;
         if (Array.isArray(deviceTypeList)) {
             const endpointType = endpoint.type;
             for (const dt of deviceTypeList) {
@@ -730,7 +734,7 @@ export class ClientStructure {
                 }
 
                 let isApp = false;
-                const model = Matter.deviceTypes(dt.deviceType);
+                const model = this.#node.matter.deviceTypes(dt.deviceType);
                 if (model !== undefined) {
                     isApp = DeviceClassification.isApplication(model.classification);
                 }
@@ -917,7 +921,7 @@ export class ClientStructure {
         }
 
         // Try to resolve by looking up the cluster model by capitalized behavior name (e.g. "onOff" → "OnOff")
-        const clusterModel = Matter.clusters(capitalize(behaviorId));
+        const clusterModel = this.#node.matter.clusters(capitalize(behaviorId));
         if (clusterModel) {
             return this.#clusterFor(endpoint, clusterModel.id as ClusterId);
         }
@@ -1010,11 +1014,7 @@ export class ClientStructure {
 
                 await endpoint.behaviors.drop(behavior.id);
                 try {
-                    await MaybePromise.then(
-                        (
-                            cluster.store as Datasource.ExternallyMutableStore & { erase?(): MaybePromise<void> }
-                        ).erase?.(),
-                    );
+                    await MaybePromise.then(cluster.store.erase?.());
                 } catch (e) {
                     logger.warn("Error clearing cluster storage:", e);
                 }
@@ -1178,7 +1178,7 @@ export namespace ClientStructure {
     export type StoreFactory = (
         endpoint: Endpoint,
         behaviorId: string,
-        primaryKey: "id" | "name",
+        primaryKey: ValReference.PrimaryKey,
     ) => Datasource.ExternallyMutableStore;
 
     export interface Options {

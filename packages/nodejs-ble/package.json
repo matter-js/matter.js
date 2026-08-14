@@ -25,7 +25,11 @@
     "scripts": {
         "clean": "nacho-build clean",
         "build": "nacho-build",
-        "build-clean": "nacho-build --clean"
+        "build-clean": "nacho-build --clean",
+        "test": "matter-test"
+    },
+    "devDependencies": {
+        "@matter/testing": "*"
     },
     "dependencies": {
         "@matter/general": "*",
@@ -33,11 +37,11 @@
         "@matter/types": "*"
     },
     "optionalDependencies": {
-        "@stoprocent/bleno": "^0.12.5",
-        "@stoprocent/noble": "^2.5.7"
+        "@stoprocent/bleno": "^0.13.1",
+        "@stoprocent/noble": "^2.7.1"
     },
     "engines": {
-        "node": ">=20.19.0 <22.0.0 || >=22.13.0"
+        "node": ">=20.19.0 <21.0.0 || >=22.13.0"
     },
     "files": [
         "dist/**/*",

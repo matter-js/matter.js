@@ -635,12 +635,12 @@ export declare namespace OtaSoftwareUpdateRequestor {
     export const events: ClusterType.EventObjects<Events>;
 
     /**
-     * @deprecated Use {@link OtaSoftwareUpdateRequestor}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link OtaSoftwareUpdateRequestor}.
      */
     export const Cluster: typeof OtaSoftwareUpdateRequestor;
 
     /**
-     * @deprecated Use {@link OtaSoftwareUpdateRequestor}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link OtaSoftwareUpdateRequestor}.
      */
     export const Complete: typeof OtaSoftwareUpdateRequestor;
 
@@ -648,7 +648,7 @@ export declare namespace OtaSoftwareUpdateRequestor {
 }
 
 /**
- * @deprecated Use {@link OtaSoftwareUpdateRequestor}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link OtaSoftwareUpdateRequestor}.
  */
 export declare const OtaSoftwareUpdateRequestorCluster: typeof OtaSoftwareUpdateRequestor;
 

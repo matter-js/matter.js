@@ -8,9 +8,9 @@ export const INTERMEDIATE_PATH = "models";
 
 import { Logger } from "#general";
 import { MatterElement, MatterModel } from "#model";
-import { TsFile } from "../../util/TsFile.js";
 import { finalizeModel } from "../../util/finalize-model.js";
 import { camelize } from "../../util/string.js";
+import { TsFile } from "../../util/TsFile.js";
 import { generateElement } from "./generate-element.js";
 
 const logger = Logger.get("intermediate-model");

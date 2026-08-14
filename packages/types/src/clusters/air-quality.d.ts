@@ -159,12 +159,12 @@ export declare namespace AirQuality {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link AirQuality}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link AirQuality}.
      */
     export const Cluster: ClusterType.WithCompat<typeof AirQuality, AirQuality>;
 
     /**
-     * @deprecated Use {@link AirQuality}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link AirQuality}.
      */
     export const Complete: typeof AirQuality;
 
@@ -172,7 +172,7 @@ export declare namespace AirQuality {
 }
 
 /**
- * @deprecated Use {@link AirQuality}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link AirQuality}.
  */
 export declare const AirQualityCluster: typeof AirQuality;
 

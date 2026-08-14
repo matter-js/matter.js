@@ -58,4 +58,19 @@ describe("MatterDefinition", () => {
         }
         expect(offenders).deep.equal([]);
     });
+
+    // Feature selection is the application's, so a cluster selects nothing of its own accord.  The exception is a
+    // feature the specification makes unconditionally mandatory, which offers no choice
+    it("selects only unconditionally mandatory features", () => {
+        const offenders = new Array<string>();
+        for (const cluster of instantiate().clusters) {
+            for (const name of cluster.supportedFeatures) {
+                const feature = cluster.features.find(feature => feature.name === name)!;
+                if (!feature.effectiveConformance.isMandatory) {
+                    offenders.push(`${cluster.name}.${name}`);
+                }
+            }
+        }
+        expect(offenders).deep.equal([]);
+    });
 });

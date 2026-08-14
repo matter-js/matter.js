@@ -132,7 +132,7 @@ export class PythonTest extends BaseTest {
 
     async #runPythonTest(subject: Subject, step: (title: string) => void, args: string[], uncommissioned: boolean) {
         const terminal = await this.container.exec(
-            await createCommand(this.descriptor, subject, args, uncommissioned),
+            await createCommand(this.descriptor, this.container, subject, args, uncommissioned),
             Terminal.Line,
             {
                 cwd: "/tmp",
@@ -163,7 +163,7 @@ export class PythonTest extends BaseTest {
 /**
  * Upgrade logging output with consistency and colors.
  */
-function spiffy(line: string) {
+export function spiffy(line: string) {
     let timestamp = "";
     let level = "";
     let facility = "";
@@ -220,8 +220,9 @@ function spiffy(line: string) {
  *
  * A program defining mandatory arguments to itself seems silly but we work with what we've got amiright?
  */
-async function createCommand(
+export async function createCommand(
     descriptor: TestFileDescriptor,
+    container: Container,
     subject: Subject,
     extraArgs: string[],
     uncommissioned: boolean,
@@ -240,7 +241,7 @@ async function createCommand(
     }
 
     if (!command.includes("--PICS")) {
-        command.push("--PICS", await PicsSource.install(subject.pics));
+        command.push("--PICS", await PicsSource.install(container, subject.pics));
     }
 
     const qrCodePos = command.indexOf("--qr-code");

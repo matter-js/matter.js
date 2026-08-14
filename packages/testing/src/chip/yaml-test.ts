@@ -104,7 +104,7 @@ export class YamlTest extends BaseTest {
 
     async invoke(subject: Subject, step: (title: string) => void, args: string[]) {
         if (!args.includes("--PICS")) {
-            args.push("--PICS", await PicsSource.install(subject.pics));
+            args.push("--PICS", await PicsSource.install(this.container, subject.pics));
         }
 
         const runnerArgs =

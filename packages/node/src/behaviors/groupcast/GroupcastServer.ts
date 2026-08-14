@@ -55,7 +55,22 @@ function toIpv6EventAddress(ip: string | undefined) {
     return isIPv6(address) ? ipv6ToBytes(address) : undefined;
 }
 
-const GroupcastBase = GroupcastBehavior;
+/**
+ * Every element of this provisional cluster is optional, so declare the ones this server implements.
+ *
+ * TODO: remove once the Groupcast cluster leaves provisional state in the Matter specification.  Its elements become
+ * mandatory again at that point and matter.js implements them without this declaration.
+ */
+const Base = GroupcastBehavior.enable({
+    attributes: {
+        membership: true,
+        maxMembershipCount: true,
+        maxMcastAddrCount: true,
+        usedMcastAddrCount: true,
+        fabricUnderTest: true,
+    },
+    events: { groupcastTesting: true },
+});
 
 // GroupProperties persists per-group policy metadata (excluding Membership's KeySetId/Endpoints fields) so a later
 // derivation step can rebuild Membership from this state alone. Has no numeric attribute id, so it stays
@@ -74,7 +89,7 @@ const groupPropertiesStructFS = DatatypeElement(
     FieldElement({ name: "HasAuxiliaryAcl", id: 0x2, type: "bool", access: "F", conformance: "M" }),
     FieldElement({ name: "FabricIndex", id: 0xfe, type: "FabricIndex", conformance: "M" }),
 );
-const schema = GroupcastBase.schema.extend(
+const schema = Base.schema.extend(
     {},
     groupPropertiesStructFS,
     FieldElement(
@@ -102,7 +117,7 @@ const schema = GroupcastBase.schema.extend(
  * - Registers an {@link AccessControlServer.AuxAclObservable} to supply synthetic ACL entries for groups
  *   with `hasAuxiliaryAcl=true`. AccessControlServer calls back to collect entries when needed.
  */
-export class GroupcastServer extends GroupcastBase {
+export class GroupcastServer extends Base {
     declare internal: GroupcastServer.Internal;
     declare readonly state: GroupcastServer.State;
     static override readonly schema = schema;
@@ -940,7 +955,7 @@ export namespace GroupcastServer {
     };
 
     /** Default state overrides for GroupcastServer. */
-    export class State extends GroupcastBehavior.State {
+    export class State extends Base.State {
         /**
          * Implementation-defined maximum membership count (min 10 per spec).
          * Set to 2 * GKM.maxGroupsPerFabric (44) so per-fabric quota floor(44/2)=22 aligns exactly

@@ -6,9 +6,9 @@
 
 import { decamelize, Logger } from "#general";
 import { DeviceClassification, DeviceTypeModel } from "#model";
-import { Block, TsFile } from "../util/TsFile.js";
 import { clean } from "../util/file.js";
 import { describeList, serialize } from "../util/string.js";
+import { Block, TsFile } from "../util/TsFile.js";
 import { RequirementGenerator } from "./RequirementGenerator.js";
 
 const logger = Logger.get("EndpointFile");

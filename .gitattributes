@@ -1,4 +1,4 @@
-# Enforce LF line endings for all text files (matches Prettier's endOfLine: lf)
+# Enforce LF line endings for all text files (matches the formatter's endOfLine: lf)
 * text=auto eol=lf
 
 # Linguist overrides for generated files

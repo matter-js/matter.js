@@ -578,12 +578,12 @@ export declare namespace OccupancySensing {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link OccupancySensing}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link OccupancySensing}.
      */
     export const Cluster: ClusterType.WithCompat<typeof OccupancySensing, OccupancySensing>;
 
     /**
-     * @deprecated Use {@link OccupancySensing}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link OccupancySensing}.
      */
     export const Complete: typeof OccupancySensing;
 
@@ -591,7 +591,7 @@ export declare namespace OccupancySensing {
 }
 
 /**
- * @deprecated Use {@link OccupancySensing}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link OccupancySensing}.
  */
 export declare const OccupancySensingCluster: typeof OccupancySensing;
 

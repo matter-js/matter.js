@@ -314,12 +314,12 @@ export declare namespace FormaldehydeConcentrationMeasurement {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link FormaldehydeConcentrationMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link FormaldehydeConcentrationMeasurement}.
      */
     export const Cluster: ClusterType.WithCompat<typeof FormaldehydeConcentrationMeasurement, FormaldehydeConcentrationMeasurement>;
 
     /**
-     * @deprecated Use {@link FormaldehydeConcentrationMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link FormaldehydeConcentrationMeasurement}.
      */
     export const Complete: typeof FormaldehydeConcentrationMeasurement;
 
@@ -327,7 +327,7 @@ export declare namespace FormaldehydeConcentrationMeasurement {
 }
 
 /**
- * @deprecated Use {@link FormaldehydeConcentrationMeasurement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link FormaldehydeConcentrationMeasurement}.
  */
 export declare const FormaldehydeConcentrationMeasurementCluster: typeof FormaldehydeConcentrationMeasurement;
 

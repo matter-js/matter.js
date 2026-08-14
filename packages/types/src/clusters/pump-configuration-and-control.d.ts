@@ -1241,12 +1241,12 @@ export declare namespace PumpConfigurationAndControl {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link PumpConfigurationAndControl}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link PumpConfigurationAndControl}.
      */
     export const Cluster: ClusterType.WithCompat<typeof PumpConfigurationAndControl, PumpConfigurationAndControl>;
 
     /**
-     * @deprecated Use {@link PumpConfigurationAndControl}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link PumpConfigurationAndControl}.
      */
     export const Complete: typeof PumpConfigurationAndControl;
 
@@ -1254,7 +1254,7 @@ export declare namespace PumpConfigurationAndControl {
 }
 
 /**
- * @deprecated Use {@link PumpConfigurationAndControl}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link PumpConfigurationAndControl}.
  */
 export declare const PumpConfigurationAndControlCluster: typeof PumpConfigurationAndControl;
 

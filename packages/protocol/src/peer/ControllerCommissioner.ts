@@ -93,7 +93,28 @@ export interface CommissioningOptions extends Partial<ControllerCommissioningFlo
      * on top of the global {@link PeerSet.timing} for that single connection only.
      */
     caseConnectionTiming?: Partial<PeerTimingParameters>;
+
+    /**
+     * Wall-clock budget for the step-18 CASE reconnect, across every candidate address and retry.
+     *
+     * Defaults to {@link DEFAULT_CASE_CONNECTION_TIMEOUT}.  Lower it to bound commissioning to a single handshake
+     * attempt, so a handshake the device fails is a commissioning failure rather than something a retry can recover.
+     *
+     * On an IP transport, raising it past the failsafe armed for this step (`ControllerCommissioningFlow` allows up to
+     * 5 minutes for the reconnect, clamped by the device's own `MaxCumulativeFailsafeSeconds`) has the device roll
+     * `addNOC` back mid-connect, so a longer budget cannot succeed.  The concurrent BLE flow keeps re-arming instead.
+     *
+     * Expiry fails commissioning, which deletes the peer and so aborts the connection it was still attempting.  The
+     * rejection therefore reports a budget that ran out, not what the device answered.  No effect where
+     * {@link finalizeCommissioning} owns the operational step instead.
+     */
+    caseConnectionTimeout?: Duration;
 }
+
+/**
+ * 4m15s allows two ~2-minute server-side retry windows to complete before we abort.
+ */
+export const DEFAULT_CASE_CONNECTION_TIMEOUT = Seconds(255);
 
 /**
  * Configuration for commissioning a previously discovered node.
@@ -363,7 +384,7 @@ export class ControllerCommissioner {
                     `BLE interface not initialized. Cannot use ${address.peripheralAddress} for commissioning.`,
                 );
             }
-            paseChannel = await Abort.attempt(signal, ble.openChannel(address));
+            paseChannel = await Abort.attempt(signal, ble.openChannel(address, { abort: signal }));
         } else {
             throw new ImplementationError(`Unsupported address type for Matter PASE commissioning`);
         }
@@ -392,7 +413,7 @@ export class ControllerCommissioner {
                 passcode,
                 { abort: signal },
             );
-            unsecuredSession.detachChannel();
+            await unsecuredSession.detachChannel()?.release();
             return caseSession;
         } catch (e) {
             // Close the exchange and rethrow
@@ -493,7 +514,16 @@ export class ControllerCommissioner {
             finalizeCommissioning: performCaseCommissioning,
             commissioningFlowImpl = ControllerCommissioningFlow,
             caseConnectionTiming,
+            caseConnectionTimeout = DEFAULT_CASE_CONNECTION_TIMEOUT,
         } = options;
+
+        // Nothing else bounds the post-PASE flow, and the device's failsafe expires regardless, so an unbounded budget
+        // could only wait for a commissioning the device has already rolled back.
+        if (!Number.isFinite(caseConnectionTimeout)) {
+            throw new ImplementationError(
+                `caseConnectionTimeout must be finite, not ${Duration.format(caseConnectionTimeout)}`,
+            );
+        }
 
         const commissioningOptions = {
             ...options,
@@ -602,8 +632,7 @@ export class ControllerCommissioner {
                 // transport decision (e.g. the TCP spec-version gate) has the device's spec version available.
                 peer.descriptor.sessionParameters = ephemeralSession.parameters;
                 await peer.connect({
-                    // 4m15s allows two ~2-minute server-side retry windows to complete before we abort.
-                    connectionTimeout: Seconds(255),
+                    connectionTimeout: caseConnectionTimeout,
                     timing: caseConnectionTiming,
 
                     handleError: error => {

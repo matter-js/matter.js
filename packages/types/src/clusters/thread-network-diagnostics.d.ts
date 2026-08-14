@@ -181,26 +181,6 @@ export declare namespace ThreadNetworkDiagnostics {
         activeNetworkFaultsList: NetworkFault[];
 
         /**
-         * Indicates the IEEE 802.15.4 extended address for the Node. A value of null shall indicate that the extended
-         * address is not yet known. The uint64 value is composed by taking the 8 octets of the extended address EUI-64
-         * and treating them as a big-endian integer. For example, octet string (in hexadecimal, from first octet to
-         * last) 00112233AABBCCDD would lead to a value of 0x00112233AABBCCDD.
-         *
-         * @see {@link MatterSpecification.v16.Core} § 11.14.6.64
-         */
-        extAddress: number | bigint | null;
-
-        /**
-         * Indicates the RLOC16 of the Node. A value of null shall indicate that the Thread interface is not currently
-         * configured or operational. The uint16 value is composed by taking the two RLOC16 and treating the octet
-         * string as if it was encoding a big-endian integer. For example, octet string (in hexadecimal, from first
-         * octet to last) 44AA would lead to a value of 0x44AA.
-         *
-         * @see {@link MatterSpecification.v16.Core} § 11.14.6.65
-         */
-        rloc16: number | null;
-
-        /**
          * Null when there is no dataset configured.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.14.6.57
@@ -220,6 +200,26 @@ export declare namespace ThreadNetworkDiagnostics {
          * @see {@link MatterSpecification.v16.Core} § 11.14.6.59
          */
         delay?: number | null;
+
+        /**
+         * Indicates the IEEE 802.15.4 extended address for the Node. A value of null shall indicate that the extended
+         * address is not yet known. The uint64 value is composed by taking the 8 octets of the extended address EUI-64
+         * and treating them as a big-endian integer. For example, octet string (in hexadecimal, from first octet to
+         * last) 00112233AABBCCDD would lead to a value of 0x00112233AABBCCDD.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.14.6.64
+         */
+        extAddress?: number | bigint | null;
+
+        /**
+         * Indicates the RLOC16 of the Node. A value of null shall indicate that the Thread interface is not currently
+         * configured or operational. The uint16 value is composed by taking the two RLOC16 and treating the octet
+         * string as if it was encoding a big-endian integer. For example, octet string (in hexadecimal, from first
+         * octet to last) 44AA would lead to a value of 0x44AA.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.14.6.65
+         */
+        rloc16?: number | null;
     }
 
     /**
@@ -741,26 +741,6 @@ export declare namespace ThreadNetworkDiagnostics {
         activeNetworkFaultsList: NetworkFault[];
 
         /**
-         * Indicates the IEEE 802.15.4 extended address for the Node. A value of null shall indicate that the extended
-         * address is not yet known. The uint64 value is composed by taking the 8 octets of the extended address EUI-64
-         * and treating them as a big-endian integer. For example, octet string (in hexadecimal, from first octet to
-         * last) 00112233AABBCCDD would lead to a value of 0x00112233AABBCCDD.
-         *
-         * @see {@link MatterSpecification.v16.Core} § 11.14.6.64
-         */
-        extAddress: number | bigint | null;
-
-        /**
-         * Indicates the RLOC16 of the Node. A value of null shall indicate that the Thread interface is not currently
-         * configured or operational. The uint16 value is composed by taking the two RLOC16 and treating the octet
-         * string as if it was encoding a big-endian integer. For example, octet string (in hexadecimal, from first
-         * octet to last) 44AA would lead to a value of 0x44AA.
-         *
-         * @see {@link MatterSpecification.v16.Core} § 11.14.6.65
-         */
-        rloc16: number | null;
-
-        /**
          * Null when there is no dataset configured.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.14.6.57
@@ -780,6 +760,26 @@ export declare namespace ThreadNetworkDiagnostics {
          * @see {@link MatterSpecification.v16.Core} § 11.14.6.59
          */
         delay: number | null;
+
+        /**
+         * Indicates the IEEE 802.15.4 extended address for the Node. A value of null shall indicate that the extended
+         * address is not yet known. The uint64 value is composed by taking the 8 octets of the extended address EUI-64
+         * and treating them as a big-endian integer. For example, octet string (in hexadecimal, from first octet to
+         * last) 00112233AABBCCDD would lead to a value of 0x00112233AABBCCDD.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.14.6.64
+         */
+        extAddress: number | bigint | null;
+
+        /**
+         * Indicates the RLOC16 of the Node. A value of null shall indicate that the Thread interface is not currently
+         * configured or operational. The uint16 value is composed by taking the two RLOC16 and treating the octet
+         * string as if it was encoding a big-endian integer. For example, octet string (in hexadecimal, from first
+         * octet to last) 44AA would lead to a value of 0x44AA.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.14.6.65
+         */
+        rloc16: number | null;
 
         /**
          * Indicates the number of packets dropped either at ingress or egress, due to lack of buffer memory to retain
@@ -1720,12 +1720,12 @@ export declare namespace ThreadNetworkDiagnostics {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link ThreadNetworkDiagnostics}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ThreadNetworkDiagnostics}.
      */
     export const Cluster: ClusterType.WithCompat<typeof ThreadNetworkDiagnostics, ThreadNetworkDiagnostics>;
 
     /**
-     * @deprecated Use {@link ThreadNetworkDiagnostics}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ThreadNetworkDiagnostics}.
      */
     export const Complete: typeof ThreadNetworkDiagnostics;
 
@@ -1733,7 +1733,7 @@ export declare namespace ThreadNetworkDiagnostics {
 }
 
 /**
- * @deprecated Use {@link ThreadNetworkDiagnostics}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link ThreadNetworkDiagnostics}.
  */
 export declare const ThreadNetworkDiagnosticsCluster: typeof ThreadNetworkDiagnostics;
 

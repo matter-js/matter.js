@@ -5,23 +5,31 @@
  */
 
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
+import { IcdClient } from "#behavior/system/icd/IcdClient.js";
+import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
 import { ClientNodePhysicalProperties } from "#node/client/ClientNodePhysicalProperties.js";
 import type { ClientNode } from "#node/ClientNode.js";
+import { NodeConnectionState } from "#node/ClientNodeLifecycle.js";
 import { Node } from "#node/Node.js";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
-import { ChannelType, Observable, ServerAddress } from "@matter/general";
+import { ChannelType, Logger, Observable, ServerAddress } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import {
     ClientSubscription,
+    FabricManager,
     OperationalAddress,
     PeerSet,
     SessionParameters,
     Subscribe,
     SustainedSubscription,
+    type Peer,
     Val,
 } from "@matter/protocol";
 import { EventNumber } from "@matter/types";
+import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
+
+const logger = Logger.get("NetworkClient");
 import { ClientNetworkRuntime } from "./ClientNetworkRuntime.js";
 import { NetworkBehavior } from "./NetworkBehavior.js";
 
@@ -41,6 +49,13 @@ export class NetworkClient extends NetworkBehavior {
                 offline: true,
             });
             this.reactTo(this.events.subscriptionStatusChanged, this.#flushCacheOnSubscribed);
+
+            this.reactTo(this.events.subscriptionStatusChanged, this.#recomputeConnectionState);
+            this.reactTo(this.events.isDisabled$Changed, this.#recomputeConnectionState);
+            this.reactTo(this.#node.lifecycle.decommissioned, this.#recomputeConnectionState);
+
+            // Async, and subscriptionAlive emits from within the subscription's action context, so isolate it.
+            this.reactTo(this.events.subscriptionAlive, this.#reconcileFabricLabel, { offline: true });
         }
     }
 
@@ -79,10 +94,30 @@ export class NetworkClient extends NetworkBehavior {
                     this.state.transportPreference ??
                     (this.#node.owner?.state as Record<string, Val.Struct> | undefined)?.network?.transportPreference;
                 peer.transportPreference = pref === "tcp" ? ChannelType.TCP : undefined;
+
+                if (this.#node.nodeType !== "group") {
+                    this.internal.peer = peer;
+                    // These emit synchronously from the peer's retransmission/session paths with no context, so the
+                    // handlers run in an isolated transaction (offline) and a fault cannot escape into those paths.
+                    this.reactTo(peer.establishmentUnresponsive, this.#markLikelyOffline, { offline: true });
+                    this.reactTo(peer.sessions.added, this.#onSessionEstablished, { offline: true });
+                    this.reactTo(peer.sessions.deleted, this.#recomputeConnectionState, { offline: true });
+                }
             }
         }
 
         await this.#syncAutoSubscribe();
+
+        if (this.#node.nodeType !== "group") {
+            if (this.endpoint.behaviors.has(IcdClient)) {
+                // Gated on startup-time presence only; ICD support installed later falls back to the slower
+                // establishment-unresponsive path for offline detection rather than this check-in fast path.
+                this.reactTo(this.endpoint.eventsOf(IcdClient).checkInMissed, this.#markLikelyOffline, {
+                    offline: true,
+                });
+            }
+            this.#recomputeConnectionState();
+        }
 
         this.internal.runtime!.isReady = true;
     }
@@ -194,6 +229,104 @@ export class NetworkClient extends NetworkBehavior {
         return activeSubscription instanceof SustainedSubscription ? activeSubscription.active.value : true;
     }
 
+    /**
+     * Recompute the node's {@link NodeConnectionState} from the current liveness signals and push it into the
+     * lifecycle.  A live subscription is authoritative and clears the likely-offline latch.
+     */
+    #recomputeConnectionState() {
+        const { lifecycle } = this.#node;
+        const peer = this.internal.peer;
+
+        let state: NodeConnectionState;
+        // A `SustainedSubscription` keeps its liveness flag set until it observes the loss itself, which for a sleepy
+        // device lags the actual session teardown by up to its subscription interval.  Require a live session so
+        // connection state falls promptly on session loss rather than a stale subscription reading Connected.
+        if (this.subscriptionActive && (peer === undefined || peer.sessions.size > 0)) {
+            this.internal.likelyOffline = false;
+            state = NodeConnectionState.Connected;
+        } else if (this.state.isDisabled || lifecycle.shouldBeOffline) {
+            // Disabled, stopped or not yet started.  Reset the offline latch so a later re-enable/restart does not
+            // resume in WaitingForDeviceDiscovery before any fresh session.
+            this.internal.likelyOffline = false;
+            state = NodeConnectionState.Disconnected;
+        } else if (this.internal.likelyOffline) {
+            state = NodeConnectionState.WaitingForDeviceDiscovery;
+        } else {
+            state = NodeConnectionState.Reconnecting;
+        }
+
+        lifecycle.setConnectionState(state);
+    }
+
+    /**
+     * Latch the peer as likely offline (idempotent) and re-evaluate.  Driven by an establishment-unresponsive signal
+     * or a registered ICD missing its check-in.
+     */
+    #markLikelyOffline() {
+        this.internal.likelyOffline = true;
+        this.#recomputeConnectionState();
+    }
+
+    /**
+     * A fresh session is proof the peer responded, so drop the likely-offline latch and re-evaluate.  This relaxes
+     * {@link NodeConnectionState.WaitingForDeviceDiscovery} back to {@link NodeConnectionState.Reconnecting} until the
+     * subscription re-establishes.
+     */
+    #onSessionEstablished() {
+        this.internal.likelyOffline = false;
+        this.#recomputeConnectionState();
+    }
+
+    /**
+     * Push the controller's fabric label to the peer once per start, if the peer's stored label has drifted (e.g. the
+     * label changed while the peer was offline).  Runs after the sustained subscription is first live so the peer's
+     * `OperationalCredentials` state is primed and the device is reachable.
+     *
+     * TODO: this is only the once-on-start reconciliation. Ownership of fabric-label propagation — pushing to a peer
+     * the moment it comes online, and watching the peer's stored label to correct an unexpected change — belongs in
+     * the node-management layer once it exists.
+     */
+    async #reconcileFabricLabel() {
+        if (this.internal.fabricLabelReconciled) {
+            return;
+        }
+        // Latch before the first await so repeated subscriptionAlive emits don't re-enter.
+        this.internal.fabricLabelReconciled = true;
+
+        const peerAddress = this.#node.state.commissioning.peerAddress;
+        if (peerAddress === undefined || !this.#node.behaviors.has(OperationalCredentialsClient)) {
+            return;
+        }
+
+        // FabricManager lives on the controller (owner), not the client node's own environment.
+        const owner = this.#node.owner;
+        if (owner === undefined || !owner.env.has(FabricManager)) {
+            return;
+        }
+        const label = owner.env.get(FabricManager).maybeFor(peerAddress.fabricIndex)?.label;
+        if (label === undefined) {
+            return;
+        }
+
+        // The device numbers our fabric with its own index; `currentFabricIndex` is that device-side index for the
+        // accessing (our) fabric, so select the device's entry for our fabric by it — never by our controller-side
+        // `peerAddress.fabricIndex`, which is a different numbering.
+        const opCreds = this.#node.stateOf(OperationalCredentialsClient);
+        const ownFabric = opCreds.fabrics.find(fabric => fabric.fabricIndex === opCreds.currentFabricIndex);
+        if (ownFabric === undefined || ownFabric.label === label) {
+            return;
+        }
+
+        try {
+            const response = await this.#node.commandsOf(OperationalCredentialsClient).updateFabricLabel({ label });
+            if (response?.statusCode !== OperationalCredentials.NodeOperationalCertStatus.Ok) {
+                logger.notice(`Could not reconcile fabric label on ${this.#node}: status ${response?.statusCode}`);
+            }
+        } catch (error) {
+            logger.notice(`Failed to reconcile fabric label on ${this.#node}`, error);
+        }
+    }
+
     override async [Symbol.asyncDispose]() {
         // Clean up any active subscription
         this.internal.activeSubscription?.close();
@@ -277,6 +410,22 @@ export namespace NetworkClient {
          * ensures we have a complete snapshot of the node's state when commissioning logic is complete.
          */
         isNewlyCommissioned = false;
+
+        /**
+         * Latch indicating the peer is likely offline (unresponsive establishment, hard send failure or a missed ICD
+         * check-in).  Set by liveness signals, cleared on a fresh session, an active subscription or when the node is
+         * disabled/stopped.  Drives {@link NodeConnectionState.WaitingForDeviceDiscovery}.
+         */
+        likelyOffline = false;
+
+        /**
+         * The operational peer backing this node, once wired at startup.  Its session set feeds
+         * {@link NodeConnectionState} recomputation.  Undefined for group nodes and before startup.
+         */
+        peer?: Peer;
+
+        /** Was the fabric label already checked? */
+        fabricLabelReconciled = false;
     }
 
     export class State extends NetworkBehavior.State {
@@ -331,6 +480,7 @@ export namespace NetworkClient {
     export class Events extends NetworkBehavior.Events {
         autoSubscribe$Changed = new Observable<[value: boolean, oldValue: boolean]>();
         defaultSubscription$Changed = new Observable<[value: Subscribe | undefined, oldValue: Subscribe | undefined]>();
+        isDisabled$Changed = new Observable<[value: boolean, oldValue: boolean]>();
         subscriptionStatusChanged = new Observable<[isActive: boolean]>();
         subscriptionAlive = new Observable<[]>();
     }

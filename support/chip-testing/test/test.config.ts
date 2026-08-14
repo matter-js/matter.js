@@ -38,3 +38,4 @@ if (process.env.MATTER_LOCAL_CONTROLLER) {
 }
 
 await import("./support.js");
+await import("../src/cert/index.js");
