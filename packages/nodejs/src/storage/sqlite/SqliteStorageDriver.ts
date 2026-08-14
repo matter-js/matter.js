@@ -7,6 +7,7 @@
 import {
     type CloneableStorage,
     type DataNamespace,
+    type Duration,
     FilesystemStorageDriver,
     fromJson,
     Logger,
@@ -279,6 +280,11 @@ export class SqliteStorageDriver extends FilesystemStorageDriver implements Clon
 
     override get initialized() {
         return this.isInitialized;
+    }
+
+    /** The database coalesces writes itself; it runs in WAL mode with `synchronous = NORMAL`. */
+    override get writeCoalescingInterval(): Duration {
+        return 0;
     }
 
     override async initialize(): Promise<void> {

@@ -6,6 +6,7 @@
 
 import {
     type DataNamespace,
+    type Duration,
     FilesystemStorageDriver,
     fromJson,
     MemoryStorageDriver,
@@ -57,6 +58,11 @@ export class JsonFileStorageDriver extends FilesystemStorageDriver {
 
     override get initialized() {
         return this.#store.initialized;
+    }
+
+    /** Writes are already coalesced by {@link commitDelay}. */
+    override get writeCoalescingInterval(): Duration {
+        return 0;
     }
 
     override async initialize() {

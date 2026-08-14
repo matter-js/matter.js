@@ -34,20 +34,25 @@ export class ClientCacheBuffer {
     /**
      * If buffering is configured on the parent ServerNode, set up the buffer on the store.  The first call creates
      * the buffer and starts the timer; subsequent calls reuse it.
+     *
+     * The flush interval defaults to the storage driver's {@link StorageDriver#writeCoalescingInterval}.  An interval
+     * of zero disables buffering.
      */
     static configure(node: ClientNode, store: ClientNodeStore) {
-        const flushInterval = node.owner.stateOf(NetworkServer).clientCacheFlushInterval;
-        if (flushInterval === undefined) {
+        const parentEnv = node.owner.env;
+        const driver = parentEnv.get(StorageManager).driver;
+        const flushInterval =
+            node.owner.stateOf(NetworkServer).clientCacheFlushInterval ?? driver.writeCoalescingInterval;
+        if (!flushInterval) {
             return;
         }
 
-        const parentEnv = node.owner.env;
         if (parentEnv.has(ClientCacheBuffer)) {
             store.buffer = parentEnv.get(ClientCacheBuffer);
             return;
         }
 
-        const buffer = new ClientCacheBuffer(parentEnv.get(StorageManager).driver, flushInterval);
+        const buffer = new ClientCacheBuffer(driver, flushInterval);
         parentEnv.set(ClientCacheBuffer, buffer);
         buffer.#start();
         store.buffer = buffer;

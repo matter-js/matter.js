@@ -5,7 +5,7 @@
  */
 
 import { ServerSubscriptionConfig } from "#node/server/ServerSubscription.js";
-import { DeepPartial, Duration, Logger, Minutes } from "@matter/general";
+import { DeepPartial, Duration, Logger } from "@matter/general";
 import { duration, field, uint16 } from "@matter/model";
 import { Ble, FabricManager, NetworkProfiles, PeerTimingParameters } from "@matter/protocol";
 import { DiscoveryCapabilitiesBitmap, TypeFromPartialBitSchema } from "@matter/types";
@@ -248,11 +248,11 @@ export namespace NetworkServer {
         profiles?: ProfilesConfig;
 
         /**
-         * Interval at which dirty client cache data is flushed to storage.  Set to `undefined` to disable buffering
-         * and persist every change immediately.
+         * Interval at which dirty client cache data is flushed to storage.  Defaults to the write-coalescing interval
+         * the storage driver asks for.  Set to zero to disable buffering and persist every change immediately.
          */
         @field(duration)
-        clientCacheFlushInterval?: Duration = Minutes(20);
+        clientCacheFlushInterval?: Duration = undefined;
     }
 
     /**

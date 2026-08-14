@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { Duration } from "#time/Duration.js";
 import { deepCopy } from "#util/DeepCopy.js";
 import { CloneableStorage, StorageDriver, StorageError } from "./StorageDriver.js";
 import { SupportedStorageTypes } from "./StringifyTools.js";
@@ -19,6 +20,10 @@ export class MemoryStorageDriver extends StorageDriver implements CloneableStora
 
     get initialized() {
         return this.isInitialized;
+    }
+
+    override get writeCoalescingInterval(): Duration {
+        return 0;
     }
 
     static create(_namespace?: unknown, _descriptor?: StorageDriver.Descriptor) {

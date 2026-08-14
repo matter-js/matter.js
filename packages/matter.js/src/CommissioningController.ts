@@ -240,6 +240,12 @@ export type CommissioningControllerOptions = CommissioningControllerNodeOptions 
     readonly transportPreference?: "tcp" | "udp";
 
     /**
+     * Interval at which state cached for commissioned nodes is flushed to storage. Defaults to the interval the
+     * storage driver asks for. Set to zero to disable buffering and persist every change immediately.
+     */
+    readonly clientCacheFlushInterval?: Duration;
+
+    /**
      * Options for the BasicInformation cluster of the Controller node.
      * The vendorId is determined by the adminVendorId!
      */
@@ -403,6 +409,7 @@ export class CommissioningController {
             rootFabric,
             enableOtaProvider,
             basicInformation = {},
+            clientCacheFlushInterval,
         } = this.#options;
 
         // Initialize the Storage in a compatible way for the legacy API and new style for new API
@@ -427,6 +434,7 @@ export class CommissioningController {
             environment: this.#environment,
             enableOtaProvider,
             basicInformation,
+            clientCacheFlushInterval,
         });
 
         if (!controller.ble) {

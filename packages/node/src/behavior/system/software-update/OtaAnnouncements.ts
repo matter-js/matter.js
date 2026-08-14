@@ -58,10 +58,10 @@ export class OtaAnnouncements {
     }
 
     /**
-     * Set the interval to a time value or undefined to disable announcements
+     * Set the interval to a time value, or to zero to disable announcements
      */
     set interval(interval: Duration | undefined) {
-        if (interval === undefined) {
+        if (!interval) {
             this.#announcementInterval = undefined;
             this.#announcementTimer?.stop();
             this.#announcementTimer = undefined;
