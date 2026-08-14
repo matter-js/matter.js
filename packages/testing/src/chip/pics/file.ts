@@ -55,6 +55,16 @@ export class PicsFile {
         return this.#lines.join("\n") + "\n";
     }
 
+    /**
+     * A copy of this file with `values` applied over it.  {@link patch} modifies its target in place, so
+     * this is the way to override values of a file others share (e.g. `chip.defaultPics`).
+     */
+    with(values: PicsValues) {
+        const patched = new PicsFile([...this.#lines]);
+        patched.patch(new PicsFile(Object.entries(values).map(([name, value]) => `${name}=${value}`)));
+        return patched;
+    }
+
     patch(other: PicsFile) {
         const newValues = { ...other.values };
 

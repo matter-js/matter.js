@@ -43,7 +43,9 @@ export namespace PicsSource {
                     if (file) {
                         file.patch(sourceFile);
                     } else {
-                        file = sourceFile;
+                        // patch() modifies its target, and every subsource's file is cached and shared,
+                        // so a composite accumulates into a copy of its own.
+                        file = new PicsFile([...sourceFile.lines]);
                     }
                 }
                 if (!file) {

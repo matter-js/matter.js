@@ -6,7 +6,7 @@
 
 import { Duration, InternalError, Millis, Time } from "@matter/main";
 import type { CertStepContext, CertStepDefinition, PromptHandler, StepVerdict, Subject } from "@matter/testing";
-import { chip, EvidenceRecorder, PromptDrivenPythonTest } from "@matter/testing";
+import { chip, EvidenceRecorder, PromptDrivenPythonTest, resolveControllerImplementation } from "@matter/testing";
 import { join } from "node:path";
 import { env } from "node:process";
 import { InProcessControllerAdapter } from "../../src/cert/InProcessControllerAdapter.js";
@@ -177,7 +177,10 @@ function stubSubject(): Subject {
         id: "TC-SC-3.5",
         app: "",
         commissioning: { kind: "on-network", passcode: 0, discriminator: 0, qrPairingCode: "" },
-        pics: chip.defaultPics,
+        // TC_SC_3_5.py gates every wait_for_user_input on PICS_SDK_CI_ONLY: with it set the script
+        // commissions TH_SERVER with a second python controller of its own instead of prompting, so no
+        // DUT is ever driven. chip.defaultPics composes CHIP's ci-pics-values, which sets it.
+        pics: chip.defaultPics.with({ PICS_SDK_CI_ONLY: 0 }),
         async initialize() {},
         async start() {},
         async stop() {},
@@ -194,6 +197,13 @@ describe("TC-SC-3.5", () => {
     it("[TC-SC-3.5] CASE Error Handling [DUT_Initiator]", async function () {
         const appPath = thServerAppPath();
         if (!appPath) {
+            this.skip();
+        }
+
+        // This TC drives InProcessControllerAdapter directly rather than createControllerAdapter, so on a
+        // chip-tool-controller run it would silently exercise matter.js's controller instead of the
+        // configured one.
+        if (resolveControllerImplementation() !== "matterjs") {
             this.skip();
         }
 

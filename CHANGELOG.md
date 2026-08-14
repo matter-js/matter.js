@@ -107,6 +107,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `MATTER_CHIP_BINS_SOURCE=cert-bins` selects project-chip's official `connectedhomeip/chip-cert-bins` binaries for the classic yaml/python tests and `chip-local` cert-test subjects
     - Enhancement: A cert test's attached device/controller logs now carry a banner marking each step's start and end, alongside its verdict
     - Enhancement: Certification controller tests run against a controller × device matrix, adding chip-tool as a second controller alongside matter.js's own
+    - Enhancement: New `PicsFile.with()` returns a copy of a PICS file with values overridden
+    - Fix: `PromptDrivenPythonTest` now fails a run in which none of its prompt handlers fired, instead of trusting the script's own verdict
+    - Fix: A composite `PicsSource` no longer patches the PICS file cached for its first source
+    - Fix: TC-SC-3.5 turns off `PICS_SDK_CI_ONLY` so the script prompts for commissioning instead of acting as its own commissioner
 
 - @project-chip/matter.js
     - Deprecation: Every class, type and function of the legacy controller API is now marked deprecated and scheduled for removal in 0.19; use the `ServerNode.peers` / `ClientNode` API of `@matter/node` instead

@@ -67,12 +67,14 @@ export class PromptDrivenPythonTest extends PythonTest {
         );
 
         let passed = false;
+        let handled = 0;
         try {
             for await (let line of terminal) {
                 line = parseStep(line, step);
 
                 const handler = this.#handlers.find(h => h.pattern.test(line));
                 if (handler) {
+                    handled++;
                     const answer = await handler.action(this.#cx, line);
                     await terminal.write(answer);
                 }
@@ -100,5 +102,21 @@ export class PromptDrivenPythonTest extends PythonTest {
         if (!passed) {
             throw new Error("Python test exited without error but did not indicate successful test");
         }
+
+        // A script that prompts for out-of-band action reports its own verdict either way, so one that
+        // never prompted passed without a counterparty and proves nothing about the DUT.
+        if (this.#handlers.length && handled === 0) {
+            throw new Error(
+                `Python test ${this.descriptor.name} reported success but none of its prompt handlers ever ` +
+                    "fired, so nothing drove the DUT — check whether the script's own PICS gating (e.g. " +
+                    "PICS_SDK_CI_ONLY, which makes a script act as its own counterparty instead of " +
+                    "prompting) suppressed its prompts, or whether its prompt text no longer matches " +
+                    patternList(this.#handlers),
+            );
+        }
     }
+}
+
+function patternList(handlers: PromptHandler[]) {
+    return handlers.map(h => h.pattern.toString()).join(", ");
 }

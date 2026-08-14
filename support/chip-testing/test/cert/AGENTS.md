@@ -742,6 +742,30 @@ binary at `/official-chip-bins/` for the cert-bins job. `TC-SC-3.5.test.ts`'s si
 `env.MATTER_CERT_TH_SERVER_APP_PATH` and calls `this.skip()` when unset, so the matterjs flavor —
 which does not set it — stays green without a TH_SERVER binary.
 
+## `PICS_SDK_CI_ONLY` turns a prompt-driven script into a self-test (`TC-SC-3.5`)
+
+A script that prompts for out-of-band action usually has a second code path for CHIP's own CI, gated
+on the `PICS_SDK_CI_ONLY` PICS. `TC_SC_3_5.py` gates all five of its `wait_for_user_input` calls that
+way: with the PICS set it creates a second python controller, commissions TH_SERVER with it, and
+reports PASS — validating the script, with no DUT involved at all.
+
+`chip.defaultPics` composes CHIP's own `ci-pics-values`, which sets `PICS_SDK_CI_ONLY=1`, so any
+prompt-driven TC has to turn it off explicitly: `chip.defaultPics.with({ PICS_SDK_CI_ONLY: 0 })`.
+Override PICS that way and never with `PicsFile.patch`, which modifies its target in place — the
+`chip.defaultPics` instance is shared by every other test in the run.
+
+The failure this produces is silent: the run reports a pass, and the only tell is evidence with no
+steps in it and a controller log that ends before any commissioning. `PromptDrivenPythonTest`
+therefore fails a run in which a declared prompt handler never fired, and names `PICS_SDK_CI_ONLY` in
+the message. Keep that check — it is the only thing standing between a future change in PICS
+composition and a TC that reports success while testing nothing.
+
+Also note that `TC-SC-3.5.test.ts` constructs `InProcessControllerAdapter` directly rather than going
+through `createControllerAdapter`, so it would drive matter.js's controller whatever
+`MATTER_CERT_CONTROLLER` says. It skips itself on a chip-tool-controller run rather than claim
+coverage it doesn't have; teaching it to use the registry is the more interesting fix, since CASE
+error handling is where two controller implementations are most likely to differ.
+
 ## The write-path idiom (`writeAndCheck`, `TC-IDM-3.1`)
 
 A "DUT writes an attribute on the TH" step needs the same two-sided proof a read does: the

@@ -313,6 +313,34 @@ describe("PromptDrivenPythonTest", () => {
         expect(terminal.writes).to.deep.equal([]);
     });
 
+    it("throws when the script reports PASS but no declared handler ever fired", async () => {
+        const terminal = new FakeTerminal(["a script that answered its own prompts", PASS_LINE]);
+        const { container } = fakeContainer(terminal);
+
+        const handlers: PromptHandler[] = [
+            {
+                pattern: /Manual Pairing Code:/,
+                async action() {
+                    return "\n";
+                },
+            },
+        ];
+
+        const test = new PromptDrivenPythonTest(stubDescriptor(), container, handlers, stubCx());
+
+        await expect(test.invoke(stubSubject(), () => {}, NO_PICS_LOOKUP_ARGS, false)).rejectedWith(
+            "none of its prompt handlers ever fired",
+        );
+    });
+
+    it("does not require a handler to fire when the test declares none", async () => {
+        const terminal = new FakeTerminal(["no prompts at all", PASS_LINE]);
+        const { container } = fakeContainer(terminal);
+
+        const test = new PromptDrivenPythonTest(stubDescriptor(), container, [], stubCx());
+        await test.invoke(stubSubject(), () => {}, NO_PICS_LOOKUP_ARGS, false);
+    });
+
     it("initializeSubject() is a no-op — there is no subject to pre-pair, commissioning is interactive", async () => {
         const { container } = fakeContainer(new FakeTerminal([]));
         const test = new PromptDrivenPythonTest(stubDescriptor(), container, [], stubCx());
