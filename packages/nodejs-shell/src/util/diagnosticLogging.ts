@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic, ObserverGroup } from "@matter/general";
+import { Diagnostic, Duration, Millis, ObserverGroup, Timestamp } from "@matter/general";
 import {
     ChangeNotificationService,
     ClientNode,
@@ -13,6 +13,7 @@ import {
     NodeConnectionState,
     ServerNode,
 } from "@matter/node";
+import { Priority } from "@matter/types";
 
 /** True if `endpoint` belongs to `node`'s endpoint tree (the node itself is its own root endpoint). */
 function ownedBy(endpoint: Endpoint, node: Endpoint) {
@@ -24,6 +25,7 @@ function ownedBy(endpoint: Endpoint, node: Endpoint) {
     return false;
 }
 
+/** The web UI matches the first word of these labels (shell/webassets/index.html). */
 function connectionStateLabel(state: NodeConnectionState) {
     switch (state) {
         case NodeConnectionState.Connected:
@@ -56,25 +58,31 @@ export function installDiagnosticLogging(node: ServerNode, observers: ObserverGr
 
         switch (change.kind) {
             case "update": {
-                const { behavior, properties, version } = change;
+                const { behavior, properties } = change;
                 if (!ClusterBehavior.is(behavior)) {
                     break;
                 }
                 const state = endpoint.stateOf(behavior.id);
-                const changed =
-                    properties === undefined ? state : Object.fromEntries(properties.map(name => [name, state[name]]));
-                console.log(
-                    `Node ${nodeId}: Attribute ${endpoint.number}/${behavior.cluster.id} changed to ${Diagnostic.json(changed)} (version ${version})`,
-                );
+
+                // One line per attribute; the web UI parses this format (shell/webassets/index.html)
+                for (const name of properties ?? Object.keys(state)) {
+                    console.log(
+                        `Node ${nodeId}: Attribute ${nodeId}/${endpoint.number}/${behavior.cluster.id}/${name} changed to ${Diagnostic.json(state[name])}`,
+                    );
+                }
                 break;
             }
             case "event": {
-                const { behavior, event, number, timestamp, priority, payload } = change;
+                const { behavior, event, number, timestamp, timestampKind, priority, payload } = change;
                 if (!ClusterBehavior.is(behavior)) {
                     break;
                 }
+                const when =
+                    timestampKind === "epoch"
+                        ? Timestamp.dateOf(timestamp).toISOString()
+                        : `${Duration.format(Millis(timestamp))} device uptime`;
                 console.log(
-                    `Node ${nodeId}: Event ${endpoint.number}/${behavior.cluster.id}/${event.propertyName} (#${number}, priority ${priority}, at ${timestamp}) triggered with ${Diagnostic.json(payload)}`,
+                    `Node ${nodeId}: Event ${nodeId}/${endpoint.number}/${behavior.cluster.id}/${event.propertyName} (#${number}, priority ${Priority[priority]}, at ${when}) triggered with ${Diagnostic.json(payload)}`,
                 );
                 break;
             }

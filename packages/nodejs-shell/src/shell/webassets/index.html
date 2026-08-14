@@ -334,7 +334,7 @@
                         });
                     }
 
-                    matches = message.match(/stateInformationCallback Node (\d+) (\S+)/);
+                    matches = message.match(/Node (\d+) (connected|disconnected|reconnecting|waiting)/); // connection state
                     if (matches) {
                         updateTile(matches[1], matches[2]);
                         if (matches[2] === "connected") {
