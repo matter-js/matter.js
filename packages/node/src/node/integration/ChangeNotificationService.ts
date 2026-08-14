@@ -130,9 +130,17 @@ export namespace ChangeNotificationService {
         properties?: string[];
     }
 
+    /**
+     * The wire clock {@link OccurrenceProperties.timestamp} is measured against. Matter Core §10.7 timestamps an event
+     * against either the Posix epoch or device system (uptime) time; a consumer forwarding the occurrence must not
+     * guess which.
+     */
+    export type TimestampKind = "epoch" | "system";
+
     export interface OccurrenceProperties {
         number: EventNumber;
         timestamp: Timestamp;
+        timestampKind: TimestampKind;
         priority: Priority;
         payload?: Val.Struct;
     }
