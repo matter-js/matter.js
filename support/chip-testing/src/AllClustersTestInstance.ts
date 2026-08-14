@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, InternalError, Logger, Millis, Seconds } from "@matter/general";
+import { Bytes, InternalError, Logger, Millis, NotImplementedError, Seconds } from "@matter/general";
 import { CommonNumberTag, Endpoint, ServerNode } from "@matter/main";
 import {
     AdministratorCommissioningServer,
@@ -242,11 +242,11 @@ export class AllClustersTestInstance extends NodeTestInstance {
             case "modeChange": {
                 const { device, type } = command;
                 if (device !== "DishWasher" || type !== "ToggleFailTransition") {
-                    throw new Error(`Unsupported mode change ${type} for device ${device}`);
+                    throw new NotImplementedError(`Mode change ${type} for device ${device}`);
                 }
                 endpoint = findEndpoint(1);
                 if (endpoint === undefined) {
-                    throw new Error(`Endpoint 1 not found`);
+                    throw new InternalError(`Endpoint 1 not found`);
                 }
                 await endpoint.setStateOf(TestDishwasherModeServer, {
                     failTransition: !endpoint.stateOf(TestDishwasherModeServer).failTransition,
