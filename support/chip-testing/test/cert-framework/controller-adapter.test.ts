@@ -170,6 +170,29 @@ describe("InProcessControllerAdapter", () => {
         await node.decommission();
     });
 
+    // Characterization: the rejection comes from the interaction layer, not from this adapter, so the
+    // test guards the behavior rather than proving adapter code. It matters because
+    // `ChipToolControllerAdapter` rejects the same case explicitly — a step that needs a subscription and
+    // does not get one must fail identically on both controllers, or a difference between adapters reads
+    // as an interop finding.
+    it("rejects a concrete-path subscribe the device refused", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        const node = adapter.node(ref);
+
+        // Endpoint 1 has no BasicInformation, so the device answers this path with a status
+        const rejection = await rejectionOf(
+            node.subscribe(
+                { endpoint: 1, cluster: BASIC_INFORMATION.id, attribute: VENDOR_ID_ATTRIBUTE.id },
+                { minIntervalFloorSeconds: 1, maxIntervalCeilingSeconds: 10 },
+            ),
+        );
+        expect(rejection).to.be.instanceOf(StatusResponseError);
+
+        await node.decommission();
+    });
+
     it("throws a StatusResponseError when the device rejects an invoke", async function () {
         this.timeout(30_000);
 
