@@ -808,12 +808,6 @@ export class PairedNode {
                     this.#localInitializationDone = true;
                     await this.events.initialized.emit(this.#nodeDetails.details);
                 }
-
-                try {
-                    await this.#commissioningController.validateAndUpdateFabricLabel(this.nodeId);
-                } catch (error) {
-                    logger.warn(this.#peerAddress, `Error updating fabric label`, error);
-                }
             }
         } else if (this.#connectionState === NodeStates.Connected) {
             // Subscription is not active anymore, and we were connected before, we use Reconnecting as state

@@ -296,9 +296,7 @@ export class NetworkClient extends NetworkBehavior {
         if (owner === undefined || !owner.env.has(FabricManager)) {
             return;
         }
-        const label = owner.env
-            .get(FabricManager)
-            .find(fabric => fabric.fabricIndex === peerAddress.fabricIndex)?.label;
+        const label = owner.env.get(FabricManager).maybeFor(peerAddress.fabricIndex)?.label;
         if (label === undefined) {
             return;
         }
