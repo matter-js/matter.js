@@ -363,7 +363,7 @@ export class ControllerCommissioner {
                     `BLE interface not initialized. Cannot use ${address.peripheralAddress} for commissioning.`,
                 );
             }
-            paseChannel = await Abort.attempt(signal, ble.openChannel(address));
+            paseChannel = await Abort.attempt(signal, ble.openChannel(address, { abort: signal }));
         } else {
             throw new ImplementationError(`Unsupported address type for Matter PASE commissioning`);
         }

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Seconds } from "@matter/general";
+import { Bytes, ImplementationError, Seconds } from "@matter/general";
 import { Endpoint, ServerNode } from "@matter/main";
 import {
     AdministratorCommissioningServer,
@@ -52,7 +52,9 @@ function intArg(args: string[], name: string, fallback: number): number {
     }
     const value = Number.parseInt(raw, 10);
     if (!Number.isInteger(value) || value < 0) {
-        throw new Error(`Invalid --${name} value ${JSON.stringify(raw)}: expected a non-negative integer`);
+        throw new ImplementationError(
+            `Invalid --${name} value ${JSON.stringify(raw)}: expected a non-negative integer`,
+        );
     }
     return value;
 }

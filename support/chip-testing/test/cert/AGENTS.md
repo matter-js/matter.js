@@ -247,9 +247,14 @@ error.
   never a stable proxy for "this device". `expectMdns` throws `ImplementationError` if
   `operationalRecords` is requested without `operationalInstanceName`, specifically so this mistake is
   loud rather than an intermittently-flaky check.
-- Only `InProcessControllerAdapter` implements `operationalMdnsInstanceName()` today. A future
-  chip-tool-backed `ControllerAdapter` needs its own implementation (chip-tool prints the assigned
-  node id and knows its own fabric) before `operationalRecords` checks work against that flavor.
+- Both `ControllerAdapter` implementations report `operationalMdnsInstanceName()`, and they agree:
+  `ChipToolControllerAdapter` reads the accessing fabric's own `RootPublicKey` and `FabricId` from a
+  fabric-filtered `OperationalCredentials.Fabrics` read on that node, computes the compressed fabric id
+  from those, then feeds the same `getOperationalDeviceQname`. Do not reintroduce a derivation from
+  chip-tool's `--commissioner-name`: that argument is per command and defaults to `alpha`, so a
+  launch-time value does not describe the fabric a later command actually runs on — every role but one
+  then computes a name the node never advertises, which is a failure the mDNS check reports as a
+  missing record rather than as a wrong name.
 
 ## Framework gotcha: `Boot.init`, not a one-time guard, for anything touching `Logger.destinations`
 
@@ -379,8 +384,9 @@ This is a framework-level fix (`log-follower.ts`), not something an individual T
   are what actually prove behavior on matterjs; the chip-side log check is additional protocol-level
   evidence only available for the chip flavor.
 - **Never leave the DUT commissioned.** With ~21 steps sharing one commissioned node, the step engine aborts
-  (skips, doesn't run) every step after the one that threw — see `cert-test.ts`'s `invoke()` — so a
-  decommission written into any single step is unreliable. `.finalize()` owns it instead (see
+  (skips, doesn't run) every step after the one that threw — see `cert-test.ts`'s `invoke()` — except a
+  step that throws `UnsupportedByControllerError`, which is recorded `"skipped"` and lets later steps run.
+  Either way a decommission written into any single step is unreliable. `.finalize()` owns it instead (see
   "Commission/decommission lifecycle" above).
 
 ## Declaring a device-flavor capability gap (`TC-ACT-3.2`)
@@ -406,6 +412,28 @@ has no Actions cluster at all) — otherwise the whole file throws at load time 
 not just the one missing the capability, and the `matter-test --spec="test/cert/**/*.test.ts"` gate breaks
 even for unrelated TCs. `TC-ACT-3.2` needed `registerMatterJsCertSubject("bridge", ...)` added for exactly
 this reason, matching the `"all-clusters"` registration already there.
+
+## What a step can and cannot ask of the chip-tool controller
+
+`MATTER_CERT_CONTROLLER=chip-tool` swaps `InProcessControllerAdapter` for
+`ChipToolControllerAdapter`, and the two are not interchangeable in every direction. A step asking for
+something chip-tool cannot express gets `UnsupportedByControllerError` — recorded `"skipped"`, later
+steps still run — rather than a wrong answer, and today that means:
+
+- **A `writeAttributes` mixing versioned and unversioned entries** — chip-tool takes `--data-version`
+  once per command, applying to all its paths or none, so a request where only some entries carry a
+  `dataVersion` cannot be expressed as one write.
+- **A wildcard-endpoint `writeAttributes`** (`TC-IDM-3.1` step 2) — chip-tool's `WriteAttribute`
+  callback records a JSON result only for a path the device *rejected*, so successfully written
+  endpoints are invisible and the per-endpoint statuses the method contracts to return cannot be
+  reconstructed. Concrete-endpoint writes are fine: absence of a status *is* the success signal, since
+  Matter Core § 8.9.2.8 requires one per concrete path.
+- **A value whose encoded form contains `;`** — chip-tool splits its `attribute-values` argument on it.
+- **More than 64 paths in one read or write** — chip-tool's own `kMaxAllowedPaths`.
+
+Multi-cluster reads and multi-attribute writes *are* supported: chip-tool zips its cluster/attribute/
+endpoint id lists element-wise when their lengths match (`InteractionModelConfig::GetAttributePaths`),
+so equal-length lists express an arbitrary path set — it is not one cluster per command.
 
 ## Invoke-only TCs and expected-failure responses (`TC-ACT-3.2`)
 
@@ -826,18 +854,27 @@ wording is chip-version-specific like every other pattern in this file.
 
 ## A write that doesn't change the value produces no report — the "values must differ" precondition (`TC-IDM-4.1`)
 
-`subscribeAndModify` waits for exactly one `onUpdate` per write; that only holds if every write
-actually changes the attribute. `Datasource.#computePostCommitChanges`
+`subscribeAndModify` (now in `tc-idm-4.1-support.ts`) confirms each write by a report on this step's
+own subscription id, and requires `values` to come back from `onUpdate` as an in-order subsequence —
+so it tolerates a duplicate report but still needs one report per write. That only holds if every
+write actually changes the attribute. `Datasource.#computePostCommitChanges`
 (`packages/node/src/behavior/state/managed/Datasource.ts`) short-circuits on
 `isDeepEqual(oldValue, newValue)` before any change event fires, so a write whose value equals the
-attribute's *current* value produces no subscription report at all — `waitForCount` then runs out
-its full `UPDATE_WAIT_TIMEOUT_MS` and fails the step, rather than hanging silently. Every `values`
+attribute's *current* value produces no subscription report at all — the per-write wait then runs out
+its bounded report budget and fails the step, rather than hanging silently. Every `values`
 list `subscribeAndModify` is called with (steps 3-5) is chosen so each entry differs from the one
 before it, not only from the attribute's initial value — matching the plan's own "modify the
 attribute multiple times" wording, since writing the same value again isn't a modification. A
 future TC reusing `subscribeAndModify` with a `values` list that repeats a value back-to-back, or
 opens with the TH's own current default, will time out on that write rather than fail fast at the
 call site — there's no guard for it; the caller is expected to know the TH's starting value.
+
+Why the correlation is by subscription id rather than by counting callbacks: chip-tool accumulates
+`ReadClient`s inside one command object, so a TC that subscribed to a path N times sees N reports per
+change, and chip-tool's report JSON carries no subscription id to tell them apart. Counting `onUpdate`
+calls therefore fails on the chip-tool controller leg. The device log does carry the id, which is what
+the helper matches on; where it doesn't (matterjs device flavor, where log checks are `unverified`),
+the in-order subsequence is the confirmation.
 
 ## Subscription policy: the automatic node-level subscription stays on
 

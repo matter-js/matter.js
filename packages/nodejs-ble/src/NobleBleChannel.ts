@@ -12,13 +12,16 @@ import {
     InternalError,
     Logger,
     Minutes,
+    AbortedError,
     NetworkError,
+    Seconds,
     ServerAddress,
     Time,
     Timer,
     Transport,
     asError,
     createPromise,
+    withTimeout,
 } from "@matter/general";
 import {
     BleChannel,
@@ -34,6 +37,9 @@ import { BleScanner } from "./BleScanner.js";
 import { nobleDisconnectReason } from "./NobleBleClient.js";
 
 const logger = Logger.get("BleChannel");
+
+/** noble waits for a disconnect event that a vanished peripheral never sends, so the wait needs its own bound. */
+const BLE_DISCONNECT_TIMEOUT = Seconds(5);
 
 /**
  * Detect noble errors that indicate the BLE connection is no longer usable.
@@ -95,13 +101,19 @@ export class NobleBleCentralInterface implements Transport {
         this.#bleScanner = bleScanner;
     }
 
-    openChannel(address: ServerAddress, _options?: Transport.OpenChannelOptions): Promise<Channel<Bytes>> {
-        return this.#openChannel(address, 1);
+    openChannel(address: ServerAddress, options?: Transport.OpenChannelOptions): Promise<Channel<Bytes>> {
+        return this.#openChannel(address, 1, options?.abort);
     }
 
-    #openChannel(address: ServerAddress, tryCount: number): Promise<Channel<Bytes>> {
+    #openChannel(
+        address: ServerAddress,
+        tryCount: number,
+        abort?: AbortSignal,
+        lastError?: unknown,
+    ): Promise<Channel<Bytes>> {
         if (this.#closed) {
-            throw new NetworkError("Network interface is closed");
+            // A retry can reach this from an event listener, where a synchronous throw escapes into noble's emit
+            return Promise.reject(new NetworkError("Network interface is closed"));
         }
         return new Promise((resolve, reject) => {
             let resolvedOrRejected = false;
@@ -114,12 +126,13 @@ export class NobleBleCentralInterface implements Transport {
                 }
             }
             function resolveOnce(value: Channel<Bytes>) {
-                if (!resolvedOrRejected) {
-                    resolvedOrRejected = true;
-                    resolve(value);
-                } else {
+                if (resolvedOrRejected) {
                     logger.debug(`Already resolved or rejected, ignore success`);
+                    return false;
                 }
+                resolvedOrRejected = true;
+                resolve(value);
+                return true;
             }
 
             if (this.#onMatterMessageListener === undefined) {
@@ -133,8 +146,17 @@ export class NobleBleCentralInterface implements Transport {
                 return;
             }
             const { peripheralAddress } = address;
+            if (abort?.aborted) {
+                rejectOnce(new AbortedError(`Connection to peripheral ${peripheralAddress} was aborted`));
+                return;
+            }
             if (tryCount > 3) {
-                rejectOnce(new BleError(`Failed to connect to peripheral ${peripheralAddress}`));
+                rejectOnce(
+                    new BleError(
+                        `Failed to connect to peripheral ${peripheralAddress}`,
+                        lastError === undefined ? undefined : { cause: lastError },
+                    ),
+                );
                 return;
             }
 
@@ -157,16 +179,17 @@ export class NobleBleCentralInterface implements Transport {
             // Reserve slot immediately so parallel openChannel calls for the same peripheral are rejected
             this.#connectionsInProgress.add(peripheralAddress);
 
-            if (peripheral.state === "error") {
-                // Weired state, so better cancel here and try a re-discovery
-                this.#connectionsInProgress.delete(peripheralAddress);
-                rejectOnce(
-                    new BleError(
-                        `Can not connect to peripheral "${peripheralAddress}" because unexpected state "${peripheral.state}"`,
-                    ),
-                );
-                return;
-            }
+            /**
+             * Release the reservation this attempt made, once. A later attempt may already own the address, and an
+             * abandoned attempt resuming after an abort or a timeout must not take the reservation away from it.
+             */
+            let ownsSlot = true;
+            const releaseSlot = () => {
+                if (ownsSlot) {
+                    ownsSlot = false;
+                    this.#connectionsInProgress.delete(peripheralAddress);
+                }
+            };
 
             // Wrapped listener for "connect" event — assigned after connectHandler is defined.
             // Stored here so timeout/retry handlers can remove it by reference.
@@ -183,14 +206,14 @@ export class NobleBleCentralInterface implements Transport {
                     peripheral.removeListener("connect", connectListener);
                     peripheral.removeListener("disconnect", reTryHandler);
                     clearConnectionGuard();
-                    this.#connectionsInProgress.delete(peripheralAddress);
+                    releaseSlot();
                     rejectOnce(new BleError(`Timeout while connecting to peripheral ${peripheralAddress}`));
                 }),
                 disconnectTimeout: Time.getTimer("BLE disconnect timeout", Minutes.one, () => {
                     logger.debug(`Timeout while disconnecting to peripheral ${peripheralAddress}`);
                     peripheral.removeListener("disconnect", reTryHandler);
                     clearConnectionGuard();
-                    this.#connectionsInProgress.delete(peripheralAddress);
+                    releaseSlot();
                     rejectOnce(new BleError(`Timeout while disconnecting to peripheral ${peripheralAddress}`));
                 }),
                 // Timeout when trying to interview the device because sometimes when no response from device
@@ -199,7 +222,7 @@ export class NobleBleCentralInterface implements Transport {
                     logger.debug(`Timeout while interviewing peripheral ${peripheralAddress}`);
                     peripheral.removeListener("disconnect", reTryHandler);
                     clearConnectionGuard();
-                    this.#connectionsInProgress.delete(peripheralAddress);
+                    releaseSlot();
                     if (peripheral.state === "connected") {
                         // We accept the dangling promise potentially because we got a timeout on reading data,
                         // so chance is high also disconnect does not work reliably for now
@@ -218,29 +241,58 @@ export class NobleBleCentralInterface implements Transport {
                 interviewTimeout?.stop();
                 disconnectTimeout?.stop();
                 this.#connectionGuards.delete(connectionGuard);
+                abort?.removeEventListener("abort", onAbort);
+            };
+
+            const onAbort = () => {
+                logger.debug(`Peripheral ${peripheralAddress}: Connection aborted`);
+                peripheral.removeListener("connect", connectListener);
+                peripheral.removeListener("disconnect", reTryHandler);
+                clearConnectionGuard();
+                releaseSlot();
+                releasePeripheral();
+                rejectOnce(new AbortedError(`Connection to peripheral ${peripheralAddress} was aborted`));
+            };
+            abort?.addEventListener("abort", onAbort, { once: true });
+
+            /**
+             * Hand back a link this attempt may already hold. The peripheral is not in {@link #openChannels} until the
+             * interview completes, so nothing else would ever disconnect it.
+             */
+            const releasePeripheral = () => {
+                if (peripheral.state === "connecting") {
+                    peripheral.cancelConnect();
+                    return;
+                }
+                if (peripheral.state === "connected") {
+                    withTimeout(BLE_DISCONNECT_TIMEOUT, peripheral.disconnectAsync()).catch(error =>
+                        logger.debug(`Peripheral ${peripheralAddress}: Error while disconnecting`, error),
+                    );
+                }
             };
 
             // Handler to retry the connection. Called on disconnections (with a noble disconnect reason) and errors.
             const reTryHandler = (errorOrReason?: unknown) => {
                 // Cancel tracking states because we are done in this context
                 clearConnectionGuard();
-                this.#connectionsInProgress.delete(peripheralAddress);
+                releaseSlot();
                 peripheral.removeListener("connect", connectListener);
                 peripheral.removeListener("disconnect", reTryHandler);
 
+                let cause: unknown;
                 if (errorOrReason instanceof Error) {
-                    logger.info(
-                        `Peripheral ${peripheralAddress} disconnected while trying to connect, try again`,
-                        errorOrReason,
-                    );
+                    cause = errorOrReason;
+                    logger.info(`Peripheral ${peripheralAddress}: connection attempt failed, try again`, errorOrReason);
                 } else {
+                    const reason = nobleDisconnectReason(errorOrReason);
+                    cause = new BleError(`Peripheral ${peripheralAddress} disconnected (reason ${reason})`);
                     logger.info(
-                        `Peripheral ${peripheralAddress} disconnected while trying to connect (reason ${nobleDisconnectReason(errorOrReason)}), try again`,
+                        `Peripheral ${peripheralAddress} disconnected while trying to connect (reason ${reason}), try again`,
                     );
                 }
 
                 // Try again and chain promises
-                this.#openChannel(address, tryCount + 1)
+                this.#openChannel(address, tryCount + 1, abort, cause)
                     .then(resolveOnce)
                     .catch(rejectOnce);
             };
@@ -252,17 +304,14 @@ export class NobleBleCentralInterface implements Transport {
                     return;
                 }
                 if (error) {
-                    clearConnectionGuard();
-                    this.#connectionsInProgress.delete(peripheralAddress);
-                    peripheral.removeListener("disconnect", reTryHandler);
-                    rejectOnce(
-                        new BleError(`Error while connecting to peripheral ${peripheralAddress}`, { cause: error }),
-                    );
+                    // noble emits no disconnect for a connection that never established, so the disconnect-driven
+                    // retry below never sees this failure
+                    reTryHandler(asError(error));
                     return;
                 }
                 if (this.#onMatterMessageListener === undefined) {
                     clearConnectionGuard();
-                    this.#connectionsInProgress.delete(peripheralAddress);
+                    releaseSlot();
                     peripheral.removeListener("disconnect", reTryHandler);
                     rejectOnce(new InternalError(`Network Interface was not added to the system yet or was cleared.`));
                     return;
@@ -342,33 +391,30 @@ export class NobleBleCentralInterface implements Transport {
                         this.#openChannels.set(peripheralAddress, peripheral);
                         peripheral.once("disconnect", () => this.#openChannels.delete(peripheralAddress));
                         try {
-                            resolveOnce(
-                                await NobleBleChannel.create(
-                                    peripheral,
-                                    characteristicC1ForWrite,
-                                    characteristicC2ForSubscribe,
-                                    this.#onMatterMessageListener,
-                                    additionalCommissioningRelatedData,
-                                ),
+                            const channel = await NobleBleChannel.create(
+                                peripheral,
+                                characteristicC1ForWrite,
+                                characteristicC2ForSubscribe,
+                                this.#onMatterMessageListener,
+                                additionalCommissioningRelatedData,
                             );
                             clearConnectionGuard();
-                            this.#connectionsInProgress.delete(peripheralAddress);
+                            releaseSlot();
+                            if (!resolveOnce(channel)) {
+                                // The caller already gave up on this channel, so nothing else will close it
+                                await channel.close();
+                            }
                             return;
                         } catch (error) {
-                            this.#connectionsInProgress.delete(peripheralAddress);
+                            releaseSlot();
                             this.#openChannels.delete(peripheralAddress);
                             if (peripheral.state === "connected") {
                                 logger.debug(
                                     `Disconnect because of initialization error of peripheral ${ServerAddress.urlFor(address)}`,
                                 );
-                                await peripheral
-                                    .disconnectAsync()
-                                    .catch(error =>
-                                        logger.debug(
-                                            `Peripheral ${peripheral.address}: Error while disconnecting`,
-                                            error,
-                                        ),
-                                    );
+                                await withTimeout(BLE_DISCONNECT_TIMEOUT, peripheral.disconnectAsync()).catch(error =>
+                                    logger.debug(`Peripheral ${peripheral.address}: Error while disconnecting`, error),
+                                );
                             }
                             reTryHandler(error);
                             return;
@@ -384,7 +430,7 @@ export class NobleBleCentralInterface implements Transport {
                     }
                     return;
                 } finally {
-                    this.#connectionsInProgress.delete(peripheralAddress);
+                    releaseSlot();
                     clearConnectionGuard();
                 }
 
@@ -399,7 +445,7 @@ export class NobleBleCentralInterface implements Transport {
                 connectHandler(error).catch(handlerError => {
                     logger.warn(`Peripheral ${peripheralAddress}: Unexpected error in connect handler`, handlerError);
                     clearConnectionGuard();
-                    this.#connectionsInProgress.delete(peripheralAddress);
+                    releaseSlot();
                     peripheral.removeListener("disconnect", reTryHandler);
                     rejectOnce(handlerError);
                 });
@@ -410,7 +456,7 @@ export class NobleBleCentralInterface implements Transport {
                 connectHandler().catch(error => {
                     logger.warn(`Peripheral ${peripheralAddress}: Unexpected error in connect handler`, error);
                     clearConnectionGuard();
-                    this.#connectionsInProgress.delete(peripheralAddress);
+                    releaseSlot();
                     peripheral.removeListener("disconnect", reTryHandler);
                     rejectOnce(error);
                 });
@@ -420,14 +466,16 @@ export class NobleBleCentralInterface implements Transport {
                 tryCount--;
                 peripheral.once("disconnect", reTryHandler);
             } else {
-                if (peripheral.state === "connecting") {
+                const stateBeforeConnect = peripheral.state;
+                if (stateBeforeConnect === "connecting") {
                     peripheral.cancelConnect(); // Send cancel to noble to make sure we can connect
                 }
-                // connecting, disconnected
                 connectionGuard.connectTimeout.start();
                 peripheral.once("connect", connectListener);
                 peripheral.once("disconnect", reTryHandler);
-                logger.debug(`Peripheral ${peripheralAddress}: Connect to Peripheral now (try ${tryCount})`);
+                logger.debug(
+                    `Peripheral ${peripheralAddress}: Connect to Peripheral now (try ${tryCount}, state ${stateBeforeConnect})`,
+                );
                 peripheral.connectAsync().catch(error => {
                     if (!this.#connectionGuards.has(connectionGuard)) {
                         // Seems that the response was delayed and this process was cancelled in the meantime
