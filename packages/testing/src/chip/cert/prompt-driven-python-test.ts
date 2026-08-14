@@ -12,6 +12,7 @@ import { parseStep } from "../chip-test-common.js";
 import { FIFO_PATH } from "../container-command-pipe.js";
 import { createCommand, PythonTest, spiffy } from "../python-test.js";
 import type { CertStepContext } from "./cert-context.js";
+import type { LogLine } from "./log-follower.js";
 
 /**
  * Reacts to one line of a python-wrapped CHIP test script's own stdout. `pattern` identifies a prompt
@@ -40,11 +41,20 @@ export interface PromptHandler {
 export class PromptDrivenPythonTest extends PythonTest {
     #handlers: PromptHandler[];
     #cx: CertStepContext;
+    #log = new Array<LogLine>();
 
     constructor(descriptor: TestFileDescriptor, container: Container, handlers: PromptHandler[], cx: CertStepContext) {
         super(descriptor, container);
         this.#handlers = handlers;
         this.#cx = cx;
+    }
+
+    /**
+     * Every line the script wrote, ready to attach to a run's evidence. The script drives the scenario and reaches its
+     * own verdict, so a controller log alone records what the DUT did without what it was asked to do.
+     */
+    get log(): LogLine[] {
+        return [...this.#log];
     }
 
     override async initializeSubject(_subject: Subject): Promise<void> {}
@@ -70,6 +80,8 @@ export class PromptDrivenPythonTest extends PythonTest {
         let handled = 0;
         try {
             for await (let line of terminal) {
+                this.#log.push({ index: this.#log.length, at: new Date(), text: line });
+
                 line = parseStep(line, step);
 
                 const handler = this.#handlers.find(h => h.pattern.test(line));

@@ -110,6 +110,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Certification controller tests run against a controller × device matrix, adding chip-tool as a second controller alongside matter.js's own
     - Enhancement: New `PicsFile.with()` returns a copy of a PICS file with values overridden
     - Fix: `PromptDrivenPythonTest` now fails a run in which none of its prompt handlers fired, instead of trusting the script's own verdict
+    - Enhancement: A python-wrapped cert test's evidence attaches the script's own output alongside the controller log
     - Fix: A composite `PicsSource` no longer patches the PICS file cached for its first source
     - Fix: TC-SC-3.5 turns off `PICS_SDK_CI_ONLY` so the script prompts for commissioning instead of acting as its own commissioner, and drives whichever controller `MATTER_CERT_CONTROLLER` selects
 

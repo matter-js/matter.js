@@ -226,11 +226,10 @@ describe("TC-SC-3.5", () => {
         });
 
         const cx: CertStepContext = { controllers: { dut }, devices: {}, recorder };
+        const test = new PromptDrivenPythonTest(DESCRIPTOR, chip.container, [manualPairingCodeHandler(state)], cx);
 
         try {
             await dut.start();
-
-            const test = new PromptDrivenPythonTest(DESCRIPTOR, chip.container, [manualPairingCodeHandler(state)], cx);
 
             await test.invoke(stubSubject(), () => {}, ["--string-arg", `th_server_app_path:${appPath}`], false);
 
@@ -244,6 +243,7 @@ describe("TC-SC-3.5", () => {
             }
         } finally {
             recorder.attachLog("controller-dut", dut.log.lines);
+            recorder.attachLog("device-python", test.log);
             await recorder.flush().catch(e => console.warn("Failed to flush TC-SC-3.5 evidence:", e));
             try {
                 await dut.close();
