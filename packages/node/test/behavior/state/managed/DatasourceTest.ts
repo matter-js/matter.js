@@ -498,6 +498,113 @@ describe("Datasource", () => {
         expect(store.sets[1]).deep.equals({ foo: "woof" });
     });
 
+    describe("store metadata", () => {
+        class MirrorState {
+            foo? = "bar";
+        }
+
+        const mirrorSupervisor = BehaviorSupervisor({
+            id: "mirrorState",
+            State: MirrorState,
+
+            schema: new DatatypeModel({
+                name: "MirrorState",
+                type: "struct",
+
+                children: [FieldElement({ name: "foo", id: 1, type: "string" })],
+            }),
+        });
+
+        class MirrorStore implements Datasource.ExternallyMutableStore {
+            initialValues: Val.Struct;
+            version: number;
+            consumer?: Datasource.ExternallyMutableStore.Consumer;
+
+            constructor(initialValues: Val.Struct = {}, version = 1) {
+                this.initialValues = initialValues;
+                this.version = version;
+            }
+
+            async set() {}
+
+            async externalSet(values: Val.StructMap) {
+                const version = values.get("__version__");
+                if (typeof version === "number") {
+                    this.version = version;
+                }
+                await this.consumer?.integrateExternalChange(values);
+            }
+        }
+
+        function report(values: Record<string, Val>): Val.StructMap {
+            return new Map(Object.entries(values));
+        }
+
+        function createMirror(store: MirrorStore, onChange?: (props: string[]) => void) {
+            return createDatasource({
+                type: MirrorState,
+                supervisor: mirrorSupervisor,
+                primaryKey: "id",
+                store,
+                onChange,
+            });
+        }
+
+        it("does not seed metadata as state", async () => {
+            const store = new MirrorStore({ 1: "hi", __version__: 5, __features__: "FOO" }, 5);
+
+            await withReference(createMirror(store), ({ state }) => {
+                const raw = rawValuesOf(state);
+                expect("__version__" in raw).false;
+                expect("__features__" in raw).false;
+                expect(state.foo).equals("hi");
+            });
+        });
+
+        it("omits the version from reported changes", async () => {
+            const changes = new Array<string[]>();
+            const store = new MirrorStore({ 1: "hi" }, 5);
+            const ds = createMirror(store, props => {
+                changes.push(props);
+            });
+
+            await store.externalSet(report({ 1: "yo", __version__: 6 }));
+
+            expect(changes).deep.equals([["1"]]);
+            expect(ds.version).equals(6);
+            await withReference(ds, ({ state }) => {
+                expect("__version__" in rawValuesOf(state)).false;
+                expect(state.foo).equals("yo");
+            });
+        });
+
+        it("reports no change when only the version changes", async () => {
+            const changes = new Array<string[]>();
+            const store = new MirrorStore({ 1: "hi" }, 5);
+            const ds = createMirror(store, props => {
+                changes.push(props);
+            });
+
+            await store.externalSet(report({ __version__: 6 }));
+
+            expect(changes).deep.equals([]);
+            expect(ds.version).equals(6);
+        });
+
+        it("reports no change when a peer repeats a value with a new version", async () => {
+            const changes = new Array<string[]>();
+            const store = new MirrorStore({ 1: "hi" }, 5);
+            const ds = createMirror(store, props => {
+                changes.push(props);
+            });
+
+            await store.externalSet(report({ 1: "hi", __version__: 6 }));
+
+            expect(changes).deep.equals([]);
+            expect(ds.version).equals(6);
+        });
+    });
+
     describe("$Changing events", () => {
         it("trigger before transaction commit", async () => {
             const events = {
