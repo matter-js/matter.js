@@ -46,7 +46,11 @@ export type {
     CommissioningTarget,
     ControllerAdapter,
     ControllerAdapterFactory,
+    EventPathSpec,
+    EventReadEntry,
     ReadAttributeOptions,
+    ReadEventOptions,
+    SubscribeEventOptions,
     SubscribeOptions,
 } from "./cert/controller-adapter.js";
 export { resolveControllerImplementation, resolveDeviceFlavor } from "./cert/device-config.js";

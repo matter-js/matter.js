@@ -124,6 +124,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: A python-wrapped cert test's evidence attaches the script's own output alongside the controller log
     - Fix: A composite `PicsSource` no longer patches the PICS file cached for its first source
     - Fix: TC-SC-3.5 turns off `PICS_SDK_CI_ONLY` so the script prompts for commissioning instead of acting as its own commissioner, and drives whichever controller `MATTER_CERT_CONTROLLER` selects
+    - Enhancement: A cert test's controller reads and subscribes to events via `CertNodeApi.readEvents()`/`subscribeEvents()`, on both the matter.js and the chip-tool controller
 
 - @project-chip/matter.js
     - Deprecation: Every class, type, and function of the legacy controller API is now marked deprecated and scheduled for removal in 0.19; use the `ServerNode.peers` / `ClientNode` API of `@matter/node` instead
