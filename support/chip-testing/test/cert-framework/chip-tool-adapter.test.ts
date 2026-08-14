@@ -41,6 +41,8 @@ const ON_OFF_ATTRIBUTE = ON_OFF.attributes.require("onOff");
 const IDENTIFY_TIME = IDENTIFY.attributes.require("identifyTime");
 const ARM_FAIL_SAFE = GENERAL_COMMISSIONING.commands.require("armFailSafe");
 const START_UP = BASIC_INFORMATION.events.require("startUp");
+const BOOLEAN_STATE = Matter.clusters.require("BooleanState");
+const STATE_CHANGE = BOOLEAN_STATE.events.require("stateChange");
 
 /** The node id the first {@link ChipToolControllerAdapter.commission} of an adapter mints. */
 const FIRST_NODE = "4097";
@@ -1010,6 +1012,58 @@ describe("ChipToolControllerAdapter", function () {
                     value: { softwareVersion: 2 },
                 },
             ]);
+        });
+
+        it("rejects a subscribe whose own event path the device rejected, and registers nothing", async () => {
+            const { node } = await commissioned();
+            const abandoned = new Array<unknown>();
+
+            function rejectedPath(status: number) {
+                return {
+                    results: [
+                        {
+                            clusterId: BASIC_INFORMATION.id,
+                            endpointId: 0,
+                            eventId: requireId(START_UP.id, "startUp"),
+                            error: "UNSUPPORTED_ACCESS",
+                        },
+                    ],
+                    status,
+                };
+            }
+
+            // As for attributes: `SubscribeCommand::OnSubscriptionEstablished` sets a zero exit status,
+            // so a device that answers the subscribed path with a status and establishes anyway leaves
+            // the path status as the reply's only account of itself
+            for (const status of [1, 0]) {
+                fake.reply = () => rejectedPath(status);
+
+                const failure = await rejectionOf(
+                    node.subscribeEvents([EVENT_PATH], { ...INTERVALS, onUpdate: report => abandoned.push(report) }),
+                );
+                expect(failure, `exit status ${status}`).instanceOf(StatusResponseError);
+                expect(StatusResponseError.of(failure)?.code, `exit status ${status}`).equal(Status.UnsupportedAccess);
+            }
+
+            await delay(50);
+            expect(fake.armings).deep.equal([]);
+            expect(fake.pushReport(event(6, 3))).equal("dropped");
+            expect(abandoned).deep.equal([]);
+
+            // A later subscription parks a frame, so a report on the refused path now reaches whoever
+            // claims it — nobody, unless the failed subscribe registered itself anyway
+            const claimed = new Array<unknown>();
+            fake.reply = () => ({ results: [] });
+            await node.subscribeEvents([{ endpoint: 1, cluster: BOOLEAN_STATE.id, event: STATE_CHANGE.id }], {
+                ...INTERVALS,
+                onUpdate: report => claimed.push(report),
+            });
+            await waitFor(() => fake.armings.length === 1, "the adapter to park a report frame");
+
+            expect(fake.pushReport(event(7, 4))).equal("sent");
+            await delay(50);
+            expect(abandoned).deep.equal([]);
+            expect(claimed).deep.equal([]);
         });
 
         it("does not hand an event of another path to a live subscription", async () => {
