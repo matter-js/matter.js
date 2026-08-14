@@ -27,6 +27,8 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
     #buffer?: ClientCacheBuffer;
     #version: number;
     #dirtyKeys = new Set<string>();
+    #reportEpoch = 0;
+    #reportedAt = new Map<string, number>();
     #erased = false;
     #reclaimed = false;
     #consumer?: Datasource.ExternallyMutableStore.Consumer;
@@ -78,17 +80,24 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
         (participant as RemoteWriteParticipant).set(this.#endpointNumber, this.#behaviorId, values, {
             compensator: this,
             previousValues,
+            reportEpoch: this.#reportEpoch,
         });
     }
 
     /**
-     * Restores local cache values whose remote write was declined.
+     * Restores local cache values whose remote write the peer did not accept.
      *
      * Only restores keys that:
      *   - had a captured pre-write value (skip if the snapshot doesn't know the prior state), AND
-     *   - still hold the value we attempted to write (skip if a concurrent subscription update already moved on).
+     *   - still hold the value we attempted to write (skip if a concurrent subscription update already moved on), AND
+     *   - the peer has not reported since the write was queued, when the peer never answered at all.
      */
-    async compensate(failedAttributeIds: Set<string>, previousValues: Val.Struct, writtenValues: Val.Struct) {
+    async compensate(
+        failedAttributeIds: Set<string>,
+        previousValues: Val.Struct,
+        writtenValues: Val.Struct,
+        unanswered?: RemoteWriteParticipant.Unanswered,
+    ) {
         if (this.#erased || this.#reclaimed || !this.#consumer) {
             return;
         }
@@ -105,15 +114,36 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
             if (current[id] !== writtenValues[id]) {
                 continue;
             }
+            // A report carrying the value we wrote is discarded as unchanged, so it leaves the reference alone and the
+            // check above cannot see it.  Without an answer from the peer that report is the only evidence of what the
+            // device actually holds, and it says our write landed.
+            if (unanswered !== undefined && (this.#reportedAt.get(id) ?? -1) > unanswered.reportEpoch) {
+                continue;
+            }
             restore.set(id, previousValues[id]);
         }
 
         if (restore.size) {
-            await this.externalSet(restore);
+            // Our own undo, not something the peer said, so it must not count as a report
+            await this.#applyExternal(restore);
         }
     }
 
     async externalSet(values: Val.StructMap) {
+        // Note what the peer spoke about, even where the value is unchanged: that is the only trace a report leaves
+        // when it confirms a value we already hold, and compensation of an unanswered write depends on it
+        const epoch = ++this.#reportEpoch;
+        for (const key of values.keys()) {
+            const id = String(key);
+            if (!id.startsWith("__")) {
+                this.#reportedAt.set(id, epoch);
+            }
+        }
+
+        await this.#applyExternal(values);
+    }
+
+    async #applyExternal(values: Val.StructMap) {
         if (this.#erased || this.#reclaimed) {
             return;
         }

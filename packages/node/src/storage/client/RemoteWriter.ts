@@ -79,10 +79,13 @@ export function RemoteWriter(node: ClientNode, structure: ClientStructure): Remo
             // Without an answer we cannot know what the peer applied.  The caller sees this write as failed, so the
             // mirror must not keep the values either; a later report corrects us if the device did apply them.
             if (onFailure) {
-                await onFailure([
-                    ...attempted.map(path => ({ kind: "attr-status", path, status: Status.Failure }) as const),
-                    ...declined,
-                ]);
+                await onFailure(
+                    [
+                        ...attempted.map(path => ({ kind: "attr-status", path, status: Status.Failure }) as const),
+                        ...declined,
+                    ],
+                    true,
+                );
             }
             throw e;
         }
@@ -109,7 +112,12 @@ export namespace RemoteWriter {
 
     export interface Request extends Array<EndpointUpdateRequest> {}
 
-    export type FailureHandler = (failures: WriteResult.AttributeStatus[]) => MaybePromise<void>;
+    /**
+     * Invoked with the per-attribute failures before a write rejects.  {@link unanswered} distinguishes a peer that
+     * declined — an authoritative answer — from one that never responded, where a report may already have told us
+     * the write landed.
+     */
+    export type FailureHandler = (failures: WriteResult.AttributeStatus[], unanswered?: boolean) => MaybePromise<void>;
 }
 
 /**

@@ -77,6 +77,7 @@ export class RemoteWriteParticipant implements Transaction.Participant {
                     compensator: snapshot.compensator,
                     previousValues: { ...snapshot.previousValues },
                     writtenValues: { ...values },
+                    reportEpoch: snapshot.reportEpoch,
                 });
             }
         }
@@ -92,12 +93,13 @@ export class RemoteWriteParticipant implements Transaction.Participant {
         this.#request = [];
         this.#snapshots = new Map();
 
-        await this.#writer(request, failures => this.#compensate(snapshots, failures));
+        await this.#writer(request, (failures, unanswered) => this.#compensate(snapshots, failures, unanswered));
     }
 
     async #compensate(
         snapshots: Map<string, RemoteWriteParticipant.Snapshot>,
         failures: WriteResult.AttributeStatus[],
+        unanswered?: boolean,
     ) {
         if (!snapshots.size) {
             return;
@@ -120,7 +122,12 @@ export class RemoteWriteParticipant implements Transaction.Participant {
                 continue;
             }
             try {
-                await snapshot.compensator.compensate(failedIds, snapshot.previousValues, snapshot.writtenValues);
+                await snapshot.compensator.compensate(
+                    failedIds,
+                    snapshot.previousValues,
+                    snapshot.writtenValues,
+                    unanswered ? { reportEpoch: snapshot.reportEpoch } : undefined,
+                );
             } catch (compensateError) {
                 logger.warn(`Failed to restore local state for ${key} after remote write decline:`, compensateError);
             }
@@ -159,7 +166,17 @@ export namespace RemoteWriteParticipant {
             failedAttributeIds: Set<string>,
             previousValues: Val.Struct,
             writtenValues: Val.Struct,
+            unanswered?: Unanswered,
         ): Promise<void>;
+    }
+
+    /**
+     * Present when the peer never answered the write, carrying the {@link SnapshotInput.reportEpoch} captured when it
+     * was queued.  A peer that explicitly declined leaves this absent: its answer is authoritative, so the value is
+     * restored regardless of what the peer reported meanwhile.
+     */
+    export interface Unanswered {
+        reportEpoch: number;
     }
 
     /**
@@ -169,6 +186,12 @@ export namespace RemoteWriteParticipant {
     export interface SnapshotInput {
         compensator: Compensator;
         previousValues: Val.Struct;
+
+        /**
+         * The compensator's report counter when this write was queued, so it can tell a report that arrived afterwards
+         * from one that predates the write.
+         */
+        reportEpoch: number;
     }
 
     /**
@@ -178,5 +201,6 @@ export namespace RemoteWriteParticipant {
         compensator: Compensator;
         previousValues: Val.Struct;
         writtenValues: Val.Struct;
+        reportEpoch: number;
     }
 }

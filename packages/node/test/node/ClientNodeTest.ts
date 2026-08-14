@@ -38,6 +38,7 @@ import {
     deepCopy,
     Entropy,
     MatterAggregateError,
+    Millis,
     Minutes,
     MockCrypto,
     Observable,
@@ -1359,6 +1360,45 @@ describe("ClientNode", () => {
 
             expect(caught).not.undefined;
             expect(ep1Client.stateOf(OnOffClient).startUpOnOff).equals(before);
+        });
+
+        it("keeps the value when the peer reported it before the answer was lost", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair();
+
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const ep1Client = peer1.parts.get("ep1")!;
+
+            await device.close();
+
+            const caught = await captureRejection(async () => {
+                const write = ep1Client.setStateOf(OnOffClient, { startUpOnOff: OnOff.StartUpOnOff.Toggle });
+
+                // Let the write reach the wire before the report lands, or the value is already canonical and there is
+                // nothing left to send
+                for (let i = 0; i < 3; i++) {
+                    await MockTime.advance(Millis(100));
+                    await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+                }
+
+                // The device applied the write and reported it; only the write response was lost.  A report carrying
+                // the value we already hold is discarded as unchanged, so this is the sole record that it arrived.
+                await seedPeerCache(
+                    peer1,
+                    ep1Client,
+                    OnOffClient,
+                    new Map([[OnOff.Complete.attributes.startUpOnOff.id, OnOff.StartUpOnOff.Toggle]]),
+                );
+
+                for (let i = 0; i < 80; i++) {
+                    await MockTime.advance(Seconds(1));
+                    await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+                }
+                await write;
+            });
+
+            expect(caught).not.undefined;
+            expect(ep1Client.stateOf(OnOffClient).startUpOnOff).equals(OnOff.StartUpOnOff.Toggle);
         });
 
         it("but not a declined one, with no subscription to repair the cache", async () => {
