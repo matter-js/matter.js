@@ -1960,7 +1960,7 @@ export declare namespace Thermostat {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.5
          */
-        runningModeChange: RunningModeChangeEvent;
+        runningModeChange?: RunningModeChangeEvent;
     }
 
     /**
@@ -1972,7 +1972,7 @@ export declare namespace Thermostat {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.1
          */
-        systemModeChange: SystemModeChangeEvent;
+        systemModeChange?: SystemModeChangeEvent;
 
         /**
          * This event shall be generated when the value of any of the OccupiedHeatingSetpoint,
@@ -1980,14 +1980,14 @@ export declare namespace Thermostat {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.4
          */
-        setpointChange: SetpointChangeEvent;
+        setpointChange?: SetpointChangeEvent;
 
         /**
          * This event shall be generated when the ThermostatRunningState attribute changes.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.6
          */
-        runningStateChange: RunningStateChangeEvent;
+        runningStateChange?: RunningStateChangeEvent;
     }
 
     /**
@@ -2008,7 +2008,7 @@ export declare namespace Thermostat {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.2
          */
-        localTemperatureChange: LocalTemperatureChangeEvent;
+        localTemperatureChange?: LocalTemperatureChangeEvent;
     }
 
     /**
@@ -2020,7 +2020,7 @@ export declare namespace Thermostat {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.3
          */
-        occupancyChange: OccupancyChangeEvent;
+        occupancyChange?: OccupancyChangeEvent;
     }
 
     /**
@@ -2032,7 +2032,7 @@ export declare namespace Thermostat {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.8
          */
-        activeScheduleChange: ActiveScheduleChangeEvent;
+        activeScheduleChange?: ActiveScheduleChangeEvent;
     }
 
     /**
@@ -2044,7 +2044,7 @@ export declare namespace Thermostat {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.7
          */
-        activePresetChange: ActivePresetChangeEvent;
+        activePresetChange?: ActivePresetChangeEvent;
     }
 
     /**
@@ -3671,12 +3671,12 @@ export declare namespace Thermostat {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link Thermostat}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Thermostat}.
      */
     export const Cluster: ClusterType.WithCompat<typeof Thermostat, Thermostat>;
 
     /**
-     * @deprecated Use {@link Thermostat}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Thermostat}.
      */
     export const Complete: typeof Thermostat;
 
@@ -3684,7 +3684,7 @@ export declare namespace Thermostat {
 }
 
 /**
- * @deprecated Use {@link Thermostat}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link Thermostat}.
  */
 export declare const ThermostatCluster: typeof Thermostat;
 

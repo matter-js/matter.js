@@ -11,6 +11,8 @@ import { InteractionClient } from "./InteractionClient.js";
 
 /**
  * Factory function to create an EventClient for a given event.
+ *
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export function createEventClient<T>(
     event: ClusterType.Event<T>,
@@ -24,6 +26,8 @@ export function createEventClient<T>(
 
 /**
  * General class for EventClients
+ *
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export class EventClient<T = any> {
     readonly #listeners = new Array<(event: DecodedEventData<T>) => void>();

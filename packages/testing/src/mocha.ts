@@ -89,7 +89,20 @@ export function generalSetup(mocha: Mocha) {
     TextDiff.generator = Base.generateDiff.bind(Base);
 }
 
+// `global-definitions.ts` and `nodejs.ts` each call extendApi() unconditionally at module load, and
+// nothing previously made both land in the same process — a test file that transitively reaches
+// `state.ts` (e.g. via `python-test.ts`) does, and the second call's Object.defineProperty on the
+// same Mocha.Suite.prototype then throws "Cannot redefine property". Guard by Mocha class identity
+// (not a bare flag) so a genuinely different Mocha instance in a separate module registry still gets
+// instrumented once.
+const extendedMochas = new WeakSet<typeof MochaType>();
+
 export function extendApi(Mocha: typeof MochaType) {
+    if (extendedMochas.has(Mocha)) {
+        return;
+    }
+    extendedMochas.add(Mocha);
+
     (Mocha.Runnable.prototype as any)._timeoutError = function (timeoutMs: number) {
         // We use our error class so we get diagnostics and message isn't so verbose
         const error = new TestTimeoutError(`Timeout of ${timeoutMs}ms exceeded`);

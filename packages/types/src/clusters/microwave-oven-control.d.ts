@@ -146,7 +146,7 @@ export declare namespace MicrowaveOvenControl {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 8.13.5.7
          */
-        supportedWatts: number[];
+        supportedWatts?: number[];
 
         /**
          * Indicates the index into the list of SupportedWatts of the currently selected power setting.
@@ -155,7 +155,7 @@ export declare namespace MicrowaveOvenControl {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 8.13.5.8
          */
-        selectedWattIndex: number;
+        selectedWattIndex?: number;
     }
 
     /**
@@ -420,12 +420,12 @@ export declare namespace MicrowaveOvenControl {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link MicrowaveOvenControl}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link MicrowaveOvenControl}.
      */
     export const Cluster: ClusterType.WithCompat<typeof MicrowaveOvenControl, MicrowaveOvenControl>;
 
     /**
-     * @deprecated Use {@link MicrowaveOvenControl}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link MicrowaveOvenControl}.
      */
     export const Complete: typeof MicrowaveOvenControl;
 
@@ -433,7 +433,7 @@ export declare namespace MicrowaveOvenControl {
 }
 
 /**
- * @deprecated Use {@link MicrowaveOvenControl}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link MicrowaveOvenControl}.
  */
 export declare const MicrowaveOvenControlCluster: typeof MicrowaveOvenControl;
 

@@ -318,12 +318,12 @@ export declare namespace TotalVolatileOrganicCompoundsConcentrationMeasurement {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link TotalVolatileOrganicCompoundsConcentrationMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link TotalVolatileOrganicCompoundsConcentrationMeasurement}.
      */
     export const Cluster: ClusterType.WithCompat<typeof TotalVolatileOrganicCompoundsConcentrationMeasurement, TotalVolatileOrganicCompoundsConcentrationMeasurement>;
 
     /**
-     * @deprecated Use {@link TotalVolatileOrganicCompoundsConcentrationMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link TotalVolatileOrganicCompoundsConcentrationMeasurement}.
      */
     export const Complete: typeof TotalVolatileOrganicCompoundsConcentrationMeasurement;
 
@@ -331,7 +331,7 @@ export declare namespace TotalVolatileOrganicCompoundsConcentrationMeasurement {
 }
 
 /**
- * @deprecated Use {@link TotalVolatileOrganicCompoundsConcentrationMeasurement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link TotalVolatileOrganicCompoundsConcentrationMeasurement}.
  */
 export declare const TotalVolatileOrganicCompoundsConcentrationMeasurementCluster: typeof TotalVolatileOrganicCompoundsConcentrationMeasurement;
 

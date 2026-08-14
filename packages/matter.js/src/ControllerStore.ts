@@ -8,6 +8,8 @@ import { ImplementationError, MaybePromise, StorageContext, StorageManager } fro
 
 /**
  * Non-volatile state management for a {@link ControllerNode}.
+ *
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export class ControllerStore implements ControllerStoreInterface {
     #storageManager?: StorageManager;
@@ -75,6 +77,9 @@ export class ControllerStore implements ControllerStoreInterface {
     }
 }
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export abstract class ControllerStoreInterface {
     abstract erase(): Promise<void>;
     abstract close(): Promise<void>;

@@ -6,11 +6,12 @@ cluster definitions and this has now been enhanced for all device types. Additio
 implemented also needed to be adjusted and was enhanced with a very flexible way to choose the wanted cluster features.
 
 This means that developers need to adjust their code to use the new classes and concepts introduced by this change. The
-former API (pre 0.8, called "Legacy" for of now) is still 100% functional, but will be deprecated and removed in upcoming
-releases and might not get cluster specific adjustments or new features if they are not part of the core library
-functionality!
-The Controller API is still the same as before, but will be also adjusted in the future to the new concepts where
-applicable.
+former Device building API (pre 0.8, called "Legacy") was deprecated in 0.8 and removed in 0.13, so this document is
+only relevant when migrating code that still targets a matter.js version before 0.13.
+
+The legacy Controller API (`CommissioningController`, `PairedNode` and the surrounding classes of the
+`@project-chip/matter.js` package) is deprecated as well and scheduled for removal in 0.19. Migrate to the
+`ServerNode.peers` / `ClientNode` controller API of `@matter/node`.
 
 This document tries to give an overview how the commonly used components and classes from the legacy API need to be
 adjusted for the new API. Please also check out the FAQ at the end of this document.

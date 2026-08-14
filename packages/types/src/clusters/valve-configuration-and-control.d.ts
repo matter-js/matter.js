@@ -647,12 +647,12 @@ export declare namespace ValveConfigurationAndControl {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link ValveConfigurationAndControl}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ValveConfigurationAndControl}.
      */
     export const Cluster: ClusterType.WithCompat<typeof ValveConfigurationAndControl, ValveConfigurationAndControl>;
 
     /**
-     * @deprecated Use {@link ValveConfigurationAndControl}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ValveConfigurationAndControl}.
      */
     export const Complete: typeof ValveConfigurationAndControl;
 
@@ -660,7 +660,7 @@ export declare namespace ValveConfigurationAndControl {
 }
 
 /**
- * @deprecated Use {@link ValveConfigurationAndControl}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link ValveConfigurationAndControl}.
  */
 export declare const ValveConfigurationAndControlCluster: typeof ValveConfigurationAndControl;
 

@@ -28,6 +28,28 @@ const logger = Logger.get("Datasource");
 
 const FEATURES_KEY = "__features__";
 
+/**
+ * Whether key is a member id, in the only spelling under which id keys are produced (canonical decimal, as emitted
+ * by memberKeyFor for members that define an id, persistentKeys and externalSet).
+ */
+function isIdKey(key: string) {
+    return /^(0|[1-9]\d*)$/.test(key);
+}
+
+/**
+ * Remove a state instance's schema-member value slots, keeping non-member helper fields (e.g. backing data for a
+ * Val.properties implementation).  The constructor must run — skipping it via Object.create would leave
+ * private-field brands uninstalled — so field initializers execute and the member slots are stripped afterwards.
+ */
+function stripMemberValues(values: Val.Struct, members: Set<string>) {
+    for (const key of Object.keys(values)) {
+        if (members.has(key)) {
+            delete values[key];
+        }
+    }
+    return values;
+}
+
 // Once-per-act() guard for local sessions (frozen — can't set interactionStarted on the session).
 const localInteractionBeginEmitted = new WeakSet<object>();
 
@@ -150,7 +172,7 @@ export namespace Datasource {
          *
          * For structs we also support the other key (id or name) for input, but always write using the preferred key.
          */
-        primaryKey?: "name" | "id";
+        primaryKey?: ValReference.PrimaryKey;
 
         /**
          * Optional callback, invoked when properties change.
@@ -202,9 +224,23 @@ export namespace Datasource {
          * The current version of the data.
          */
         version: number;
+
+        /**
+         * Reclaim values from the datasource so a rebuilt datasource re-seeds from live data rather than defaults.
+         */
+        reclaimValues?(): void;
+
+        /**
+         * Discard the store's values, including any persisted copy.
+         */
+        erase?(): MaybePromise<void>;
     }
 
     export namespace ExternallyMutableStore {
+        export function is(store?: Store | ExternallyMutableStore): store is ExternallyMutableStore {
+            return store !== undefined && "externalSet" in store;
+        }
+
         /**
          * Interface the datasource exposes to its external store for change integration and value access.
          */
@@ -253,7 +289,7 @@ interface SessionContext {
  * Changes that are applied during a commit (computed post-commit).
  */
 interface CommitChanges {
-    persistent?: Val.Struct;
+    stored?: Val.Struct;
     notifications: Array<{
         event: Observable<any[], MaybePromise>;
         params: Parameters<Datasource.ValueObserver> | [context?: ValueSupervisor.Session];
@@ -272,20 +308,27 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
     location;
     entropy;
     store?: Datasource.Store | Datasource.ExternallyMutableStore;
-    defaults?: Val.Struct;
     owner?: any;
     onChange?: (attrs: string[]) => MaybePromise<void>;
 
     // Computed state
-    primaryKey: "name" | "id";
+    primaryKey: ValReference.PrimaryKey;
     version: number;
     manageVersion: boolean;
     events: Datasource.Events;
     sessions?: Map<ValueSupervisor.Session, SessionContext>;
     featuresKey?: string;
     featuresKeyPersisted?: boolean;
-    persistentFields: Set<string>;
+    storeFields: Set<string>;
     supervisionConfig?: GlobalConfig;
+
+    /**
+     * True when {@link store} is a {@link Datasource.ExternallyMutableStore}, i.e. the values mirror a remote node and
+     * {@link Datasource.ExternallyMutableStore.set} conveys changes to that node rather than to local persistence.
+     */
+    get mirrorsRemote() {
+        return Datasource.ExternallyMutableStore.is(this.store);
+    }
 
     observedInteractions?: Set<
         | NonNullable<ValueSupervisor.RemoteActorSession["interactionComplete"]>
@@ -302,14 +345,17 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
         this.location = options.location;
         this.entropy = options.entropy;
         this.store = options.store;
-        this.defaults = options.defaults;
         this.owner = options.owner;
         this.onChange = options.onChange;
         this.primaryKey = options.primaryKey === "id" ? "id" : "name";
         this.events = options.events ?? {};
 
-        // Initialize values
+        // Initialize values.  An id-keyed datasource mirrors a peer, whose reports are the only source of values:
+        // the state class's name-keyed field initializers must not survive, or they masquerade as reported data
         const values = new options.type() as Val.Struct;
+        if (this.primaryKey === "id") {
+            stripMemberValues(values, options.supervisor.memberNames);
+        }
 
         let storedValues = options.store?.initialValues;
 
@@ -328,8 +374,57 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
             }
         }
 
+        let defaults = options.defaults;
+        if (this.primaryKey === "id") {
+            if (defaults !== undefined) {
+                // Only explicitly id-keyed defaults may seed a mirror (see PrimaryKey)
+                const kept = {} as Val.Struct;
+                const dropped = new Array<string>();
+                for (const key in defaults) {
+                    if (isIdKey(key)) {
+                        kept[key] = defaults[key];
+                    } else {
+                        dropped.push(key);
+                    }
+                }
+                if (dropped.length) {
+                    logger.warn(
+                        `Ignoring configured defaults [${dropped.join(", ")}] for ${options.location.path} because a peer's reports are the only source of values`,
+                    );
+                    defaults = kept;
+                }
+            }
+
+            if (storedValues !== undefined) {
+                // A store persisted before mirrors were id-keyed may hold peer data under property names; migrate it
+                // to the canonical id slot so it stays readable (idempotent — the store itself is not rewritten)
+                const ids = options.supervisor.propertyNamesAndIds;
+                let migrated: Val.Struct | undefined;
+                for (const key in storedValues) {
+                    const id = ids.get(key);
+                    if (id === undefined) {
+                        continue;
+                    }
+                    migrated ??= { ...storedValues };
+                    if (id in migrated) {
+                        // The store itself is never rewritten, so this repeats every load — not warn-worthy
+                        logger.debug(
+                            `Discarding legacy value stored at "${key}" for ${options.location.path} because a newer value exists at its id`,
+                        );
+                    } else {
+                        logger.debug(`Migrated stored value "${key}" to id ${id} for ${options.location.path}`);
+                        migrated[id] = migrated[key];
+                    }
+                    delete migrated[key];
+                }
+                if (migrated) {
+                    storedValues = migrated;
+                }
+            }
+        }
+
         const initialValues = {
-            ...options.defaults,
+            ...defaults,
             ...storedValues,
         };
 
@@ -348,7 +443,11 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
 
         this.version = options.entropy.randomUint32;
         this.manageVersion = true;
-        this.persistentFields = options.supervisor.persistentKeys(options.primaryKey);
+        // A mirror's store is the conduit to the remote node, not a persistence filter: every attribute the caller
+        // mutates must reach the peer, or an unwritable attribute would silently become a local fiction
+        this.storeFields = this.mirrorsRemote
+            ? options.supervisor.attributeKeys(this.primaryKey)
+            : options.supervisor.persistentKeys(this.primaryKey);
 
         this.#configureExternalChanges();
 
@@ -380,8 +479,8 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
             this.observedInteractions = undefined;
         }
 
-        const store = this.store as Datasource.ExternallyMutableStore | undefined;
-        if (store?.consumer === this) {
+        const { store } = this;
+        if (Datasource.ExternallyMutableStore.is(store) && store.consumer === this) {
             store.consumer = undefined;
         }
     }
@@ -482,23 +581,23 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
 
     #configureExternalChanges() {
         const { store } = this;
-        if (!store || !("externalSet" in store)) {
+        if (!Datasource.ExternallyMutableStore.is(store)) {
             return;
         }
 
-        const externalStore = store as Datasource.ExternallyMutableStore;
-
-        this.version = externalStore.version;
+        this.version = store.version;
         this.manageVersion = false;
 
-        externalStore.consumer = this;
+        store.consumer = this;
     }
 
     // -- Datasource.ExternallyMutableStore.Consumer --
 
     async integrateExternalChange(potentialChanges: Val.StructMap) {
-        const { values } = this;
-        const externalStore = this.store as Datasource.ExternallyMutableStore;
+        const { values, store } = this;
+        if (!Datasource.ExternallyMutableStore.is(store)) {
+            throw new InternalError(`${this} integrated an external change without an externally mutable store`);
+        }
 
         let changes: Map<string, unknown> | undefined;
         let oldValues: Map<string, unknown> | undefined;
@@ -518,7 +617,7 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
             }
         }
 
-        this.version = externalStore.version;
+        this.version = store.version;
 
         if (!changes) {
             return;
@@ -591,12 +690,13 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
  * both {@link ValReference} for managed access and {@link Transaction.Participant} for transactional commit/rollback.
  */
 class RootReference implements ValReference<Val.Struct>, Transaction.Participant {
-    primaryKey;
+    readonly primaryKey;
     subrefs?: Record<number | string, ValReference>;
     owner?: Val.Struct;
     supervisionConfig?: Supervision.Config;
 
     #values: Val.Struct;
+    #baseValues: Val.Struct | undefined;
     #precommitValues: Val.Struct | undefined;
     #changes: CommitChanges | undefined;
     #expired = false;
@@ -735,16 +835,30 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
         // Clone values if we haven't already
         if (this.#values === this.#internals.values) {
             const old = this.#values;
-            this.#values = new this.#internals.type();
+
+            // An external change does not refresh an existing clone, so the commit needs this baseline to tell a value
+            // this session wrote from one that only diverges because the peer reported it while we held the clone
+            this.#baseValues = old;
+
+            let keys: Iterable<string>;
+            if (this.primaryKey === "id") {
+                // A mirror's clone must not resurrect the state class's name-keyed field initializers — the peer's
+                // reports are the only source of values
+                this.#values = stripMemberValues(new this.#internals.type() as Val.Struct, this.#fields);
+                keys = Object.keys(old);
+            } else {
+                this.#values = new this.#internals.type();
+                const keySet = new Set<string>(this.#fields);
+                for (const key of Object.keys(old)) {
+                    keySet.add(key);
+                }
+                keys = keySet;
+            }
 
             const properties = (this.#values as Val.Dynamic)[Val.properties]
                 ? (this.#values as Val.Dynamic)[Val.properties](this.rootOwner, this.#session)
                 : undefined;
-            // `#fields` only lists property names; client mirrors also store values at numeric attribute ids.
-            const keys = new Set<string>(this.#fields);
-            for (const key of Object.keys(old)) {
-                keys.add(key);
-            }
+
             for (const key of keys) {
                 if (properties && key in properties) {
                     // Property is dynamic anyway, so do nothing
@@ -816,22 +930,26 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
     }
 
     /**
-     * For commit phase one we pass values to the persistence layer if present.
+     * For commit phase one we pass values to the store if present.  For a mirror the store is the remote node.
      */
     commit1() {
         this.#computePostCommitChanges();
 
-        const persistent = this.#changes?.persistent;
-        if (!persistent) {
+        const stored = this.#changes?.stored;
+        if (!stored) {
             return;
         }
 
-        if (this.#internals.featuresKey !== undefined && !this.#internals.featuresKeyPersisted) {
-            persistent[FEATURES_KEY] = this.#internals.featuresKey;
+        if (
+            !this.#internals.mirrorsRemote &&
+            this.#internals.featuresKey !== undefined &&
+            !this.#internals.featuresKeyPersisted
+        ) {
+            stored[FEATURES_KEY] = this.#internals.featuresKey;
             this.#internals.featuresKeyPersisted = true;
         }
 
-        return this.#internals.store?.set(this.#session.transaction, persistent);
+        return this.#internals.store?.set(this.#session.transaction, stored);
     }
 
     /**
@@ -842,7 +960,34 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
             return;
         }
 
+        this.#adoptConcurrentChanges();
+
         this.#internals.values = this.#values;
+    }
+
+    /**
+     * Take over values that changed externally while this session held its clone.  Our clone is only authoritative for
+     * what this session wrote; making it canonical wholesale would discard a peer report that arrived meanwhile.
+     *
+     * Values are copied into the clone rather than merged into a new object so the state class instance, and with it
+     * any {@link Val.properties} implementation, survives.
+     */
+    #adoptConcurrentChanges() {
+        const base = this.#baseValues;
+        const canonical = this.#internals.values;
+
+        // Only an externally mutable store mutates values outside a transaction, so for every other datasource
+        // canonical is still the object we cloned from and there is nothing to adopt
+        if (base === undefined || canonical === base) {
+            return;
+        }
+
+        for (const name in canonical) {
+            const value = canonical[name];
+            if (this.#values[name] !== value && !this.#wasWrittenHere(name, this.#values[name])) {
+                this.#values[name] = value;
+            }
+        }
     }
 
     /**
@@ -884,6 +1029,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
      */
     rollback() {
         this.#values = this.#internals.values;
+        this.#baseValues = undefined;
         this.#refreshSubrefs();
     }
 
@@ -975,6 +1121,21 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
         return { newValue: this.#context.managed[name], oldValue };
     }
 
+    /**
+     * Whether {@link name} holds a value this session assigned, as opposed to one that diverges from canonical only
+     * because an external change landed while we held our clone.  Only the former may go to the store — for a mirror
+     * the store is the peer, and writing back a value the peer just reported would ask the device to accept its own
+     * (now stale) data.
+     */
+    #wasWrittenHere(name: string, newval: Val) {
+        const base = this.#baseValues;
+        if (base === undefined) {
+            return true;
+        }
+        const baseval = base[name];
+        return baseval !== newval && !isDeepEqual(newval, baseval);
+    }
+
     #computePostCommitChanges() {
         this.#changes = undefined;
 
@@ -991,11 +1152,11 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
                 }
                 this.#changes.changeList.add(name);
 
-                if (this.#internals.persistentFields.has(name)) {
-                    if (this.#changes.persistent === undefined) {
-                        this.#changes.persistent = {};
+                if (this.#internals.storeFields.has(name) && this.#wasWrittenHere(name, newval)) {
+                    if (this.#changes.stored === undefined) {
+                        this.#changes.stored = {};
                     }
-                    this.#changes.persistent[name] = this.#values[name];
+                    this.#changes.stored[name] = this.#values[name];
                 }
 
                 const event = this.#internals.changedEventFor(name);

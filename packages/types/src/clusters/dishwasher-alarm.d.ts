@@ -358,12 +358,12 @@ export declare namespace DishwasherAlarm {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link DishwasherAlarm}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link DishwasherAlarm}.
      */
     export const Cluster: ClusterType.WithCompat<typeof DishwasherAlarm, DishwasherAlarm>;
 
     /**
-     * @deprecated Use {@link DishwasherAlarm}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link DishwasherAlarm}.
      */
     export const Complete: typeof DishwasherAlarm;
 
@@ -371,7 +371,7 @@ export declare namespace DishwasherAlarm {
 }
 
 /**
- * @deprecated Use {@link DishwasherAlarm}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link DishwasherAlarm}.
  */
 export declare const DishwasherAlarmCluster: typeof DishwasherAlarm;
 

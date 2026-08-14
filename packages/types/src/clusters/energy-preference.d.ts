@@ -333,12 +333,12 @@ export declare namespace EnergyPreference {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link EnergyPreference}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link EnergyPreference}.
      */
     export const Cluster: ClusterType.WithCompat<typeof EnergyPreference, EnergyPreference>;
 
     /**
-     * @deprecated Use {@link EnergyPreference}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link EnergyPreference}.
      */
     export const Complete: typeof EnergyPreference;
 
@@ -346,7 +346,7 @@ export declare namespace EnergyPreference {
 }
 
 /**
- * @deprecated Use {@link EnergyPreference}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link EnergyPreference}.
  */
 export declare const EnergyPreferenceCluster: typeof EnergyPreference;
 

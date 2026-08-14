@@ -12,9 +12,180 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/general
-    - Fix: `Heap` now stores each item at most once and maintains its position index eagerly, so deleting an item added after an earlier deletion works reliably
+    - Enhancement: New `MatterAggregateError.settleSeries()` runs tasks in order, continuing past a failure, and reports the accumulated errors
+    - Fix: Opening a namespace whose `driver.json` names an unregistered storage driver now throws `NoProviderError` instead of silently opening the existing data with a mismatched driver
+    - Fix: DNS-SD ignores SRV records with port 0, an empty target or an out-of-range port
+    - Fix: DNS-SD resolution queries A/AAAA for the SRV target host instead of the service instance name
+    - Fix: The `Symbol.metadata` polyfill no longer conflicts with `lib.esnext.decorators` in the published declarations
+
+- @matter/model
+    - Breaking: A provisional element is no longer mandatory; conformance following a `P` describes the conformance intended once the element leaves provisional state
+    - Enhancement: `FeatureSelectionErrors()` assesses a cluster's selected features against the combinations its FeatureMap conformance disallows
+    - Enhancement: `FeatureSet.resolve()` resolves a feature short code, title or camelized title to a short code
+    - Enhancement: New `Scope.isMandatory()` tells whether a member is mandatory under a schema's supported features, and the new `MandatoryDefaultValue()` computes the value such a member assumes when no real value exists (schema default, else the specification's fallback value, recursing into structs) — the basis for what an unreported client node attribute reads, usable wherever schema-derived fallback values are needed; `SelectDefaultValue()` exposes the shallow variant used for server state seeding
+    - Fix: A cluster's feature table no longer selects features; a feature the specification makes unconditionally mandatory is always selected
+    - Fix: Feature selection records against `operationalIsSupported` so a feature's `default` conveys only the specification's fallback value
+    - Fix: A feature mandated by any of several alternatives, such as `DoorLock.User`, is now reported as required
+    - Fix: A feature conformance that is a bracketed disjunction, such as `[VDO | SNP]`, is illegal only when none of its alternatives is selected
+    - Fix: A choice set whose members are gated on a conformance expression, such as `[!PA].a` or `[PS].b`, requires a selection only where the gate admits a member, and rejects a member the gate excludes
+    - Fix: An entry of an otherwise conformance applies only where the entries preceding it do not, and a feature is disallowed where no entry applies
+    - Fix: A choice set whose members are all provisional, such as the `Groupcast` and `AmbientContextSensing` feature sets, no longer requires a selection
 
 - @matter/node
+    - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding how long it waits for the operational CASE connection that follows it
+    - Breaking: Default server exports no longer inherit the features their base implementation enables internally.
+        - `ColorControlServer`, `DoorLockServer`, `ElectricalEnergyMeasurementServer`, `LevelControlServer`, `ModeSelectServer`, `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer` and `WindowCoveringServer` now select no features. Select the features your device supports with `.with(...)` or use the DeviceType specific Requirement definitions of these clusters which automatically enable the needed features for the device type
+        - `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer`, `WindowCoveringServer` and `ElectricalEnergyMeasurementServer` now require a selection to be added to an endpoint at all. The `DoorLockDevice`, `SpeakerDevice` and `ModeSelectDevice` device types alias these exports, so their clusters also select no features and advertise a different FeatureMap.
+        - Verify the feature set of every device you compose. Persisted cluster state resets once for affected devices because it is keyed by feature selection
+    - Breaking: A LongIdleTimeSupport ICD must select CheckInProtocolSupport and UserActiveModeTrigger
+    - Breaking: A node that accepts more than one path per invoke must select the General Diagnostics DataModelTest feature
+    - Breaking: An unreported client node attribute reads its schema default, else the specification's fallback value for its type, when the attribute is mandatory under the peer's supported features, and `undefined` otherwise — regardless of the peer's AttributeList (an enum attribute reads `undefined`, as the specification defines its fallback as manufacturer-specific). The value is a detached copy, so mutating a struct or list read from an unreported attribute does not write through
+    - Breaking: Configured options, environment variables and state-class field initializers no longer seed a client node's cluster state; the peer's reports are the only source of values
+    - Breaking: Adding a server cluster to an endpoint fails when its selected features violate the conformance of its FeatureMap
+    - Breaking: Provisional elements are no longer implemented by default; supply a state value or use `ClusterBehavior.enable()` to implement one
+    - Breaking: `SoftwareUpdateManager.addUpdateConsent()` and `forceUpdate()` take the update as an object instead of three positional arguments, so it can carry per-update options
+    - Breaking: Ensure that changing any attribute of a client node sends a write to the peer; an attribute the peer's cluster type cannot express, including the global attributes, is declined locally with `UnsupportedWrite` or `UnsupportedAttribute`
+    - Removed: `StructManager.assertDirectReadAuthorized()` and the direct-read authorization it backed, unused since the legacy cluster API was dropped
+    - Deprecation: `ClientNodeInteraction.localStateFor()` is scheduled for removal in 0.19 together with the legacy controller API
+    - Feature: Added `ServerNode.peers.commissioned` returning the commissioned `ClientNode`s
+    - Feature: Added `ClientNode.disable()`/`enable()` to persistently disable/enable a commissioned peer
+    - Feature: Added a `ClientNode` connection-state engine — `lifecycle.connectionState`/`connectionStateChanged`/`isConnected` and the `NodeConnectionState` enum
+    - Feature: Added `ClientNodeLifecycle.isSeeded` and the `seeded` event, indicating a peer node's structure has been read from the device at least once
+    - Feature: Added `Behaviors.forCluster(clusterId)` to resolve a cluster behavior type by numeric cluster id
+    - Feature: Added `openBasicCommissioningWindow`/`openEnhancedCommissioningWindow` on `CommissioningClient`/`ClientNode` to open a commissioning window on a commissioned peer
+    - Feature: Added split/delegated commissioning — `CommissioningClient.CommissioningOptions.finalizeCommissioning` plus `ServerNode.peers.completeCommissioning(nodeId, discoveryData?, options?)`
+    - Feature: Added `NetworkServer.autoStartCommissionedPeers` (default true) to opt out of auto-starting commissioned peers when the node goes online
+    - Enhancement: `SoftwareUpdateManager` caps the BDX block size for OTA transfers via `maxBdxBlockSize` and overrides their MRP retransmission margin via `bdxAdditionalMrpDelay`, either generally in its state or per update when giving consent
+    - Enhancement: `network.profiles` accepts `bdxAdditionalMrpDelay`
+    - Adjustment: A node with commissioning disabled (e.g. a controller) now binds an ephemeral operational port instead of the standard Matter port (5540) when `NetworkServer.port` is unset; commissionable nodes still default to 5540 and an explicit port is always honored
+    - Adjustment: A commissioned peer's fabric label is new reconciled to the controller's once after its subscription is first established on start by `ClientNode`
+    - Fix: Struct validation resolves a member stored under its TLV tag number, so a constraint violation there is caught and a mandatory member present only at its id no longer raises a conformance error
+    - Fix: `endpoints.size` no longer double-counts the root endpoint
+    - Fix: A commissioned peer's connection state leaves `Connected` as soon as its last operational session is lost
+    - Fix: `ChangeNotificationService` event occurrences carry a `timestampKind` (epoch vs system) so a consumer forwarding an event no longer has to guess which clock its timestamp came from
+    - Fix: `IdentifyServer` no longer offers the optional `TriggerEffect` command unless the device type requires it, an own command implementation has been added via an override or suppression is disabled; `IdentifyServer.enable({ commands: { triggerEffect: true } })`, `IdentifyServer.alter({ commands: { triggerEffect: { optional: false } } })` and an override of `suppressTriggerEffect()` also offer it
+    - Fix: `ClusterBehavior.with()` rejects a feature the cluster does not define
+    - Fix: Client node values persisted under property names by earlier versions are migrated to their attribute id on load, so they stay readable
+    - Fix: Writing a fabric-scoped list entry that stems from a cluster whose schema could not be resolved no longer produces two conflicting fabricIndex fields
+    - Fix: A rejected write to an attribute served by dynamic properties restores the previous value instead of deleting the property, and a rejected write to a previously absent attribute leaves no slot behind instead of one holding `undefined`
+    - Fix: Factory reset removes commissioned peers and the certificate authority's key material; a peer that cannot be torn down no longer blocks the reset
+
+- @matter/nodejs
+    - Breaking: `FileStorageDriver`'s constructor no longer accepts a `clear` argument; clearing is handled by `StorageService`
+    - Fix: Ensure that `--storage-clear`/`MATTER_STORAGE_CLEAR` is honored again and clears the storage on start
+
+- @matter/nodejs-ble
+    - Fix: A connection attempt that BLE reports as failed is retried instead of failing commissioning on the first try
+    - Fix: A peripheral whose connection attempt failed is no longer rejected as unusable for the lifetime of the process
+    - Fix: Giving up on a peripheral reports the last connection failure as cause
+    - Fix: A disconnect that never completes no longer leaves the channel request pending forever
+    - Fix: Aborting a BLE connection attempt now stops its retries and releases a link the attempt already established
+
+- @matter/nodejs-shell
+    - Feature: Added `--cleanup-legacy-storage` to irreversibly remove the leftover pre-0.16 storage artifacts once they have been migrated to the current format
+
+- @matter/protocol
+    - Deprecation: The legacy `DecodedDataReport` / `Decoded{Attribute,Event}Report*` types and the `normalize*` / `normalizeAndDecode*` helpers now announce removal in 0.19 instead of 0.18
+    - Deprecation: The legacy `ClusterType` command request surface (`Invoke.LegacyCommandRequest`, `Specifier.ClusterTypeCommand`) and `SessionManager.owner` are scheduled for removal in 0.19
+    - Enhancement: Network profiles accept a separate `bdxAdditionalMrpDelay` for bulk transfer, defaulting to the profile's messaging margin
+    - Enhancement: New `CertificateAuthority.erase()` discards the authority's key material, persisted and in memory
+    - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding how long it waits for the operational CASE connection that follows it; defaults to the previous fixed 4m15s
+    - Fix: Cancelling BLE commissioning aborts the in-flight channel open
+    - Fix: A subscription's `maxIntervalCeiling` is transmitted exactly as requested; jitter now applies only when we derive the ceiling ourselves
+
+- @matter/react-native
+    - Fix: The `storage.clear` variable now clears the storage on start as it does on Node.js
+
+- @matter/types
+    - Breaking: Provisional cluster elements are now typed as optional rather than always present
+    - Feature: Added the `ClusterLookup` namespace for cluster/attribute/command/event name↔id resolution (optional `MatterModel` for custom clusters)
+    - Deprecation: The `ClusterType()` factory compat layer (`RetiredClusterType`, `RetiredElements`, the TLV `element` reverse mapping) is scheduled for removal in 0.19
+    - Deprecation: The generated `Cluster`, `Complete` and `<Name>Cluster` aliases and the `ClusterType.WithCompat` `with()` shim are scheduled for removal in 0.19
+    - Fix: `Cluster.with()` rejects a feature the cluster does not define and returns one frozen namespace per selection
+
+- @matter/testing
+    - Enhancement: `certTest()` defines controller-side certification tests with per-step PICS gating, device-log expectations and evidence recording; devices run as chip apps (docker or local binary) or matter.js test apps, selected via `MATTER_CERT_DEVICE`
+    - Enhancement: A cert test step can declare itself `notApplicable`, recording it as skipped with a reason instead of running it
+    - Enhancement: `PromptDrivenPythonTest` drives chip python test scripts that prompt for manual commissioning steps
+    - Enhancement: `matter-test`'s post-test clean-exit grace period is overridable via `MATTER_TEST_SHUTDOWN_TIMEOUT_MS`
+    - Enhancement: `MATTER_CHIP_BINS_SOURCE=cert-bins` selects project-chip's official `connectedhomeip/chip-cert-bins` binaries for the classic yaml/python tests and `chip-local` cert-test subjects
+    - Enhancement: A cert test's attached device/controller logs now carry a banner marking each step's start and end, alongside its verdict
+    - Enhancement: Certification controller tests run against a controller × device matrix, adding chip-tool as a second controller alongside matter.js's own
+    - Breaking: Removed the unused `PicsFile.Values` type; use `PicsValues`
+    - Enhancement: New `PicsFile.with()` returns a copy of a PICS file with values overridden
+    - Fix: `PromptDrivenPythonTest` now fails a run in which none of its prompt handlers fired, instead of trusting the script's own verdict
+    - Enhancement: A python-wrapped cert test's evidence attaches the script's own output alongside the controller log
+    - Fix: A composite `PicsSource` no longer patches the PICS file cached for its first source
+    - Fix: TC-SC-3.5 turns off `PICS_SDK_CI_ONLY` so the script prompts for commissioning instead of acting as its own commissioner, and drives whichever controller `MATTER_CERT_CONTROLLER` selects
+
+- @project-chip/matter.js
+    - Deprecation: Every class, type and function of the legacy controller API is now marked deprecated and scheduled for removal in 0.19; use the `ServerNode.peers` / `ClientNode` API of `@matter/node` instead
+
+## 0.17.9 (2026-08-06)
+
+- @matter/protocol
+    - Enhancement: A BDX exchange retransmits its pending message early when a duplicate proves the peer is awake and still waiting for it
+    - Fix: The peer's medium-specific MRP retransmission margin now applies to peer-initiated exchanges (e.g. subscription data reports) and to exchanges created without peer context
+    - Fix: BDX retransmission intervals are capped so the whole MRP schedule fits inside the peer's BDX response budget, which acknowledgements do not extend; the peer's idle cadence does not raise the cap, since a peer holding an open exchange is in active mode
+    - Fix: A retransmission timer is no longer armed for a message that was acknowledged while an earlier transmission of it was still in flight, which left the timer running unreferenced
+    - Fix: Grouped `PeerTimingParameters` (`kickRestartCooldown`, `addressChangeProbeCooldown`) merge field-wise, so overriding one member keeps its siblings
+    - Fix: Ensure that an unsecured session created for an inbound message is discarded when no protocol handler adopts it
+    - Fix: Ensure that closed exchanges are removed from their session for all session types
+    - Fix: Ensure that a session releases its message channel when the transport owns the underlying channel, so the channel address observer of PASE, CASE and discarded inbound sessions is removed
+    - Fix: Ensure that the end of a session is logged also when its channel was detached before; channel detach is now logged as debug
+
+- @matter/node
+    - Enhancement: `network.timing` accepts the kick and address-change parameters
+    - Enhancement: Managed state derives a member's container key through one shared implementation (no functional change)
+    - Fix: Client node state reads and writes struct- and list-valued fields nested inside an attribute value
+    - Fix: Client node state reads struct- and list-valued attributes of a cluster implementation that supplies properties dynamically
+
+## 0.17.8 (2026-08-02)
+
+- @matter/general
+    - Fix: `isIPv4` no longer misclassifies a link-local IPv6 address as IPv4 when its zone index contains a dot, e.g. a Linux VLAN interface name like `eth0.100`
+
+- @matter/node
+    - Fix: Closing a session from the stack of an in-flight subscription report no longer deadlocks the session in its closing state
+    - Fix: A subscription report that goes unanswered abandons the subscription instead of declaring the controller lost and closing every session with it
+    - Fix: Subscriptions now give up after repeated send failures; the check never matched the error MRP exhaustion raises
+    - Fix: Re-establishing former subscriptions stops for a peer that is unreachable instead of spending a full retransmission window on each of its subscriptions
+    - Fix: The exchange opened to re-establish a former subscription is now closed
+
+- @matter/nodejs-ble
+    - Enhancement: BLE disconnect logs now include the noble disconnect reason with its HCI status text
+
+- @matter/node
+    - Enhancement: `SoftwareUpdateManager.queuedUpdates` reports transferred bytes and transfer size of a running BDX transfer
+    - Fix: OTA updates are no longer reset as stalled while their BDX transfer is still moving data
+    - Fix: The in-progress entry of an OTA download is no longer dropped while its BDX transfer is still running
+    - Fix: A BDX session opened for a retry within the same query cycle is tracked like the first one
+
+- @matter/protocol
+    - Enhancement: `BdxSession` exposes `transferredBytes` and `dataLength`
+
+- @matter/nodejs-shell
+    - Fix: `nodes ota check|download|apply` and `ota download` now default to a `--mode auto` that follows the `config ota-test-images` setting instead of always querying the production DCL only
+    - Fix: `config ota-test-images set` applies immediately instead of requiring a shell restart
+    - Fix: `ota add` accepts `http(s)` URLs instead of rejecting them before its download path was reached
+
+- @matter/protocol
+    - Enhancement: `Subscription.isCanceledByPeer` is now `isTerminated`, covering both a peer cancellation and our own giving up
+    - Enhancement: `MessageExchange.Options.suppressPeerLoss` waives peer-loss inference for every operation on an exchange
+    - Fix: Peer loss reported for a commissioned peer now conveys the exchange that failed
+    - Fix: A session nearing message counter rollover now winds down as its own task instead of on the stack of the send that consumed the counter
+    - Fix: A peer that keeps establishing sessions no longer accumulates them without bound; the least recently used beyond five are closed
+
+## 0.17.7 (2026-07-27)
+
+- @matter/general
+    - Fix: `Heap` now stores each item at most once and maintains its position index eagerly, so deleting an item added after an earlier deletion works reliably
+
+- @matter/model
+    - Enhancement: `MatterModel.withClusters()` returns a copy of a model with clusters added or replaced by ID
+
+- @matter/node
+    - Enhancement: Controllers accept a custom Matter model via the `matter` option so a commissioned peer's custom or extended cluster elements resolve to real names instead of synthetic `attr$…`/`command$…` identifiers
     - Enhancement: `SoftwareUpdateManager.checkForUpdates()` forces an immediate OTA update check and cleanup of obsolete stored updates
     - Enhancement: Custom server session intervals (idle/active interval, active threshold) are now configurable via `sessions.intervals`
     - Fix: Optimize Cluster data updates when structures change for ClientNodes
@@ -24,6 +195,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Support the `!=` (not-equal) operator in value conformance expressions
     - Fix: Ensure `FabricAuthority` is fully constructed before it is used in the WebRTC Transport Requestor, OTA Software Update Provider and Software Update clusters
     - Fix: Consider existing node IDs when determining the next node ID to commission
+    - Fix: Determine the network medium of nodes without a Network Commissioning cluster from the WiFi or Thread Network Diagnostics cluster on their root endpoint
 
 - @matter/nodejs
     - Fix: Ensure the namespace directory exists before the `sqlite` storage driver opens the database
@@ -35,6 +207,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A device dropped during parallel PASE for invalid credentials no longer accepts a slower successful attempt on another of its addresses
     - Fix: Extend the handling of non-compliant devices that drop the commissioning connection when network details are added (`AddOrUpdateWiFi`/`AddOrUpdateThread`), not only on `ConnectNetwork`, treating them as non-concurrent and proceeding directly to operational discovery
     - Fix: Clear group message reception (replay) state when a group key set is removed or rewritten, so valid messages are not rejected as replays after a key set is re-provisioned with a reused epoch key
+    - Fix: A subscription reaching its timeout at the current instant now expires instead of rescheduling a zero-length timeout repeatedly
+
+- @matter/testing
+    - Fix: Mock timers implement the `Timer.interval` accessor, so assignments take effect on the next start, reads no longer return `undefined` and out-of-range intervals are rejected as in production
+    - Fix: Mock timers report `isPeriodic` correctly and restart instead of double-arming when started while running
+    - Fix: `MockTime.advance()` fails with a diagnostic instead of spinning when a timer rearms without letting mock time advance
 
 ## 0.17.6 (2026-07-16)
 
@@ -295,7 +473,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: New `TrustedAsTestCertificate` attestation finding lets `onAttestationFailure` decide whether to accept devices whose PAA is only in the trust store as a test certificate; previously these failed with `PaaNotTrusted`. Adds per-call `considerTestCertificates` and a separate `acceptTestCertificates` trust policy on `DclCertificateService`
     - Feature: `OnAttestationFailure` callback may return a `string` (wraps the underlying error as `cause` of a new `CommissioningError`) or throw to propagate verbatim
     - Adjustment: Default-accept policies (`onAttestationFailure === true`/`undefined`) now commission test-PAA-only devices that previously failed; upgrade the policy to keep rejecting
-    - Deprecation: Internally used `DecodedDataReport`, `DecodedAttributeReport{Value,Status,Entry}`, `DecodedEventReport{Value,Status,Entry}`, `DecodedEventData`, and the `normalize*` / `normalizeAndDecode*` helpers moved to `@project-chip/matter.js/cluster`. Scheduled for removal in 0.18
+    - Deprecation: Internally used `DecodedDataReport`, `DecodedAttributeReport{Value,Status,Entry}`, `DecodedEventReport{Value,Status,Entry}`, `DecodedEventData`, and the `normalize*` / `normalizeAndDecode*` helpers moved to `@project-chip/matter.js/cluster`. Scheduled for removal in 0.19
     - Enhancement: `ReadResult.EventValue` exposes the four wire timestamp variants (`epochTimestamp`, `systemTimestamp`, `deltaEpochTimestamp`, `deltaSystemTimestamp`) alongside the existing collapsed `timestamp: number`
     - Adjustment: `ReadResult.Chunk` may now be an async iterable (`InputChunk` is an async generator); consumers iterate chunk contents with `for await … of chunk`. Mainly internal
     - Fix: Fixes message counter rollover logic

@@ -567,12 +567,12 @@ export declare namespace WebRtcTransportProvider {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link WebRtcTransportProvider}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link WebRtcTransportProvider}.
      */
     export const Cluster: ClusterType.WithCompat<typeof WebRtcTransportProvider, WebRtcTransportProvider>;
 
     /**
-     * @deprecated Use {@link WebRtcTransportProvider}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link WebRtcTransportProvider}.
      */
     export const Complete: typeof WebRtcTransportProvider;
 
@@ -580,7 +580,7 @@ export declare namespace WebRtcTransportProvider {
 }
 
 /**
- * @deprecated Use {@link WebRtcTransportProvider}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link WebRtcTransportProvider}.
  */
 export declare const WebRtcTransportProviderCluster: typeof WebRtcTransportProvider;
 

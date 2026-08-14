@@ -9,8 +9,8 @@ import { SemanticTagModel } from "../../models/index.js";
 import { ModelValidator } from "./ModelValidator.js";
 
 ModelValidator.validators[SemanticTagElement.Tag] = class SemanticTagValidator extends (
-    ModelValidator
-)<SemanticTagModel> {
+    ModelValidator<SemanticTagModel>
+) {
     override validate() {
         this.validateStructure(true);
 

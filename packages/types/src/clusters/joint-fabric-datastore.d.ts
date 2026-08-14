@@ -2005,12 +2005,12 @@ export declare namespace JointFabricDatastore {
     export const commands: ClusterType.CommandObjects<Commands>;
 
     /**
-     * @deprecated Use {@link JointFabricDatastore}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link JointFabricDatastore}.
      */
     export const Cluster: typeof JointFabricDatastore;
 
     /**
-     * @deprecated Use {@link JointFabricDatastore}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link JointFabricDatastore}.
      */
     export const Complete: typeof JointFabricDatastore;
 
@@ -2018,7 +2018,7 @@ export declare namespace JointFabricDatastore {
 }
 
 /**
- * @deprecated Use {@link JointFabricDatastore}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link JointFabricDatastore}.
  */
 export declare const JointFabricDatastoreCluster: typeof JointFabricDatastore;
 

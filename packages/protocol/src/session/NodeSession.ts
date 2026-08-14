@@ -27,9 +27,13 @@ import {
     Diagnostic,
     Duration,
     hex,
+    Instant,
     InternalError,
     Logger,
     MatterFlowError,
+    Mutex,
+    Time,
+    Timer,
 } from "@matter/general";
 import { CaseAuthenticatedTag, FabricIndex, GlobalFabricId, NodeId } from "@matter/types";
 import { SecureSession } from "./SecureSession.js";
@@ -55,6 +59,8 @@ export class NodeSession extends SecureSession {
     readonly supportsMRP = true;
     readonly type = SessionType.Unicast;
     readonly #closedByPeer = AsyncObservableValue();
+    #rolloverCloseTimer?: Timer;
+    readonly #rolloverClose = new Mutex(this);
     #isPeerLost = false;
 
     // TODO - remove this; subscriptions should be owned by the peer, not the session
@@ -108,13 +114,7 @@ export class NodeSession extends SecureSession {
             ...config,
             setActiveTimestamp: true, // We always set the active timestamp for Secure sessions
             // Can be changed to a PersistedMessageCounter if we implement session storage
-            messageCounter: new MessageCounter(crypto, async () => {
-                // Secure Session Message Counter
-                // Expire/End the session before the counter rolls over
-                await this.initiateClose(async () => {
-                    await this.closeSubscriptions(true);
-                });
-            }),
+            messageCounter: new MessageCounter(crypto, async () => this.#scheduleRolloverClose()),
             messageReceptionState: new MessageReceptionStateEncryptedWithoutRollover(0),
         });
 
@@ -269,10 +269,10 @@ export class NodeSession extends SecureSession {
         return this.#fabric;
     }
 
-    override async closeSubscriptions(flush = false) {
+    override async closeSubscriptions(flush = false, currentExchange?: MessageExchange) {
         const subscriptions = [...this.#subscriptions]; // get all values because subscriptions will remove themselves when cancelled
         for (const subscription of subscriptions) {
-            await subscription.close(flush ? this : undefined);
+            await subscription.close(flush ? this : undefined, currentExchange);
         }
         return subscriptions.length;
     }
@@ -328,8 +328,7 @@ export class NodeSession extends SecureSession {
 
     override addExchange(exchange: MessageExchange) {
         super.addExchange(exchange);
-        exchange.closed.on(async () => {
-            this.exchanges.delete(exchange);
+        exchange.closed.once(async () => {
             if (this.deferredClose && !this.hasActiveExchanges) {
                 this.deferredClose = false;
                 await this.close();
@@ -337,7 +336,31 @@ export class NodeSession extends SecureSession {
         });
     }
 
+    /**
+     * Wind the session down before its message counter rolls over.  Notification arrives 100,000 messages ahead, on
+     * the stack of the send that consumed the counter, so closing there would make the flush wait on that send.
+     */
+    #scheduleRolloverClose() {
+        if (this.#rolloverCloseTimer !== undefined || this.isClosing) {
+            return;
+        }
+
+        logger.info(this.via, "Message counter nearing rollover, ending session");
+
+        this.#rolloverCloseTimer = Time.getTimer("session rollover close", Instant, () =>
+            this.#rolloverClose.run(async () => {
+                await this.initiateClose(async () => {
+                    await this.closeSubscriptions(true);
+                });
+            }),
+        ).start();
+    }
+
     protected override async close() {
+        this.#rolloverCloseTimer?.stop();
+        this.#rolloverCloseTimer = undefined;
+        await this.#rolloverClose;
+
         if (!this.#isPeerLost) {
             try {
                 await this.gracefulClose.emit();

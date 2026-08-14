@@ -183,12 +183,12 @@ export declare namespace MeterIdentification {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link MeterIdentification}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link MeterIdentification}.
      */
     export const Cluster: ClusterType.WithCompat<typeof MeterIdentification, MeterIdentification>;
 
     /**
-     * @deprecated Use {@link MeterIdentification}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link MeterIdentification}.
      */
     export const Complete: typeof MeterIdentification;
 
@@ -196,7 +196,7 @@ export declare namespace MeterIdentification {
 }
 
 /**
- * @deprecated Use {@link MeterIdentification}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link MeterIdentification}.
  */
 export declare const MeterIdentificationCluster: typeof MeterIdentification;
 

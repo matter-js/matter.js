@@ -332,12 +332,12 @@ export declare namespace DeviceEnergyManagementMode {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link DeviceEnergyManagementMode}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link DeviceEnergyManagementMode}.
      */
     export const Cluster: ClusterType.WithCompat<typeof DeviceEnergyManagementMode, DeviceEnergyManagementMode>;
 
     /**
-     * @deprecated Use {@link DeviceEnergyManagementMode}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link DeviceEnergyManagementMode}.
      */
     export const Complete: typeof DeviceEnergyManagementMode;
 
@@ -345,7 +345,7 @@ export declare namespace DeviceEnergyManagementMode {
 }
 
 /**
- * @deprecated Use {@link DeviceEnergyManagementMode}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link DeviceEnergyManagementMode}.
  */
 export declare const DeviceEnergyManagementModeCluster: typeof DeviceEnergyManagementMode;
 

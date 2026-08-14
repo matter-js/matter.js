@@ -243,12 +243,12 @@ export declare namespace ApplicationBasic {
     export const attributes: ClusterType.AttributeObjects<Attributes>;
 
     /**
-     * @deprecated Use {@link ApplicationBasic}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ApplicationBasic}.
      */
     export const Cluster: typeof ApplicationBasic;
 
     /**
-     * @deprecated Use {@link ApplicationBasic}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ApplicationBasic}.
      */
     export const Complete: typeof ApplicationBasic;
 
@@ -256,7 +256,7 @@ export declare namespace ApplicationBasic {
 }
 
 /**
- * @deprecated Use {@link ApplicationBasic}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link ApplicationBasic}.
  */
 export declare const ApplicationBasicCluster: typeof ApplicationBasic;
 

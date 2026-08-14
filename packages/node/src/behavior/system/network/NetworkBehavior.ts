@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MaybePromise, STANDARD_MATTER_PORT } from "@matter/general";
+import { MaybePromise } from "@matter/general";
 import { Behavior } from "../../Behavior.js";
 import type { NetworkRuntime } from "./NetworkRuntime.js";
 
@@ -37,7 +37,11 @@ export namespace NetworkBehavior {
     }
 
     export class State {
-        port = STANDARD_MATTER_PORT;
+        /**
+         * The operational port the node binds.  When unset the node binds the standard Matter port (5540) if it is
+         * commissionable, or an ephemeral port if commissioning is disabled (e.g. a controller).
+         */
+        port?: number = undefined;
         operationalPort = -1;
     }
 }

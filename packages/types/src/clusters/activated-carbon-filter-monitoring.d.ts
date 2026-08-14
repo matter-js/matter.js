@@ -226,12 +226,12 @@ export declare namespace ActivatedCarbonFilterMonitoring {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link ActivatedCarbonFilterMonitoring}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ActivatedCarbonFilterMonitoring}.
      */
     export const Cluster: ClusterType.WithCompat<typeof ActivatedCarbonFilterMonitoring, ActivatedCarbonFilterMonitoring>;
 
     /**
-     * @deprecated Use {@link ActivatedCarbonFilterMonitoring}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ActivatedCarbonFilterMonitoring}.
      */
     export const Complete: typeof ActivatedCarbonFilterMonitoring;
 
@@ -239,7 +239,7 @@ export declare namespace ActivatedCarbonFilterMonitoring {
 }
 
 /**
- * @deprecated Use {@link ActivatedCarbonFilterMonitoring}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link ActivatedCarbonFilterMonitoring}.
  */
 export declare const ActivatedCarbonFilterMonitoringCluster: typeof ActivatedCarbonFilterMonitoring;
 

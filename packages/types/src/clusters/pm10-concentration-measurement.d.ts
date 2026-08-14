@@ -314,12 +314,12 @@ export declare namespace Pm10ConcentrationMeasurement {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link Pm10ConcentrationMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Pm10ConcentrationMeasurement}.
      */
     export const Cluster: ClusterType.WithCompat<typeof Pm10ConcentrationMeasurement, Pm10ConcentrationMeasurement>;
 
     /**
-     * @deprecated Use {@link Pm10ConcentrationMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Pm10ConcentrationMeasurement}.
      */
     export const Complete: typeof Pm10ConcentrationMeasurement;
 
@@ -327,7 +327,7 @@ export declare namespace Pm10ConcentrationMeasurement {
 }
 
 /**
- * @deprecated Use {@link Pm10ConcentrationMeasurement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link Pm10ConcentrationMeasurement}.
  */
 export declare const Pm10ConcentrationMeasurementCluster: typeof Pm10ConcentrationMeasurement;
 

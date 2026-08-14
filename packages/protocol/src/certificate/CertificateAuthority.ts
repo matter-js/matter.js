@@ -14,6 +14,7 @@ import {
     ImplementationError,
     InternalError,
     Logger,
+    MatterAggregateError,
     PrivateKey,
     StorageContext,
     StorageManager,
@@ -28,6 +29,8 @@ import { Noc } from "./kinds/Noc.js";
 import { Rcac } from "./kinds/Rcac.js";
 
 const logger = Logger.get("CertificateAuthority");
+
+const CERTIFICATES_CONTEXT = "certificates";
 
 /**
  * Manages the root key pair for a fabric owned by a local node.
@@ -53,6 +56,7 @@ export class CertificateAuthority {
     #nextCertificateId = BigInt(1);
     #construction: Construction<CertificateAuthority>;
     #icacProps?: IcacProps;
+    #storage?: StorageContext;
 
     get crypto() {
         return this.#crypto;
@@ -64,6 +68,38 @@ export class CertificateAuthority {
 
     close() {
         return this.#construction.close();
+    }
+
+    /**
+     * Discard the key material this authority holds, persisted and in memory.
+     *
+     * The authority is unusable afterwards, so a holder that starts a new operation fails loudly rather than issuing
+     * certificates no fabric can validate.  A signing operation already in flight snapshots its key and completes.
+     */
+    async erase() {
+        await MatterAggregateError.settleSeries(
+            [
+                // Settles construction first: credentials it generates would otherwise land after the wipe
+                () => this.#construction.close(),
+
+                () => {
+                    this.#rootKeyPair = undefined;
+                    this.#rootKeyIdentifier = undefined;
+                    this.#rootCertBytes = undefined;
+                    this.#icacProps = undefined;
+                },
+
+                () => this.#storage?.clearAll(),
+            ],
+            "Error erasing certificate authority",
+        );
+    }
+
+    /**
+     * Discard the persisted key material of the authority for {@link env} without instantiating one.
+     */
+    static eraseFor(env: Environment) {
+        return env.get(StorageManager).createContext(CERTIFICATES_CONTEXT).clearAll();
     }
 
     /**
@@ -105,6 +141,11 @@ export class CertificateAuthority {
     ) {
         this.#crypto = crypto;
 
+        // Not deferred to the initializer below: erase() must find the context even mid-construction
+        if (options instanceof StorageContext) {
+            this.#storage = options;
+        }
+
         this.#construction = Construction(this, async () => {
             if (typeof options === "boolean") {
                 generateIntermediateCert = options;
@@ -144,7 +185,7 @@ export class CertificateAuthority {
     }
 
     static [Environmental.create](env: Environment) {
-        const storage = env.get(StorageManager).createContext("certificates");
+        const storage = env.get(StorageManager).createContext(CERTIFICATES_CONTEXT);
         const instance = new CertificateAuthority(env.get(Crypto), storage);
         env.set(CertificateAuthority, instance);
         return instance;

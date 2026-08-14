@@ -13,7 +13,6 @@ import {
     TransientPeerCommunicationError,
 } from "#peer/PeerCommunicationError.js";
 import { GroupSession } from "#session/GroupSession.js";
-import type { NodeSession } from "#session/NodeSession.js";
 import { Session } from "#session/Session.js";
 import { SessionParameters } from "#session/SessionParameters.js";
 import {
@@ -38,6 +37,7 @@ import {
     MatterFlowError,
     Millis,
     NetworkError,
+    Seconds,
     ServerAddress,
     ServerAddressUdp,
     Time,
@@ -46,6 +46,7 @@ import {
     Timestamp,
 } from "@matter/general";
 import {
+    BDX_PROTOCOL_ID,
     GroupId,
     NodeId,
     SECURE_CHANNEL_PROTOCOL_ID,
@@ -58,6 +59,23 @@ import { MessageChannel } from "./MessageChannel.js";
 import { MRP } from "./MRP.js";
 
 const logger = Logger.get("MessageExchange");
+
+/**
+ * How long a BDX peer waits for the next BDX message before it abandons the transfer.
+ *
+ * BDX peers bound a transfer by progress at the BDX layer, not by MRP: CHIP's OTA requestor aborts after this long
+ * awaiting a response, and neither our acknowledgement nor the peer's own MRP retransmissions reset its clock.  So an
+ * MRP schedule that outlives this budget turns a recoverable block loss into a dead transfer.
+ */
+const BDX_PEER_RESPONSE_BUDGET = Seconds(30);
+
+/** Leaves the final attempt time to reach the peer while the budget is still open. */
+const BDX_RESPONSE_BUDGET_MARGIN = Millis(100);
+
+/** Retransmission interval that still fits every attempt inside {@link BDX_PEER_RESPONSE_BUDGET}. */
+const BDX_MAX_RETRANSMISSION_INTERVAL = Millis(
+    BDX_PEER_RESPONSE_BUDGET / (MRP.MAX_TRANSMISSIONS - 1) - BDX_RESPONSE_BUDGET_MARGIN,
+);
 
 export type ExchangeLogContext = Record<string, unknown>;
 
@@ -80,8 +98,14 @@ export interface ExchangeSendOptions {
      */
     expectedProcessingTime?: Duration;
 
-    /** Allows to specify if the send message requires to be acknowledged by the receiver or not. */
-    requiresAck?: boolean;
+    /**
+     * Sends the message without requesting acknowledgement, for a message whose delivery we deliberately do not
+     * track — a Busy or CloseSession status report, or an ICD check-in on a session we are about to drop.
+     *
+     * MRP requests an ack for every message on an MRP session, so there is nothing to opt into: only suppression is
+     * expressible.
+     */
+    suppressAck?: true;
 
     /**
      * Disables the MRP logic which means that no retransmissions are done and receiving an ack is not awaited.
@@ -103,7 +127,7 @@ export interface ExchangeSendOptions {
     /** Initial MRP retransmission time (default: calculated as by Matter specification) */
     initialRetransmissionTime?: Duration;
 
-    /** Suppress peer-loss reporting on send-failure so the session stays alive. Used by probing. */
+    /** Suppress peer-loss reporting for this send.  OR'd with {@link MessageExchange.Options.suppressPeerLoss}. */
     suppressPeerLoss?: boolean;
 }
 
@@ -119,7 +143,7 @@ export interface ExchangeReceiveOptions {
      */
     expectedProcessingTime?: Duration;
 
-    /** Suppress peer-loss reporting on receive failure so the session stays alive for further probing. */
+    /** Suppress peer-loss reporting for this receive.  OR'd with {@link MessageExchange.Options.suppressPeerLoss}. */
     suppressPeerLoss?: boolean;
 }
 
@@ -202,7 +226,8 @@ export class MessageExchange {
     #onSend?: MessageExchange.SendNotifier;
     #onReceive?: MessageExchange.ReceiveNotifier;
     readonly #addressOverride?: ServerAddressUdp;
-    readonly #peerAdditionalMrpDelay?: Duration;
+    #peerAdditionalMrpDelay?: Duration;
+    readonly #suppressPeerLoss: boolean;
     #receivedMessageToAck: Message | undefined;
     #receivedMessageAckTimer = Time.getTimer("ack receipt timeout", MRP.STANDALONE_ACK_TIMEOUT, () => {
         if (this.#receivedMessageToAck !== undefined) {
@@ -240,6 +265,7 @@ export class MessageExchange {
     #messageSendCounter = 0;
     #messageReceivedCounter = 0;
     #retransmissionTimer?: Timer;
+    #lastTransmissionAt?: Timestamp;
     #lastActive = Time.nowMs;
 
     constructor(config: MessageExchange.Config) {
@@ -256,6 +282,7 @@ export class MessageExchange {
             network,
             peerAdditionalMrpDelay,
             addressOverride,
+            suppressPeerLoss = false,
         } = config;
 
         this.#context = context;
@@ -269,6 +296,7 @@ export class MessageExchange {
         this.#onReceive = onReceive;
         this.#addressOverride = addressOverride;
         this.#peerAdditionalMrpDelay = peerAdditionalMrpDelay;
+        this.#suppressPeerLoss = suppressPeerLoss;
 
         const { activeThreshold, activeInterval, idleInterval } = this.session.parameters;
 
@@ -307,6 +335,17 @@ export class MessageExchange {
 
     get isInitiator() {
         return this.#isInitiator;
+    }
+
+    /**
+     * Overrides the medium-derived MRP retransmission margin for this exchange.
+     *
+     * An exchange the peer initiated has no construction options to carry {@link MessageExchange.Options
+     * .peerAdditionalMrpDelay}, so a protocol that knows better than the peer's medium — BDX with a per-transfer
+     * margin, say — applies it here once it has adopted the exchange.
+     */
+    set peerAdditionalMrpDelay(margin: Duration) {
+        this.#peerAdditionalMrpDelay = margin;
     }
 
     /**
@@ -432,7 +471,11 @@ export class MessageExchange {
         if (duplicate) {
             // Received a message retransmission, but the reply is not ready yet, ignoring
             if (requiresAck) {
-                await this.sendStandaloneAckForMessage(message);
+                // A retransmission of our pending message acknowledges this duplicate by definition, so it stands in
+                // for the standalone ack.  Only a transmission that actually reached the channel counts.
+                if (!this.#kickRetransmissionForLiveness(message)) {
+                    await this.sendStandaloneAckForMessage(message);
+                }
             }
             return;
         }
@@ -441,6 +484,7 @@ export class MessageExchange {
             // Resending the previous reply message which contains the ack
             using _acking = this.join("resending ack");
             this.#messageSendCounter++;
+            this.#lastTransmissionAt = Time.nowMs;
             await this.channel.send(this.#sentMessageToAck, { exchange: this, addressOverride: this.#addressOverride });
             return;
         }
@@ -488,6 +532,76 @@ export class MessageExchange {
         this.#messagesQueue.write(message);
     }
 
+    /**
+     * Retransmits the pending message early when a duplicate proves both that the peer is awake right now and that our
+     * pending reply never reached it.  A backoff sized for an idle peer would otherwise spend a window we know is open,
+     * which for a sleepy peer mid-transfer may not reopen for a long time.
+     *
+     * This departs from the retransmission schedule of {@link MatterSpecification.v16.Core} § 4.12.2.1 and, when it
+     * transmits, from the standalone ack of § 4.12.5.2.2 — the retransmission carries that ack instead.  Both are
+     * confined to BDX, where transfers are long-running and lock-step makes the predicate unambiguous.
+     *
+     * Returns true only if a transmission actually reached the channel, in which case the caller must not send a
+     * standalone ack: the transmitted message already acknowledges the duplicate that triggered it.
+     *
+     * {@link BDX_MAX_RETRANSMISSION_INTERVAL} currently bounds what this can save.  It earns its keep again for any
+     * peer whose response budget is larger than CHIP's, or if that cap is ever relaxed.
+     */
+    #kickRetransmissionForLiveness(duplicate: Message) {
+        if (this.#protocolId !== BDX_PROTOCOL_ID || this.considerClosed) {
+            return false;
+        }
+
+        // A running timer also tells us no send is in flight, so we cannot transmit on top of one
+        const pending = this.#sentMessageToAck;
+        const timer = this.#retransmissionTimer;
+        if (pending === undefined || timer === undefined || !timer.isRunning) {
+            return false;
+        }
+
+        if (duplicate.packetHeader.messageId !== pending.payloadHeader.ackedMessageId) {
+            return false;
+        }
+
+        // Taking the last slot early would leave the scheduled attempt with none, and MRP would report the peer as
+        // unresponsive without ever having retried inside the window we are trying to hit
+        if (this.#retransmissionCounter + 1 >= (this.#sendOptions.maxRetransmissions ?? MRP.MAX_TRANSMISSIONS)) {
+            return false;
+        }
+
+        const { activeInterval, activeThreshold } = this.session.parameters;
+
+        // Never transmit faster than the cadence the schedule itself uses, medium margin included
+        const cadence = Millis(activeInterval + this.#sendAdditionalDelay);
+        const elapsed = this.#lastTransmissionAt === undefined ? Forever : Timestamp.delta(this.#lastTransmissionAt);
+        if (elapsed < cadence) {
+            return false;
+        }
+
+        // Only worth a slot if the peer would fall asleep again before the scheduled attempt; a wait it can stay
+        // awake through costs nothing to honour
+        const remaining = Millis(Math.max(0, timer.interval - elapsed));
+        if (remaining <= activeThreshold) {
+            return false;
+        }
+
+        logger.debug(
+            this.via,
+            "Kicking retransmission because peer proved liveness",
+            Diagnostic.dict({
+                waited: Duration.format(elapsed),
+                saved: Duration.format(remaining),
+                "retrans#": this.#retransmissionCounter,
+            }),
+        );
+
+        timer.stop();
+        return this.#retransmitMessage(
+            pending,
+            this.#sendOptions.expectedProcessingTime ?? MRP.DEFAULT_EXPECTED_PROCESSING_TIME,
+        );
+    }
+
     async send(messageType: number, payload: Bytes, options: ExchangeSendOptions = {}) {
         if (this.#closeCause) {
             throw new ClosedError("Exchange is closed", { cause: this.#closeCause });
@@ -499,12 +613,8 @@ export class MessageExchange {
         try {
             await this.#send(messageType, payload);
         } catch (e) {
-            // Only declare the peer as lost when this exchange has never received a response.  If we already
-            // exchanged messages, the peer was reachable, and the later send-failure may be transient — declaring
-            // peer loss would unnecessarily close sessions and tear down subscriptions.
             if (
-                !options.suppressPeerLoss &&
-                this.#messageReceivedCounter === 0 &&
+                this.#reportsPeerLoss(options.suppressPeerLoss) &&
                 causedBy(e, TransientPeerCommunicationError, TimeoutError, NetworkError)
             ) {
                 await this.#context.peerLost(this, asError(e));
@@ -512,6 +622,14 @@ export class MessageExchange {
 
             throw e;
         }
+    }
+
+    /**
+     * Whether a failure here is evidence the peer is gone.  Only if we never heard from it on this exchange: one that
+     * answered earlier was reachable, and peer loss closes every session with it.
+     */
+    #reportsPeerLoss(suppressedForOperation?: boolean) {
+        return !this.#suppressPeerLoss && suppressedForOperation !== true && this.#messageReceivedCounter === 0;
     }
 
     async #send(messageType: number, payload: Bytes, standaloneAckMessageId?: number) {
@@ -534,22 +652,14 @@ export class MessageExchange {
             }
         }
 
-        let { requiresAck } = this.#sendOptions;
-        if (requiresAck && !(this.session.usesMrp || (this.session as NodeSession).isPeerLost)) {
-            requiresAck = false;
-        }
+        const requiresAck = !this.#sendOptions.suppressAck && this.session.usesMrp && !isStandaloneAck;
 
         // StandaloneAck and StatusReport are SecureChannel messages and are always sent via SECURE_CHANNEL_PROTOCOL_ID
         // regardless of the exchange's protocol (Matter spec 4.10).
         const isStatusReport = messageType === SecureMessageType.StatusReport;
         const protocolId = isStandaloneAck || isStatusReport ? SECURE_CHANNEL_PROTOCOL_ID : this.#protocolId;
-        if (isStandaloneAck) {
-            if (!this.session.usesMrp) {
-                return;
-            }
-            if (requiresAck) {
-                throw new MatterFlowError("A standalone ack may not require acknowledgement");
-            }
+        if (isStandaloneAck && !this.session.usesMrp) {
+            return;
         }
         if (this.#sentMessageToAck !== undefined && !isStandaloneAck) {
             throw new MatterFlowError(
@@ -626,7 +736,7 @@ export class MessageExchange {
                 protocolId,
                 messageType,
                 isInitiatorMessage: this.isInitiator,
-                requiresAck: requiresAck ?? (this.session.usesMrp && !isStandaloneAck),
+                requiresAck,
                 ackedMessageId,
                 hasSecuredExtension: false,
             },
@@ -661,6 +771,10 @@ export class MessageExchange {
         }
         if (abort.aborted) {
             return;
+        }
+
+        if (!isStandaloneAck) {
+            this.#lastTransmissionAt = Time.nowMs;
         }
 
         if (ackPromise !== undefined) {
@@ -704,14 +818,7 @@ export class MessageExchange {
         try {
             return await this.#nextMessage(options);
         } catch (e) {
-            // Only declare the peer as lost when this exchange has never received a message.  Receiving at least
-            // one message confirms the peer was reachable; a later timeout waiting for the next message in a
-            // multi-message exchange should not be treated as permanent peer absence.
-            if (
-                !options?.suppressPeerLoss &&
-                this.#messageReceivedCounter === 0 &&
-                causedBy(e, TransientPeerCommunicationError)
-            ) {
+            if (this.#reportsPeerLoss(options?.suppressPeerLoss) && causedBy(e, TransientPeerCommunicationError)) {
                 await this.#context.peerLost(this, asError(e));
             }
 
@@ -759,7 +866,18 @@ export class MessageExchange {
         await this.#send(SecureMessageType.StandaloneAck, new Uint8Array(0), messageId);
     }
 
+    /**
+     * Transmits the pending message again.  Returns whether a transmission was actually started: the budget may be
+     * spent, in which case this only schedules the final wait, and a caller that treats "attempted" as "sent" would
+     * drop whatever the transmission was meant to convey.
+     */
     #retransmitMessage(message: Message, expectedProcessingTime?: Duration) {
+        // The message may have been acked while an earlier transmission of it was still in flight.  Its timers must
+        // neither outlive it nor spend the retransmission budget of whatever is pending now.
+        if (this.#sentMessageToAck !== message) {
+            return false;
+        }
+
         this.#retransmissionCounter++;
         this.#totalRetransmissionCounter++;
         if (
@@ -791,7 +909,7 @@ export class MessageExchange {
                         finalWaitTime,
                         () => this.#retransmitMessage(message),
                     ).start();
-                    return;
+                    return false;
                 }
             }
 
@@ -807,11 +925,12 @@ export class MessageExchange {
                 // TODO await
                 this.#close().catch(error => logger.warn("Error closing exchange", error));
             }
-            return;
+            return false;
         }
 
         this.#messageSendCounter++;
         this.#notifyActivity(false);
+        this.#lastTransmissionAt = Time.nowMs;
 
         this.context.retry(this.#retransmissionCounter);
         const resubmissionBackoffTime = this.#mrpResubmissionBackOffTime;
@@ -837,9 +956,17 @@ export class MessageExchange {
                     this.#initializeResubmission(message, resubmissionBackoffTime, expectedProcessingTime);
                 }
             });
+
+        return true;
     }
 
     #initializeResubmission(message: Message, resubmissionBackoffTime: Duration, expectedProcessingTimeMs?: Duration) {
+        // An ack may have landed while the transmission we are following up on was in flight; arming a timer for a
+        // message that is no longer pending leaves it running unreferenced, so nothing can ever stop it
+        if (this.#sentMessageToAck !== message) {
+            return;
+        }
+
         this.#retransmissionTimer = Time.getTimer("Message retransmission", resubmissionBackoffTime, () =>
             this.#retransmitMessage(message, expectedProcessingTimeMs),
         ).start();
@@ -941,7 +1068,7 @@ export class MessageExchange {
             return this.#close(cause);
         }
 
-        {
+        if (!this.#closed.value) {
             using _emitting = closing.join("emitting");
             await this.#closing.emit(true);
         }
@@ -1000,6 +1127,9 @@ export class MessageExchange {
     async #close(cause?: Error) {
         using _closing = this.#lifetime.closing();
 
+        // Cleanup must repeat: a send may have started after an earlier close.  Only the notification is once-only.
+        const wasClosed = this.#closed.value;
+
         if (this.#closeCause === undefined) {
             this.#closeCause = cause;
         }
@@ -1013,7 +1143,9 @@ export class MessageExchange {
             this.#timedInteractionTimer?.stop();
             this.#messagesQueue.close(this.#closeCause);
         } finally {
-            await this.#closed.emit(true);
+            if (!wasClosed) {
+                await this.#closed.emit(true);
+            }
         }
     }
 
@@ -1044,9 +1176,13 @@ export class MessageExchange {
         return this.#backOffFor(this.#retransmissionCounter);
     }
 
-    /** Amplified backoff addition applied to our sends: the larger of our own and the peer's network-profile delay. */
+    /**
+     * Amplified backoff addition applied to our sends: the larger of our own and the peer's network-profile delay for
+     * this exchange's traffic class.
+     */
     get #sendAdditionalDelay() {
-        return Duration.max(this.#context.localAdditionalMrpDelay, this.#peerAdditionalMrpDelay ?? Millis(0));
+        const peerMargin = this.#peerAdditionalMrpDelay ?? MRP.marginFor(this.session.peerMrpMargins, this.#protocolId);
+        return Duration.max(this.#context.localAdditionalMrpDelay, peerMargin ?? Millis(0));
     }
 
     /**
@@ -1054,6 +1190,10 @@ export class MessageExchange {
      *
      * The cap never drops below the peer's idle interval: a peer whose idle base backoff already exceeds
      * maxRetransmissionTime must not be retried faster than its own idle cadence.
+     *
+     * BDX overrides even that floor.  Its schedule has to fit the peer's response budget, and the idle cadence does not
+     * apply mid-transfer: per {@link MatterSpecification.v16.Core} § 4.12.2.1 a peer awaiting an acknowledgement is in
+     * active mode, because it holds an open exchange.
      */
     #backOffFor(retransmissionCount: number) {
         let backOff = this.channel.getMrpResubmissionBackOffTime(
@@ -1066,10 +1206,11 @@ export class MessageExchange {
         if (this.#sendOptions.initialRetransmissionTime !== undefined) {
             backOff = Millis(backOff + this.#sendOptions.initialRetransmissionTime);
         }
-        const cap = Duration.max(
-            this.#sendOptions.maxRetransmissionTime ?? Forever,
-            this.session.parameters.idleInterval ?? Instant,
-        );
+        const idleInterval = this.session.parameters.idleInterval;
+        let cap = Duration.max(this.#sendOptions.maxRetransmissionTime ?? Forever, idleInterval);
+        if (this.#protocolId === BDX_PROTOCOL_ID) {
+            cap = Duration.min(cap, BDX_MAX_RETRANSMISSION_INTERVAL);
+        }
         return Duration.min(backOff, cap);
     }
 
@@ -1111,6 +1252,9 @@ export namespace MessageExchange {
         /**
          * Additive MRP retransmission margin for the peer's network medium.  Sourced independently of
          * {@link network} so concurrency overrides cannot strip the medium-correct margin (e.g. thread's).
+         *
+         * Overrides {@link Session.peerMrpMargins}, which supplies the margin for exchanges created without this
+         * option (notably peer-initiated ones).
          */
         peerAdditionalMrpDelay?: Duration;
 
@@ -1119,6 +1263,9 @@ export namespace MessageExchange {
          * instead of the session's default peer address.
          */
         addressOverride?: ServerAddressUdp;
+
+        /** Waive peer-loss inference here.  Required for exchanges to a peer that drives its own recovery. */
+        suppressPeerLoss?: boolean;
     }
 
     export interface Config extends Options {

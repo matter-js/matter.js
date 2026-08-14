@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger } from "@matter/general";
+import { ImplementationError, Logger, NotImplementedError } from "@matter/general";
 import { Environment, MaybePromise, Storage } from "@matter/main";
 import { ValidationError } from "@matter/main/types";
 import { BackchannelCommand, CommandPipe, PicsFile } from "@matter/testing";
@@ -55,7 +55,7 @@ export function getParameters(name: string): string[] {
     return result;
 }
 
-const allocatedIds = new Set();
+const allocatedIds = new Set<string>();
 
 export abstract class TestInstance {
     static id = "test-node";
@@ -100,10 +100,10 @@ export abstract class TestInstance {
             const qualifiedId = `${this.#id}-${nextId++}`;
             if (!allocatedIds.has(qualifiedId)) {
                 this.#id = qualifiedId;
-                allocatedIds.add(this.#id);
                 break;
             }
         }
+        allocatedIds.add(this.#id);
     }
 
     abstract initialize(): Promise<void>;
@@ -124,7 +124,7 @@ export abstract class DeviceTestInstance extends TestInstance {
     async activateCommandPipe(name: string) {
         if (this.#commandPipe === undefined) {
             if (this.#commandPipeFactory === undefined) {
-                throw new Error(`Cannot instantiate ${this.appName} without command pipe factory`);
+                throw new ImplementationError(`Cannot instantiate ${this.appName} without command pipe factory`);
             }
             const pipe = await this.#commandPipeFactory(this, name);
             if (pipe) {
@@ -138,7 +138,7 @@ export abstract class DeviceTestInstance extends TestInstance {
     }
 
     async backchannel(command: BackchannelCommand) {
-        throw new Error(`Unhandled backchannel ${command.name}: ${JSON.stringify(command)}`);
+        throw new NotImplementedError(`Backchannel ${command.name}: ${JSON.stringify(command)}`);
     }
 }
 

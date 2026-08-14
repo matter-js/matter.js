@@ -9,13 +9,15 @@ declare global {
         /**
          * The standard "metadata" symbol.
          *
-         * Strangely, TypeScript monkeypatches Symbol.metadata, but not the types.
+         * TypeScript emits Symbol.metadata for decorators but only declares it under
+         * lib.esnext.decorators, which our lib configuration does not include.
          */
         readonly metadata: unique symbol;
     }
 
+    // Must stay identical to lib.esnext.decorators' declaration on Function, which NewableFunction extends
     interface NewableFunction {
-        [Symbol.metadata]?: undefined | DecoratorMetadataObject;
+        [Symbol.metadata]: DecoratorMetadata | null;
     }
 }
 

@@ -717,12 +717,12 @@ export declare namespace LevelControl {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link LevelControl}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link LevelControl}.
      */
     export const Cluster: ClusterType.WithCompat<typeof LevelControl, LevelControl>;
 
     /**
-     * @deprecated Use {@link LevelControl}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link LevelControl}.
      */
     export const Complete: typeof LevelControl;
 
@@ -730,7 +730,7 @@ export declare namespace LevelControl {
 }
 
 /**
- * @deprecated Use {@link LevelControl}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link LevelControl}.
  */
 export declare const LevelControlCluster: typeof LevelControl;
 

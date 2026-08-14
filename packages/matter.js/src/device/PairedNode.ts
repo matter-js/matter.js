@@ -82,6 +82,9 @@ const logger = Logger.get("PairedNode");
 /** Delay after receiving a changed partList  from a device to update the device structure */
 const STRUCTURE_UPDATE_TIMEOUT = Seconds(5);
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export enum NodeStates {
     /**
      * Node seems active nd last communications were successful and subscription updates were received and all data is
@@ -108,7 +111,7 @@ export enum NodeStates {
     WaitingForDeviceDiscovery = 3,
 }
 
-/** @deprecated */
+/** @deprecated Scheduled for removal in 0.19. */
 export enum NodeStateInformation {
     /**
      * Node seems active nd last communications were successful and subscription updates were received and all data is
@@ -146,6 +149,9 @@ export enum NodeStateInformation {
     Decommissioned = 5,
 }
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export type CommissioningControllerNodeOptions = {
     /**
      * Unless set to false the node will be automatically connected when initialized. When set to false use
@@ -177,21 +183,21 @@ export type CommissioningControllerNodeOptions = {
     /**
      * Optional additional callback method which is called for each Attribute change reported by the device. Use this
      * if subscribing to all relevant attributes is too much effort.
-     * @deprecated Please use the events.attributeChanged observable instead.
+     * @deprecated Scheduled for removal in 0.19.  Please use the events.attributeChanged observable instead.
      */
     readonly attributeChangedCallback?: (nodeId: NodeId, data: DecodedAttributeReportValue<any>) => void;
 
     /**
      * Optional additional callback method which is called for each Event reported by the device. Use this if
      * subscribing to all relevant events is too much effort.
-     * @deprecated Please use the events.eventTriggered observable instead.
+     * @deprecated Scheduled for removal in 0.19.  Please use the events.eventTriggered observable instead.
      */
     readonly eventTriggeredCallback?: (nodeId: NodeId, data: DecodedEventReportValue<any>) => void;
 
     /**
      * Optional callback method which is called when the state of the node changes. This can be used to detect when
      * the node goes offline or comes back online.
-     * @deprecated Please use the events.stateChanged observable and the extra events for structureChanged and
+     * @deprecated Scheduled for removal in 0.19.  Please use the events.stateChanged observable and the extra events for structureChanged and
      *  decommissioned instead.
      */
     readonly stateInformationCallback?: (nodeId: NodeId, state: NodeStateInformation) => void;
@@ -203,6 +209,9 @@ export type CommissioningControllerNodeOptions = {
     readonly caseAuthenticatedTags?: CaseAuthenticatedTag[];
 };
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export class NodeNotConnectedError extends MatterError {}
 
 /**
@@ -222,6 +231,8 @@ function areNumberListsSame(list1: Immutable<number[]>, list2: Immutable<number[
 /**
  * Class to represents one node that is paired/commissioned with the matter.js Controller. Instances are returned by
  * the CommissioningController on commissioning or when connecting.
+ *
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export class PairedNode {
     readonly #clientNode: ClientNode;
@@ -501,12 +512,6 @@ export class PairedNode {
         if (!this.#localInitializationDone) {
             this.#localInitializationDone = true;
             await this.events.initialized.emit(this.#nodeDetails.details);
-        }
-
-        try {
-            await this.#commissioningController.validateAndUpdateFabricLabel(this.nodeId);
-        } catch (error) {
-            logger.warn(this.#peerAddress, `Error updating fabric label`, error);
         }
     }
 
@@ -803,12 +808,6 @@ export class PairedNode {
                     this.#localInitializationDone = true;
                     await this.events.initialized.emit(this.#nodeDetails.details);
                 }
-
-                try {
-                    await this.#commissioningController.validateAndUpdateFabricLabel(this.nodeId);
-                } catch (error) {
-                    logger.warn(this.#peerAddress, `Error updating fabric label`, error);
-                }
             }
         } else if (this.#connectionState === NodeStates.Connected) {
             // Subscription is not active anymore, and we were connected before, we use Reconnecting as state
@@ -842,7 +841,7 @@ export class PairedNode {
      * Subscribe to all attributes and events of the device. Unless setting the Controller property autoSubscribe to
      * false, this is executed automatically. Alternatively, you can manually subscribe by calling this method.
      *
-     * @deprecated Subscription is now managed by NetworkClient on the ClientNode. Use connect() to activate.
+     * @deprecated Scheduled for removal in 0.19.  Subscription is now managed by NetworkClient on the ClientNode. Use connect() to activate.
      */
     async subscribeAllAttributesAndEvents(_options?: {
         ignoreInitialTriggers?: boolean;
@@ -1668,6 +1667,9 @@ export class PairedNode {
     }
 }
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export namespace PairedNode {
     export interface NodeStructureEvents {
         /** Emitted when endpoints are added. */

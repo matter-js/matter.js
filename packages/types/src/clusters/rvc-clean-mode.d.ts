@@ -344,12 +344,12 @@ export declare namespace RvcCleanMode {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link RvcCleanMode}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link RvcCleanMode}.
      */
     export const Cluster: ClusterType.WithCompat<typeof RvcCleanMode, RvcCleanMode>;
 
     /**
-     * @deprecated Use {@link RvcCleanMode}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link RvcCleanMode}.
      */
     export const Complete: typeof RvcCleanMode;
 
@@ -357,7 +357,7 @@ export declare namespace RvcCleanMode {
 }
 
 /**
- * @deprecated Use {@link RvcCleanMode}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link RvcCleanMode}.
  */
 export declare const RvcCleanModeCluster: typeof RvcCleanMode;
 

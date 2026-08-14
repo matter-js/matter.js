@@ -5,8 +5,8 @@
  */
 
 import { NetworkCommissioningBehavior } from "#behaviors/network-commissioning";
-import type { ServerNode } from "#node/ServerNode.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
+import type { ServerNode } from "#node/ServerNode.js";
 import {
     AddressInUseError,
     ChannelType,
@@ -18,6 +18,7 @@ import {
     NetworkInterfaceDetailed,
     NoAddressAvailableError,
     ObserverGroup,
+    STANDARD_MATTER_PORT,
     Transport,
     TransportSet,
     UdpTransport,
@@ -315,6 +316,13 @@ export class ServerNetworkRuntime extends NetworkRuntime {
     protected override async start() {
         const { owner } = this;
         const { env } = owner;
+
+        // A commissionable node binds the well-known Matter port so commissioners find it at a known location.  A node
+        // with commissioning disabled (e.g. a controller) uses an ephemeral port rather than squatting 5540.  An
+        // explicit port is always honored.
+        if (owner.state.network.port === undefined && owner.state.commissioning.enabled !== false) {
+            await owner.set({ network: { port: STANDARD_MATTER_PORT } });
+        }
 
         // Configure network
         const interfaces = env.get(TransportSet);

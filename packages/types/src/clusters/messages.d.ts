@@ -658,12 +658,12 @@ export declare namespace Messages {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link Messages}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Messages}.
      */
     export const Cluster: ClusterType.WithCompat<typeof Messages, Messages>;
 
     /**
-     * @deprecated Use {@link Messages}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Messages}.
      */
     export const Complete: typeof Messages;
 
@@ -671,7 +671,7 @@ export declare namespace Messages {
 }
 
 /**
- * @deprecated Use {@link Messages}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link Messages}.
  */
 export declare const MessagesCluster: typeof Messages;
 

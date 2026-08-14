@@ -17,8 +17,26 @@ import { chip } from "./chip/chip.js";
 import { defaultDescriptor, printReport } from "./print-report.js";
 import { TestRunner } from "./runner.js";
 import { TestDescriptor } from "./test-descriptor.js";
+import { wtf } from "./util/wtf.js";
 
-const SHUTDOWN_TIMEOUT_MS = 5_000;
+function resolveShutdownTimeoutMs(): number {
+    const raw = process.env.MATTER_TEST_SHUTDOWN_TIMEOUT_MS;
+    if (raw === undefined) {
+        return 5_000;
+    }
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+        console.error(
+            `Warning: MATTER_TEST_SHUTDOWN_TIMEOUT_MS="${raw}" is not a positive number; falling back to 5000ms.`,
+        );
+        return 5_000;
+    }
+    return parsed;
+}
+
+// A graceful session close can legitimately wait out a full MRP resubmission budget (several seconds) for an
+// unacked flush send. Override via MATTER_TEST_SHUTDOWN_TIMEOUT_MS for suites that exercise that path routinely.
+const SHUTDOWN_TIMEOUT_MS = resolveShutdownTimeoutMs();
 
 enum TestType {
     esm = "esm",
@@ -35,6 +53,9 @@ interface Config {
 }
 
 export async function main(argv = process.argv) {
+    // Must run before any timers/handles are created or wtfnode cannot attribute them
+    await wtf.initialize();
+
     process.on("SIGINT", interrupt);
     process.on("SIGTERM", interrupt);
 
@@ -232,7 +253,24 @@ export async function main(argv = process.argv) {
         if (diagnostics) {
             console.log("\nPROCESS STATE:\n", diagnostics, "\n");
         }
-        process.exit(101);
+        console.error("Active resources:", process.getActiveResourcesInfo().join(", "));
+
+        // Fallback guarantees exit even if the wtfnode dump stalls
+        setTimeout(() => process.exit(101), 5_000).unref();
+        import("wtfnode").then(
+            ({ dump }) => {
+                try {
+                    dump({ fullStacks: true });
+                } catch (error) {
+                    console.error("Error: wtfnode dump failed:", error);
+                }
+                process.exit(101);
+            },
+            error => {
+                console.error("Error: wtfnode dump failed:", error);
+                process.exit(101);
+            },
+        );
     }, SHUTDOWN_TIMEOUT_MS);
     timeout.unref();
 }

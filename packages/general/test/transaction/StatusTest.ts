@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { TransactionFlowError } from "#transaction/errors.js";
 import { Status } from "#transaction/Status.js";
 import type { Transaction } from "#transaction/Transaction.js";
-import { TransactionFlowError } from "#transaction/errors.js";
 
 function txWith(status: Status) {
     return { status } as unknown as Transaction;

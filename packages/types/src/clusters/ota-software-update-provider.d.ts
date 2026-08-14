@@ -589,12 +589,12 @@ export declare namespace OtaSoftwareUpdateProvider {
     export const commands: ClusterType.CommandObjects<Commands>;
 
     /**
-     * @deprecated Use {@link OtaSoftwareUpdateProvider}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link OtaSoftwareUpdateProvider}.
      */
     export const Cluster: typeof OtaSoftwareUpdateProvider;
 
     /**
-     * @deprecated Use {@link OtaSoftwareUpdateProvider}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link OtaSoftwareUpdateProvider}.
      */
     export const Complete: typeof OtaSoftwareUpdateProvider;
 
@@ -602,7 +602,7 @@ export declare namespace OtaSoftwareUpdateProvider {
 }
 
 /**
- * @deprecated Use {@link OtaSoftwareUpdateProvider}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link OtaSoftwareUpdateProvider}.
  */
 export declare const OtaSoftwareUpdateProviderCluster: typeof OtaSoftwareUpdateProvider;
 

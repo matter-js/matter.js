@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { MAX_COUNTER_VALUE_32BIT } from "#protocol/MessageCounter.js";
 import { MessageReceptionStateEncryptedWithRollover } from "#protocol/MessageReceptionState.js";
 import { Bytes, InternalError, Logger, StorageContext } from "@matter/general";

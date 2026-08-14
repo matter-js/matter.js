@@ -46,3 +46,36 @@ describe("MessageChannel socket swap", () => {
         expect(channel.networkAddress?.ip).equal("::1");
     });
 });
+
+describe("MessageChannel release", () => {
+    function transportChannel() {
+        const channel = new ProtocolMocks.NetworkChannel({ index: 1 });
+        let closed = false;
+        channel.close = async () => {
+            closed = true;
+        };
+        return { channel, wasClosed: () => closed };
+    }
+
+    it("stops observing the transport channel address without closing the channel", async () => {
+        const { channel, wasClosed } = transportChannel();
+        const messageChannel = new ProtocolMocks.MessageChannel({ channel });
+        expect(channel.networkAddressChanged.isObserved).true;
+
+        await messageChannel.release();
+
+        expect(channel.networkAddressChanged.isObserved).false;
+        expect(wasClosed()).false;
+        expect(messageChannel.closed).true;
+    });
+
+    it("closes the transport channel of an unreliable transport on close", async () => {
+        const { channel, wasClosed } = transportChannel();
+        const messageChannel = new ProtocolMocks.MessageChannel({ channel });
+
+        await messageChannel.close();
+
+        expect(channel.networkAddressChanged.isObserved).false;
+        expect(wasClosed()).true;
+    });
+});

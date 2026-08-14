@@ -53,9 +53,10 @@ export interface ValReference<T extends Val = Val> {
     refresh(): void;
 
     /**
-     * The key used for storage of attributes and struct properties.
+     * How this container keys its own members.  Only a datasource root may key by element ID; every nested container
+     * keys by property name (list entries, by index).
      */
-    primaryKey: "id" | "name";
+    readonly primaryKey: ValReference.PrimaryKey;
 
     /**
      * The managed value that owns the reference.
@@ -76,4 +77,15 @@ export interface ValReference<T extends Val = Val> {
      * Per-instance validation configuration for this reference.
      */
     supervisionConfig?: Supervision.Config;
+}
+
+export namespace ValReference {
+    /**
+     * How a container keys its own members.
+     *
+     * `id` also asserts provenance: only a datasource mirroring a peer keys by element ID, and for such a container
+     * the peer's reports are the only source of values — no locally derived value (state-class field initializer,
+     * configured default or computed schema default) may enter it or be synthesized on read.
+     */
+    export type PrimaryKey = "id" | "name";
 }
