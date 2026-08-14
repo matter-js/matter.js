@@ -93,7 +93,20 @@ export interface CommissioningOptions extends Partial<ControllerCommissioningFlo
      * on top of the global {@link PeerSet.timing} for that single connection only.
      */
     caseConnectionTiming?: Partial<PeerTimingParameters>;
+
+    /**
+     * Wall-clock budget for the step-18 CASE reconnect, across every candidate address and retry.
+     *
+     * Defaults to {@link DEFAULT_CASE_CONNECTION_TIMEOUT}.  Lower it to bound commissioning to a single handshake
+     * attempt, so a handshake the device fails is a commissioning failure rather than something a retry can recover.
+     */
+    caseConnectionTimeout?: Duration;
 }
+
+/**
+ * 4m15s allows two ~2-minute server-side retry windows to complete before we abort.
+ */
+export const DEFAULT_CASE_CONNECTION_TIMEOUT = Seconds(255);
 
 /**
  * Configuration for commissioning a previously discovered node.
@@ -493,6 +506,7 @@ export class ControllerCommissioner {
             finalizeCommissioning: performCaseCommissioning,
             commissioningFlowImpl = ControllerCommissioningFlow,
             caseConnectionTiming,
+            caseConnectionTimeout = DEFAULT_CASE_CONNECTION_TIMEOUT,
         } = options;
 
         const commissioningOptions = {
@@ -602,8 +616,7 @@ export class ControllerCommissioner {
                 // transport decision (e.g. the TCP spec-version gate) has the device's spec version available.
                 peer.descriptor.sessionParameters = ephemeralSession.parameters;
                 await peer.connect({
-                    // 4m15s allows two ~2-minute server-side retry windows to complete before we abort.
-                    connectionTimeout: Seconds(255),
+                    connectionTimeout: caseConnectionTimeout,
                     timing: caseConnectionTiming,
 
                     handleError: error => {

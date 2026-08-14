@@ -86,6 +86,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Deprecation: The legacy `ClusterType` command request surface (`Invoke.LegacyCommandRequest`, `Specifier.ClusterTypeCommand`) and `SessionManager.owner` are scheduled for removal in 0.19
     - Enhancement: Network profiles accept a separate `bdxAdditionalMrpDelay` for bulk transfer, defaulting to the profile's messaging margin
     - Enhancement: New `CertificateAuthority.erase()` discards the authority's key material, persisted and in memory
+    - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding the operational CASE connection that follows commissioning; defaults to the previous fixed 4m15s
     - Fix: Cancelling BLE commissioning aborts the in-flight channel open
     - Fix: A subscription's `maxIntervalCeiling` is transmitted exactly as requested; jitter now applies only when we derive the ceiling ourselves
 
@@ -110,7 +111,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: New `PicsFile.with()` returns a copy of a PICS file with values overridden
     - Fix: `PromptDrivenPythonTest` now fails a run in which none of its prompt handlers fired, instead of trusting the script's own verdict
     - Fix: A composite `PicsSource` no longer patches the PICS file cached for its first source
-    - Fix: TC-SC-3.5 turns off `PICS_SDK_CI_ONLY` so the script prompts for commissioning instead of acting as its own commissioner
+    - Fix: TC-SC-3.5 turns off `PICS_SDK_CI_ONLY` so the script prompts for commissioning instead of acting as its own commissioner, and drives whichever controller `MATTER_CERT_CONTROLLER` selects
 
 - @project-chip/matter.js
     - Deprecation: Every class, type and function of the legacy controller API is now marked deprecated and scheduled for removal in 0.19; use the `ServerNode.peers` / `ClientNode` API of `@matter/node` instead

@@ -443,6 +443,14 @@ const CERT_PEER_CONNECTION_TIMEOUT = Seconds(15);
 const CERT_PEER_SETTLE_TIMEOUT = Seconds(30);
 
 /**
+ * Budget for commissioning's operational CASE handshake. Must stay below the shortest retry interval that connection
+ * uses (`delayBeforeNextAddress`, 15s) so a handshake the device fails ends commissioning: a cert step asserting that
+ * a device rejected a commissioner needs the rejection to be the outcome, not an attempt matter.js retries past. The
+ * production default deliberately allows those retries.
+ */
+const CERT_CASE_CONNECTION_TIMEOUT = Seconds(10);
+
+/**
  * Waits for the peer's sustained subscription to become active (`isConnected` tracks `subscriptionActive`,
  * and the subscription bootstraps with the structure read, so this covers both).
  *
@@ -570,6 +578,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
                 ...identifierData,
                 passcode,
                 autoStateInitialize: false,
+                caseConnectionTimeout: CERT_CASE_CONNECTION_TIMEOUT,
                 regulatoryLocation: GeneralCommissioning.RegulatoryLocationType.IndoorOutdoor,
                 regulatoryCountryCode: "XX",
                 onAttestationFailure: () => true,

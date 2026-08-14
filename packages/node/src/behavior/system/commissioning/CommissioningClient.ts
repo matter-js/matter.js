@@ -261,6 +261,7 @@ export class CommissioningClient extends Behavior {
             regulatoryCountryCode: options.regulatoryCountryCode,
             timeout: options.timeout,
             caseConnectionTiming: options.caseConnectionTiming ?? defaultCaseConnectionTiming,
+            caseConnectionTimeout: options.caseConnectionTimeout,
         };
 
         // Check if our server has an OTA Provider (later: and no custom one is provided) and register the location
@@ -1138,6 +1139,15 @@ export namespace CommissioningClient {
          * Defaults to `{ delayBeforeNextAddress: Seconds(15), maxDelayBetweenInitialContactRetries: Seconds(60), delayAfterPeerError: Minutes(2) }`.
          */
         caseConnectionTiming?: Partial<PeerTimingParameters>;
+
+        /**
+         * Wall-clock budget for the step-18 CASE reconnect, across every candidate address and retry.
+         *
+         * Defaults to 4m15s, which leaves room for two server-side retry windows.  Lower it to bound commissioning to
+         * a single handshake attempt, so a handshake the device fails is a commissioning failure rather than something
+         * a retry can recover.
+         */
+        caseConnectionTimeout?: Duration;
     }
 
     export interface PasscodeOptions extends BaseCommissioningOptions {

@@ -6,10 +6,15 @@
 
 import { Duration, InternalError, Millis, Time } from "@matter/main";
 import type { CertStepContext, CertStepDefinition, PromptHandler, StepVerdict, Subject } from "@matter/testing";
-import { chip, EvidenceRecorder, PromptDrivenPythonTest, resolveControllerImplementation } from "@matter/testing";
+import {
+    chip,
+    createControllerAdapter,
+    EvidenceRecorder,
+    PromptDrivenPythonTest,
+    resolveControllerImplementation,
+} from "@matter/testing";
 import { join } from "node:path";
 import { env } from "node:process";
-import { InProcessControllerAdapter } from "../../src/cert/InProcessControllerAdapter.js";
 
 // setup_class's th_server_discriminator — fixed for every OpenCommissioningWindow call in the script.
 // The passcode is NOT fixed the same way: only the initial precondition commission (TH_CLIENT pairing
@@ -18,6 +23,9 @@ import { InProcessControllerAdapter } from "../../src/cert/InProcessControllerAd
 // OpenCommissioningWindow, which mints a fresh random passcode per call — the prompt text is the only
 // place that passcode is ever exposed to us.
 const TH_SERVER_DISCRIMINATOR = 1234;
+
+/** Windows the script opens: steps 1b, 2c, 3c and 5c always, plus 4c where the DUT's NOC chain has an ICAC. */
+const MINIMUM_PROMPTS = 4;
 
 const DESCRIPTOR = {
     kind: "py" as const,
@@ -200,26 +208,19 @@ describe("TC-SC-3.5", () => {
             this.skip();
         }
 
-        // This TC drives InProcessControllerAdapter directly rather than createControllerAdapter, so on a
-        // chip-tool-controller run it would silently exercise matter.js's controller instead of the
-        // configured one.
-        if (resolveControllerImplementation() !== "matterjs") {
-            this.skip();
-        }
-
         // The script's own default_timeout (25 min) is sized for a human operator; automated
         // handlers only need enough headroom for up to 5 real CASE handshake attempts.
         this.timeout(10 * 60_000);
 
         const state = { attempts: 0 };
-        const dut = new InProcessControllerAdapter("dut");
+        const dut = createControllerAdapter("dut");
 
         const recorder = new EvidenceRecorder(evidenceOutDir(), {
             tc: "TC-SC-3.5",
             plan: "securechannel.adoc",
             timestamp: new Date().toISOString(),
             controller: "dut",
-            controllerImplementation: "matterjs",
+            controllerImplementation: resolveControllerImplementation(),
             device: `python-wrapped:${DESCRIPTOR.path}`,
             matterJsCommit: "(not recorded)",
         });
@@ -232,6 +233,15 @@ describe("TC-SC-3.5", () => {
             const test = new PromptDrivenPythonTest(DESCRIPTOR, chip.container, [manualPairingCodeHandler(state)], cx);
 
             await test.invoke(stubSubject(), () => {}, ["--string-arg", `th_server_app_path:${appPath}`], false);
+
+            // The script's own PASS does not depend on its prompts being answered, so a short count means faults it
+            // injected were never put to the DUT.
+            if (state.attempts < MINIMUM_PROMPTS) {
+                throw new Error(
+                    `TC_SC_3_5.py reported success after only ${state.attempts} of at least ${MINIMUM_PROMPTS} ` +
+                        "commissioning prompts, so some of its fault-injected CASE handshakes were never attempted",
+                );
+            }
         } finally {
             recorder.attachLog("controller-dut", dut.log.lines);
             await recorder.flush().catch(e => console.warn("Failed to flush TC-SC-3.5 evidence:", e));

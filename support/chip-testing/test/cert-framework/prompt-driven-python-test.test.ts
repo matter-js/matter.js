@@ -333,6 +333,26 @@ describe("PromptDrivenPythonTest", () => {
         );
     });
 
+    it("carries the unprompted diagnosis on the no-verdict error too", async () => {
+        const terminal = new FakeTerminal(["a script that failed before prompting", "no verdict here"]);
+        const { container } = fakeContainer(terminal);
+
+        const handlers: PromptHandler[] = [
+            {
+                pattern: /Manual Pairing Code:/,
+                async action() {
+                    return "\n";
+                },
+            },
+        ];
+
+        const test = new PromptDrivenPythonTest(stubDescriptor(), container, handlers, stubCx());
+
+        await expect(test.invoke(stubSubject(), () => {}, NO_PICS_LOOKUP_ARGS, false)).rejectedWith(
+            /did not indicate successful test; none of its prompt handlers ever fired/,
+        );
+    });
+
     it("does not require a handler to fire when the test declares none", async () => {
         const terminal = new FakeTerminal(["no prompts at all", PASS_LINE]);
         const { container } = fakeContainer(terminal);

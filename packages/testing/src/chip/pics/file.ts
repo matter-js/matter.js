@@ -56,8 +56,11 @@ export class PicsFile {
     }
 
     /**
-     * A copy of this file with `values` applied over it.  {@link patch} modifies its target in place, so
-     * this is the way to override values of a file others share (e.g. `chip.defaultPics`).
+     * A copy of this file with `values` applied over it.  {@link patch} modifies its target in place, so this is the
+     * way to override values of a file others share (e.g. `chip.defaultPics`).
+     *
+     * Each call returns a distinct file, and installing a file into a container writes it under a fresh name, so store
+     * the result rather than recomputing it per access.
      */
     with(values: PicsValues) {
         const patched = new PicsFile([...this.#lines]);
@@ -93,12 +96,6 @@ export class PicsFile {
 
         this.#values = undefined;
         this.#lines = newLines;
-    }
-}
-
-export namespace PicsFile {
-    export interface Values {
-        [key: string]: 0 | 1;
     }
 }
 

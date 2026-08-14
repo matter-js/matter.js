@@ -99,24 +99,28 @@ export class PromptDrivenPythonTest extends PythonTest {
             throw e;
         }
 
+        // A script that prompts for out-of-band action runs to a verdict of its own either way, so one that never
+        // prompted reached that verdict without a counterparty and proves nothing about the DUT. The diagnosis is the
+        // same whether it passed or failed, so it accompanies both.
+        const unprompted = this.#handlers.length && handled === 0 ? this.#unpromptedDiagnosis() : "";
+
         if (!passed) {
-            throw new Error("Python test exited without error but did not indicate successful test");
+            throw new Error(`Python test exited without error but did not indicate successful test${unprompted}`);
         }
 
-        // A script that prompts for out-of-band action reports its own verdict either way, so one that
-        // never prompted passed without a counterparty and proves nothing about the DUT.
-        if (this.#handlers.length && handled === 0) {
+        if (unprompted) {
             throw new Error(
-                `Python test ${this.descriptor.name} reported success but none of its prompt handlers ever ` +
-                    "fired, so nothing drove the DUT — check whether the script's own PICS gating (e.g. " +
-                    "PICS_SDK_CI_ONLY, which makes a script act as its own counterparty instead of " +
-                    "prompting) suppressed its prompts, or whether its prompt text no longer matches " +
-                    patternList(this.#handlers),
+                `Python test ${this.descriptor.name} reported success but nothing drove the DUT${unprompted}`,
             );
         }
     }
-}
 
-function patternList(handlers: PromptHandler[]) {
-    return handlers.map(h => h.pattern.toString()).join(", ");
+    #unpromptedDiagnosis() {
+        const patterns = this.#handlers.map(h => h.pattern.toString()).join(", ");
+        return (
+            "; none of its prompt handlers ever fired — check whether the script's own PICS gating (e.g. " +
+            "PICS_SDK_CI_ONLY, which makes a script act as its own counterparty instead of prompting) suppressed " +
+            `its prompts, or whether its prompt text no longer matches ${patterns}`
+        );
+    }
 }

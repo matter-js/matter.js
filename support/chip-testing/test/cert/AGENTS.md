@@ -755,16 +755,34 @@ Override PICS that way and never with `PicsFile.patch`, which modifies its targe
 `chip.defaultPics` instance is shared by every other test in the run.
 
 The failure this produces is silent: the run reports a pass, and the only tell is evidence with no
-steps in it and a controller log that ends before any commissioning. `PromptDrivenPythonTest`
-therefore fails a run in which a declared prompt handler never fired, and names `PICS_SDK_CI_ONLY` in
-the message. Keep that check — it is the only thing standing between a future change in PICS
-composition and a TC that reports success while testing nothing.
+steps in it and a controller log that ends before any commissioning. Two checks catch it.
+`PromptDrivenPythonTest` fails a run in which none of its declared handlers ever fired, and names
+`PICS_SDK_CI_ONLY` in the message — that is the floor, and it fires whether the script passed or
+failed. It is deliberately weak: `handled` is one counter across all handlers, so a script that
+prompts once and then diverges still satisfies it. A TC whose prompt count is known therefore asserts
+that count itself, as `TC-SC-3.5.test.ts` does against `MINIMUM_PROMPTS`. Keep both — nothing else
+notices a prompt-driven TC that stopped driving anything.
 
-Also note that `TC-SC-3.5.test.ts` constructs `InProcessControllerAdapter` directly rather than going
-through `createControllerAdapter`, so it would drive matter.js's controller whatever
-`MATTER_CERT_CONTROLLER` says. It skips itself on a chip-tool-controller run rather than claim
-coverage it doesn't have; teaching it to use the registry is the more interesting fix, since CASE
-error handling is where two controller implementations are most likely to differ.
+## A commissioner that retries turns a one-shot fault into a pass (`TC-SC-3.5`)
+
+`TC_SC_3_5.py` starts TH_SERVER once, in `setup_class`, and never restarts it. Each negative step only
+revokes and reopens the commissioning window and arms `FailAtFault` with `numCallsToFail=1`, so the
+*first* Sigma2 of that window is corrupt and every later one is clean. A commissioner that retries the
+handshake therefore commissions successfully on its second attempt, and the step the script means as
+"the DUT must reject this" passes.
+
+matter.js retries deliberately — real devices sometimes need more than one chance — so the harness has
+to bound the attempt instead. `InProcessControllerAdapter` passes `caseConnectionTimeout` (10s) to
+commissioning, below the 15s `delayBeforeNextAddress` that governs the earliest retry, so a handshake
+the device fails ends commissioning rather than becoming an attempt a retry recovers. The production
+default (4m15s) keeps the retries.
+
+Two things obscured this while it was being diagnosed. The script's prompt says "Input anything once
+commissioning has *started*", and a human answering there lets the script check `WindowStatus` and
+revoke the window long before matter.js's next attempt — so a manual run passes even without the
+timeout. And a CI runner with both `eth0` and `docker0` link-local addresses reaches the retry after
+~15s (the next-address delay) rather than the 2 min a single-address host waits, which is what brought
+the retry inside the handler's own budget.
 
 ## The write-path idiom (`writeAndCheck`, `TC-IDM-3.1`)
 
