@@ -301,12 +301,12 @@ export class NetworkClient extends NetworkBehavior {
             return;
         }
 
+        // The device numbers our fabric with its own index; `currentFabricIndex` is that device-side index for the
+        // accessing (our) fabric, so select the device's entry for our fabric by it — never by our controller-side
+        // `peerAddress.fabricIndex`, which is a different numbering.
         const opCreds = this.#node.stateOf(OperationalCredentialsClient);
-        let fabrics = opCreds.fabrics;
-        if (fabrics.length !== 1) {
-            fabrics = fabrics.filter(fabric => fabric.fabricIndex === opCreds.currentFabricIndex);
-        }
-        if (fabrics.length !== 1 || fabrics[0].label === label) {
+        const ownFabric = opCreds.fabrics.find(fabric => fabric.fabricIndex === opCreds.currentFabricIndex);
+        if (ownFabric === undefined || ownFabric.label === label) {
             return;
         }
 
