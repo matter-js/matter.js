@@ -4,7 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, InternalError, Logger, Millis, NotImplementedError, Seconds } from "@matter/general";
+import {
+    Bytes,
+    ImplementationError,
+    InternalError,
+    Logger,
+    Millis,
+    NotImplementedError,
+    Seconds,
+} from "@matter/general";
 import { CommonNumberTag, Endpoint, ServerNode } from "@matter/main";
 import {
     AdministratorCommissioningServer,
@@ -142,25 +150,25 @@ export class AllClustersTestInstance extends NodeTestInstance {
         switch (name) {
             case "simulateLongPress":
                 if (endpoint === undefined) {
-                    throw new Error(`Endpoint ${endpointId} not found`);
+                    throw new ImplementationError(`Endpoint ${endpointId} not found`);
                 }
                 await SwitchSimulator.simulateLongPress(endpoint, command);
                 break;
             case "simulateMultiPress":
                 if (endpoint === undefined) {
-                    throw new Error(`Endpoint ${endpointId} not found`);
+                    throw new ImplementationError(`Endpoint ${endpointId} not found`);
                 }
                 await SwitchSimulator.simulateMultiPress(endpoint, command);
                 break;
             case "simulateLatchPosition":
                 if (endpoint === undefined) {
-                    throw new Error(`Endpoint ${endpointId} not found`);
+                    throw new ImplementationError(`Endpoint ${endpointId} not found`);
                 }
                 await endpoint.setStateOf(SwitchServer, { currentPosition: command.positionId });
                 break;
             case "simulateSwitchIdle":
                 if (endpoint === undefined) {
-                    throw new Error(`Endpoint ${endpointId} not found`);
+                    throw new ImplementationError(`Endpoint ${endpointId} not found`);
                 }
                 await endpoint.setStateOf(SwitchServer, { currentPosition: 0 });
                 endpoint.act(agent => agent.get(SwitchServer).resetState());
@@ -168,7 +176,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
             case "operationalStateChange": {
                 endpoint = findEndpoint(1);
                 if (endpoint === undefined) {
-                    throw new Error(`Endpoint ${endpointId} not found`);
+                    throw new InternalError(`Endpoint 1 not found`);
                 }
                 let ServerType;
                 const { device, operation, param } = command;
@@ -180,7 +188,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                         ServerType = TestOvenCavityOperationalStateServer;
                         break;
                     default:
-                        throw new Error(`Unknown device type ${String(device)}`);
+                        throw new NotImplementedError(`Device type ${String(device)}`);
                 }
                 switch (operation) {
                     case "Stop":
@@ -235,7 +243,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                         });
                         break;
                     default:
-                        throw new Error(`Unknown operation ${operation}`);
+                        throw new NotImplementedError(`Operational state operation ${operation}`);
                 }
                 break;
             }
@@ -255,7 +263,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
             }
             case "setBooleanState":
                 if (endpoint === undefined) {
-                    throw new Error(`Endpoint ${endpointId} not found`);
+                    throw new ImplementationError(`Endpoint ${endpointId} not found`);
                 }
                 await endpoint.setStateOf(BooleanStateServer, { stateValue: command.newState });
                 break;
