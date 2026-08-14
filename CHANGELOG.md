@@ -32,6 +32,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A choice set whose members are all provisional, such as the `Groupcast` and `AmbientContextSensing` feature sets, no longer requires a selection
 
 - @matter/node
+    - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding how long it waits for the operational CASE connection that follows it
     - Breaking: Default server exports no longer inherit the features their base implementation enables internally.
         - `ColorControlServer`, `DoorLockServer`, `ElectricalEnergyMeasurementServer`, `LevelControlServer`, `ModeSelectServer`, `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer` and `WindowCoveringServer` now select no features. Select the features your device supports with `.with(...)` or use the DeviceType specific Requirement definitions of these clusters which automatically enable the needed features for the device type
         - `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer`, `WindowCoveringServer` and `ElectricalEnergyMeasurementServer` now require a selection to be added to an endpoint at all. The `DoorLockDevice`, `SpeakerDevice` and `ModeSelectDevice` device types alias these exports, so their clusters also select no features and advertise a different FeatureMap.
@@ -112,7 +113,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Certification controller tests run against a controller × device matrix, adding chip-tool as a second controller alongside matter.js's own
     - Breaking: Removed the unused `PicsFile.Values` type; use `PicsValues`
     - Enhancement: New `PicsFile.with()` returns a copy of a PICS file with values overridden
-    - Fix: `PicsFile.patch()` overrides every occurrence of a key the target lists more than once, so the last one no longer wins over the patch
     - Fix: `PromptDrivenPythonTest` now fails a run in which none of its prompt handlers fired, instead of trusting the script's own verdict
     - Enhancement: A python-wrapped cert test's evidence attaches the script's own output alongside the controller log
     - Fix: A composite `PicsSource` no longer patches the PICS file cached for its first source

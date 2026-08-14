@@ -100,8 +100,9 @@ export interface CommissioningOptions extends Partial<ControllerCommissioningFlo
      * Defaults to {@link DEFAULT_CASE_CONNECTION_TIMEOUT}.  Lower it to bound commissioning to a single handshake
      * attempt, so a handshake the device fails is a commissioning failure rather than something a retry can recover.
      *
-     * Raising it past the failsafe armed for this step (`ControllerCommissioningFlow`'s 5 minute reconnect allowance)
-     * has the device roll `addNOC` back mid-connect, so a longer budget cannot succeed.
+     * On an IP transport, raising it past the failsafe armed for this step (`ControllerCommissioningFlow` allows up to
+     * 5 minutes for the reconnect, clamped by the device's own `MaxCumulativeFailsafeSeconds`) has the device roll
+     * `addNOC` back mid-connect, so a longer budget cannot succeed.  The concurrent BLE flow keeps re-arming instead.
      *
      * Expiry fails commissioning, which deletes the peer and so aborts the connection it was still attempting.  The
      * rejection therefore reports a budget that ran out, not what the device answered.  No effect where
@@ -515,6 +516,14 @@ export class ControllerCommissioner {
             caseConnectionTiming,
             caseConnectionTimeout = DEFAULT_CASE_CONNECTION_TIMEOUT,
         } = options;
+
+        // Nothing else bounds the post-PASE flow, and the device's failsafe expires regardless, so an unbounded budget
+        // could only wait for a commissioning the device has already rolled back.
+        if (!Number.isFinite(caseConnectionTimeout)) {
+            throw new ImplementationError(
+                `caseConnectionTimeout must be finite, not ${Duration.format(caseConnectionTimeout)}`,
+            );
+        }
 
         const commissioningOptions = {
             ...options,

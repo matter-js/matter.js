@@ -106,11 +106,12 @@ describe("InProcessControllerAdapter", () => {
         await device?.close();
     });
 
+    // Guards the regression the per-step flag exists to prevent: the bound is short enough to rule out a retry, so a
+    // commissioning that expects to succeed has to fit inside it, discovery included. It does not prove the option
+    // reaches commissioning — a healthy device commissions either way — only that requesting it breaks nothing.
     it("still commissions a healthy device when asked for a single handshake attempt", async function () {
         this.timeout(30_000);
 
-        // The bound this requests is short enough to rule out a retry, so a positive commissioning has to fit inside it
-        // — the whole operational handshake, discovery included.
         const ref = await adapter.commission({
             passcode: 20202021,
             discriminator: 3840,

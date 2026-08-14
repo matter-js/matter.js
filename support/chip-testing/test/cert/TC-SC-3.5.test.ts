@@ -142,7 +142,8 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
                             );
                         failure = new Error(
                             `DUT commissioning unexpectedly succeeded on attempt ${attempt} against a ` +
-                                "Sigma2-fault-injected TH_SERVER",
+                                "Sigma2-fault-injected TH_SERVER, so either it accepted a corrupted Sigma2 or it " +
+                                "retried past the one the script corrupted",
                         );
                     }
                     break;
@@ -268,7 +269,7 @@ describe("TC-SC-3.5", () => {
             }
         } finally {
             recorder.attachLog("controller-dut", dut.log.lines);
-            recorder.attachLog("device-python", test.log);
+            recorder.attachLog("device-python", test.logLines);
             await recorder.flush().catch(e => console.warn("Failed to flush TC-SC-3.5 evidence:", e));
             try {
                 await dut.close();

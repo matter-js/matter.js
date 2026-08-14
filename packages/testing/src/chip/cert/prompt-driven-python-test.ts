@@ -50,10 +50,12 @@ export class PromptDrivenPythonTest extends PythonTest {
     }
 
     /**
-     * Every line the script wrote, ready to attach to a run's evidence. The script drives the scenario and reaches its
-     * own verdict, so a controller log alone records what the DUT did without what it was asked to do.
+     * Every line the most recent {@link invoke} saw, ready to attach to a run's evidence. The script drives the scenario
+     * and reaches its own verdict, so a controller log alone records what the DUT did without what it was asked to do.
+     *
+     * Named unlike a {@link LogFollower}'s `lines` because it is the array itself, not a follower.
      */
-    get log(): LogLine[] {
+    get logLines(): LogLine[] {
         return [...this.#log];
     }
 
@@ -75,6 +77,9 @@ export class PromptDrivenPythonTest extends PythonTest {
             Terminal.Line,
             { cwd: "/tmp", stdin: true },
         );
+
+        // The harness caches one test instance per descriptor, so a second run must not inherit the first run's lines
+        this.#log = [];
 
         let passed = false;
         let handled = 0;
@@ -116,8 +121,9 @@ export class PromptDrivenPythonTest extends PythonTest {
                 );
             }
         } catch (e) {
-            // A handler or verdict check that threw leaves the script still blocked on its own `input()` read; closing
-            // forces that read to fail instead of hanging the run for the full mocha timeout.
+            // A handler that threw leaves the script still blocked on its own `input()` read; closing forces that read
+            // to fail instead of hanging the run for the full mocha timeout. The verdict checks below the loop run once
+            // the script has already exited, so for those this is a no-op.
             await terminal.close().catch(closeError => {
                 console.warn("Error closing prompt-driven python test terminal:", closeError);
             });

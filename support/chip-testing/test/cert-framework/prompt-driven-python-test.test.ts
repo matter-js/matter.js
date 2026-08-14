@@ -382,12 +382,12 @@ describe("PromptDrivenPythonTest", () => {
         const test = new PromptDrivenPythonTest(stubDescriptor(), container, handlers, stubCx());
         await test.invoke(stubSubject(), () => {}, NO_PICS_LOOKUP_ARGS, false);
 
-        expect(test.log.map(line => line.text)).to.deep.equal([
+        expect(test.logLines.map(line => line.text)).to.deep.equal([
             "an ordinary log line nobody reacts to",
             "  Manual Pairing Code: 1111-222-3333  (chip-tool: pairing onnetwork 1 20202021)",
             PASS_LINE,
         ]);
-        expect(test.log.map(line => line.index)).to.deep.equal([0, 1, 2]);
+        expect(test.logLines.map(line => line.index)).to.deep.equal([0, 1, 2]);
     });
 
     it("records the script's lines even when it reports no verdict", async () => {
@@ -397,7 +397,7 @@ describe("PromptDrivenPythonTest", () => {
         const test = new PromptDrivenPythonTest(stubDescriptor(), container, [], stubCx());
         await expect(test.invoke(stubSubject(), () => {}, NO_PICS_LOOKUP_ARGS, false)).rejected;
 
-        expect(test.log.map(line => line.text)).to.deep.equal([
+        expect(test.logLines.map(line => line.text)).to.deep.equal([
             "the line that explains the failure",
             "no verdict here",
         ]);
