@@ -31,7 +31,6 @@ describe("FabricLabelReconciliation", () => {
         const deviceFabric = device.env.get(FabricManager).fabrics[0];
         expect(deviceFabric.label).equals(controllerFabric.label);
 
-        // The label changes on the controller (e.g. while the peer was offline).
         await MockTime.resolve(controllerFabric.setLabel("Relabelled"));
 
         await reconcile(peer1, () => deviceFabric.label === "Relabelled");

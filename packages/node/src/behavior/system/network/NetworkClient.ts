@@ -411,7 +411,6 @@ export namespace NetworkClient {
          */
         likelyOffline = false;
 
-        /** Set once the peer's fabric label has been reconciled after start, so it runs at most once per start. */
         fabricLabelReconciled = false;
     }
 
