@@ -20,6 +20,9 @@ import { CertLogClosedError, CertLogTimeoutError } from "@matter/testing";
 /** A cert run left a fabric (and whatever it carries) behind on the TH. */
 export class CertCleanupError extends MatterError {}
 
+/** A check inside a step failed; the evidence record carrying the detail is already recorded. */
+export class CertCheckFailedError extends MatterError {}
+
 /**
  * Tracks commissioned node refs by role for one cert-test run. Each controller's own
  * `decommission()` only removes *that controller's* fabric via its own CASE session, so cleanup has

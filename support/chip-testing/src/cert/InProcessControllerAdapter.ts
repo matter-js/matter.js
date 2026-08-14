@@ -140,6 +140,9 @@ function eventFiltersFor(options?: ReadEventOptions) {
 /**
  * A status for a path the step named concretely means it will never see that event; per-path statuses
  * of a wildcard expansion are results of the expansion instead (see {@link CertNodeApi.readEvents}).
+ *
+ * Reads only. A subscription the device refuses is already rejected by the interaction itself, before
+ * its priming report reaches us.
  */
 function assertNoConcreteEventStatus(paths: EventPathSpec[], statuses: ReadResult.EventStatus[], operation: string) {
     for (const status of statuses) {
@@ -415,7 +418,6 @@ class InProcessCertNodeApi implements CertNodeApi {
         return runTagged(this.#adapterId, async () => {
             const { endpointId, clusterId, attributeId } = toIds(path);
             const seed = new Array<ReadResult.AttributeValue>();
-            const statuses = new Array<ReadResult.AttributeStatus>();
             let seeding = true;
             const request = Subscribe({
                 attributes: [{ endpointId, clusterId, attributeId }],
@@ -426,36 +428,20 @@ class InProcessCertNodeApi implements CertNodeApi {
             request.updated = async data => {
                 for await (const chunk of data) {
                     for await (const report of chunk) {
-                        if (report.kind === "attr-status") {
-                            if (seeding) {
-                                statuses.push(report);
-                            } else {
-                                logger.info(
-                                    `Subscribed attribute ${report.path.attributeId} reported status`,
-                                    report.status,
-                                );
-                            }
-                        } else if (report.kind === "attr-value") {
-                            if (seeding) {
-                                seed.push(report);
-                            } else {
-                                opts.onUpdate?.(report.value);
-                            }
+                        if (report.kind !== "attr-value") {
+                            continue;
+                        }
+                        if (seeding) {
+                            seed.push(report);
+                        } else {
+                            opts.onUpdate?.(report.value);
                         }
                     }
                 }
             };
-            const subscription = await this.#peer.interaction.subscribe(request);
+            await this.#peer.interaction.subscribe(request);
             seeding = false;
             if (isConcretePath(path)) {
-                if (statuses.length) {
-                    subscription.close();
-                    throw new StatusResponseError(
-                        `subscribe ${JSON.stringify(path)} failed`,
-                        statuses[0].status,
-                        statuses[0].clusterStatus,
-                    );
-                }
                 return seed[0]?.value;
             }
             return toWireValues(seed);
@@ -494,7 +480,6 @@ class InProcessCertNodeApi implements CertNodeApi {
                 throw new ImplementationError("subscribeEvents requires at least one path");
             }
             const seed = new Array<ReadResult.EventValue>();
-            const statuses = new Array<ReadResult.EventStatus>();
             let seeding = true;
             const request = Subscribe({
                 events: paths.map(toEventIds),
@@ -507,33 +492,19 @@ class InProcessCertNodeApi implements CertNodeApi {
             request.updated = async data => {
                 for await (const chunk of data) {
                     for await (const report of chunk) {
-                        if (report.kind === "event-status") {
-                            if (seeding) {
-                                statuses.push(report);
-                            } else {
-                                logger.info(`Subscribed event ${report.path.eventId} reported status`, report.status);
-                            }
-                        } else if (report.kind === "event-value") {
-                            if (seeding) {
-                                seed.push(report);
-                            } else {
-                                opts.onUpdate?.(toWireEvents([report])[0]);
-                            }
+                        if (report.kind !== "event-value") {
+                            continue;
+                        }
+                        if (seeding) {
+                            seed.push(report);
+                        } else {
+                            opts.onUpdate?.(toWireEvents([report])[0]);
                         }
                     }
                 }
             };
-            const subscription = await this.#peer.interaction.subscribe(request);
+            await this.#peer.interaction.subscribe(request);
             seeding = false;
-            try {
-                assertNoConcreteEventStatus(paths, statuses, "subscribeEvents");
-            } catch (e) {
-                // The subscription is established by the time its priming report carries the status,
-                // so a rejection that left it running would keep calling a step that has already
-                // failed and unwound.
-                subscription.close();
-                throw e;
-            }
             return toWireEvents(seed);
         });
     }

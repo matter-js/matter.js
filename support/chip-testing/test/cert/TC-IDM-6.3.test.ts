@@ -8,6 +8,7 @@ import { Matter } from "@matter/model";
 import type { EventPathSpec } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import {
+    CertCheckFailedError,
     CommissionedRefs,
     EVENT_PATH_IBS_SEQUENCE,
     eventPathIBSequence,
@@ -77,7 +78,9 @@ certTest("TC-IDM-6.3", {
                     : `readEvents ${JSON.stringify(EVENT_PATH)} resolved with ${events.length} event(s)`,
             });
             if (foreign.length) {
-                throw new Error(`readEvents returned events outside the requested path: ${JSON.stringify(foreign)}`);
+                throw new CertCheckFailedError(
+                    `readEvents returned events outside the requested path: ${JSON.stringify(foreign)}`,
+                );
             }
 
             const pathCheck = await expectSequence(
@@ -90,7 +93,9 @@ certTest("TC-IDM-6.3", {
             );
             cx.recorder.check(pathCheck);
             if (pathCheck.verdict === "fail") {
-                throw new Error(`ReadRequestMessage event path check failed: ${JSON.stringify(pathCheck)}`);
+                throw new CertCheckFailedError(
+                    `ReadRequestMessage event path check failed: ${JSON.stringify(pathCheck)}`,
+                );
             }
 
             // The plan's expected outcome names FabricFiltered alongside EventRequests; it sits after
@@ -105,7 +110,7 @@ certTest("TC-IDM-6.3", {
             );
             cx.recorder.check(fabricFilteredCheck);
             if (fabricFilteredCheck.verdict === "fail") {
-                throw new Error(
+                throw new CertCheckFailedError(
                     `ReadRequestMessage isFabricFiltered check failed: ${JSON.stringify(fabricFilteredCheck)}`,
                 );
             }

@@ -17,7 +17,8 @@ import type {
 } from "@matter/testing";
 import { LineQueue, LogFollower, PicsFile } from "@matter/testing";
 import type { SubscribeAndModifyTimeouts } from "../cert/tc-idm-4.1-support.js";
-import { CertCheckFailedError, subscribeAndModify } from "../cert/tc-idm-4.1-support.js";
+import { subscribeAndModify } from "../cert/tc-idm-4.1-support.js";
+import { CertCheckFailedError } from "../cert/tc-support.js";
 
 const SUBSCRIPTION_ID = 0x2a;
 

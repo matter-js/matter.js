@@ -4,10 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, MatterError, Millis, Time } from "@matter/main";
+import { Duration, Millis, Time } from "@matter/main";
 import type { AttributePathSpec, CertNodeRef, CertStepContext } from "@matter/testing";
 import {
     ACK_WAIT_TIMEOUT_MS,
+    CertCheckFailedError,
     expectMessageWithPath,
     expectReportAck,
     expectSubscriptionId,
@@ -17,9 +18,6 @@ import {
 // TC-IDM-4.1's subscription machinery lives beside the test case rather than inside it because a
 // `TC-*.test.ts` registers its own device-driven mocha test at import time, so the cert-framework
 // spec set cannot import one to unit-test what it declares.
-
-/** A check inside a TC-IDM-4.1 step failed; the evidence record carrying the detail is already recorded. */
-export class CertCheckFailedError extends MatterError {}
 
 // The subscriber's own choice of negotiated interval — matches Test_TC_IDM_4_1.yaml's own step-1
 // capture (MinIntervalFloorSeconds=0xa, MaxIntervalCeilingSeconds=0x50) and is reused for every

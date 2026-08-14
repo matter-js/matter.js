@@ -9,6 +9,7 @@ import type { EventPathSpec } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import {
     ACK_WAIT_TIMEOUT_MS,
+    CertCheckFailedError,
     CommissionedRefs,
     EVENT_PATH_IBS_SEQUENCE,
     eventPathIBSequence,
@@ -91,7 +92,9 @@ certTest("TC-IDM-6.4", {
             );
             cx.recorder.check(envelopeCheck);
             if (envelopeCheck.verdict === "fail") {
-                throw new Error(`SubscribeRequestMessage envelope check failed: ${JSON.stringify(envelopeCheck)}`);
+                throw new CertCheckFailedError(
+                    `SubscribeRequestMessage envelope check failed: ${JSON.stringify(envelopeCheck)}`,
+                );
             }
 
             const fabricFilteredCheck = await expectSequence(
@@ -104,7 +107,7 @@ certTest("TC-IDM-6.4", {
             );
             cx.recorder.check(fabricFilteredCheck);
             if (fabricFilteredCheck.verdict === "fail") {
-                throw new Error(
+                throw new CertCheckFailedError(
                     `SubscribeRequestMessage isFabricFiltered check failed: ${JSON.stringify(fabricFilteredCheck)}`,
                 );
             }
@@ -143,7 +146,9 @@ certTest("TC-IDM-6.4", {
             const idLookup = await expectSubscriptionId(th.log, th.flavor, from, ACK_WAIT_TIMEOUT_MS);
             cx.recorder.check(idLookup.check);
             if (idLookup.check.verdict === "fail") {
-                throw new Error(`SubscribeResponseMessage check failed: ${JSON.stringify(idLookup.check)}`);
+                throw new CertCheckFailedError(
+                    `SubscribeResponseMessage check failed: ${JSON.stringify(idLookup.check)}`,
+                );
             }
 
             const ackCheck = await expectReportAck(
@@ -155,7 +160,7 @@ certTest("TC-IDM-6.4", {
             );
             cx.recorder.check(ackCheck);
             if (ackCheck.verdict === "fail") {
-                throw new Error(`Report ack check failed: ${JSON.stringify(ackCheck)}`);
+                throw new CertCheckFailedError(`Report ack check failed: ${JSON.stringify(ackCheck)}`);
             }
         }),
         { expected: "Verify that the DUT sends Status Response Action with a success Status Code." },
