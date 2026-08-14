@@ -77,9 +77,10 @@ const networkId = Bytes.fromHex("6574682D617070");
 // Generated device definitions lag the device type revisions the IDM-10.6 test harness expects.
 const RootEndpointType = {
     ...ServerNode.RootEndpoint.with(
-        // The Groupcast Listener feature generates auxiliary ACL entries, which requires the Auxiliary feature.
-        // AuxiliaryAccessUpdated is provisional ("P, AUX"), so enable it explicitly to keep the event active.
+        // The Groupcast Listener feature generates auxiliary ACL entries, which requires the Auxiliary feature.  The
+        // AuxiliaryAcl attribute and AuxiliaryAccessUpdated event are provisional ("P, AUX"), so enable them explicitly.
         AccessControlServer.with("Extension", "Auxiliary").enable({
+            attributes: { auxiliaryAcl: true },
             events: { auxiliaryAccessUpdated: true },
         }),
         GroupcastServer.with("Listener", "Sender", "PerGroup"),
