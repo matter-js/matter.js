@@ -30,6 +30,7 @@ import {
     FabricAuthority,
     getOperationalDeviceQname,
     Invoke,
+    Peer as ProtocolPeer,
     PeerSet,
     Read,
     ReadResult,
@@ -295,6 +296,11 @@ class InProcessCertNodeApi implements CertNodeApi {
         return peer;
     }
 
+    /** The protocol-level peer behind {@link #peer}, which carries the negotiated session parameters. */
+    get #protocolPeer(): ProtocolPeer | undefined {
+        return this.#controller.env.get(PeerSet).get(this.#fabric.addressOf(this.#nodeId));
+    }
+
     invoke(
         cluster: string | number,
         command: string,
@@ -329,6 +335,20 @@ class InProcessCertNodeApi implements CertNodeApi {
         return runTagged(this.#adapterId, async () => {
             if (commands.length === 0) {
                 throw new ImplementationError("invokeBatch requires at least one command");
+            }
+
+            // `ClientInteraction.invoke` splits a request the peer cannot take in one message into
+            // several single-command exchanges, which is right for an ordinary caller and wrong here:
+            // the whole point of this call is the one request, and a step proving how a device answers
+            // a batch would silently prove nothing. This reads the same value the interaction's own
+            // exchange provider does.
+            const maxPathsPerInvoke = this.#protocolPeer?.sessionParameters.maxPathsPerInvoke ?? 1;
+            if (commands.length > maxPathsPerInvoke) {
+                throw new ImplementationError(
+                    `invokeBatch of ${commands.length} commands, but node ${this.#nodeId} accepts ` +
+                        `${maxPathsPerInvoke} path(s) per invoke; the request would be split into separate ` +
+                        "interactions",
+                );
             }
 
             // Refs number from 1, matching matter.js's own allocator, so the device's echoed ref maps

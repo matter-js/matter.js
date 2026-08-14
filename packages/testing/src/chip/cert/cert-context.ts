@@ -36,6 +36,9 @@ export interface CertDevice extends Subject {
     readonly log: LogFollower;
     readonly flavor: DeviceFlavor;
     readonly exit: Promise<DeviceExitInfo>;
+
+    /** The app variant this device actually runs, absent for a device whose flavor has no binary to vary. */
+    readonly appVariant?: string;
 }
 
 /**

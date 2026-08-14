@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ImplementationError } from "@matter/main";
 import type { CheckRecord, LogFollower } from "@matter/testing";
 import { CertLogClosedError, CertLogTimeoutError } from "@matter/testing";
 import { ChipFault } from "./fault-injection.js";
@@ -55,7 +56,7 @@ function escapeForPattern(text: string) {
 function descriptionOf(fault: number) {
     const description = FAULT_DESCRIPTIONS.get(fault);
     if (description === undefined) {
-        throw new Error(`No chip fault description known for fault id ${fault}`);
+        throw new ImplementationError(`No chip fault description known for fault id ${fault}`);
     }
     return description;
 }
@@ -129,13 +130,21 @@ export function expectInvokeCount(log: LogFollower, flavor: string, from: number
     };
 }
 
+/** chip closes every pretty-printed interaction message with this field (`MessageDefHelper.h`). */
+const INTERACTION_MODEL_REVISION = /InteractionModelRevision = \d+\s*$/;
+
+/** The `CommandDataIB` a request carries per command, which is what makes its command count countable. */
+const COMMAND_DATA_IB = /CommandDataIB =\s*$/;
+
 /**
  * Records that the batched invoke the TH received at or after `from` carried exactly `paths`, as
- * distinct `CommandPathIB` blocks in that order.
+ * `CommandPathIB` blocks in that order and with no further command beside them.
  *
- * Each block is searched from the end of the previous match, so a request whose paths arrived in
- * another order cannot satisfy this, and the caller's own uniqueness is what makes the ordering
- * meaningful — two identical paths would match the same block twice.
+ * Both halves are needed. Each block is searched from the end of the previous match, so paths that
+ * arrived in another order cannot satisfy the sequence — but a request carrying an *extra* command
+ * still would, so the commands of this message are counted as well. The window for that count ends at
+ * the message's own closing `InteractionModelRevision`, so a later request's commands cannot make up
+ * the number.
  */
 export async function expectBatchRequestPaths(
     log: LogFollower,
@@ -165,6 +174,24 @@ export async function expectBatchRequestPaths(
                 return { type: "device-log", verdict: "unverified" };
             }
             last = block.last;
+        }
+
+        const end = await log.expect({ chip: INTERACTION_MODEL_REVISION }, { flavor, timeoutMs, from: last.index + 1 });
+        if (end.verdict === "unverified") {
+            return { type: "device-log", verdict: "unverified" };
+        }
+
+        const commands =
+            countMatches(log, flavor, COMMAND_DATA_IB, envelope.last.index) -
+            countMatches(log, flavor, COMMAND_DATA_IB, end.matched.index);
+        if (commands !== paths.length) {
+            return {
+                type: "device-log",
+                verdict: "fail",
+                pattern: label,
+                detail: `the request carried ${commands} commands, expected ${paths.length}`,
+                logLine: envelope.last.index,
+            };
         }
 
         return { type: "device-log", verdict: "pass", pattern: label, matched: last.text, logLine: last.index };

@@ -81,7 +81,7 @@ function batchRequestLines(paths: BatchPath[]) {
         "[DMG] \t[",
         ...paths.flatMap(commandPathLines),
         "[DMG] \t],",
-        "[DMG] \tinteractionModelRevision = 12",
+        "[DMG] \tInteractionModelRevision = 11",
         "[DMG] },",
     ];
 }
@@ -248,6 +248,26 @@ describe("expectBatchRequestPaths", () => {
         );
 
         expect(check.verdict).equal("fail");
+    });
+
+    it("fails when the request carried a command beside the expected ones", async () => {
+        const extra: BatchPath = { endpoint: 1, cluster: ON_OFF, command: 0x2 };
+        const check = await withFollower([...batchRequestLines([PATHS[0], extra, PATHS[1]])], follower =>
+            expectBatchRequestPaths(follower, "chip-local", PATHS, 0, 500),
+        );
+
+        expect(check.verdict).equal("fail");
+        expect(check.detail).contains("carried 3 commands");
+    });
+
+    it("counts only the commands of its own request", async () => {
+        // Buffered, so a later request's commands are actually in reach of the count being bounded.
+        const check = await withBufferedFollower(
+            [...batchRequestLines(PATHS), ...batchRequestLines([PATHS[0]])],
+            follower => expectBatchRequestPaths(follower, "chip-local", PATHS, 0, 500),
+        );
+
+        expect(check.verdict).equal("pass");
     });
 
     it("is unverified for a matterjs device", async () => {

@@ -471,8 +471,10 @@ class WiredCertTest extends CertTest {
                 timestamp: new Date().toISOString(),
                 controller: Object.keys(this.#controllerRoles).join(","),
                 controllerImplementation,
+                // From the device, not from the definition: a flavor that cannot run a variant ignores
+                // the request, and evidence claiming a variant that never started would be a lie.
                 device: `${this.#flavor}:${this.definition.app}${
-                    this.definition.appVariant === undefined ? "" : `-${this.definition.appVariant}`
+                    subject.appVariant === undefined ? "" : `-${subject.appVariant}`
                 }`,
                 matterJsCommit: matterJsRef,
                 chipRef,
