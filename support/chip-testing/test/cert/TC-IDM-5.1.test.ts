@@ -130,7 +130,7 @@ certTest("TC-IDM-5.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C"
             "received timed request.",
         async () => {},
         {
-            pics: "MCORE.IDM.C.WriteRequest || MCORE.IDM.C.InvokeRequest",
+            pics: "MCORE.IDM.C.WriteRequest | MCORE.IDM.C.InvokeRequest",
             notApplicable: "Not testable / Out of Scope in CHIP's certification harness",
             expected:
                 "Verify that the DUT does not send a follow up message to the TH as it did not receive the initial " +

@@ -1034,6 +1034,11 @@ must deliver the interaction itself inside the window. matter.js's own `Invoke`/
 Do not give the option a default. An absent timeout must stay absent, or every invoke and write in
 every TC silently becomes a timed interaction.
 
+Both adapters route the value through `timedInteractionTimeoutOf` (`src/cert/timed-interaction.ts`),
+which refuses anything but an integer in the `uint16` range the wire carries: matter.js's TLV layer
+checks bounds but not integrality, so without it a fractional timeout would reach one controller as a
+truncated integer and the other as a chip-tool usage error.
+
 What the plan asks to verify, and how each part is evidenced:
 
 - **The timeout the device was asked for** — `TimedRequestMessage =` / `{` / `TimeoutMs = 0xc8,`, all

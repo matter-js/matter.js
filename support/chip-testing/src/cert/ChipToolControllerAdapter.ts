@@ -43,6 +43,7 @@ import { env } from "node:process";
 import type { ChipToolCommissionerName } from "../chip-tool/chip-tool-client.js";
 import { ChipToolClient, resolveChipToolBinary } from "../chip-tool/chip-tool-client.js";
 import { chipJsonToMatter, matterToChipJson, stringifyChipJson } from "../chip-tool/json-codec.js";
+import { timedInteractionTimeoutOf } from "./timed-interaction.js";
 
 /** Name {@link UnsupportedByControllerError} reports for this adapter. */
 const CONTROLLER = "chip-tool";
@@ -105,9 +106,8 @@ function quoteArg(value: string) {
 
 /** chip-tool's own name for the timed-interaction timeout, on `command-by-id` and `write-by-id` alike. */
 function timedArg(options?: TimedInteractionOptions) {
-    return options?.timedInteractionTimeoutMs === undefined
-        ? ""
-        : ` --timedInteractionTimeoutMs ${options.timedInteractionTimeoutMs}`;
+    const timeout = timedInteractionTimeoutOf(options);
+    return timeout === undefined ? "" : ` --timedInteractionTimeoutMs ${timeout}`;
 }
 
 function clusterArg(path: AttributePathSpec) {

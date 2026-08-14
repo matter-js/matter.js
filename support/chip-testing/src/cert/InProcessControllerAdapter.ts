@@ -68,6 +68,7 @@ import type {
 } from "@matter/testing";
 import { LineQueue, LogFollower } from "@matter/testing";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { timedInteractionTimeoutOf } from "./timed-interaction.js";
 
 /**
  * Attributes a matter.js controller `write`/`invoke` call to the {@link InProcessControllerAdapter} whose
@@ -116,11 +117,11 @@ function toIds(path: AttributePathSpec) {
  * for.
  */
 function timedInteraction(options?: TimedInteractionOptions) {
-    const { timedInteractionTimeoutMs } = options ?? {};
-    if (timedInteractionTimeoutMs === undefined) {
+    const timeout = timedInteractionTimeoutOf(options);
+    if (timeout === undefined) {
         return {};
     }
-    return { timed: true, timeout: Millis(timedInteractionTimeoutMs) };
+    return { timed: true, timeout: Millis(timeout) };
 }
 
 function isConcretePath(path: AttributePathSpec) {

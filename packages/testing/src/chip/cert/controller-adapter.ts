@@ -157,9 +157,8 @@ export interface AttributeWriteStatus {
  * Omitted, the controller sends the interaction untimed unless the command or attribute requires
  * timed interaction on its own.
  *
- * The field is a `uint16` on the wire (§ 10.6.11's `TimedRequestMessage`), and chip-tool bounds its own
- * argument the same way; a larger or fractional value is rejected by whichever controller runs, each in
- * its own way.
+ * The field is a `uint16` on the wire (§ 10.6.11's `TimedRequestMessage`). A value outside that range,
+ * or a fractional one, is refused by every adapter before it issues anything.
  */
 export interface TimedInteractionOptions {
     timedInteractionTimeoutMs?: number;

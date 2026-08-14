@@ -1081,6 +1081,47 @@ describe("ChipToolControllerAdapter", function () {
         });
     });
 
+    describe("timed interactions", () => {
+        it("asks chip-tool for a timed invoke and a timed write", async () => {
+            const { ref, node } = await commissioned();
+
+            fake.reply = () => ({ results: [] });
+            await node.invoke(requireId(ON_OFF.id, "OnOff"), "on", undefined, 1, { timedInteractionTimeoutMs: 200 });
+            await node.writeAttribute({ endpoint: 1, cluster: LEVEL_CONTROL.id, attribute: ON_LEVEL.id }, 5, {
+                timedInteractionTimeoutMs: 200,
+            });
+
+            expect(fake.commands).deep.equal([
+                `any command-by-id 0x6 0x1 {} ${ref} 1 --timedInteractionTimeoutMs 200`,
+                `any write-by-id 0x8 0x11 5 ${ref} 1 --timedInteractionTimeoutMs 200`,
+            ]);
+        });
+
+        it("sends nothing about timing for an interaction that asked for none", async () => {
+            const { ref, node } = await commissioned();
+
+            fake.reply = () => ({ results: [] });
+            await node.invoke(requireId(ON_OFF.id, "OnOff"), "on", undefined, 1);
+
+            expect(fake.commands).deep.equal([`any command-by-id 0x6 0x1 {} ${ref} 1`]);
+        });
+
+        it("refuses a timeout the wire cannot carry, before issuing anything", async () => {
+            const { node } = await commissioned();
+
+            for (const timedInteractionTimeoutMs of [200.5, -1, 0x10000]) {
+                expect(
+                    await rejectionOf(
+                        node.invoke(requireId(ON_OFF.id, "OnOff"), "on", undefined, 1, { timedInteractionTimeoutMs }),
+                    ),
+                    `timeout ${timedInteractionTimeoutMs}`,
+                ).instanceOf(ImplementationError);
+            }
+
+            expect(fake.commands).deep.equal([]);
+        });
+    });
+
     describe("subscribe", () => {
         const PATH = { endpoint: 1, cluster: ON_OFF.id, attribute: ON_OFF_ATTRIBUTE.id };
         const INTERVALS = { minIntervalFloorSeconds: 1, maxIntervalCeilingSeconds: 10 };
