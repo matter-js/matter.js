@@ -18,7 +18,6 @@ import { TestFileDescriptor } from "../../test-descriptor.js";
 import { resolveChipBinsSource } from "../chip-bins.js";
 import { chip } from "../chip.js";
 import { State } from "../state.js";
-import { chipImageBase, ChipDockerSubject, ChipLocalSubject, resolveChipLocalAppDir } from "./chip-app-subject.js";
 import {
     CertDevice,
     CertDeviceFactory,
@@ -28,6 +27,7 @@ import {
     DeviceFlavor,
 } from "./cert-context.js";
 import { CertTest, registerCertTestFactory } from "./cert-test.js";
+import { chipImageBase, ChipDockerSubject, ChipLocalSubject, resolveChipLocalAppDir } from "./chip-app-subject.js";
 import { ControllerAdapter, createControllerAdapter } from "./controller-adapter.js";
 import { ControllerImplementation, resolveControllerImplementation, resolveDeviceFlavor } from "./device-config.js";
 import { EvidenceRecorder } from "./evidence.js";

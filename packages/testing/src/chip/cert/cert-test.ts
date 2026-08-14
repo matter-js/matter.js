@@ -7,8 +7,8 @@
 import type { Subject } from "../../device/subject.js";
 import { BaseTest } from "../../device/test.js";
 import type { Container } from "../../docker/container.js";
-import { delay } from "../../util/async.js";
 import { TestDescriptor, TestFileDescriptor } from "../../test-descriptor.js";
+import { delay } from "../../util/async.js";
 import { PicsExpression } from "../pics/expression.js";
 import { PicsUnavailableError, type PicsFile } from "../pics/file.js";
 import {

@@ -195,14 +195,14 @@ To allow a simple use of the matter.js Monorepo based project in other projects,
 
 matter.js relies very much on TypeScript and tries to be as type safe as possible. Please prevent using ts-ignore or other "hacks" as best as possible and try to find and fix the real typing issue if you encounter cases where you need to use them. You can also always join discord or ask in GitHub discussions if you need help.
 
-The project contains eslint as linter and prettier as formatter. The configuration files are located in the root directory and are valid for all packages.
+The project contains oxlint as linter and oxfmt as formatter. The configuration files are located in the root directory and are valid for all packages.
 
 The following commands are available:
 
-- `npm run lint`: runs eslint on all packages and outputs the results and errors
-- `npm run lint-fix`: runs eslint on all packages and tries to fix the errors
-- `npm run format`: runs typescript-formatter on all packages and formats the code. Files will be changed in place.
-- `npm run format-verify`: runs typescript-formatter on all packages and checks if the code is formatted correctly. If not it will output the files that need to be formatted.
+- `npm run lint`: runs oxlint on all packages and outputs the results and errors
+- `npm run lint-fix`: runs oxlint on all packages and tries to fix the errors
+- `npm run format`: runs oxfmt on all packages and formats the code. Files will be changed in place.
+- `npm run format-verify`: runs oxfmt on all packages and checks if the code is formatted correctly. If not it will output the files that need to be formatted.
 
 If you want to contribute to the project please make sure to check linting and formatting before creating a PR. The GitHub CI also verifies this and will fail if the code is not formatted correctly.
 

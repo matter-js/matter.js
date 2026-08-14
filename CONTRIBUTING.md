@@ -118,7 +118,7 @@ npm run lint
 npm run test
 ```
 
-CI enforces build, formatting, linting and tests. Use these scripts rather than calling prettier,
+CI enforces build, formatting, linting and tests. Use these scripts rather than calling oxfmt,
 oxlint or the test runner directly.
 
 Tests are expected for behavior changes. If a change genuinely cannot be covered automatically,

@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError } from "../MatterError.js";
 import { Diagnostic } from "../log/Diagnostic.js";
+import { ImplementationError } from "../MatterError.js";
 import { isObject } from "../util/Type.js";
 import type { Environment } from "./Environment.js";
 import { Environmental } from "./Environmental.js";

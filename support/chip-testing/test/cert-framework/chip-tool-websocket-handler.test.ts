@@ -6,8 +6,8 @@
 
 import { Bytes } from "@matter/main";
 import { Matter } from "@matter/model";
-import { convertWebsocketDataToMatter } from "../../src/ChipToolWebSocketHandler.js";
 import { expect } from "chai";
+import { convertWebsocketDataToMatter } from "../../src/ChipToolWebSocketHandler.js";
 
 const NETWORK_COMMISSIONING = Matter.clusters.require("NetworkCommissioning");
 const LAST_NETWORK_ID_ATTRIBUTE = NETWORK_COMMISSIONING.attributes.require("lastNetworkID");

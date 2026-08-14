@@ -7,8 +7,8 @@
 import { Logger } from "@matter/general";
 import { DclCertificateService } from "@matter/protocol";
 import { Argv } from "yargs";
-import { MatterNode } from "../MatterNode.js";
 import { setLogLevel } from "../app.js";
+import { MatterNode } from "../MatterNode.js";
 
 export default function commands(theNode: MatterNode) {
     return {

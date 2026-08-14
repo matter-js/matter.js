@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { AggregatorDt } from "@matter/model";
 import { Endpoint as NodeEndpoint } from "@matter/node";
 import { ComposedDevice } from "./ComposedDevice.js";

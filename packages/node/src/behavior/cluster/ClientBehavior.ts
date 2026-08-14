@@ -5,8 +5,8 @@
  */
 
 import type { ClusterType } from "@matter/types";
-import { ClusterBehavior } from "./ClusterBehavior.js";
 import { clientBrand, markClientBehavior } from "./cluster-behavior-utils.js";
+import { ClusterBehavior } from "./ClusterBehavior.js";
 
 /**
  * Client view of a {@link ClusterBehavior}.

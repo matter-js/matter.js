@@ -6,8 +6,8 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
-import type { ServerNode } from "#node/ServerNode.js";
 import { ServerEndpointInitializer } from "#node/server/ServerEndpointInitializer.js";
+import type { ServerNode } from "#node/ServerNode.js";
 import {
     AppAddress,
     Crypto,

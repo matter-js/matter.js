@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { Construction, Environment, InternalError, Logger, ObserverGroup, UdpTransport } from "@matter/general";
 import { Fabric, FabricManager } from "@matter/protocol";
 import { FabricIndex, GroupId } from "@matter/types";

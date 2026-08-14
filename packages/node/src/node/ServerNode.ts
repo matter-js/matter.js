@@ -33,9 +33,9 @@ import {
     SessionManager,
 } from "@matter/protocol";
 import { RootEndpoint as BaseRootEndpoint } from "../endpoints/root.js";
+import { Peers } from "./client/Peers.js";
 import { Node } from "./Node.js";
 import { Plugins } from "./Plugins.js";
-import { Peers } from "./client/Peers.js";
 import { ServerEnvironment } from "./server/ServerEnvironment.js";
 
 /**
