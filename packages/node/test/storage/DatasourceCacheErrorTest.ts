@@ -6,7 +6,7 @@
 
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
 import { DatasourceCache } from "#storage/client/DatasourceCache.js";
-import { MemoryStorageDriver, Seconds, StorageDriver } from "@matter/general";
+import { Lifetime, MemoryStorageDriver, Seconds, StorageDriver, Transaction } from "@matter/general";
 import { Val } from "@matter/protocol";
 import { EndpointNumber } from "@matter/types";
 
@@ -19,6 +19,7 @@ function createCache(options?: {
 }) {
     return new DatasourceCache({
         writer: (() => {}) as any,
+        nodeId: "test-peer",
         endpointNumber: EndpointNumber(1),
         behaviorId: "test",
         localWriter: options?.localWriter as any,
@@ -114,6 +115,32 @@ describe("DatasourceCache error handling", () => {
 
             const result = await cache.flush();
             expect(result).undefined;
+        });
+    });
+
+    describe("remote write participants", () => {
+        it("registers same-named peers of different controllers in one transaction", async () => {
+            const transaction = Transaction.open("test", Lifetime.mock, "rw");
+            await createCache().set(transaction, { onOff: true });
+            await createCache().set(transaction, { onOff: false });
+
+            expect([...transaction.participants]).length(2);
+
+            await transaction.resolve(undefined);
+        });
+
+        it("reuses one participant for the same peer", async () => {
+            const writer = (() => {}) as any;
+            const cacheFor = (behaviorId: string) =>
+                new DatasourceCache({ writer, nodeId: "peer1", endpointNumber: EndpointNumber(1), behaviorId });
+
+            const transaction = Transaction.open("test", Lifetime.mock, "rw");
+            await cacheFor("6").set(transaction, { onOff: true });
+            await cacheFor("8").set(transaction, { currentLevel: 1 });
+
+            expect([...transaction.participants]).length(1);
+
+            await transaction.resolve(undefined);
         });
     });
 });

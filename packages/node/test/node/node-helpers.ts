@@ -5,7 +5,17 @@
  */
 
 import { BasicInformationBehavior } from "#behaviors/basic-information";
-import { CommissioningServer, InteractionServer, NetworkClient, ServerNode } from "#index.js";
+import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
+import {
+    ClientEndpointInitializer,
+    ClientNode,
+    CommissioningServer,
+    Endpoint,
+    InteractionServer,
+    NetworkClient,
+    ServerNode,
+} from "#index.js";
+import type { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { Bytes, Crypto, InternalError } from "@matter/general";
 import { Specification } from "@matter/model";
 import {
@@ -15,6 +25,7 @@ import {
     InteractionServerMessenger,
     InvokeResponseForSend,
     Message,
+    Val,
     MessageType,
     SessionType,
     SustainedSubscription,
@@ -394,6 +405,32 @@ export namespace interaction {
 
         return { attributes, events };
     }
+}
+
+/**
+ * Seed a peer's local cache as if the device had reported {@link values}, keyed by attribute ID.
+ *
+ * This is the only way for a test to install cached values a write cannot produce, such as a stale value for a
+ * read-only attribute.
+ */
+export async function seedPeerCache(
+    peer: ClientNode,
+    endpoint: Endpoint,
+    type: ClusterBehavior.Type,
+    values: Val.StructMap,
+) {
+    const initializer = peer.env.get(EndpointInitializer);
+    if (!(initializer instanceof ClientEndpointInitializer)) {
+        throw new InternalError(`Node ${peer.id} is not a client node`);
+    }
+
+    // storeForRemote() creates structure on miss, leaving an orphan cluster and cache behind, so check first that the
+    // behavior really is active — otherwise the store would have no consumer and seed nothing observable
+    if (initializer.structure.endpointFor(endpoint.number) !== endpoint || !endpoint.behaviors.has(type)) {
+        throw new InternalError(`${endpoint}.${type.id} is not active on ${peer.id}`);
+    }
+
+    await initializer.structure.storeForRemote(endpoint, type).externalSet(values);
 }
 
 export async function subscribedPeer(controller: ServerNode, id: string) {

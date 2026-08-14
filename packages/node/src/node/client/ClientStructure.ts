@@ -1012,11 +1012,7 @@ export class ClientStructure {
 
                 await endpoint.behaviors.drop(behavior.id);
                 try {
-                    await MaybePromise.then(
-                        (
-                            cluster.store as Datasource.ExternallyMutableStore & { erase?(): MaybePromise<void> }
-                        ).erase?.(),
-                    );
+                    await MaybePromise.then(cluster.store.erase?.());
                 } catch (e) {
                     logger.warn("Error clearing cluster storage:", e);
                 }
