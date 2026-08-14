@@ -27,7 +27,11 @@ import type {
     CertNodeRef,
     CommissioningTarget,
     ControllerAdapter,
+    EventPathSpec,
+    EventReadEntry,
     ReadAttributeOptions,
+    ReadEventOptions,
+    SubscribeEventOptions,
     SubscribeOptions,
 } from "@matter/testing";
 import { LineQueue, LogFollower, UnsupportedByControllerError } from "@matter/testing";
@@ -44,6 +48,7 @@ const CONTROLLER = "chip-tool";
 
 const WILDCARD_CLUSTER = 0xffffffff;
 const WILDCARD_ATTRIBUTE = 0xffffffff;
+const WILDCARD_EVENT = 0xffffffff;
 const WILDCARD_ENDPOINT = 0xffff;
 
 /**
@@ -109,12 +114,33 @@ function endpointArg(path: AttributePathSpec) {
     return path.endpoint === undefined ? hex(WILDCARD_ENDPOINT) : String(path.endpoint);
 }
 
+function eventClusterArg(path: EventPathSpec) {
+    return hex(path.cluster ?? WILDCARD_CLUSTER);
+}
+
+function eventArg(path: EventPathSpec) {
+    return hex(path.event ?? WILDCARD_EVENT);
+}
+
+function eventEndpointArg(path: EventPathSpec) {
+    return path.endpoint === undefined ? hex(WILDCARD_ENDPOINT) : String(path.endpoint);
+}
+
 /** Whether `path`, wildcards included, addresses the concrete path of `entry`. */
 function pathCovers(path: AttributePathSpec, entry: { endpoint: number; cluster: number; attribute: number }) {
     return (
         (path.endpoint === undefined || path.endpoint === entry.endpoint) &&
         (path.cluster === undefined || path.cluster === entry.cluster) &&
         (path.attribute === undefined || path.attribute === entry.attribute)
+    );
+}
+
+/** {@link pathCovers} for an event path. */
+function eventPathCovers(path: EventPathSpec, entry: { endpoint: number; cluster: number; event: number }) {
+    return (
+        (path.endpoint === undefined || path.endpoint === entry.endpoint) &&
+        (path.cluster === undefined || path.cluster === entry.cluster) &&
+        (path.event === undefined || path.event === entry.event)
     );
 }
 
@@ -212,6 +238,15 @@ interface ChipAttributeValue {
     version?: number;
 }
 
+/** An event chip-tool reported, from a read's response or from a subscription's report. */
+interface ChipEventValue {
+    endpoint: number;
+    cluster: number;
+    event: number;
+    eventNumber: bigint;
+    value: unknown;
+}
+
 /** A command response payload chip-tool reported. */
 interface ChipCommandResponse {
     endpoint: number;
@@ -226,6 +261,7 @@ interface ChipPathStatus {
     cluster?: number;
     attribute?: number;
     command?: number;
+    event?: number;
     status: ChipStatus;
     clusterStatus?: number;
 }
@@ -238,6 +274,7 @@ interface ChipGlobalStatus {
 
 interface ChipReply {
     values: ChipAttributeValue[];
+    events: ChipEventValue[];
     responses: ChipCommandResponse[];
     /** Statuses carrying a path: for a wildcard expansion these are per-item, not a command failure. */
     statuses: ChipPathStatus[];
@@ -262,11 +299,23 @@ function isExitFailureMarker(result: unknown) {
     return isObject(result) && Object.keys(result).length === 1 && result.error === "FAILURE";
 }
 
+/** A concrete path chip-tool reported an entry for, of either kind. */
+type ReportedPath = { endpoint: number; cluster: number } & (
+    | { attribute: number; event?: undefined }
+    | { event: number; attribute?: undefined }
+);
+
+/** The paths a chip-tool command asked about, by kind. */
+interface RequestedPaths {
+    attributes?: AttributePathSpec[];
+    events?: EventPathSpec[];
+}
+
 /**
  * Whether the command a reply belongs to could itself have produced an entry for one concrete path,
  * as opposed to a live subscription of some other command.
  */
-type OwnPathTest = (path: { endpoint: number; cluster: number; attribute: number }) => boolean;
+type OwnPathTest = (path: ReportedPath) => boolean;
 
 /**
  * Whether `result` accounts for the command's non-zero exit, which only an interaction status can:
@@ -281,17 +330,38 @@ function accountsForFailure(result: unknown, isOwnPath: OwnPathTest) {
     const endpoint = numberOf(result, "endpointId");
     const cluster = numberOf(result, "clusterId");
     const attribute = numberOf(result, "attributeId");
-    if (endpoint === undefined || cluster === undefined || attribute === undefined) {
-        // Only an attribute status carries a whole attribute path, so a status with less than one
-        // cannot be a subscription's report and is this command's own
+    const event = numberOf(result, "eventId");
+    if (endpoint === undefined || cluster === undefined) {
+        // Only a per-path status carries a whole path, so a status with less than one cannot be a
+        // subscription's report and is this command's own
         return true;
     }
-    return isOwnPath({ endpoint, cluster, attribute });
+    // Event first, matching ChipToolControllerAdapter's own #isOwnPath, so the two never classify one
+    // entry against different subscription lists
+    if (event !== undefined) {
+        return isOwnPath({ endpoint, cluster, event });
+    }
+    if (attribute !== undefined) {
+        return isOwnPath({ endpoint, cluster, attribute });
+    }
+    return true;
+}
+
+function bigIntOf(entry: Record<string, unknown>, key: string): bigint | undefined {
+    const value = entry[key];
+    if (typeof value === "bigint") {
+        return value;
+    }
+    if (typeof value === "number") {
+        return BigInt(value);
+    }
+    return undefined;
 }
 
 function interpretReply(results: unknown[], isOwnPath: OwnPathTest): ChipReply {
     const reply: ChipReply = {
         values: new Array<ChipAttributeValue>(),
+        events: new Array<ChipEventValue>(),
         responses: new Array<ChipCommandResponse>(),
         statuses: new Array<ChipPathStatus>(),
         globalStatuses: new Array<ChipGlobalStatus>(),
@@ -324,6 +394,7 @@ function interpretReply(results: unknown[], isOwnPath: OwnPathTest): ChipReply {
         const cluster = numberOf(result, "clusterId");
         const attribute = numberOf(result, "attributeId");
         const command = numberOf(result, "commandId");
+        const event = numberOf(result, "eventId");
 
         if ("error" in result) {
             const status: ChipPathStatus = {
@@ -331,6 +402,7 @@ function interpretReply(results: unknown[], isOwnPath: OwnPathTest): ChipReply {
                 cluster,
                 attribute,
                 command,
+                event,
                 status: statusOf(result.error),
                 clusterStatus: numberOf(result, "clusterError"),
             };
@@ -348,6 +420,19 @@ function interpretReply(results: unknown[], isOwnPath: OwnPathTest): ChipReply {
 
         if (command !== undefined) {
             reply.responses.push({ endpoint, cluster, command, value: result.value });
+            continue;
+        }
+
+        if (event !== undefined) {
+            const eventNumber = bigIntOf(result, "eventNumber");
+            if (eventNumber === undefined) {
+                // Reporting an invented number would let a step order events by it
+                throw new UnexpectedDataError(
+                    `chip-tool reported event ${hex(event)} of cluster ${hex(cluster)} on endpoint ${endpoint} ` +
+                        "without an event number",
+                );
+            }
+            reply.events.push({ endpoint, cluster, event, eventNumber, value: result.value });
             continue;
         }
 
@@ -375,6 +460,12 @@ interface LiveSubscription {
     onUpdate?: (value: unknown) => void;
 }
 
+/** As {@link LiveSubscription}, for a subscription to events. */
+interface LiveEventSubscription {
+    paths: EventPathSpec[];
+    onUpdate?: (event: EventReadEntry) => void;
+}
+
 interface AttributeSchema {
     cluster: ClusterModel;
     attribute: ValueModel;
@@ -399,6 +490,25 @@ function encodeAttributeValue(cluster: number, attribute: number, value: unknown
     const schema = attributeSchemaOf(cluster, attribute);
     const wire = schema === undefined ? value : matterToChipJson(value, schema.attribute, schema.cluster, "hex");
     return stringifyChipJson(wire);
+}
+
+/** An event the model has no definition for passes through unconverted, as an attribute's value does. */
+function decodeEventValue(entry: ChipEventValue) {
+    const clusterModel = Matter.clusters(entry.cluster);
+    const eventModel = clusterModel?.events(entry.event);
+    return clusterModel === undefined || eventModel === undefined
+        ? entry.value
+        : chipJsonToMatter(entry.value, eventModel, clusterModel);
+}
+
+function toEventEntries(events: ChipEventValue[]): EventReadEntry[] {
+    return events.map(entry => ({
+        endpoint: entry.endpoint,
+        cluster: entry.cluster,
+        event: entry.event,
+        eventNumber: entry.eventNumber,
+        value: decodeEventValue(entry),
+    }));
 }
 
 function toReadEntries(values: ChipAttributeValue[]): AttributeReadEntry[] {
@@ -437,6 +547,25 @@ function statusFor(statuses: ChipPathStatus[], path: { endpoint?: number; cluste
             status.attribute === path.attribute &&
             (path.endpoint === undefined || status.endpoint === path.endpoint),
     );
+}
+
+/** {@link statusFor} for the concrete event paths of a request; a wildcard path's statuses are per-item. */
+function eventStatusFor(statuses: ChipPathStatus[], paths: EventPathSpec[]) {
+    for (const path of paths) {
+        if (path.endpoint === undefined || path.cluster === undefined || path.event === undefined) {
+            continue;
+        }
+        const status = statuses.find(
+            candidate =>
+                candidate.endpoint === path.endpoint &&
+                candidate.cluster === path.cluster &&
+                candidate.event === path.event,
+        );
+        if (status !== undefined) {
+            return { path, status };
+        }
+    }
+    return undefined;
 }
 
 /**
@@ -693,6 +822,77 @@ class ChipToolCertNodeApi implements CertNodeApi {
         return toReadEntries(seed);
     }
 
+    /**
+     * Reads through `any read-event-by-id`.
+     *
+     * chip-tool's reports carry no subscription id and no node id, so an event a live subscription
+     * covers cannot be told from one this read asked for: a report chip-tool records into this
+     * command's result slot is returned here as well as delivered to that subscription's `onUpdate`.
+     * Assert on the events, not on how many arrived.
+     */
+    async readEvents(paths: EventPathSpec[], options?: ReadEventOptions): Promise<EventReadEntry[]> {
+        if (paths.length === 0) {
+            throw new ImplementationError("readEvents requires at least one path");
+        }
+        if (paths.length > MAX_PATHS_PER_COMMAND) {
+            throw new UnsupportedByControllerError(
+                "readEvents",
+                CONTROLLER,
+                `${paths.length} paths exceeds chip-tool's limit of ${MAX_PATHS_PER_COMMAND} per read`,
+            );
+        }
+
+        // chip-tool zips its cluster/event/endpoint id lists element-wise, as it does for attributes
+        let command =
+            `any read-event-by-id ${paths.map(eventClusterArg).join(",")} ${paths.map(eventArg).join(",")} ` +
+            `${this.#node} ${paths.map(eventEndpointArg).join(",")}`;
+        if (options?.fabricFiltered === false) {
+            command += " --fabric-filtered false";
+        }
+        if (options?.minEventNumber !== undefined) {
+            command += ` --event-min ${options.minEventNumber}`;
+        }
+
+        const reply = await this.#adapter.execute(command, { events: paths });
+        assertNoFailure(reply, `readEvents ${JSON.stringify(paths)}`);
+
+        const refused = eventStatusFor(reply.statuses, paths);
+        if (refused !== undefined) {
+            throw new StatusResponseError(
+                `readEvents ${JSON.stringify(refused.path)} failed`,
+                codeOf(refused.status.status, "readEvents"),
+                refused.status.clusterStatus,
+            );
+        }
+
+        return toEventEntries(reply.events.filter(entry => paths.some(path => eventPathCovers(path, entry))));
+    }
+
+    /**
+     * Subscribes through `any subscribe-event-by-id`; the events chip-tool recorded into the
+     * establishing command's own reply are the priming report and this call's return value, and every
+     * report after them reaches `opts.onUpdate` — the same single-result-slot caveats
+     * {@link ChipToolCertNodeApi.subscribe} documents apply.
+     *
+     * A subscription is attributed by event path alone, since chip-tool's reports carry no node id:
+     * two nodes of one adapter subscribed to the same path each see the other's reports.
+     */
+    async subscribeEvents(paths: EventPathSpec[], opts: SubscribeEventOptions): Promise<EventReadEntry[]> {
+        if (paths.length === 0) {
+            throw new ImplementationError("subscribeEvents requires at least one path");
+        }
+        if (paths.length > MAX_PATHS_PER_COMMAND) {
+            throw new UnsupportedByControllerError(
+                "subscribeEvents",
+                CONTROLLER,
+                `${paths.length} paths exceeds chip-tool's limit of ${MAX_PATHS_PER_COMMAND} per subscription`,
+            );
+        }
+
+        const reply = await this.#adapter.subscribeEvents(this.#node, paths, opts);
+        return toEventEntries(reply.events.filter(entry => paths.some(path => eventPathCovers(path, entry))));
+    }
+
     async openCommissioningWindow(opts: {
         timeout: number;
         enhanced: boolean;
@@ -742,7 +942,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
         if (options?.fabricFiltered === false) {
             command += " --fabric-filtered false";
         }
-        return this.#adapter.execute(command, paths);
+        return this.#adapter.execute(command, { attributes: paths });
     }
 
     #write(entries: AttributeWriteEntry[], operation: string) {
@@ -772,10 +972,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
             command += ` --data-version ${versions.join(",")}`;
         }
 
-        return this.#adapter.execute(
-            command,
-            entries.map(({ path }) => path),
-        );
+        return this.#adapter.execute(command, { attributes: entries.map(({ path }) => path) });
     }
 }
 
@@ -811,6 +1008,7 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
 
     readonly #logStream = new LineQueue();
     readonly #subscriptions = new Array<LiveSubscription>();
+    readonly #eventSubscriptions = new Array<LiveEventSubscription>();
     readonly #commissionerName: ChipToolCommissionerName;
     #storageDirectory?: string;
     #client?: ChipToolClient;
@@ -942,7 +1140,7 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
             `any subscribe-by-id ${clusterArg(path)} ${attributeArg(path)} ` +
                 `${opts.minIntervalFloorSeconds} ${opts.maxIntervalCeilingSeconds} ${node} ` +
                 `${endpointArg(path)} --keepSubscriptions true`,
-            [path],
+            { attributes: [path] },
         );
         assertNoFailure(reply, `subscribe ${JSON.stringify(path)}`);
 
@@ -964,6 +1162,40 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
         // recorded into this reply were dispatched while no subscription claimed this path, so they are
         // the caller's return value and every report after them is an update.
         this.#subscriptions.push({ path, onUpdate: opts.onUpdate });
+        this.#requireClient().armReports();
+
+        return reply;
+    }
+
+    /** {@link subscribe} for events. */
+    async subscribeEvents(node: string, paths: EventPathSpec[], opts: SubscribeEventOptions): Promise<ChipReply> {
+        let command =
+            `any subscribe-event-by-id ${paths.map(eventClusterArg).join(",")} ${paths.map(eventArg).join(",")} ` +
+            `${opts.minIntervalFloorSeconds} ${opts.maxIntervalCeilingSeconds} ${node} ` +
+            `${paths.map(eventEndpointArg).join(",")} --keepSubscriptions true`;
+        if (opts.fabricFiltered === false) {
+            command += " --fabric-filtered false";
+        }
+        if (opts.minEventNumber !== undefined) {
+            command += ` --event-min ${opts.minEventNumber}`;
+        }
+
+        const reply = await this.execute(command, { events: paths });
+        assertNoFailure(reply, `subscribeEvents ${JSON.stringify(paths)}`);
+
+        // A refused concrete path leaves the subscription established on the device, which nothing
+        // here can revoke; not registering it is what keeps its reports away from the `onUpdate` of a
+        // step that has already failed on this rejection. They reach the controller log instead.
+        const refused = eventStatusFor(reply.statuses, paths);
+        if (refused !== undefined) {
+            throw new StatusResponseError(
+                `subscribeEvents ${JSON.stringify(refused.path)} failed`,
+                codeOf(refused.status.status, "subscribeEvents"),
+                refused.status.clusterStatus,
+            );
+        }
+
+        this.#eventSubscriptions.push({ paths, onUpdate: opts.onUpdate });
         this.#requireClient().armReports();
 
         return reply;
@@ -1024,21 +1256,19 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
     /**
      * Sends one chip-tool command line and interprets its `results`.
      *
-     * `requested` names the attribute paths the command itself asked about, which is what tells an
-     * entry the command produced from a report that merely rode along in its reply.
+     * `requested` names the paths the command itself asked about, which is what tells an entry the
+     * command produced from a report that merely rode along in its reply.
      */
-    async execute(command: string, requested?: AttributePathSpec[]): Promise<ChipReply> {
+    async execute(command: string, requested?: RequestedPaths): Promise<ChipReply> {
         return (await this.executeWithLogs(command, requested)).reply;
     }
 
     /** As {@link execute}, plus the reply's own decoded log lines for a command that answers only in logs. */
-    async executeWithLogs(
-        command: string,
-        requested?: AttributePathSpec[],
-    ): Promise<{ reply: ChipReply; logs: string[] }> {
+    async executeWithLogs(command: string, requested?: RequestedPaths): Promise<{ reply: ChipReply; logs: string[] }> {
         const result = await this.#requireClient().execute(command);
         const reply = interpretReply(result.results, path => this.#isOwnPath(path, requested));
         this.#dispatchReports(reply.values);
+        this.#dispatchEventReports(reply.events);
         return { reply, logs: result.logs };
     }
 
@@ -1048,11 +1278,22 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
      * however many subscriptions happen to cover it too — otherwise a step that subscribes and then
      * writes the same attribute could never see the status the device answered its write with.
      */
-    #isOwnPath(path: { endpoint: number; cluster: number; attribute: number }, requested?: AttributePathSpec[]) {
-        if (requested?.some(candidate => pathCovers(candidate, path))) {
+    #isOwnPath(path: ReportedPath, requested?: RequestedPaths) {
+        if (path.event !== undefined) {
+            const entry = { endpoint: path.endpoint, cluster: path.cluster, event: path.event };
+            if (requested?.events?.some(candidate => eventPathCovers(candidate, entry))) {
+                return true;
+            }
+            return !this.#eventSubscriptions.some(subscription =>
+                subscription.paths.some(candidate => eventPathCovers(candidate, entry)),
+            );
+        }
+
+        const entry = { endpoint: path.endpoint, cluster: path.cluster, attribute: path.attribute };
+        if (requested?.attributes?.some(candidate => pathCovers(candidate, entry))) {
             return true;
         }
-        return !this.#subscriptions.some(subscription => pathCovers(subscription.path, path));
+        return !this.#subscriptions.some(subscription => pathCovers(subscription.path, entry));
     }
 
     #requireClient() {
@@ -1103,6 +1344,44 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
         return claimed;
     }
 
+    /** {@link #dispatchReports} for events. */
+    #dispatchEventReports(events: ChipEventValue[]) {
+        let claimed = false;
+
+        for (const entry of events) {
+            const subscribers = this.#eventSubscriptions.filter(subscription =>
+                subscription.paths.some(path => eventPathCovers(path, entry)),
+            );
+            if (subscribers.length === 0) {
+                continue;
+            }
+            claimed = true;
+
+            let report: EventReadEntry;
+            try {
+                report = toEventEntries([entry])[0];
+            } catch (e) {
+                this.#logStream.push(
+                    `Undecodable chip-tool event report for endpoint ${entry.endpoint} cluster ${entry.cluster} ` +
+                        `event ${entry.event}: ${e}`,
+                );
+                continue;
+            }
+
+            for (const subscriber of subscribers) {
+                try {
+                    subscriber.onUpdate?.(report);
+                } catch (e) {
+                    this.#logStream.push(
+                        `Event subscription callback for ${JSON.stringify(subscriber.paths)} failed: ${e}`,
+                    );
+                }
+            }
+        }
+
+        return claimed;
+    }
+
     /**
      * A result entry that arrived outside any command reply: a subscription report if a live
      * subscription covers its path, and otherwise evidence that belongs in the controller log.
@@ -1112,7 +1391,9 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
      */
     #onAsyncResult(entry: unknown) {
         try {
-            if (this.#dispatchReports(interpretReply([entry], path => this.#isOwnPath(path)).values)) {
+            const reply = interpretReply([entry], path => this.#isOwnPath(path));
+            const claimed = this.#dispatchReports(reply.values);
+            if (this.#dispatchEventReports(reply.events) || claimed) {
                 return;
             }
             this.#logStream.push(`Unattributed chip-tool result: ${stringifyChipJson(entry)}`);

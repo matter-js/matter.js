@@ -68,6 +68,46 @@ export interface SubscribeOptions {
 }
 
 /**
+ * An event path, wildcarded by omitting a field the same way {@link AttributePathSpec} is.
+ */
+export interface EventPathSpec {
+    endpoint?: number;
+    cluster?: number;
+    event?: number;
+}
+
+/**
+ * One event of a {@link CertNodeApi.readEvents} response or of a {@link CertNodeApi.subscribeEvents}
+ * report.
+ */
+export interface EventReadEntry {
+    endpoint: number;
+    cluster: number;
+    event: number;
+    /** The publisher's own event number (Matter Core § 8.10.3), which orders a node's events. */
+    eventNumber: bigint;
+    value: unknown;
+}
+
+export interface ReadEventOptions {
+    /** As {@link ReadAttributeOptions.fabricFiltered}. */
+    fabricFiltered?: boolean;
+
+    /**
+     * Reports only events at or above this event number (Matter Core § 8.9.2.4's `EventFilters`).
+     * Omitted, the request carries no filter at all, which is what the plan documents as the field's
+     * optional case.
+     */
+    minEventNumber?: bigint;
+}
+
+export interface SubscribeEventOptions extends ReadEventOptions {
+    minIntervalFloorSeconds: number;
+    maxIntervalCeilingSeconds: number;
+    onUpdate?: (event: EventReadEntry) => void;
+}
+
+/**
  * One attribute of a {@link CertNodeApi.writeAttributes} request.
  */
 export interface AttributeWriteEntry {
@@ -174,6 +214,26 @@ export interface CertNodeApi {
      * out of nothing.
      */
     subscribe(path: AttributePathSpec, opts: SubscribeOptions): Promise<unknown>;
+
+    /**
+     * Reads every event `paths` selects in one request (Matter Core § 8.4).
+     *
+     * A concrete path the device answers with a status **rejects**, matching {@link readAttribute}: the
+     * step asked for that event and got none. A wildcard path's statuses are per-item results of the
+     * expansion instead, so those are dropped and whatever data arrived is returned.
+     *
+     * A node with no records for a selected path answers with neither data nor a status, so an empty
+     * result is a successful read, not a failure.
+     */
+    readEvents(paths: EventPathSpec[], options?: ReadEventOptions): Promise<EventReadEntry[]>;
+
+    /**
+     * Subscribes to every event `paths` selects (Matter Core § 8.5), resolving with the priming
+     * report's events; later reports reach `opts.onUpdate`.
+     *
+     * Rejects on a concrete path's status for the same reason {@link subscribe} does.
+     */
+    subscribeEvents(paths: EventPathSpec[], opts: SubscribeEventOptions): Promise<EventReadEntry[]>;
     openCommissioningWindow(opts: {
         timeout: number;
         enhanced: boolean;

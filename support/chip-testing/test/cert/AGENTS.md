@@ -970,6 +970,58 @@ window. Anchor by identity instead: the subscription id from the TH's own `Subsc
 the envelope itself to pick this TC's subscriptions out from the node-level one (which chip's capture
 shows as `KeepSubscriptions = false`). Never anchor on "first match after a mark".
 
+## Reading and subscribing to events (`TC-IDM-6.3`, `TC-IDM-6.4`)
+
+`CertNodeApi` grew `readEvents(paths, options)` and `subscribeEvents(paths, opts)` for these two TCs.
+Both take an **array** of `EventPathSpec` rather than the single path `subscribe` takes — an event
+report carries its own path, so a multi-path subscription can still attribute an update to the path it
+belongs to, which is exactly what stopped `subscribe` from growing the same shape (see
+"`CertNodeApi.subscribe` cannot carry more than one path" above). `options.minEventNumber` becomes the
+request's `EventFilters`; omitting it sends no filter at all, which is the optional case both plans
+describe.
+
+Both adapters implement them. `InProcessControllerAdapter` passes the paths straight to
+`Read`/`Subscribe`'s own `events`/`eventFilters` options (`packages/protocol/src/action/request/`);
+`ChipToolControllerAdapter` runs `any read-event-by-id <clusters> <events> <node> <endpoints>` and
+`any subscribe-event-by-id <clusters> <events> <min> <max> <node> <endpoints>`, whose JSON results
+carry `eventId`/`eventNumber` where an attribute's carry `attributeId`/`dataVersion`
+(`RemoteDataModelLogger::LogEventAsJSON`) — so a report is demultiplexed to a live event subscription
+by event path, in a list of its own beside the attribute subscriptions, and an event chip-tool reports
+without an event number is an error rather than a report numbered 0.
+
+A concrete path answered with a status **rejects** in both adapters, matching the attribute side; a
+wildcard path's statuses are results of the expansion and are dropped. A node holding no record for a
+requested path answers with neither data nor a status, so an **empty result is a successful read** —
+neither TC requires the TH to have recorded anything.
+
+## chip renders an `EventPathIB` differently from an `AttributePathIB`
+
+Verified against `EventPathIB.cpp`/`AttributePathIB.cpp`/`ReadRequestMessage.cpp`, not guessed from
+the YAML captures (whose event blocks date from 2022):
+
+- The block opens `EventPath =`, not `EventPathIB =`, and **closes `},` with a comma** where an
+  `AttributePathIB` closes with a bare `}`. A sequence ending in `/\}\s*$/` therefore never matches an
+  event path block.
+- Fields print in Node/Endpoint/Cluster/Event order, and the **event id is bare lowercase hex**
+  (`0x%PRIx32`) — not the 8-digit underscore-grouped MEI an attribute id gets.
+- The list wrapper is `EventPathIBs =` then `[`, and it is adjacent to the first path block, so a
+  single-path request's whole envelope — message name, `{`, list wrapper, path block — is one
+  consecutive run `expectAdjacentLines` can verify in one call (`eventPathIBSequence` in
+  `tc-support.ts` covers the block itself).
+- `isFabricFiltered` is **not** adjacent to that run: the list's own closing lines and a blank line sit
+  in between, so it needs its own search starting after the block. chip prints it with a trailing
+  space (`fabricFilteredPattern`).
+
+## Promoting the subscription-id and report-ack checks (`TC-IDM-6.4`)
+
+`expectSubscriptionId`/`expectReportAck` (with `ACK_WAIT_TIMEOUT_MS` and their private exchange-id
+helpers) were TC-IDM-4.1-local until TC-IDM-6.4 needed the same "did the DUT ack *this* subscription's
+report" evidence for an event subscription, so they moved to `tc-support.ts` unchanged — same trigger
+as `attributePathIBSequence`'s and `commandPathIBSequence`'s own promotions. `expectSequence` (record
+an `expectAdjacentLines` result as a `CheckRecord`, turning a timeout into a recorded `"fail"`) came
+out of TC-IDM-4.1's own `expectSubscribeEnvelope` at the same time; that TC now calls the shared
+helper with its own sequence and label.
+
 ## Why the cert adapter shortens its peer-connection timeout
 
 `CERT_PEER_CONNECTION_TIMEOUT` (15s, `InProcessControllerAdapter.ts`) bounds how long a cert step's

@@ -98,6 +98,8 @@ class Fixture {
             readAttribute: unused,
             readAttributes: unused,
             writeAttributes: unused,
+            readEvents: unused,
+            subscribeEvents: unused,
             openCommissioningWindow: unused,
             operationalMdnsInstanceName: unused,
             decommission: unused,

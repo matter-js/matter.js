@@ -10,6 +10,7 @@ import type {
     CertNodeRef,
     CertStepContext,
     CheckRecord,
+    EventPathSpec,
     LogExpectResult,
     LogFollower,
     LogLine,
@@ -163,9 +164,21 @@ export function subscriptionIdPattern(subscriptionId: number): RegExp {
 // `[DMG] <MessageName> =` shape below — the same shape as REPORT_DATA_MESSAGE above. The connectedhomeip
 // YAML docs print these captures as `CHIP:DMG: <MessageName> =` instead; that's the docs' own
 // rendering, not the text LogFollower ever sees.
+export const READ_REQUEST_MESSAGE = /\[DMG\] ReadRequestMessage =\s*$/;
 export const WRITE_REQUEST_MESSAGE = /\[DMG\] WriteRequestMessage =\s*$/;
 export const INVOKE_REQUEST_MESSAGE = /\[DMG\] InvokeRequestMessage =\s*$/;
 export const SUBSCRIBE_REQUEST_MESSAGE = /\[DMG\] SubscribeRequestMessage =\s*$/;
+
+/** Opens the event-path list of a read or subscribe request (`EventPathIBs::Parser::PrettyPrint`). */
+export const EVENT_PATH_IBS_SEQUENCE = [/EventPathIBs =\s*$/, /\[\s*$/];
+
+/**
+ * The `isFabricFiltered` field a read or subscribe request carries, which chip prints with a trailing
+ * space (`ReadRequestMessage.cpp`).
+ */
+export function fabricFilteredPattern(fabricFiltered: boolean): RegExp {
+    return new RegExp(`isFabricFiltered = ${fabricFiltered},\\s*$`);
+}
 
 // chip's StatusResponseMessage decode dump carries the numeric status on its own nested line, not
 // on the same line as the message name — verified against Test_TC_IDM_4_1.yaml's captured
@@ -201,12 +214,67 @@ export function attributePathIBSequence(fields: AttributePathSpec): RegExp[] {
     return sequence;
 }
 
+/**
+ * {@link attributePathIBSequence}'s event counterpart: `EventPathIB::Parser::PrettyPrint`'s own
+ * consecutive lines, in its fixed Node/Endpoint/Cluster/Event order, with no line for an absent
+ * (wildcarded) field. Unlike an `AttributePathIB`, the block's opening line is `EventPath =` and its
+ * closing line carries a comma, and the event id is bare lowercase hex rather than a padded MEI.
+ */
+export function eventPathIBSequence(fields: EventPathSpec): RegExp[] {
+    const sequence = [/EventPath =\s*$/, /\{\s*$/];
+    if (fields.endpoint !== undefined) {
+        sequence.push(new RegExp(`Endpoint = 0x${fields.endpoint.toString(16)},\\s*$`));
+    }
+    if (fields.cluster !== undefined) {
+        sequence.push(new RegExp(`Cluster = 0x${fields.cluster.toString(16)},\\s*$`));
+    }
+    if (fields.event !== undefined) {
+        sequence.push(new RegExp(`Event = 0x${fields.event.toString(16)},\\s*$`));
+    }
+    sequence.push(/\},\s*$/);
+    return sequence;
+}
+
 // chip prints Endpoint/Cluster as bare lowercase hex (no padding, e.g. 0x1d) but Attribute as an
 // 8-digit, underscore-grouped, uppercase MEI (e.g. 0x0000_FFFD) — verified against a real
 // chip-all-clusters-app's `--trace_decode 1` output; see AGENTS.md's "wildcard path idioms" section.
 function attributeHex(id: number): string {
     const hex = id.toString(16).toUpperCase().padStart(8, "0");
     return `${hex.slice(0, 4)}_${hex.slice(4)}`;
+}
+
+/**
+ * Records whether `sequence` matches consecutive log lines at or after `from` (see
+ * {@link expectAdjacentLines}) as a check, with `label` naming what the sequence stands for in the
+ * evidence. A timeout or a source closing mid-wait is recorded `"fail"` rather than propagating, so a
+ * step's own evidence carries the miss.
+ */
+export async function expectSequence(
+    log: LogFollower,
+    flavor: string,
+    label: string,
+    sequence: RegExp[],
+    from: number,
+    timeoutMs: number,
+): Promise<CheckRecord> {
+    try {
+        const result = await expectAdjacentLines(log, flavor, sequence, from, timeoutMs);
+        if (result.verdict === "unverified") {
+            return { type: "device-log", verdict: "unverified" };
+        }
+        return {
+            type: "device-log",
+            verdict: "pass",
+            pattern: label,
+            matched: result.last.text,
+            logLine: result.last.index,
+        };
+    } catch (e) {
+        if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
+            return { type: "device-log", verdict: "fail", pattern: label, detail: e.message, logLine: from };
+        }
+        throw e;
+    }
 }
 
 /**
@@ -496,6 +564,251 @@ export async function expectChunkedTransfer(
         matched: chunks[chunks.length - 1].text,
         logLine: chunks[chunks.length - 1].index,
     };
+}
+
+// Bounds waiting for a StatusResponseMessage that should already have been sent by the time this
+// wait starts (the controller's own report-processing acks a report as part of handling it) — this
+// only needs to cover the log follower's own pump lag, not any protocol-level delay.
+export const ACK_WAIT_TIMEOUT_MS = 15_000;
+
+/** What the TH's own SubscribeResponse says about the subscription a step just established. */
+export interface SubscriptionIdLookup {
+    check: CheckRecord;
+    /** Absent when the lookup failed, and for the matterjs flavor. */
+    subscriptionId?: number;
+}
+
+/**
+ * Reads back the id the TH minted for the subscription whose SubscribeResponse it sends at or after
+ * `from`. Every step here keeps its subscriptions (`keepSubscriptions: true`) and their max interval
+ * is shorter than the whole run, so several subscriptions report concurrently from step 3 onward —
+ * the id is what tells one step's reports from another's. `"unverified"` for the matterjs flavor,
+ * whose logger emits no decode dump to read an id out of.
+ */
+export async function expectSubscriptionId(
+    log: LogFollower,
+    flavor: string,
+    from: number,
+    timeoutMs: number,
+): Promise<SubscriptionIdLookup> {
+    const sequence = [SUBSCRIBE_RESPONSE_MESSAGE, /\{\s*$/, SUBSCRIPTION_ID_LINE];
+    try {
+        const result = await expectAdjacentLines(log, flavor, sequence, from, timeoutMs);
+        if (result.verdict === "unverified") {
+            return { check: { type: "device-log", verdict: "unverified" } };
+        }
+
+        const id = SUBSCRIPTION_ID_LINE.exec(result.last.text)?.[1];
+        if (id === undefined) {
+            return {
+                check: {
+                    type: "device-log",
+                    verdict: "fail",
+                    pattern: String(SUBSCRIPTION_ID_LINE),
+                    detail: `SubscribeResponseMessage carries no readable subscription id: ${result.last.text}`,
+                    logLine: result.last.index,
+                },
+            };
+        }
+
+        return {
+            subscriptionId: parseInt(id, 16),
+            check: {
+                type: "device-log",
+                verdict: "pass",
+                pattern: String(SUBSCRIBE_RESPONSE_MESSAGE),
+                matched: result.last.text,
+                logLine: result.last.index,
+            },
+        };
+    } catch (e) {
+        if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
+            return {
+                check: {
+                    type: "device-log",
+                    verdict: "fail",
+                    pattern: String(SUBSCRIBE_RESPONSE_MESSAGE),
+                    detail: e.message,
+                    logLine: from,
+                },
+            };
+        }
+        throw e;
+    }
+}
+
+// chip's own trace line for an outbound message — printed once, immediately before that message's
+// raw/decode dump — names the CHIP Exchange id it was sent on (verified against a real capture:
+// `>> to UDP:[...] | <msgCounter> | [Interaction Model  (1) / Report Data (0x05) / Session = <s> /
+// Exchange = <id>]`). Matter Core's MRP (§ 4.12) always acks a message on the exchange it was
+// received on, and the same capture shows the DUT's ack line naming that identical id, so this is
+// what ties one specific report to one specific ack even though the two lines aren't adjacent (a
+// variable amount of raw-frame/decode-dump content sits between a trace line and its own message
+// name line, depending on payload size).
+const REPORT_SENT_LINE = /\[DMG\] >> to UDP:.*\/ Report Data \(0x05\) \/ Session = \d+ \/ Exchange = (\d+)\]\s*$/;
+
+function reportAckedOnExchange(exchange: string): RegExp {
+    return new RegExp(
+        `\\[DMG\\] << from UDP:.*/ Status Response \\(0x01\\) / Session = \\d+ / Exchange = ${exchange}\\]\\s*$`,
+    );
+}
+
+// The acknowledging message's own decode dump, which chip prints directly after the trace line above:
+// `StatusResponseMessage =`, `{`, then the status as its first nested field
+// (StatusResponseMessage::Parser::PrettyPrint). The status must be read out of *this* block — a
+// forward search for a success line instead finds the next ack in the stream, and a run acks one
+// report per write per live subscription, so a rejected report would be reported as accepted.
+const STATUS_RESPONSE_MESSAGE = /\[DMG\] StatusResponseMessage =\s*$/;
+const OPENING_BRACE = /\{\s*$/;
+// chip renders the status as `0x%02x (%s)` with `StatusName` for the name, and those names are not all
+// SCREAMING_SNAKE_CASE: a deprecated or reserved code is named after its own value (`Deprecated82`) and
+// a code outside chip's list is not named at all (`Unallocated`).
+const ANY_STATUS_LINE = /Status = 0x[\da-fA-F]+ \(\w+\),?\s*$/;
+
+// How far back from a matched ReportDataMessage's own decode dump to look for its trace line —
+// generous relative to the largest gap seen in a real capture (chunked multi-attribute priming
+// reports, tens of lines), so this is a runaway-loop guard, not a tuned bound.
+const EXCHANGE_LOOKBACK_LINES = 1000;
+
+/**
+ * The trace line naming a message's own Exchange id is the *nearest* one preceding that message's
+ * decode dump: chip logs one message at a time, so no other message's own trace line can land in
+ * between. Scanning backward from the decode dump (rather than forward from a fixed cursor) is what
+ * makes this correct regardless of how many raw-frame lines chip printed for this particular
+ * message's payload size.
+ */
+function exchangeIdBefore(log: LogFollower, beforeIndex: number): string | undefined {
+    const floor = Math.max(0, beforeIndex - EXCHANGE_LOOKBACK_LINES);
+    const lines = log.lines;
+    for (let i = beforeIndex - 1; i >= floor; i--) {
+        const match = REPORT_SENT_LINE.exec(lines[i].text);
+        if (match) {
+            return match[1];
+        }
+    }
+    return undefined;
+}
+
+/**
+ * Confirms the TH sent a report on subscription `subscriptionId` at or after `from` and that the DUT
+ * answered *that specific report* with a Success StatusResponse. The subscription id alone only
+ * proves the report is ours; several subscriptions' report/ack cycles can be in flight over the
+ * seconds it takes chip to send a report and receive its ack, so a plain "next Success StatusResponse
+ * after this report" search can still land on a different subscription's ack landing in that window.
+ * This closes that gap by reading the CHIP Exchange id our report was sent on (see
+ * {@link REPORT_SENT_LINE}) and requiring the ack to arrive on that same exchange — a different
+ * subscription's own report/ack pair carries its own, different exchange id, so it can no longer
+ * stand in for ours. `"unverified"` for the matterjs flavor (no `subscriptionId`, no chip decode
+ * dump to match).
+ */
+export async function expectReportAck(
+    log: LogFollower,
+    flavor: string,
+    subscriptionId: number | undefined,
+    from: number,
+    timeoutMs: number,
+): Promise<CheckRecord> {
+    if (subscriptionId === undefined) {
+        return { type: "device-log", verdict: "unverified" };
+    }
+
+    const deadline = Time.nowMs + timeoutMs;
+    const remaining = () => Math.max(1, deadline - Time.nowMs);
+    const pattern = `ReportDataMessage(SubscriptionId = 0x${subscriptionId.toString(16)}) then its own ${STATUS_RESPONSE_SUCCESS} (matched by Exchange id)`;
+
+    try {
+        const report = await expectAdjacentLines(
+            log,
+            flavor,
+            [REPORT_DATA_MESSAGE, /\{\s*$/, subscriptionIdPattern(subscriptionId)],
+            from,
+            remaining(),
+        );
+        if (report.verdict === "unverified") {
+            return { type: "device-log", verdict: "unverified" };
+        }
+
+        const exchange = exchangeIdBefore(log, report.last.index);
+        if (exchange === undefined) {
+            return {
+                type: "device-log",
+                verdict: "fail",
+                pattern,
+                detail: `No outbound Report Data trace line (carrying an Exchange id) found before line ${report.last.index}`,
+                logLine: report.last.index,
+            };
+        }
+
+        const ackHeader = await log.expect(
+            { chip: reportAckedOnExchange(exchange) },
+            { flavor, timeoutMs: remaining(), from: report.last.index + 1 },
+        );
+        if (ackHeader.verdict === "unverified") {
+            return { type: "device-log", verdict: "unverified" };
+        }
+
+        const messageName = await log.expect(
+            { chip: STATUS_RESPONSE_MESSAGE },
+            { flavor, timeoutMs: remaining(), from: ackHeader.matched.index + 1 },
+        );
+        if (messageName.verdict === "unverified") {
+            return { type: "device-log", verdict: "unverified" };
+        }
+
+        const brace = await log.expect(
+            { chip: OPENING_BRACE },
+            { flavor, timeoutMs: remaining(), from: messageName.matched.index + 1 },
+        );
+        if (brace.verdict === "unverified") {
+            return { type: "device-log", verdict: "unverified" };
+        }
+
+        const status = await log.expect(
+            { chip: ANY_STATUS_LINE },
+            { flavor, timeoutMs: remaining(), from: brace.matched.index + 1 },
+        );
+        if (status.verdict === "unverified") {
+            return { type: "device-log", verdict: "unverified" };
+        }
+
+        // Reading anything but this block's own first two lines means the dump did not have the shape
+        // this check reasons about, so the status found cannot be attributed to our ack.
+        if (brace.matched.index !== messageName.matched.index + 1 || status.matched.index !== brace.matched.index + 1) {
+            return {
+                type: "device-log",
+                verdict: "fail",
+                pattern,
+                detail:
+                    `StatusResponseMessage at line ${messageName.matched.index} is not followed by "{" and a ` +
+                    `status line (found "{" at ${brace.matched.index}, status at ${status.matched.index})`,
+                logLine: messageName.matched.index,
+            };
+        }
+
+        if (!STATUS_RESPONSE_SUCCESS.test(status.matched.text)) {
+            return {
+                type: "device-log",
+                verdict: "fail",
+                pattern,
+                detail: `The DUT acked our report with ${status.matched.text.trim()}`,
+                matched: status.matched.text,
+                logLine: status.matched.index,
+            };
+        }
+
+        return {
+            type: "device-log",
+            verdict: "pass",
+            pattern,
+            matched: status.matched.text,
+            logLine: status.matched.index,
+        };
+    } catch (e) {
+        if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
+            return { type: "device-log", verdict: "fail", pattern, detail: e.message, logLine: from };
+        }
+        throw e;
+    }
 }
 
 /**
