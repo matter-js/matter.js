@@ -72,6 +72,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Writing a fabric-scoped list entry that stems from a cluster whose schema could not be resolved no longer produces two conflicting fabricIndex fields
     - Fix: A rejected write to an attribute served by dynamic properties restores the previous value instead of deleting the property, and a rejected write to a previously absent attribute leaves no slot behind instead of one holding `undefined`
     - Fix: Factory reset removes commissioned peers and the certificate authority's key material; a peer that cannot be torn down no longer blocks the reset
+    - Fix: A client node's storage metadata no longer surfaces as state: a peer report that only bumps the data version emits no change notification, and `__version__` no longer appears among the changed properties or in cluster state
 
 - @matter/nodejs
     - Breaking: `FileStorageDriver`'s constructor no longer accepts a `clear` argument; clearing is handled by `StorageService`

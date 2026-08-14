@@ -107,6 +107,26 @@ describe("DatasourceCache error handling", () => {
         });
     });
 
+    describe("flush", () => {
+        it("persists a report that carried nothing but a new version", async () => {
+            const localWriter = trackingWriter();
+            const buffer = { markDirty: () => {}, removeDirty: () => {} } as any;
+            const cache = createCache({ buffer, localWriter });
+            cache.consumer = {
+                readValues: () => ({}),
+                snapshot: () => ({}),
+                releaseValues: () => ({}),
+                integrateExternalChange: async () => {},
+            } as any;
+
+            await cache.externalSet(attrs({ __version__: 5 }));
+            const flushed = await cache.flush();
+
+            expect(flushed).deep.equals(new Set(["__version__"]));
+            expect(localWriter.persisted).deep.equals([{ __version__: 5 }]);
+        });
+    });
+
     describe("restoreDirtyKeys", () => {
         it("is a no-op after erase", async () => {
             const cache = createCache();
