@@ -12,6 +12,7 @@ import { parseStep } from "../chip-test-common.js";
 import { FIFO_PATH } from "../container-command-pipe.js";
 import { createCommand, PythonTest, spiffy } from "../python-test.js";
 import type { CertStepContext } from "./cert-context.js";
+import type { LogLine } from "./log-follower.js";
 
 /**
  * Reacts to one line of a python-wrapped CHIP test script's own stdout. `pattern` identifies a prompt
@@ -40,11 +41,22 @@ export interface PromptHandler {
 export class PromptDrivenPythonTest extends PythonTest {
     #handlers: PromptHandler[];
     #cx: CertStepContext;
+    #log = new Array<LogLine>();
 
     constructor(descriptor: TestFileDescriptor, container: Container, handlers: PromptHandler[], cx: CertStepContext) {
         super(descriptor, container);
         this.#handlers = handlers;
         this.#cx = cx;
+    }
+
+    /**
+     * Every line the most recent {@link invoke} saw, ready to attach to a run's evidence. The script drives the scenario
+     * and reaches its own verdict, so a controller log alone records what the DUT did without what it was asked to do.
+     *
+     * Named unlike a {@link LogFollower}'s `lines` because it is the array itself, not a follower.
+     */
+    get logLines(): LogLine[] {
+        return [...this.#log];
     }
 
     override async initializeSubject(_subject: Subject): Promise<void> {}
@@ -66,13 +78,20 @@ export class PromptDrivenPythonTest extends PythonTest {
             { cwd: "/tmp", stdin: true },
         );
 
+        // The harness caches one test instance per descriptor, so a second run must not inherit the first run's lines
+        this.#log = [];
+
         let passed = false;
+        let handled = 0;
         try {
             for await (let line of terminal) {
+                this.#log.push({ index: this.#log.length, at: new Date(), text: line });
+
                 line = parseStep(line, step);
 
                 const handler = this.#handlers.find(h => h.pattern.test(line));
                 if (handler) {
+                    handled++;
                     const answer = await handler.action(this.#cx, line);
                     await terminal.write(answer);
                 }
@@ -87,18 +106,37 @@ export class PromptDrivenPythonTest extends PythonTest {
 
                 MockLogger.injectExternalMessage("CHIP", spiffy(line));
             }
+            // A script that prompts for out-of-band action runs to a verdict of its own either way, so one that never
+            // prompted reached that verdict without a counterparty and proves nothing about the DUT. The diagnosis is
+            // the same whether it passed or failed, so it accompanies both.
+            const unprompted = this.#handlers.length && handled === 0 ? this.#unpromptedDiagnosis() : "";
+
+            if (!passed) {
+                throw new Error(`Python test exited without error but did not indicate successful test${unprompted}`);
+            }
+
+            if (unprompted) {
+                throw new Error(
+                    `Python test ${this.descriptor.name} reported success but nothing drove the DUT${unprompted}`,
+                );
+            }
         } catch (e) {
-            // A handler that threw (e.g. an unexpected commissioning outcome) leaves the script still
-            // blocked on its own `input()` read; closing forces that read to fail instead of hanging
-            // the run for the full mocha timeout.
+            // A handler that threw leaves the script still blocked on its own `input()` read; closing forces that read
+            // to fail instead of hanging the run for the full mocha timeout. The verdict checks below the loop run once
+            // the script has already exited, so for those this is a no-op.
             await terminal.close().catch(closeError => {
                 console.warn("Error closing prompt-driven python test terminal:", closeError);
             });
             throw e;
         }
+    }
 
-        if (!passed) {
-            throw new Error("Python test exited without error but did not indicate successful test");
-        }
+    #unpromptedDiagnosis() {
+        const patterns = this.#handlers.map(h => h.pattern.toString()).join(", ");
+        return (
+            "; none of its prompt handlers ever fired — check whether the script's own PICS gating (e.g. " +
+            "PICS_SDK_CI_ONLY, which makes a script act as its own counterparty instead of prompting) suppressed " +
+            `its prompts, or whether its prompt text no longer matches ${patterns}`
+        );
     }
 }

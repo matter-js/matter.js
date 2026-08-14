@@ -313,6 +313,96 @@ describe("PromptDrivenPythonTest", () => {
         expect(terminal.writes).to.deep.equal([]);
     });
 
+    it("throws when the script reports PASS but no declared handler ever fired", async () => {
+        const terminal = new FakeTerminal(["a script that answered its own prompts", PASS_LINE]);
+        const { container } = fakeContainer(terminal);
+
+        const handlers: PromptHandler[] = [
+            {
+                pattern: /Manual Pairing Code:/,
+                async action() {
+                    return "\n";
+                },
+            },
+        ];
+
+        const test = new PromptDrivenPythonTest(stubDescriptor(), container, handlers, stubCx());
+
+        await expect(test.invoke(stubSubject(), () => {}, NO_PICS_LOOKUP_ARGS, false)).rejectedWith(
+            "none of its prompt handlers ever fired",
+        );
+    });
+
+    it("carries the unprompted diagnosis on the no-verdict error too", async () => {
+        const terminal = new FakeTerminal(["a script that failed before prompting", "no verdict here"]);
+        const { container } = fakeContainer(terminal);
+
+        const handlers: PromptHandler[] = [
+            {
+                pattern: /Manual Pairing Code:/,
+                async action() {
+                    return "\n";
+                },
+            },
+        ];
+
+        const test = new PromptDrivenPythonTest(stubDescriptor(), container, handlers, stubCx());
+
+        await expect(test.invoke(stubSubject(), () => {}, NO_PICS_LOOKUP_ARGS, false)).rejectedWith(
+            /did not indicate successful test; none of its prompt handlers ever fired/,
+        );
+    });
+
+    // Characterization: pins the boundary of the guard above, and passes with or without it.
+    it("does not require a handler to fire when the test declares none", async () => {
+        const terminal = new FakeTerminal(["no prompts at all", PASS_LINE]);
+        const { container } = fakeContainer(terminal);
+
+        const test = new PromptDrivenPythonTest(stubDescriptor(), container, [], stubCx());
+        await test.invoke(stubSubject(), () => {}, NO_PICS_LOOKUP_ARGS, false);
+    });
+
+    it("records every script line for evidence, including the ones no handler matched", async () => {
+        const terminal = new FakeTerminal([
+            "an ordinary log line nobody reacts to",
+            "  Manual Pairing Code: 1111-222-3333  (chip-tool: pairing onnetwork 1 20202021)",
+            PASS_LINE,
+        ]);
+        const { container } = fakeContainer(terminal);
+
+        const handlers: PromptHandler[] = [
+            {
+                pattern: /Manual Pairing Code:/,
+                async action() {
+                    return "\n";
+                },
+            },
+        ];
+
+        const test = new PromptDrivenPythonTest(stubDescriptor(), container, handlers, stubCx());
+        await test.invoke(stubSubject(), () => {}, NO_PICS_LOOKUP_ARGS, false);
+
+        expect(test.logLines.map(line => line.text)).to.deep.equal([
+            "an ordinary log line nobody reacts to",
+            "  Manual Pairing Code: 1111-222-3333  (chip-tool: pairing onnetwork 1 20202021)",
+            PASS_LINE,
+        ]);
+        expect(test.logLines.map(line => line.index)).to.deep.equal([0, 1, 2]);
+    });
+
+    it("records the script's lines even when it reports no verdict", async () => {
+        const terminal = new FakeTerminal(["the line that explains the failure", "no verdict here"]);
+        const { container } = fakeContainer(terminal);
+
+        const test = new PromptDrivenPythonTest(stubDescriptor(), container, [], stubCx());
+        await expect(test.invoke(stubSubject(), () => {}, NO_PICS_LOOKUP_ARGS, false)).rejected;
+
+        expect(test.logLines.map(line => line.text)).to.deep.equal([
+            "the line that explains the failure",
+            "no verdict here",
+        ]);
+    });
+
     it("initializeSubject() is a no-op — there is no subject to pre-pair, commissioning is interactive", async () => {
         const { container } = fakeContainer(new FakeTerminal([]));
         const test = new PromptDrivenPythonTest(stubDescriptor(), container, [], stubCx());
