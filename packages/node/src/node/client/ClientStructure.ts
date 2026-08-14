@@ -12,8 +12,8 @@ import type { ValReference } from "#behavior/state/managed/ValReference.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { RootEndpoint } from "#endpoints/root";
-import type { Node } from "#node/Node.js";
 import type { StateStream } from "#node/integration/StateStream.js";
+import type { Node } from "#node/Node.js";
 import { DatasourceCache } from "#storage/client/DatasourceCache.js";
 import {
     capitalize,
@@ -400,7 +400,8 @@ export class ClientStructure {
                 const state = this.#node.state as Record<string, unknown>;
                 const network = state?.network as undefined | Record<string, unknown>;
                 const defaultSubscription = network?.defaultSubscription as
-                    undefined | { isFabricFiltered?: boolean; fabricFiltered?: boolean };
+                    | undefined
+                    | { isFabricFiltered?: boolean; fabricFiltered?: boolean };
                 if (defaultSubscription) {
                     this.#subscribedFabricFiltered =
                         ("isFabricFiltered" in defaultSubscription
@@ -723,7 +724,8 @@ export class ClientStructure {
         const { endpoint } = structure;
 
         const deviceTypeList = getStoreValue(attrs, DEVICE_TYPE_LIST_ATTR_ID, DEVICE_TYPE_LIST_ATTR_NAME) as
-            Descriptor.DeviceType[] | undefined;
+            | Descriptor.DeviceType[]
+            | undefined;
         if (Array.isArray(deviceTypeList)) {
             const endpointType = endpoint.type;
             for (const dt of deviceTypeList) {

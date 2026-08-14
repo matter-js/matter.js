@@ -5,12 +5,12 @@
  */
 
 import { BitFlag } from "#schema/BitmapSchema.js";
+import { TlvByteString } from "#tlv/index.js";
 import { TlvAny } from "#tlv/TlvAny.js";
 import { TlvArray } from "#tlv/TlvArray.js";
 import { TlvNullable } from "#tlv/TlvNullable.js";
 import { TlvBitmap, TlvUInt16, TlvUInt8 } from "#tlv/TlvNumber.js";
 import { TlvString } from "#tlv/TlvString.js";
-import { TlvByteString } from "#tlv/index.js";
 import { Bytes } from "@matter/general";
 
 type CodecVector<I, E> = { [valueDescription: string]: { encoded: E; decoded: I } };

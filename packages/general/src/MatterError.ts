@@ -5,8 +5,8 @@
  */
 
 import { NodeJsStyleInspectable } from "#log/NodeJsStyleInspectable.js";
-import type { MaybePromise } from "#util/Promises.js";
 import { decamelize } from "#util/identifier-case.js";
+import type { MaybePromise } from "#util/Promises.js";
 import { asError, errorOf } from "./util/Error.js";
 
 const codes = new WeakMap<{}, string>();

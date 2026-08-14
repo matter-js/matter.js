@@ -7,11 +7,6 @@
 import { InternalError } from "@matter/main";
 import { Status, StatusResponseError } from "@matter/main/types";
 import { Matter } from "@matter/model";
-import { expect } from "chai";
-import { env } from "node:process";
-import { AllClustersTestInstance } from "../../src/AllClustersTestInstance.js";
-import { ChipToolControllerAdapter } from "../../src/cert/ChipToolControllerAdapter.js";
-import { InProcessControllerAdapter } from "../../src/cert/InProcessControllerAdapter.js";
 import {
     createControllerAdapter,
     LineQueue,
@@ -20,6 +15,11 @@ import {
     resetControllerAdapterFactoryForTesting,
 } from "@matter/testing";
 import type { AttributePathSpec, CertNodeApi, ControllerAdapter } from "@matter/testing";
+import { expect } from "chai";
+import { env } from "node:process";
+import { AllClustersTestInstance } from "../../src/AllClustersTestInstance.js";
+import { ChipToolControllerAdapter } from "../../src/cert/ChipToolControllerAdapter.js";
+import { InProcessControllerAdapter } from "../../src/cert/InProcessControllerAdapter.js";
 
 function fakeControllerAdapter(id: string): ControllerAdapter {
     return {

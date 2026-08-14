@@ -5,8 +5,8 @@
  */
 
 import { NetworkCommissioningBehavior } from "#behaviors/network-commissioning";
-import type { ServerNode } from "#node/ServerNode.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
+import type { ServerNode } from "#node/ServerNode.js";
 import {
     AddressInUseError,
     ChannelType,

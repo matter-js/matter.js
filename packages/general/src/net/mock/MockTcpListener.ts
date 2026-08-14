@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Transport } from "../Transport.js";
 import type { TcpConnection, TcpListener, TcpListenerOptions } from "../tcp/TcpConnection.js";
+import type { Transport } from "../Transport.js";
 import type { MockNetwork } from "./MockNetwork.js";
 import { MockTcpConnection } from "./MockTcpConnection.js";
 

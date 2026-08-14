@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { MessagePrivacy } from "#codec/MessagePrivacy.js";
 import type { Fabric } from "#fabric/Fabric.js";
 import { GroupKeySet, KeySets, OperationalKeySet } from "#groups/KeySets.js";

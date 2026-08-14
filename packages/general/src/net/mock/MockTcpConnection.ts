@@ -6,8 +6,8 @@
 
 import { Time } from "#time/Time.js";
 import { Bytes } from "#util/Bytes.js";
-import type { Transport } from "../Transport.js";
 import type { TcpConnection } from "../tcp/TcpConnection.js";
+import type { Transport } from "../Transport.js";
 
 /**
  * Mock TCP connection for testing. Two connections are created as a connected pair;

@@ -20,8 +20,8 @@ import {
     StorageManager,
     StorageService,
 } from "@matter/general";
-import { NodeStore } from "../NodeStore.js";
 import { ClientNodeStores } from "../client/ClientNodeStores.js";
+import { NodeStore } from "../NodeStore.js";
 import { ServerEndpointStores } from "./ServerEndpointStores.js";
 
 const logger = Logger.get("ServerNodeStore");
