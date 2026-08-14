@@ -70,10 +70,14 @@ export function ClientEventEmitter(node: ClientNode, structure: ClientStructure)
 
         const behavior = target.endpoint.behaviors.supported[names.cluster];
         if (behavior) {
-            const { number, timestamp, priority, value } = occurrence;
+            const { number, timestamp, priority, value, systemTimestamp, deltaSystemTimestamp } = occurrence;
+            // Core §10.7 sets exactly one wire timestamp variant; the system-clock variants are the only non-epoch case.
+            const timestampKind =
+                systemTimestamp !== undefined || deltaSystemTimestamp !== undefined ? "system" : "epoch";
             changes.broadcastEvent(target.endpoint, behavior, target.event.schema as EventModel, {
                 number,
                 timestamp: timestamp as Timestamp,
+                timestampKind,
                 priority,
                 payload: value as Val.Struct | undefined,
             });
