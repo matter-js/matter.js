@@ -65,7 +65,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Struct validation resolves a member stored under its TLV tag number, so a constraint violation there is caught and a mandatory member present only at its id no longer raises a conformance error
     - Fix: `endpoints.size` no longer double-counts the root endpoint
     - Fix: A commissioned peer's connection state leaves `Connected` as soon as its last operational session is lost
-    - Fix: `ChangeNotificationService` event occurrences carry a `timestampKind` (epoch vs system) so a consumer forwarding an event no longer has to guess which clock its timestamp came from
+    - Fix: `ChangeNotificationService` event occurrences carry a `timestampKind` naming which of the four wire variants the timestamp is (`epoch`, `system`, `epoch-delta`, `system-delta`), so a consumer forwarding an event no longer has to guess its clock or whether it is absolute or a delta from the previous event
     - Fix: `IdentifyServer` no longer offers the optional `TriggerEffect` command unless the device type requires it, an own command implementation has been added via an override or suppression is disabled; `IdentifyServer.enable({ commands: { triggerEffect: true } })`, `IdentifyServer.alter({ commands: { triggerEffect: { optional: false } } })` and an override of `suppressTriggerEffect()` also offer it
     - Fix: `ClusterBehavior.with()` rejects a feature the cluster does not define
     - Fix: Client node values persisted under property names by earlier versions are migrated to their attribute id on load, so they stay readable
@@ -89,7 +89,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/nodejs-shell
     - Feature: Added `--cleanup-legacy-storage` to irreversibly remove the leftover pre-0.16 storage artifacts once they have been migrated to the current format
     - Fix: Attribute changes log one line per attribute, naming the attribute, instead of one line per cluster report carrying every changed attribute of that report
-    - Fix: Attribute, event and connection-state log lines are recognized by the web UI again, so node tiles and device values update; event lines name the peer and render their timestamp as a date or a device uptime
+    - Fix: Attribute, event and connection-state log lines are recognized by the web UI again, so node tiles and device values update; event lines name the peer and render their timestamp according to the wire variant the device sent
 
 - @matter/protocol
     - Deprecation: The legacy `DecodedDataReport` / `Decoded{Attribute,Event}Report*` types and the `normalize*` / `normalizeAndDecode*` helpers now announce removal in 0.19 instead of 0.18

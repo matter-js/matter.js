@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
 import { DatasourceCache } from "#storage/client/DatasourceCache.js";
 import { Lifetime, MemoryStorageDriver, Seconds, StorageDriver, Transaction } from "@matter/general";
@@ -117,7 +118,7 @@ describe("DatasourceCache error handling", () => {
                 snapshot: () => ({}),
                 releaseValues: () => ({}),
                 integrateExternalChange: async () => {},
-            } as any;
+            } satisfies Datasource.ExternallyMutableStore.Consumer;
 
             await cache.externalSet(attrs({ __version__: 5 }));
             const flushed = await cache.flush();

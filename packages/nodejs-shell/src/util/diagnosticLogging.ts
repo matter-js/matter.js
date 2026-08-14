@@ -25,6 +25,19 @@ function ownedBy(endpoint: Endpoint, node: Endpoint) {
     return false;
 }
 
+function occurredAt(timestamp: Timestamp, kind: ChangeNotificationService.TimestampKind) {
+    switch (kind) {
+        case "epoch":
+            return Timestamp.dateOf(timestamp).toISOString();
+        case "system":
+            return `${Duration.format(Millis(timestamp))} device uptime`;
+        case "epoch-delta":
+            return `${Duration.format(Millis(timestamp))} after the previous event`;
+        case "system-delta":
+            return `${Duration.format(Millis(timestamp))} after the previous event, on the device clock`;
+    }
+}
+
 /** The web UI matches the first word of these labels (shell/webassets/index.html). */
 function connectionStateLabel(state: NodeConnectionState) {
     switch (state) {
@@ -77,10 +90,7 @@ export function installDiagnosticLogging(node: ServerNode, observers: ObserverGr
                 if (!ClusterBehavior.is(behavior)) {
                     break;
                 }
-                const when =
-                    timestampKind === "epoch"
-                        ? Timestamp.dateOf(timestamp).toISOString()
-                        : `${Duration.format(Millis(timestamp))} device uptime`;
+                const when = occurredAt(timestamp, timestampKind);
                 console.log(
                     `Node ${nodeId}: Event ${nodeId}/${endpoint.number}/${behavior.cluster.id}/${event.propertyName} (#${number}, priority ${Priority[priority]}, at ${when}) triggered with ${Diagnostic.json(payload)}`,
                 );
