@@ -6,10 +6,15 @@
 
 import { Duration, InternalError, Millis, Time } from "@matter/main";
 import type { CertStepContext, CertStepDefinition, PromptHandler, StepVerdict, Subject } from "@matter/testing";
-import { chip, EvidenceRecorder, PromptDrivenPythonTest } from "@matter/testing";
+import {
+    chip,
+    createControllerAdapter,
+    EvidenceRecorder,
+    PromptDrivenPythonTest,
+    resolveControllerImplementation,
+} from "@matter/testing";
 import { join } from "node:path";
 import { env } from "node:process";
-import { InProcessControllerAdapter } from "../../src/cert/InProcessControllerAdapter.js";
 
 // setup_class's th_server_discriminator — fixed for every OpenCommissioningWindow call in the script.
 // The passcode is NOT fixed the same way: only the initial precondition commission (TH_CLIENT pairing
@@ -18,6 +23,9 @@ import { InProcessControllerAdapter } from "../../src/cert/InProcessControllerAd
 // OpenCommissioningWindow, which mints a fresh random passcode per call — the prompt text is the only
 // place that passcode is ever exposed to us.
 const TH_SERVER_DISCRIMINATOR = 1234;
+
+/** Windows the script opens: steps 1b, 2c, 3c and 5c always, plus 4c where the DUT's NOC chain has an ICAC. */
+const MINIMUM_PROMPTS = 4;
 
 const DESCRIPTOR = {
     kind: "py" as const,
@@ -97,7 +105,16 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
             let outcome: SettleOutcome;
             try {
                 outcome = await Promise.race([
-                    settled(dut.commission({ passcode, discriminator: TH_SERVER_DISCRIMINATOR })),
+                    settled(
+                        dut.commission({
+                            passcode,
+                            discriminator: TH_SERVER_DISCRIMINATOR,
+                            // The script arms each fault for one handshake only, so a commissioner that retries gets a
+                            // clean one and commissions successfully. Step 1b injects no fault and must be free to
+                            // recover like any healthy commissioning.
+                            singleHandshakeAttempt: !expectSuccess,
+                        }),
+                    ),
                     timeout.then((): SettleOutcome => ({ kind: "timeout" })),
                 ]);
             } finally {
@@ -125,7 +142,8 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
                             );
                         failure = new Error(
                             `DUT commissioning unexpectedly succeeded on attempt ${attempt} against a ` +
-                                "Sigma2-fault-injected TH_SERVER",
+                                "Sigma2-fault-injected TH_SERVER, so either it accepted a corrupted Sigma2 or it " +
+                                "retried past the one the script corrupted",
                         );
                     }
                     break;
@@ -135,7 +153,10 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
                     cx.recorder.check({
                         type: "response",
                         verdict,
-                        detail: `commission() rejected on attempt ${attempt}: ${errorMessage(outcome.error)}`,
+                        // Deliberately reports only that commissioning did not complete. What the DUT answered the
+                        // corrupted Sigma2 with is in the attached controller log, and TH_SERVER's own view of the
+                        // handshake plus its commissioning-window assertion are in the script's.
+                        detail: `commission() did not complete on attempt ${attempt}: ${errorMessage(outcome.error)}`,
                     });
                     if (expectSuccess) {
                         failure =
@@ -172,12 +193,28 @@ function errorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
 
+// TC_SC_3_5.py gates every wait_for_user_input on PICS_SDK_CI_ONLY: with it set the script commissions TH_SERVER with
+// a second python controller of its own instead of prompting, so no DUT is ever driven. chip.defaultPics composes
+// CHIP's ci-pics-values, which sets it.
+function promptDrivenPics() {
+    const pics = chip.defaultPics.with({ PICS_SDK_CI_ONLY: 0 });
+    // A PICS file listing a key twice keeps its trailing occurrence, which would discard this override in the one way
+    // that leaves the run looking healthy.
+    if (pics.values.PICS_SDK_CI_ONLY !== 0) {
+        throw new InternalError(
+            "Overriding PICS_SDK_CI_ONLY to 0 did not take effect, so TC_SC_3_5.py would commission TH_SERVER itself " +
+                "instead of prompting the DUT",
+        );
+    }
+    return pics;
+}
+
 function stubSubject(): Subject {
     return {
         id: "TC-SC-3.5",
         app: "",
         commissioning: { kind: "on-network", passcode: 0, discriminator: 0, qrPairingCode: "" },
-        pics: chip.defaultPics,
+        pics: promptDrivenPics(),
         async initialize() {},
         async start() {},
         async stop() {},
@@ -202,28 +239,37 @@ describe("TC-SC-3.5", () => {
         this.timeout(10 * 60_000);
 
         const state = { attempts: 0 };
-        const dut = new InProcessControllerAdapter("dut");
+        const dut = createControllerAdapter("dut");
 
         const recorder = new EvidenceRecorder(evidenceOutDir(), {
             tc: "TC-SC-3.5",
             plan: "securechannel.adoc",
             timestamp: new Date().toISOString(),
             controller: "dut",
-            controllerImplementation: "matterjs",
+            controllerImplementation: resolveControllerImplementation(),
             device: `python-wrapped:${DESCRIPTOR.path}`,
             matterJsCommit: "(not recorded)",
         });
 
         const cx: CertStepContext = { controllers: { dut }, devices: {}, recorder };
+        const test = new PromptDrivenPythonTest(DESCRIPTOR, chip.container, [manualPairingCodeHandler(state)], cx);
 
         try {
             await dut.start();
 
-            const test = new PromptDrivenPythonTest(DESCRIPTOR, chip.container, [manualPairingCodeHandler(state)], cx);
-
             await test.invoke(stubSubject(), () => {}, ["--string-arg", `th_server_app_path:${appPath}`], false);
+
+            // The script's own PASS does not depend on its prompts being answered, so a short count means faults it
+            // injected were never put to the DUT.
+            if (state.attempts < MINIMUM_PROMPTS) {
+                throw new InternalError(
+                    `TC_SC_3_5.py reported success after only ${state.attempts} of at least ${MINIMUM_PROMPTS} ` +
+                        "commissioning prompts, so some of its fault-injected CASE handshakes were never attempted",
+                );
+            }
         } finally {
             recorder.attachLog("controller-dut", dut.log.lines);
+            recorder.attachLog("device-python", test.logLines);
             await recorder.flush().catch(e => console.warn("Failed to flush TC-SC-3.5 evidence:", e));
             try {
                 await dut.close();

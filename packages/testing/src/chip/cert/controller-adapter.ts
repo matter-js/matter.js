@@ -35,6 +35,18 @@ export interface CommissioningTarget {
     discriminator?: number;
     qrPairingCode?: string;
     manualPairingCode?: string;
+
+    /**
+     * Ask for commissioning to give up after a single operational handshake attempt, so a step that means to prove the
+     * device refused a commissioner is not answered by a retry that succeeded instead.
+     *
+     * Only a step asserting a refusal should set this: shortening the budget also removes the recovery a healthy
+     * commissioning legitimately needs (a second candidate address, a device that answers the first handshake with
+     * `NoSharedTrustRoots`), so a step that expects to succeed must leave it alone.
+     *
+     * Advisory. An adapter whose commissioner already stops after one attempt has nothing to do.
+     */
+    singleHandshakeAttempt?: boolean;
 }
 
 /**

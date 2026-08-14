@@ -33,6 +33,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A choice set whose members are all provisional, such as the `Groupcast` and `AmbientContextSensing` feature sets, no longer requires a selection
 
 - @matter/node
+    - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding how long it waits for the operational CASE connection that follows it
     - Breaking: Default server exports no longer inherit the features their base implementation enables internally.
         - `ColorControlServer`, `DoorLockServer`, `ElectricalEnergyMeasurementServer`, `LevelControlServer`, `ModeSelectServer`, `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer` and `WindowCoveringServer` now select no features. Select the features your device supports with `.with(...)` or use the DeviceType specific Requirement definitions of these clusters which automatically enable the needed features for the device type
         - `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer`, `WindowCoveringServer` and `ElectricalEnergyMeasurementServer` now require a selection to be added to an endpoint at all. The `DoorLockDevice`, `SpeakerDevice` and `ModeSelectDevice` device types alias these exports, so their clusters also select no features and advertise a different FeatureMap.
@@ -89,6 +90,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Deprecation: The legacy `ClusterType` command request surface (`Invoke.LegacyCommandRequest`, `Specifier.ClusterTypeCommand`) and `SessionManager.owner` are scheduled for removal in 0.19
     - Enhancement: Network profiles accept a separate `bdxAdditionalMrpDelay` for bulk transfer, defaulting to the profile's messaging margin
     - Enhancement: New `CertificateAuthority.erase()` discards the authority's key material, persisted and in memory
+    - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding how long it waits for the operational CASE connection that follows it; defaults to the previous fixed 4m15s
     - Fix: Cancelling BLE commissioning aborts the in-flight channel open
     - Fix: A subscription's `maxIntervalCeiling` is transmitted exactly as requested; jitter now applies only when we derive the ceiling ourselves
 
@@ -110,6 +112,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `MATTER_CHIP_BINS_SOURCE=cert-bins` selects project-chip's official `connectedhomeip/chip-cert-bins` binaries for the classic yaml/python tests and `chip-local` cert-test subjects
     - Enhancement: A cert test's attached device/controller logs now carry a banner marking each step's start and end, alongside its verdict
     - Enhancement: Certification controller tests run against a controller × device matrix, adding chip-tool as a second controller alongside matter.js's own
+    - Breaking: Removed the unused `PicsFile.Values` type; use `PicsValues`
+    - Enhancement: New `PicsFile.with()` returns a copy of a PICS file with values overridden
+    - Fix: `PromptDrivenPythonTest` now fails a run in which none of its prompt handlers fired, instead of trusting the script's own verdict
+    - Enhancement: A python-wrapped cert test's evidence attaches the script's own output alongside the controller log
+    - Fix: A composite `PicsSource` no longer patches the PICS file cached for its first source
+    - Fix: TC-SC-3.5 turns off `PICS_SDK_CI_ONLY` so the script prompts for commissioning instead of acting as its own commissioner, and drives whichever controller `MATTER_CERT_CONTROLLER` selects
 
 - @matter/ws-ble
     - Feature: Added as new package — BLE-over-WebSocket proxy (hub, `Ble` consumer stack, noble reference client and `matter-ble-proxy` CLI)

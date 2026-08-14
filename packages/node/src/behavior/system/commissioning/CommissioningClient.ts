@@ -261,6 +261,7 @@ export class CommissioningClient extends Behavior {
             regulatoryCountryCode: options.regulatoryCountryCode,
             timeout: options.timeout,
             caseConnectionTiming: options.caseConnectionTiming ?? defaultCaseConnectionTiming,
+            caseConnectionTimeout: options.caseConnectionTimeout,
         };
 
         // Check if our server has an OTA Provider (later: and no custom one is provided) and register the location
@@ -1138,6 +1139,25 @@ export namespace CommissioningClient {
          * Defaults to `{ delayBeforeNextAddress: Seconds(15), maxDelayBetweenInitialContactRetries: Seconds(60), delayAfterPeerError: Minutes(2) }`.
          */
         caseConnectionTiming?: Partial<PeerTimingParameters>;
+
+        /**
+         * Wall-clock budget for the step-18 CASE reconnect, across every candidate address and retry.
+         *
+         * Defaults to `DEFAULT_CASE_CONNECTION_TIMEOUT`, which leaves room for two server-side retry windows.  Lower it
+         * to bound commissioning to a single handshake attempt, so a handshake the device fails is a commissioning
+         * failure rather than something a retry can recover.
+         *
+         * On an IP transport, raising it past the failsafe armed for this step (up to 5 minutes for the reconnect,
+         * clamped by the device's own `MaxCumulativeFailsafeSeconds`) has the device roll `addNOC` back mid-connect, so a
+         * longer budget cannot succeed; the concurrent BLE flow keeps re-arming instead.  A non-finite budget is
+         * rejected.
+         *
+         * Expiry fails commissioning, which deletes the peer and so aborts the connection it was still attempting.  The
+         * rejection therefore reports a budget that ran out, not what the device answered.  No effect where
+         * {@link finalizeCommissioning} owns the operational step, nor on the connection
+         * `peers.completeCommissioning()` makes.
+         */
+        caseConnectionTimeout?: Duration;
     }
 
     export interface PasscodeOptions extends BaseCommissioningOptions {

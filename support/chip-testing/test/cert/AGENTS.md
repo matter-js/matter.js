@@ -742,6 +742,63 @@ binary at `/official-chip-bins/` for the cert-bins job. `TC-SC-3.5.test.ts`'s si
 `env.MATTER_CERT_TH_SERVER_APP_PATH` and calls `this.skip()` when unset, so the matterjs flavor —
 which does not set it — stays green without a TH_SERVER binary.
 
+## `PICS_SDK_CI_ONLY` turns a prompt-driven script into a self-test (`TC-SC-3.5`)
+
+A script that prompts for out-of-band action usually has a second code path for CHIP's own CI, gated
+on the `PICS_SDK_CI_ONLY` PICS. `TC_SC_3_5.py` gates all five of its `wait_for_user_input` calls that
+way: with the PICS set it creates a second python controller, commissions TH_SERVER with it, and
+reports PASS — validating the script, with no DUT involved at all.
+
+`chip.defaultPics` composes CHIP's own `ci-pics-values`, which sets `PICS_SDK_CI_ONLY=1`, so any
+prompt-driven TC has to turn it off explicitly: `chip.defaultPics.with({ PICS_SDK_CI_ONLY: 0 })`.
+Override PICS that way and never with `PicsFile.patch`, which modifies its target in place — the
+`chip.defaultPics` instance is shared by every other test in the run.
+
+The failure this produces is silent: the run reports a pass, and the only tell is evidence with no
+steps in it and a controller log that ends before any commissioning. Two checks catch it.
+`PromptDrivenPythonTest` fails a run in which none of its declared handlers ever fired, and names
+`PICS_SDK_CI_ONLY` in the message — that is the floor, and it fires whether the script passed or
+failed. It is deliberately weak: `handled` is one counter across all handlers, so a script that
+prompts once and then diverges still satisfies it. A TC whose prompt count is known therefore asserts
+that count itself, as `TC-SC-3.5.test.ts` does against `MINIMUM_PROMPTS`. Keep both — nothing else
+notices a prompt-driven TC that stopped driving anything.
+
+## A commissioner that retries turns a one-shot fault into a pass (`TC-SC-3.5`)
+
+`TC_SC_3_5.py` starts TH_SERVER once, in `setup_class`, and never restarts it. Each negative step only
+revokes and reopens the commissioning window and arms `FailAtFault` with `numCallsToFail=1`, so the
+*first* Sigma2 of that window is corrupt and every later one is clean. A commissioner that retries the
+handshake therefore commissions successfully on its second attempt, and the step the script means as
+"the DUT must reject this" passes.
+
+matter.js retries deliberately — real devices sometimes need more than one chance — so the harness has
+to bound the attempt instead. A step sets `CommissioningTarget.singleHandshakeAttempt`, which
+`InProcessControllerAdapter` turns into a `caseConnectionTimeout` (10s) below every retry interval
+commissioning's operational connection uses, so commissioning ends on the first handshake outcome. The
+production default (4m15s) keeps the retries.
+
+**Set it only on a step that expects a refusal.** The same short budget removes the recovery a healthy
+commissioning legitimately needs — a second candidate address (`delayBeforeNextAddress`, 15s), a device
+answering the first handshake with `NoSharedTrustRoots` (15s), a transient network error (15s) — so a
+step that expects to succeed must leave it alone. TC-SC-3.5 sets it for every attempt but its first.
+
+**It reports a budget, not the device's answer.** `Peer.connect`'s `connectionTimeout` bounds the caller's
+wait rather than the handshake — the two are orthogonal to cancellation by its own documentation — but
+commissioning's failure path then deletes the peer, and `Peer.close()` aborts the connection process, so
+nothing keeps handshaking behind our back. What the rejection cannot tell you is *why* the handshake did
+not finish: a device that merely answered slowly produces the same error as one that refused. TC-SC-3.5's
+step evidence says only "did not complete" for that reason, and the device's own answer is read from the
+attached controller log and from the script's. What no timeout cancels is the device-side commissioning
+state — the failsafe there still has to expire on its own — which is why an abort reaching past PASE is
+still worth having.
+
+Two things obscured this while it was being diagnosed. The script's prompt says "Input anything once
+commissioning has *started*", and a human answering there lets the script check `WindowStatus` and
+revoke the window long before matter.js's next attempt — so a manual run passes even without the
+timeout. And a CI runner with both `eth0` and `docker0` link-local addresses reaches the retry after
+~15s (the next-address delay) rather than the 2 min a single-address host waits, which is what brought
+the retry inside the handler's own budget.
+
 ## The write-path idiom (`writeAndCheck`, `TC-IDM-3.1`)
 
 A "DUT writes an attribute on the TH" step needs the same two-sided proof a read does: the
