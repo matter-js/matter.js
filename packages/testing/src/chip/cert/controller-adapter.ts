@@ -5,6 +5,8 @@
  */
 
 import type { LogSource } from "./cert-context.js";
+import { resolveControllerImplementation } from "./device-config.js";
+import type { ControllerImplementation } from "./device-config.js";
 import type { LogFollower } from "./log-follower.js";
 
 export type { LogSource };
@@ -108,6 +110,11 @@ export interface ReadAttributeOptions {
 
 /**
  * Controller-side view of a single commissioned node.
+ *
+ * A method whose controller cannot express the requested operation throws
+ * {@link UnsupportedByControllerError} rather than performing part of the interaction and returning
+ * a partial result; a step that needs the capability declares the flavors/controllers it runs on
+ * instead.
  */
 export interface CertNodeApi {
     invoke(cluster: string | number, command: string, args?: object, endpoint?: number): Promise<unknown>;
@@ -136,9 +143,24 @@ export interface CertNodeApi {
      * a protocol failure, and a step that needs to know an attribute changed reads it back.
      *
      * An adapter whose controller cannot express a multi-path, wildcard or version-conditional write
-     * throws {@link NotImplementedError}; a step that needs it then declares the flavors it runs on.
+     * throws {@link UnsupportedByControllerError} (see {@link CertNodeApi}'s own doc for the general
+     * contract).
      */
     writeAttributes(entries: AttributeWriteEntry[]): Promise<AttributeWriteStatus[]>;
+    /**
+     * Subscribes to `path`, resolving with the priming value (concrete path) or the priming entries
+     * (wildcard path); later reports reach `opts.onUpdate`.
+     *
+     * A concrete path the device answers with a status **rejects**: the step asked to be notified about
+     * that attribute and never will be, so resolving would only defer the failure until the step's own
+     * report budget ran out. A wildcard path is different — the subscription exists, and a per-path
+     * status is one item of its expansion rather than the subscription failing — so those statuses are
+     * reported through the entries and do not reject.
+     *
+     * Every adapter must agree on this: a step that fails under one controller and passes under another
+     * is supposed to mean an interop finding, so a difference between adapters manufactures that signal
+     * out of nothing.
+     */
     subscribe(path: AttributePathSpec, opts: SubscribeOptions): Promise<unknown>;
     openCommissioningWindow(opts: {
         timeout: number;
@@ -153,6 +175,29 @@ export interface CertNodeApi {
      * specific node rather than to whatever else is advertising `_matter._tcp` on the network.
      */
     operationalMdnsInstanceName(): Promise<string>;
+}
+
+/**
+ * Thrown by a {@link ControllerAdapter} (or a {@link CertNodeApi} it returns) whose underlying
+ * controller cannot express the requested operation — e.g. a {@link CertNodeApi.writeAttributes}
+ * request chip-tool has no single command for. The step runner records such a step `skipped`
+ * rather than failing the run; every other thrown value still fails and aborts it.
+ *
+ * Raise this before the operation has any observable effect (a commission, a write, a recorded
+ * check). Raising it after a step already recorded evidence discards that evidence under a
+ * `skipped` verdict instead of a `fail`.
+ */
+export class UnsupportedByControllerError extends Error {
+    constructor(
+        readonly operation: string,
+        readonly controller: string,
+        detail?: string,
+    ) {
+        super(
+            `not implementable on controller "${controller}": ${operation}` +
+                (detail === undefined ? "" : ` — ${detail}`),
+        );
+    }
 }
 
 /**
@@ -177,34 +222,54 @@ export interface ControllerAdapter {
  */
 export type ControllerAdapterFactory = (id: string) => ControllerAdapter;
 
-let activeFactory: ControllerAdapterFactory | undefined;
+const factories = new Map<ControllerImplementation, ControllerAdapterFactory>();
 
 /**
- * Registers the {@link ControllerAdapterFactory} cert-test wiring uses to construct controllers.
+ * Registers the {@link ControllerAdapterFactory} cert-test wiring uses to construct controllers for
+ * `implementation`.
  *
  * `packages/testing` cannot construct a real controller itself (that needs matter.js, which this
  * package must stay free of — see the repo's dependency invariant); `support/chip-testing/src/cert`
- * registers its `InProcessControllerAdapter` here at load time instead. There is exactly one slot:
- * re-registration throws, since a silent overwrite would swap controller implementations under any
- * cert test already declared.
+ * registers its adapters here at load time instead, one factory per implementation. Re-registering
+ * the *same* implementation throws, since a silent overwrite would swap the controller stack under a
+ * cert test already declared; registering a *different* implementation is normal — a process can
+ * offer several, and {@link resolveControllerImplementation} picks between them per run.
  */
-export function registerControllerAdapterFactory(factory: ControllerAdapterFactory): void {
-    if (activeFactory) {
-        throw new Error("A ControllerAdapter factory is already registered; only one is supported per process");
+export function registerControllerAdapterFactory(
+    implementation: ControllerImplementation,
+    factory: ControllerAdapterFactory,
+): void {
+    if (factories.has(implementation)) {
+        throw new Error(
+            `A ControllerAdapter factory is already registered for "${implementation}"; only one is supported ` +
+                "per implementation per process",
+        );
     }
-    activeFactory = factory;
+    factories.set(implementation, factory);
 }
 
 /**
- * Constructs a {@link ControllerAdapter} via the factory registered with
- * {@link registerControllerAdapterFactory}.
+ * Constructs a {@link ControllerAdapter} for `role`, via the factory registered for the run's
+ * {@link resolveControllerImplementation | selected implementation}.
  */
-export function createControllerAdapter(id: string): ControllerAdapter {
-    if (!activeFactory) {
+export function createControllerAdapter(role: string): ControllerAdapter {
+    const implementation = resolveControllerImplementation();
+    const factory = factories.get(implementation);
+    if (!factory) {
         throw new Error(
-            "No ControllerAdapter factory registered; a consumer (e.g. support/chip-testing/src/cert/index.ts) " +
-                "must call registerControllerAdapterFactory() before running a cert test",
+            `No ControllerAdapter factory registered for "${implementation}"; a consumer (e.g. ` +
+                "support/chip-testing/src/cert/index.ts) must call registerControllerAdapterFactory() for it " +
+                "before running a cert test",
         );
     }
-    return activeFactory(id);
+    return factory(role);
+}
+
+/**
+ * Removes `implementation`'s registered factory, so a test can register a throwaway one for an
+ * implementation no production code has claimed yet without leaving it stuck for the rest of the
+ * process (registration has no other way to be undone).
+ */
+export function resetControllerAdapterFactoryForTesting(implementation: ControllerImplementation): void {
+    factories.delete(implementation);
 }

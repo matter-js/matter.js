@@ -235,8 +235,15 @@ function parseChipJSON(json: string) {
     return JSON.parse(json);
 }
 
-/** Use the matter.js model to convert the incoming data for write and invoke commands into the expected format. */
-function convertWebsocketDataToMatter(value: any, model: ValueModel): any {
+/**
+ * Use the matter.js model to convert the incoming data for write and invoke commands into the
+ * expected format.
+ *
+ * Exported only as a test seam (see `resetControllerAdapterFactoryForTesting` in
+ * `packages/testing/src/chip/cert/controller-adapter.ts` for the same pattern); no production
+ * caller outside this module should import it.
+ */
+export function convertWebsocketDataToMatter(value: any, model: ValueModel): any {
     if (value === undefined) {
         return undefined;
     }
@@ -293,8 +300,19 @@ function convertWebsocketDataToMatter(value: any, model: ValueModel): any {
     }
 
     if (typeof value === "string") {
-        if (model.metabase?.metatype === "bytes" && value.startsWith("hex:")) {
-            return Bytes.fromHex(value.slice(4));
+        if (model.metabase?.metatype === "bytes") {
+            // chip-tool's own JSON encoder (`TlvJson.cpp`, `kTLVType_ByteString` case) writes the
+            // `base64:` header only inside `if (encodedLen)`: `Base64Encode` of a zero-length span
+            // returns 0, so a zero-length octet string comes back as `""` with no prefix at all.
+            if (value === "") {
+                return Bytes.fromHex("");
+            }
+            if (value.startsWith("base64:")) {
+                return Bytes.fromBase64(value.slice(7));
+            }
+            if (value.startsWith("hex:")) {
+                return Bytes.fromHex(value.slice(4));
+            }
         }
 
         if (model.metabase?.metatype === "bitmap") {

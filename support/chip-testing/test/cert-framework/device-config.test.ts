@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { resolveDeviceFlavor } from "@matter/testing";
+import { resolveControllerImplementation, resolveDeviceFlavor } from "@matter/testing";
 import { env } from "node:process";
 
 describe("resolveDeviceFlavor", () => {
@@ -38,5 +38,39 @@ describe("resolveDeviceFlavor", () => {
     it("throws a clear error for an unknown flavor", () => {
         env.MATTER_CERT_DEVICE = "bogus";
         expect(() => resolveDeviceFlavor()).throws('Unknown MATTER_CERT_DEVICE "bogus"');
+    });
+});
+
+describe("resolveControllerImplementation", () => {
+    const original = env.MATTER_CERT_CONTROLLER;
+
+    afterEach(() => {
+        if (original === undefined) {
+            delete env.MATTER_CERT_CONTROLLER;
+        } else {
+            env.MATTER_CERT_CONTROLLER = original;
+        }
+    });
+
+    it("defaults to matterjs when unset", () => {
+        delete env.MATTER_CERT_CONTROLLER;
+        expect(resolveControllerImplementation()).equal("matterjs");
+    });
+
+    it("defaults to matterjs when set to an empty string", () => {
+        env.MATTER_CERT_CONTROLLER = "";
+        expect(resolveControllerImplementation()).equal("matterjs");
+    });
+
+    for (const implementation of ["chip-tool", "matterjs"] as const) {
+        it(`honors an explicit "${implementation}" override`, () => {
+            env.MATTER_CERT_CONTROLLER = implementation;
+            expect(resolveControllerImplementation()).equal(implementation);
+        });
+    }
+
+    it("throws a clear error naming the accepted values for an unknown implementation", () => {
+        env.MATTER_CERT_CONTROLLER = "bogus";
+        expect(() => resolveControllerImplementation()).throws('Unknown MATTER_CERT_CONTROLLER "bogus"');
     });
 });
