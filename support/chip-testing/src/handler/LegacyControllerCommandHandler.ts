@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Logger, Seconds } from "@matter/general";
+import { Bytes, ImplementationError, Logger, Seconds } from "@matter/general";
 import { NodeId, Observable, ServerAddressUdp } from "@matter/main";
 import { GeneralCommissioning, GroupKeyManagement } from "@matter/main/clusters";
 import {
@@ -313,12 +313,12 @@ export class LegacyControllerCommandHandler extends CommandHandler {
         const client = await (await this.#controllerInstance.getNode(nodeId)).getInteractionClient();
         const clusterModel = Matter.clusters(clusterId);
         if (clusterModel === undefined) {
-            throw new Error(`Unknown cluster ${clusterId}`);
+            throw new ImplementationError(`Unknown cluster ${clusterId}`);
         }
         const ns = ClusterType(clusterModel) as ClusterType.Concrete;
         const nsAttr = ns.attributes?.[attributeName];
         if (nsAttr === undefined) {
-            throw new Error(`Unknown attribute ${attributeName} on cluster ${clusterId}`);
+            throw new ImplementationError(`Unknown attribute ${attributeName} on cluster ${clusterId}`);
         }
 
         logger.info("Writing attribute", attributeName, "with value", value);
@@ -372,14 +372,14 @@ export class LegacyControllerCommandHandler extends CommandHandler {
         }
         const clusterModel = Matter.clusters(clusterId);
         if (clusterModel === undefined) {
-            throw new Error("Cluster not found");
+            throw new ImplementationError("Cluster not found");
         }
         const ns = ClusterType(clusterModel) as ClusterType.Concrete;
         const nsCmd = ns.commands
             ? Object.values(ns.commands).find((cmd: ClusterType.Command) => cmd.id === commandId)
             : undefined;
         if (!nsCmd) {
-            throw new Error("Command for Cluster not found");
+            throw new ImplementationError("Command for Cluster not found");
         }
         // Skip client-side validation because we're proxying commands from the CHIP test framework, which
         // intentionally sends invalid values to test server-side error handling
@@ -473,7 +473,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
             vendorId = VendorId(data.vendorId);
             productId = data.productId;
         } else {
-            throw new Error("No pairing code provided");
+            throw new ImplementationError("No pairing code provided");
         }
 
         if (data.knownAddress !== undefined) {
@@ -486,7 +486,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
         }
 
         if (passcode == undefined) {
-            throw new Error("No passcode provided");
+            throw new ImplementationError("No passcode provided");
         }
 
         return {
@@ -568,7 +568,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
 
     async handleDelay({ nodeId, expireExistingSession = true }: DelayRequest): Promise<void> {
         if (nodeId === undefined) {
-            throw new Error("No nodeId provided");
+            throw new ImplementationError("No nodeId provided");
         }
         if (expireExistingSession) {
             try {
@@ -639,7 +639,10 @@ function inferAttrModel(id: number, value: unknown): AttributeModel {
     else if (typeof value === "string") type = "string";
     else if (typeof value === "boolean") type = "bool";
     else if (typeof value === "number" || value === null) type = "int32";
-    else throw new Error(`Cannot infer TLV type for unknown attribute ${id} from value of type ${typeof value}`);
+    else
+        throw new ImplementationError(
+            `Cannot infer TLV type for unknown attribute ${id} from value of type ${typeof value}`,
+        );
     return new AttributeModel({
         id,
         name: `attr_${id}`,

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError, Logger, Seconds } from "@matter/general";
+import { ImplementationError, InternalError, Logger, Seconds } from "@matter/general";
 import { capitalize, CommonAreaNamespaceTag, deepCopy, Endpoint, ServerNode } from "@matter/main";
 import { AdministratorCommissioningServer } from "@matter/main/behaviors/administrator-commissioning";
 import { NetworkCommissioningServer } from "@matter/main/behaviors/network-commissioning";
@@ -73,7 +73,7 @@ export class RvcTestInstance extends NodeTestInstance {
             // Find the endpoint instance if an EndpointId is set
         }
         if (endpoint === undefined) {
-            throw new Error(`Endpoint ${endpointId} not found`);
+            throw new ImplementationError(`Endpoint ${endpointId} not found`);
         }
 
         logger.warn(`Backchannel command ${name} for endpoint ${endpointId} with command ${JSON.stringify(command)}`);

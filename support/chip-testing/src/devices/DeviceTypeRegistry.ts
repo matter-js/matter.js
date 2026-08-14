@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ImplementationError } from "@matter/general";
 import { Endpoint, ServerNode } from "@matter/main";
 import { EndpointNumber } from "@matter/main/types";
 import { BackchannelCommand } from "@matter/testing";
@@ -27,7 +28,7 @@ const registry = new Map<string, DeviceTypeEntry>();
 
 export function registerDeviceType(entry: DeviceTypeEntry): void {
     if (registry.has(entry.name)) {
-        throw new Error(`Device type "${entry.name}" already registered`);
+        throw new ImplementationError(`Device type "${entry.name}" already registered`);
     }
     registry.set(entry.name, entry);
 }
