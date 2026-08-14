@@ -5,8 +5,8 @@
  */
 
 import { Bytes, ImplementationError, MockWsConnection, type Observable } from "@matter/general";
-import { BleProxyHandler } from "../src/BleProxyHandler.js";
 import type { BleProxyConnection } from "../src/BleProxyConnection.js";
+import { BleProxyHandler } from "../src/BleProxyHandler.js";
 import { BleProxyCommand } from "../src/BleProxyProtocol.js";
 import { BleProxyTestClient } from "./support/BleProxyTestClient.js";
 
