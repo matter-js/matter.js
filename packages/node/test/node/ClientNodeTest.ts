@@ -1338,6 +1338,29 @@ describe("ClientNode", () => {
             expect(peer1.stateOf(BasicInformationClient).vendorName).equals("Reported Vendor");
         });
 
+        it("reverts the local value when the peer never answers", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair();
+
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const ep1Client = peer1.parts.get("ep1")!;
+            const before = ep1Client.stateOf(OnOffClient).startUpOnOff;
+
+            await device.close();
+
+            const caught = await captureRejection(async () => {
+                const write = ep1Client.setStateOf(OnOffClient, { startUpOnOff: OnOff.StartUpOnOff.Toggle });
+                for (let i = 0; i < 80; i++) {
+                    await MockTime.advance(Seconds(1));
+                    await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+                }
+                await write;
+            });
+
+            expect(caught).not.undefined;
+            expect(ep1Client.stateOf(OnOffClient).startUpOnOff).equals(before);
+        });
+
         it("but not a declined one, with no subscription to repair the cache", async () => {
             await using site = new MockSite();
             const { controller, device } = await site.addUncommissionedPair();
