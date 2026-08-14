@@ -20,7 +20,11 @@ let nextFileNo = 1;
  * Source of PICS values.
  */
 export type PicsSource =
-    PicsSource.Composite | PicsSource.ChipFile | PicsSource.LocalFile | PicsSource.Lines | PicsSource.Values;
+    | PicsSource.Composite
+    | PicsSource.ChipFile
+    | PicsSource.LocalFile
+    | PicsSource.Lines
+    | PicsSource.Values;
 
 export namespace PicsSource {
     /**

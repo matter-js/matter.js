@@ -3,18 +3,19 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { NoProviderError } from "../MatterError.js";
+
 import { Environment } from "../environment/Environment.js";
 import { Environmental } from "../environment/Environmental.js";
 import type { Directory } from "../fs/Directory.js";
 import { Filesystem } from "../fs/Filesystem.js";
 import { Diagnostic } from "../log/Diagnostic.js";
 import { Logger } from "../log/Logger.js";
+import { NoProviderError } from "../MatterError.js";
 import { MaybePromise } from "../util/Promises.js";
 import { type BaseStorageDriver, type StorageType } from "./BaseStorageDriver.js";
 import { BlobStorageDriver } from "./BlobStorageDriver.js";
-import { DataNamespace } from "./DataNamespace.js";
 import { DatafileRoot } from "./DatafileRoot.js";
+import { DataNamespace } from "./DataNamespace.js";
 import { StorageDriver, StorageError } from "./StorageDriver.js";
 import { StorageDriverHandle } from "./StorageDriverHandle.js";
 import { StorageManager } from "./StorageManager.js";

@@ -366,7 +366,9 @@ describe("CommissionedRefs", () => {
             return {
                 invoke: unused,
                 readAttribute: unused,
+                readAttributes: unused,
                 writeAttribute: unused,
+                writeAttributes: unused,
                 subscribe: unused,
                 openCommissioningWindow: unused,
                 operationalMdnsInstanceName: unused,

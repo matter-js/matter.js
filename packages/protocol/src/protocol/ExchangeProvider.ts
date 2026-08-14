@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { InteractionSettings } from "#action/InteractionSettings.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";

@@ -1,5 +1,11 @@
 {
     "oxc.enable.oxlint": true,
-    "oxc.enable.oxfmt": false,
+    "oxc.enable.oxfmt": true,
     "oxc.typeAware": true,
+    "[typescript]": {
+        "editor.defaultFormatter": "oxc.oxc-vscode"
+    },
+    "[javascript]": {
+        "editor.defaultFormatter": "oxc.oxc-vscode"
+    },
 }

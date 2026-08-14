@@ -25,7 +25,11 @@
     "scripts": {
         "clean": "nacho-build clean",
         "build": "nacho-build",
-        "build-clean": "nacho-build --clean"
+        "build-clean": "nacho-build --clean",
+        "test": "matter-test"
+    },
+    "devDependencies": {
+        "@matter/testing": "*"
     },
     "dependencies": {
         "@matter/general": "*",

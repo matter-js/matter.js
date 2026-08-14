@@ -12,8 +12,8 @@ import { hideBin } from "yargs/helpers";
 import { ClusterFile } from "./clusters/ClusterFile.js";
 import { generateCluster } from "./clusters/generate-cluster.js";
 import { generateGlobal } from "./clusters/generate-global.js";
-import { TsFile } from "./util/TsFile.js";
 import { clean, writeMatterFile } from "./util/file.js";
+import { TsFile } from "./util/TsFile.js";
 import "./util/setup.js";
 
 const HEADER = `/**

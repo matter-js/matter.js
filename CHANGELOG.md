@@ -13,6 +13,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/general
     - Feature: Added generic WebSocket proxy framing (`net/ws-proxy`: hello handshake, JSON command/event envelope, binary frame codec) shared by WS-based proxy protocols
+    - Enhancement: New `MatterAggregateError.settleSeries()` runs tasks in order, continuing past a failure, and reports the accumulated errors
     - Fix: Opening a namespace whose `driver.json` names an unregistered storage driver now throws `NoProviderError` instead of silently opening the existing data with a mismatched driver
     - Fix: DNS-SD ignores SRV records with port 0, an empty target or an out-of-range port
     - Fix: DNS-SD resolution queries A/AAAA for the SRV target host instead of the service instance name
@@ -40,10 +41,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: A node that accepts more than one path per invoke must select the General Diagnostics DataModelTest feature
     - Breaking: An unreported client node attribute reads its schema default, else the specification's fallback value for its type, when the attribute is mandatory under the peer's supported features, and `undefined` otherwise — regardless of the peer's AttributeList (an enum attribute reads `undefined`, as the specification defines its fallback as manufacturer-specific). The value is a detached copy, so mutating a struct or list read from an unreported attribute does not write through
     - Breaking: Configured options, environment variables and state-class field initializers no longer seed a client node's cluster state; the peer's reports are the only source of values
-    - Fix: Struct validation resolves a member stored under its TLV tag number, so a constraint violation there is caught and a mandatory member present only at its id no longer raises a conformance error
     - Breaking: Adding a server cluster to an endpoint fails when its selected features violate the conformance of its FeatureMap
     - Breaking: Provisional elements are no longer implemented by default; supply a state value or use `ClusterBehavior.enable()` to implement one
     - Breaking: `SoftwareUpdateManager.addUpdateConsent()` and `forceUpdate()` take the update as an object instead of three positional arguments, so it can carry per-update options
+    - Breaking: Ensure that changing any attribute of a client node sends a write to the peer; an attribute the peer's cluster type cannot express, including the global attributes, is declined locally with `UnsupportedWrite` or `UnsupportedAttribute`
+    - Removed: `StructManager.assertDirectReadAuthorized()` and the direct-read authorization it backed, unused since the legacy cluster API was dropped
+    - Deprecation: `ClientNodeInteraction.localStateFor()` is scheduled for removal in 0.19 together with the legacy controller API
     - Feature: Added `ServerNode.peers.commissioned` returning the commissioned `ClientNode`s
     - Feature: Added `ClientNode.disable()`/`enable()` to persistently disable/enable a commissioned peer
     - Feature: Added a `ClientNode` connection-state engine — `lifecycle.connectionState`/`connectionStateChanged`/`isConnected` and the `NodeConnectionState` enum
@@ -55,18 +58,28 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `SoftwareUpdateManager` caps the BDX block size for OTA transfers via `maxBdxBlockSize` and overrides their MRP retransmission margin via `bdxAdditionalMrpDelay`, either generally in its state or per update when giving consent
     - Enhancement: `network.profiles` accepts `bdxAdditionalMrpDelay`
     - Adjustment: A node with commissioning disabled (e.g. a controller) now binds an ephemeral operational port instead of the standard Matter port (5540) when `NetworkServer.port` is unset; commissionable nodes still default to 5540 and an explicit port is always honored
+    - Adjustment: A commissioned peer's fabric label is new reconciled to the controller's once after its subscription is first established on start by `ClientNode`
+    - Fix: Struct validation resolves a member stored under its TLV tag number, so a constraint violation there is caught and a mandatory member present only at its id no longer raises a conformance error
     - Fix: `endpoints.size` no longer double-counts the root endpoint
-    - Removed: `StructManager.assertDirectReadAuthorized()` and the direct-read authorization it backed, unused since the legacy cluster API was dropped
-    - Deprecation: `ClientNodeInteraction.localStateFor()` is scheduled for removal in 0.19 together with the legacy controller API
+    - Fix: A commissioned peer's connection state leaves `Connected` as soon as its last operational session is lost
+    - Fix: `ChangeNotificationService` event occurrences carry a `timestampKind` (epoch vs system) so a consumer forwarding an event no longer has to guess which clock its timestamp came from
     - Fix: `IdentifyServer` no longer offers the optional `TriggerEffect` command unless the device type requires it, an own command implementation has been added via an override or suppression is disabled; `IdentifyServer.enable({ commands: { triggerEffect: true } })`, `IdentifyServer.alter({ commands: { triggerEffect: { optional: false } } })` and an override of `suppressTriggerEffect()` also offer it
     - Fix: `ClusterBehavior.with()` rejects a feature the cluster does not define
     - Fix: Client node values persisted under property names by earlier versions are migrated to their attribute id on load, so they stay readable
     - Fix: Writing a fabric-scoped list entry that stems from a cluster whose schema could not be resolved no longer produces two conflicting fabricIndex fields
     - Fix: A rejected write to an attribute served by dynamic properties restores the previous value instead of deleting the property, and a rejected write to a previously absent attribute leaves no slot behind instead of one holding `undefined`
+    - Fix: Factory reset removes commissioned peers and the certificate authority's key material; a peer that cannot be torn down no longer blocks the reset
 
 - @matter/nodejs
     - Breaking: `FileStorageDriver`'s constructor no longer accepts a `clear` argument; clearing is handled by `StorageService`
     - Fix: Ensure that `--storage-clear`/`MATTER_STORAGE_CLEAR` is honored again and clears the storage on start
+
+- @matter/nodejs-ble
+    - Fix: A connection attempt that BLE reports as failed is retried instead of failing commissioning on the first try
+    - Fix: A peripheral whose connection attempt failed is no longer rejected as unusable for the lifetime of the process
+    - Fix: Giving up on a peripheral reports the last connection failure as cause
+    - Fix: A disconnect that never completes no longer leaves the channel request pending forever
+    - Fix: Aborting a BLE connection attempt now stops its retries and releases a link the attempt already established
 
 - @matter/nodejs-shell
     - Feature: Added `--cleanup-legacy-storage` to irreversibly remove the leftover pre-0.16 storage artifacts once they have been migrated to the current format
@@ -75,6 +88,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Deprecation: The legacy `DecodedDataReport` / `Decoded{Attribute,Event}Report*` types and the `normalize*` / `normalizeAndDecode*` helpers now announce removal in 0.19 instead of 0.18
     - Deprecation: The legacy `ClusterType` command request surface (`Invoke.LegacyCommandRequest`, `Specifier.ClusterTypeCommand`) and `SessionManager.owner` are scheduled for removal in 0.19
     - Enhancement: Network profiles accept a separate `bdxAdditionalMrpDelay` for bulk transfer, defaulting to the profile's messaging margin
+    - Enhancement: New `CertificateAuthority.erase()` discards the authority's key material, persisted and in memory
+    - Fix: Cancelling BLE commissioning aborts the in-flight channel open
     - Fix: A subscription's `maxIntervalCeiling` is transmitted exactly as requested; jitter now applies only when we derive the ceiling ourselves
 
 - @matter/react-native
@@ -94,6 +109,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `matter-test`'s post-test clean-exit grace period is overridable via `MATTER_TEST_SHUTDOWN_TIMEOUT_MS`
     - Enhancement: `MATTER_CHIP_BINS_SOURCE=cert-bins` selects project-chip's official `connectedhomeip/chip-cert-bins` binaries for the classic yaml/python tests and `chip-local` cert-test subjects
     - Enhancement: A cert test's attached device/controller logs now carry a banner marking each step's start and end, alongside its verdict
+    - Enhancement: Certification controller tests run against a controller × device matrix, adding chip-tool as a second controller alongside matter.js's own
 
 - @matter/ws-ble
     - Feature: Added as new package — BLE-over-WebSocket proxy (hub, `Ble` consumer stack, noble reference client and `matter-ble-proxy` CLI)

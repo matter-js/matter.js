@@ -3,11 +3,12 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import type { ActionContext } from "#behavior/context/ActionContext.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { Interactable } from "@matter/protocol";
-import { ClientNode } from "./ClientNode.js";
 import { ClientGroupInteraction, InvalidGroupOperationError } from "./client/ClientGroupInteraction.js";
+import { ClientNode } from "./ClientNode.js";
 
 export class ClientGroup extends ClientNode {
     #interaction?: ClientGroupInteraction;

@@ -30,9 +30,9 @@ import { Val } from "@matter/protocol";
 import { ClusterType } from "@matter/types";
 import { Behavior } from "../Behavior.js";
 import { DerivedState } from "../state/StateType.js";
+import { introspectionInstanceOf } from "./cluster-behavior-utils.js";
 import type { ClusterBehavior } from "./ClusterBehavior.js";
 import { ClusterBehaviorCache } from "./ClusterBehaviorCache.js";
-import { introspectionInstanceOf } from "./cluster-behavior-utils.js";
 
 /**
  * Generates a {@link ClusterBehavior.Type}.

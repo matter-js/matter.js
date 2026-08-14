@@ -31,9 +31,16 @@ export { ChipDockerSubject, ChipLocalSubject } from "./cert/chip-app-subject.js"
 export { ChipDockerDevice, HARNESS_DBUS_CONTAINER } from "./cert/chip-app-subject.js";
 /** @internal Test seam — not API. */
 export type { CompositionHandle, DockerHandle } from "./cert/chip-app-subject.js";
-export { registerControllerAdapterFactory } from "./cert/controller-adapter.js";
+export { registerControllerAdapterFactory, UnsupportedByControllerError } from "./cert/controller-adapter.js";
+/** @internal Test seam — not API. Cert-test wiring calls this from `cert-dsl.ts`; direct use is for registry tests. */
+export { createControllerAdapter } from "./cert/controller-adapter.js";
+/** @internal Test seam — not API. */
+export { resetControllerAdapterFactoryForTesting } from "./cert/controller-adapter.js";
 export type {
     AttributePathSpec,
+    AttributeReadEntry,
+    AttributeWriteEntry,
+    AttributeWriteStatus,
     CertNodeApi,
     CertNodeRef,
     CommissioningTarget,
@@ -42,7 +49,8 @@ export type {
     ReadAttributeOptions,
     SubscribeOptions,
 } from "./cert/controller-adapter.js";
-export { resolveDeviceFlavor } from "./cert/device-config.js";
+export { resolveControllerImplementation, resolveDeviceFlavor } from "./cert/device-config.js";
+export type { ControllerImplementation } from "./cert/device-config.js";
 export { EvidenceRecorder } from "./cert/evidence.js";
 export type { RunRecord, StepRecord } from "./cert/evidence.js";
 export { CertLogClosedError, CertLogTimeoutError, LogFollower } from "./cert/log-follower.js";

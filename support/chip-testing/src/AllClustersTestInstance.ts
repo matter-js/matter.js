@@ -4,7 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, InternalError, Logger, Millis, Seconds } from "@matter/general";
+import {
+    Bytes,
+    ImplementationError,
+    InternalError,
+    Logger,
+    Millis,
+    NotImplementedError,
+    Seconds,
+} from "@matter/general";
 import { CommonNumberTag, Endpoint, ServerNode } from "@matter/main";
 import {
     AdministratorCommissioningServer,
@@ -15,7 +23,6 @@ import {
     ColorControlServer,
     DescriptorServer,
     DeviceEnergyManagementModeServer,
-    DishwasherModeServer,
     DoorLockServer,
     EnergyEvseModeServer,
     FixedLabelServer,
@@ -66,7 +73,6 @@ import {
     LaundryWasherMode,
     LevelControl,
     MicrowaveOvenMode,
-    ModeBase,
     ModeSelect,
     OccupancySensing,
     OperationalState,
@@ -88,6 +94,7 @@ import { MdnsAdvertiser } from "@matter/main/protocol";
 import { DeviceTypeId, EndpointNumber, VendorId } from "@matter/main/types";
 import { BackchannelCommand } from "@matter/testing";
 import { TestActivatedCarbonFilterMonitoringServer } from "./cluster/TestActivatedCarbonFilterMonitoringServer.js";
+import { TestDishwasherModeServer } from "./cluster/TestDishwasherModeServer.js";
 import { TestGeneralDiagnosticsServer } from "./cluster/TestGeneralDiagnosticsServer.js";
 import { TestHepaFilterMonitoringServer } from "./cluster/TestHEPAFilterMonitoringServer.js";
 import { TestIdentifyServer } from "./cluster/TestIdentifyServer.js";
@@ -143,25 +150,25 @@ export class AllClustersTestInstance extends NodeTestInstance {
         switch (name) {
             case "simulateLongPress":
                 if (endpoint === undefined) {
-                    throw new Error(`Endpoint ${endpointId} not found`);
+                    throw new ImplementationError(`Endpoint ${endpointId} not found`);
                 }
                 await SwitchSimulator.simulateLongPress(endpoint, command);
                 break;
             case "simulateMultiPress":
                 if (endpoint === undefined) {
-                    throw new Error(`Endpoint ${endpointId} not found`);
+                    throw new ImplementationError(`Endpoint ${endpointId} not found`);
                 }
                 await SwitchSimulator.simulateMultiPress(endpoint, command);
                 break;
             case "simulateLatchPosition":
                 if (endpoint === undefined) {
-                    throw new Error(`Endpoint ${endpointId} not found`);
+                    throw new ImplementationError(`Endpoint ${endpointId} not found`);
                 }
                 await endpoint.setStateOf(SwitchServer, { currentPosition: command.positionId });
                 break;
             case "simulateSwitchIdle":
                 if (endpoint === undefined) {
-                    throw new Error(`Endpoint ${endpointId} not found`);
+                    throw new ImplementationError(`Endpoint ${endpointId} not found`);
                 }
                 await endpoint.setStateOf(SwitchServer, { currentPosition: 0 });
                 endpoint.act(agent => agent.get(SwitchServer).resetState());
@@ -169,7 +176,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
             case "operationalStateChange": {
                 endpoint = findEndpoint(1);
                 if (endpoint === undefined) {
-                    throw new Error(`Endpoint ${endpointId} not found`);
+                    throw new InternalError(`Endpoint 1 not found`);
                 }
                 let ServerType;
                 const { device, operation, param } = command;
@@ -181,7 +188,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                         ServerType = TestOvenCavityOperationalStateServer;
                         break;
                     default:
-                        throw new Error(`Unknown device type ${command.device}`);
+                        throw new NotImplementedError(`Device type ${String(device)}`);
                 }
                 switch (operation) {
                     case "Stop":
@@ -236,13 +243,27 @@ export class AllClustersTestInstance extends NodeTestInstance {
                         });
                         break;
                     default:
-                        throw new Error(`Unknown operation ${operation}`);
+                        throw new NotImplementedError(`Operational state operation ${operation}`);
                 }
+                break;
+            }
+            case "modeChange": {
+                const { device, type } = command;
+                if (device !== "DishWasher" || type !== "ToggleFailTransition") {
+                    throw new NotImplementedError(`Mode change ${type} for device ${device}`);
+                }
+                endpoint = findEndpoint(1);
+                if (endpoint === undefined) {
+                    throw new InternalError(`Endpoint 1 not found`);
+                }
+                await endpoint.setStateOf(TestDishwasherModeServer, {
+                    failTransition: !endpoint.stateOf(TestDishwasherModeServer).failTransition,
+                });
                 break;
             }
             case "setBooleanState":
                 if (endpoint === undefined) {
-                    throw new Error(`Endpoint ${endpointId} not found`);
+                    throw new ImplementationError(`Endpoint ${endpointId} not found`);
                 }
                 await endpoint.setStateOf(BooleanStateServer, { stateValue: command.newState });
                 break;
@@ -407,18 +428,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                 ),
                 DescriptorServer.with(Descriptor.Feature.TagList),
                 DeviceEnergyManagementModeServer,
-                class extends DishwasherModeServer {
-                    override changeToMode(request: ModeBase.ChangeToModeRequest) {
-                        if (request.newMode === 2) {
-                            // Refuse to self destruct for DISHM/2.1
-                            return {
-                                status: ModeBase.ModeChangeStatus.InvalidInMode,
-                                statusText: `Error: Hostile user rejected`,
-                            };
-                        }
-                        return super.changeToMode(request);
-                    }
-                },
+                TestDishwasherModeServer,
                 DoorLockServer.with(
                     DoorLock.Feature.PinCredential,
                     DoorLock.Feature.RfidCredential,
@@ -652,7 +662,6 @@ export class AllClustersTestInstance extends NodeTestInstance {
                             modeTags: [{ value: DishwasherMode.ModeTag.Heavy }],
                         },
                         {
-                            // Unsupported mode for DISHM/2.1
                             label: "Self destruct",
                             mode: 2,
                             modeTags: [{ value: DishwasherMode.ModeTag.Max }],

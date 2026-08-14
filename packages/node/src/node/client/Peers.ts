@@ -445,6 +445,34 @@ export class Peers extends EndpointContainer<ClientNode> {
         });
     }
 
+    /**
+     * Delete every known node.
+     *
+     * A node we cannot tear down cleanly is closed and dropped instead, so it cannot block the factory reset this
+     * serves; its persisted data outlives this call and is the caller's to discard.  Failures are logged rather than
+     * raised for the same reason.
+     */
+    async erase() {
+        await this.#mutex.produce(async () => {
+            for (const node of [...this]) {
+                try {
+                    await node.delete();
+                    continue;
+                } catch (error) {
+                    logger.warn(`Error deleting ${node}:`, error);
+                }
+
+                try {
+                    await node.close();
+                } catch (error) {
+                    logger.warn(`Error closing ${node}:`, error);
+                }
+
+                this.delete(node);
+            }
+        });
+    }
+
     override async close() {
         this.#closed = true;
         await this.#installedSubscriptionHandler?.close();

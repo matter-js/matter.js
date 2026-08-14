@@ -24,11 +24,11 @@ import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import { generateElement } from "./mom/common/generate-element.js";
 import { DEFAULT_MATTER_VERSION } from "./mom/spec/md/load-markdown-files.js";
-import { TsFile } from "./util/TsFile.js";
 import { clean } from "./util/file.js";
 import { finalizeModel } from "./util/finalize-model.js";
-import "./util/setup.js";
 import { camelize } from "./util/string.js";
+import "./util/setup.js";
+import { TsFile } from "./util/TsFile.js";
 export const CLUSTER_SUFFIX = "Element";
 
 const logger = Logger.get("generate-model");

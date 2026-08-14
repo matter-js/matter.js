@@ -98,6 +98,7 @@ describe("FRAMEWORK-SMOKE evidence", () => {
         const result = JSON.parse(readFileSync(join(dir, "result.json"), "utf-8"));
         expect(result.tc).to.equal("FRAMEWORK-SMOKE");
         expect(result.verdict).to.equal("pass");
+        expect(result.run.controllerImplementation).to.equal("matterjs");
         expect(result.steps).to.have.lengthOf(2);
         expect(result.steps.every((step: { verdict: string }) => step.verdict === "pass")).to.equal(true);
     });

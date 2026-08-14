@@ -91,6 +91,19 @@ export interface StepRecorder {
      */
     finalizationFailed?(detail: string): void;
     /**
+     * Lines describing this run's configuration, emitted once before the first step (see
+     * `cert-test.ts`'s `invoke`). A recorder with nothing to say about the run's configuration omits
+     * this hook, which emits no header.
+     */
+    runHeaderLines?(): string[];
+    /**
+     * Records how many steps were skipped because the controller under test cannot express the
+     * operation they need. A run whose remaining steps all skip that way still ends with a "pass"
+     * verdict, so without this the persisted record alone would not say the run proved less than its
+     * verdict suggests.
+     */
+    recordControllerUnsupportedSkips?(count: number): void;
+    /**
      * Persists whatever evidence was recorded. Returns an implementation-defined locator for it
      * (e.g. {@link EvidenceRecorder} returns the directory it wrote to); a recorder with nothing to
      * persist returns an empty string.

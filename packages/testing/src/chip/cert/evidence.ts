@@ -34,15 +34,23 @@ export interface RunRecord {
     run: {
         timestamp: string;
         controller: string;
+        controllerImplementation: string;
         device: string;
         matterJsCommit: string;
         chipRef?: string;
+        chipToolRef?: string;
     };
     steps: StepRecord[];
     verdict: "pass" | "fail" | "skipped";
     deviceExit?: { code: number | null; signal?: string };
     /** Why the run's own cleanup failed, if it did (see {@link EvidenceRecorder.finalizationFailed}). */
     finalizationError?: string;
+    /**
+     * How many steps the controller under test could not express, absent if none. A run can reach a
+     * "pass" verdict with most of its steps skipped this way, so a reader of this record alone needs
+     * the count to know how much the run actually proved.
+     */
+    controllerUnsupportedSkips?: number;
 }
 
 // Colons aren't valid in a Windows path segment; CI here targets macOS/Linux, but a dash-for-colon
@@ -61,17 +69,20 @@ function sanitizeTimestampForPath(timestamp: string): string {
  * the definition `endStep` was given, and its `checks` default to empty.
  */
 export class EvidenceRecorder implements StepRecorder {
-    #outDir: string;
     #meta: RunRecord["run"] & { tc: string; plan: string };
+    #dir: string;
     #steps = new Array<StepRecord>();
     #logs = new Map<string, LogLine[]>();
     #current?: { def: CertStepDefinition; checks: CheckRecord[] };
     #deviceExit?: { code: number | null; signal?: string };
     #finalizationError?: string;
+    #controllerUnsupportedSkips?: number;
 
     constructor(outDir: string, meta: RunRecord["run"] & { tc: string; plan: string }) {
-        this.#outDir = outDir;
         this.#meta = meta;
+        // Computed once so the run header (emitted before any step) and flush() agree on exactly
+        // where the evidence will land.
+        this.#dir = join(outDir, `${sanitizeTimestampForPath(meta.timestamp)}-${meta.tc}`);
     }
 
     beginStep(step: CertStepDefinition): void {
@@ -126,6 +137,15 @@ export class EvidenceRecorder implements StepRecorder {
     }
 
     /**
+     * Records how many steps the controller under test could not express (see
+     * {@link RunRecord.controllerUnsupportedSkips}). Unlike a failed step this never changes the
+     * verdict — such a step is a gap in coverage, not a defect in the device.
+     */
+    recordControllerUnsupportedSkips(count: number): void {
+        this.#controllerUnsupportedSkips = count;
+    }
+
+    /**
      * Attaches a raw log dump under `<name>.log`, e.g. `attachLog("controller", ...)` or
      * `attachLog("device-app1", ...)`.
      */
@@ -134,9 +154,7 @@ export class EvidenceRecorder implements StepRecorder {
     }
 
     async flush(): Promise<string> {
-        const dirName = `${sanitizeTimestampForPath(this.#meta.timestamp)}-${this.#meta.tc}`;
-        const dir = join(this.#outDir, dirName);
-        await mkdir(dir, { recursive: true });
+        await mkdir(this.#dir, { recursive: true });
 
         const record: RunRecord = {
             tc: this.#meta.tc,
@@ -144,23 +162,51 @@ export class EvidenceRecorder implements StepRecorder {
             run: {
                 timestamp: this.#meta.timestamp,
                 controller: this.#meta.controller,
+                controllerImplementation: this.#meta.controllerImplementation,
                 device: this.#meta.device,
                 matterJsCommit: this.#meta.matterJsCommit,
                 chipRef: this.#meta.chipRef,
+                chipToolRef: this.#meta.chipToolRef,
             },
             steps: this.#steps,
             verdict: this.#verdict(),
             deviceExit: this.#deviceExit,
             finalizationError: this.#finalizationError,
+            controllerUnsupportedSkips: this.#controllerUnsupportedSkips,
         };
 
-        await writeFile(join(dir, "result.json"), JSON.stringify(record, null, 4));
+        await writeFile(join(this.#dir, "result.json"), JSON.stringify(record, null, 4));
 
         for (const [name, lines] of this.#logs) {
-            await writeFile(join(dir, `${name}.log`), lines.map(line => line.text).join("\n"));
+            await writeFile(join(this.#dir, `${name}.log`), lines.map(line => line.text).join("\n"));
         }
 
-        return dir;
+        return this.#dir;
+    }
+
+    /**
+     * Lines describing this run's configuration — TC, plan, device, controller, matter.js commit,
+     * chip ref, and where evidence will land — emitted once before the first step through the same
+     * channel step boundaries use (see `cert-test.ts`'s `announceStep`). A log excerpt then carries
+     * its own provenance.
+     */
+    runHeaderLines(): string[] {
+        const { tc, plan, device, controller, controllerImplementation, chipToolRef, matterJsCommit, chipRef } =
+            this.#meta;
+        const controllerLine =
+            chipToolRef === undefined
+                ? `${controllerImplementation} (${controller})`
+                : `${controllerImplementation} (${controller}, ${chipToolRef})`;
+
+        return [
+            `===== ${tc} =====`,
+            `plan       : ${plan}`,
+            `device     : ${device}`,
+            `controller : ${controllerLine}`,
+            `matter.js  : ${matterJsCommit}`,
+            `chip ref   : ${chipRef ?? "(unknown)"}`,
+            `evidence   : ${this.#dir}`,
+        ];
     }
 
     /**

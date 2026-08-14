@@ -204,7 +204,7 @@ export abstract class BehaviorBacking {
         // Server stores can't reseed a rebuilt datasource, so recreating would reset their state to defaults; only
         // externally-mutable (peer) stores reclaim their live values.
         const store = this.store;
-        if (!("reclaimValues" in store) || typeof store.reclaimValues !== "function") {
+        if (!Datasource.ExternallyMutableStore.is(store) || typeof store.reclaimValues !== "function") {
             return;
         }
 
