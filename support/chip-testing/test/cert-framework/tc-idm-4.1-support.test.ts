@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/main";
 import type {
     CertDevice,
     CertNodeApi,
@@ -14,7 +15,6 @@ import type {
     DeviceFlavor,
     Subject,
 } from "@matter/testing";
-import { InternalError } from "@matter/main";
 import { LineQueue, LogFollower, PicsFile } from "@matter/testing";
 import type { SubscribeAndModifyTimeouts } from "../cert/tc-idm-4.1-support.js";
 import { CertCheckFailedError, subscribeAndModify } from "../cert/tc-idm-4.1-support.js";

@@ -5,8 +5,8 @@
  */
 
 import { SemanticNamespaceModel } from "#model";
-import { TsFile } from "../util/TsFile.js";
 import { camelize } from "../util/string.js";
+import { TsFile } from "../util/TsFile.js";
 
 export class SemanticNamespaceFile extends TsFile {
     constructor(public model: SemanticNamespaceModel) {

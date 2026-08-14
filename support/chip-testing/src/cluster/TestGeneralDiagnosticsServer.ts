@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { Logger } from "@matter/general";
 import { GeneralDiagnosticsServer } from "@matter/main/behaviors/general-diagnostics";
 import { StatusResponseError } from "@matter/main/types";

@@ -22,7 +22,8 @@ export interface LogLine {
 }
 
 export type LogExpectResult =
-    { verdict: "pass"; matched: LogLine; pattern: string } | { verdict: "unverified"; reason: "no-pattern-for-flavor" };
+    | { verdict: "pass"; matched: LogLine; pattern: string }
+    | { verdict: "unverified"; reason: "no-pattern-for-flavor" };
 
 /**
  * Per-implementation-family patterns for a {@link LogFollower.expect} call. A step supplies

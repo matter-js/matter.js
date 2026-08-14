@@ -8,9 +8,9 @@ import { Directory, File, FileTypeError, Filesystem, type FilesystemNode } from 
 import { mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
+import { nodeCopy, nodeEntries, nodeExists, nodeStat } from "./fs-utils.js";
 import { NodeJsDirectory } from "./NodeJsDirectory.js";
 import { NodeJsFile } from "./NodeJsFile.js";
-import { nodeCopy, nodeEntries, nodeExists, nodeStat } from "./fs-utils.js";
 
 /**
  * Filesystem backed by the local OS filesystem via Node.js APIs.

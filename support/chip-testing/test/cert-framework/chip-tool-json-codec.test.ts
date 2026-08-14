@@ -7,13 +7,13 @@
 import { UnexpectedDataError } from "@matter/general";
 import { Bytes } from "@matter/main";
 import { Matter } from "@matter/model";
+import { expect } from "chai";
 import {
     chipJsonToMatter,
     matterToChipJson,
     parseChipJson,
     stringifyChipJson,
 } from "../../src/chip-tool/json-codec.js";
-import { expect } from "chai";
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
 const VENDOR_ID_ATTRIBUTE = BASIC_INFORMATION.attributes.require("vendorId");
