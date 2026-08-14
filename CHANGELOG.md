@@ -13,6 +13,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/general
     - Enhancement: New `MatterAggregateError.settleSeries()` runs tasks in order, continuing past a failure, and reports the accumulated errors
+    - Enhancement: A storage driver states how long a consumer may buffer dirty values via `StorageDriver.writeCoalescingInterval`, defaulting to 20 minutes; `MemoryStorageDriver` reports `Instant`
     - Fix: Opening a namespace whose `driver.json` names an unregistered storage driver now throws `NoProviderError` instead of silently opening the existing data with a mismatched driver
     - Fix: DNS-SD ignores SRV records with port 0, an empty target or an out-of-range port
     - Fix: DNS-SD resolution queries A/AAAA for the SRV target host instead of the service instance name
@@ -40,7 +41,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: A LongIdleTimeSupport ICD must select CheckInProtocolSupport and UserActiveModeTrigger
     - Breaking: A node that accepts more than one path per invoke must select the General Diagnostics DataModelTest feature
     - Breaking: An unreported client node attribute reads its schema default, else the specification's fallback value for its type, when the attribute is mandatory under the peer's supported features, and `undefined` otherwise — regardless of the peer's AttributeList (an enum attribute reads `undefined`, as the specification defines its fallback as manufacturer-specific). The value is a detached copy, so mutating a struct or list read from an unreported attribute does not write through
-    - Breaking: Configured options, environment variables and state-class field initializers no longer seed a client node's cluster state; the peer's reports are the only source of values
+    - Breaking: Configured options, environment variables, and state-class field initializers no longer seed a client node's cluster state; the peer's reports are the only source of values
     - Breaking: Adding a server cluster to an endpoint fails when its selected features violate the conformance of its FeatureMap
     - Breaking: Provisional elements are no longer implemented by default; supply a state value or use `ClusterBehavior.enable()` to implement one
     - Breaking: `SoftwareUpdateManager.addUpdateConsent()` and `forceUpdate()` take the update as an object instead of three positional arguments, so it can carry per-update options
@@ -59,6 +60,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `network.profiles` accepts `bdxAdditionalMrpDelay`
     - Adjustment: A node with commissioning disabled (e.g. a controller) now binds an ephemeral operational port instead of the standard Matter port (5540) when `NetworkServer.port` is unset; commissionable nodes still default to 5540 and an explicit port is always honored
     - Adjustment: A commissioned peer's fabric label is new reconciled to the controller's once after its subscription is first established on start by `ClientNode`
+    - Adjustment: `NetworkServer.State.clientCacheFlushInterval` defaults to the storage driver's `writeCoalescingInterval` instead of a fixed 20 minutes; set it to `Instant` to persist every change immediately
+    - Adjustment: A `SoftwareUpdateManager.State.announcementInterval` of `Instant` disables OTA provider announcements
     - Fix: Struct validation resolves a member stored under its TLV tag number, so a constraint violation there is caught and a mandatory member present only at its id no longer raises a conformance error
     - Fix: `endpoints.size` no longer double-counts the root endpoint
     - Fix: A commissioned peer's connection state leaves `Connected` as soon as its last operational session is lost
@@ -72,6 +75,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/nodejs
     - Breaking: `FileStorageDriver`'s constructor no longer accepts a `clear` argument; clearing is handled by `StorageService`
+    - Adjustment: `SqliteStorageDriver` and `JsonFileStorageDriver` report a `writeCoalescingInterval` of `Instant`, so client cache data is no longer held back for 20 minutes on these drivers
     - Fix: Ensure that `--storage-clear`/`MATTER_STORAGE_CLEAR` is honored again and clears the storage on start
 
 - @matter/nodejs-ble
@@ -104,7 +108,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `Cluster.with()` rejects a feature the cluster does not define and returns one frozen namespace per selection
 
 - @matter/testing
-    - Enhancement: `certTest()` defines controller-side certification tests with per-step PICS gating, device-log expectations and evidence recording; devices run as chip apps (docker or local binary) or matter.js test apps, selected via `MATTER_CERT_DEVICE`
+    - Enhancement: `certTest()` defines controller-side certification tests with per-step PICS gating, device-log expectations, and evidence recording; devices run as chip apps (docker or local binary) or matter.js test apps, selected via `MATTER_CERT_DEVICE`
     - Enhancement: A cert test step can declare itself `notApplicable`, recording it as skipped with a reason instead of running it
     - Enhancement: `PromptDrivenPythonTest` drives chip python test scripts that prompt for manual commissioning steps
     - Enhancement: `matter-test`'s post-test clean-exit grace period is overridable via `MATTER_TEST_SHUTDOWN_TIMEOUT_MS`
@@ -119,7 +123,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: TC-SC-3.5 turns off `PICS_SDK_CI_ONLY` so the script prompts for commissioning instead of acting as its own commissioner, and drives whichever controller `MATTER_CERT_CONTROLLER` selects
 
 - @project-chip/matter.js
-    - Deprecation: Every class, type and function of the legacy controller API is now marked deprecated and scheduled for removal in 0.19; use the `ServerNode.peers` / `ClientNode` API of `@matter/node` instead
+    - Deprecation: Every class, type, and function of the legacy controller API is now marked deprecated and scheduled for removal in 0.19; use the `ServerNode.peers` / `ClientNode` API of `@matter/node` instead
+    - Feature: `CommissioningController` accepts `clientCacheFlushInterval` to override how long node state is buffered before it is written to storage
 
 ## 0.17.9 (2026-08-06)
 
@@ -193,7 +198,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Thermostat adjusts the coupled setpoint limit to preserve the AutoMode deadband instead of rejecting the write
     - Fix: Choice conformance no longer requires a member gated by an inapplicable condition (e.g. `[ICTL].b+` when the feature is unsupported)
     - Fix: Support the `!=` (not-equal) operator in value conformance expressions
-    - Fix: Ensure `FabricAuthority` is fully constructed before it is used in the WebRTC Transport Requestor, OTA Software Update Provider and Software Update clusters
+    - Fix: Ensure `FabricAuthority` is fully constructed before it is used in the WebRTC Transport Requestor, OTA Software Update Provider, and Software Update clusters
     - Fix: Consider existing node IDs when determining the next node ID to commission
     - Fix: Determine the network medium of nodes without a Network Commissioning cluster from the WiFi or Thread Network Diagnostics cluster on their root endpoint
 
@@ -382,7 +387,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The MRP retransmission interval is no longer capped below the peer's idle interval
     - Fix: The connection fallback address is now compared by value, so a rediscovered last-known address is no longer mistaken for an address change
     - Fix: Ensures that subscriptions established through an interaction are closed when the interaction closes (e.g. node disable/disconnect or decommission)
-    - Fix: Ensures spec-compliant read/subscribe/write/invoke responses for a model-known but absent high-privilege attribute, event or command
+    - Fix: Ensures spec-compliant read/subscribe/write/invoke responses for a model-known but absent high-privilege attribute, event, or command
     - Fix: Decodes VendorID/ProductID from the "fallback method" (`Mvid:`/`Mpid:` in the commonName) of attestation certificates
 
 - @matter/types
@@ -487,7 +492,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - Breaking: Matter 1.5/1.5.1 specification introduces some changes, as always with new Matter specification versions. You might need to adjust your code.
     - Some Namespaces were renamed and now have a "Common*" prefix
-    - Several previous "Zigbee only" features, attributes and commands were removed because they were never allowed for Matter
+    - Several previous "Zigbee only" features, attributes, and commands were removed because they were never allowed for Matter
 
 - @matter/\*
     - Upgraded to Matter specification version 1.5/1.5.1
