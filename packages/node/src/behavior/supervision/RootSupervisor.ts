@@ -174,6 +174,20 @@ export class RootSupervisor implements ValueSupervisor {
         return persistent;
     }
 
+    /**
+     * Retrieve names or IDs of all attribute fields.
+     */
+    attributeKeys(primaryKey: ValReference.PrimaryKey = "name") {
+        const attributes = new Set<string>();
+
+        for (const member of this.#members) {
+            if (member.tag === ElementTag.Attribute) {
+                attributes.add(String(memberKeyFor(primaryKey, member.propertyName, member.effectiveId)));
+            }
+        }
+        return attributes;
+    }
+
     get propertyNamesAndIds() {
         let names = this.#propertyNamesAndIds;
         if (!names) {

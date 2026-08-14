@@ -25,7 +25,7 @@ import { FabricId, NodeId, SubjectId, VendorId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { commission, LIT_CONFIG, wakeDevice, wakefulnessOf } from "../../../node/icd-helpers.js";
 import { MockSite } from "../../../node/mock-site.js";
-import { subscribedPeer } from "../../../node/node-helpers.js";
+import { seedPeerCache, subscribedPeer } from "../../../node/node-helpers.js";
 
 const RootWithIcd = ServerNode.RootEndpoint.with(IcdManagementServer);
 
@@ -312,9 +312,12 @@ describe("IcdClient", () => {
             // Stale cache: the device operates in SIT but the controller's persisted operatingMode still reads LIT (as
             // after the device flipped LIT->SIT while the controller was down). Deciding on this cached LIT would
             // wrongly register; a fresh read must reveal SIT and suppress registration.
-            await peer1.act(agent => {
-                agent.get(IcdManagementClient).state.operatingMode = IcdManagement.OperatingMode.Lit;
-            });
+            await seedPeerCache(
+                peer1,
+                peer1,
+                IcdManagementClient,
+                new Map([[IcdManagement.attributes.operatingMode.id, IcdManagement.OperatingMode.Lit]]),
+            );
             // Let any auto-registration transaction (deferred, with peer I/O) run to completion. On stale-cache
             // behavior the wrong registration lands well within this window (empirically by the 6th step).
             for (let i = 0; i < 15; i++) {
