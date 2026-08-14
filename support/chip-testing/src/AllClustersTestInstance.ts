@@ -290,6 +290,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
         const rootEndpoint = this.groupcast
             ? ServerNode.RootEndpoint.with(
                   AccessControlServer.with("Auxiliary", "Extension").enable({
+                      attributes: { auxiliaryAcl: true },
                       events: { auxiliaryAccessUpdated: true },
                   }),
                   // We upgrade the AdminCommissioningCluster to also allow Basic Commissioning, so we can use for more testcases

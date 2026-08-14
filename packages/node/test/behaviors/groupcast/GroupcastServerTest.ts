@@ -1687,6 +1687,7 @@ describe("GroupcastServer", () => {
                 GroupcastServer.with("Listener", "Sender", "PerGroup"),
                 GroupKeyManagementServer.with("Groupcast"),
                 AccessControlServer.with("Extension", "Auxiliary").enable({
+                    attributes: { auxiliaryAcl: true },
                     events: { auxiliaryAccessUpdated: true },
                 }),
             );
