@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { BasicInformationBehavior } from "#behaviors/basic-information";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import {
@@ -15,7 +16,6 @@ import {
     NetworkClient,
     ServerNode,
 } from "#index.js";
-import type { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { Bytes, Crypto, InternalError } from "@matter/general";
 import { Specification } from "@matter/model";
 import {
