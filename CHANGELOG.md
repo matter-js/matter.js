@@ -44,6 +44,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: Adding a server cluster to an endpoint fails when its selected features violate the conformance of its FeatureMap
     - Breaking: Provisional elements are no longer implemented by default; supply a state value or use `ClusterBehavior.enable()` to implement one
     - Breaking: `SoftwareUpdateManager.addUpdateConsent()` and `forceUpdate()` take the update as an object instead of three positional arguments, so it can carry per-update options
+    - Breaking: Ensure that changing any attribute of a client node sends a write to the peer; an attribute the peer's cluster type cannot express, including the global attributes, is declined locally with `UnsupportedWrite` or `UnsupportedAttribute`
     - Feature: Added `ServerNode.peers.commissioned` returning the commissioned `ClientNode`s
     - Feature: Added `ClientNode.disable()`/`enable()` to persistently disable/enable a commissioned peer
     - Feature: Added a `ClientNode` connection-state engine — `lifecycle.connectionState`/`connectionStateChanged`/`isConnected` and the `NodeConnectionState` enum
@@ -64,7 +65,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Writing a fabric-scoped list entry that stems from a cluster whose schema could not be resolved no longer produces two conflicting fabricIndex fields
     - Fix: A rejected write to an attribute served by dynamic properties restores the previous value instead of deleting the property, and a rejected write to a previously absent attribute leaves no slot behind instead of one holding `undefined`
     - Fix: Factory reset removes commissioned peers and the certificate authority's key material; a peer that cannot be torn down no longer blocks the reset
-    - Breaking: Writing any attribute of a client node sends a write to the peer, so a write the device declines now rejects instead of resolving; an attribute the peer's cluster type cannot express, including the global attributes, is declined locally with `UnsupportedWrite` or `UnsupportedAttribute`
 
 - @matter/nodejs
     - Breaking: `FileStorageDriver`'s constructor no longer accepts a `clear` argument; clearing is handled by `StorageService`
