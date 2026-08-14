@@ -108,7 +108,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `MATTER_CHIP_BINS_SOURCE=cert-bins` selects project-chip's official `connectedhomeip/chip-cert-bins` binaries for the classic yaml/python tests and `chip-local` cert-test subjects
     - Enhancement: A cert test's attached device/controller logs now carry a banner marking each step's start and end, alongside its verdict
     - Enhancement: Certification controller tests run against a controller × device matrix, adding chip-tool as a second controller alongside matter.js's own
+    - Breaking: Removed the unused `PicsFile.Values` type; use `PicsValues`
     - Enhancement: New `PicsFile.with()` returns a copy of a PICS file with values overridden
+    - Fix: `PicsFile.patch()` overrides every occurrence of a key the target lists more than once, so the last one no longer wins over the patch
     - Fix: `PromptDrivenPythonTest` now fails a run in which none of its prompt handlers fired, instead of trusting the script's own verdict
     - Enhancement: A python-wrapped cert test's evidence attaches the script's own output alongside the controller log
     - Fix: A composite `PicsSource` no longer patches the PICS file cached for its first source

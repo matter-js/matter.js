@@ -261,7 +261,7 @@ describe("TC-SC-3.5", () => {
             // The script's own PASS does not depend on its prompts being answered, so a short count means faults it
             // injected were never put to the DUT.
             if (state.attempts < MINIMUM_PROMPTS) {
-                throw new Error(
+                throw new InternalError(
                     `TC_SC_3_5.py reported success after only ${state.attempts} of at least ${MINIMUM_PROMPTS} ` +
                         "commissioning prompts, so some of its fault-injected CASE handshakes were never attempted",
                 );

@@ -28,6 +28,21 @@ describe("PicsFile", () => {
             expect(base.values).deep.equal({ PICS_A: 1 });
         });
 
+        it("overrides a key the base file lists more than once", () => {
+            const base = new PicsFile(["PICS_A=1", "PICS_B=1", "PICS_A=1"]);
+
+            const patched = base.with({ PICS_A: 0 });
+
+            expect(patched.values.PICS_A).equal(0);
+            expect(patched.lines).deep.equal(["PICS_A=0", "PICS_B=1", "PICS_A=0"]);
+        });
+
+        it("appends an added key once even where the base repeats others", () => {
+            const base = new PicsFile(["PICS_A=1", "PICS_A=1"]);
+
+            expect(base.with({ PICS_B: 1 }).lines).deep.equal(["PICS_A=1", "PICS_A=1", "PICS_B=1"]);
+        });
+
         it("keeps the base file's comments", () => {
             const base = new PicsFile(["# a comment", "PICS_A=1"]);
 

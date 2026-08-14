@@ -70,6 +70,9 @@ export class PicsFile {
 
     patch(other: PicsFile) {
         const newValues = { ...other.values };
+        // Every occurrence of an overridden key is replaced, not just the first: a PICS file may list a key twice, and
+        // the last occurrence is the one that counts, so replacing one of them would leave the patch without effect.
+        const applied = new Set<string>();
 
         const newLines = new Array<string>();
         for (const line of this.lines) {
@@ -83,7 +86,7 @@ export class PicsFile {
                 const newValue = newValues[key];
                 if (newValue !== undefined) {
                     newLines.push(`${key}=${newValue}`);
-                    delete newValues[key];
+                    applied.add(key);
                 } else {
                     newLines.push(`${key}=${lineValues[key]}`);
                 }
@@ -91,7 +94,9 @@ export class PicsFile {
         }
 
         for (const key in newValues) {
-            newLines.push(`${key}=${newValues[key]}`);
+            if (!applied.has(key)) {
+                newLines.push(`${key}=${newValues[key]}`);
+            }
         }
 
         this.#values = undefined;

@@ -782,11 +782,15 @@ commissioning legitimately needs — a second candidate address (`delayBeforeNex
 answering the first handshake with `NoSharedTrustRoots` (15s), a transient network error (15s) — so a
 step that expects to succeed must leave it alone. TC-SC-3.5 sets it for every attempt but its first.
 
-**It bounds our wait, not the handshake.** `Peer.connect`'s `connectionTimeout` is documented as
-orthogonal to abort: the connection process continues after the caller gives up. So the rejection it
-produces reports a budget that expired, not what the device answered — TC-SC-3.5's step evidence says
-exactly that, and the device's own answer is read from the attached controller log and from the script's.
-Cancelling the attempt outright needs an abort that reaches past PASE, which does not exist yet.
+**It reports a budget, not the device's answer.** `Peer.connect`'s `connectionTimeout` bounds the caller's
+wait rather than the handshake — the two are orthogonal to cancellation by its own documentation — but
+commissioning's failure path then deletes the peer, and `Peer.close()` aborts the connection process, so
+nothing keeps handshaking behind our back. What the rejection cannot tell you is *why* the handshake did
+not finish: a device that merely answered slowly produces the same error as one that refused. TC-SC-3.5's
+step evidence says only "did not complete" for that reason, and the device's own answer is read from the
+attached controller log and from the script's. What no timeout cancels is the device-side commissioning
+state — the failsafe there still has to expire on its own — which is why an abort reaching past PASE is
+still worth having.
 
 Two things obscured this while it was being diagnosed. The script's prompt says "Input anything once
 commissioning has *started*", and a human answering there lets the script check `WindowStatus` and

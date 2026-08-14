@@ -1148,9 +1148,12 @@ export namespace CommissioningClient {
          * failure rather than something a retry can recover.
          *
          * Raising it past the failsafe armed for this step (a 5 minute reconnect allowance) has the device roll
-         * `addNOC` back mid-connect, so a longer budget cannot succeed.  Bounds only how long commissioning waits — the
-         * connection process itself continues, and has no effect where {@link finalizeCommissioning} owns the
-         * operational step, nor on the connection `peers.completeCommissioning()` makes.
+         * `addNOC` back mid-connect, so a longer budget cannot succeed.
+         *
+         * Expiry fails commissioning, which deletes the peer and so aborts the connection it was still attempting.  The
+         * rejection therefore reports a budget that ran out, not what the device answered.  No effect where
+         * {@link finalizeCommissioning} owns the operational step, nor on the connection
+         * `peers.completeCommissioning()` makes.
          */
         caseConnectionTimeout?: Duration;
     }
