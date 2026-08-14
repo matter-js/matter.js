@@ -217,6 +217,7 @@ export class OnlineEvent<T extends any[] = any[], S extends ValueModel = ValueMo
         this.owner.changes?.broadcastEvent(this.owner.endpoint!, this.owner.behavior!, this.schema as EventModel, {
             number,
             timestamp,
+            timestampKind: "epoch",
             priority,
             payload: payload as Val.Struct | undefined,
         });
