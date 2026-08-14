@@ -15,7 +15,6 @@ import {
     ColorControlServer,
     DescriptorServer,
     DeviceEnergyManagementModeServer,
-    DishwasherModeServer,
     DoorLockServer,
     EnergyEvseModeServer,
     FixedLabelServer,
@@ -66,7 +65,6 @@ import {
     LaundryWasherMode,
     LevelControl,
     MicrowaveOvenMode,
-    ModeBase,
     ModeSelect,
     OccupancySensing,
     OperationalState,
@@ -88,6 +86,7 @@ import { MdnsAdvertiser } from "@matter/main/protocol";
 import { DeviceTypeId, EndpointNumber, VendorId } from "@matter/main/types";
 import { BackchannelCommand } from "@matter/testing";
 import { TestActivatedCarbonFilterMonitoringServer } from "./cluster/TestActivatedCarbonFilterMonitoringServer.js";
+import { TestDishwasherModeServer } from "./cluster/TestDishwasherModeServer.js";
 import { TestGeneralDiagnosticsServer } from "./cluster/TestGeneralDiagnosticsServer.js";
 import { TestHepaFilterMonitoringServer } from "./cluster/TestHEPAFilterMonitoringServer.js";
 import { TestIdentifyServer } from "./cluster/TestIdentifyServer.js";
@@ -181,7 +180,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                         ServerType = TestOvenCavityOperationalStateServer;
                         break;
                     default:
-                        throw new Error(`Unknown device type ${command.device}`);
+                        throw new Error(`Unknown device type ${String(device)}`);
                 }
                 switch (operation) {
                     case "Stop":
@@ -238,6 +237,20 @@ export class AllClustersTestInstance extends NodeTestInstance {
                     default:
                         throw new Error(`Unknown operation ${operation}`);
                 }
+                break;
+            }
+            case "modeChange": {
+                const { device, type } = command;
+                if (device !== "DishWasher" || type !== "ToggleFailTransition") {
+                    throw new Error(`Unsupported mode change ${type} for device ${device}`);
+                }
+                endpoint = findEndpoint(1);
+                if (endpoint === undefined) {
+                    throw new Error(`Endpoint 1 not found`);
+                }
+                await endpoint.setStateOf(TestDishwasherModeServer, {
+                    failTransition: !endpoint.stateOf(TestDishwasherModeServer).failTransition,
+                });
                 break;
             }
             case "setBooleanState":
@@ -407,18 +420,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                 ),
                 DescriptorServer.with(Descriptor.Feature.TagList),
                 DeviceEnergyManagementModeServer,
-                class extends DishwasherModeServer {
-                    override changeToMode(request: ModeBase.ChangeToModeRequest) {
-                        if (request.newMode === 2) {
-                            // Refuse to self destruct for DISHM/2.1
-                            return {
-                                status: ModeBase.ModeChangeStatus.InvalidInMode,
-                                statusText: `Error: Hostile user rejected`,
-                            };
-                        }
-                        return super.changeToMode(request);
-                    }
-                },
+                TestDishwasherModeServer,
                 DoorLockServer.with(
                     DoorLock.Feature.PinCredential,
                     DoorLock.Feature.RfidCredential,
@@ -652,7 +654,6 @@ export class AllClustersTestInstance extends NodeTestInstance {
                             modeTags: [{ value: DishwasherMode.ModeTag.Heavy }],
                         },
                         {
-                            // Unsupported mode for DISHM/2.1
                             label: "Self destruct",
                             mode: 2,
                             modeTags: [{ value: DishwasherMode.ModeTag.Max }],
