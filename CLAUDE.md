@@ -28,7 +28,7 @@ npm run lint
 npm test             # `npm test -- -p packages/<name>` while iterating on one package
 ```
 
-Use the project scripts, never invoke prettier, oxlint or the test runner directly — the scripts
+Use the project scripts, never invoke oxfmt, oxlint or the test runner directly — the scripts
 pick up project configuration a direct call misses. Single tests are fine for fast iteration, but
 the full suite gates completion.
 

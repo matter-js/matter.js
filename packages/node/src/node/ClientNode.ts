@@ -188,12 +188,14 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     override async delete() {
         const address = this.peerAddress;
 
-        await super.delete();
-
-        // Ensure there is no remaining @matter/protocol Peer installed.  This may occur if deleted while still
-        // commissioned
-        if (address) {
-            await this.env.maybeGet(PeerSet)?.get(address)?.delete();
+        try {
+            await super.delete();
+        } finally {
+            // Ensure there is no remaining @matter/protocol Peer installed.  This may occur if deleted while still
+            // commissioned, and must hold even when teardown fails or the peer outlives its fabric
+            if (address) {
+                await this.env.maybeGet(PeerSet)?.get(address)?.delete();
+            }
         }
     }
 

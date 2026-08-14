@@ -6,8 +6,8 @@
  */
 import "@matter/nodejs";
 import { startDeviceTestApp } from "./GenericTestApp.js";
-import { TvTestInstance } from "./TvTestInstance.js";
 import { StorageBackendAsyncJsonFile } from "./storage/StorageBackendAsyncJsonFile.js";
+import { TvTestInstance } from "./TvTestInstance.js";
 
 console.log("Start TvApp");
 console.log(process.pid);

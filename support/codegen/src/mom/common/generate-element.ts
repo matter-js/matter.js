@@ -5,8 +5,8 @@
  */
 
 import { Model } from "#model";
-import { Block } from "../../util/TsFile.js";
 import { camelize, serialize } from "../../util/string.js";
+import { Block } from "../../util/TsFile.js";
 import { addDetails, addProperties } from "./element-generation.js";
 
 export function generateElement({

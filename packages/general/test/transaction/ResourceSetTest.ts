@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { SynchronousTransactionConflictError, TransactionFlowError } from "#transaction/errors.js";
 import { Resource } from "#transaction/Resource.js";
 import { ResourceSet } from "#transaction/ResourceSet.js";
 import type { Transaction } from "#transaction/Transaction.js";
-import { SynchronousTransactionConflictError, TransactionFlowError } from "#transaction/errors.js";
 
 function resource(name: string): Resource {
     return { toString: () => name };

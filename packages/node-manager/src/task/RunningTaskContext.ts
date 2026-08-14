@@ -8,8 +8,8 @@ import { ReconcilerSurface } from "#reconcile/ReconcilerSurface.js";
 import { asError, Logger, ObserverGroup } from "@matter/general";
 import { ClientNode, DesiredStateBehavior, itemMapKey, ItemMode, ManagedItem, NetworkClient } from "@matter/node";
 import { SustainedSubscription } from "@matter/protocol";
-import { Task } from "./Task.js";
 import { TaskFailedError, TaskPeerUnavailableError } from "./errors.js";
+import { Task } from "./Task.js";
 import { TaskContext, TaskState } from "./types.js";
 
 const logger = Logger.get("TaskContext");

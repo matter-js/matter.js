@@ -7,6 +7,14 @@
 import { PicsValues } from "./values.js";
 
 /**
+ * Thrown by a `Subject.pics` accessor (or `chip.defaultPics`) when no PICS file is available for
+ * the subject — e.g. the harness hasn't initialized one, or the device kind has none at all.
+ * Distinct from other errors a PICS accessor may raise: "no PICS" means PICS gating is simply
+ * inactive, not that something is broken (see `cert-test.ts`'s `resolvePicsFile`).
+ */
+export class PicsUnavailableError extends Error {}
+
+/**
  * In-memory Matter PICS file.
  *
  * Supports extended syntax for defining ranges of values of the form "NAMExx..yy=*" or "NAMExx..yy.SUFFIX=*" where xx
@@ -47,6 +55,19 @@ export class PicsFile {
         return this.#lines.join("\n") + "\n";
     }
 
+    /**
+     * A copy of this file with `values` applied over it.  {@link patch} modifies its target in place, so this is the
+     * way to override values of a file others share (e.g. `chip.defaultPics`).
+     *
+     * Each call returns a distinct file, and installing a file into a container writes it under a fresh name, so store
+     * the result rather than recomputing it per access.
+     */
+    with(values: PicsValues) {
+        const patched = new PicsFile([...this.#lines]);
+        patched.patch(new PicsFile(Object.entries(values).map(([name, value]) => `${name}=${value}`)));
+        return patched;
+    }
+
     patch(other: PicsFile) {
         const newValues = { ...other.values };
 
@@ -75,12 +96,6 @@ export class PicsFile {
 
         this.#values = undefined;
         this.#lines = newLines;
-    }
-}
-
-export namespace PicsFile {
-    export interface Values {
-        [key: string]: 0 | 1;
     }
 }
 

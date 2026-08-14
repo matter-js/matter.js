@@ -29,8 +29,8 @@ import { Matter, MatterModel } from "@matter/model";
 import { Interactable } from "@matter/protocol";
 import type { EndpointNumber } from "@matter/types";
 import { RootEndpoint } from "../endpoints/root.js";
-import { NodeLifecycle } from "./NodeLifecycle.js";
 import { ProtocolService } from "./integration/ProtocolService.js";
+import { NodeLifecycle } from "./NodeLifecycle.js";
 
 const logger = Logger.get("Node");
 

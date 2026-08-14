@@ -114,6 +114,28 @@ export class ClientNodeStores {
         return Object.keys(this.#stores);
     }
 
+    /**
+     * Discard all persisted node data.  The collection remains usable and IDs are reassigned from the start.
+     */
+    async erase() {
+        this.#construction.assert();
+
+        const stores = Object.values(this.#stores);
+        this.#stores = {};
+
+        await MatterAggregateError.settleSeries(
+            [
+                ...stores.map(store => () => store.erase()),
+
+                // Data a store failed to erase must still go: the index is gone either way, so anything left behind
+                // resurrects on the next lookup
+                () => this.#storage.clearAll(),
+                () => void (this.#nextAutomaticId = 1),
+            ],
+            "Error while erasing client stores",
+        );
+    }
+
     async close() {
         await this.construction.close(async () => {
             const stores = Object.values(this.#stores);

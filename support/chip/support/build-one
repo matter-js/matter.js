@@ -5,10 +5,21 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Creates a binary using build-examples.py.  Strips, installs into /dist/bin and removes build artifacts
+#
+# Usage: build-one <example-dir> [ninja-target] [output-name] [extra gn arg]...
+#
+# <example-dir> is relative to examples/ and becomes the gn root.  [ninja-target] defaults to
+# <example-dir> (today's chip-tool usage, where the two are identical). [output-name] renames the
+# installed binary; omit it to keep whatever ninja produced. Further arguments are appended to
+# GN_ARGS verbatim, e.g. chip_with_nlfaultinjection=true.
 
 set -e
 
 NAME=$1
+TARGET_NAME=${2:-$1}
+OUT_NAME=$3
+shift $(( $# >= 3 ? 3 : $# ))
+
 OPTIONS=ipv6only-no-ble-no-wifi-no-thread-no-shell-platform-mdns-clang
 
 die() {
@@ -56,6 +67,7 @@ GN_ARGS=(
     matter_enable_tracing_support=false
     matter_trace_config='"///src/tracing/none"'
     matter_commandline_enable_perfetto_tracing=false
+    "$@"
 )
 
 gn gen out \
@@ -64,7 +76,7 @@ gn gen out \
     --root=examples/$NAME \
     --args="${GN_ARGS[*]}"
 
-ninja -C out $NAME
+ninja -C out "$TARGET_NAME"
 
 BINPATH="$(find "out" -type f -executable)"
 if [ ! -x "$BINPATH" ]; then
@@ -73,7 +85,11 @@ fi
 
 strip "$BINPATH"
 mkdir -p /dist/bin
-mv "$BINPATH" /dist/bin
+if [ -n "$OUT_NAME" ]; then
+    mv "$BINPATH" "/dist/bin/$OUT_NAME"
+else
+    mv "$BINPATH" /dist/bin
+fi
 
 #rm -rf "out/$TARGET"
 rm -rf out

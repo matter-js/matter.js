@@ -7,8 +7,8 @@
 import { Diagnostic, Logger } from "@matter/general";
 import { DefinitionError } from "../common/index.js";
 import { Model } from "../models/index.js";
-import { ModelTraversal } from "./ModelTraversal.js";
 import { ModelValidator } from "./definition-validation/ModelValidator.js";
+import { ModelTraversal } from "./ModelTraversal.js";
 
 const logger = Logger.get("ValidateModel");
 

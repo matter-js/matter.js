@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ItemKind, ItemKindRegistry } from "#behavior/system/desired-state/ItemKind.js";
 import { DuplicateItemKindError, UnknownItemKindError } from "#behavior/system/desired-state/errors.js";
+import { ItemKind, ItemKindRegistry } from "#behavior/system/desired-state/ItemKind.js";
 
 function fakeKind(kind: string, priority: number): ItemKind {
     return {

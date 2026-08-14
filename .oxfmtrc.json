@@ -1,0 +1,38 @@
+{
+    "$schema": "./node_modules/oxfmt/configuration_schema.json",
+    "printWidth": 120,
+    "semi": true,
+    "tabWidth": 4,
+    "useTabs": false,
+    "trailingComma": "all",
+    "singleQuote": false,
+    "endOfLine": "lf",
+    "bracketSpacing": true,
+    "arrowParens": "avoid",
+    "quoteProps": "as-needed",
+    "sortPackageJson": false,
+    "sortImports": {
+        "groups": [["subpath", "internal"], ["builtin", "external"], ["parent", "sibling", "index"], "unknown"],
+        "newlinesBetween": false,
+        "partitionByNewline": true
+    },
+    "ignorePatterns": [
+        "CHANGELOG.md",
+        "**/dist/**",
+        "**/build/**",
+        "**/forwards/**",
+        "support/models/src/v*/*",
+        "packages/model/src/standard/elements/*",
+        "packages/model/src/standard/resources/*",
+        "packages/types/src/clusters/*",
+        "packages/types/src/globals/*",
+        "packages/node/src/tags/*",
+        "packages/node/src/endpoints/*",
+        "packages/node/src/devices/*",
+        "packages/node/src/behaviors/index.ts",
+        "packages/node/src/behaviors/*/index.ts",
+        "packages/node/src/behaviors/*/*Behavior.ts",
+        "packages/node/src/behaviors/*/*Interface.ts",
+        "packages/node/src/behaviors/*/*Client.ts"
+    ]
+}

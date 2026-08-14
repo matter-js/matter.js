@@ -513,12 +513,6 @@ export class PairedNode {
             this.#localInitializationDone = true;
             await this.events.initialized.emit(this.#nodeDetails.details);
         }
-
-        try {
-            await this.#commissioningController.validateAndUpdateFabricLabel(this.nodeId);
-        } catch (error) {
-            logger.warn(this.#peerAddress, `Error updating fabric label`, error);
-        }
     }
 
     /**
@@ -813,12 +807,6 @@ export class PairedNode {
                 if (!this.#localInitializationDone) {
                     this.#localInitializationDone = true;
                     await this.events.initialized.emit(this.#nodeDetails.details);
-                }
-
-                try {
-                    await this.#commissioningController.validateAndUpdateFabricLabel(this.nodeId);
-                } catch (error) {
-                    logger.warn(this.#peerAddress, `Error updating fabric label`, error);
                 }
             }
         } else if (this.#connectionState === NodeStates.Connected) {

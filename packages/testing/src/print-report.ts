@@ -34,7 +34,7 @@ function printDescriptor(descriptor: TestDescriptor, includeDisabled?: boolean, 
 
         let steps: undefined | number;
         if (submembers.length) {
-            if (member.kind === "py" || member.kind === "yaml" || member.kind === "manual") {
+            if (member.kind === "py" || member.kind === "yaml" || member.kind === "manual" || member.kind === "cert") {
                 steps = submembers.length;
                 submembers = [];
             } else {

@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { Diagnostic, Logger } from "@matter/main";
 import { LevelControlServer } from "@matter/main/behaviors/level-control";
 import { LevelControl } from "@matter/main/clusters/level-control";

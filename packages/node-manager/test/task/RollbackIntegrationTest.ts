@@ -5,8 +5,8 @@
  */
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
-import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { TaskFailedError } from "#task/errors.js";
+import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { Environment } from "@matter/general";
 import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";

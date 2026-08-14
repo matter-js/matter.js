@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { Logger, Millis, Seconds, Time, Timer } from "@matter/main";
 import { MovementDirection, MovementType, WindowCoveringServer } from "@matter/main/behaviors/window-covering";
 import { WindowCovering } from "@matter/main/clusters/window-covering";

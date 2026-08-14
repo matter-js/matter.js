@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { AsyncObservable, Bytes, DataReadQueue, Lifetime, MAX_UDP_MESSAGE_SIZE } from "@matter/general";
 import { MockServerNode, interaction } from "@matter/node/testing";
 import {

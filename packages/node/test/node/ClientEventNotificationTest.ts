@@ -110,6 +110,7 @@ describe("Client Event Notification", () => {
             expect(occurrence.event.name).equals("InitialPress");
             expect(ClusterBehavior.is(occurrence.behavior) && occurrence.behavior.cluster.name).equals("Switch");
             expect(occurrence.payload).deep.equals({ newPosition: 1 });
+            expect(occurrence.timestampKind).equals("epoch");
         });
 
         it("emits EventOccurrence for MS, MSR and MSM events", async () => {

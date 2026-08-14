@@ -160,6 +160,24 @@ describe("ConnectionState", () => {
         expect(peer.lifecycle.isConnected).false;
     });
 
+    it("drops out of Connected when the last operational session is lost", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.Connected);
+
+        // Drop the session without waiting for the subscription to notice — its liveness flag lags real session loss
+        // for a sleepy device, so connection state must fall on session loss alone.
+        const protopeer = peer1.env.get(Peer);
+        for (const session of [...protopeer.sessions]) {
+            protopeer.sessions.delete(session);
+        }
+        await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+
+        expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.Reconnecting);
+        expect(peer1.lifecycle.isConnected).false;
+    });
+
     it("transitions to WaitingForDeviceDiscovery when a registered ICD misses its check-in", async () => {
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair({

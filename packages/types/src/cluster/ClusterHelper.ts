@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { Diagnostic } from "@matter/general";
 import { AttributeModel, ClusterModel, CommandModel, EventModel, Matter, MatterModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
