@@ -6,7 +6,16 @@
 
 import { OnOffClient } from "#behaviors/on-off";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
-import { Crypto, deepCopy, Duration, MemoryStorageDriver, Minutes, MockCrypto, Seconds } from "@matter/general";
+import {
+    Crypto,
+    deepCopy,
+    Duration,
+    Instant,
+    MemoryStorageDriver,
+    Minutes,
+    MockCrypto,
+    Seconds,
+} from "@matter/general";
 import { MockSite } from "./mock-site.js";
 import { subscribedPeer } from "./node-helpers.js";
 
@@ -136,7 +145,7 @@ describe("ClientCacheBuffer", () => {
 
     it("does not buffer when the configured interval is zero", async () => {
         await using site = bufferingSite();
-        await expectUnbuffered(site, { controller: { network: { clientCacheFlushInterval: 0 } } as any });
+        await expectUnbuffered(site, { controller: { network: { clientCacheFlushInterval: Instant } } as any });
     });
 
     it("flushes on subscription established", async () => {

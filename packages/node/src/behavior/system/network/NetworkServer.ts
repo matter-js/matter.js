@@ -249,7 +249,7 @@ export namespace NetworkServer {
 
         /**
          * Interval at which dirty client cache data is flushed to storage.  Defaults to the write-coalescing interval
-         * the storage driver asks for.  Set to zero to disable buffering and persist every change immediately.
+         * the storage driver asks for.  Set to `Instant` to disable buffering and persist every change immediately.
          */
         @field(duration)
         clientCacheFlushInterval?: Duration = undefined;

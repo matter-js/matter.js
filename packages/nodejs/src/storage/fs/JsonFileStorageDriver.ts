@@ -9,6 +9,7 @@ import {
     type Duration,
     FilesystemStorageDriver,
     fromJson,
+    Instant,
     MemoryStorageDriver,
     Seconds,
     type StorageDriver,
@@ -62,7 +63,7 @@ export class JsonFileStorageDriver extends FilesystemStorageDriver {
 
     /** Writes are already coalesced by {@link commitDelay}. */
     override get writeCoalescingInterval(): Duration {
-        return 0;
+        return Instant;
     }
 
     override async initialize() {

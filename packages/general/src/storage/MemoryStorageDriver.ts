@@ -5,6 +5,7 @@
  */
 
 import type { Duration } from "#time/Duration.js";
+import { Instant } from "#time/TimeUnit.js";
 import { deepCopy } from "#util/DeepCopy.js";
 import { CloneableStorage, StorageDriver, StorageError } from "./StorageDriver.js";
 import { SupportedStorageTypes } from "./StringifyTools.js";
@@ -23,7 +24,7 @@ export class MemoryStorageDriver extends StorageDriver implements CloneableStora
     }
 
     override get writeCoalescingInterval(): Duration {
-        return 0;
+        return Instant;
     }
 
     static create(_namespace?: unknown, _descriptor?: StorageDriver.Descriptor) {

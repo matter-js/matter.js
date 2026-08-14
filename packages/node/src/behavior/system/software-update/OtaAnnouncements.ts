@@ -58,7 +58,7 @@ export class OtaAnnouncements {
     }
 
     /**
-     * Set the interval to a time value, or to zero to disable announcements
+     * Set the interval to a time value, or to `Instant` to disable announcements
      */
     set interval(interval: Duration | undefined) {
         if (!interval) {

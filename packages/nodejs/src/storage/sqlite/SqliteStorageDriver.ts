@@ -10,6 +10,7 @@ import {
     type Duration,
     FilesystemStorageDriver,
     fromJson,
+    Instant,
     Logger,
     type StorageDriver,
     StorageTransaction,
@@ -284,7 +285,7 @@ export class SqliteStorageDriver extends FilesystemStorageDriver implements Clon
 
     /** The database coalesces writes itself; it runs in WAL mode with `synchronous = NORMAL`. */
     override get writeCoalescingInterval(): Duration {
-        return 0;
+        return Instant;
     }
 
     override async initialize(): Promise<void> {

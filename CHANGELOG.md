@@ -17,7 +17,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: DNS-SD ignores SRV records with port 0, an empty target or an out-of-range port
     - Fix: DNS-SD resolution queries A/AAAA for the SRV target host instead of the service instance name
     - Fix: The `Symbol.metadata` polyfill no longer conflicts with `lib.esnext.decorators` in the published declarations
-    - Enhancement: A storage driver states how long a consumer may buffer dirty values via `StorageDriver.writeCoalescingInterval`, defaulting to 20 minutes; `MemoryStorageDriver` reports zero
+    - Enhancement: A storage driver states how long a consumer may buffer dirty values via `StorageDriver.writeCoalescingInterval`, defaulting to 20 minutes; `MemoryStorageDriver` reports `Instant`
 
 - @matter/model
     - Breaking: A provisional element is no longer mandatory; conformance following a `P` describes the conformance intended once the element leaves provisional state
@@ -69,13 +69,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Writing a fabric-scoped list entry that stems from a cluster whose schema could not be resolved no longer produces two conflicting fabricIndex fields
     - Fix: A rejected write to an attribute served by dynamic properties restores the previous value instead of deleting the property, and a rejected write to a previously absent attribute leaves no slot behind instead of one holding `undefined`
     - Fix: Factory reset removes commissioned peers and the certificate authority's key material; a peer that cannot be torn down no longer blocks the reset
-    - Adjustment: `NetworkServer.State.clientCacheFlushInterval` defaults to the storage driver's `writeCoalescingInterval` instead of a fixed 20 minutes; set it to zero to persist every change immediately
-    - Adjustment: A `SoftwareUpdateManager.State.announcementInterval` of zero disables OTA provider announcements
+    - Adjustment: `NetworkServer.State.clientCacheFlushInterval` defaults to the storage driver's `writeCoalescingInterval` instead of a fixed 20 minutes; set it to `Instant` to persist every change immediately
+    - Adjustment: A `SoftwareUpdateManager.State.announcementInterval` of `Instant` disables OTA provider announcements
 
 - @matter/nodejs
     - Breaking: `FileStorageDriver`'s constructor no longer accepts a `clear` argument; clearing is handled by `StorageService`
     - Fix: Ensure that `--storage-clear`/`MATTER_STORAGE_CLEAR` is honored again and clears the storage on start
-    - Adjustment: `SqliteStorageDriver` and `JsonFileStorageDriver` report a `writeCoalescingInterval` of zero, so client cache data is no longer held back for 20 minutes on these drivers
+    - Adjustment: `SqliteStorageDriver` and `JsonFileStorageDriver` report a `writeCoalescingInterval` of `Instant`, so client cache data is no longer held back for 20 minutes on these drivers
 
 - @matter/nodejs-ble
     - Fix: A connection attempt that BLE reports as failed is retried instead of failing commissioning on the first try

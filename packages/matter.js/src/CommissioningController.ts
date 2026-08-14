@@ -241,7 +241,7 @@ export type CommissioningControllerOptions = CommissioningControllerNodeOptions 
 
     /**
      * Interval at which state cached for commissioned nodes is flushed to storage. Defaults to the interval the
-     * storage driver asks for. Set to zero to disable buffering and persist every change immediately.
+     * storage driver asks for. Set to `Instant` to disable buffering and persist every change immediately.
      */
     readonly clientCacheFlushInterval?: Duration;
 

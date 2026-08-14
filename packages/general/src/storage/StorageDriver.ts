@@ -29,7 +29,8 @@ export abstract class StorageDriver extends BaseStorageDriver {
     /**
      * The interval for which a consumer may buffer dirty values before writing them.
      *
-     * Drivers that coalesce writes themselves, or where a write is cheap, report zero so consumers write immediately.
+     * Drivers that coalesce writes themselves, or where a write is cheap, report `Instant` so consumers write
+     * immediately.
      */
     get writeCoalescingInterval(): Duration {
         return Minutes(20);

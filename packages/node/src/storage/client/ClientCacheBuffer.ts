@@ -36,7 +36,7 @@ export class ClientCacheBuffer {
      * the buffer and starts the timer; subsequent calls reuse it.
      *
      * The flush interval defaults to the storage driver's {@link StorageDriver#writeCoalescingInterval}.  An interval
-     * of zero disables buffering.
+     * of `Instant` disables buffering.
      */
     static configure(node: ClientNode, store: ClientNodeStore) {
         const parentEnv = node.owner.env;
