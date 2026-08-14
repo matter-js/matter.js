@@ -313,10 +313,10 @@ export class NetworkClient extends NetworkBehavior {
         try {
             const response = await this.#node.commandsOf(OperationalCredentialsClient).updateFabricLabel({ label });
             if (response?.statusCode !== OperationalCredentials.NodeOperationalCertStatus.Ok) {
-                logger.warn(`Could not reconcile fabric label on ${this.#node}: status ${response?.statusCode}`);
+                logger.notice(`Could not reconcile fabric label on ${this.#node}: status ${response?.statusCode}`);
             }
         } catch (error) {
-            logger.warn(`Failed to reconcile fabric label on ${this.#node}`, error);
+            logger.notice(`Failed to reconcile fabric label on ${this.#node}`, error);
         }
     }
 
