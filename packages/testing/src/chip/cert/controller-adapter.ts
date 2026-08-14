@@ -149,6 +149,21 @@ export interface AttributeWriteStatus {
     status: number;
 }
 
+/**
+ * Asks for an interaction to be sent as a timed one (Matter Core § 8.7): the controller precedes it
+ * with a `TimedRequest` carrying `timedInteractionTimeoutMs`, waits for the device's status response,
+ * and must then deliver the interaction itself inside that window or the device rejects it.
+ *
+ * Omitted, the controller sends the interaction untimed unless the command or attribute requires
+ * timed interaction on its own.
+ *
+ * The field is a `uint16` on the wire (§ 10.6.11's `TimedRequestMessage`). A value outside that range,
+ * or a fractional one, is refused by every adapter before it issues anything.
+ */
+export interface TimedInteractionOptions {
+    timedInteractionTimeoutMs?: number;
+}
+
 export interface ReadAttributeOptions {
     /**
      * Whether the read is fabric-filtered (Matter Core § 8.9.2's `FabricFiltered` flag; default
@@ -169,7 +184,13 @@ export interface ReadAttributeOptions {
  * instead.
  */
 export interface CertNodeApi {
-    invoke(cluster: string | number, command: string, args?: object, endpoint?: number): Promise<unknown>;
+    invoke(
+        cluster: string | number,
+        command: string,
+        args?: object,
+        endpoint?: number,
+        options?: TimedInteractionOptions,
+    ): Promise<unknown>;
     readAttribute(path: AttributePathSpec, options?: ReadAttributeOptions): Promise<unknown>;
 
     /**
@@ -180,7 +201,7 @@ export interface CertNodeApi {
      * would exercise a different interaction.
      */
     readAttributes(paths: AttributePathSpec[], options?: ReadAttributeOptions): Promise<AttributeReadEntry[]>;
-    writeAttribute(path: AttributePathSpec, value: unknown): Promise<void>;
+    writeAttribute(path: AttributePathSpec, value: unknown, options?: TimedInteractionOptions): Promise<void>;
 
     /**
      * Writes several attributes in one request, optionally through wildcard paths or conditional on a

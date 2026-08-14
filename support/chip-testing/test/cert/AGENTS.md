@@ -1022,6 +1022,49 @@ an `expectAdjacentLines` result as a `CheckRecord`, turning a timeout into a rec
 out of TC-IDM-4.1's own `expectSubscribeEnvelope` at the same time; that TC now calls the shared
 helper with its own sequence and label.
 
+## Timed interactions (`TC-IDM-5.1`)
+
+`CertNodeApi.invoke` and `.writeAttribute` take a `TimedInteractionOptions` with a
+`timedInteractionTimeoutMs`, which turns the interaction into a timed one (Matter Core § 8.7): the
+controller sends a `TimedRequest` carrying that timeout, waits for the device's status response, and
+must deliver the interaction itself inside the window. matter.js's own `Invoke`/`Write` builders derive
+`timedRequest` from a `timeout`, so the adapter only has to pass one through; chip-tool takes
+`--timedInteractionTimeoutMs`, the same option name on `command-by-id` and `write-by-id`.
+
+Do not give the option a default. An absent timeout must stay absent, or every invoke and write in
+every TC silently becomes a timed interaction.
+
+Both adapters route the value through `timedInteractionTimeoutOf` (`src/cert/timed-interaction.ts`),
+which refuses anything but an integer in the `uint16` range the wire carries: matter.js's TLV layer
+checks bounds but not integrality, so without it a fractional timeout would reach one controller as a
+truncated integer and the other as a chip-tool usage error.
+
+What the plan asks to verify, and how each part is evidenced:
+
+- **The timeout the device was asked for** — `TimedRequestMessage =` / `{` / `TimeoutMs = 0xc8,`, all
+  consecutive; the field is bare lowercase hex and the block closes with a bare `}`.
+- **The message was unicast** — chip's own receive line categorises the session: `(S)` secure unicast,
+  `(U)` unencrypted unicast, `(G)` secure groupcast (`src/messaging/README.md`). `expectUnicastReceipt`
+  scans *backward* from the decode dump for the nearest `Msg RX from` line, which is this message's own
+  since chip logs one message at a time.
+- **The follow-up is the one this request opened** — matched by chip's own exchange id, read off both
+  messages' receive lines, not by "the next message after the timed request". A retry of this
+  interaction, or a second administrator's own timed interaction with the same TH, otherwise stands in
+  for it: the check then passes on someone else's evidence, or fails on a span measured between two
+  different interactions. This is the same rule the subscription checks follow (see "Anchor a
+  subscription ack on its own subscription id"), and it is why `expectUnicastReceipt` and the follow-up
+  check share one receive-line lookup.
+- **The follow-up carried `timedRequest = true`** — matched by *proximity*, not adjacency: chip prints
+  `suppressResponse` before it, and that field is **mandatory on an invoke but optional on a write**
+  (`TlvWriteRequest`), which matter.js omits and chip-tool sends. So the check anchors on the message's
+  opening brace and requires the flag within two lines; a flag further away belongs to a later message.
+- **The follow-up arrived inside the window** — from the two messages' own log timestamps.
+  `timestampMsOf` reads chip's `[<seconds>.<fraction>]` prefix and scales by the fraction's digit count:
+  the harness image prints milliseconds, the certification YAML captures microseconds.
+
+Step 3 (the device withholds its answer to the timed request) is `notApplicable`: the plan itself says
+"might not be testable" and `Test_TC_IDM_5_1.yaml` says "Mark this as not testable /NA. Out of Scope".
+
 ## Why the cert adapter shortens its peer-connection timeout
 
 `CERT_PEER_CONNECTION_TIMEOUT` (15s, `InProcessControllerAdapter.ts`) bounds how long a cert step's
