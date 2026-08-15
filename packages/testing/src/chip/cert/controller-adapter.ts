@@ -68,6 +68,46 @@ export interface SubscribeOptions {
 }
 
 /**
+ * An event path, wildcarded by omitting a field the same way {@link AttributePathSpec} is.
+ */
+export interface EventPathSpec {
+    endpoint?: number;
+    cluster?: number;
+    event?: number;
+}
+
+/**
+ * One event of a {@link CertNodeApi.readEvents} response or of a {@link CertNodeApi.subscribeEvents}
+ * report.
+ */
+export interface EventReadEntry {
+    endpoint: number;
+    cluster: number;
+    event: number;
+    /** The publisher's own event number (Matter Core § 8.10.3), which orders a node's events. */
+    eventNumber: bigint;
+    value: unknown;
+}
+
+export interface ReadEventOptions {
+    /** As {@link ReadAttributeOptions.fabricFiltered}. */
+    fabricFiltered?: boolean;
+
+    /**
+     * Reports only events at or above this event number (Matter Core § 8.9.2.4's `EventFilters`).
+     * Omitted, the request carries no filter at all, which is what the plan documents as the field's
+     * optional case.
+     */
+    minEventNumber?: bigint;
+}
+
+export interface SubscribeEventOptions extends ReadEventOptions {
+    minIntervalFloorSeconds: number;
+    maxIntervalCeilingSeconds: number;
+    onUpdate?: (event: EventReadEntry) => void;
+}
+
+/**
  * One attribute of a {@link CertNodeApi.writeAttributes} request.
  */
 export interface AttributeWriteEntry {
@@ -109,6 +149,21 @@ export interface AttributeWriteStatus {
     status: number;
 }
 
+/**
+ * Asks for an interaction to be sent as a timed one (Matter Core § 8.7): the controller precedes it
+ * with a `TimedRequest` carrying `timedInteractionTimeoutMs`, waits for the device's status response,
+ * and must then deliver the interaction itself inside that window or the device rejects it.
+ *
+ * Omitted, the controller sends the interaction untimed unless the command or attribute requires
+ * timed interaction on its own.
+ *
+ * The field is a `uint16` on the wire (§ 10.6.11's `TimedRequestMessage`). A value outside that range,
+ * or a fractional one, is refused by every adapter before it issues anything.
+ */
+export interface TimedInteractionOptions {
+    timedInteractionTimeoutMs?: number;
+}
+
 export interface ReadAttributeOptions {
     /**
      * Whether the read is fabric-filtered (Matter Core § 8.9.2's `FabricFiltered` flag; default
@@ -129,7 +184,13 @@ export interface ReadAttributeOptions {
  * instead.
  */
 export interface CertNodeApi {
-    invoke(cluster: string | number, command: string, args?: object, endpoint?: number): Promise<unknown>;
+    invoke(
+        cluster: string | number,
+        command: string,
+        args?: object,
+        endpoint?: number,
+        options?: TimedInteractionOptions,
+    ): Promise<unknown>;
     readAttribute(path: AttributePathSpec, options?: ReadAttributeOptions): Promise<unknown>;
 
     /**
@@ -140,7 +201,7 @@ export interface CertNodeApi {
      * would exercise a different interaction.
      */
     readAttributes(paths: AttributePathSpec[], options?: ReadAttributeOptions): Promise<AttributeReadEntry[]>;
-    writeAttribute(path: AttributePathSpec, value: unknown): Promise<void>;
+    writeAttribute(path: AttributePathSpec, value: unknown, options?: TimedInteractionOptions): Promise<void>;
 
     /**
      * Writes several attributes in one request, optionally through wildcard paths or conditional on a
@@ -174,6 +235,26 @@ export interface CertNodeApi {
      * out of nothing.
      */
     subscribe(path: AttributePathSpec, opts: SubscribeOptions): Promise<unknown>;
+
+    /**
+     * Reads every event `paths` selects in one request (Matter Core § 8.4).
+     *
+     * A concrete path the device answers with a status **rejects**, matching {@link readAttribute}: the
+     * step asked for that event and got none. A wildcard path's statuses are per-item results of the
+     * expansion instead, so those are dropped and whatever data arrived is returned.
+     *
+     * A node with no records for a selected path answers with neither data nor a status, so an empty
+     * result is a successful read, not a failure.
+     */
+    readEvents(paths: EventPathSpec[], options?: ReadEventOptions): Promise<EventReadEntry[]>;
+
+    /**
+     * Subscribes to every event `paths` selects (Matter Core § 8.5), resolving with the priming
+     * report's events; later reports reach `opts.onUpdate`.
+     *
+     * Rejects on a concrete path's status for the same reason {@link subscribe} does.
+     */
+    subscribeEvents(paths: EventPathSpec[], opts: SubscribeEventOptions): Promise<EventReadEntry[]>;
     openCommissioningWindow(opts: {
         timeout: number;
         enhanced: boolean;

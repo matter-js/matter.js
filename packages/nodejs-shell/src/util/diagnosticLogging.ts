@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic, ObserverGroup } from "@matter/general";
+import { Diagnostic, Duration, Logger, Millis, ObserverGroup, Timestamp } from "@matter/general";
 import {
     ChangeNotificationService,
     ClientNode,
@@ -13,6 +13,9 @@ import {
     NodeConnectionState,
     ServerNode,
 } from "@matter/node";
+import { Priority } from "@matter/types";
+
+const logger = Logger.get("DiagnosticLogging");
 
 /** True if `endpoint` belongs to `node`'s endpoint tree (the node itself is its own root endpoint). */
 function ownedBy(endpoint: Endpoint, node: Endpoint) {
@@ -24,6 +27,23 @@ function ownedBy(endpoint: Endpoint, node: Endpoint) {
     return false;
 }
 
+function occurredAt(timestamp: Timestamp, kind: ChangeNotificationService.TimestampKind) {
+    switch (kind) {
+        case "epoch": {
+            // The wire type is a uint64 while Date spans ±8.64e15 ms, so a peer can report a time no date renders
+            const date = Timestamp.dateOf(timestamp);
+            return Number.isNaN(date.getTime()) ? `epoch + ${timestamp} ms` : date.toISOString();
+        }
+        case "system":
+            return `${Duration.format(Millis(timestamp))} device uptime`;
+        case "epoch-delta":
+            return `${Duration.format(Millis(timestamp))} after the previous event`;
+        case "system-delta":
+            return `${Duration.format(Millis(timestamp))} after the previous event, on the device clock`;
+    }
+}
+
+/** The web UI matches the first word of these labels (shell/webassets/index.html). */
 function connectionStateLabel(state: NodeConnectionState) {
     switch (state) {
         case NodeConnectionState.Connected:
@@ -47,41 +67,12 @@ function connectionStateLabel(state: NodeConnectionState) {
  */
 export function installDiagnosticLogging(node: ServerNode, observers: ObserverGroup): void {
     observers.on(node.env.get(ChangeNotificationService).change, change => {
-        const { endpoint } = change;
-        const peer = node.peers.commissioned.find(peer => ownedBy(endpoint, peer));
-        if (peer === undefined) {
-            return; // A change on the controller's own node, not a peer.
-        }
-        const nodeId = peer.peerAddress?.nodeId;
-
-        switch (change.kind) {
-            case "update": {
-                const { behavior, properties, version } = change;
-                if (!ClusterBehavior.is(behavior)) {
-                    break;
-                }
-                const state = endpoint.stateOf(behavior.id);
-                const changed =
-                    properties === undefined ? state : Object.fromEntries(properties.map(name => [name, state[name]]));
-                console.log(
-                    `Node ${nodeId}: Attribute ${endpoint.number}/${behavior.cluster.id} changed to ${Diagnostic.json(changed)} (version ${version})`,
-                );
-                break;
-            }
-            case "event": {
-                const { behavior, event, number, timestamp, priority, payload } = change;
-                if (!ClusterBehavior.is(behavior)) {
-                    break;
-                }
-                console.log(
-                    `Node ${nodeId}: Event ${endpoint.number}/${behavior.cluster.id}/${event.propertyName} (#${number}, priority ${priority}, at ${timestamp}) triggered with ${Diagnostic.json(payload)}`,
-                );
-                break;
-            }
-            case "delete": {
-                console.log(`Node ${nodeId}: Endpoint ${endpoint.number} removed`);
-                break;
-            }
+        // Observers share one emit that rethrows: a throw here would skip every later consumer of the change and
+        // surface in the peer's report processing, so diagnostics must not fail the interaction that produced them
+        try {
+            logChange(node, change);
+        } catch (error) {
+            logger.warn("Failed to log a peer change:", error);
         }
     });
 
@@ -114,4 +105,46 @@ export function installDiagnosticLogging(node: ServerNode, observers: ObserverGr
     }
     observers.on(node.peers.added, watchConnection);
     observers.on(node.peers.deleted, unwatchConnection);
+}
+
+function logChange(node: ServerNode, change: ChangeNotificationService.Change) {
+    const { endpoint } = change;
+    const peer = node.peers.commissioned.find(peer => ownedBy(endpoint, peer));
+    if (peer === undefined) {
+        return; // A change on the controller's own node, not a peer.
+    }
+    const nodeId = peer.peerAddress?.nodeId;
+
+    switch (change.kind) {
+        case "update": {
+            const { behavior, properties } = change;
+            if (!ClusterBehavior.is(behavior)) {
+                break;
+            }
+            const state = endpoint.stateOf(behavior.id);
+
+            // One line per attribute; the web UI parses this format (shell/webassets/index.html)
+            for (const name of properties ?? Object.keys(state)) {
+                console.log(
+                    `Node ${nodeId}: Attribute ${nodeId}/${endpoint.number}/${behavior.cluster.id}/${name} changed to ${Diagnostic.json(state[name])}`,
+                );
+            }
+            break;
+        }
+        case "event": {
+            const { behavior, event, number, timestamp, timestampKind, priority, payload } = change;
+            if (!ClusterBehavior.is(behavior)) {
+                break;
+            }
+            const when = occurredAt(timestamp, timestampKind);
+            console.log(
+                `Node ${nodeId}: Event ${nodeId}/${endpoint.number}/${behavior.cluster.id}/${event.propertyName} (#${number}, priority ${Priority[priority]}, at ${when}) triggered with ${Diagnostic.json(payload)}`,
+            );
+            break;
+        }
+        case "delete": {
+            console.log(`Node ${nodeId}: Endpoint ${endpoint.number} removed`);
+            break;
+        }
+    }
 }
