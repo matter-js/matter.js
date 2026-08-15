@@ -22,7 +22,8 @@ import {
     StepRecorder,
     StepVerdict,
 } from "./cert-context.js";
-import { UnsupportedByControllerError } from "./controller-adapter.js";
+import { controllerPicsOverridesFor, UnsupportedByControllerError } from "./controller-adapter.js";
+import { resolveControllerImplementation } from "./device-config.js";
 
 const inertRecorder: StepRecorder = {
     beginStep() {},
@@ -65,7 +66,7 @@ export class CertTest extends BaseTest {
     ): Promise<void> {
         const cx = this.contextFor(subject);
         const { recorder, devices } = cx;
-        const picsFile = resolvePicsFile(subject);
+        const picsFile = resolvePicsFile(subject)?.with(controllerPicsOverridesFor(resolveControllerImplementation()));
         const deviceExitWatch = watchDeviceExits(devices, recorder);
         const flavor = currentFlavor(devices);
         const tc = this.#definition.tc;

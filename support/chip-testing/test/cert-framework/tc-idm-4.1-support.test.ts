@@ -96,6 +96,7 @@ class Fixture {
         const unused = () => Promise.reject(new InternalError("not used by these tests"));
         const node: CertNodeApi = {
             invoke: unused,
+            invokeBatch: unused,
             readAttribute: unused,
             readAttributes: unused,
             writeAttributes: unused,

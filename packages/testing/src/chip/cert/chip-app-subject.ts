@@ -51,6 +51,14 @@ function defaultCommissioning(): Subject.CommissioningParameters {
     };
 }
 
+/**
+ * CHIP builds a variant of an app as its own binary beside the plain one — `nlfaultinject` adds the
+ * fault-injection hooks TC-IDM-1.3 arms — so a variant selects a filename, not a different app.
+ */
+export function appBinaryName(app: string, appVariant?: string) {
+    return `chip-${app}-app${appVariant === undefined ? "" : `-${appVariant}`}`;
+}
+
 function throwUnsupported(flavor: DeviceFlavor, capability: string): never {
     throw new Error(`${flavor} subjects do not support ${capability}; commission fresh per test instead`);
 }
@@ -109,6 +117,7 @@ class ChipLocalDevice implements CertDevice {
     readonly flavor: DeviceFlavor = "chip-local";
     readonly id: string;
     readonly app: string;
+    readonly appVariant?: string;
     readonly commissioning: Subject.CommissioningParameters;
     readonly log: LogFollower;
 
@@ -119,8 +128,9 @@ class ChipLocalDevice implements CertDevice {
     #exit: ExitDeferred = createExitDeferred();
     #pumps = new Array<Promise<void>>();
 
-    constructor(app: string, domain: string, options?: Subject.Options) {
+    constructor(app: string, domain: string, options?: Subject.Options, appVariant?: string) {
         this.app = app;
+        this.appVariant = appVariant;
         this.id = domain;
         this.commissioning = defaultCommissioning();
         this.log = new LogFollower(this.#hub.follow(), domain);
@@ -148,7 +158,7 @@ class ChipLocalDevice implements CertDevice {
         const dir = await resolveChipLocalAppDir();
         this.#storageDir ??= await mkdtemp(join(tmpdir(), "matter-cert-local-"));
 
-        const binPath = join(dir, `chip-${this.app}-app`);
+        const binPath = join(dir, appBinaryName(this.app, this.appVariant));
         const kvsPath = join(this.#storageDir, "chip_kvs");
 
         const args = [
@@ -292,6 +302,7 @@ export class ChipDockerDevice implements CertDevice {
     readonly flavor: DeviceFlavor = "chip-docker";
     readonly id: string;
     readonly app: string;
+    readonly appVariant?: string;
     readonly commissioning: Subject.CommissioningParameters;
     readonly log: LogFollower;
 
@@ -303,8 +314,15 @@ export class ChipDockerDevice implements CertDevice {
     #exit: ExitDeferred = createExitDeferred();
     #pump?: Promise<void>;
 
-    constructor(app: string, domain: string, options?: Subject.Options, docker: DockerHandle = realDockerHandle()) {
+    constructor(
+        app: string,
+        domain: string,
+        options?: Subject.Options,
+        docker: DockerHandle = realDockerHandle(),
+        appVariant?: string,
+    ) {
         this.app = app;
+        this.appVariant = appVariant;
         this.id = domain;
         this.commissioning = defaultCommissioning();
         this.log = new LogFollower(this.#hub.follow(), domain);
@@ -320,12 +338,30 @@ export class ChipDockerDevice implements CertDevice {
         return this.#exit.promise;
     }
 
-    async initialize(): Promise<void> {}
+    /**
+     * A per-app image runs its own binary as `ENTRYPOINT`, so there is nothing to point at a variant
+     * built beside it. A TC needing one restricts itself to `chip-local`.
+     */
+    #assertNoVariant() {
+        if (this.appVariant !== undefined) {
+            throw new Error(
+                `chip-docker subjects cannot run the "${this.appVariant}" variant of app "${this.app}": the ` +
+                    `${chipImageBase()}-${this.app} image runs its own binary as ENTRYPOINT. Restrict the test to ` +
+                    "the chip-local flavor, which spawns the variant binary directly.",
+            );
+        }
+    }
+
+    async initialize(): Promise<void> {
+        this.#assertNoVariant();
+    }
 
     async start(): Promise<void> {
         if (this.#container) {
             return;
         }
+
+        this.#assertNoVariant();
 
         const dbusStatus = await this.#docker.containerStatus(HARNESS_DBUS_CONTAINER);
         if (!dbusStatus?.isRunning) {
@@ -443,8 +479,8 @@ export class ChipDockerDevice implements CertDevice {
 /**
  * Spawns `${MATTER_CERT_APP_DIR}/chip-<app>-app` as a local child process for cert tests.
  */
-export function ChipLocalSubject(app: string): CertDeviceFactory {
-    return (domain: string, options?: Subject.Options) => new ChipLocalDevice(app, domain, options);
+export function ChipLocalSubject(app: string, appVariant?: string): CertDeviceFactory {
+    return (domain: string, options?: Subject.Options) => new ChipLocalDevice(app, domain, options, appVariant);
 }
 
 /**
@@ -452,6 +488,7 @@ export function ChipLocalSubject(app: string): CertDeviceFactory {
  * (started by `certTest()` via `State.initialize()`) to already be running — see
  * {@link HARNESS_DBUS_CONTAINER}.
  */
-export function ChipDockerSubject(app: string): CertDeviceFactory {
-    return (domain: string, options?: Subject.Options) => new ChipDockerDevice(app, domain, options);
+export function ChipDockerSubject(app: string, appVariant?: string): CertDeviceFactory {
+    return (domain: string, options?: Subject.Options) =>
+        new ChipDockerDevice(app, domain, options, undefined, appVariant);
 }

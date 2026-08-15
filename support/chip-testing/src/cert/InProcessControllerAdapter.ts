@@ -30,6 +30,7 @@ import {
     FabricAuthority,
     getOperationalDeviceQname,
     Invoke,
+    Peer as ProtocolPeer,
     PeerSet,
     Read,
     ReadResult,
@@ -48,12 +49,14 @@ import {
     Status,
     StatusResponseError,
 } from "@matter/main/types";
-import { AttributeModel, ClusterModel, Matter } from "@matter/model";
+import { AttributeModel } from "@matter/model";
 import type {
     AttributePathSpec,
     AttributeReadEntry,
     AttributeWriteEntry,
     AttributeWriteStatus,
+    BatchCommandResult,
+    BatchCommandSpec,
     CertNodeApi,
     CertNodeRef,
     CommissioningTarget,
@@ -63,11 +66,13 @@ import type {
     ReadAttributeOptions,
     ReadEventOptions,
     SubscribeEventOptions,
+    PicsValues,
     SubscribeOptions,
     TimedInteractionOptions,
 } from "@matter/testing";
 import { LineQueue, LogFollower } from "@matter/testing";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { certClusterModelFor, findCertCluster } from "./custom-clusters.js";
 import { timedInteractionTimeoutOf } from "./timed-interaction.js";
 
 /**
@@ -76,6 +81,11 @@ import { timedInteractionTimeoutOf } from "./timed-interaction.js";
  * right adapter's {@link LogSource} even when multiple adapters run concurrently in one process.
  */
 const activeAdapterId = new AsyncLocalStorage<string>();
+
+/** As `ChipToolControllerAdapter`'s own declarations: what this controller claims the device's PICS cannot. */
+export const MATTERJS_CONTROLLER_PICS: PicsValues = {
+    "MCORE.IDM.C.InvokeRequest.BatchCommands": 1,
+};
 
 const adapterStreams = new Map<string, LineQueue>();
 
@@ -122,6 +132,28 @@ function timedInteraction(options?: TimedInteractionOptions) {
         return {};
     }
     return { timed: true, timeout: Millis(timeout) };
+}
+
+/**
+ * `commandRef` stays absent for a single-command request: Matter Core § 8.9.3 defines it only for a
+ * batch, and a device without batch support does not echo it.
+ */
+function commandRequestFor(spec: BatchCommandSpec, commandRef?: number) {
+    const { cluster, command, args, endpoint = 0 } = spec;
+    const { model: clusterModel, id: clusterId } = certClusterModelFor(cluster);
+    const commandModel = clusterModel.commands(command);
+    if (commandModel?.id === undefined) {
+        throw new ImplementationError(`Unknown command "${command}" on cluster ${cluster}`);
+    }
+
+    return Invoke.ConcreteCommandRequest({
+        endpoint: EndpointNumber(endpoint),
+        cluster: { id: ClusterId(clusterId), name: clusterModel.name },
+        command: { id: CommandId(commandModel.id), name: commandModel.name, schema: commandModel },
+        commandRef,
+        // Argument-less commands require an absent payload — {} fails TLV validation ("expected void")
+        fields: args !== undefined && Object.keys(args).length > 0 ? args : undefined,
+    });
 }
 
 function isConcretePath(path: AttributePathSpec) {
@@ -192,7 +224,7 @@ function toWireValues(values: ReadResult.AttributeValue[]) {
 }
 
 function attributeSpecFor(cluster: number, attribute: number, value: unknown) {
-    const clusterModel = Matter.clusters(cluster);
+    const clusterModel = findCertCluster(cluster);
     const attributeModel = clusterModel?.attributes(attribute) ?? inferAttributeModel(attribute, value);
     return {
         cluster: { id: ClusterId(cluster), name: clusterModel?.name ?? `cluster_${cluster}` },
@@ -247,18 +279,6 @@ function resolveCommissioningTarget(target: CommissioningTarget): ResolvedCommis
     return { identifierData: { longDiscriminator: target.discriminator }, passcode: target.passcode };
 }
 
-function clusterModelFor(cluster: string | number): { model: ClusterModel; id: number } {
-    const model = Matter.clusters(cluster);
-    if (model === undefined) {
-        throw new ImplementationError(`Unknown cluster ${cluster}`);
-    }
-    const { id } = model;
-    if (id === undefined) {
-        throw new InternalError(`Cluster model for ${cluster} has no id`);
-    }
-    return { model, id };
-}
-
 class InProcessCertNodeApi implements CertNodeApi {
     readonly #adapterId: string;
     readonly #controller: ServerNode;
@@ -282,6 +302,11 @@ class InProcessCertNodeApi implements CertNodeApi {
         return peer;
     }
 
+    /** The protocol-level peer behind {@link #peer}, which carries the negotiated session parameters. */
+    get #protocolPeer(): ProtocolPeer | undefined {
+        return this.#controller.env.get(PeerSet).get(this.#fabric.addressOf(this.#nodeId));
+    }
+
     invoke(
         cluster: string | number,
         command: string,
@@ -290,26 +315,9 @@ class InProcessCertNodeApi implements CertNodeApi {
         options?: TimedInteractionOptions,
     ): Promise<unknown> {
         return runTagged(this.#adapterId, async () => {
-            const { model: clusterModel, id: clusterId } = clusterModelFor(cluster);
-            const commandModel = clusterModel.commands(command);
-            if (commandModel?.id === undefined) {
-                throw new ImplementationError(`Unknown command "${command}" on cluster ${cluster}`);
-            }
             const request = Invoke({
                 ...timedInteraction(options),
-                commands: [
-                    Invoke.ConcreteCommandRequest({
-                        endpoint: EndpointNumber(endpoint),
-                        cluster: { id: ClusterId(clusterId), name: clusterModel.name },
-                        command: {
-                            id: CommandId(commandModel.id),
-                            name: commandModel.name,
-                            schema: commandModel,
-                        },
-                        // Argument-less commands require an absent payload — {} fails TLV validation ("expected void")
-                        fields: args !== undefined && Object.keys(args).length > 0 ? args : undefined,
-                    }),
-                ],
+                commands: [commandRequestFor({ cluster, command, args, endpoint })],
             });
             for await (const chunk of this.#peer.interaction.invoke(request)) {
                 for (const entry of chunk) {
@@ -326,6 +334,56 @@ class InProcessCertNodeApi implements CertNodeApi {
                 }
             }
             return undefined;
+        });
+    }
+
+    invokeBatch(commands: BatchCommandSpec[], options?: TimedInteractionOptions): Promise<BatchCommandResult[]> {
+        return runTagged(this.#adapterId, async () => {
+            if (commands.length === 0) {
+                throw new ImplementationError("invokeBatch requires at least one command");
+            }
+
+            // `ClientInteraction.invoke` splits a request the peer cannot take in one message into
+            // several single-command exchanges, which is right for an ordinary caller and wrong here:
+            // the whole point of this call is the one request, and a step proving how a device answers
+            // a batch would silently prove nothing. This reads the same value the interaction's own
+            // exchange provider does.
+            const maxPathsPerInvoke = this.#protocolPeer?.sessionParameters.maxPathsPerInvoke ?? 1;
+            if (commands.length > maxPathsPerInvoke) {
+                throw new ImplementationError(
+                    `invokeBatch of ${commands.length} commands, but node ${this.#nodeId} accepts ` +
+                        `${maxPathsPerInvoke} path(s) per invoke; the request would be split into separate ` +
+                        "interactions",
+                );
+            }
+
+            // Refs number from 1, matching matter.js's own allocator, so the device's echoed ref maps
+            // back to a request position without further bookkeeping.
+            const request = Invoke({
+                ...timedInteraction(options),
+                commands: commands.map((command, index) => commandRequestFor(command, index + 1)),
+            });
+
+            const results = new Array<BatchCommandResult>();
+            for await (const chunk of this.#peer.interaction.invoke(request)) {
+                for (const entry of chunk) {
+                    const index = entry.commandRef === undefined ? undefined : entry.commandRef - 1;
+                    if (index === undefined || index < 0 || index >= commands.length) {
+                        throw new InternalError(
+                            `Invoke response carries commandRef ${entry.commandRef}, which belongs to no command of ` +
+                                `this ${commands.length}-command request`,
+                        );
+                    }
+
+                    if (entry.kind === "cmd-status") {
+                        results.push({ index, status: entry.status, clusterStatus: entry.clusterStatus });
+                    } else {
+                        results.push({ index, data: entry.data });
+                    }
+                }
+            }
+
+            return results;
         });
     }
 

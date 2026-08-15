@@ -36,6 +36,9 @@ export interface CertDevice extends Subject {
     readonly log: LogFollower;
     readonly flavor: DeviceFlavor;
     readonly exit: Promise<DeviceExitInfo>;
+
+    /** The app variant this device actually runs, absent for a device whose flavor has no binary to vary. */
+    readonly appVariant?: string;
 }
 
 /**
@@ -143,6 +146,10 @@ export interface CertTestDefinition {
     plan: string;
     pics: string[];
     app: string;
+    /** Variant of `app` to run, where the flavor supports one (see `cert-dsl.ts`'s `CertTestOptions`). */
+    appVariant?: string;
+    /** Device flavors this test supports; absent runs on every flavor (see `cert-dsl.ts`'s `CertTestOptions`). */
+    flavors?: DeviceFlavor[];
     steps: CertStepDefinition[];
     /** Cleanup the engine runs after the last step whatever happened to it (see `cert-dsl.ts`'s `finalize`). */
     finalize?: (cx: CertStepContext) => Promise<void>;

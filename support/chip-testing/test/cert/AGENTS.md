@@ -1082,3 +1082,113 @@ bounded wait* elapsed, not that the controller promptly recognized the fabric re
 own `NoSharedTrustRoots` rejection lands in the log within milliseconds of the write, well before
 the 15s mark. Don't read that check as evidence the controller handles fabric removal promptly;
 it only proves the cert run's own timeout is short enough to stay inside the step's 25s budget.
+
+## A cert test's PICS is the controller's, overlaid on the device's
+
+A cert test's DUT is the **controller**, so a `MCORE.IDM.C.*` capability is the controller's to claim —
+but the PICS file a run loads is CHIP's `ci-pics-values`, which describes a *device*. Rather than keep a
+whole PICS file per controller, each adapter declares only what differs
+(`MATTERJS_CONTROLLER_PICS`, `CHIP_TOOL_CONTROLLER_PICS`), and the run evaluates
+`chip.defaultPics.with(those)`. Everything the controller says nothing about still comes from the
+device's file.
+
+Two gates use it, both before the device starts:
+
+- **Test level** — `certTest()`'s own `pics` now actually gates the test. It did not before: the PICS
+  filter (`TestDescriptor.filter`) only covers tests registered through `chip.include()` globs, and
+  `certTest()` registers its mocha test directly, so a declared PICS only ever tinted the report's
+  label. A test whose expression is unmet is now pending, with no device started and no evidence
+  directory — the same shape a PICS-gated yaml test has.
+- **Step level** — unchanged in mechanism, but the file it evaluates against now carries the overlay
+  too, so a step and its test agree about what the controller can do.
+
+`UnsupportedByControllerError` stays for what PICS cannot express: a capability a controller has in
+general but not for the shape a particular step needs.
+
+`certTest()` also takes test-level `flavors`, decided at declaration time (the flavor comes from the
+environment, not the container). A test whose device cannot exist on a flavor — an app variant only
+`chip-local` can spawn — skips before activation instead of failing in it.
+
+## Batched invoke (`TC-IDM-1.3`)
+
+`CertNodeApi.invokeBatch(commands)` sends several commands in one `InvokeRequestMessage`, each with its
+own `CommandRef`, and returns one result per answer **in arrival order**, naming the request position it
+answers. The order is the evidence: the TH answers this TC's batches in reverse for one step and drops an
+answer entirely for another, and a result list keyed by request position would erase exactly that. A
+command the device never answers still yields a result, carrying `NoCommandResponse` (0xcc) —
+`ClientInteraction` synthesises it for every unanswered `CommandRef` once the response ends.
+
+chip-tool has no batch invoke at all (its `command-by-id` takes one command path and sends no
+`CommandRef`). It declares that in its own PICS, so a chiptool leg skips this TC outright rather than
+running its commissioning steps and reporting the rest unsupported. The adapter still refuses the call
+itself, which is what a controller whose declaration outran its implementation would run into.
+
+The interaction layer splits a batch the peer cannot take in one message into separate single-command
+exchanges. That is right for an ordinary caller and wrong here — the test would prove nothing about
+batching, and CHIP's fault path aborts the TH on a single-command invoke — so `invokeBatch` refuses when
+the peer's negotiated `MaxPathsPerInvoke` is below the batch size.
+
+## The TH must be an `nlfaultinject` build (`TC-IDM-1.3`)
+
+The faults this TC arms exist only in an app built with `CHIP_WITH_NLFAULTINJECTION`, which CHIP builds
+as a separate binary beside the plain one. `certTest`'s `appVariant` names that suffix
+(`chip-all-clusters-app` becomes `chip-all-clusters-app-nlfaultinject`), which only the `chip-local`
+flavor can spawn: a chip-docker per-app image runs its own binary as `ENTRYPOINT`, and a matterjs device
+has no `FaultInjection` cluster to arm at all. Hence `flavors: ["chip-local"]` on every step.
+
+The binary is already in the harness image and the workflow already extracts it —
+`chip-cert-tests.yml` passes its path as `th-server-app-path` for TC-SC-3.5's own TH_SERVER.
+
+## `FaultInjection` is declared as a custom cluster, not added to the model (`TC-IDM-1.3`)
+
+Cluster 0xfff1fc06 is CHIP's own test cluster and is in no Matter specification, so the shipped model
+must not carry it. `fault-injection.ts` declares it with the model annotations (`@cluster`, `@command`,
+`@field`) and `registerCertCustomCluster` makes both adapters resolve it — the standard model always
+wins, and registering an id it already defines throws. Field ids are explicit: an annotated field
+without one is internal to matter.js and never reaches the wire.
+
+## The fault counters only work out because arming is itself invoking (`TC-IDM-1.3`)
+
+Every `OnInvokeCommandRequest` checks faults 12, 13 and 14 in that order and the first armed one to fire
+returns early (`InteractionModelEngine.cpp`). An unarmed fault decrements nothing. The plan's
+`NumCallsToSkip` values (12: 3, 13: 2, 14: 1) are therefore calibrated for the three `FailAtFault`
+commands consuming their own skips:
+
+| invoke at TH | 12 | 13 | 14 | TH behaviour |
+| --- | --- | --- | --- | --- |
+| arm 12 | unarmed | — | — | normal |
+| arm 13 | 3 → 2 | unarmed | — | normal |
+| arm 14 | 2 → 1 | 2 → 1 | unarmed | normal |
+| step 1 batch | 1 → 0 | 1 → 0 | 1 → 0 | normal, both answers in one message |
+| step 2 batch | fires | — | — | separate response messages |
+| step 3 batch | spent | fires | — | separate, reverse order |
+| step 4 batch | spent | spent | fires | second answer dropped |
+| step 5 single | — | — | — | normal |
+
+Two consequences the TC enforces rather than trusts:
+
+- **Arm in the order 12, 13, 14, one invoke each.** Any other order shifts which fault fires when.
+- **No other invoke may reach the TH between arming and the last step.** Reads and writes are free —
+  only invokes reach the fault site — but one stray invoke moves every later step onto the wrong fault.
+  `expectInvokeCount` therefore records the TH's own invoke count per step, so a drifting counter fails
+  the step that caused it instead of the one that inherits it. This is the plan's "no other commands are
+  allowed to be sent" precondition, made checkable.
+
+The arming step also sends a batch *before* arming anything. That probe is what makes a controller
+without batch invoke skip the arming (and with it every step that consumes a fault) rather than leave a
+fault primed for the run's own decommissioning — and, faults being unarmed at that point, it disturbs no
+counter.
+
+## The fault path aborts the TH on anything but a two-command batch (`TC-IDM-1.3`)
+
+`TestOnlyInvokeCommandRequestWithFaultsInjected` is written with `VerifyOrDieWithMsg`, so once a fault
+fires the TH *crashes* unless the request carries exactly two commands, a matching `TimedRequest` flag, a
+mandatory `suppressResponse`, and valid contents. This TC's batch is two commands for that reason, not
+for the plan's convenience, and it is why a fault must never be left armed for a single-command invoke
+such as a `RemoveFabric` at teardown.
+
+The same code is the TC's own TH-side evidence: it announces every injected response with
+`Response to InvokeRequestMessage overridden by fault injection` followed by
+`Injecting the following response:<description>`, and the three descriptions distinguish which fault
+fired. The device never pretty-prints its own outgoing `InvokeResponseMessage`, so these two lines — plus
+the arrival order the controller itself observed — are the whole of the response-shape evidence.

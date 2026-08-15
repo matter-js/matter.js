@@ -21,11 +21,11 @@ import { AllClustersTestInstance } from "../AllClustersTestInstance.js";
 import { BridgeTestInstance } from "../BridgeTestInstance.js";
 import { DeviceTestInstanceConstructor } from "../GenericTestApp.js";
 import { NodeTestInstance } from "../NodeTestInstance.js";
-import { ChipToolControllerAdapter } from "./ChipToolControllerAdapter.js";
-import { InProcessControllerAdapter } from "./InProcessControllerAdapter.js";
+import { CHIP_TOOL_CONTROLLER_PICS, ChipToolControllerAdapter } from "./ChipToolControllerAdapter.js";
+import { InProcessControllerAdapter, MATTERJS_CONTROLLER_PICS } from "./InProcessControllerAdapter.js";
 
-registerControllerAdapterFactory("matterjs", id => new InProcessControllerAdapter(id));
-registerControllerAdapterFactory("chip-tool", id => new ChipToolControllerAdapter(id));
+registerControllerAdapterFactory("matterjs", id => new InProcessControllerAdapter(id), MATTERJS_CONTROLLER_PICS);
+registerControllerAdapterFactory("chip-tool", id => new ChipToolControllerAdapter(id), CHIP_TOOL_CONTROLLER_PICS);
 
 // EvidenceRecorder (packages/testing, generic) has no knowledge of this package's own directory
 // layout; this is the seam cert-dsl.ts documents for choosing an outDir. matter-test's working

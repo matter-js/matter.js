@@ -463,6 +463,7 @@ describe("CommissionedRefs", () => {
             const unused = () => Promise.reject(new Error("not used by these tests"));
             return {
                 invoke: unused,
+                invokeBatch: unused,
                 readAttribute: unused,
                 readAttributes: unused,
                 writeAttribute: unused,

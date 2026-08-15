@@ -17,12 +17,14 @@ import {
 import { OperationalCredentials } from "@matter/main/clusters";
 import { getOperationalDeviceQname } from "@matter/main/protocol";
 import { FabricId, GlobalFabricId, NodeId, Status, StatusResponseError } from "@matter/main/types";
-import { ClusterModel, CommandModel, Matter, ValueModel } from "@matter/model";
+import { ClusterModel, CommandModel, ValueModel } from "@matter/model";
 import type {
     AttributePathSpec,
     AttributeReadEntry,
     AttributeWriteEntry,
     AttributeWriteStatus,
+    BatchCommandResult,
+    BatchCommandSpec,
     CertNodeApi,
     CertNodeRef,
     CommissioningTarget,
@@ -35,6 +37,7 @@ import type {
     SubscribeOptions,
     TimedInteractionOptions,
 } from "@matter/testing";
+import type { PicsValues } from "@matter/testing";
 import { LineQueue, LogFollower, UnsupportedByControllerError } from "@matter/testing";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -43,10 +46,20 @@ import { env } from "node:process";
 import type { ChipToolCommissionerName } from "../chip-tool/chip-tool-client.js";
 import { ChipToolClient, resolveChipToolBinary } from "../chip-tool/chip-tool-client.js";
 import { chipJsonToMatter, matterToChipJson, stringifyChipJson } from "../chip-tool/json-codec.js";
+import { certClusterModelFor, findCertCluster } from "./custom-clusters.js";
 import { timedInteractionTimeoutOf } from "./timed-interaction.js";
 
 /** Name {@link UnsupportedByControllerError} reports for this adapter. */
 const CONTROLLER = "chip-tool";
+
+/**
+ * What this controller claims about itself, overlaying the device's PICS for a run (see
+ * `controllerPicsOverridesFor`). Only what differs from the CHIP PICS file, which describes a device.
+ */
+export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
+    // command-by-id sends one command path per invoke and no CommandRef.
+    "MCORE.IDM.C.InvokeRequest.BatchCommands": 0,
+};
 
 const WILDCARD_CLUSTER = 0xffffffff;
 const WILDCARD_ATTRIBUTE = 0xffffffff;
@@ -480,7 +493,7 @@ interface AttributeSchema {
 }
 
 function attributeSchemaOf(cluster: number, attribute: number): AttributeSchema | undefined {
-    const clusterModel = Matter.clusters(cluster);
+    const clusterModel = findCertCluster(cluster);
     const attributeModel = clusterModel?.attributes(attribute);
     if (clusterModel === undefined || attributeModel === undefined) {
         return undefined;
@@ -502,7 +515,7 @@ function encodeAttributeValue(cluster: number, attribute: number, value: unknown
 
 /** An event the model has no definition for passes through unconverted, as an attribute's value does. */
 function decodeEventValue(entry: ChipEventValue) {
-    const clusterModel = Matter.clusters(entry.cluster);
+    const clusterModel = findCertCluster(entry.cluster);
     const eventModel = clusterModel?.events(entry.event);
     return clusterModel === undefined || eventModel === undefined
         ? entry.value
@@ -533,14 +546,7 @@ function commandModelFor(
     cluster: string | number,
     command: string,
 ): { cluster: ClusterModel; clusterId: number; command: CommandModel } {
-    const clusterModel = Matter.clusters(cluster);
-    if (clusterModel === undefined) {
-        throw new ImplementationError(`Unknown cluster ${cluster}`);
-    }
-    const { id: clusterId } = clusterModel;
-    if (clusterId === undefined) {
-        throw new InternalError(`Cluster model for ${cluster} has no id`);
-    }
+    const { model: clusterModel, id: clusterId } = certClusterModelFor(cluster);
     const commandModel = clusterModel.commands(command);
     if (commandModel?.id === undefined) {
         throw new ImplementationError(`Unknown command "${command}" on cluster ${cluster}`);
@@ -690,6 +696,15 @@ class ChipToolCertNodeApi implements CertNodeApi {
         return responseModel === undefined
             ? response.value
             : chipJsonToMatter(response.value, responseModel, clusterModel);
+    }
+
+    async invokeBatch(commands: BatchCommandSpec[]): Promise<BatchCommandResult[]> {
+        throw new UnsupportedByControllerError(
+            "invokeBatch",
+            CONTROLLER,
+            `chip-tool sends one command per invoke request (${commands.length} requested); its command-by-id ` +
+                "takes a single command path and no CommandRef",
+        );
     }
 
     async readAttribute(path: AttributePathSpec, options?: ReadAttributeOptions): Promise<unknown> {

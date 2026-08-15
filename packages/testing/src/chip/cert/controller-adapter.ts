@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { PicsValues } from "../pics/values.js";
 import type { LogSource } from "./cert-context.js";
 import { resolveControllerImplementation } from "./device-config.js";
 import type { ControllerImplementation } from "./device-config.js";
@@ -164,6 +165,37 @@ export interface TimedInteractionOptions {
     timedInteractionTimeoutMs?: number;
 }
 
+/**
+ * One command of a {@link CertNodeApi.invokeBatch} request.
+ */
+export interface BatchCommandSpec {
+    cluster: string | number;
+    command: string;
+    args?: object;
+    /** Default 0, as {@link CertNodeApi.invoke}'s own endpoint argument. */
+    endpoint?: number;
+}
+
+/**
+ * The device's answer to one command of a {@link CertNodeApi.invokeBatch} request.
+ */
+export interface BatchCommandResult {
+    /**
+     * Position of the answered command in the request (Matter Core § 8.9.3's `CommandRef`, which the
+     * device echoes). A device answering out of order — or not at all — is still attributable.
+     */
+    index: number;
+
+    /** Interaction status; `0` is success. Absent when the device answered with a response payload. */
+    status?: number;
+
+    /** Cluster-specific status accompanying `status`, when the device sent one. */
+    clusterStatus?: number;
+
+    /** Response payload, for a command that has one. */
+    data?: unknown;
+}
+
 export interface ReadAttributeOptions {
     /**
      * Whether the read is fabric-filtered (Matter Core § 8.9.2's `FabricFiltered` flag; default
@@ -191,6 +223,25 @@ export interface CertNodeApi {
         endpoint?: number,
         options?: TimedInteractionOptions,
     ): Promise<unknown>;
+
+    /**
+     * Invokes several commands in one request (Matter Core § 8.2.5's batch commands), each carrying its
+     * own `CommandRef` so the device's answers stay attributable.
+     *
+     * Results come back in **arrival** order, each naming the request position it answers, because that
+     * order is itself evidence: TC-IDM-1.3 has the device answer a two-command batch in reverse, and in
+     * separate response messages, and a step proving it needs to see what arrived when.
+     *
+     * A command the device never answers yields `Status.NoCommandResponse` (0xcc) rather than being
+     * omitted, so a step distinguishes "answered with a failure" from "not answered at all". Unlike
+     * {@link invoke}, a failure status is reported rather than thrown — the whole point of the batch is
+     * that its commands fail independently.
+     *
+     * A controller with no batch-invoke support throws {@link UnsupportedByControllerError} (see
+     * {@link CertNodeApi}'s own doc for the general contract).
+     */
+    invokeBatch(commands: BatchCommandSpec[], options?: TimedInteractionOptions): Promise<BatchCommandResult[]>;
+
     readAttribute(path: AttributePathSpec, options?: ReadAttributeOptions): Promise<unknown>;
 
     /**
@@ -316,6 +367,7 @@ export interface ControllerAdapter {
 export type ControllerAdapterFactory = (id: string) => ControllerAdapter;
 
 const factories = new Map<ControllerImplementation, ControllerAdapterFactory>();
+const controllerPics = new Map<ControllerImplementation, PicsValues>();
 
 /**
  * Registers the {@link ControllerAdapterFactory} cert-test wiring uses to construct controllers for
@@ -331,6 +383,7 @@ const factories = new Map<ControllerImplementation, ControllerAdapterFactory>();
 export function registerControllerAdapterFactory(
     implementation: ControllerImplementation,
     factory: ControllerAdapterFactory,
+    pics?: PicsValues,
 ): void {
     if (factories.has(implementation)) {
         throw new Error(
@@ -339,6 +392,21 @@ export function registerControllerAdapterFactory(
         );
     }
     factories.set(implementation, factory);
+    if (pics !== undefined) {
+        controllerPics.set(implementation, pics);
+    }
+}
+
+/**
+ * The PICS entries `implementation` declares about itself, which overlay the device's own PICS for the
+ * run (see `cert-dsl.ts`'s test-level gate).
+ *
+ * A cert test's DUT is the controller, so a capability like batched invoke is the controller's to
+ * declare — but the PICS file a run loads describes the device. Rather than maintain a whole PICS file
+ * per controller, an adapter states only what differs, beside the code that implements or refuses it.
+ */
+export function controllerPicsOverridesFor(implementation: ControllerImplementation): PicsValues {
+    return controllerPics.get(implementation) ?? {};
 }
 
 /**
@@ -365,4 +433,5 @@ export function createControllerAdapter(role: string): ControllerAdapter {
  */
 export function resetControllerAdapterFactoryForTesting(implementation: ControllerImplementation): void {
     factories.delete(implementation);
+    controllerPics.delete(implementation);
 }
