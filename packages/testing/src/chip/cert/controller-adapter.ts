@@ -361,8 +361,38 @@ export interface ControllerAdapter {
     start(): Promise<void>;
     close(): Promise<void>;
     commission(target: CommissioningTarget): Promise<CertNodeRef>;
+
+    /**
+     * What the controller itself reads out of a QR onboarding payload, so a step asserts on the
+     * controller's own parse rather than on one the step performed for it. Rejects a payload the
+     * controller would refuse to commission from.
+     */
+    parseQrPayload(code: string): Promise<OnboardingPayloadFields>;
+
     node(ref: CertNodeRef): CertNodeApi;
     log: LogFollower;
+}
+
+/**
+ * An onboarding payload's fixed fields, as {@link ControllerAdapter.parseQrPayload} reports them.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 5.1.3.1
+ */
+export interface OnboardingPayloadFields {
+    version: number;
+    vendorId: number;
+    productId: number;
+
+    /** 0 standard, 1 user intent, 2 custom (§ 5.1.3.1 Table 59). */
+    flowType: number;
+
+    /** § 5.1.3.1 Table 60's bitmask, as it appears on the wire. */
+    discoveryCapabilities: number;
+
+    /** The full 12-bit form; a QR payload never carries the manual code's 4-bit one. */
+    discriminator: number;
+
+    passcode: number;
 }
 
 /**

@@ -1219,12 +1219,18 @@ splits a concatenated payload, which is the one piece of § 5.1.6 missing here.
 individually) is deliberately left to the device's file: the adapters' own refusal says exactly that,
 but nothing here proves a user ever sees it.
 
-**The plan's 255-character payload is exactly matter.js's own limit.** The plan's step 4 asks for a
-payload of 255 characters counted with its `MT:` prefix, so 252 base38 characters — the largest single
-payload § 5.1.3.2 allows, which `QrPairingCodeCodec.encode` enforces and `MATTER_QR_CODE_SINGLE_PAYLOAD_MAX_LENGTH`
-names. Decoding has no such bound, which is what lets `Test_TC_DD_1_8.yaml`'s own (older, larger)
-1000-byte TLV example still parse. The TC asserts the length it built rather than trusting the
-arithmetic, since a filler byte count that misses lands on a payload the plan did not ask for.
+**The plan's 255-character payload is the specification's own maximum.** § 5.1.3.2: a single product's
+onboarding payload "SHALL NOT exceed 255 characters", yielding 1208 bits and "1120 bits (140 octets) of
+TLV payload". That arithmetic only works with the `MT:` prefix counted — 252 base38 characters are 151
+bytes, of which the fixed structure takes 11 — so the TC's payload is 255 characters including the
+prefix and carries the full 140 TLV octets.
+
+`QrPairingCodeCodec.encode` measures its own 255 against the base38 characters *alone*
+(`MATTER_QR_CODE_SINGLE_PAYLOAD_MAX_LENGTH`, `PairingCodeSchema.ts`), so it admits a payload three
+characters over what the specification allows; it is not the boundary this TC sits on. Decoding bounds
+nothing at all, which is what lets `Test_TC_DD_1_8.yaml`'s own (older, larger) 1000-byte TLV example
+still parse. The TC asserts the length it built rather than trusting the arithmetic, since a filler
+byte count that misses lands on a payload the plan did not ask for.
 
 **Onboarding the same TH twice: open a basic window before removing the fabric.** A chip TH does not
 return to commissioning mode when its last fabric goes — after `RemoveFabric succeeds` its log stops

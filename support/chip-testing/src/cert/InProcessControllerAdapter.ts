@@ -63,6 +63,7 @@ import type {
     ControllerAdapter,
     EventPathSpec,
     EventReadEntry,
+    OnboardingPayloadFields,
     ReadAttributeOptions,
     ReadEventOptions,
     SubscribeEventOptions,
@@ -792,6 +793,12 @@ export class InProcessControllerAdapter implements ControllerAdapter {
             adapterStreams.delete(this.id);
             this.#logStream.close();
         }
+    }
+
+    async parseQrPayload(code: string): Promise<OnboardingPayloadFields> {
+        const { version, vendorId, productId, flowType, discoveryCapabilities, discriminator, passcode } =
+            singleQrPayload(code);
+        return { version, vendorId, productId, flowType, discoveryCapabilities, discriminator, passcode };
     }
 
     commission(target: CommissioningTarget): Promise<CertNodeRef> {

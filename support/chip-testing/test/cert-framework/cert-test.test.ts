@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/main";
 import type {
     CertDevice,
     CertNodeApi,
@@ -146,6 +147,9 @@ function stubControllerAdapter(log: LogFollower): ControllerAdapter {
         log,
         async start() {},
         async close() {},
+        async parseQrPayload(): Promise<never> {
+            throw new InternalError("not used in this test");
+        },
         async commission() {
             return "ref";
         },
@@ -888,6 +892,9 @@ describe("CertTest", () => {
             async close() {},
             async commission() {
                 return "ref-dut";
+            },
+            async parseQrPayload(): Promise<never> {
+                throw new InternalError("not used in this test");
             },
             node: () => nodeFor("dut"),
         };

@@ -31,6 +31,9 @@ function fakeControllerAdapter(id: string): ControllerAdapter {
         async commission() {
             throw new InternalError("not used in this test");
         },
+        async parseQrPayload() {
+            throw new InternalError("not used in this test");
+        },
         node() {
             throw new InternalError("not used in this test");
         },
@@ -131,6 +134,20 @@ describe("InProcessControllerAdapter", () => {
         const ref = await adapter.commission({ qrPairingCode: device.commissioning.qrPairingCode });
 
         await adapter.node(ref).decommission();
+    });
+
+    it("reports the fields it reads out of an onboarding payload", async function () {
+        const parsed = await adapter.parseQrPayload(device.commissioning.qrPairingCode);
+
+        expect(parsed).deep.equal({
+            version: 0,
+            vendorId: 0xfff1,
+            productId: 0x8001,
+            flowType: 0,
+            discoveryCapabilities: 0b100,
+            discriminator: 3840,
+            passcode: 20202021,
+        });
     });
 
     it("refuses a concatenated onboarding payload, which names more than one device", async function () {
@@ -518,6 +535,7 @@ describe("ControllerAdapter registry", () => {
         for (const pics of [MATTERJS_CONTROLLER_PICS, CHIP_TOOL_CONTROLLER_PICS]) {
             expect(pics["MCORE.ROLE.COMMISSIONER"]).equal(1);
             expect(pics["MCORE.DD.QR_COMMISSIONING"]).equal(1);
+            expect(pics["MCORE.DD.MANUAL_PC_COMMISSIONING"]).equal(1);
             expect(pics["MCORE.DD.SCAN_QR_CODE"]).equal(1);
             expect(pics["MCORE.DD.CTRL_CONCATENATED_QR_CODE_1"]).equal(0);
         }

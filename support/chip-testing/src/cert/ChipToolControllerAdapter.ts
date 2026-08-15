@@ -31,6 +31,7 @@ import type {
     ControllerAdapter,
     EventPathSpec,
     EventReadEntry,
+    OnboardingPayloadFields,
     ReadAttributeOptions,
     ReadEventOptions,
     SubscribeEventOptions,
@@ -1017,6 +1018,22 @@ class ChipToolCertNodeApi implements CertNodeApi {
     }
 }
 
+/**
+ * One field of chip-tool's own `payload parse-setup-payload` output. Absent means chip-tool parsed the
+ * payload into something other than what a QR code carries — a manual code's short discriminator, say —
+ * which no caller can act on, so it is an error rather than a hole in the returned fields.
+ */
+function payloadField(logs: string[], code: string, pattern: RegExp, radix = 10): number {
+    const value = matchLog(logs, pattern);
+    if (value === undefined) {
+        throw new InternalError(
+            `chip-tool parsed onboarding payload ${code} without logging ${pattern}. Reply logs: ` +
+                JSON.stringify(logs),
+        );
+    }
+    return Number.parseInt(value, radix);
+}
+
 function matchLog(logs: string[], pattern: RegExp) {
     for (const line of logs) {
         const match = pattern.exec(line);
@@ -1133,6 +1150,21 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
                 this.#logStream.close();
             }
         }
+    }
+
+    async parseQrPayload(code: string): Promise<OnboardingPayloadFields> {
+        const { reply, logs } = await this.executeWithLogs(`payload parse-setup-payload ${quoteArg(code)}`);
+        assertCommandSucceeded(reply, `parse of onboarding payload ${code}`);
+
+        return {
+            version: payloadField(logs, code, /Version:\s+(\d+)/),
+            vendorId: payloadField(logs, code, /VendorID:\s+(\d+)/),
+            productId: payloadField(logs, code, /ProductID:\s+(\d+)/),
+            flowType: payloadField(logs, code, /Custom flow:\s+(\d+)/),
+            discoveryCapabilities: payloadField(logs, code, /Discovery Bitmask:\s+0x([0-9A-Fa-f]{2})/, 16),
+            discriminator: payloadField(logs, code, /Long discriminator:\s+(\d+)/),
+            passcode: payloadField(logs, code, /Passcode:\s+(\d+)/),
+        };
     }
 
     async commission(target: CommissioningTarget): Promise<CertNodeRef> {

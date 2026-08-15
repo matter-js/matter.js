@@ -83,15 +83,23 @@ function decodeSingle(payload: string): QrCodeData {
 }
 
 /**
- * Records what the DUT read out of `payload` and whether the setup code it carries is the TH's own.
- * This is the step's actual claim: the remaining fields describe the commissionee, and the plan asks
- * only that they parse.
+ * Records what the DUT read out of `payload` and whether the setup code it read is the TH's own. The
+ * parse is the DUT's, not this test's: a step that decoded the payload itself would pass against a
+ * controller that cannot read one at all.
  */
-function recordParse(cx: CertStepContext, payload: string): QrCodeData {
+async function recordParse(cx: CertStepContext, payload: string): Promise<void> {
     const th = cx.devices.th;
-    const decoded = decodeSingle(payload);
+
+    let parsed;
+    try {
+        parsed = await cx.controllers.dut.parseQrPayload(payload);
+    } catch (e) {
+        cx.recorder.check({ type: "response", verdict: "fail", detail: `DUT could not parse the payload: ${e}` });
+        throw e;
+    }
+
     const matches =
-        decoded.discriminator === th.commissioning.discriminator && decoded.passcode === th.commissioning.passcode;
+        parsed.discriminator === th.commissioning.discriminator && parsed.passcode === th.commissioning.passcode;
 
     record(
         cx,
@@ -99,16 +107,14 @@ function recordParse(cx: CertStepContext, payload: string): QrCodeData {
             type: "response",
             verdict: matches ? "pass" : "fail",
             detail:
-                `${payload.length}-character payload parsed as version=${decoded.version} ` +
-                `vendorId=${decoded.vendorId} productId=${decoded.productId} flowType=${decoded.flowType} ` +
-                `discoveryCapabilities=0b${decoded.discoveryCapabilities.toString(2).padStart(8, "0")} ` +
-                `discriminator=${decoded.discriminator} passcode=${decoded.passcode}` +
-                (decoded.tlvData === undefined ? "" : ` tlvData=${Bytes.toHex(decoded.tlvData)}`),
+                `DUT read the ${payload.length}-character payload as version=${parsed.version} ` +
+                `vendorId=${parsed.vendorId} productId=${parsed.productId} flowType=${parsed.flowType} ` +
+                `discoveryCapabilities=0b${parsed.discoveryCapabilities.toString(2).padStart(8, "0")} ` +
+                `discriminator=${parsed.discriminator} passcode=${parsed.passcode}; the TH's own setup code is ` +
+                `discriminator=${th.commissioning.discriminator} passcode=${th.commissioning.passcode}`,
         },
         "Onboarding payload parse",
     );
-
-    return decoded;
 }
 
 /** `payload` with `tlvData` appended, which the plan expects the DUT to parse and may then ignore. */
@@ -196,7 +202,7 @@ certTest("TC-DD-1.8", {
         1,
         "Scan the TH Device's QR code using DUT",
         async cx => {
-            recordParse(cx, await thQrPayload(cx.devices.th));
+            await recordParse(cx, await thQrPayload(cx.devices.th));
         },
         { pics: "MCORE.DD.SCAN_QR_CODE", expected: "Verify the QR code has been scanned successfully." },
     )
@@ -205,7 +211,7 @@ certTest("TC-DD-1.8", {
         "Using the DUT, parse the TH's QR code to onboard the TH Device onto the Matter network.",
         async cx => {
             const payload = await thQrPayload(cx.devices.th);
-            recordParse(cx, payload);
+            await recordParse(cx, payload);
             await commissionByQr(cx, payload);
         },
         { expected: "Verify the TH's QR code was parsed successfully by the DUT" },
@@ -214,7 +220,7 @@ certTest("TC-DD-1.8", {
         "3.a",
         "Scan the TH Device's QR code (that includes the additional TLV data) using DUT.",
         async cx => {
-            recordParse(cx, withTlvData(await thQrPayload(cx.devices.th), PLAN_TLV_DATA));
+            await recordParse(cx, withTlvData(await thQrPayload(cx.devices.th), PLAN_TLV_DATA));
         },
         { pics: "MCORE.DD.SCAN_QR_CODE", expected: "Verify the QR code has been scanned successfully." },
     )
@@ -223,7 +229,7 @@ certTest("TC-DD-1.8", {
         "Using the DUT, parse the TH's QR code to onboard the TH Device onto the Matter network.",
         async cx => {
             const payload = withTlvData(await thQrPayload(cx.devices.th), PLAN_TLV_DATA);
-            recordParse(cx, payload);
+            await recordParse(cx, payload);
             await commissionByQr(cx, payload);
         },
         {
@@ -237,7 +243,7 @@ certTest("TC-DD-1.8", {
         `Scan the TH Device's QR code using the DUT. The number of alphanumeric characters in the QR code is ` +
             `${LARGE_QR_CODE_LENGTH} characters.`,
         async cx => {
-            recordParse(cx, largeQrPayload(await thQrPayload(cx.devices.th)));
+            await recordParse(cx, largeQrPayload(await thQrPayload(cx.devices.th)));
         },
         { pics: "MCORE.DD.SCAN_QR_CODE", expected: "Verify the QR code has been scanned successfully." },
     )
@@ -246,7 +252,7 @@ certTest("TC-DD-1.8", {
         "Using the DUT, parse the TH's QR code to onboard the TH Device onto the Matter network.",
         async cx => {
             const payload = largeQrPayload(await thQrPayload(cx.devices.th));
-            recordParse(cx, payload);
+            await recordParse(cx, payload);
             await commissionByQr(cx, payload);
         },
         {
