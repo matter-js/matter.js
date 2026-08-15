@@ -78,6 +78,7 @@
         "generate-endpoints": "nacho-run support/codegen/bin/generate-endpoints.js",
         "generate-forwards": "nacho-run support/codegen/bin/generate-forwards.js",
         "generate-vscode": "nacho-run support/codegen/bin/generate-vscode.js",
+        "validate-chipdm-model": "nacho-run support/codegen/bin/validate-chipdm-model.js",
         "shell": "nacho-run packages/nodejs-shell/src/app.ts",
         "relock": "nacho-build relock && npm install",
         "cycles": "nacho-build cycles"

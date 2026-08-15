@@ -15,6 +15,7 @@
         "generate-endpoints": "nacho-run bin/generate-endpoints.js",
         "generate-forwards": "nacho-run bin/generate-forwards.js",
         "generate-vscode": "nacho-run bin/generate-vscode.js",
+        "validate-chipdm-model": "nacho-run bin/validate-chipdm-model.js",
         "generate": "npm run generate-model && npm run generate-clusters && npm run generate-endpoints && npm run generate-forwards"
     },
     "repository": {

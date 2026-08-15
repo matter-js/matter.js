@@ -223,6 +223,21 @@ npm run generate-clusters    # Generate cluster definitions
 npm run generate-endpoints   # Generate endpoint definitions
 npm run generate-forwards    # Generate forward exports
 npm run generate-vscode      # Generate VS Code configuration
+npm run validate-chipdm-model       # Compare our model against CHIP's data model XML
+```
+
+`validate-chipdm-model` downloads the `data_model` directory of
+[connectedhomeip](https://github.com/project-chip/connectedhomeip) for the Matter version under
+test and reports every difference from the model we scrape from the specification. It exits
+non-zero when a difference is not explained by a `LocalMatter` override. Run it after
+`generate-model`. Useful flags:
+
+```bash
+npm run validate-chipdm-model -- --revision 1.5.1        # a version other than Specification.REVISION
+npm run validate-chipdm-model -- --all                   # every version present in both models
+npm run validate-chipdm-model -- --chip-dir ~/connectedhomeip   # read a checkout instead of downloading
+npm run validate-chipdm-model -- --refresh               # discard the cached download
+npm run validate-chipdm-model -- --verbose               # list intended divergences individually
 ```
 
 ## Testing Patterns
