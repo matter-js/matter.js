@@ -24,8 +24,10 @@ export class CertCleanupError extends MatterError {}
 export class CertCheckFailedError extends MatterError {}
 
 /**
- * Records `check` and fails the step if it did not pass. `recorder.check()` only records — a step
- * whose evidence must gate it has to throw for itself, which is the single easiest thing to forget.
+ * Records `check` and fails the step on a `"fail"` verdict — `recorder.check()` only records, so a
+ * step whose evidence must gate it has to throw for itself, which is the single easiest thing to
+ * forget. `"unverified"` passes through: that is what a log check reports on a flavor nobody wrote a
+ * pattern for, and it is not a failure (see the flavor-pattern policy in this directory's AGENTS.md).
  */
 export function record(cx: CertStepContext, check: CheckRecord, what: string) {
     cx.recorder.check(check);

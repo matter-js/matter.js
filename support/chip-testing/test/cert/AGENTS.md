@@ -1280,3 +1280,14 @@ requirement the plan states of the *TH*, so the TC walks `Descriptor.partsList` 
 `Descriptor.deviceTypeList` for device type 0x0100 instead of naming endpoints. A TH that stops
 satisfying the precondition then fails the step that says so, rather than silently proving less: the
 step also asserts the plan's own "at least 2".
+
+## Known flake: TC-IDM-4.1 step 4's first write reports nothing (unresolved)
+
+`step 4: write 1/3 to {"endpoint":0,"cluster":40,"attribute":5} produced no subscription report
+carrying "tc-idm-4-1-a" within 30s`. Seen on a loaded developer host with the matter.js controller, and
+once in CI on the chip-tool leg; the same commit passed on re-run, and the cert workflow is otherwise
+green on main. Both controller legs have produced it, so it is the step's own report wait rather than
+either adapter, and `subscribeAndModify` only reaches that wait on a device flavor whose log check is
+`unverified` (see "Deterministic per-write report/ack evidence"). Not root-caused. A run that hits it
+again is worth capturing rather than re-running blind: the evidence bundle's controller log shows
+whether the report arrived late or never.
