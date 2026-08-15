@@ -129,6 +129,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: A cert test's controller invokes several commands in one request via `CertNodeApi.invokeBatch()`, which reports each answer in arrival order
     - Enhancement: `certTest()` accepts `appVariant` to run a variant of the device app CHIP builds as its own binary, such as `nlfaultinject`
     - Enhancement: A cert test declares a cluster outside the Matter specification with the model annotations and `registerCertCustomCluster()`, and both controllers then address it
+    - Fix: A cert test's own PICS expression now gates the test, which previously only tinted its label in the report; a controller declares the client capabilities the device's PICS file cannot, and those overlay it
+    - Enhancement: `certTest()` accepts test-level `flavors`, skipping a test whose device cannot exist on the run's flavor before the device starts
 
 - @project-chip/matter.js
     - Deprecation: Every class, type, and function of the legacy controller API is now marked deprecated and scheduled for removal in 0.19; use the `ServerNode.peers` / `ClientNode` API of `@matter/node` instead

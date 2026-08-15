@@ -48,9 +48,9 @@ const BATCH_PATHS: BatchPath[] = [
 
 /**
  * Only the chip-local flavor runs a `nlfaultinject` build, and only such a build has the
- * `FaultInjection` cluster this TC arms. Every step carries this, including the preconditions: an
- * armed fault fires on whatever invoke reaches the TH next, so arming without the steps that consume
- * the faults would leave one primed for the run's own decommissioning.
+ * `FaultInjection` cluster this TC arms. The restriction is test-level rather than per-step: an armed
+ * fault fires on whatever invoke reaches the TH next, so a run that armed the faults must also run the
+ * steps that consume them.
  */
 const FLAVORS: DeviceFlavor[] = ["chip-local"];
 
@@ -101,6 +101,7 @@ certTest("TC-IDM-1.3", {
     pics: ["MCORE.IDM.C.InvokeRequest.BatchCommands"],
     app: "all-clusters",
     appVariant: "nlfaultinject",
+    flavors: FLAVORS,
     controllers: { dut: "dut", th_client: "helper" },
 })
     .step(
@@ -132,10 +133,7 @@ certTest("TC-IDM-1.3", {
                 detail: "TH device commissioned by the DUT and, through a commissioning window it opened, by TH Client",
             });
         },
-        {
-            flavors: FLAVORS,
-            expected: "TH device (Server) is commissioned by both the DUT and TH Client",
-        },
+        { expected: "TH device (Server) is commissioned by both the DUT and TH Client" },
     )
     .step(
         "0.2",
@@ -145,10 +143,10 @@ certTest("TC-IDM-1.3", {
             const { dut, th_client } = cx.controllers;
             const th = cx.devices.th;
 
-            // Proves the DUT's controller can batch before any fault is armed, so a controller without
-            // batch invoke skips this step (and every step that consumes a fault) with nothing armed.
-            // An unarmed fault decrements no counter, so this invoke does not disturb the arming
-            // arithmetic below.
+            // The controller's own PICS gates this whole TC, so a controller without batch invoke never
+            // gets here; this proves the capability against the device before anything is armed, so a
+            // controller whose declaration outran its implementation leaves no fault primed. An unarmed
+            // fault decrements no counter, so the invoke does not disturb the arming arithmetic below.
             await dut.node(commissioned.require("dut")).invokeBatch(BATCH);
 
             const from = th.log.mark();
@@ -180,10 +178,7 @@ certTest("TC-IDM-1.3", {
             record(cx, expectInvokeCount(th.log, th.flavor, from, 3), "Arming invoke count");
             record(cx, expectNoInjectedFault(th.log, th.flavor, from), "No fault fired while arming");
         },
-        {
-            flavors: FLAVORS,
-            expected: "Each FailAtFault command's response indicates it was successful",
-        },
+        { expected: "Each FailAtFault command's response indicates it was successful" },
     )
     .step(
         1,
@@ -204,7 +199,6 @@ certTest("TC-IDM-1.3", {
             record(cx, expectNoInjectedFault(th.log, th.flavor, from), "No injected fault");
         },
         {
-            flavors: FLAVORS,
             expected:
                 "The DUT does not crash. On the TH device (server), the received request message has the same paths " +
                 "as provided in the command, and the paths are unique.",
@@ -232,7 +226,6 @@ certTest("TC-IDM-1.3", {
             );
         },
         {
-            flavors: FLAVORS,
             expected:
                 "The DUT does not crash and receives two responses with Status FAILURE. The TH has not crashed and " +
                 "its logs indicate separate Invoke Response Messages with the responses in the same order as the " +
@@ -267,7 +260,6 @@ certTest("TC-IDM-1.3", {
             );
         },
         {
-            flavors: FLAVORS,
             expected:
                 "The DUT does not crash and receives two responses with Status FAILURE. The TH has not crashed and " +
                 "its logs indicate separate Invoke Response Messages with the responses in reverse order.",
@@ -301,7 +293,6 @@ certTest("TC-IDM-1.3", {
             );
         },
         {
-            flavors: FLAVORS,
             expected:
                 "The DUT does not crash. It receives one response with Status FAILURE, and the unanswered command " +
                 "reports NO_COMMAND_RESPONSE. The TH has not crashed and its logs indicate a single Invoke Response " +
@@ -327,7 +318,6 @@ certTest("TC-IDM-1.3", {
             record(cx, expectNoInjectedFault(th.log, th.flavor, from), "No injected fault");
         },
         {
-            flavors: FLAVORS,
             expected: "On the TH, the received request message has the same path as provided in the command",
         },
     )

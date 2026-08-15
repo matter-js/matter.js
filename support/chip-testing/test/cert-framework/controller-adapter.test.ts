@@ -8,6 +8,7 @@ import { InternalError } from "@matter/main";
 import { Status, StatusResponseError } from "@matter/main/types";
 import { Matter } from "@matter/model";
 import {
+    controllerPicsOverridesFor,
     createControllerAdapter,
     LineQueue,
     LogFollower,
@@ -18,8 +19,8 @@ import type { AttributePathSpec, CertNodeApi, ControllerAdapter, EventReadEntry 
 import { expect } from "chai";
 import { env } from "node:process";
 import { AllClustersTestInstance } from "../../src/AllClustersTestInstance.js";
-import { ChipToolControllerAdapter } from "../../src/cert/ChipToolControllerAdapter.js";
-import { InProcessControllerAdapter } from "../../src/cert/InProcessControllerAdapter.js";
+import { CHIP_TOOL_CONTROLLER_PICS, ChipToolControllerAdapter } from "../../src/cert/ChipToolControllerAdapter.js";
+import { InProcessControllerAdapter, MATTERJS_CONTROLLER_PICS } from "../../src/cert/InProcessControllerAdapter.js";
 
 function fakeControllerAdapter(id: string): ControllerAdapter {
     return {
@@ -483,7 +484,34 @@ describe("ControllerAdapter registry", () => {
             // Restore what src/cert/index.ts registered at load time, for any later suite that
             // resolves "chip-tool" through the registry.
             resetControllerAdapterFactoryForTesting("chip-tool");
-            registerControllerAdapterFactory("chip-tool", id => new ChipToolControllerAdapter(id));
+            registerControllerAdapterFactory(
+                "chip-tool",
+                id => new ChipToolControllerAdapter(id),
+                CHIP_TOOL_CONTROLLER_PICS,
+            );
+        }
+    });
+
+    it("reports the PICS each controller declares about itself", () => {
+        expect(controllerPicsOverridesFor("matterjs")).deep.equal(MATTERJS_CONTROLLER_PICS);
+        expect(controllerPicsOverridesFor("chip-tool")).deep.equal(CHIP_TOOL_CONTROLLER_PICS);
+        expect(MATTERJS_CONTROLLER_PICS["MCORE.IDM.C.InvokeRequest.BatchCommands"]).equal(1);
+        expect(CHIP_TOOL_CONTROLLER_PICS["MCORE.IDM.C.InvokeRequest.BatchCommands"]).equal(0);
+    });
+
+    it("reports no declarations for an implementation registered without them", () => {
+        resetControllerAdapterFactoryForTesting("chip-tool");
+
+        try {
+            registerControllerAdapterFactory("chip-tool", fakeControllerAdapter);
+            expect(controllerPicsOverridesFor("chip-tool")).deep.equal({});
+        } finally {
+            resetControllerAdapterFactoryForTesting("chip-tool");
+            registerControllerAdapterFactory(
+                "chip-tool",
+                id => new ChipToolControllerAdapter(id),
+                CHIP_TOOL_CONTROLLER_PICS,
+            );
         }
     });
 });

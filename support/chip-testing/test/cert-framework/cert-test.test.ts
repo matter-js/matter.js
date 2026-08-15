@@ -19,7 +19,15 @@ import type {
     Subject,
     TestFileDescriptor,
 } from "@matter/testing";
-import { CertTest, LogFollower, PicsFile, PicsUnavailableError, UnsupportedByControllerError } from "@matter/testing";
+import {
+    CertTest,
+    LogFollower,
+    PicsFile,
+    PicsUnavailableError,
+    unmetTestPics,
+    UnsupportedByControllerError,
+} from "@matter/testing";
+import { env } from "node:process";
 import { CommissionedRefs } from "../cert/tc-support.js";
 
 async function notImplemented(..._args: unknown[]): Promise<never> {
@@ -442,6 +450,65 @@ describe("CertTest", () => {
         expect(ran).equal(true);
         expect(endStepVerdicts).deep.equal([{ number: 1, verdict: "pass" }]);
     });
+
+    for (const [controller, expectation] of [
+        ["matterjs", { ran: true, verdict: "pass" }],
+        ["chip-tool", { ran: false, verdict: "skipped" }],
+    ] as const) {
+        it(`gates a step on what the ${controller} controller declares, over the device's own PICS`, async () => {
+            const originalController = env.MATTER_CERT_CONTROLLER;
+            env.MATTER_CERT_CONTROLLER = controller;
+
+            let ran = false;
+
+            const definition: CertTestDefinition = {
+                tc: "TC-IDM-1.3",
+                plan: "interactiondatamodel.adoc",
+                pics: [],
+                app: "all-clusters",
+                steps: [
+                    {
+                        number: 1,
+                        text: "Step gated on a capability only the controller can claim",
+                        pics: "MCORE.IDM.C.InvokeRequest.BatchCommands",
+                        run: async () => {
+                            ran = true;
+                        },
+                    },
+                ],
+            };
+
+            const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
+            const cx: CertStepContext = {
+                controllers: {},
+                devices: {},
+                recorder: stubRecorder({
+                    endStep(step, verdict) {
+                        endStepVerdicts.push({ number: step.number, verdict });
+                        return [];
+                    },
+                }),
+            };
+
+            const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+            // The device says nothing about the controller's own batch support, which is the point.
+            const subject = stubSubject(new PicsFile(["MCORE.IDM.C=1"]));
+
+            try {
+                await test.invoke(subject, () => {}, [], false);
+            } finally {
+                if (originalController === undefined) {
+                    delete env.MATTER_CERT_CONTROLLER;
+                } else {
+                    env.MATTER_CERT_CONTROLLER = originalController;
+                }
+            }
+
+            expect(ran).equal(expectation.ran);
+            expect(endStepVerdicts).deep.equal([{ number: 1, verdict: expectation.verdict }]);
+        });
+    }
 
     it("fails a step whose PICS expression is malformed, even though a PICS file is available", async () => {
         let ran = false;
@@ -1681,5 +1748,46 @@ describe("CertTest", () => {
 
         const banners = deviceLog.lines.filter(line => line.synthetic).map(line => line.text);
         expect(banners.some(line => line.includes("skipped as unsupported by the controller"))).equal(false);
+    });
+});
+
+describe("test-level PICS gate", () => {
+    const originalController = env.MATTER_CERT_CONTROLLER;
+
+    afterEach(() => {
+        if (originalController === undefined) {
+            delete env.MATTER_CERT_CONTROLLER;
+        } else {
+            env.MATTER_CERT_CONTROLLER = originalController;
+        }
+    });
+
+    function definitionWith(pics: string[]): CertTestDefinition {
+        return { tc: "TC-IDM-1.3", plan: "interactiondatamodel.adoc", pics, app: "all-clusters", steps: [] };
+    }
+
+    it("is met for a controller that declares the capability", () => {
+        env.MATTER_CERT_CONTROLLER = "matterjs";
+
+        expect(unmetTestPics(definitionWith(["MCORE.IDM.C.InvokeRequest.BatchCommands"]))).undefined;
+    });
+
+    it("is unmet for a controller that declares the capability absent", () => {
+        env.MATTER_CERT_CONTROLLER = "chip-tool";
+
+        expect(unmetTestPics(definitionWith(["MCORE.IDM.C.InvokeRequest.BatchCommands"]))).equal(
+            "MCORE.IDM.C.InvokeRequest.BatchCommands",
+        );
+    });
+
+    it("still reads the device's PICS for everything the controller says nothing about", () => {
+        env.MATTER_CERT_CONTROLLER = "chip-tool";
+
+        expect(unmetTestPics(definitionWith(["MCORE.IDM.C"]))).undefined;
+        expect(unmetTestPics(definitionWith(["MCORE.IDM.C.NoSuchCapability"]))).equal("MCORE.IDM.C.NoSuchCapability");
+    });
+
+    it("is met for a test declaring no PICS at all", () => {
+        expect(unmetTestPics(definitionWith([]))).undefined;
     });
 });

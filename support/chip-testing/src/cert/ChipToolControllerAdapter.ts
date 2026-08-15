@@ -37,6 +37,7 @@ import type {
     SubscribeOptions,
     TimedInteractionOptions,
 } from "@matter/testing";
+import type { PicsValues } from "@matter/testing";
 import { LineQueue, LogFollower, UnsupportedByControllerError } from "@matter/testing";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -50,6 +51,15 @@ import { timedInteractionTimeoutOf } from "./timed-interaction.js";
 
 /** Name {@link UnsupportedByControllerError} reports for this adapter. */
 const CONTROLLER = "chip-tool";
+
+/**
+ * What this controller claims about itself, overlaying the device's PICS for a run (see
+ * `controllerPicsOverridesFor`). Only what differs from the CHIP PICS file, which describes a device.
+ */
+export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
+    // command-by-id sends one command path per invoke and no CommandRef.
+    "MCORE.IDM.C.InvokeRequest.BatchCommands": 0,
+};
 
 const WILDCARD_CLUSTER = 0xffffffff;
 const WILDCARD_ATTRIBUTE = 0xffffffff;

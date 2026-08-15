@@ -66,6 +66,7 @@ import type {
     ReadAttributeOptions,
     ReadEventOptions,
     SubscribeEventOptions,
+    PicsValues,
     SubscribeOptions,
     TimedInteractionOptions,
 } from "@matter/testing";
@@ -80,6 +81,11 @@ import { timedInteractionTimeoutOf } from "./timed-interaction.js";
  * right adapter's {@link LogSource} even when multiple adapters run concurrently in one process.
  */
 const activeAdapterId = new AsyncLocalStorage<string>();
+
+/** As `ChipToolControllerAdapter`'s own declarations: what this controller claims the device's PICS cannot. */
+export const MATTERJS_CONTROLLER_PICS: PicsValues = {
+    "MCORE.IDM.C.InvokeRequest.BatchCommands": 1,
+};
 
 const adapterStreams = new Map<string, LineQueue>();
 

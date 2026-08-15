@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { PicsValues } from "../pics/values.js";
 import type { LogSource } from "./cert-context.js";
 import { resolveControllerImplementation } from "./device-config.js";
 import type { ControllerImplementation } from "./device-config.js";
@@ -366,6 +367,7 @@ export interface ControllerAdapter {
 export type ControllerAdapterFactory = (id: string) => ControllerAdapter;
 
 const factories = new Map<ControllerImplementation, ControllerAdapterFactory>();
+const controllerPics = new Map<ControllerImplementation, PicsValues>();
 
 /**
  * Registers the {@link ControllerAdapterFactory} cert-test wiring uses to construct controllers for
@@ -381,6 +383,7 @@ const factories = new Map<ControllerImplementation, ControllerAdapterFactory>();
 export function registerControllerAdapterFactory(
     implementation: ControllerImplementation,
     factory: ControllerAdapterFactory,
+    pics?: PicsValues,
 ): void {
     if (factories.has(implementation)) {
         throw new Error(
@@ -389,6 +392,21 @@ export function registerControllerAdapterFactory(
         );
     }
     factories.set(implementation, factory);
+    if (pics !== undefined) {
+        controllerPics.set(implementation, pics);
+    }
+}
+
+/**
+ * The PICS entries `implementation` declares about itself, which overlay the device's own PICS for the
+ * run (see `cert-dsl.ts`'s test-level gate).
+ *
+ * A cert test's DUT is the controller, so a capability like batched invoke is the controller's to
+ * declare — but the PICS file a run loads describes the device. Rather than maintain a whole PICS file
+ * per controller, an adapter states only what differs, beside the code that implements or refuses it.
+ */
+export function controllerPicsOverridesFor(implementation: ControllerImplementation): PicsValues {
+    return controllerPics.get(implementation) ?? {};
 }
 
 /**
@@ -415,4 +433,5 @@ export function createControllerAdapter(role: string): ControllerAdapter {
  */
 export function resetControllerAdapterFactoryForTesting(implementation: ControllerImplementation): void {
     factories.delete(implementation);
+    controllerPics.delete(implementation);
 }

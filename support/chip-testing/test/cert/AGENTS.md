@@ -1083,6 +1083,32 @@ own `NoSharedTrustRoots` rejection lands in the log within milliseconds of the w
 the 15s mark. Don't read that check as evidence the controller handles fabric removal promptly;
 it only proves the cert run's own timeout is short enough to stay inside the step's 25s budget.
 
+## A cert test's PICS is the controller's, overlaid on the device's
+
+A cert test's DUT is the **controller**, so a `MCORE.IDM.C.*` capability is the controller's to claim —
+but the PICS file a run loads is CHIP's `ci-pics-values`, which describes a *device*. Rather than keep a
+whole PICS file per controller, each adapter declares only what differs
+(`MATTERJS_CONTROLLER_PICS`, `CHIP_TOOL_CONTROLLER_PICS`), and the run evaluates
+`chip.defaultPics.with(those)`. Everything the controller says nothing about still comes from the
+device's file.
+
+Two gates use it, both before the device starts:
+
+- **Test level** — `certTest()`'s own `pics` now actually gates the test. It did not before: the PICS
+  filter (`TestDescriptor.filter`) only covers tests registered through `chip.include()` globs, and
+  `certTest()` registers its mocha test directly, so a declared PICS only ever tinted the report's
+  label. A test whose expression is unmet is now pending, with no device started and no evidence
+  directory — the same shape a PICS-gated yaml test has.
+- **Step level** — unchanged in mechanism, but the file it evaluates against now carries the overlay
+  too, so a step and its test agree about what the controller can do.
+
+`UnsupportedByControllerError` stays for what PICS cannot express: a capability a controller has in
+general but not for the shape a particular step needs.
+
+`certTest()` also takes test-level `flavors`, decided at declaration time (the flavor comes from the
+environment, not the container). A test whose device cannot exist on a flavor — an app variant only
+`chip-local` can spawn — skips before activation instead of failing in it.
+
 ## Batched invoke (`TC-IDM-1.3`)
 
 `CertNodeApi.invokeBatch(commands)` sends several commands in one `InvokeRequestMessage`, each with its
@@ -1093,8 +1119,14 @@ command the device never answers still yields a result, carrying `NoCommandRespo
 `ClientInteraction` synthesises it for every unanswered `CommandRef` once the response ends.
 
 chip-tool has no batch invoke at all (its `command-by-id` takes one command path and sends no
-`CommandRef`), so its adapter refuses, and every step of this TC that needs a batch records
-controller-unsupported on a chiptool leg.
+`CommandRef`). It declares that in its own PICS, so a chiptool leg skips this TC outright rather than
+running its commissioning steps and reporting the rest unsupported. The adapter still refuses the call
+itself, which is what a controller whose declaration outran its implementation would run into.
+
+The interaction layer splits a batch the peer cannot take in one message into separate single-command
+exchanges. That is right for an ordinary caller and wrong here — the test would prove nothing about
+batching, and CHIP's fault path aborts the TH on a single-command invoke — so `invokeBatch` refuses when
+the peer's negotiated `MaxPathsPerInvoke` is below the batch size.
 
 ## The TH must be an `nlfaultinject` build (`TC-IDM-1.3`)
 

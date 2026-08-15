@@ -24,6 +24,8 @@ export type {
 } from "./cert/cert-context.js";
 export { certTest, MultiDeviceUnsupportedError } from "./cert/cert-dsl.js";
 export type { CertStepOptions, CertTestBuilder, CertTestOptions } from "./cert/cert-dsl.js";
+/** @internal Test seam — not API. The gate `certTest()` applies before a test's device starts. */
+export { certPicsFile, unmetTestPics } from "./cert/cert-dsl.js";
 /** @internal Test seam — not API. Production cert tests go through the `certTest()` DSL, not this class directly. */
 export { CertTest } from "./cert/cert-test.js";
 export { ChipDockerSubject, ChipLocalSubject } from "./cert/chip-app-subject.js";
@@ -31,7 +33,11 @@ export { ChipDockerSubject, ChipLocalSubject } from "./cert/chip-app-subject.js"
 export { ChipDockerDevice, HARNESS_DBUS_CONTAINER } from "./cert/chip-app-subject.js";
 /** @internal Test seam — not API. */
 export type { CompositionHandle, DockerHandle } from "./cert/chip-app-subject.js";
-export { registerControllerAdapterFactory, UnsupportedByControllerError } from "./cert/controller-adapter.js";
+export {
+    controllerPicsOverridesFor,
+    registerControllerAdapterFactory,
+    UnsupportedByControllerError,
+} from "./cert/controller-adapter.js";
 /** @internal Test seam — not API. Cert-test wiring calls this from `cert-dsl.ts`; direct use is for registry tests. */
 export { createControllerAdapter } from "./cert/controller-adapter.js";
 /** @internal Test seam — not API. */
