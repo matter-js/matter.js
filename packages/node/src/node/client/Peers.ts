@@ -123,12 +123,18 @@ export class Peers extends EndpointContainer<ClientNode> {
 
         // Group nodes have an in-memory only store, so all nodes restored here are ClientNode
         for (const id of clientStores.knownIds) {
-            this.add(
-                factory.create({
-                    id,
-                    owner: this.owner,
-                }),
+            const node = factory.create({
+                id,
+                owner: this.owner,
+            });
+
+            // Claiming the construction error keeps a peer we cannot load from surfacing as an unhandled rejection,
+            // and names the peer the failure belongs to
+            node.construction.onError(error =>
+                logger.warn("Peer", Diagnostic.strong(id), "is unavailable because it failed to load:", error),
             );
+
+            this.add(node);
         }
     }
 

@@ -38,6 +38,12 @@ export class EndpointContainer<T extends Endpoint = Endpoint>
     }
 
     add(endpoint: T) {
+        // Assigning ownership below reenters via the endpoint's owner setter, so membership is the guard against
+        // installing the destruction listener twice
+        if (this.#children.has(endpoint)) {
+            return;
+        }
+
         if (endpoint.lifecycle.hasId) {
             this.assertIdAvailable(endpoint.id, endpoint);
         }
@@ -48,8 +54,6 @@ export class EndpointContainer<T extends Endpoint = Endpoint>
         endpoint.lifecycle.destroyed.once(() => {
             this.delete(endpoint);
         });
-
-        this.#children.add(endpoint);
     }
 
     delete(endpoint: T) {
