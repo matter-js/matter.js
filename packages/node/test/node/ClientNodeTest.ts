@@ -30,7 +30,6 @@ import { ClientNodeFactory } from "#node/client/ClientNodeFactory.js";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { ServerNode } from "#node/ServerNode.js";
-import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
 import {
     b$,
     Bytes,
@@ -2700,7 +2699,6 @@ describe("ClientNode", () => {
             const initializer = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
             const structure = initializer.structure;
             const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
-            const buffer = controller.env.get(ClientCacheBuffer);
 
             const neoStorageKeys = () =>
                 Object.keys(site.storageFor("controller1")).filter(key => key.includes(NEO.toString()));
@@ -2718,7 +2716,6 @@ describe("ClientNode", () => {
             // *** ESTABLISH AND PERSIST NEO ***
 
             await drain(structure.mutate(request, readResult(neoReports(10), descriptorServerListReport(10))));
-            await MockTime.resolve(buffer.flush());
             expect(neoActive(), "NEO should be active").true;
             expect(neoStorageKeys(), "NEO data should be persisted").not.empty;
 
@@ -2727,7 +2724,6 @@ describe("ClientNode", () => {
             // The descriptor still omits NEO and no attribute data is served this interaction, so NEO is genuinely
             // gone and must be removed from both memory and storage.
             await drain(structure.mutate(request, readResult(descriptorServerListReport(11))));
-            await MockTime.resolve(buffer.flush());
 
             expect(neoActive(), "NEO behavior should be dropped").false;
             expect(neoStorageKeys(), "NEO storage should be erased").empty;

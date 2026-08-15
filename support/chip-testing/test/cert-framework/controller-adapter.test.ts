@@ -14,7 +14,7 @@ import {
     registerControllerAdapterFactory,
     resetControllerAdapterFactoryForTesting,
 } from "@matter/testing";
-import type { AttributePathSpec, CertNodeApi, ControllerAdapter } from "@matter/testing";
+import type { AttributePathSpec, CertNodeApi, ControllerAdapter, EventReadEntry } from "@matter/testing";
 import { expect } from "chai";
 import { env } from "node:process";
 import { AllClustersTestInstance } from "../../src/AllClustersTestInstance.js";
@@ -37,6 +37,7 @@ function fakeControllerAdapter(id: string): ControllerAdapter {
 }
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
+const BOOLEAN_STATE = Matter.clusters.require("BooleanState");
 const ON_OFF = Matter.clusters.require("OnOff");
 const IDENTIFY = Matter.clusters.require("Identify");
 const OPERATIONAL_CREDENTIALS = Matter.clusters.require("OperationalCredentials");
@@ -45,6 +46,8 @@ const ON_OFF_ATTRIBUTE = ON_OFF.attributes.require("onOff");
 const NODE_LABEL_ATTRIBUTE = BASIC_INFORMATION.attributes.require("nodeLabel");
 const FABRICS_ATTRIBUTE = OPERATIONAL_CREDENTIALS.attributes.require("fabrics");
 const IDENTIFY_TIME_ATTRIBUTE = IDENTIFY.attributes.require("identifyTime");
+const START_UP_EVENT = BASIC_INFORMATION.events.require("startUp");
+const STATE_CHANGE_EVENT = BOOLEAN_STATE.events.require("stateChange");
 
 async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
     try {
@@ -270,6 +273,100 @@ describe("InProcessControllerAdapter", () => {
         await node.invoke("OnOff", "toggle", {}, 1);
         await waitFor(() => updates.length > 0);
         expect(updates).to.deep.equal([!seed]);
+
+        await node.decommission();
+    });
+
+    it("reads an event the device recorded", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        const node = adapter.node(ref);
+
+        const events = await node.readEvents([
+            { endpoint: 0, cluster: BASIC_INFORMATION.id, event: START_UP_EVENT.id },
+        ]);
+
+        expect(events).to.not.be.empty;
+        for (const event of events) {
+            expect(event.endpoint).equal(0);
+            expect(event.cluster).equal(BASIC_INFORMATION.id);
+            expect(event.event).equal(START_UP_EVENT.id);
+            expect(event.eventNumber).to.be.a("bigint");
+        }
+
+        await node.decommission();
+    });
+
+    it("reads no event, rather than failing, for a path the device has no record of", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        const node = adapter.node(ref);
+
+        expect(await node.readEvents([{ endpoint: 1, cluster: BOOLEAN_STATE.id, event: STATE_CHANGE_EVENT.id }])).to.be
+            .empty;
+
+        await node.decommission();
+    });
+
+    it("rejects a concrete-path event read the device refused", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        const node = adapter.node(ref);
+
+        // Endpoint 1 has no BasicInformation, so the device answers this path with a status
+        const rejection = await rejectionOf(
+            node.readEvents([{ endpoint: 1, cluster: BASIC_INFORMATION.id, event: START_UP_EVENT.id }]),
+        );
+        expect(rejection).to.be.instanceOf(StatusResponseError);
+
+        await node.decommission();
+    });
+
+    it("rejects a concrete-path event subscribe the device refused", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        const node = adapter.node(ref);
+
+        const rejection = await rejectionOf(
+            node.subscribeEvents([{ endpoint: 1, cluster: BASIC_INFORMATION.id, event: START_UP_EVENT.id }], {
+                minIntervalFloorSeconds: 1,
+                maxIntervalCeilingSeconds: 10,
+            }),
+        );
+        expect(rejection).to.be.instanceOf(StatusResponseError);
+
+        await node.decommission();
+    });
+
+    it("reports later events as updates but not the priming report", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        const node = adapter.node(ref);
+
+        // Recorded before the subscription exists, so it can only reach the caller as a priming event
+        await device.backchannel({ name: "setBooleanState", endpointId: 1, newState: true });
+
+        const updates = new Array<EventReadEntry>();
+        const priming = await node.subscribeEvents(
+            [{ endpoint: 1, cluster: BOOLEAN_STATE.id, event: STATE_CHANGE_EVENT.id }],
+            { minIntervalFloorSeconds: 0, maxIntervalCeilingSeconds: 10, onUpdate: event => updates.push(event) },
+        );
+        expect(priming.map(({ value }) => value)).to.deep.equal([{ stateValue: true }]);
+        expect(updates).to.be.empty;
+
+        await device.backchannel({ name: "setBooleanState", endpointId: 1, newState: false });
+        await waitFor(() => updates.length > 0);
+
+        expect(updates[0].endpoint).equal(1);
+        expect(updates[0].cluster).equal(BOOLEAN_STATE.id);
+        expect(updates[0].event).equal(STATE_CHANGE_EVENT.id);
+        expect(updates[0].eventNumber > priming[0].eventNumber).equal(true);
+        expect(updates[0].value).to.deep.equal({ stateValue: false });
 
         await node.decommission();
     });

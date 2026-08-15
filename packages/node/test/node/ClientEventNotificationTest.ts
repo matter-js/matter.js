@@ -6,12 +6,24 @@
 
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { SwitchClient, SwitchServer } from "#behaviors/switch";
+import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
+import { ClientEndpointInitializer } from "#node/client/ClientEndpointInitializer.js";
 import { PeerBehavior } from "#node/client/PeerBehavior.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { FeatureBitmap } from "@matter/model";
 import { MockSite } from "@matter/node/testing";
-import { AttributeId, ClusterId, CommandId } from "@matter/types";
+import { ReadResult } from "@matter/protocol";
+import {
+    AttributeId,
+    ClusterId,
+    CommandId,
+    EndpointNumber,
+    EventId,
+    EventNumber,
+    Priority,
+    TlvAny,
+} from "@matter/types";
 import { Switch } from "@matter/types/clusters/switch";
 
 describe("Client Event Notification", () => {
@@ -156,6 +168,55 @@ describe("Client Event Notification", () => {
                 { event: "ShortRelease", payload: { previousPosition: 1 } },
                 { event: "MultiPressComplete", payload: { previousPosition: 1, totalNumberOfPressesCounted: 2 } },
             ]);
+        });
+    });
+
+    describe("timestamp classification", () => {
+        it("distinguishes the four wire timestamp variants", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({
+                device: {
+                    type: ServerNode.RootEndpoint.with(
+                        SwitchServer.with(Switch.Feature.MomentarySwitch, Switch.Feature.MomentarySwitchRelease),
+                    ),
+                },
+            });
+            const peer = controller.peers.get("peer1")!;
+
+            const initializer = peer.env.get(EndpointInitializer);
+            expect(initializer).instanceof(ClientEndpointInitializer);
+            const emit = (initializer as ClientEndpointInitializer).structure.eventEmitter!;
+
+            const kinds = new Array<ChangeNotificationService.TimestampKind>();
+            controller.env.get(ChangeNotificationService).change.on(change => {
+                if (change.kind === "event") {
+                    kinds.push(change.timestampKind);
+                }
+            });
+
+            function reported(number: number, variant: Partial<ReadResult.EventValue>): ReadResult.EventValue {
+                return {
+                    kind: "event-value",
+                    path: {
+                        endpointId: EndpointNumber(0),
+                        clusterId: Switch.id,
+                        eventId: EventId(Switch.events.initialPress.id),
+                    },
+                    number: EventNumber(number),
+                    timestamp: number * 1000,
+                    priority: Priority.Info,
+                    value: { newPosition: 1 },
+                    tlv: TlvAny,
+                    ...variant,
+                };
+            }
+
+            await MockTime.resolve(emit(reported(1, { epochTimestamp: 1000 })));
+            await MockTime.resolve(emit(reported(2, { systemTimestamp: 2000 })));
+            await MockTime.resolve(emit(reported(3, { deltaEpochTimestamp: 3000 })));
+            await MockTime.resolve(emit(reported(4, { deltaSystemTimestamp: 4000 })));
+
+            expect(kinds).deep.equals(["epoch", "system", "epoch-delta", "system-delta"]);
         });
     });
 
