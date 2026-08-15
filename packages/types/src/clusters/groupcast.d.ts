@@ -33,10 +33,6 @@ import type { EndpointNumber } from "../datatype/EndpointNumber.js";
  * communication without incurring unnecessary state or processing overhead. Together, these design elements provide a
  * clearer and more interoperable basis for group functionality and form the replacement for the legacy Groups cluster.
  *
- * > [!NOTE]
- *
- * > NOTE: Support for Groupcast cluster is provisional.
- *
  * @see {@link MatterSpecification.v16.Core} § 11.27
  */
 export declare namespace Groupcast {
@@ -105,7 +101,7 @@ export declare namespace Groupcast {
          *
          * @see {@link MatterSpecification.v16.Core} § 11.27.6.1
          */
-        membership?: Membership[];
+        membership: Membership[];
 
         /**
          * Indicates the maximum number of Groups which can be joined and appear in entries of the Membership attribute.
@@ -115,7 +111,7 @@ export declare namespace Groupcast {
          *
          * @see {@link MatterSpecification.v16.Core} § 11.27.6.2
          */
-        maxMembershipCount?: number;
+        maxMembershipCount: number;
 
         /**
          * Indicates the maximum number of unique multicast addresses the node can support. The value of this attribute
@@ -127,7 +123,7 @@ export declare namespace Groupcast {
          *
          * @see {@link MatterSpecification.v16.Core} § 11.27.6.3
          */
-        maxMcastAddrCount?: number;
+        maxMcastAddrCount: number;
 
         /**
          * Indicates the number of unique multicast addresses currently in use by the Groupcast cluster. This count
@@ -137,7 +133,7 @@ export declare namespace Groupcast {
          *
          * @see {@link MatterSpecification.v16.Core} § 11.27.6.4
          */
-        usedMcastAddrCount?: number;
+        usedMcastAddrCount: number;
 
         /**
          * Indicates the FabricIndex of the fabric currently testing the Groupcast feature with the GroupcastTesting
@@ -153,7 +149,7 @@ export declare namespace Groupcast {
          *
          * @see {@link MatterSpecification.v16.Core} § 11.27.6.5
          */
-        fabricUnderTest?: FabricIndex;
+        fabricUnderTest: FabricIndex;
     }
 
     /**
@@ -339,7 +335,7 @@ export declare namespace Groupcast {
          *
          * @see {@link MatterSpecification.v16.Core} § 11.27.8.1
          */
-        groupcastTesting?: GroupcastTestingEvent;
+        groupcastTesting: GroupcastTestingEvent;
     }
 
     /**

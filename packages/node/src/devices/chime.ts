@@ -44,7 +44,7 @@ export namespace ChimeRequirements {
 export const ChimeDeviceDefinition = MutableEndpoint({
     name: "Chime",
     deviceType: 0x146,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: ChimeRequirements,
     behaviors: SupportedBehaviors(ChimeRequirements.server.mandatory.Chime)
 });

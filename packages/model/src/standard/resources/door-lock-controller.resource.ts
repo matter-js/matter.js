@@ -14,6 +14,7 @@ Resource.add({
 
     children: [
         { tag: "requirement", name: "TimeSyncCond", xref: "device§8.2.4" },
+        { tag: "requirement", name: "GroupcastSenderCond", xref: "device§8.2.4" },
         { tag: "requirement", name: "Groups", xref: "device§8.2.5" },
         { tag: "requirement", name: "ScenesManagement", xref: "device§8.2.5" },
         { tag: "requirement", name: "DoorLock", xref: "device§8.2.5" }

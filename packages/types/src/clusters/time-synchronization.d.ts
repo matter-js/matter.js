@@ -58,8 +58,8 @@ export declare namespace TimeSynchronization {
      */
     export interface BaseAttributes {
         /**
-         * Indicates the current time, if the node has achieved time synchronization, as a UTC epoch-us (Epoch Time in
-         * Microseconds).
+         * If the node has achieved time synchronization, this attribute shall indicate the current time as a UTC
+         * epoch-us (Epoch Time in Microseconds).
          *
          * If the node has not achieved time synchronization, this attribute shall be null. This attribute may be set
          * when a SetUTCTime is received.
@@ -141,10 +141,10 @@ export declare namespace TimeSynchronization {
      */
     export interface TimeZoneAttributes {
         /**
-         * Indicates a list of time zone offsets from UTC and when they shall take effect. This attribute uses a list of
-         * time offset configurations to allow Nodes to handle scheduled regulatory time zone changes. This attribute
-         * shall NOT be used to indicate daylight savings time changes (see DSTOffset Attribute for daylight savings
-         * time).
+         * This attribute shall contain a list of time zone offsets from UTC and when they shall take effect. This
+         * attribute uses a list of time offset configurations to allow Nodes to handle scheduled regulatory time zone
+         * changes. This attribute shall NOT be used to indicate daylight savings time changes (see Section 11.17.8.7,
+         * "DSTOffset Attribute" for daylight savings time).
          *
          * The first entry shall have a ValidAt entry of 0. If there is a second entry, it shall have a non-zero ValidAt
          * time.
@@ -175,7 +175,7 @@ export declare namespace TimeSynchronization {
         timeZone: TimeZone[];
 
         /**
-         * Indicates a list of offsets to apply for daylight savings time, and their validity period.
+         * This attribute shall contain a list of offsets to apply for daylight savings time, and their validity period.
          *
          * List entries shall be sorted by ValidStarting time.
          *
@@ -256,8 +256,8 @@ export declare namespace TimeSynchronization {
      */
     export interface Attributes {
         /**
-         * Indicates the current time, if the node has achieved time synchronization, as a UTC epoch-us (Epoch Time in
-         * Microseconds).
+         * If the node has achieved time synchronization, this attribute shall indicate the current time as a UTC
+         * epoch-us (Epoch Time in Microseconds).
          *
          * If the node has not achieved time synchronization, this attribute shall be null. This attribute may be set
          * when a SetUTCTime is received.
@@ -324,10 +324,10 @@ export declare namespace TimeSynchronization {
         supportsDnsResolve: boolean;
 
         /**
-         * Indicates a list of time zone offsets from UTC and when they shall take effect. This attribute uses a list of
-         * time offset configurations to allow Nodes to handle scheduled regulatory time zone changes. This attribute
-         * shall NOT be used to indicate daylight savings time changes (see DSTOffset Attribute for daylight savings
-         * time).
+         * This attribute shall contain a list of time zone offsets from UTC and when they shall take effect. This
+         * attribute uses a list of time offset configurations to allow Nodes to handle scheduled regulatory time zone
+         * changes. This attribute shall NOT be used to indicate daylight savings time changes (see Section 11.17.8.7,
+         * "DSTOffset Attribute" for daylight savings time).
          *
          * The first entry shall have a ValidAt entry of 0. If there is a second entry, it shall have a non-zero ValidAt
          * time.
@@ -358,7 +358,7 @@ export declare namespace TimeSynchronization {
         timeZone: TimeZone[];
 
         /**
-         * Indicates a list of offsets to apply for daylight savings time, and their validity period.
+         * This attribute shall contain a list of offsets to apply for daylight savings time, and their validity period.
          *
          * List entries shall be sorted by ValidStarting time.
          *

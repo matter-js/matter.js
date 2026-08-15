@@ -58,8 +58,8 @@ export declare namespace NetworkCommissioning {
      */
     export interface BaseAttributes {
         /**
-         * Indicates the maximum number of network configuration entries that can be added, based on available device
-         * resources. The length of the Networks attribute shall be less than or equal to this value.
+         * This shall indicate the maximum number of network configuration entries that can be added, based on available
+         * device resources. The length of the Networks attribute shall be less than or equal to this value.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.9.6.1
          */
@@ -227,8 +227,8 @@ export declare namespace NetworkCommissioning {
      */
     export interface Attributes {
         /**
-         * Indicates the maximum number of network configuration entries that can be added, based on available device
-         * resources. The length of the Networks attribute shall be less than or equal to this value.
+         * This shall indicate the maximum number of network configuration entries that can be added, based on available
+         * device resources. The length of the Networks attribute shall be less than or equal to this value.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.9.6.1
          */

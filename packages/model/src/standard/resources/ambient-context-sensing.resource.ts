@@ -31,27 +31,26 @@ Resource.add({
 
         {
             tag: "attribute", name: "HumanActivityDetected", xref: "cluster§2.16.7.1",
-            details: "Indicates the human activity detection state. The detected human activity type can be found from the " +
-                "AmbientContextType attribute."
-        },
-        {
-            tag: "attribute", name: "ObjectIdentified", xref: "cluster§2.16.7.2",
-            details: "Indicates the occurrence of object identification state. The identified object information can be " +
+            details: "Indicates the human activity detection in Boolean data. The detected human activity type can be " +
                 "found from the AmbientContextType attribute."
         },
         {
+            tag: "attribute", name: "ObjectIdentified", xref: "cluster§2.16.7.2",
+            details: "Indicates the occurrence of object identification in Boolean data. The identified object information " +
+                "can be found from the AmbientContextType attribute."
+        },
+        {
             tag: "attribute", name: "AudioContextDetected", xref: "cluster§2.16.7.3",
-            details: "Indicates the ambient audio context detection state. The detected audio context type can be found " +
-                "from the AmbientContextType attribute."
+            details: "Indicates the ambient audio context detection in Boolean data. The detected audio context type can " +
+                "be found from the AmbientContextType attribute."
         },
 
         {
             tag: "attribute", name: "AmbientContextType", xref: "cluster§2.16.7.4",
-            details: "Indicates the details for the currently observed and detected ambient context." +
-                "\n" +
-                "This attribute supports multiple simultaneous ambient context detections. The attribute expression " +
-                "rule is defined in the MultipleAmbientSensingDetection section. The total number of simultaneous " +
-                "ambient context detections is constrained by the SimultaneousDetectionLimit attribute."
+            details: "Indicates the details for the currently observed and detected ambient context. This attribute " +
+                "supports multiple simultaneous ambient context detections. The attribute expression rule is defined " +
+                "in the MultipleAmbientSensingDetection section. The total number of simultaneous ambient context " +
+                "detections is constrained by the SimultaneousDetectionLimit attribute."
         },
 
         {
@@ -165,11 +164,18 @@ Resource.add({
                 "time-synchronized or capable of supporting both the POSIX time stamp and the system time stamp, a " +
                 "server shall provide the EventStartTimePos data field instead of the EventStartTimeSys data field.",
 
-            children: [{
-                tag: "field", name: "EventStartTimePos", xref: "cluster§2.16.8.2.1",
-                details: "This field shall indicate the POSIX time stamp when the corresponding AmbientContextDetectStarted " +
-                    "Event was generated."
-            }]
+            children: [
+                {
+                    tag: "field", name: "EventStartTimePos", xref: "cluster§2.16.8.2.1",
+                    details: "This field shall indicate the POSIX time stamp when the corresponding AmbientContextDetectStarted " +
+                        "Event was generated."
+                },
+                {
+                    tag: "field", name: "EventStartTimeSys", xref: "cluster§2.16.8.2.2",
+                    details: "This field shall indicate the system time stamp when the corresponding AmbientContextDetectStarted " +
+                        "Event was generated."
+                }
+            ]
         },
 
         {

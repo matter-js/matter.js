@@ -152,8 +152,8 @@ export declare namespace ColorControl {
         driftCompensation?: DriftCompensation;
 
         /**
-         * Indicates a textual indication of what mechanism, if any, is in use to compensate for color/intensity drift
-         * over time.
+         * This attribute shall contain a textual indication of what mechanism, if any, is in use to compensate for
+         * color/intensity drift over time.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.8
          */
@@ -361,8 +361,8 @@ export declare namespace ColorControl {
      */
     export interface HueSaturationAttributes {
         /**
-         * Indicates the current hue value of the light. It is updated as fast as practical during commands that change
-         * the hue.
+         * The CurrentHue attribute contains the current hue value of the light. It is updated as fast as practical
+         * during commands that change the hue.
          *
          * The hue in degrees shall be related to the CurrentHue attribute by the relationship:
          *
@@ -683,8 +683,8 @@ export declare namespace ColorControl {
         driftCompensation: DriftCompensation;
 
         /**
-         * Indicates a textual indication of what mechanism, if any, is in use to compensate for color/intensity drift
-         * over time.
+         * This attribute shall contain a textual indication of what mechanism, if any, is in use to compensate for
+         * color/intensity drift over time.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.8
          */
@@ -887,8 +887,8 @@ export declare namespace ColorControl {
         colorPointBIntensity: number | null;
 
         /**
-         * Indicates the current hue value of the light. It is updated as fast as practical during commands that change
-         * the hue.
+         * The CurrentHue attribute contains the current hue value of the light. It is updated as fast as practical
+         * during commands that change the hue.
          *
          * The hue in degrees shall be related to the CurrentHue attribute by the relationship:
          *

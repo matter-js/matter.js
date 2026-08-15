@@ -86,7 +86,7 @@ export namespace DimmerSwitchRequirements {
 export const DimmerSwitchDeviceDefinition = MutableEndpoint({
     name: "DimmerSwitch",
     deviceType: 0x104,
-    deviceRevision: 3,
+    deviceRevision: 4,
     requirements: DimmerSwitchRequirements,
     behaviors: SupportedBehaviors(DimmerSwitchRequirements.server.mandatory.Identify)
 });

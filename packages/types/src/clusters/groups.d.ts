@@ -70,8 +70,6 @@ export declare namespace Groups {
      */
     export interface BaseAttributes {
         /**
-         * Indicates if group names are supported.
-         *
          * This attribute provides legacy, read-only access to whether the Group Names feature is supported. The most
          * significant bit, bit 7 (GroupNames), shall be equal to bit 0 of the FeatureMap attribute (GN Feature). All
          * other bits shall be 0.
@@ -89,8 +87,6 @@ export declare namespace Groups {
      */
     export interface Attributes {
         /**
-         * Indicates if group names are supported.
-         *
          * This attribute provides legacy, read-only access to whether the Group Names feature is supported. The most
          * significant bit, bit 7 (GroupNames), shall be equal to bit 0 of the FeatureMap attribute (GN Feature). All
          * other bits shall be 0.
@@ -183,8 +179,6 @@ export declare namespace Groups {
     }
 
     /**
-     * Indicates if group names are supported.
-     *
      * This attribute provides legacy, read-only access to whether the Group Names feature is supported. The most
      * significant bit, bit 7 (GroupNames), shall be equal to bit 0 of the FeatureMap attribute (GN Feature). All other
      * bits shall be 0.

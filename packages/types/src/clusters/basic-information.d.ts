@@ -49,37 +49,38 @@ export declare namespace BasicInformation {
      */
     export interface BaseAttributes {
         /**
-         * Indicates the revision number of the Data Model against which the Node is certified. The value of this
-         * attribute shall be one of the valid values listed in Section 7.1.1, "Revision History".
+         * This attribute shall be set to the revision number of the Data Model against which the Node is certified. The
+         * value of this attribute shall be one of the valid values listed in Section 7.1.1, "Revision History".
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.1
          */
         dataModelRevision: number;
 
         /**
-         * Indicates a human readable (displayable) name of the vendor for the Node.
+         * This attribute shall specify a human readable (displayable) name of the vendor for the Node.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.2
          */
         vendorName: string;
 
         /**
-         * Indicates the Vendor ID.
+         * This attribute shall specify the Vendor ID.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.3
          */
         vendorId: VendorId;
 
         /**
-         * Indicates a human readable (displayable) name of the model for the Node such as the model number (or other
-         * identifier) assigned by the vendor.
+         * This attribute shall specify a human readable (displayable) name of the model for the Node such as the model
+         * number (or other identifier) assigned by the vendor.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.4
          */
         productName: string;
 
         /**
-         * Indicates the Product ID assigned by the vendor that is unique to the specific product of the Node.
+         * This attribute shall specify the Product ID assigned by the vendor that is unique to the specific product of
+         * the Node.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.5
          */
@@ -94,52 +95,52 @@ export declare namespace BasicInformation {
         nodeLabel: string;
 
         /**
-         * Indicates an ISO 3166-1 alpha-2 code to represent the country, dependent territory, or special area of
-         * geographic interest in which the Node is located at the time of the attribute being set. This attribute shall
-         * be set during initial commissioning (unless already set) and may be updated by further reconfigurations. This
-         * attribute may affect some regulatory aspects of the Node's operation, such as radio transmission power levels
-         * in given spectrum allocation bands if technologies where this is applicable are used. The Location's region
-         * code shall be interpreted in a case-insensitive manner. If the Node cannot understand the location code with
-         * which it was configured, or the location code has not yet been configured, it shall configure itself in a
-         * region-agnostic manner as determined by the vendor, avoiding region-specific assumptions as much as is
-         * practical. The special value XX shall indicate that region-agnostic mode is used.
+         * This attribute shall be an ISO 3166-1 alpha-2 code to represent the country, dependent territory, or special
+         * area of geographic interest in which the Node is located at the time of the attribute being set. This
+         * attribute shall be set during initial commissioning (unless already set) and may be updated by further
+         * reconfigurations. This attribute may affect some regulatory aspects of the Node's operation, such as radio
+         * transmission power levels in given spectrum allocation bands if technologies where this is applicable are
+         * used. The Location's region code shall be interpreted in a case-insensitive manner. If the Node cannot
+         * understand the location code with which it was configured, or the location code has not yet been configured,
+         * it shall configure itself in a region-agnostic manner as determined by the vendor, avoiding region-specific
+         * assumptions as much as is practical. The special value XX shall indicate that region-agnostic mode is used.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.7
          */
         location: string;
 
         /**
-         * Indicates the version number of the hardware of the Node. The meaning of its value, and the versioning
-         * scheme, are vendor defined.
+         * This attribute shall specify the version number of the hardware of the Node. The meaning of its value, and
+         * the versioning scheme, are vendor defined.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.8
          */
         hardwareVersion: number;
 
         /**
-         * Indicates the version number of the hardware of the Node. The meaning of its value, and the versioning
-         * scheme, are vendor defined. The HardwareVersionString attribute shall be used to provide a more user-friendly
-         * value than that represented by the HardwareVersion attribute.
+         * This attribute shall specify the version number of the hardware of the Node. The meaning of its value, and
+         * the versioning scheme, are vendor defined. The HardwareVersionString attribute shall be used to provide a
+         * more user-friendly value than that represented by the HardwareVersion attribute.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.9
          */
         hardwareVersionString: string;
 
         /**
-         * Indicates the current version number for the software running on this Node. A larger value of SoftwareVersion
-         * is newer than a lower value, from the perspective of software updates (see Section 11.20.3.3, "Availability
-         * of Software Images"). Nodes may query this field to determine the currently running version of software on
-         * another given Node.
+         * This attribute shall contain the current version number for the software running on this Node. A larger value
+         * of SoftwareVersion is newer than a lower value, from the perspective of software updates (see Section
+         * 11.20.3.3, "Availability of Software Images"). Nodes may query this field to determine the currently running
+         * version of software on another given Node.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.10
          */
         softwareVersion: number;
 
         /**
-         * Indicates a current human-readable representation for the software running on the Node. This version
-         * information may be conveyed to users. The maximum length of the SoftwareVersionString attribute is 64 bytes
-         * of UTF-8 characters. The contents SHOULD only use simple 7-bit ASCII alphanumeric and punctuation characters,
-         * so as to simplify the conveyance of the value to a variety of cultures.
+         * This attribute shall contain a current human-readable representation for the software running on the Node.
+         * This version information may be conveyed to users. The maximum length of the SoftwareVersionString attribute
+         * is 64 bytes of UTF-8 characters. The contents SHOULD only use simple 7-bit ASCII alphanumeric and punctuation
+         * characters, so as to simplify the conveyance of the value to a variety of cultures.
          *
          * Examples of version strings include "1.0", "1.2.3456", "1.2-2", "1.0b123", "1.2_3".
          *
@@ -148,10 +149,10 @@ export declare namespace BasicInformation {
         softwareVersionString: string;
 
         /**
-         * Indicates the minimum guaranteed value for some system-wide resource capabilities that are not otherwise
-         * cluster-specific and do not appear elsewhere. This attribute may be used by clients to optimize communication
-         * with Nodes by allowing them to use more than the strict minimum values required by this specification,
-         * wherever available.
+         * This attribute shall provide the minimum guaranteed value for some system-wide resource capabilities that are
+         * not otherwise cluster-specific and do not appear elsewhere. This attribute may be used by clients to optimize
+         * communication with Nodes by allowing them to use more than the strict minimum values required by this
+         * specification, wherever available.
          *
          * The values supported by the server in reality may be larger than the values provided in this attribute, such
          * as if a server is not resource-constrained at all. However, clients SHOULD only rely on the amounts provided
@@ -166,8 +167,8 @@ export declare namespace BasicInformation {
         capabilityMinima: CapabilityMinima;
 
         /**
-         * Indicates the current version number for the specification version this Node was certified against. A larger
-         * value of SpecificationVersion is newer than a lower value.
+         * This attribute shall contain the current version number for the specification version this Node was certified
+         * against. A larger value of SpecificationVersion is newer than a lower value.
          *
          * Nodes may query this field to determine the currently supported version of the specification on another given
          * Node.
@@ -216,7 +217,7 @@ export declare namespace BasicInformation {
         maxPathsPerInvoke: number;
 
         /**
-         * Indicates the current version number for the configuration of the Node. A larger value of
+         * This attribute shall contain the current version number for the configuration of the Node. A larger value of
          * ConfigurationVersion shall indicate a newer configuration than a lower value.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.24
@@ -224,53 +225,54 @@ export declare namespace BasicInformation {
         configurationVersion: number;
 
         /**
-         * Indicates the date that the Node was manufactured. The first 8 characters shall specify the date of
-         * manufacture of the Node in international date notation according to ISO 8601, i.e., YYYYMMDD, e.g., 20060814.
-         * The final 8 characters may include country, factory, line, shift or other related information at the option
-         * of the vendor. The format of this information is vendor defined.
+         * This attribute shall specify the date that the Node was manufactured. The first 8 characters shall specify
+         * the date of manufacture of the Node in international date notation according to ISO 8601, i.e., YYYYMMDD,
+         * e.g., 20060814. The final 8 characters may include country, factory, line, shift or other related information
+         * at the option of the vendor. The format of this information is vendor defined.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.12
          */
         manufacturingDate?: string;
 
         /**
-         * Indicates a human-readable (displayable) vendor assigned part number for the Node whose meaning and numbering
-         * scheme is vendor defined. Multiple products (and hence PartNumbers) can share a ProductID. For instance,
-         * there may be different packaging (with different PartNumbers) for different regions; also different colors of
-         * a product might share the ProductID but may have a different PartNumber.
+         * This attribute shall specify a human-readable (displayable) vendor assigned part number for the Node whose
+         * meaning and numbering scheme is vendor defined. Multiple products (and hence PartNumbers) can share a
+         * ProductID. For instance, there may be different packaging (with different PartNumbers) for different regions;
+         * also different colors of a product might share the ProductID but may have a different PartNumber.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.13
          */
         partNumber?: string;
 
         /**
-         * Indicates a link to a product specific web page. The specified URL SHOULD resolve to a maintained web page
-         * available for the lifetime of the product. The syntax of this attribute shall follow the syntax as specified
-         * in [[RFC1738]](#ref_Rfc1738) and shall use the https scheme. The maximum length of this attribute is 256
-         * ASCII characters.
+         * This attribute shall specify a link to a product specific web page. The specified URL SHOULD resolve to a
+         * maintained web page available for the lifetime of the product. The syntax of this attribute shall follow the
+         * syntax as specified in [[RFC1738]](#ref_Rfc1738) and shall use the https scheme. The maximum length of this
+         * attribute is 256 ASCII characters.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.14
          */
         productUrl?: string;
 
         /**
-         * Indicates a vendor specific human readable (displayable) product label. The ProductLabel attribute may be
-         * used to provide a more user-friendly value than that represented by the ProductName attribute. The
-         * ProductLabel attribute SHOULD NOT include the name of the vendor as defined within the VendorName attribute.
+         * This attribute shall specify a vendor specific human readable (displayable) product label. The ProductLabel
+         * attribute may be used to provide a more user-friendly value than that represented by the ProductName
+         * attribute. The ProductLabel attribute SHOULD NOT include the name of the vendor as defined within the
+         * VendorName attribute.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.15
          */
         productLabel?: string;
 
         /**
-         * Indicates a human readable (displayable) serial number.
+         * This attribute shall specify a human readable (displayable) serial number.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.16
          */
         serialNumber?: string;
 
         /**
-         * Indicates if a local Node configuration is to be enabled or disabled. When this attribute is set to True the
+         * This attribute shall allow a local Node configuration to be disabled. When this attribute is set to True the
          * Node shall disable the ability to configure the Node through an on-Node user interface. The value of the
          * LocalConfigDisabled attribute shall NOT in any way modify, disable, or otherwise affect the user's ability to
          * trigger a factory reset on the Node.
@@ -280,9 +282,10 @@ export declare namespace BasicInformation {
         localConfigDisabled?: boolean;
 
         /**
-         * Indicates whether the Node can be reached. For a native Node this is implicitly True. Its main use case is in
-         * the derived Bridged Device Basic Information cluster where it is used to indicate whether the bridged device
-         * is reachable by the bridge over the non-native network.
+         * This attribute (when used) shall indicate whether the Node can be reached. For a native Node this is
+         * implicitly True (and its use is optional). Its main use case is in the derived Bridged Device Basic
+         * Information cluster where it is used to indicate whether the bridged device is reachable by the bridge over
+         * the non-native network.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.18
          */
@@ -318,8 +321,8 @@ export declare namespace BasicInformation {
         uniqueId?: string;
 
         /**
-         * Indicates information about the appearance of the product, which could be useful to a user trying to locate
-         * or identify the node.
+         * This attribute shall provide information about the appearance of the product, which could be useful to a user
+         * trying to locate or identify the node.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.21
          */
@@ -333,37 +336,38 @@ export declare namespace BasicInformation {
      */
     export interface Attributes {
         /**
-         * Indicates the revision number of the Data Model against which the Node is certified. The value of this
-         * attribute shall be one of the valid values listed in Section 7.1.1, "Revision History".
+         * This attribute shall be set to the revision number of the Data Model against which the Node is certified. The
+         * value of this attribute shall be one of the valid values listed in Section 7.1.1, "Revision History".
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.1
          */
         dataModelRevision: number;
 
         /**
-         * Indicates a human readable (displayable) name of the vendor for the Node.
+         * This attribute shall specify a human readable (displayable) name of the vendor for the Node.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.2
          */
         vendorName: string;
 
         /**
-         * Indicates the Vendor ID.
+         * This attribute shall specify the Vendor ID.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.3
          */
         vendorId: VendorId;
 
         /**
-         * Indicates a human readable (displayable) name of the model for the Node such as the model number (or other
-         * identifier) assigned by the vendor.
+         * This attribute shall specify a human readable (displayable) name of the model for the Node such as the model
+         * number (or other identifier) assigned by the vendor.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.4
          */
         productName: string;
 
         /**
-         * Indicates the Product ID assigned by the vendor that is unique to the specific product of the Node.
+         * This attribute shall specify the Product ID assigned by the vendor that is unique to the specific product of
+         * the Node.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.5
          */
@@ -378,52 +382,52 @@ export declare namespace BasicInformation {
         nodeLabel: string;
 
         /**
-         * Indicates an ISO 3166-1 alpha-2 code to represent the country, dependent territory, or special area of
-         * geographic interest in which the Node is located at the time of the attribute being set. This attribute shall
-         * be set during initial commissioning (unless already set) and may be updated by further reconfigurations. This
-         * attribute may affect some regulatory aspects of the Node's operation, such as radio transmission power levels
-         * in given spectrum allocation bands if technologies where this is applicable are used. The Location's region
-         * code shall be interpreted in a case-insensitive manner. If the Node cannot understand the location code with
-         * which it was configured, or the location code has not yet been configured, it shall configure itself in a
-         * region-agnostic manner as determined by the vendor, avoiding region-specific assumptions as much as is
-         * practical. The special value XX shall indicate that region-agnostic mode is used.
+         * This attribute shall be an ISO 3166-1 alpha-2 code to represent the country, dependent territory, or special
+         * area of geographic interest in which the Node is located at the time of the attribute being set. This
+         * attribute shall be set during initial commissioning (unless already set) and may be updated by further
+         * reconfigurations. This attribute may affect some regulatory aspects of the Node's operation, such as radio
+         * transmission power levels in given spectrum allocation bands if technologies where this is applicable are
+         * used. The Location's region code shall be interpreted in a case-insensitive manner. If the Node cannot
+         * understand the location code with which it was configured, or the location code has not yet been configured,
+         * it shall configure itself in a region-agnostic manner as determined by the vendor, avoiding region-specific
+         * assumptions as much as is practical. The special value XX shall indicate that region-agnostic mode is used.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.7
          */
         location: string;
 
         /**
-         * Indicates the version number of the hardware of the Node. The meaning of its value, and the versioning
-         * scheme, are vendor defined.
+         * This attribute shall specify the version number of the hardware of the Node. The meaning of its value, and
+         * the versioning scheme, are vendor defined.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.8
          */
         hardwareVersion: number;
 
         /**
-         * Indicates the version number of the hardware of the Node. The meaning of its value, and the versioning
-         * scheme, are vendor defined. The HardwareVersionString attribute shall be used to provide a more user-friendly
-         * value than that represented by the HardwareVersion attribute.
+         * This attribute shall specify the version number of the hardware of the Node. The meaning of its value, and
+         * the versioning scheme, are vendor defined. The HardwareVersionString attribute shall be used to provide a
+         * more user-friendly value than that represented by the HardwareVersion attribute.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.9
          */
         hardwareVersionString: string;
 
         /**
-         * Indicates the current version number for the software running on this Node. A larger value of SoftwareVersion
-         * is newer than a lower value, from the perspective of software updates (see Section 11.20.3.3, "Availability
-         * of Software Images"). Nodes may query this field to determine the currently running version of software on
-         * another given Node.
+         * This attribute shall contain the current version number for the software running on this Node. A larger value
+         * of SoftwareVersion is newer than a lower value, from the perspective of software updates (see Section
+         * 11.20.3.3, "Availability of Software Images"). Nodes may query this field to determine the currently running
+         * version of software on another given Node.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.10
          */
         softwareVersion: number;
 
         /**
-         * Indicates a current human-readable representation for the software running on the Node. This version
-         * information may be conveyed to users. The maximum length of the SoftwareVersionString attribute is 64 bytes
-         * of UTF-8 characters. The contents SHOULD only use simple 7-bit ASCII alphanumeric and punctuation characters,
-         * so as to simplify the conveyance of the value to a variety of cultures.
+         * This attribute shall contain a current human-readable representation for the software running on the Node.
+         * This version information may be conveyed to users. The maximum length of the SoftwareVersionString attribute
+         * is 64 bytes of UTF-8 characters. The contents SHOULD only use simple 7-bit ASCII alphanumeric and punctuation
+         * characters, so as to simplify the conveyance of the value to a variety of cultures.
          *
          * Examples of version strings include "1.0", "1.2.3456", "1.2-2", "1.0b123", "1.2_3".
          *
@@ -432,10 +436,10 @@ export declare namespace BasicInformation {
         softwareVersionString: string;
 
         /**
-         * Indicates the minimum guaranteed value for some system-wide resource capabilities that are not otherwise
-         * cluster-specific and do not appear elsewhere. This attribute may be used by clients to optimize communication
-         * with Nodes by allowing them to use more than the strict minimum values required by this specification,
-         * wherever available.
+         * This attribute shall provide the minimum guaranteed value for some system-wide resource capabilities that are
+         * not otherwise cluster-specific and do not appear elsewhere. This attribute may be used by clients to optimize
+         * communication with Nodes by allowing them to use more than the strict minimum values required by this
+         * specification, wherever available.
          *
          * The values supported by the server in reality may be larger than the values provided in this attribute, such
          * as if a server is not resource-constrained at all. However, clients SHOULD only rely on the amounts provided
@@ -450,8 +454,8 @@ export declare namespace BasicInformation {
         capabilityMinima: CapabilityMinima;
 
         /**
-         * Indicates the current version number for the specification version this Node was certified against. A larger
-         * value of SpecificationVersion is newer than a lower value.
+         * This attribute shall contain the current version number for the specification version this Node was certified
+         * against. A larger value of SpecificationVersion is newer than a lower value.
          *
          * Nodes may query this field to determine the currently supported version of the specification on another given
          * Node.
@@ -500,7 +504,7 @@ export declare namespace BasicInformation {
         maxPathsPerInvoke: number;
 
         /**
-         * Indicates the current version number for the configuration of the Node. A larger value of
+         * This attribute shall contain the current version number for the configuration of the Node. A larger value of
          * ConfigurationVersion shall indicate a newer configuration than a lower value.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.24
@@ -508,53 +512,54 @@ export declare namespace BasicInformation {
         configurationVersion: number;
 
         /**
-         * Indicates the date that the Node was manufactured. The first 8 characters shall specify the date of
-         * manufacture of the Node in international date notation according to ISO 8601, i.e., YYYYMMDD, e.g., 20060814.
-         * The final 8 characters may include country, factory, line, shift or other related information at the option
-         * of the vendor. The format of this information is vendor defined.
+         * This attribute shall specify the date that the Node was manufactured. The first 8 characters shall specify
+         * the date of manufacture of the Node in international date notation according to ISO 8601, i.e., YYYYMMDD,
+         * e.g., 20060814. The final 8 characters may include country, factory, line, shift or other related information
+         * at the option of the vendor. The format of this information is vendor defined.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.12
          */
         manufacturingDate: string;
 
         /**
-         * Indicates a human-readable (displayable) vendor assigned part number for the Node whose meaning and numbering
-         * scheme is vendor defined. Multiple products (and hence PartNumbers) can share a ProductID. For instance,
-         * there may be different packaging (with different PartNumbers) for different regions; also different colors of
-         * a product might share the ProductID but may have a different PartNumber.
+         * This attribute shall specify a human-readable (displayable) vendor assigned part number for the Node whose
+         * meaning and numbering scheme is vendor defined. Multiple products (and hence PartNumbers) can share a
+         * ProductID. For instance, there may be different packaging (with different PartNumbers) for different regions;
+         * also different colors of a product might share the ProductID but may have a different PartNumber.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.13
          */
         partNumber: string;
 
         /**
-         * Indicates a link to a product specific web page. The specified URL SHOULD resolve to a maintained web page
-         * available for the lifetime of the product. The syntax of this attribute shall follow the syntax as specified
-         * in [[RFC1738]](#ref_Rfc1738) and shall use the https scheme. The maximum length of this attribute is 256
-         * ASCII characters.
+         * This attribute shall specify a link to a product specific web page. The specified URL SHOULD resolve to a
+         * maintained web page available for the lifetime of the product. The syntax of this attribute shall follow the
+         * syntax as specified in [[RFC1738]](#ref_Rfc1738) and shall use the https scheme. The maximum length of this
+         * attribute is 256 ASCII characters.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.14
          */
         productUrl: string;
 
         /**
-         * Indicates a vendor specific human readable (displayable) product label. The ProductLabel attribute may be
-         * used to provide a more user-friendly value than that represented by the ProductName attribute. The
-         * ProductLabel attribute SHOULD NOT include the name of the vendor as defined within the VendorName attribute.
+         * This attribute shall specify a vendor specific human readable (displayable) product label. The ProductLabel
+         * attribute may be used to provide a more user-friendly value than that represented by the ProductName
+         * attribute. The ProductLabel attribute SHOULD NOT include the name of the vendor as defined within the
+         * VendorName attribute.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.15
          */
         productLabel: string;
 
         /**
-         * Indicates a human readable (displayable) serial number.
+         * This attribute shall specify a human readable (displayable) serial number.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.16
          */
         serialNumber: string;
 
         /**
-         * Indicates if a local Node configuration is to be enabled or disabled. When this attribute is set to True the
+         * This attribute shall allow a local Node configuration to be disabled. When this attribute is set to True the
          * Node shall disable the ability to configure the Node through an on-Node user interface. The value of the
          * LocalConfigDisabled attribute shall NOT in any way modify, disable, or otherwise affect the user's ability to
          * trigger a factory reset on the Node.
@@ -564,9 +569,10 @@ export declare namespace BasicInformation {
         localConfigDisabled: boolean;
 
         /**
-         * Indicates whether the Node can be reached. For a native Node this is implicitly True. Its main use case is in
-         * the derived Bridged Device Basic Information cluster where it is used to indicate whether the bridged device
-         * is reachable by the bridge over the non-native network.
+         * This attribute (when used) shall indicate whether the Node can be reached. For a native Node this is
+         * implicitly True (and its use is optional). Its main use case is in the derived Bridged Device Basic
+         * Information cluster where it is used to indicate whether the bridged device is reachable by the bridge over
+         * the non-native network.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.18
          */
@@ -602,8 +608,8 @@ export declare namespace BasicInformation {
         uniqueId: string;
 
         /**
-         * Indicates information about the appearance of the product, which could be useful to a user trying to locate
-         * or identify the node.
+         * This attribute shall provide information about the appearance of the product, which could be useful to a user
+         * trying to locate or identify the node.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.1.5.21
          */

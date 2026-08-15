@@ -13,9 +13,10 @@ Resource.add({
     details: "A Window Covering Controller is a device that controls an automatic window covering.",
 
     children: [
-        { tag: "requirement", name: "Identify", discriminator: "O:serverCluster", xref: "device§8.4.4" },
-        { tag: "requirement", name: "Identify", discriminator: "O:clientCluster", xref: "device§8.4.4" },
-        { tag: "requirement", name: "Groups", xref: "device§8.4.4" },
-        { tag: "requirement", name: "WindowCovering", xref: "device§8.4.4" }
+        { tag: "requirement", name: "GroupcastSenderCond", xref: "device§8.4.4" },
+        { tag: "requirement", name: "Identify", discriminator: "O:serverCluster", xref: "device§8.4.5" },
+        { tag: "requirement", name: "Identify", discriminator: "O:clientCluster", xref: "device§8.4.5" },
+        { tag: "requirement", name: "Groups", xref: "device§8.4.5" },
+        { tag: "requirement", name: "WindowCovering", xref: "device§8.4.5" }
     ]
 });

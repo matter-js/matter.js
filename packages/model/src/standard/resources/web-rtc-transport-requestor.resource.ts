@@ -17,7 +17,8 @@ Resource.add({
     children: [
         {
             tag: "attribute", name: "CurrentSessions", xref: "cluster§11.6.4.1",
-            details: "Indicates a list of all the active WebRTC Sessions on this Node."
+            details: "This attribute shall be a list of WebRTCSessionStruct, which represents all the active WebRTC " +
+                "Sessions on this Node."
         },
 
         {

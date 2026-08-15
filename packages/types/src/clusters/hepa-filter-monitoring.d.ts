@@ -43,7 +43,8 @@ export declare namespace HepaFilterMonitoring {
      */
     export interface BaseAttributes {
         /**
-         * Indicates the current requirement to change the resource.
+         * This attribute shall be populated with a value from ChangeIndicationEnum that is indicative of the current
+         * requirement to change the resource.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.8.6.3
          */
@@ -58,8 +59,8 @@ export declare namespace HepaFilterMonitoring {
         inPlaceIndicator?: boolean;
 
         /**
-         * Indicates the time at which the resource has been changed, if supported by the server. The attribute shall be
-         * null if it was never set or is unknown.
+         * This attribute may indicates the time at which the resource has been changed, if supported by the server. The
+         * attribute shall be null if it was never set or is unknown.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.8.6.5
          */
@@ -107,7 +108,8 @@ export declare namespace HepaFilterMonitoring {
      */
     export interface Attributes {
         /**
-         * Indicates the current requirement to change the resource.
+         * This attribute shall be populated with a value from ChangeIndicationEnum that is indicative of the current
+         * requirement to change the resource.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.8.6.3
          */
@@ -122,8 +124,8 @@ export declare namespace HepaFilterMonitoring {
         inPlaceIndicator: boolean;
 
         /**
-         * Indicates the time at which the resource has been changed, if supported by the server. The attribute shall be
-         * null if it was never set or is unknown.
+         * This attribute may indicates the time at which the resource has been changed, if supported by the server. The
+         * attribute shall be null if it was never set or is unknown.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.8.6.5
          */

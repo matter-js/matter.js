@@ -14,7 +14,10 @@ Resource.add({
         "that requires a derived cluster to create an instance.",
 
     children: [
-        { tag: "attribute", name: "LabelList", xref: "core§9.7.5.1", details: "Indicates a list of string tuples." },
+        {
+            tag: "attribute", name: "LabelList", xref: "core§9.7.5.1",
+            details: "This is a list of string tuples. Each entry is a LabelStruct."
+        },
 
         {
             tag: "datatype", name: "LabelStruct", xref: "core§9.7.4.1",

@@ -21,10 +21,7 @@ Resource.add({
 
         {
             tag: "attribute", name: "SupportedModes", xref: "cluster§8.12.5.1",
-
-            details: "Indicates the list of supported modes." +
-                "\n" +
-                "Exactly one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags " +
+            details: "Exactly one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags " +
                 "field." +
                 "\n" +
                 "The Normal and Defrost mode tags are mutually exclusive and shall NOT both be used together in a " +

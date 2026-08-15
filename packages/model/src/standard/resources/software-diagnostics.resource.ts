@@ -26,8 +26,8 @@ Resource.add({
 
         {
             tag: "attribute", name: "ThreadMetrics", xref: "core§11.13.6.1",
-            details: "Indicates a list of thread metrics. Each active thread on the Node shall be represented by a single " +
-                "entry in the list."
+            details: "This attribute shall be a list of ThreadMetricsStruct structs. Each active thread on the Node shall " +
+                "be represented by a single entry within the ThreadMetrics attribute."
         },
         {
             tag: "attribute", name: "CurrentHeapFree", xref: "core§11.13.6.2",

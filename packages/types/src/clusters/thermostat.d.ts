@@ -153,7 +153,8 @@ export declare namespace Thermostat {
 
         /**
          * Indicates the period in minutes for which a setpoint hold is active. Thermostats that support hold for a
-         * specified duration SHOULD implement this attribute. The null value indicates the field is unused.
+         * specified duration SHOULD implement this attribute. The null value indicates the field is unused. All other
+         * values are reserved.
          *
          * If this attribute is updated to a non-null value and the TemperatureSetpointHold is set to SetpointHoldOn and
          * the SetpointHoldExpiryTimestamp is supported, the server shall update SetpointHoldExpiryTimestamp with a
@@ -336,7 +337,7 @@ export declare namespace Thermostat {
         acCapacityFormat?: AcCapacityFormat;
 
         /**
-         * Indicates the time when the TemperatureSetpointHold shall be cleared, this attribute shall contain the
+         * If there is a known time when the TemperatureSetpointHold shall be cleared, this attribute shall contain the
          * timestamp in UTC indicating when that will happen. If there is no such known time, this attribute shall be
          * null.
          *
@@ -596,7 +597,8 @@ export declare namespace Thermostat {
      */
     export interface AutoModeAttributes {
         /**
-         * Indicates the minimum difference between the Heat Setpoint and the Cool Setpoint.
+         * On devices which support the AUTO feature, this attribute shall indicate the minimum difference between the
+         * Heat Setpoint and the Cool Setpoint.
          *
          * Refer to Setpoint Limits for constraints.
          *
@@ -669,7 +671,7 @@ export declare namespace Thermostat {
         activePresetHandle: Bytes | null;
 
         /**
-         * Indicates the current list of configured presets.
+         * This attribute shall contain the current list of configured presets.
          *
          * On receipt of a write request:
          *
@@ -809,7 +811,7 @@ export declare namespace Thermostat {
         activeScheduleHandle: Bytes | null;
 
         /**
-         * Indicates a list of schedules.
+         * This attribute shall contain a list of ScheduleStructs.
          *
          * On receipt of a write request:
          *
@@ -1101,7 +1103,8 @@ export declare namespace Thermostat {
 
         /**
          * Indicates the period in minutes for which a setpoint hold is active. Thermostats that support hold for a
-         * specified duration SHOULD implement this attribute. The null value indicates the field is unused.
+         * specified duration SHOULD implement this attribute. The null value indicates the field is unused. All other
+         * values are reserved.
          *
          * If this attribute is updated to a non-null value and the TemperatureSetpointHold is set to SetpointHoldOn and
          * the SetpointHoldExpiryTimestamp is supported, the server shall update SetpointHoldExpiryTimestamp with a
@@ -1284,7 +1287,7 @@ export declare namespace Thermostat {
         acCapacityFormat: AcCapacityFormat;
 
         /**
-         * Indicates the time when the TemperatureSetpointHold shall be cleared, this attribute shall contain the
+         * If there is a known time when the TemperatureSetpointHold shall be cleared, this attribute shall contain the
          * timestamp in UTC indicating when that will happen. If there is no such known time, this attribute shall be
          * null.
          *
@@ -1509,7 +1512,8 @@ export declare namespace Thermostat {
         unoccupiedHeatingSetpoint: number;
 
         /**
-         * Indicates the minimum difference between the Heat Setpoint and the Cool Setpoint.
+         * On devices which support the AUTO feature, this attribute shall indicate the minimum difference between the
+         * Heat Setpoint and the Cool Setpoint.
          *
          * Refer to Setpoint Limits for constraints.
          *
@@ -1563,7 +1567,7 @@ export declare namespace Thermostat {
         activePresetHandle: Bytes | null;
 
         /**
-         * Indicates the current list of configured presets.
+         * This attribute shall contain the current list of configured presets.
          *
          * On receipt of a write request:
          *
@@ -1698,7 +1702,7 @@ export declare namespace Thermostat {
         activeScheduleHandle: Bytes | null;
 
         /**
-         * Indicates a list of schedules.
+         * This attribute shall contain a list of ScheduleStructs.
          *
          * On receipt of a write request:
          *

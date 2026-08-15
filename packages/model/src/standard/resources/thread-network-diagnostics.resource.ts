@@ -386,17 +386,15 @@ Resource.add({
 
         {
             tag: "attribute", name: "ActiveTimestamp", xref: "core§11.14.6.57",
-            details: "Indicates the timestamp of the currently active operational dataset. Null when there is no dataset " +
-                "configured."
+            details: "Null when there is no dataset configured."
         },
         {
             tag: "attribute", name: "PendingTimestamp", xref: "core§11.14.6.58",
-            details: "Indicates the timestamp of the currently pending operational dataset. Null when there is no dataset " +
-                "configured."
+            details: "Null when there is no dataset configured."
         },
         {
             tag: "attribute", name: "Delay", xref: "core§11.14.6.59",
-            details: "Indicates the delay value of the operational dataset. Null when there is no dataset configured."
+            details: "Null when there is no dataset configured."
         },
         {
             tag: "attribute", name: "SecurityPolicy", xref: "core§11.14.6.60",

@@ -49,7 +49,8 @@ Resource.add({
         },
         {
             tag: "attribute", name: "ChangeIndication", xref: "cluster§2.8.6.3",
-            details: "Indicates the current requirement to change the resource."
+            details: "This attribute shall be populated with a value from ChangeIndicationEnum that is indicative of the " +
+                "current requirement to change the resource."
         },
         {
             tag: "attribute", name: "InPlaceIndicator", xref: "cluster§2.8.6.4",
@@ -58,8 +59,8 @@ Resource.add({
         },
         {
             tag: "attribute", name: "LastChangedTime", xref: "cluster§2.8.6.5",
-            details: "Indicates the time at which the resource has been changed, if supported by the server. The attribute " +
-                "shall be null if it was never set or is unknown."
+            details: "This attribute may indicates the time at which the resource has been changed, if supported by the " +
+                "server. The attribute shall be null if it was never set or is unknown."
         },
         {
             tag: "attribute", name: "ReplacementProductList", xref: "cluster§2.8.6.6",

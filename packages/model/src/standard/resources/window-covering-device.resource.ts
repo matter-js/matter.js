@@ -13,10 +13,11 @@ Resource.add({
     details: "This defines conformance to the Window Covering device type.",
 
     children: [
-        { tag: "requirement", name: "Identify", xref: "device§8.3.4" },
-        { tag: "requirement", name: "Groups", xref: "device§8.3.4" },
-        { tag: "requirement", name: "WindowCovering", xref: "device§8.3.4" },
-        { tag: "requirement", name: "ClosureControl", xref: "device§8.3.4" },
-        { tag: "requirement", name: "ClosureDimension", xref: "device§8.3.4" }
+        { tag: "requirement", name: "GroupcastListenerCond", xref: "device§8.3.4" },
+        { tag: "requirement", name: "Identify", xref: "device§8.3.5" },
+        { tag: "requirement", name: "Groups", xref: "device§8.3.5" },
+        { tag: "requirement", name: "WindowCovering", xref: "device§8.3.5" },
+        { tag: "requirement", name: "ClosureControl", xref: "device§8.3.5" },
+        { tag: "requirement", name: "ClosureDimension", xref: "device§8.3.5" }
     ]
 });

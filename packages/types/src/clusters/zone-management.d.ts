@@ -50,36 +50,38 @@ export declare namespace ZoneManagement {
      */
     export interface BaseAttributes {
         /**
-         * Indicates the maximum number of zones allowed to created. This value shall be the sum of the number of
-         * predefined Mfg Zones, and MaxUserDefinedZones, if supported. This value is manufacturer-defined.
+         * This attribute shall specify the maximum number of zones allowed to created. This value shall be the sum of
+         * the number of predefined Mfg Zones, and MaxUserDefinedZones, if supported. This value is
+         * manufacturer-defined.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.2
          */
         maxZones: number;
 
         /**
-         * Indicates a list of all currently defined zones. Use the commands from this cluster to add, update or remove
-         * entries.
+         * This attribute shall specify all currently defined zones as a list of ZoneInformationStruct. Use the commands
+         * from this cluster to add, update or remove entries.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.3
          */
         zones: ZoneInformation[];
 
         /**
-         * Indicates a list of all currently defined triggers controlling the generation of ZoneTriggered and
-         * ZoneStopped events. To add an entry use CreateOrUpdateTrigger. To remove an entry use RemoveTrigger.
+         * This attribute shall specify all currently defined triggers controlling the generation of ZoneTriggered and
+         * ZoneStopped events and shall be a list of ZoneTriggerControlStruct. To add an entry use
+         * CreateOrUpdateTrigger. To remove an entry use RemoveTrigger.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.4
          */
         triggers: ZoneTriggerControl[];
 
         /**
-         * Indicates the hardware specific value for the number of supported sensitivity levels. This value is
-         * manufacturer defined. If the PerZoneSensitivity feature is supported, the value of this attribute determines
-         * valid values for the Sensitivity field in ZoneTriggerControlStruct; if the PerZoneSensitivity feature is not
-         * supported, the value of this attribute determines valid values for the Sensitivity Attribute. Implementations
-         * require two to ten levels of sensitivity control in order to ensure that there is some user-level
-         * customization of the Trigger.
+         * This attribute shall specify the hardware specific value for the number of supported sensitivity levels. This
+         * value is manufacturer defined. If the PerZoneSensitivity feature is supported, the value of this attribute
+         * determines valid values for the Sensitivity field in ZoneTriggerControlStruct; if the PerZoneSensitivity
+         * feature is not supported, the value of this attribute determines valid values for the Sensitivity Attribute.
+         * Implementations require two to ten levels of sensitivity control in order to ensure that there is some
+         * user-level customization of the Trigger.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.5
          */
@@ -91,8 +93,8 @@ export declare namespace ZoneManagement {
      */
     export interface UserDefinedAttributes {
         /**
-         * Indicates the maximum number of user-defined zones that can be supported by the Node. This value is
-         * manufacturer-defined.
+         * This attribute shall specify the maximum number of user-defined zones that can be supported by the Node. This
+         * value is manufacturer-defined.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.1
          */
@@ -104,9 +106,9 @@ export declare namespace ZoneManagement {
      */
     export interface NotPerZoneSensitivityAttributes {
         /**
-         * Indicates the sensitivity of the underlying zone triggering detection mechanism if the PerZoneSensitivity
-         * features is not supported. The higher the value the more sensitive the detection. The actual meaning of the
-         * values is implementation specific.
+         * This attribute shall specify the sensitivity of the underlying zone triggering detection mechanism if the
+         * PerZoneSensitivity features is not supported. The higher the value the more sensitive the detection. The
+         * actual meaning of the values is implementation specific.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.6
          */
@@ -118,9 +120,9 @@ export declare namespace ZoneManagement {
      */
     export interface TwoDimensionalCartesianZoneAttributes {
         /**
-         * Indicates the maximum X and Y points that are allowed for TwoD Cartesian Zones. If this cluster is on the
-         * same endpoint as Camera AV Stream Management Cluster, these values shall be equal to the value of SensorWidth
-         * - 1 and SensorHeight - 1 from the VideoSensorParams attribute.
+         * This attribute shall specify the maximum X and Y points that are allowed for TwoD Cartesian Zones. If this
+         * cluster is on the same endpoint as Camera AV Stream Management Cluster, these values shall be equal to the
+         * value of SensorWidth - 1 and SensorHeight - 1 from the VideoSensorParams attribute.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.7
          */
@@ -135,62 +137,64 @@ export declare namespace ZoneManagement {
      */
     export interface Attributes {
         /**
-         * Indicates the maximum number of zones allowed to created. This value shall be the sum of the number of
-         * predefined Mfg Zones, and MaxUserDefinedZones, if supported. This value is manufacturer-defined.
+         * This attribute shall specify the maximum number of zones allowed to created. This value shall be the sum of
+         * the number of predefined Mfg Zones, and MaxUserDefinedZones, if supported. This value is
+         * manufacturer-defined.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.2
          */
         maxZones: number;
 
         /**
-         * Indicates a list of all currently defined zones. Use the commands from this cluster to add, update or remove
-         * entries.
+         * This attribute shall specify all currently defined zones as a list of ZoneInformationStruct. Use the commands
+         * from this cluster to add, update or remove entries.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.3
          */
         zones: ZoneInformation[];
 
         /**
-         * Indicates a list of all currently defined triggers controlling the generation of ZoneTriggered and
-         * ZoneStopped events. To add an entry use CreateOrUpdateTrigger. To remove an entry use RemoveTrigger.
+         * This attribute shall specify all currently defined triggers controlling the generation of ZoneTriggered and
+         * ZoneStopped events and shall be a list of ZoneTriggerControlStruct. To add an entry use
+         * CreateOrUpdateTrigger. To remove an entry use RemoveTrigger.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.4
          */
         triggers: ZoneTriggerControl[];
 
         /**
-         * Indicates the hardware specific value for the number of supported sensitivity levels. This value is
-         * manufacturer defined. If the PerZoneSensitivity feature is supported, the value of this attribute determines
-         * valid values for the Sensitivity field in ZoneTriggerControlStruct; if the PerZoneSensitivity feature is not
-         * supported, the value of this attribute determines valid values for the Sensitivity Attribute. Implementations
-         * require two to ten levels of sensitivity control in order to ensure that there is some user-level
-         * customization of the Trigger.
+         * This attribute shall specify the hardware specific value for the number of supported sensitivity levels. This
+         * value is manufacturer defined. If the PerZoneSensitivity feature is supported, the value of this attribute
+         * determines valid values for the Sensitivity field in ZoneTriggerControlStruct; if the PerZoneSensitivity
+         * feature is not supported, the value of this attribute determines valid values for the Sensitivity Attribute.
+         * Implementations require two to ten levels of sensitivity control in order to ensure that there is some
+         * user-level customization of the Trigger.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.5
          */
         sensitivityMax: number;
 
         /**
-         * Indicates the maximum number of user-defined zones that can be supported by the Node. This value is
-         * manufacturer-defined.
+         * This attribute shall specify the maximum number of user-defined zones that can be supported by the Node. This
+         * value is manufacturer-defined.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.1
          */
         maxUserDefinedZones: number;
 
         /**
-         * Indicates the sensitivity of the underlying zone triggering detection mechanism if the PerZoneSensitivity
-         * features is not supported. The higher the value the more sensitive the detection. The actual meaning of the
-         * values is implementation specific.
+         * This attribute shall specify the sensitivity of the underlying zone triggering detection mechanism if the
+         * PerZoneSensitivity features is not supported. The higher the value the more sensitive the detection. The
+         * actual meaning of the values is implementation specific.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.6
          */
         sensitivity: number;
 
         /**
-         * Indicates the maximum X and Y points that are allowed for TwoD Cartesian Zones. If this cluster is on the
-         * same endpoint as Camera AV Stream Management Cluster, these values shall be equal to the value of SensorWidth
-         * - 1 and SensorHeight - 1 from the VideoSensorParams attribute.
+         * This attribute shall specify the maximum X and Y points that are allowed for TwoD Cartesian Zones. If this
+         * cluster is on the same endpoint as Camera AV Stream Management Cluster, these values shall be equal to the
+         * value of SensorWidth - 1 and SensorHeight - 1 from the VideoSensorParams attribute.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.7
          */

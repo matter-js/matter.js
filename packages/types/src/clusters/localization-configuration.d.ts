@@ -50,9 +50,10 @@ export declare namespace LocalizationConfiguration {
      */
     export interface BaseAttributes {
         /**
-         * Indicates the locale that the Node is currently configured to use when conveying information. The
-         * ActiveLocale attribute shall be a Language Tag as defined by BCP47. The ActiveLocale attribute shall have a
-         * default value assigned by the Vendor and shall be a value contained within the SupportedLocales attribute.
+         * The ActiveLocale attribute shall represent the locale that the Node is currently configured to use when
+         * conveying information. The ActiveLocale attribute shall be a Language Tag as defined by BCP47. The
+         * ActiveLocale attribute shall have a default value assigned by the Vendor and shall be a value contained
+         * within the SupportedLocales attribute.
          *
          * An attempt to write a value to ActiveLocale that is not present in SupportedLocales shall result in a
          * CONSTRAINT_ERROR error.
@@ -62,8 +63,9 @@ export declare namespace LocalizationConfiguration {
         activeLocale: string;
 
         /**
-         * Indicates a list of locale strings that are valid values for the ActiveLocale attribute. The list shall NOT
-         * contain any duplicate entries. The ordering of items within the list SHOULD NOT express any meaning.
+         * The SupportedLocales attribute shall represent a list of locale strings that are valid values for the
+         * ActiveLocale attribute. The list shall NOT contain any duplicate entries. The ordering of items within the
+         * list SHOULD NOT express any meaning.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.3.4.2
          */
@@ -75,9 +77,10 @@ export declare namespace LocalizationConfiguration {
      */
     export interface Attributes {
         /**
-         * Indicates the locale that the Node is currently configured to use when conveying information. The
-         * ActiveLocale attribute shall be a Language Tag as defined by BCP47. The ActiveLocale attribute shall have a
-         * default value assigned by the Vendor and shall be a value contained within the SupportedLocales attribute.
+         * The ActiveLocale attribute shall represent the locale that the Node is currently configured to use when
+         * conveying information. The ActiveLocale attribute shall be a Language Tag as defined by BCP47. The
+         * ActiveLocale attribute shall have a default value assigned by the Vendor and shall be a value contained
+         * within the SupportedLocales attribute.
          *
          * An attempt to write a value to ActiveLocale that is not present in SupportedLocales shall result in a
          * CONSTRAINT_ERROR error.
@@ -87,8 +90,9 @@ export declare namespace LocalizationConfiguration {
         activeLocale: string;
 
         /**
-         * Indicates a list of locale strings that are valid values for the ActiveLocale attribute. The list shall NOT
-         * contain any duplicate entries. The ordering of items within the list SHOULD NOT express any meaning.
+         * The SupportedLocales attribute shall represent a list of locale strings that are valid values for the
+         * ActiveLocale attribute. The list shall NOT contain any duplicate entries. The ordering of items within the
+         * list SHOULD NOT express any meaning.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.3.4.2
          */

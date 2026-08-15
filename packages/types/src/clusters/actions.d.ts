@@ -80,24 +80,24 @@ export declare namespace Actions {
      */
     export interface BaseAttributes {
         /**
-         * Indicates a list of actions. Each entry shall have an unique ActionID, and its EndpointListID shall exist in
-         * the EndpointLists attribute.
+         * The ActionList attribute holds the list of actions. Each entry shall have an unique ActionID, and its
+         * EndpointListID shall exist in the EndpointLists attribute.
          *
          * @see {@link MatterSpecification.v16.Core} § 9.14.5.1
          */
         actionList: Action[];
 
         /**
-         * Indicates a list of endpoint lists. Each entry shall have an unique EndpointListID.
+         * The EndpointLists attribute holds the list of endpoint lists. Each entry shall have an unique EndpointListID.
          *
          * @see {@link MatterSpecification.v16.Core} § 9.14.5.2
          */
         endpointLists: EndpointList[];
 
         /**
-         * Indicates the SetupURL attribute (when provided) shall indicate a URL; its syntax shall follow the syntax as
-         * specified in [[RFC1738]](#ref_Rfc1738), max. 512 ASCII characters and shall use the https scheme. The
-         * location referenced by this URL shall provide additional information for the actions provided:
+         * The SetupURL attribute (when provided) shall indicate a URL; its syntax shall follow the syntax as specified
+         * in [[RFC1738]](#ref_Rfc1738), max. 512 ASCII characters and shall use the https scheme. The location
+         * referenced by this URL shall provide additional information for the actions provided:
          *
          *   - When used without suffix, it shall provide information about the various actions which the cluster
          *     provides.
@@ -128,24 +128,24 @@ export declare namespace Actions {
      */
     export interface Attributes {
         /**
-         * Indicates a list of actions. Each entry shall have an unique ActionID, and its EndpointListID shall exist in
-         * the EndpointLists attribute.
+         * The ActionList attribute holds the list of actions. Each entry shall have an unique ActionID, and its
+         * EndpointListID shall exist in the EndpointLists attribute.
          *
          * @see {@link MatterSpecification.v16.Core} § 9.14.5.1
          */
         actionList: Action[];
 
         /**
-         * Indicates a list of endpoint lists. Each entry shall have an unique EndpointListID.
+         * The EndpointLists attribute holds the list of endpoint lists. Each entry shall have an unique EndpointListID.
          *
          * @see {@link MatterSpecification.v16.Core} § 9.14.5.2
          */
         endpointLists: EndpointList[];
 
         /**
-         * Indicates the SetupURL attribute (when provided) shall indicate a URL; its syntax shall follow the syntax as
-         * specified in [[RFC1738]](#ref_Rfc1738), max. 512 ASCII characters and shall use the https scheme. The
-         * location referenced by this URL shall provide additional information for the actions provided:
+         * The SetupURL attribute (when provided) shall indicate a URL; its syntax shall follow the syntax as specified
+         * in [[RFC1738]](#ref_Rfc1738), max. 512 ASCII characters and shall use the https scheme. The location
+         * referenced by this URL shall provide additional information for the actions provided:
          *
          *   - When used without suffix, it shall provide information about the various actions which the cluster
          *     provides.

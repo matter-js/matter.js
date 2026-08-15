@@ -33,9 +33,7 @@ Resource.add({
         {
             tag: "attribute", name: "SupportedModes", xref: "cluster§7.2.6.1",
 
-            details: "Indicates the list of supported modes." +
-                "\n" +
-                "At least one entry in the SupportedModes attribute shall include the Idle mode tag in the ModeTags " +
+            details: "At least one entry in the SupportedModes attribute shall include the Idle mode tag in the ModeTags " +
                 "field." +
                 "\n" +
                 "At least one entry in the SupportedModes attribute (different from the one above) shall include the " +

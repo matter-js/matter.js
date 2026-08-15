@@ -280,7 +280,8 @@ Resource.add(
             {
                 tag: "attribute", name: "MinSetpointDeadBand", xref: "cluster§4.3.11.19",
 
-                details: "Indicates the minimum difference between the Heat Setpoint and the Cool Setpoint." +
+                details: "On devices which support the AUTO feature, this attribute shall indicate the minimum difference " +
+                    "between the Heat Setpoint and the Cool Setpoint." +
                     "\n" +
                     "Refer to Setpoint Limits for constraints." +
                     "\n" +
@@ -358,7 +359,7 @@ Resource.add(
 
                 details: "Indicates the period in minutes for which a setpoint hold is active. Thermostats that support hold " +
                     "for a specified duration SHOULD implement this attribute. The null value indicates the field is " +
-                    "unused." +
+                    "unused. All other values are reserved." +
                     "\n" +
                     "If this attribute is updated to a non-null value and the TemperatureSetpointHold is set to " +
                     "SetpointHoldOn and the SetpointHoldExpiryTimestamp is supported, the server shall update " +
@@ -530,7 +531,7 @@ Resource.add(
             {
                 tag: "attribute", name: "Presets", xref: "cluster§4.3.11.50",
 
-                details: "Indicates the current list of configured presets." +
+                details: "This attribute shall contain the current list of configured presets." +
                     "\n" +
                     "On receipt of a write request:" +
                     "\n" +
@@ -624,7 +625,7 @@ Resource.add(
             {
                 tag: "attribute", name: "Schedules", xref: "cluster§4.3.11.51",
 
-                details: "Indicates a list of schedules." +
+                details: "This attribute shall contain a list of ScheduleStructs." +
                     "\n" +
                     "On receipt of a write request:" +
                     "\n" +
@@ -737,8 +738,8 @@ Resource.add(
             {
                 tag: "attribute", name: "SetpointHoldExpiryTimestamp", xref: "cluster§4.3.11.52",
 
-                details: "Indicates the time when the TemperatureSetpointHold shall be cleared, this attribute shall contain " +
-                    "the timestamp in UTC indicating when that will happen. If there is no such known time, this " +
+                details: "If there is a known time when the TemperatureSetpointHold shall be cleared, this attribute shall " +
+                    "contain the timestamp in UTC indicating when that will happen. If there is no such known time, this " +
                     "attribute shall be null." +
                     "\n" +
                     "If the TemperatureSetpointHold is set to SetpointHoldOn and the TemperatureSetpointHoldDuration is " +

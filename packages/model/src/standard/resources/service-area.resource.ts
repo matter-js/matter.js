@@ -44,8 +44,9 @@ Resource.add({
         {
             tag: "attribute", name: "SupportedAreas", xref: "cluster§1.17.6.1",
 
-            details: "Indicates the list of areas that can be included in the SelectedAreas attribute's list. Each item in " +
-                "this list represents a unique area, as indicated by the AreaID field of AreaStruct." +
+            details: "This attribute shall contain the list of areas that can be included in the SelectedAreas attribute's " +
+                "list. Each item in this list represents a unique area, as indicated by the AreaID field of " +
+                "AreaStruct." +
                 "\n" +
                 "Each entry in this list shall have a unique value for the AreaID field." +
                 "\n" +
@@ -95,7 +96,7 @@ Resource.add({
         {
             tag: "attribute", name: "SupportedMaps", xref: "cluster§1.17.6.2",
 
-            details: "Indicates the list of supported maps." +
+            details: "This attribute shall contain the list of supported maps." +
                 "\n" +
                 "A map is a full or a partial representation of a home, known to the device. For example:" +
                 "\n" +
@@ -165,8 +166,8 @@ Resource.add({
         {
             tag: "attribute", name: "CurrentArea", xref: "cluster§1.17.6.4",
 
-            details: "Indicates the area where the device is currently located, if the device is mobile, regardless of " +
-                "whether it is operating or not, such as while traveling between areas." +
+            details: "If the device is mobile, this attribute shall indicate the area where the device is currently " +
+                "located, regardless of whether it is operating or not, such as while traveling between areas." +
                 "\n" +
                 "If the device is not mobile and can operate at multiple areas sequentially, this attribute shall " +
                 "indicate the area which is currently being serviced, or the area which is currently traversed by the " +

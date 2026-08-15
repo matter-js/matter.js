@@ -49,8 +49,6 @@ export declare namespace DeviceEnergyManagementMode {
      */
     export interface BaseAttributes {
         /**
-         * Indicates the list of supported modes.
-         *
          * At least one entry in the SupportedModes attribute shall include the NoOptimization mode tag in the ModeTags
          * field.
          *
@@ -81,8 +79,6 @@ export declare namespace DeviceEnergyManagementMode {
      */
     export interface Attributes {
         /**
-         * Indicates the list of supported modes.
-         *
          * At least one entry in the SupportedModes attribute shall include the NoOptimization mode tag in the ModeTags
          * field.
          *

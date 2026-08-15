@@ -114,7 +114,7 @@ export namespace OnOffPlugInUnitRequirements {
 export const OnOffPlugInUnitDeviceDefinition = MutableEndpoint({
     name: "OnOffPlugInUnit",
     deviceType: 0x10a,
-    deviceRevision: 4,
+    deviceRevision: 5,
     requirements: OnOffPlugInUnitRequirements,
 
     behaviors: SupportedBehaviors(

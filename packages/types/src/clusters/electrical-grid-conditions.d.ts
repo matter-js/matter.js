@@ -53,7 +53,8 @@ export declare namespace ElectricalGridConditions {
      */
     export interface BaseAttributes {
         /**
-         * Indicates if there is known to be local generation (for example Solar PV or Battery Storage) at the premises.
+         * This shall indicate if there is known to be local generation (for example Solar PV or Battery Storage) at the
+         * premises.
          *
          * If the presence of any local generation is unknown, or cannot be determined, the value shall be null.
          *
@@ -62,8 +63,8 @@ export declare namespace ElectricalGridConditions {
         localGenerationAvailable: boolean | null;
 
         /**
-         * Indicates the current electricity supply conditions. If the current conditions are unknown, or cannot be
-         * determined, the value shall be null.
+         * This shall indicate the current electricity supply conditions. If the current conditions are unknown, or
+         * cannot be determined, the value shall be null.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 9.13.6.2
          */
@@ -75,8 +76,8 @@ export declare namespace ElectricalGridConditions {
      */
     export interface ForecastingAttributes {
         /**
-         * Indicates the forecast of upcoming electricity supply conditions. If the forecast is unable to be determined,
-         * this list shall be empty.
+         * This shall indicate the forecast of upcoming electricity supply conditions. If the forecast is unable to be
+         * determined, this list shall be empty.
          *
          * The list entries shall be in time order:
          *
@@ -97,7 +98,8 @@ export declare namespace ElectricalGridConditions {
      */
     export interface Attributes {
         /**
-         * Indicates if there is known to be local generation (for example Solar PV or Battery Storage) at the premises.
+         * This shall indicate if there is known to be local generation (for example Solar PV or Battery Storage) at the
+         * premises.
          *
          * If the presence of any local generation is unknown, or cannot be determined, the value shall be null.
          *
@@ -106,16 +108,16 @@ export declare namespace ElectricalGridConditions {
         localGenerationAvailable: boolean | null;
 
         /**
-         * Indicates the current electricity supply conditions. If the current conditions are unknown, or cannot be
-         * determined, the value shall be null.
+         * This shall indicate the current electricity supply conditions. If the current conditions are unknown, or
+         * cannot be determined, the value shall be null.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 9.13.6.2
          */
         currentConditions: ElectricalGridConditionsStruct | null;
 
         /**
-         * Indicates the forecast of upcoming electricity supply conditions. If the forecast is unable to be determined,
-         * this list shall be empty.
+         * This shall indicate the forecast of upcoming electricity supply conditions. If the forecast is unable to be
+         * determined, this list shall be empty.
          *
          * The list entries shall be in time order:
          *

@@ -47,7 +47,7 @@ export declare namespace RelativeHumidityMeasurement {
      */
     export interface BaseAttributes {
         /**
-         * Indicates measured water content value in % as follows:
+         * MeasuredValue represents the water content in % as follows:
          *
          * MeasuredValue = 100 x water content
          *
@@ -67,23 +67,23 @@ export declare namespace RelativeHumidityMeasurement {
         measuredValue: number | null;
 
         /**
-         * Indicates the minimum value of MeasuredValue that can be measured. The null value means this attribute is not
-         * defined. See Measured Value for more details.
+         * The MinMeasuredValue attribute indicates the minimum value of MeasuredValue that can be measured. The null
+         * value means this attribute is not defined. See Measured Value for more details.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.6.4.2
          */
         minMeasuredValue: number | null;
 
         /**
-         * Indicates the maximum value of MeasuredValue that can be measured. The null value means this attribute is not
-         * defined. See Measured Value for more details.
+         * The MaxMeasuredValue attribute indicates the maximum value of MeasuredValue that can be measured. The null
+         * value means this attribute is not defined. See Measured Value for more details.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.6.4.3
          */
         maxMeasuredValue: number | null;
 
         /**
-         * Indicates the tolerance of the measurement. For further, details see Measured Value.
+         * See Measured Value.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.6.4.4
          */
@@ -97,7 +97,7 @@ export declare namespace RelativeHumidityMeasurement {
      */
     export interface Attributes {
         /**
-         * Indicates measured water content value in % as follows:
+         * MeasuredValue represents the water content in % as follows:
          *
          * MeasuredValue = 100 x water content
          *
@@ -117,23 +117,23 @@ export declare namespace RelativeHumidityMeasurement {
         measuredValue: number | null;
 
         /**
-         * Indicates the minimum value of MeasuredValue that can be measured. The null value means this attribute is not
-         * defined. See Measured Value for more details.
+         * The MinMeasuredValue attribute indicates the minimum value of MeasuredValue that can be measured. The null
+         * value means this attribute is not defined. See Measured Value for more details.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.6.4.2
          */
         minMeasuredValue: number | null;
 
         /**
-         * Indicates the maximum value of MeasuredValue that can be measured. The null value means this attribute is not
-         * defined. See Measured Value for more details.
+         * The MaxMeasuredValue attribute indicates the maximum value of MeasuredValue that can be measured. The null
+         * value means this attribute is not defined. See Measured Value for more details.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.6.4.3
          */
         maxMeasuredValue: number | null;
 
         /**
-         * Indicates the tolerance of the measurement. For further, details see Measured Value.
+         * See Measured Value.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.6.4.4
          */

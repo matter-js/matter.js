@@ -22,32 +22,32 @@ export const Groupcast = Cluster(
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
-        Field({ name: "LN", conformance: "P, O.a+", constraint: "0", title: "Listener" }),
-        Field({ name: "SD", conformance: "P, O.a+", constraint: "1", title: "Sender" }),
-        Field({ name: "PGA", conformance: "P, O", constraint: "2", title: "PerGroup" })
+        Field({ name: "LN", conformance: "O.a+", constraint: "0", title: "Listener" }),
+        Field({ name: "SD", conformance: "O.a+", constraint: "1", title: "Sender" }),
+        Field({ name: "PGA", conformance: "O", constraint: "2", title: "PerGroup" })
     ),
 
     Attribute(
         {
-            name: "Membership", id: 0x0, type: "list", access: "R F V", conformance: "P, M", constraint: "desc",
+            name: "Membership", id: 0x0, type: "list", access: "R F V", conformance: "M", constraint: "desc",
             quality: "N"
         },
         Field({ name: "entry", type: "MembershipStruct" })
     ),
 
     Attribute({
-        name: "MaxMembershipCount", id: 0x1, type: "uint16", access: "R V", conformance: "P, M",
+        name: "MaxMembershipCount", id: 0x1, type: "uint16", access: "R V", conformance: "M",
         constraint: "min 10", quality: "F"
     }),
     Attribute({
-        name: "MaxMcastAddrCount", id: 0x2, type: "uint16", access: "R V", conformance: "P, M",
+        name: "MaxMcastAddrCount", id: 0x2, type: "uint16", access: "R V", conformance: "M",
         constraint: "min 1", quality: "F"
     }),
-    Attribute({ name: "UsedMcastAddrCount", id: 0x3, type: "uint16", access: "R V", conformance: "P, M", quality: "F" }),
-    Attribute({ name: "FabricUnderTest", id: 0x4, type: "fabric-idx", access: "R V", conformance: "P, M" }),
+    Attribute({ name: "UsedMcastAddrCount", id: 0x3, type: "uint16", access: "R V", conformance: "M", quality: "F" }),
+    Attribute({ name: "FabricUnderTest", id: 0x4, type: "fabric-idx", access: "R V", conformance: "M" }),
 
     Event(
-        { name: "GroupcastTesting", id: 0x0, access: "S A", conformance: "P, M", priority: "info" },
+        { name: "GroupcastTesting", id: 0x0, access: "S A", conformance: "M", priority: "info" },
         Field({ name: "SourceIpAddress", id: 0x0, type: "ipv6adr", access: "S", conformance: "O" }),
         Field({ name: "DestinationIpAddress", id: 0x1, type: "ipv6adr", access: "S", conformance: "O" }),
         Field({ name: "GroupId", id: 0x2, type: "group-id", access: "S", conformance: "O" }),
@@ -60,7 +60,7 @@ export const Groupcast = Cluster(
     ),
 
     Command(
-        { name: "JoinGroup", id: 0x0, access: "F M", conformance: "P, M", direction: "request", response: "status" },
+        { name: "JoinGroup", id: 0x0, access: "F M", conformance: "M", direction: "request", response: "status" },
         Field({ name: "GroupId", id: 0x0, type: "group-id", conformance: "M", constraint: "min 1" }),
         Field(
             { name: "Endpoints", id: 0x1, type: "list", conformance: "M", constraint: "desc" },
@@ -75,7 +75,7 @@ export const Groupcast = Cluster(
 
     Command(
         {
-            name: "LeaveGroup", id: 0x1, access: "F M", conformance: "P, M", direction: "request",
+            name: "LeaveGroup", id: 0x1, access: "F M", conformance: "M", direction: "request",
             response: "LeaveGroupResponse"
         },
         Field({ name: "GroupId", id: 0x0, type: "group-id", conformance: "M" }),
@@ -86,7 +86,7 @@ export const Groupcast = Cluster(
     ),
 
     Command(
-        { name: "LeaveGroupResponse", id: 0x2, conformance: "P, M", direction: "response" },
+        { name: "LeaveGroupResponse", id: 0x2, conformance: "M", direction: "response" },
         Field({ name: "GroupId", id: 0x0, type: "group-id", conformance: "M" }),
         Field(
             { name: "Endpoints", id: 0x1, type: "list", conformance: "M", constraint: "max 20" },
@@ -95,10 +95,7 @@ export const Groupcast = Cluster(
     ),
 
     Command(
-        {
-            name: "UpdateGroupKey", id: 0x3, access: "F M", conformance: "P, M", direction: "request",
-            response: "status"
-        },
+        { name: "UpdateGroupKey", id: 0x3, access: "F M", conformance: "M", direction: "request", response: "status" },
         Field({ name: "GroupId", id: 0x0, type: "group-id", conformance: "M", constraint: "min 1" }),
         Field({ name: "KeySetId", id: 0x1, type: "uint16", conformance: "M", constraint: "min 1" }),
         Field({ name: "Key", id: 0x2, type: "octstr", conformance: "O", constraint: "16" })
@@ -106,7 +103,7 @@ export const Groupcast = Cluster(
 
     Command(
         {
-            name: "ConfigureAuxiliaryAcl", id: 0x4, access: "F A", conformance: "P, LN", direction: "request",
+            name: "ConfigureAuxiliaryAcl", id: 0x4, access: "F A", conformance: "LN", direction: "request",
             response: "status"
         },
         Field({ name: "GroupId", id: 0x0, type: "group-id", conformance: "M" }),
@@ -115,7 +112,7 @@ export const Groupcast = Cluster(
 
     Command(
         {
-            name: "GroupcastTesting", id: 0x5, access: "F A", conformance: "P, M", direction: "request",
+            name: "GroupcastTesting", id: 0x5, access: "F A", conformance: "M", direction: "request",
             response: "status"
         },
         Field({ name: "TestOperation", id: 0x0, type: "GroupcastTestingEnum", conformance: "M" }),

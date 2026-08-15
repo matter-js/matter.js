@@ -64,7 +64,7 @@ export namespace ThermostatControllerRequirements {
 export const ThermostatControllerDeviceDefinition = MutableEndpoint({
     name: "ThermostatController",
     deviceType: 0x30a,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: ThermostatControllerRequirements,
     behaviors: SupportedBehaviors()
 });

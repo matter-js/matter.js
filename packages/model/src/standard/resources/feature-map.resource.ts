@@ -11,9 +11,7 @@ import { Resource } from "#models/Resource.js";
 Resource.add({
     tag: "attribute", name: "FeatureMap", xref: "core§7.13.2",
 
-    details: "Indicates the features supported by the cluster instance." +
-        "\n" +
-        "Each instance of a cluster shall support this attribute." +
+    details: "Each instance of a cluster shall support this attribute." +
         "\n" +
         "The FeatureMap attribute shall indicate whether the server supports zero or more optional cluster " +
         "features. A cluster feature is a set of cluster elements that are mandatory or optional for a " +

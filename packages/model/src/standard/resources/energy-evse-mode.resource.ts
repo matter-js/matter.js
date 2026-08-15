@@ -22,9 +22,7 @@ Resource.add({
         {
             tag: "attribute", name: "SupportedModes", xref: "cluster§9.4.6.1",
 
-            details: "Indicates the list of supported modes." +
-                "\n" +
-                "At least one entry in the SupportedModes attribute shall include the Manual mode tag in the ModeTags " +
+            details: "At least one entry in the SupportedModes attribute shall include the Manual mode tag in the ModeTags " +
                 "field list." +
                 "\n" +
                 "Modes with entries in the SupportedModes attribute which contain multiple mode tags permitting " +

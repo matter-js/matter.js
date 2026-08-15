@@ -104,7 +104,7 @@ export namespace OnOffLightRequirements {
 export const OnOffLightDeviceDefinition = MutableEndpoint({
     name: "OnOffLight",
     deviceType: 0x100,
-    deviceRevision: 3,
+    deviceRevision: 4,
     requirements: OnOffLightRequirements,
 
     behaviors: SupportedBehaviors(

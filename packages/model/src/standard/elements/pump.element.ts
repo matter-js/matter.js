@@ -13,8 +13,9 @@ export const PumpDt = DeviceType(
     { name: "Pump", id: 0x303, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 771, revision: 3 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 771, revision: 4 } ], element: "attribute" })
     ),
+    Requirement({ name: "GroupcastListenerCond", type: "RootNode.GroupcastListenerCond", conformance: "O", element: "condition" }),
     Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster" }),

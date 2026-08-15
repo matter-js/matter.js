@@ -81,16 +81,14 @@ Resource.add({
 
         {
             tag: "attribute", name: "OnOff", xref: "cluster§1.5.6.2",
-            details: "Indicates whether the device type implemented on the endpoint is turned off or turned on, in these " +
-                "cases the value of the OnOff attribute equals FALSE, or TRUE respectively."
+            details: "This attribute indicates whether the device type implemented on the endpoint is turned off or turned " +
+                "on, in these cases the value of the OnOff attribute equals FALSE, or TRUE respectively."
         },
 
         {
             tag: "attribute", name: "GlobalSceneControl", xref: "cluster§1.5.6.3",
 
-            details: "Indicates the state of the global scene control." +
-                "\n" +
-                "In order to support the use case where the user gets back the last setting of a set of devices (e.g. " +
+            details: "In order to support the use case where the user gets back the last setting of a set of devices (e.g. " +
                 "level settings for lights), a global scene is introduced which is stored when the devices are turned " +
                 "off and recalled when the devices are turned on. The global scene is defined as the scene that is " +
                 "stored with group identifier 0 and scene identifier 0." +
@@ -109,8 +107,9 @@ Resource.add({
         {
             tag: "attribute", name: "OnTime", xref: "cluster§1.5.6.4",
 
-            details: "Indicates the length of time (in 1/10ths second) that the On state shall be maintained before " +
-                "automatically transitioning to the Off state when using the OnWithTimedOff command." +
+            details: "This attribute specifies the length of time (in 1/10ths second) that the On state shall be " +
+                "maintained before automatically transitioning to the Off state when using the OnWithTimedOff " +
+                "command." +
                 "\n" +
                 "This attribute can be written at any time, but writing a value only has an effect when in the Timed " +
                 "On state." +
@@ -122,10 +121,10 @@ Resource.add({
         {
             tag: "attribute", name: "OffWaitTime", xref: "cluster§1.5.6.5",
 
-            details: "Indicates the length of time (in 1/10ths second) that the Off state shall be guarded to prevent " +
-                "another OnWithTimedOff command turning the server back to its On state (e.g., when leaving a room, " +
-                "the lights are turned off but an occupancy sensor detects the leaving person and attempts to turn " +
-                "the lights back on)." +
+            details: "This attribute specifies the length of time (in 1/10ths second) that the Off state shall be guarded " +
+                "to prevent another OnWithTimedOff command turning the server back to its On state (e.g., when " +
+                "leaving a room, the lights are turned off but an occupancy sensor detects the leaving person and " +
+                "attempts to turn the lights back on)." +
                 "\n" +
                 "This attribute can be written at any time, but writing a value only has an effect when in the Timed " +
                 "On state followed by a transition to the Delayed Off state, or in the Delayed Off state." +
@@ -137,9 +136,10 @@ Resource.add({
         {
             tag: "attribute", name: "StartUpOnOff", xref: "cluster§1.5.6.6",
 
-            details: "Indicates the desired startup behavior of a device when it is supplied with power and this state " +
-                "shall be reflected in the OnOff attribute. If the value is null, the OnOff attribute is set to its " +
-                "previous value. Otherwise, the behavior is defined in the table defining StartUpOnOffEnum." +
+            details: "This attribute shall define the desired startup behavior of a device when it is supplied with power " +
+                "and this state shall be reflected in the OnOff attribute. If the value is null, the OnOff attribute " +
+                "is set to its previous value. Otherwise, the behavior is defined in the table defining " +
+                "StartUpOnOffEnum." +
                 "\n" +
                 "This behavior does not apply to reboots associated with OTA. After an OTA restart, the OnOff " +
                 "attribute shall return to its value prior to the restart."

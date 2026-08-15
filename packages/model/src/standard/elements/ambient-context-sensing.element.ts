@@ -96,7 +96,8 @@ export const AmbientContextSensing = Cluster(
             name: "AmbientContextDetectEnded", id: 0x1, access: "V", conformance: "P, HA | OI | AUD | OC & OI",
             priority: "info"
         },
-        Field({ name: "EventStartTimePos", id: 0x0, type: "posix-ms", conformance: "P, O.a" })
+        Field({ name: "EventStartTimePos", id: 0x0, type: "posix-ms", conformance: "P, O.a" }),
+        Field({ name: "EventStartTimeSys", id: 0x1, type: "systime-ms", conformance: "P, O.a" })
     ),
 
     Datatype(

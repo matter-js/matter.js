@@ -37,8 +37,9 @@ Resource.add({
 
         {
             tag: "attribute", name: "MaxNetworks", xref: "core§11.9.6.1",
-            details: "Indicates the maximum number of network configuration entries that can be added, based on available " +
-                "device resources. The length of the Networks attribute shall be less than or equal to this value."
+            details: "This shall indicate the maximum number of network configuration entries that can be added, based on " +
+                "available device resources. The length of the Networks attribute shall be less than or equal to this " +
+                "value."
         },
 
         {

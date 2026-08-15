@@ -40,8 +40,8 @@ Resource.add(
             {
                 tag: "attribute", name: "CurrentHue", xref: "cluster§3.2.7.2",
 
-                details: "Indicates the current hue value of the light. It is updated as fast as practical during commands " +
-                    "that change the hue." +
+                details: "The CurrentHue attribute contains the current hue value of the light. It is updated as fast as " +
+                    "practical during commands that change the hue." +
                     "\n" +
                     "The hue in degrees shall be related to the CurrentHue attribute by the relationship:" +
                     "\n" +
@@ -131,8 +131,8 @@ Resource.add(
             },
             {
                 tag: "attribute", name: "CompensationText", xref: "cluster§3.2.7.8",
-                details: "Indicates a textual indication of what mechanism, if any, is in use to compensate for " +
-                    "color/intensity drift over time."
+                details: "This attribute shall contain a textual indication of what mechanism, if any, is in use to compensate " +
+                    "for color/intensity drift over time."
             },
 
             {

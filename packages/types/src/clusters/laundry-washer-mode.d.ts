@@ -49,8 +49,6 @@ export declare namespace LaundryWasherMode {
      */
     export interface BaseAttributes {
         /**
-         * Indicates the list of supported modes.
-         *
          * At least one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags field
          * list.
          *
@@ -72,8 +70,6 @@ export declare namespace LaundryWasherMode {
      */
     export interface Attributes {
         /**
-         * Indicates the list of supported modes.
-         *
          * At least one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags field
          * list.
          *

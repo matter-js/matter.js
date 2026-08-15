@@ -13,7 +13,8 @@ Resource.add({
     details: "A Chime device is a device which can play from a range of pre installed sounds and is typically used " +
         "with a Doorbell, Audio Doorbell, or Video Doorbell.",
     children: [
-        { tag: "requirement", name: "Chime", xref: "device§16.7.4" },
-        { tag: "requirement", name: "Identify", xref: "device§16.7.4" }
+        { tag: "requirement", name: "Chime", xref: "device§16.7.5" },
+        { tag: "requirement", name: "Identify", xref: "device§16.7.5" },
+        { tag: "requirement", name: "Speaker", xref: "device§16.7.3" }
     ]
 });

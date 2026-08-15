@@ -1229,7 +1229,7 @@ export declare namespace ThreadNetworkDiagnostics {
         /**
          * PacketCounts (PKTCNT)
          *
-         * Server supports the counts for the number of received and transmitted packets on the Thread interface.
+         * Server supports the counts for the number of received and transmitted packets on the Thread interface
          */
         PacketCounts = "PacketCounts",
 
@@ -1237,21 +1237,21 @@ export declare namespace ThreadNetworkDiagnostics {
          * ErrorCounts (ERRCNT)
          *
          * Server supports the counts for the number of errors that have occurred during the reception and transmission
-         * of packets on the Thread interface.
+         * of packets on the Thread interface
          */
         ErrorCounts = "ErrorCounts",
 
         /**
          * MleCounts (MLECNT)
          *
-         * Server supports the counts for various MLE layer happenings.
+         * Server supports the counts for various MLE layer happenings
          */
         MleCounts = "MleCounts",
 
         /**
          * MacCounts (MACCNT)
          *
-         * Server supports the counts for various MAC layer happenings.
+         * Server supports the counts for various MAC layer happenings
          */
         MacCounts = "MacCounts"
     }

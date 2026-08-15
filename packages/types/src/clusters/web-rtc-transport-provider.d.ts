@@ -51,7 +51,7 @@ export declare namespace WebRtcTransportProvider {
      */
     export interface BaseAttributes {
         /**
-         * Indicates a list of all the active WebRTC Sessions.
+         * This attribute shall be a list of WebRTCSessionStruct, which represents all the active WebRTC Sessions.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.5.5.1
          */
@@ -66,7 +66,7 @@ export declare namespace WebRtcTransportProvider {
      */
     export interface Attributes {
         /**
-         * Indicates a list of all the active WebRTC Sessions.
+         * This attribute shall be a list of WebRTCSessionStruct, which represents all the active WebRTC Sessions.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.5.5.1
          */

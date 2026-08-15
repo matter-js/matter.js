@@ -49,7 +49,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
      */
     export interface MechanicalPanOrMechanicalTiltOrMechanicalZoomAttributes {
         /**
-         * Indicates the currently selected mechanical pan, tilt, and zoom position.
+         * This attribute indicates the currently selected mechanical pan, tilt, and zoom position.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.3.6.1
          */
@@ -68,14 +68,15 @@ export declare namespace CameraAvSettingsUserLevelManagement {
      */
     export interface MechanicalPresetsAttributes {
         /**
-         * Indicates the maximum number of presets for the mechanical pan, tilt, zoom.
+         * This attribute indicates the maximum number of presets for the mechanical pan, tilt, zoom.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.3.6.2
          */
         maxPresets: number;
 
         /**
-         * Indicates a list of presets for mechanical pan, tilt, and/or zoom.
+         * This attribute shall be a list of MPTZPresetStruct. Each entry in the list contains a preset for mechanical
+         * pan, tilt, and/or zoom, the values for which are represented by an instance of an MPTZStruct.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.3.6.3
          */
@@ -87,10 +88,9 @@ export declare namespace CameraAvSettingsUserLevelManagement {
      */
     export interface DigitalPtzAttributes {
         /**
-         * Indicates a list of streams which supports digital movement.
-         *
-         * If a video stream is listed, it means digital movement is supported via DPTZSetViewport or DPTZRelativeMove.
-         * The initial values for each Viewport entry shall be the values found in the global Viewport.
+         * This attribute is a list of DPTZStruct. If a video stream is listed, it means digital movement is supported
+         * via DPTZSetViewport or DPTZRelativeMove. The initial values for each Viewport entry shall be the values found
+         * in the global Viewport.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.3.6.4
          */
@@ -156,7 +156,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
      */
     export interface Attributes {
         /**
-         * Indicates the currently selected mechanical pan, tilt, and zoom position.
+         * This attribute indicates the currently selected mechanical pan, tilt, and zoom position.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.3.6.1
          */
@@ -170,24 +170,24 @@ export declare namespace CameraAvSettingsUserLevelManagement {
         movementState: PhysicalMovement;
 
         /**
-         * Indicates the maximum number of presets for the mechanical pan, tilt, zoom.
+         * This attribute indicates the maximum number of presets for the mechanical pan, tilt, zoom.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.3.6.2
          */
         maxPresets: number;
 
         /**
-         * Indicates a list of presets for mechanical pan, tilt, and/or zoom.
+         * This attribute shall be a list of MPTZPresetStruct. Each entry in the list contains a preset for mechanical
+         * pan, tilt, and/or zoom, the values for which are represented by an instance of an MPTZStruct.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.3.6.3
          */
         mptzPresets: MptzPreset[];
 
         /**
-         * Indicates a list of streams which supports digital movement.
-         *
-         * If a video stream is listed, it means digital movement is supported via DPTZSetViewport or DPTZRelativeMove.
-         * The initial values for each Viewport entry shall be the values found in the global Viewport.
+         * This attribute is a list of DPTZStruct. If a video stream is listed, it means digital movement is supported
+         * via DPTZSetViewport or DPTZRelativeMove. The initial values for each Viewport entry shall be the values found
+         * in the global Viewport.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.3.6.4
          */

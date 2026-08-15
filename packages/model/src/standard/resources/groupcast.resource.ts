@@ -28,11 +28,7 @@ Resource.add(
             "endpoints to operate as group senders, receivers, or both. This enables low-power and " +
             "resource-constrained devices to participate in group communication without incurring unnecessary " +
             "state or processing overhead. Together, these design elements provide a clearer and more " +
-            "interoperable basis for group functionality and form the replacement for the legacy Groups cluster." +
-            "\n" +
-            "> [!NOTE]" +
-            "\n" +
-            "> NOTE: Support for Groupcast cluster is provisional.",
+            "interoperable basis for group functionality and form the replacement for the legacy Groups cluster.",
 
         children: [
             {

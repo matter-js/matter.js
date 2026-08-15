@@ -60,21 +60,21 @@ Resource.add({
 
         {
             tag: "attribute", name: "SupportedFormats", xref: "cluster§11.7.9.1",
-            details: "Indicates a list of Supported Container Format structs, which represents the combinations of " +
-                "Ingestion Method and Container Format that the Node supports. Nodes shall support at least the " +
-                "combination CMAFIngest,CMAF."
+            details: "This attribute shall contain a list of Supported Container Format structs, which represents the " +
+                "combinations of Ingestion Method and Container Format that the Node supports. Nodes shall support at " +
+                "least the combination CMAFIngest,CMAF."
         },
 
         {
             tag: "attribute", name: "CurrentConnections", xref: "cluster§11.7.9.2",
 
-            details: "Indicates a list of TransportConfigurationStruct which represents all the allocated connections " +
-                "added via AllocatePushTransport. When this attribute is read over a non Large Message (See Large " +
-                "Message Quality in the Data Model section of [[MatterCore]](#ref_MatterCore)) capable transport, the " +
-                "TransportOptions field shall NOT be included. To get the full details of the connections use the " +
-                "FindTransport command. The maximum size of this list is run-time dependent upon the resource " +
-                "constraints of the system as described in Resource Management and Stream Priorities and the " +
-                "currently used bandwidth of the total available specified by MaxNetworkBandwidth."
+            details: "This attribute shall be a list of TransportConfigurationStruct which represents all the allocated " +
+                "connections added via AllocatePushTransport. When this attribute is read over a non Large Message " +
+                "(See Large Message Quality in the Data Model section of [[MatterCore]](#ref_MatterCore)) capable " +
+                "transport, the TransportOptions field shall NOT be included. To get the full details of the " +
+                "connections use the FindTransport command. The maximum size of this list is run-time dependent upon " +
+                "the resource constraints of the system as described in Resource Management and Stream Priorities and " +
+                "the currently used bandwidth of the total available specified by MaxNetworkBandwidth."
         },
 
         {

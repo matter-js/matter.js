@@ -33,8 +33,8 @@ Resource.add({
 
         {
             tag: "attribute", name: "LocalGenerationAvailable", xref: "cluster§9.13.6.1",
-            details: "Indicates if there is known to be local generation (for example Solar PV or Battery Storage) at the " +
-                "premises." +
+            details: "This shall indicate if there is known to be local generation (for example Solar PV or Battery " +
+                "Storage) at the premises." +
                 "\n" +
                 "If the presence of any local generation is unknown, or cannot be determined, the value shall be " +
                 "null."
@@ -42,15 +42,15 @@ Resource.add({
 
         {
             tag: "attribute", name: "CurrentConditions", xref: "cluster§9.13.6.2",
-            details: "Indicates the current electricity supply conditions. If the current conditions are unknown, or " +
-                "cannot be determined, the value shall be null."
+            details: "This shall indicate the current electricity supply conditions. If the current conditions are " +
+                "unknown, or cannot be determined, the value shall be null."
         },
 
         {
             tag: "attribute", name: "ForecastConditions", xref: "cluster§9.13.6.3",
 
-            details: "Indicates the forecast of upcoming electricity supply conditions. If the forecast is unable to be " +
-                "determined, this list shall be empty." +
+            details: "This shall indicate the forecast of upcoming electricity supply conditions. If the forecast is " +
+                "unable to be determined, this list shall be empty." +
                 "\n" +
                 "The list entries shall be in time order:" +
                 "\n" +

@@ -56,9 +56,7 @@ export const GeneralCommissioning = Cluster(
         name: "NetworkRecoveryReason", id: 0xb, type: "NetworkRecoveryReasonEnum", access: "R M",
         conformance: "P, NR", default: null, quality: "X"
     }),
-    Attribute(
-        { name: "IsCommissioningWithoutPower", id: 0xc, type: "bool", access: "R V", conformance: "O", default: false }
-    ),
+    Attribute({ name: "IsCommissioningWithoutPower", id: 0xc, type: "bool", access: "R V", conformance: "P, O", default: false }),
 
     Command(
         {

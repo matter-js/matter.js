@@ -40,7 +40,7 @@ export declare namespace Label {
      */
     export interface BaseAttributes {
         /**
-         * Indicates a list of string tuples.
+         * This is a list of string tuples. Each entry is a LabelStruct.
          *
          * @see {@link MatterSpecification.v16.Core} § 9.7.5.1
          */
@@ -52,7 +52,7 @@ export declare namespace Label {
      */
     export interface Attributes {
         /**
-         * Indicates a list of string tuples.
+         * This is a list of string tuples. Each entry is a LabelStruct.
          *
          * @see {@link MatterSpecification.v16.Core} § 9.7.5.1
          */

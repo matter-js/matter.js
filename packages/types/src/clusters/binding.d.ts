@@ -75,7 +75,7 @@ export declare namespace Binding {
      */
     export interface BaseAttributes {
         /**
-         * Indicates a list of currently configured bindings.
+         * Each entry shall represent a binding.
          *
          * @see {@link MatterSpecification.v16.Core} § 9.6.6.1
          */
@@ -87,7 +87,7 @@ export declare namespace Binding {
      */
     export interface Attributes {
         /**
-         * Indicates a list of currently configured bindings.
+         * Each entry shall represent a binding.
          *
          * @see {@link MatterSpecification.v16.Core} § 9.6.6.1
          */

@@ -17,12 +17,13 @@ Resource.add({
         "extended color light is also capable of being switched by means of a bound occupancy sensor.",
 
     children: [
-        { tag: "requirement", name: "Identify", xref: "device§4.4.4" },
-        { tag: "requirement", name: "Groups", xref: "device§4.4.4" },
-        { tag: "requirement", name: "OnOff", xref: "device§4.4.4" },
-        { tag: "requirement", name: "LevelControl", xref: "device§4.4.4" },
-        { tag: "requirement", name: "ScenesManagement", xref: "device§4.4.4" },
-        { tag: "requirement", name: "ColorControl", xref: "device§4.4.4" },
-        { tag: "requirement", name: "OccupancySensing", xref: "device§4.4.4" }
+        { tag: "requirement", name: "GroupcastListenerCond", xref: "device§4.4.4" },
+        { tag: "requirement", name: "Identify", xref: "device§4.4.5" },
+        { tag: "requirement", name: "Groups", xref: "device§4.4.5" },
+        { tag: "requirement", name: "OnOff", xref: "device§4.4.5" },
+        { tag: "requirement", name: "LevelControl", xref: "device§4.4.5" },
+        { tag: "requirement", name: "ScenesManagement", xref: "device§4.4.5" },
+        { tag: "requirement", name: "ColorControl", xref: "device§4.4.5" },
+        { tag: "requirement", name: "OccupancySensing", xref: "device§4.4.5" }
     ]
 });

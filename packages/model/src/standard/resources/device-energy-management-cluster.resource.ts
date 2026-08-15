@@ -346,7 +346,8 @@ Resource.add({
         {
             tag: "attribute", name: "Forecast", xref: "cluster§9.2.8.7",
 
-            details: "Indicates the forecast from e.g. an ESA." +
+            details: "This attribute allows an ESA to share its intended forecast with a client (such as an Energy " +
+                "Management System)." +
                 "\n" +
                 "A null value indicates that there is no forecast currently available (for example, a program has not " +
                 "yet been selected by the user)." +

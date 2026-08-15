@@ -50,9 +50,7 @@ export declare namespace GeneralCommissioning {
      */
     export interface BaseAttributes {
         /**
-         * Indicates the current breadcrumb value.
-         *
-         * The attribute allows for the storage of a client-provided small payload which Administrators and
+         * This attribute allows for the storage of a client-provided small payload which Administrators and
          * Commissioners may write and then subsequently read, to keep track of their own progress. This may be used by
          * the Commissioner to avoid repeating already-executed actions upon re-establishing a commissioning link after
          * an error.
@@ -71,8 +69,8 @@ export declare namespace GeneralCommissioning {
         breadcrumb: number | bigint;
 
         /**
-         * Indicates critical parameters needed at the beginning of commissioning flow. See BasicCommissioningInfo for
-         * more information.
+         * This attribute shall describe critical parameters needed at the beginning of commissioning flow. See Section
+         * 11.10.5.4, "BasicCommissioningInfo" for more information.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.10.6.2
          */
@@ -89,10 +87,10 @@ export declare namespace GeneralCommissioning {
         regulatoryConfig: RegulatoryLocationType;
 
         /**
-         * Indicates if this Node needs to be told an exact RegulatoryLocation and is statically set by the
-         * manufacturer. For example a Node which is "Indoor Only" would not be certified for outdoor use at all, and
-         * thus there is no need for a commissioner to set or ask the user about whether the device will be used inside
-         * or outside. However a device which states its capability is "Indoor/Outdoor" means it would like
+         * LocationCapability is statically set by the manufacturer and indicates if this Node needs to be told an exact
+         * RegulatoryLocation. For example a Node which is "Indoor Only" would not be certified for outdoor use at all,
+         * and thus there is no need for a commissioner to set or ask the user about whether the device will be used
+         * inside or outside. However a device which states its capability is "Indoor/Outdoor" means it would like
          * clarification if possible.
          *
          * For Nodes without radio network interfaces (e.g. Ethernet-only devices), the value IndoorOutdoor shall always
@@ -114,9 +112,6 @@ export declare namespace GeneralCommissioning {
         supportsConcurrentConnection: boolean;
 
         /**
-         * Indicates if commissioning is being performed without the device being powered by an operational power
-         * source.
-         *
          * The server shall set this attribute to true if and only if is currently operating on the commissioning
          * channel but cannot operate on the operational channel because it is not powered.
          *
@@ -215,9 +210,9 @@ export declare namespace GeneralCommissioning {
      */
     export interface NetworkRecoveryAttributes {
         /**
-         * Indicates the identifier to be included in the advertisements used during the Network Recovery Flow. This
-         * identifier is intended to be advertised over the air and used by an Administrator to establish a Node's
-         * identity without revealing its Node ID.
+         * This attribute shall contain the identifier to be included in the advertisements used during the Network
+         * Recovery Flow. This identifier is intended to be advertised over the air and used by an Administrator to
+         * establish a Node's identity without revealing its Node ID.
          *
          * The attribute shall contain a random 64-bit value, that value shall be reset on factory reset and shall
          * remain unchanged until a next factory reset. It is important that this value be selected at random from a
@@ -229,8 +224,8 @@ export declare namespace GeneralCommissioning {
         recoveryIdentifier?: Bytes;
 
         /**
-         * Indicates the primary reason that triggered the Network Recovery flow and its associated advertisements. Null
-         * when the Node is not undergoing a Network Recovery flow.
+         * This attribute shall contain the primary reason that triggered the Network Recovery flow and its associated
+         * advertisements. Null when the Node is not undergoing a Network Recovery flow.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.10.6.12
          */
@@ -245,9 +240,7 @@ export declare namespace GeneralCommissioning {
      */
     export interface Attributes {
         /**
-         * Indicates the current breadcrumb value.
-         *
-         * The attribute allows for the storage of a client-provided small payload which Administrators and
+         * This attribute allows for the storage of a client-provided small payload which Administrators and
          * Commissioners may write and then subsequently read, to keep track of their own progress. This may be used by
          * the Commissioner to avoid repeating already-executed actions upon re-establishing a commissioning link after
          * an error.
@@ -266,8 +259,8 @@ export declare namespace GeneralCommissioning {
         breadcrumb: number | bigint;
 
         /**
-         * Indicates critical parameters needed at the beginning of commissioning flow. See BasicCommissioningInfo for
-         * more information.
+         * This attribute shall describe critical parameters needed at the beginning of commissioning flow. See Section
+         * 11.10.5.4, "BasicCommissioningInfo" for more information.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.10.6.2
          */
@@ -284,10 +277,10 @@ export declare namespace GeneralCommissioning {
         regulatoryConfig: RegulatoryLocationType;
 
         /**
-         * Indicates if this Node needs to be told an exact RegulatoryLocation and is statically set by the
-         * manufacturer. For example a Node which is "Indoor Only" would not be certified for outdoor use at all, and
-         * thus there is no need for a commissioner to set or ask the user about whether the device will be used inside
-         * or outside. However a device which states its capability is "Indoor/Outdoor" means it would like
+         * LocationCapability is statically set by the manufacturer and indicates if this Node needs to be told an exact
+         * RegulatoryLocation. For example a Node which is "Indoor Only" would not be certified for outdoor use at all,
+         * and thus there is no need for a commissioner to set or ask the user about whether the device will be used
+         * inside or outside. However a device which states its capability is "Indoor/Outdoor" means it would like
          * clarification if possible.
          *
          * For Nodes without radio network interfaces (e.g. Ethernet-only devices), the value IndoorOutdoor shall always
@@ -309,9 +302,6 @@ export declare namespace GeneralCommissioning {
         supportsConcurrentConnection: boolean;
 
         /**
-         * Indicates if commissioning is being performed without the device being powered by an operational power
-         * source.
-         *
          * The server shall set this attribute to true if and only if is currently operating on the commissioning
          * channel but cannot operate on the operational channel because it is not powered.
          *
@@ -400,9 +390,9 @@ export declare namespace GeneralCommissioning {
         tcUpdateDeadline: number | null;
 
         /**
-         * Indicates the identifier to be included in the advertisements used during the Network Recovery Flow. This
-         * identifier is intended to be advertised over the air and used by an Administrator to establish a Node's
-         * identity without revealing its Node ID.
+         * This attribute shall contain the identifier to be included in the advertisements used during the Network
+         * Recovery Flow. This identifier is intended to be advertised over the air and used by an Administrator to
+         * establish a Node's identity without revealing its Node ID.
          *
          * The attribute shall contain a random 64-bit value, that value shall be reset on factory reset and shall
          * remain unchanged until a next factory reset. It is important that this value be selected at random from a
@@ -414,8 +404,8 @@ export declare namespace GeneralCommissioning {
         recoveryIdentifier: Bytes;
 
         /**
-         * Indicates the primary reason that triggered the Network Recovery flow and its associated advertisements. Null
-         * when the Node is not undergoing a Network Recovery flow.
+         * This attribute shall contain the primary reason that triggered the Network Recovery flow and its associated
+         * advertisements. Null when the Node is not undergoing a Network Recovery flow.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.10.6.12
          */

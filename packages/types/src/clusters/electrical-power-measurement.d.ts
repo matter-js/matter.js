@@ -46,31 +46,31 @@ export declare namespace ElectricalPowerMeasurement {
      */
     export interface BaseAttributes {
         /**
-         * Indicates the current mode of the server. For some servers, such as an EV, this might change depending on the
-         * mode of charging or discharging.
+         * This shall indicate the current mode of the server. For some servers, such as an EV, this may change
+         * depending on the mode of charging or discharging.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.13.6.1
          */
         powerMode: PowerMode;
 
         /**
-         * Indicates the maximum number of measurement types the server is capable of reporting.
+         * This shall indicate the maximum number of measurement types the server is capable of reporting.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.13.6.2
          */
         numberOfMeasurementTypes: number;
 
         /**
-         * Indicates a list of accuracy specifications for the measurement types supported by the server. There shall be
-         * an entry for ActivePower, as well as any other measurement types implemented by this server.
+         * This shall indicate a list of accuracy specifications for the measurement types supported by the server.
+         * There shall be an entry for ActivePower, as well as any other measurement types implemented by this server.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.13.6.3
          */
         accuracy: MeasurementAccuracy[];
 
         /**
-         * Indicates the most recent ActivePower reading in milliwatts (mW). If the power cannot be measured, a value of
-         * null shall be returned.
+         * This shall indicate the most recent ActivePower reading in milliwatts (mW). If the power cannot be measured,
+         * a value of null shall be returned.
          *
          * A positive value represents power imported, while a negative value represents power exported.
          *
@@ -90,8 +90,9 @@ export declare namespace ElectricalPowerMeasurement {
         activePower: number | bigint | null;
 
         /**
-         * Indicates a list of measured ranges for different measurement types. Each measurement type shall have at most
-         * one entry in this list, representing the range of measurements in the most recent measurement period.
+         * This shall indicate a list of measured ranges for different measurement types. Each measurement type shall
+         * have at most one entry in this list, representing the range of measurements in the most recent measurement
+         * period.
          *
          * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
          * publication of deltas considered not meaningful.
@@ -107,7 +108,7 @@ export declare namespace ElectricalPowerMeasurement {
         ranges?: MeasurementRange[];
 
         /**
-         * Indicates the most recent Voltage reading in millivolts (mV).
+         * This shall indicate the most recent Voltage reading in millivolts (mV).
          *
          * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
          * publication of deltas considered not meaningful.
@@ -125,7 +126,7 @@ export declare namespace ElectricalPowerMeasurement {
         voltage?: number | bigint | null;
 
         /**
-         * Indicates the most recent ActiveCurrent reading in milliamps (mA).
+         * This shall indicate the most recent ActiveCurrent reading in milliamps (mA).
          *
          * A positive value represents current flowing into the server, while a negative value represents current
          * flowing out of the server.
@@ -151,7 +152,7 @@ export declare namespace ElectricalPowerMeasurement {
      */
     export interface AlternatingCurrentAttributes {
         /**
-         * Indicates the most recent ReactiveCurrent reading in milliamps (mA).
+         * This shall indicate the most recent ReactiveCurrent reading in milliamps (mA).
          *
          * A positive value represents current flowing into the server, while a negative value represents current
          * flowing out of the server.
@@ -172,8 +173,8 @@ export declare namespace ElectricalPowerMeasurement {
         reactiveCurrent?: number | bigint | null;
 
         /**
-         * Indicates the most recent ApparentCurrent (square root sum of the squares of active and reactive currents)
-         * reading in milliamps (mA).
+         * This shall indicate the most recent ApparentCurrent (square root sum of the squares of active and reactive
+         * currents) reading in milliamps (mA).
          *
          * A positive value represents current flowing into the server, while a negative value represents current
          * flowing out of the server.
@@ -194,7 +195,7 @@ export declare namespace ElectricalPowerMeasurement {
         apparentCurrent?: number | bigint | null;
 
         /**
-         * Indicates the most recent ReactivePower reading in millivolt-amps reactive (mVAR).
+         * This shall indicate the most recent ReactivePower reading in millivolt-amps reactive (mVAR).
          *
          * A positive value represents power imported, while a negative value represents power exported.
          *
@@ -217,7 +218,7 @@ export declare namespace ElectricalPowerMeasurement {
         reactivePower?: number | bigint | null;
 
         /**
-         * Indicates the most recent ApparentPower reading in millivolt-amps (mVA).
+         * This shall indicate the most recent ApparentPower reading in millivolt-amps (mVA).
          *
          * A positive value represents power imported, while a negative value represents power exported.
          *
@@ -237,7 +238,7 @@ export declare namespace ElectricalPowerMeasurement {
         apparentPower?: number | bigint | null;
 
         /**
-         * Indicates the most recent RMSVoltage reading in millivolts (mV).
+         * This shall indicate the most recent RMSVoltage reading in millivolts (mV).
          *
          * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
          * publication of deltas considered not meaningful.
@@ -255,7 +256,7 @@ export declare namespace ElectricalPowerMeasurement {
         rmsVoltage?: number | bigint | null;
 
         /**
-         * Indicates the most recent RMSCurrent reading in milliamps (mA).
+         * This shall indicate the most recent RMSCurrent reading in milliamps (mA).
          *
          * A positive value represents current flowing into the server, while a negative value represents current
          * flowing out of the server.
@@ -276,7 +277,7 @@ export declare namespace ElectricalPowerMeasurement {
         rmsCurrent?: number | bigint | null;
 
         /**
-         * Indicates the most recent RMSPower reading in milliwatts (mW).
+         * This shall indicate the most recent RMSPower reading in milliwatts (mW).
          *
          * A positive value represents power imported, while a negative value represents power exported.
          *
@@ -296,7 +297,7 @@ export declare namespace ElectricalPowerMeasurement {
         rmsPower?: number | bigint | null;
 
         /**
-         * Indicates the most recent Frequency reading in millihertz (mHz).
+         * This shall indicate the most recent Frequency reading in millihertz (mHz).
          *
          * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
          * publication of deltas considered not meaningful.
@@ -314,7 +315,7 @@ export declare namespace ElectricalPowerMeasurement {
         frequency?: number | bigint | null;
 
         /**
-         * Indicates the Power Factor ratio in +/- 1/100ths of a percent.
+         * This shall indicate the Power Factor ratio in +/- 1/100ths of a percent.
          *
          * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
          * publication of deltas considered not meaningful.
@@ -335,8 +336,8 @@ export declare namespace ElectricalPowerMeasurement {
      */
     export interface HarmonicsAttributes {
         /**
-         * Indicates a list of HarmonicMeasurementStruct values, with each HarmonicMeasurementStruct representing the
-         * harmonic current reading for the harmonic order specified by Order.
+         * This shall indicate a list of HarmonicMeasurementStruct values, with each HarmonicMeasurementStruct
+         * representing the harmonic current reading for the harmonic order specified by Order.
          *
          * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
          * publication of deltas considered not meaningful.
@@ -357,8 +358,8 @@ export declare namespace ElectricalPowerMeasurement {
      */
     export interface PowerQualityAttributes {
         /**
-         * Indicates a list of HarmonicMeasurementStruct values, with each HarmonicMeasurementStruct representing the
-         * most recent phase of the harmonic current reading for the harmonic order specified by Order.
+         * This shall indicate a list of HarmonicMeasurementStruct values, with each HarmonicMeasurementStruct
+         * representing the most recent phase of the harmonic current reading for the harmonic order specified by Order.
          *
          * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
          * publication of deltas considered not meaningful.
@@ -379,8 +380,8 @@ export declare namespace ElectricalPowerMeasurement {
      */
     export interface PolyphasePowerAttributes {
         /**
-         * Indicates the most recent NeutralCurrent reading in milliamps (mA). Typically this is a derived value, taking
-         * the magnitude of the vector sum of phase currents.
+         * This shall indicate the most recent NeutralCurrent reading in milliamps (mA). Typically this is a derived
+         * value, taking the magnitude of the vector sum of phase currents.
          *
          * If the neutral current cannot be measured or derived, a value of null shall be returned.
          *
@@ -410,31 +411,31 @@ export declare namespace ElectricalPowerMeasurement {
      */
     export interface Attributes {
         /**
-         * Indicates the current mode of the server. For some servers, such as an EV, this might change depending on the
-         * mode of charging or discharging.
+         * This shall indicate the current mode of the server. For some servers, such as an EV, this may change
+         * depending on the mode of charging or discharging.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.13.6.1
          */
         powerMode: PowerMode;
 
         /**
-         * Indicates the maximum number of measurement types the server is capable of reporting.
+         * This shall indicate the maximum number of measurement types the server is capable of reporting.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.13.6.2
          */
         numberOfMeasurementTypes: number;
 
         /**
-         * Indicates a list of accuracy specifications for the measurement types supported by the server. There shall be
-         * an entry for ActivePower, as well as any other measurement types implemented by this server.
+         * This shall indicate a list of accuracy specifications for the measurement types supported by the server.
+         * There shall be an entry for ActivePower, as well as any other measurement types implemented by this server.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.13.6.3
          */
         accuracy: MeasurementAccuracy[];
 
         /**
-         * Indicates the most recent ActivePower reading in milliwatts (mW). If the power cannot be measured, a value of
-         * null shall be returned.
+         * This shall indicate the most recent ActivePower reading in milliwatts (mW). If the power cannot be measured,
+         * a value of null shall be returned.
          *
          * A positive value represents power imported, while a negative value represents power exported.
          *
@@ -454,8 +455,9 @@ export declare namespace ElectricalPowerMeasurement {
         activePower: number | bigint | null;
 
         /**
-         * Indicates a list of measured ranges for different measurement types. Each measurement type shall have at most
-         * one entry in this list, representing the range of measurements in the most recent measurement period.
+         * This shall indicate a list of measured ranges for different measurement types. Each measurement type shall
+         * have at most one entry in this list, representing the range of measurements in the most recent measurement
+         * period.
          *
          * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
          * publication of deltas considered not meaningful.
@@ -471,7 +473,7 @@ export declare namespace ElectricalPowerMeasurement {
         ranges: MeasurementRange[];
 
         /**
-         * Indicates the most recent Voltage reading in millivolts (mV).
+         * This shall indicate the most recent Voltage reading in millivolts (mV).
          *
          * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
          * publication of deltas considered not meaningful.
@@ -489,7 +491,7 @@ export declare namespace ElectricalPowerMeasurement {
         voltage: number | bigint | null;
 
         /**
-         * Indicates the most recent ActiveCurrent reading in milliamps (mA).
+         * This shall indicate the most recent ActiveCurrent reading in milliamps (mA).
          *
          * A positive value represents current flowing into the server, while a negative value represents current
          * flowing out of the server.
@@ -510,7 +512,7 @@ export declare namespace ElectricalPowerMeasurement {
         activeCurrent: number | bigint | null;
 
         /**
-         * Indicates the most recent ReactiveCurrent reading in milliamps (mA).
+         * This shall indicate the most recent ReactiveCurrent reading in milliamps (mA).
          *
          * A positive value represents current flowing into the server, while a negative value represents current
          * flowing out of the server.
@@ -531,8 +533,8 @@ export declare namespace ElectricalPowerMeasurement {
         reactiveCurrent: number | bigint | null;
 
         /**
-         * Indicates the most recent ApparentCurrent (square root sum of the squares of active and reactive currents)
-         * reading in milliamps (mA).
+         * This shall indicate the most recent ApparentCurrent (square root sum of the squares of active and reactive
+         * currents) reading in milliamps (mA).
          *
          * A positive value represents current flowing into the server, while a negative value represents current
          * flowing out of the server.
@@ -553,7 +555,7 @@ export declare namespace ElectricalPowerMeasurement {
         apparentCurrent: number | bigint | null;
 
         /**
-         * Indicates the most recent ReactivePower reading in millivolt-amps reactive (mVAR).
+         * This shall indicate the most recent ReactivePower reading in millivolt-amps reactive (mVAR).
          *
          * A positive value represents power imported, while a negative value represents power exported.
          *
@@ -576,7 +578,7 @@ export declare namespace ElectricalPowerMeasurement {
         reactivePower: number | bigint | null;
 
         /**
-         * Indicates the most recent ApparentPower reading in millivolt-amps (mVA).
+         * This shall indicate the most recent ApparentPower reading in millivolt-amps (mVA).
          *
          * A positive value represents power imported, while a negative value represents power exported.
          *
@@ -596,7 +598,7 @@ export declare namespace ElectricalPowerMeasurement {
         apparentPower: number | bigint | null;
 
         /**
-         * Indicates the most recent RMSVoltage reading in millivolts (mV).
+         * This shall indicate the most recent RMSVoltage reading in millivolts (mV).
          *
          * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
          * publication of deltas considered not meaningful.
@@ -614,7 +616,7 @@ export declare namespace ElectricalPowerMeasurement {
         rmsVoltage: number | bigint | null;
 
         /**
-         * Indicates the most recent RMSCurrent reading in milliamps (mA).
+         * This shall indicate the most recent RMSCurrent reading in milliamps (mA).
          *
          * A positive value represents current flowing into the server, while a negative value represents current
          * flowing out of the server.
@@ -635,7 +637,7 @@ export declare namespace ElectricalPowerMeasurement {
         rmsCurrent: number | bigint | null;
 
         /**
-         * Indicates the most recent RMSPower reading in milliwatts (mW).
+         * This shall indicate the most recent RMSPower reading in milliwatts (mW).
          *
          * A positive value represents power imported, while a negative value represents power exported.
          *
@@ -655,7 +657,7 @@ export declare namespace ElectricalPowerMeasurement {
         rmsPower: number | bigint | null;
 
         /**
-         * Indicates the most recent Frequency reading in millihertz (mHz).
+         * This shall indicate the most recent Frequency reading in millihertz (mHz).
          *
          * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
          * publication of deltas considered not meaningful.
@@ -673,7 +675,7 @@ export declare namespace ElectricalPowerMeasurement {
         frequency: number | bigint | null;
 
         /**
-         * Indicates the Power Factor ratio in +/- 1/100ths of a percent.
+         * This shall indicate the Power Factor ratio in +/- 1/100ths of a percent.
          *
          * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
          * publication of deltas considered not meaningful.
@@ -689,8 +691,8 @@ export declare namespace ElectricalPowerMeasurement {
         powerFactor: number | bigint | null;
 
         /**
-         * Indicates a list of HarmonicMeasurementStruct values, with each HarmonicMeasurementStruct representing the
-         * harmonic current reading for the harmonic order specified by Order.
+         * This shall indicate a list of HarmonicMeasurementStruct values, with each HarmonicMeasurementStruct
+         * representing the harmonic current reading for the harmonic order specified by Order.
          *
          * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
          * publication of deltas considered not meaningful.
@@ -706,8 +708,8 @@ export declare namespace ElectricalPowerMeasurement {
         harmonicCurrents: HarmonicMeasurement[] | null;
 
         /**
-         * Indicates a list of HarmonicMeasurementStruct values, with each HarmonicMeasurementStruct representing the
-         * most recent phase of the harmonic current reading for the harmonic order specified by Order.
+         * This shall indicate a list of HarmonicMeasurementStruct values, with each HarmonicMeasurementStruct
+         * representing the most recent phase of the harmonic current reading for the harmonic order specified by Order.
          *
          * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
          * publication of deltas considered not meaningful.
@@ -723,8 +725,8 @@ export declare namespace ElectricalPowerMeasurement {
         harmonicPhases: HarmonicMeasurement[] | null;
 
         /**
-         * Indicates the most recent NeutralCurrent reading in milliamps (mA). Typically this is a derived value, taking
-         * the magnitude of the vector sum of phase currents.
+         * This shall indicate the most recent NeutralCurrent reading in milliamps (mA). Typically this is a derived
+         * value, taking the magnitude of the vector sum of phase currents.
          *
          * If the neutral current cannot be measured or derived, a value of null shall be returned.
          *

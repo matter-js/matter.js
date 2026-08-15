@@ -27,11 +27,12 @@ Resource.add({
         "type revision found on an endpoint (\"--\" means the device type is not listed).",
 
     children: [
-        { tag: "requirement", name: "Identify", xref: "device§5.1.4" },
-        { tag: "requirement", name: "Groups", xref: "device§5.1.4" },
-        { tag: "requirement", name: "OnOff", xref: "device§5.1.4" },
-        { tag: "requirement", name: "LevelControl", xref: "device§5.1.4" },
-        { tag: "requirement", name: "ScenesManagement", xref: "device§5.1.4" },
-        { tag: "requirement", name: "OccupancySensing", xref: "device§5.1.4" }
+        { tag: "requirement", name: "GroupcastListenerCond", xref: "device§5.1.4" },
+        { tag: "requirement", name: "Identify", xref: "device§5.1.5" },
+        { tag: "requirement", name: "Groups", xref: "device§5.1.5" },
+        { tag: "requirement", name: "OnOff", xref: "device§5.1.5" },
+        { tag: "requirement", name: "LevelControl", xref: "device§5.1.5" },
+        { tag: "requirement", name: "ScenesManagement", xref: "device§5.1.5" },
+        { tag: "requirement", name: "OccupancySensing", xref: "device§5.1.5" }
     ]
 });

@@ -13,8 +13,12 @@ export const ColorTemperatureLightDt = DeviceType(
     { name: "ColorTemperatureLight", id: 0x10c, type: "DimmableLight", classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 268, revision: 4 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 268, revision: 5 } ], element: "attribute" })
     ),
+    Requirement({
+        name: "GroupcastListenerCond", type: "RootNode.GroupcastListenerCond", conformance: "Rev >= v5",
+        element: "condition"
+    }),
     Requirement(
         { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" },
         Requirement({ name: "TriggerEffect", conformance: "M", element: "command" })

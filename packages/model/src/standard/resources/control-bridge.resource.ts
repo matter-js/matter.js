@@ -16,14 +16,15 @@ Resource.add({
         "device is capable of being used for setting scenes.",
 
     children: [
-        { tag: "requirement", name: "Identify", discriminator: "M:serverCluster", xref: "device§6.4.4" },
-        { tag: "requirement", name: "Identify", discriminator: "M:clientCluster", xref: "device§6.4.4" },
-        { tag: "requirement", name: "Groups", xref: "device§6.4.4" },
-        { tag: "requirement", name: "OnOff", xref: "device§6.4.4" },
-        { tag: "requirement", name: "LevelControl", xref: "device§6.4.4" },
-        { tag: "requirement", name: "ScenesManagement", xref: "device§6.4.4" },
-        { tag: "requirement", name: "ColorControl", xref: "device§6.4.4" },
-        { tag: "requirement", name: "IlluminanceMeasurement", xref: "device§6.4.4" },
-        { tag: "requirement", name: "OccupancySensing", xref: "device§6.4.4" }
+        { tag: "requirement", name: "GroupcastSenderCond", xref: "device§6.4.4" },
+        { tag: "requirement", name: "Identify", discriminator: "M:serverCluster", xref: "device§6.4.5" },
+        { tag: "requirement", name: "Identify", discriminator: "M:clientCluster", xref: "device§6.4.5" },
+        { tag: "requirement", name: "Groups", xref: "device§6.4.5" },
+        { tag: "requirement", name: "OnOff", xref: "device§6.4.5" },
+        { tag: "requirement", name: "LevelControl", xref: "device§6.4.5" },
+        { tag: "requirement", name: "ScenesManagement", xref: "device§6.4.5" },
+        { tag: "requirement", name: "ColorControl", xref: "device§6.4.5" },
+        { tag: "requirement", name: "IlluminanceMeasurement", xref: "device§6.4.5" },
+        { tag: "requirement", name: "OccupancySensing", xref: "device§6.4.5" }
     ]
 });

@@ -17,13 +17,16 @@ export const RootNodeDt = DeviceType(
     { name: "RootNode", id: 0x16, classification: "node" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 22, revision: 4 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 22, revision: 5 } ], element: "attribute" })
     ),
+
     Requirement(
         { name: "AccessControl", id: 0x1f, conformance: "M", element: "serverCluster", quality: "I" },
         Requirement({ name: "MANAGEDDEVICE", conformance: "[ManagedAclAllowed]", constraint: "desc", element: "feature" }),
+        Requirement({ name: "AUXILIARY", conformance: "GroupcastListenerCond", element: "feature" }),
         Requirement({ name: "Extension", conformance: "ACLExtensionCond", element: "attribute" })
     ),
+
     Requirement({ name: "BasicInformation", id: 0x28, conformance: "M", element: "serverCluster", quality: "I" }),
     Requirement({
         name: "LocalizationConfiguration", id: 0x2b, conformance: "LanguageLocale",
@@ -82,11 +85,28 @@ export const RootNodeDt = DeviceType(
 
     Requirement({ name: "AdministratorCommissioning", id: 0x3c, conformance: "M", element: "serverCluster", quality: "I" }),
     Requirement({ name: "OperationalCredentials", id: 0x3e, conformance: "M", element: "serverCluster", quality: "I" }),
-    Requirement({ name: "GroupKeyManagement", id: 0x3f, conformance: "M", element: "serverCluster", quality: "I" }),
+
+    Requirement(
+        { name: "GroupKeyManagement", id: 0x3f, conformance: "M", element: "serverCluster", quality: "I" },
+        Requirement(
+            { name: "GROUPCAST", conformance: "GroupcastListenerCond | GroupcastSenderCond, O", element: "feature" }
+        )
+    ),
+
     Requirement(
         { name: "IcdManagement", id: 0x46, conformance: "SIT | LIT", element: "serverCluster", quality: "I" },
         Requirement({ name: "LONGIDLETIMESUPPORT", conformance: "LIT", element: "feature" })
     ),
+
+    Requirement(
+        {
+            name: "Groupcast", id: 0x65, conformance: "GroupcastListenerCond, GroupcastSenderCond, O",
+            element: "serverCluster", quality: "I"
+        },
+        Requirement({ name: "LISTENER", conformance: "GroupcastListenerCond, O", element: "feature" }),
+        Requirement({ name: "SENDER", conformance: "GroupcastSenderCond, O", element: "feature" })
+    ),
+
     Requirement({
         name: "TlsCertificateManagement", id: 0x801, conformance: "TLSCertificatesCond, O",
         element: "serverCluster", quality: "I"
@@ -102,7 +122,9 @@ export const RootNodeDt = DeviceType(
     Condition({ name: "TlsCertificatesCond" }),
     Condition({ name: "TlsClientCond" }),
     Condition({ name: "PowerSourceCond" }),
-    Condition({ name: "AclExtensionCond" })
+    Condition({ name: "AclExtensionCond" }),
+    Condition({ name: "GroupcastListenerCond" }),
+    Condition({ name: "GroupcastSenderCond" })
 );
 
 MatterDefinition.children.push(RootNodeDt);

@@ -103,7 +103,7 @@ export namespace SmokeCoAlarmRequirements {
 export const SmokeCoAlarmDeviceDefinition = MutableEndpoint({
     name: "SmokeCoAlarm",
     deviceType: 0x76,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: SmokeCoAlarmRequirements,
     behaviors: SupportedBehaviors(SmokeCoAlarmRequirements.server.mandatory.Identify)
 });

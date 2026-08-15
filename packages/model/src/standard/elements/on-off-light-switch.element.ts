@@ -13,7 +13,10 @@ export const OnOffLightSwitchDt = DeviceType(
     { name: "OnOffLightSwitch", id: 0x103, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 259, revision: 3 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 259, revision: 4 } ], element: "attribute" })
+    ),
+    Requirement(
+        { name: "GroupcastSenderCond", type: "RootNode.GroupcastSenderCond", conformance: "O", element: "condition" }
     ),
     Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "clientCluster" }),

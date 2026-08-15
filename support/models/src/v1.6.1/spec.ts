@@ -214,9 +214,7 @@ export const SpecMatter = Matter(
         Attribute({
             name: "NameSupport", id: 0x0, type: "NameSupportBitmap", access: "R V", conformance: "M",
             constraint: "desc", quality: "F", xref: "cluster§1.3.6.1",
-            details: "Indicates if group names are supported." +
-                "\n" +
-                "This attribute provides legacy, read-only access to whether the Group Names feature is supported. " +
+            details: "This attribute provides legacy, read-only access to whether the Group Names feature is supported. " +
                 "The most significant bit, bit 7 (GroupNames), shall be equal to bit 0 of the FeatureMap attribute " +
                 "(GN Feature). All other bits shall be 0."
         }),
@@ -1116,17 +1114,15 @@ export const SpecMatter = Matter(
         Attribute({
             name: "OnOff", id: 0x0, type: "bool", access: "R V", conformance: "M", quality: "N S",
             xref: "cluster§1.5.6.2",
-            details: "Indicates whether the device type implemented on the endpoint is turned off or turned on, in these " +
-                "cases the value of the OnOff attribute equals FALSE, or TRUE respectively."
+            details: "This attribute indicates whether the device type implemented on the endpoint is turned off or turned " +
+                "on, in these cases the value of the OnOff attribute equals FALSE, or TRUE respectively."
         }),
 
         Attribute({
             name: "GlobalSceneControl", id: 0x4000, type: "bool", access: "R V", conformance: "LT",
             xref: "cluster§1.5.6.3",
 
-            details: "Indicates the state of the global scene control." +
-                "\n" +
-                "In order to support the use case where the user gets back the last setting of a set of devices (e.g. " +
+            details: "In order to support the use case where the user gets back the last setting of a set of devices (e.g. " +
                 "level settings for lights), a global scene is introduced which is stored when the devices are turned " +
                 "off and recalled when the devices are turned on. The global scene is defined as the scene that is " +
                 "stored with group identifier 0 and scene identifier 0." +
@@ -1146,8 +1142,9 @@ export const SpecMatter = Matter(
             name: "OnTime", id: 0x4001, type: "uint16", access: "RW VO", conformance: "LT",
             xref: "cluster§1.5.6.4",
 
-            details: "Indicates the length of time (in 1/10ths second) that the On state shall be maintained before " +
-                "automatically transitioning to the Off state when using the OnWithTimedOff command." +
+            details: "This attribute specifies the length of time (in 1/10ths second) that the On state shall be " +
+                "maintained before automatically transitioning to the Off state when using the OnWithTimedOff " +
+                "command." +
                 "\n" +
                 "This attribute can be written at any time, but writing a value only has an effect when in the Timed " +
                 "On state." +
@@ -1160,10 +1157,10 @@ export const SpecMatter = Matter(
             name: "OffWaitTime", id: 0x4002, type: "uint16", access: "RW VO", conformance: "LT",
             xref: "cluster§1.5.6.5",
 
-            details: "Indicates the length of time (in 1/10ths second) that the Off state shall be guarded to prevent " +
-                "another OnWithTimedOff command turning the server back to its On state (e.g., when leaving a room, " +
-                "the lights are turned off but an occupancy sensor detects the leaving person and attempts to turn " +
-                "the lights back on)." +
+            details: "This attribute specifies the length of time (in 1/10ths second) that the Off state shall be guarded " +
+                "to prevent another OnWithTimedOff command turning the server back to its On state (e.g., when " +
+                "leaving a room, the lights are turned off but an occupancy sensor detects the leaving person and " +
+                "attempts to turn the lights back on)." +
                 "\n" +
                 "This attribute can be written at any time, but writing a value only has an effect when in the Timed " +
                 "On state followed by a transition to the Delayed Off state, or in the Delayed Off state." +
@@ -1176,9 +1173,10 @@ export const SpecMatter = Matter(
             name: "StartUpOnOff", id: 0x4003, type: "StartUpOnOffEnum", access: "RW VM", conformance: "LT",
             constraint: "desc", quality: "X N", xref: "cluster§1.5.6.6",
 
-            details: "Indicates the desired startup behavior of a device when it is supplied with power and this state " +
-                "shall be reflected in the OnOff attribute. If the value is null, the OnOff attribute is set to its " +
-                "previous value. Otherwise, the behavior is defined in the table defining StartUpOnOffEnum." +
+            details: "This attribute shall define the desired startup behavior of a device when it is supplied with power " +
+                "and this state shall be reflected in the OnOff attribute. If the value is null, the OnOff attribute " +
+                "is set to its previous value. Otherwise, the behavior is defined in the table defining " +
+                "StartUpOnOffEnum." +
                 "\n" +
                 "This behavior does not apply to reboots associated with OTA. After an OTA restart, the OnOff " +
                 "attribute shall return to its value prior to the restart."
@@ -1675,7 +1673,7 @@ export const SpecMatter = Matter(
 
         Attribute({
             name: "StateValue", id: 0x0, type: "bool", access: "R V", conformance: "M", xref: "cluster§1.7.5.1",
-            details: "Indicates a boolean state." +
+            details: "This represents a boolean state." +
                 "\n" +
                 "The semantics of this boolean state are defined by the device type using this cluster. For example, " +
                 "in a Contact Sensor device type, FALSE=open or no contact, TRUE=closed or contact."
@@ -1970,7 +1968,7 @@ export const SpecMatter = Matter(
             name: "Description", id: 0x0, type: "string", access: "R V", conformance: "M", constraint: "max 64",
             quality: "F", xref: "cluster§1.9.6.1",
 
-            details: "Indicates the purpose of the server, in readable text." +
+            details: "This attribute describes the purpose of the server, in readable text." +
                 "\n" +
                 "For example, a coffee machine may have a Mode Select cluster for the amount of milk to add, and " +
                 "another Mode Select cluster for the amount of sugar to add. In this case, the first instance can " +
@@ -1981,19 +1979,20 @@ export const SpecMatter = Matter(
         Attribute({
             name: "StandardNamespace", id: 0x1, type: "enum16", access: "R V", conformance: "M",
             constraint: "desc", default: null, quality: "X F", xref: "cluster§1.9.6.2",
-            details: "Indicates the standard namespace for any standard semantic tag value supported in this or any other " +
-                "cluster instance with the same value of this attribute. A null value indicates no standard " +
-                "namespace, and therefore, no standard semantic tags are provided in this cluster instance. Each " +
-                "standard namespace and corresponding values and value meanings shall be defined in another document."
+            details: "This attribute, when not null, shall indicate a single standard namespace for any standard semantic " +
+                "tag value supported in this or any other cluster instance with the same value of this attribute. A " +
+                "null value indicates no standard namespace, and therefore, no standard semantic tags are provided in " +
+                "this cluster instance. Each standard namespace and corresponding values and value meanings shall be " +
+                "defined in another document."
         }),
 
         Attribute(
             {
                 name: "SupportedModes", id: 0x2, type: "list", access: "R V", conformance: "M",
                 constraint: "max 255", quality: "F", xref: "cluster§1.9.6.3",
-                details: "Indicates the list of supported modes that may be selected for the CurrentMode attribute. Each item " +
-                    "in this list represents a unique mode as indicated by the Mode field of the ModeOptionStruct. Each " +
-                    "entry in this list shall have a unique value for the Mode field."
+                details: "This attribute is the list of supported modes that may be selected for the CurrentMode attribute. " +
+                    "Each item in this list represents a unique mode as indicated by the Mode field of the " +
+                    "ModeOptionStruct. Each entry in this list shall have a unique value for the Mode field."
             },
 
             Field({ name: "entry", type: "ModeOptionStruct" })
@@ -2002,7 +2001,7 @@ export const SpecMatter = Matter(
         Attribute({
             name: "CurrentMode", id: 0x3, type: "uint8", access: "R V", conformance: "M", constraint: "desc",
             quality: "N", xref: "cluster§1.9.6.4",
-            details: "Indicates the current mode of the server." +
+            details: "This attribute represents the current mode of the server." +
                 "\n" +
                 "The value of this field must match the Mode field of one of the entries in the SupportedModes " +
                 "attribute."
@@ -2012,7 +2011,8 @@ export const SpecMatter = Matter(
             name: "StartUpMode", id: 0x4, type: "uint8", access: "RW VO", conformance: "O", constraint: "desc",
             quality: "X N", xref: "cluster§1.9.6.5",
 
-            details: "Indicates the desired startup mode for the server when it is supplied with power." +
+            details: "The StartUpMode attribute value indicates the desired startup mode for the server when it is " +
+                "supplied with power." +
                 "\n" +
                 "If this attribute is not null, the CurrentMode attribute shall be set to the StartUpMode value, when " +
                 "the server is powered up, except in the case when the OnMode attribute overrides the StartUpMode " +
@@ -2163,8 +2163,9 @@ export const SpecMatter = Matter(
                 name: "SupportedModes", id: 0x0, type: "list", access: "R V", conformance: "M",
                 constraint: "2 to 255", quality: "F", xref: "cluster§1.10.6.1",
 
-                details: "Indicates the list of supported modes that may be selected for the CurrentMode attribute. Each item " +
-                    "in this list represents a unique mode as indicated by the Mode field of the ModeOptionStruct." +
+                details: "This attribute shall contain the list of supported modes that may be selected for the CurrentMode " +
+                    "attribute. Each item in this list represents a unique mode as indicated by the Mode field of the " +
+                    "ModeOptionStruct." +
                     "\n" +
                     "Each entry in this list shall have a unique value for the Mode field." +
                     "\n" +
@@ -2859,10 +2860,10 @@ export const SpecMatter = Matter(
             name: "CurrentPhase", id: 0x1, type: "uint8", access: "R V", conformance: "M", constraint: "desc",
             quality: "X", xref: "cluster§1.14.5.2",
 
-            details: "Indicates the current phase of operation being performed by the server. This shall be the positional " +
-                "index representing the value from the set provided in the PhaseList Attribute, where the first item " +
-                "in that list is an index of 0. Thus, this attribute shall have a maximum value that is " +
-                "\"length(PhaseList) - 1\"." +
+            details: "This attribute represents the current phase of operation being performed by the server. This shall " +
+                "be the positional index representing the value from the set provided in the PhaseList Attribute, " +
+                "where the first item in that list is an index of 0. Thus, this attribute shall have a maximum value " +
+                "that is \"length(PhaseList) - 1\"." +
                 "\n" +
                 "Null if the PhaseList attribute is null or if the PhaseList attribute is an empty list."
         }),
@@ -2906,9 +2907,9 @@ export const SpecMatter = Matter(
                 name: "OperationalStateList", id: 0x3, type: "list", access: "R V", conformance: "M",
                 constraint: "desc", xref: "cluster§1.14.5.4",
 
-                details: "Indicates the set of possible operational states that the device exposes. An operational state is a " +
-                    "fundamental device state such as Running or Error. Details of the phase of a device when, for " +
-                    "example, in a state of Running are provided by the CurrentPhase attribute." +
+                details: "This attribute describes the set of possible operational states that the device exposes. An " +
+                    "operational state is a fundamental device state such as Running or Error. Details of the phase of a " +
+                    "device when, for example, in a state of Running are provided by the CurrentPhase attribute." +
                     "\n" +
                     "All devices shall, at a minimum, expose the set of states matching the commands that are also " +
                     "supported by the cluster instance, in addition to Error. The set of possible device states are " +
@@ -2922,16 +2923,16 @@ export const SpecMatter = Matter(
         Attribute({
             name: "OperationalState", id: 0x4, type: "OperationalStateEnum", access: "R V", conformance: "M",
             xref: "cluster§1.14.5.5",
-            details: "Indicates the current operational state of a device. This shall be populated with a valid " +
-                "OperationalStateID from the set of values in the OperationalStateList Attribute."
+            details: "This attribute specifies the current operational state of a device. This shall be populated with a " +
+                "valid OperationalStateID from the set of values in the OperationalStateList Attribute."
         }),
 
         Attribute({
             name: "OperationalError", id: 0x5, type: "ErrorStateStruct", access: "R V", conformance: "M",
             constraint: "desc", xref: "cluster§1.14.5.6",
-            details: "Indicates the details of any current error condition being experienced on the device when the " +
-                "OperationalState attribute is populated with Error. See Section 1.14.4.4, \"ErrorStateStruct Type\" " +
-                "for general requirements on the population of this attribute." +
+            details: "This attribute shall specify the details of any current error condition being experienced on the " +
+                "device when the OperationalState attribute is populated with Error. See Section 1.14.4.4, " +
+                "\"ErrorStateStruct Type\" for general requirements on the population of this attribute." +
                 "\n" +
                 "When there is no error detected, this shall have an ErrorStateID of NoError."
         }),
@@ -3843,8 +3844,9 @@ export const SpecMatter = Matter(
                 name: "SupportedAreas", id: 0x0, type: "list", access: "R V", conformance: "M",
                 constraint: "max 255", xref: "cluster§1.17.6.1",
 
-                details: "Indicates the list of areas that can be included in the SelectedAreas attribute's list. Each item in " +
-                    "this list represents a unique area, as indicated by the AreaID field of AreaStruct." +
+                details: "This attribute shall contain the list of areas that can be included in the SelectedAreas attribute's " +
+                    "list. Each item in this list represents a unique area, as indicated by the AreaID field of " +
+                    "AreaStruct." +
                     "\n" +
                     "Each entry in this list shall have a unique value for the AreaID field." +
                     "\n" +
@@ -3899,7 +3901,7 @@ export const SpecMatter = Matter(
                 name: "SupportedMaps", id: 0x1, type: "list", access: "R V", conformance: "MAPS",
                 constraint: "max 255", xref: "cluster§1.17.6.2",
 
-                details: "Indicates the list of supported maps." +
+                details: "This attribute shall contain the list of supported maps." +
                     "\n" +
                     "A map is a full or a partial representation of a home, known to the device. For example:" +
                     "\n" +
@@ -3978,8 +3980,8 @@ export const SpecMatter = Matter(
             name: "CurrentArea", id: 0x3, type: "uint32", access: "R V", conformance: "desc",
             constraint: "desc", default: null, quality: "X", xref: "cluster§1.17.6.4",
 
-            details: "Indicates the area where the device is currently located, if the device is mobile, regardless of " +
-                "whether it is operating or not, such as while traveling between areas." +
+            details: "If the device is mobile, this attribute shall indicate the area where the device is currently " +
+                "located, regardless of whether it is operating or not, such as while traveling between areas." +
                 "\n" +
                 "If the device is not mobile and can operate at multiple areas sequentially, this attribute shall " +
                 "indicate the area which is currently being serviced, or the area which is currently traversed by the " +
@@ -4685,7 +4687,7 @@ export const SpecMatter = Matter(
         Attribute({
             name: "Tolerance", id: 0x3, type: "uint16", access: "R V", conformance: "O", constraint: "max 2048",
             quality: "F", xref: "cluster§2.2.5.4",
-            details: "Indicates the tolerance of the measurement. For further details, see Measured Value."
+            details: "See Measured Value."
         }),
 
         Attribute({
@@ -4732,8 +4734,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "MaxMeasuredValue", id: 0x2, type: "temperature", access: "R V", conformance: "M",
             constraint: "min minMeasuredValue + 1", quality: "X F", xref: "cluster§2.3.4.3",
-            details: "Indicates the maximum value of MeasuredValue that is capable of being measured. See Measured Value " +
-                "for more details." +
+            details: "This attribute indicates the maximum value of MeasuredValue that is capable of being measured. See " +
+                "Measured Value for more details." +
                 "\n" +
                 "The null value indicates that the value is not available."
         }),
@@ -4741,7 +4743,7 @@ export const SpecMatter = Matter(
         Attribute({
             name: "Tolerance", id: 0x3, type: "uint16", access: "R V", conformance: "O", constraint: "max 2048",
             default: 0, quality: "F", xref: "cluster§2.3.4.4",
-            details: "Indicates the tolerance of the measurement. For further details, see Measured Value."
+            details: "See Measured Value."
         })
     ),
 
@@ -4796,7 +4798,7 @@ export const SpecMatter = Matter(
         Attribute({
             name: "Tolerance", id: 0x3, type: "uint16", access: "R V", conformance: "O", constraint: "max 2048",
             default: 0, quality: "F", xref: "cluster§2.4.5.4",
-            details: "Indicates the tolerance of the measurement. For further details, see Measured Value."
+            details: "See Measured Value."
         }),
 
         Attribute(
@@ -4886,7 +4888,7 @@ export const SpecMatter = Matter(
         Attribute({
             name: "Tolerance", id: 0x3, type: "uint16", access: "R V", conformance: "O", constraint: "max 2048",
             default: 0, quality: "F", xref: "cluster§2.5.4.4",
-            details: "Indicates the tolerance of the measurement. For further details, see Measured Value."
+            details: "See Measured Value."
         })
     ),
 
@@ -4906,7 +4908,7 @@ export const SpecMatter = Matter(
                 name: "MeasuredValue", id: 0x0, type: "uint16", access: "R V", conformance: "M",
                 constraint: "minMeasuredValue to maxMeasuredValue", quality: "X", xref: "cluster§2.6.4.1",
 
-                details: "Indicates measured water content value in % as follows:" +
+                details: "MeasuredValue represents the water content in % as follows:" +
                     "\n" +
                     "MeasuredValue = 100 x water content" +
                     "\n" +
@@ -4926,21 +4928,21 @@ export const SpecMatter = Matter(
         Attribute({
             name: "MinMeasuredValue", id: 0x1, type: "uint16", access: "R V", conformance: "M",
             constraint: "max 9999", quality: "X F", xref: "cluster§2.6.4.2",
-            details: "Indicates the minimum value of MeasuredValue that can be measured. The null value means this " +
-                "attribute is not defined. See Measured Value for more details."
+            details: "The MinMeasuredValue attribute indicates the minimum value of MeasuredValue that can be measured. " +
+                "The null value means this attribute is not defined. See Measured Value for more details."
         }),
 
         Attribute({
             name: "MaxMeasuredValue", id: 0x2, type: "uint16", access: "R V", conformance: "M",
             constraint: "minMeasuredValue + 1 to 10000", quality: "X F", xref: "cluster§2.6.4.3",
-            details: "Indicates the maximum value of MeasuredValue that can be measured. The null value means this " +
-                "attribute is not defined. See Measured Value for more details."
+            details: "The MaxMeasuredValue attribute indicates the maximum value of MeasuredValue that can be measured. " +
+                "The null value means this attribute is not defined. See Measured Value for more details."
         }),
 
         Attribute({
             name: "Tolerance", id: 0x3, type: "uint16", access: "R V", conformance: "O", constraint: "max 2048",
             quality: "F", xref: "cluster§2.6.4.4",
-            details: "Indicates the tolerance of the measurement. For further, details see Measured Value."
+            details: "See Measured Value."
         })
     ),
 
@@ -5018,8 +5020,8 @@ export const SpecMatter = Matter(
             constraint: "holdTimeLimits.holdTimeMin to holdTimeLimits.holdTimeMax", quality: "N",
             xref: "cluster§2.7.6.3",
 
-            details: "Indicates the time delay, in seconds, before the sensor changes to its unoccupied state after the " +
-                "last detection of occupancy in the sensed area. This is equivalent to the legacy " +
+            details: "This attribute shall specify the time delay, in seconds, before the sensor changes to its unoccupied " +
+                "state after the last detection of occupancy in the sensed area. This is equivalent to the legacy " +
                 "*OccupiedToUnoccupiedDelay attributes." +
                 "\n" +
                 "Low values of HoldTime SHOULD be avoided since they could lead to many reporting messages. A value 0 " +
@@ -5052,69 +5054,69 @@ export const SpecMatter = Matter(
             name: "PirOccupiedToUnoccupiedDelay", id: 0x10, type: "uint16", access: "RW VM",
             conformance: "[HoldTime & (PIR | !PIR & !US & !PHY)], D", default: 0, quality: "N",
             xref: "cluster§2.7.6.6",
-            details: "Indicates the time delay, in seconds, before the PIR sensor changes to its unoccupied state after " +
-                "the last detection of occupancy in the sensed area."
+            details: "This attribute shall specify the time delay, in seconds, before the PIR sensor changes to its " +
+                "unoccupied state after the last detection of occupancy in the sensed area."
         }),
 
         Attribute({
             name: "PirUnoccupiedToOccupiedDelay", id: 0x11, type: "uint16", access: "RW VM",
             conformance: "HoldTime & (PIR | !PIR & !US & !PHY) & PirUnoccupiedToOccupiedThreshold, [HoldTime & (PIR | !PIR & !US & !PHY)], D",
             default: 0, quality: "N", xref: "cluster§2.7.6.7",
-            details: "Indicates the time delay, in seconds, before the PIR sensor changes to its occupied state after the " +
-                "first detection of occupancy in the sensed area."
+            details: "This attribute shall specify the time delay, in seconds, before the PIR sensor changes to its " +
+                "occupied state after the first detection of occupancy in the sensed area."
         }),
 
         Attribute({
             name: "PirUnoccupiedToOccupiedThreshold", id: 0x12, type: "uint8", access: "RW VM",
             conformance: "HoldTime & (PIR | !PIR & !US & !PHY) & PirUnoccupiedToOccupiedDelay, [HoldTime & (PIR | !PIR & !US & !PHY)], D",
             constraint: "1 to 254", default: 1, quality: "N", xref: "cluster§2.7.6.8",
-            details: "Indicates the number of occupancy detection events that must occur in the period " +
+            details: "This attribute shall specify the number of occupancy detection events that must occur in the period " +
                 "PIRUnoccupiedToOccupiedDelay, before the PIR sensor changes to its occupied state."
         }),
 
         Attribute({
             name: "UltrasonicOccupiedToUnoccupiedDelay", id: 0x20, type: "uint16", access: "RW VM",
             conformance: "[HoldTime & US], D", default: 0, quality: "N", xref: "cluster§2.7.6.9",
-            details: "Indicates the time delay, in seconds, before the Ultrasonic sensor changes to its unoccupied state " +
-                "after the last detection of occupancy in the sensed area."
+            details: "This attribute shall specify the time delay, in seconds, before the Ultrasonic sensor changes to its " +
+                "unoccupied state after the last detection of occupancy in the sensed area."
         }),
 
         Attribute({
             name: "UltrasonicUnoccupiedToOccupiedDelay", id: 0x21, type: "uint16", access: "RW VM",
             conformance: "HoldTime & US & UltrasonicUnoccupiedToOccupiedThreshold, [HoldTime & US], D",
             default: 0, quality: "N", xref: "cluster§2.7.6.10",
-            details: "Indicates the time delay, in seconds, before the Ultrasonic sensor changes to its occupied state " +
-                "after the first detection of occupancy in the sensed area."
+            details: "This attribute shall specify the time delay, in seconds, before the Ultrasonic sensor changes to its " +
+                "occupied state after the first detection of occupancy in the sensed area."
         }),
 
         Attribute({
             name: "UltrasonicUnoccupiedToOccupiedThreshold", id: 0x22, type: "uint8", access: "RW VM",
             conformance: "HoldTime & US & UltrasonicUnoccupiedToOccupiedDelay, [HoldTime & US], D",
             constraint: "1 to 254", default: 1, quality: "N", xref: "cluster§2.7.6.11",
-            details: "Indicates the number of occupancy detection events that must occur in the period " +
+            details: "This attribute shall specify the number of occupancy detection events that must occur in the period " +
                 "UltrasonicUnoccupiedToOccupiedDelay, before the Ultrasonic sensor changes to its occupied state."
         }),
 
         Attribute({
             name: "PhysicalContactOccupiedToUnoccupiedDelay", id: 0x30, type: "uint16", access: "RW VM",
             conformance: "[HoldTime & PHY], D", default: 0, quality: "N", xref: "cluster§2.7.6.12",
-            details: "Indicates the time delay, in seconds, before the physical contact occupancy sensor changes to its " +
-                "unoccupied state after detecting the unoccupied event."
+            details: "This attribute shall specify the time delay, in seconds, before the physical contact occupancy " +
+                "sensor changes to its unoccupied state after detecting the unoccupied event."
         }),
 
         Attribute({
             name: "PhysicalContactUnoccupiedToOccupiedDelay", id: 0x31, type: "uint16", access: "RW VM",
             conformance: "HoldTime & PHY & PhysicalContactUnoccupiedToOccupiedThreshold, [HoldTime & PHY], D",
             default: 0, quality: "N", xref: "cluster§2.7.6.13",
-            details: "Indicates the time delay, in seconds, before the physical contact sensor changes to its occupied " +
-                "state after the first detection of the occupied event."
+            details: "This attribute shall specify the time delay, in seconds, before the physical contact sensor changes " +
+                "to its occupied state after the first detection of the occupied event."
         }),
 
         Attribute({
             name: "PhysicalContactUnoccupiedToOccupiedThreshold", id: 0x32, type: "uint8", access: "RW VM",
             conformance: "HoldTime & PHY & PhysicalContactUnoccupiedToOccupiedDelay, [HoldTime & PHY], D",
             constraint: "1 to 254", default: 1, quality: "N", xref: "cluster§2.7.6.14",
-            details: "Indicates the number of occupancy detection events that must occur in the period " +
+            details: "This attribute shall specify the number of occupancy detection events that must occur in the period " +
                 "PhysicalContactUnoccupiedToOccupiedDelay, before the PhysicalContact sensor changes to its occupied " +
                 "state."
         }),
@@ -5258,7 +5260,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "ChangeIndication", id: 0x2, type: "ChangeIndicationEnum", access: "R V", conformance: "M",
             xref: "cluster§2.8.6.3",
-            details: "Indicates the current requirement to change the resource."
+            details: "This attribute shall be populated with a value from ChangeIndicationEnum that is indicative of the " +
+                "current requirement to change the resource."
         }),
 
         Attribute({
@@ -5271,8 +5274,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "LastChangedTime", id: 0x4, type: "epoch-s", access: "RW VO", conformance: "O", default: null,
             quality: "X N", xref: "cluster§2.8.6.5",
-            details: "Indicates the time at which the resource has been changed, if supported by the server. The attribute " +
-                "shall be null if it was never set or is unknown."
+            details: "This attribute may indicates the time at which the resource has been changed, if supported by the " +
+                "server. The attribute shall be null if it was never set or is unknown."
         }),
 
         Attribute(
@@ -6488,23 +6491,23 @@ export const SpecMatter = Matter(
         Attribute({
             name: "PowerMode", id: 0x0, type: "PowerModeEnum", access: "R V", conformance: "M",
             xref: "cluster§2.13.6.1",
-            details: "Indicates the current mode of the server. For some servers, such as an EV, this might change " +
+            details: "This shall indicate the current mode of the server. For some servers, such as an EV, this may change " +
                 "depending on the mode of charging or discharging."
         }),
 
         Attribute({
             name: "NumberOfMeasurementTypes", id: 0x1, type: "uint8", access: "R V", conformance: "M",
             constraint: "max 32", quality: "F", xref: "cluster§2.13.6.2",
-            details: "Indicates the maximum number of measurement types the server is capable of reporting."
+            details: "This shall indicate the maximum number of measurement types the server is capable of reporting."
         }),
 
         Attribute(
             {
                 name: "Accuracy", id: 0x2, type: "list", access: "R V", conformance: "M",
                 constraint: "1 to numberOfMeasurementTypes", quality: "F", xref: "cluster§2.13.6.3",
-                details: "Indicates a list of accuracy specifications for the measurement types supported by the server. There " +
-                    "shall be an entry for ActivePower, as well as any other measurement types implemented by this " +
-                    "server."
+                details: "This shall indicate a list of accuracy specifications for the measurement types supported by the " +
+                    "server. There shall be an entry for ActivePower, as well as any other measurement types implemented " +
+                    "by this server."
             },
 
             Field({ name: "entry", type: "MeasurementAccuracyStruct" })
@@ -6515,8 +6518,8 @@ export const SpecMatter = Matter(
                 name: "Ranges", id: 0x3, type: "list", access: "R V", conformance: "O",
                 constraint: "0 to numberOfMeasurementTypes", default: [], quality: "Q", xref: "cluster§2.13.6.4",
 
-                details: "Indicates a list of measured ranges for different measurement types. Each measurement type shall " +
-                    "have at most one entry in this list, representing the range of measurements in the most recent " +
+                details: "This shall indicate a list of measured ranges for different measurement types. Each measurement type " +
+                    "shall have at most one entry in this list, representing the range of measurements in the most recent " +
                     "measurement period." +
                     "\n" +
                     "The reporting interval of this attribute shall be manufacturer dependent. The server may choose to " +
@@ -6536,7 +6539,7 @@ export const SpecMatter = Matter(
             name: "Voltage", id: 0x4, type: "voltage-mV", access: "R V", conformance: "O",
             constraint: "-2^62 to 2^62", default: null, quality: "X Q", xref: "cluster§2.13.6.5",
 
-            details: "Indicates the most recent Voltage reading in millivolts (mV)." +
+            details: "This shall indicate the most recent Voltage reading in millivolts (mV)." +
                 "\n" +
                 "The reporting interval of this attribute shall be manufacturer dependent. The server may choose to " +
                 "omit publication of deltas considered not meaningful." +
@@ -6554,7 +6557,7 @@ export const SpecMatter = Matter(
             name: "ActiveCurrent", id: 0x5, type: "amperage-mA", access: "R V", conformance: "O",
             constraint: "-2^62 to 2^62", default: null, quality: "X Q", xref: "cluster§2.13.6.6",
 
-            details: "Indicates the most recent ActiveCurrent reading in milliamps (mA)." +
+            details: "This shall indicate the most recent ActiveCurrent reading in milliamps (mA)." +
                 "\n" +
                 "A positive value represents current flowing into the server, while a negative value represents " +
                 "current flowing out of the server." +
@@ -6575,7 +6578,7 @@ export const SpecMatter = Matter(
             name: "ReactiveCurrent", id: 0x6, type: "amperage-mA", access: "R V", conformance: "[ALTC]",
             constraint: "-2^62 to 2^62", default: null, quality: "X Q", xref: "cluster§2.13.6.7",
 
-            details: "Indicates the most recent ReactiveCurrent reading in milliamps (mA)." +
+            details: "This shall indicate the most recent ReactiveCurrent reading in milliamps (mA)." +
                 "\n" +
                 "A positive value represents current flowing into the server, while a negative value represents " +
                 "current flowing out of the server." +
@@ -6596,8 +6599,8 @@ export const SpecMatter = Matter(
             name: "ApparentCurrent", id: 0x7, type: "amperage-mA", access: "R V", conformance: "[ALTC]",
             constraint: "-2^62 to 2^62", default: null, quality: "X Q", xref: "cluster§2.13.6.8",
 
-            details: "Indicates the most recent ApparentCurrent (square root sum of the squares of active and reactive " +
-                "currents) reading in milliamps (mA)." +
+            details: "This shall indicate the most recent ApparentCurrent (square root sum of the squares of active and " +
+                "reactive currents) reading in milliamps (mA)." +
                 "\n" +
                 "A positive value represents current flowing into the server, while a negative value represents " +
                 "current flowing out of the server." +
@@ -6618,8 +6621,8 @@ export const SpecMatter = Matter(
             name: "ActivePower", id: 0x8, type: "power-mW", access: "R V", conformance: "M",
             constraint: "-2^62 to 2^62", quality: "X Q", xref: "cluster§2.13.6.9",
 
-            details: "Indicates the most recent ActivePower reading in milliwatts (mW). If the power cannot be measured, a " +
-                "value of null shall be returned." +
+            details: "This shall indicate the most recent ActivePower reading in milliwatts (mW). If the power cannot be " +
+                "measured, a value of null shall be returned." +
                 "\n" +
                 "A positive value represents power imported, while a negative value represents power exported." +
                 "\n" +
@@ -6640,7 +6643,7 @@ export const SpecMatter = Matter(
             name: "ReactivePower", id: 0x9, type: "power-mVAR", access: "R V", conformance: "[ALTC]",
             constraint: "-2^62 to 2^62", default: null, quality: "X Q", xref: "cluster§2.13.6.10",
 
-            details: "Indicates the most recent ReactivePower reading in millivolt-amps reactive (mVAR)." +
+            details: "This shall indicate the most recent ReactivePower reading in millivolt-amps reactive (mVAR)." +
                 "\n" +
                 "A positive value represents power imported, while a negative value represents power exported." +
                 "\n" +
@@ -6663,7 +6666,7 @@ export const SpecMatter = Matter(
             name: "ApparentPower", id: 0xa, type: "power-mVA", access: "R V", conformance: "[ALTC]",
             constraint: "-2^62 to 2^62", default: null, quality: "X Q", xref: "cluster§2.13.6.11",
 
-            details: "Indicates the most recent ApparentPower reading in millivolt-amps (mVA)." +
+            details: "This shall indicate the most recent ApparentPower reading in millivolt-amps (mVA)." +
                 "\n" +
                 "A positive value represents power imported, while a negative value represents power exported." +
                 "\n" +
@@ -6683,7 +6686,7 @@ export const SpecMatter = Matter(
             name: "RmsVoltage", id: 0xb, type: "voltage-mV", access: "R V", conformance: "[ALTC]",
             constraint: "-2^62 to 2^62", default: null, quality: "X Q", xref: "cluster§2.13.6.12",
 
-            details: "Indicates the most recent RMSVoltage reading in millivolts (mV)." +
+            details: "This shall indicate the most recent RMSVoltage reading in millivolts (mV)." +
                 "\n" +
                 "The reporting interval of this attribute shall be manufacturer dependent. The server may choose to " +
                 "omit publication of deltas considered not meaningful." +
@@ -6701,7 +6704,7 @@ export const SpecMatter = Matter(
             name: "RmsCurrent", id: 0xc, type: "amperage-mA", access: "R V", conformance: "[ALTC]",
             constraint: "-2^62 to 2^62", default: null, quality: "X Q", xref: "cluster§2.13.6.13",
 
-            details: "Indicates the most recent RMSCurrent reading in milliamps (mA)." +
+            details: "This shall indicate the most recent RMSCurrent reading in milliamps (mA)." +
                 "\n" +
                 "A positive value represents current flowing into the server, while a negative value represents " +
                 "current flowing out of the server." +
@@ -6722,7 +6725,7 @@ export const SpecMatter = Matter(
             name: "RmsPower", id: 0xd, type: "power-mW", access: "R V", conformance: "[ALTC]",
             constraint: "-2^62 to 2^62", default: null, quality: "X Q", xref: "cluster§2.13.6.14",
 
-            details: "Indicates the most recent RMSPower reading in milliwatts (mW)." +
+            details: "This shall indicate the most recent RMSPower reading in milliwatts (mW)." +
                 "\n" +
                 "A positive value represents power imported, while a negative value represents power exported." +
                 "\n" +
@@ -6742,7 +6745,7 @@ export const SpecMatter = Matter(
             name: "Frequency", id: 0xe, type: "int64", access: "R V", conformance: "[ALTC]",
             constraint: "0 to 1000000", default: null, quality: "X Q", xref: "cluster§2.13.6.15",
 
-            details: "Indicates the most recent Frequency reading in millihertz (mHz)." +
+            details: "This shall indicate the most recent Frequency reading in millihertz (mHz)." +
                 "\n" +
                 "The reporting interval of this attribute shall be manufacturer dependent. The server may choose to " +
                 "omit publication of deltas considered not meaningful." +
@@ -6761,7 +6764,7 @@ export const SpecMatter = Matter(
                 name: "HarmonicCurrents", id: 0xf, type: "list", access: "R V", conformance: "HARM",
                 constraint: "max 25", quality: "X Q", xref: "cluster§2.13.6.16",
 
-                details: "Indicates a list of HarmonicMeasurementStruct values, with each HarmonicMeasurementStruct " +
+                details: "This shall indicate a list of HarmonicMeasurementStruct values, with each HarmonicMeasurementStruct " +
                     "representing the harmonic current reading for the harmonic order specified by Order." +
                     "\n" +
                     "The reporting interval of this attribute shall be manufacturer dependent. The server may choose to " +
@@ -6782,7 +6785,7 @@ export const SpecMatter = Matter(
                 name: "HarmonicPhases", id: 0x10, type: "list", access: "R V", conformance: "PWRQ",
                 constraint: "max 25", quality: "X Q", xref: "cluster§2.13.6.17",
 
-                details: "Indicates a list of HarmonicMeasurementStruct values, with each HarmonicMeasurementStruct " +
+                details: "This shall indicate a list of HarmonicMeasurementStruct values, with each HarmonicMeasurementStruct " +
                     "representing the most recent phase of the harmonic current reading for the harmonic order specified " +
                     "by Order." +
                     "\n" +
@@ -6803,7 +6806,7 @@ export const SpecMatter = Matter(
             name: "PowerFactor", id: 0x11, type: "int64", access: "R V", conformance: "[ALTC]",
             constraint: "-10000 to 10000", default: null, quality: "X Q", xref: "cluster§2.13.6.18",
 
-            details: "Indicates the Power Factor ratio in +/- 1/100ths of a percent." +
+            details: "This shall indicate the Power Factor ratio in +/- 1/100ths of a percent." +
                 "\n" +
                 "The reporting interval of this attribute shall be manufacturer dependent. The server may choose to " +
                 "omit publication of deltas considered not meaningful." +
@@ -6819,8 +6822,8 @@ export const SpecMatter = Matter(
             name: "NeutralCurrent", id: 0x12, type: "amperage-mA", access: "R V", conformance: "[POLY]",
             constraint: "-2^62 to 2^62", default: null, quality: "X Q", xref: "cluster§2.13.6.19",
 
-            details: "Indicates the most recent NeutralCurrent reading in milliamps (mA). Typically this is a derived " +
-                "value, taking the magnitude of the vector sum of phase currents." +
+            details: "This shall indicate the most recent NeutralCurrent reading in milliamps (mA). Typically this is a " +
+                "derived value, taking the magnitude of the vector sum of phase currents." +
                 "\n" +
                 "If the neutral current cannot be measured or derived, a value of null shall be returned." +
                 "\n" +
@@ -7111,23 +7114,24 @@ export const SpecMatter = Matter(
         Attribute({
             name: "MaxUserDefinedZones", id: 0x0, type: "uint8", access: "R V", conformance: "USERDEFINED",
             constraint: "min 5", quality: "F", xref: "cluster§2.14.6.1",
-            details: "Indicates the maximum number of user-defined zones that can be supported by the Node. This value is " +
-                "manufacturer-defined."
+            details: "This attribute shall specify the maximum number of user-defined zones that can be supported by the " +
+                "Node. This value is manufacturer-defined."
         }),
 
         Attribute({
             name: "MaxZones", id: 0x1, type: "uint8", access: "R V", conformance: "M", constraint: "min 1",
             quality: "F", xref: "cluster§2.14.6.2",
-            details: "Indicates the maximum number of zones allowed to created. This value shall be the sum of the number " +
-                "of predefined Mfg Zones, and MaxUserDefinedZones, if supported. This value is manufacturer-defined."
+            details: "This attribute shall specify the maximum number of zones allowed to created. This value shall be the " +
+                "sum of the number of predefined Mfg Zones, and MaxUserDefinedZones, if supported. This value is " +
+                "manufacturer-defined."
         }),
 
         Attribute(
             {
                 name: "Zones", id: 0x2, type: "list", access: "R V", conformance: "M", constraint: "0 to maxZones",
                 quality: "N", xref: "cluster§2.14.6.3",
-                details: "Indicates a list of all currently defined zones. Use the commands from this cluster to add, update " +
-                    "or remove entries."
+                details: "This attribute shall specify all currently defined zones as a list of ZoneInformationStruct. Use the " +
+                    "commands from this cluster to add, update or remove entries."
             },
 
             Field({ name: "entry", type: "ZoneInformationStruct" })
@@ -7137,8 +7141,9 @@ export const SpecMatter = Matter(
             {
                 name: "Triggers", id: 0x3, type: "list", access: "R V", conformance: "M",
                 constraint: "0 to maxZones", quality: "N", xref: "cluster§2.14.6.4",
-                details: "Indicates a list of all currently defined triggers controlling the generation of ZoneTriggered and " +
-                    "ZoneStopped events. To add an entry use CreateOrUpdateTrigger. To remove an entry use RemoveTrigger."
+                details: "This attribute shall specify all currently defined triggers controlling the generation of " +
+                    "ZoneTriggered and ZoneStopped events and shall be a list of ZoneTriggerControlStruct. To add an " +
+                    "entry use CreateOrUpdateTrigger. To remove an entry use RemoveTrigger."
             },
 
             Field({ name: "entry", type: "ZoneTriggerControlStruct" })
@@ -7148,28 +7153,29 @@ export const SpecMatter = Matter(
             name: "SensitivityMax", id: 0x4, type: "uint8", access: "R V", conformance: "M",
             constraint: "2 to 10", quality: "F", xref: "cluster§2.14.6.5",
 
-            details: "Indicates the hardware specific value for the number of supported sensitivity levels. This value is " +
-                "manufacturer defined. If the PerZoneSensitivity feature is supported, the value of this attribute " +
-                "determines valid values for the Sensitivity field in ZoneTriggerControlStruct; if the " +
-                "PerZoneSensitivity feature is not supported, the value of this attribute determines valid values for " +
-                "the Sensitivity Attribute. Implementations require two to ten levels of sensitivity control in order " +
-                "to ensure that there is some user-level customization of the Trigger."
+            details: "This attribute shall specify the hardware specific value for the number of supported sensitivity " +
+                "levels. This value is manufacturer defined. If the PerZoneSensitivity feature is supported, the " +
+                "value of this attribute determines valid values for the Sensitivity field in " +
+                "ZoneTriggerControlStruct; if the PerZoneSensitivity feature is not supported, the value of this " +
+                "attribute determines valid values for the Sensitivity Attribute. Implementations require two to ten " +
+                "levels of sensitivity control in order to ensure that there is some user-level customization of the " +
+                "Trigger."
         }),
 
         Attribute({
             name: "Sensitivity", id: 0x5, type: "uint8", access: "RW VO", conformance: "!PERZONESENS",
             constraint: "1 to sensitivityMax", quality: "N", xref: "cluster§2.14.6.6",
-            details: "Indicates the sensitivity of the underlying zone triggering detection mechanism if the " +
-                "PerZoneSensitivity features is not supported. The higher the value the more sensitive the detection. " +
-                "The actual meaning of the values is implementation specific."
+            details: "This attribute shall specify the sensitivity of the underlying zone triggering detection mechanism " +
+                "if the PerZoneSensitivity features is not supported. The higher the value the more sensitive the " +
+                "detection. The actual meaning of the values is implementation specific."
         }),
 
         Attribute({
             name: "TwoDCartesianMax", id: 0x6, type: "TwoDCartesianVertexStruct", access: "R V",
             conformance: "TWODCART", quality: "F", xref: "cluster§2.14.6.7",
-            details: "Indicates the maximum X and Y points that are allowed for TwoD Cartesian Zones. If this cluster is " +
-                "on the same endpoint as Camera AV Stream Management Cluster, these values shall be equal to the " +
-                "value of SensorWidth - 1 and SensorHeight - 1 from the VideoSensorParams attribute."
+            details: "This attribute shall specify the maximum X and Y points that are allowed for TwoD Cartesian Zones. " +
+                "If this cluster is on the same endpoint as Camera AV Stream Management Cluster, these values shall " +
+                "be equal to the value of SensorWidth - 1 and SensorHeight - 1 from the VideoSensorParams attribute."
         }),
 
         Event(
@@ -7629,33 +7635,32 @@ export const SpecMatter = Matter(
         Attribute({
             name: "HumanActivityDetected", id: 0x0, type: "bool", access: "R V", conformance: "P, HA",
             xref: "cluster§2.16.7.1",
-            details: "Indicates the human activity detection state. The detected human activity type can be found from the " +
-                "AmbientContextType attribute."
+            details: "Indicates the human activity detection in Boolean data. The detected human activity type can be " +
+                "found from the AmbientContextType attribute."
         }),
 
         Attribute({
             name: "ObjectIdentified", id: 0x1, type: "bool", access: "R V", conformance: "P, OI",
             xref: "cluster§2.16.7.2",
-            details: "Indicates the occurrence of object identification state. The identified object information can be " +
-                "found from the AmbientContextType attribute."
+            details: "Indicates the occurrence of object identification in Boolean data. The identified object information " +
+                "can be found from the AmbientContextType attribute."
         }),
 
         Attribute({
             name: "AudioContextDetected", id: 0x2, type: "bool", access: "R V", conformance: "P, AUD",
             xref: "cluster§2.16.7.3",
-            details: "Indicates the ambient audio context detection state. The detected audio context type can be found " +
-                "from the AmbientContextType attribute."
+            details: "Indicates the ambient audio context detection in Boolean data. The detected audio context type can " +
+                "be found from the AmbientContextType attribute."
         }),
 
         Attribute(
             {
                 name: "AmbientContextType", id: 0x3, type: "list", access: "R V", conformance: "P, HA | OI | AUD",
                 constraint: "1 to simultaneousDetectionLimit", xref: "cluster§2.16.7.4",
-                details: "Indicates the details for the currently observed and detected ambient context." +
-                    "\n" +
-                    "This attribute supports multiple simultaneous ambient context detections. The attribute expression " +
-                    "rule is defined in the MultipleAmbientSensingDetection section. The total number of simultaneous " +
-                    "ambient context detections is constrained by the SimultaneousDetectionLimit attribute."
+                details: "Indicates the details for the currently observed and detected ambient context. This attribute " +
+                    "supports multiple simultaneous ambient context detections. The attribute expression rule is defined " +
+                    "in the MultipleAmbientSensingDetection section. The total number of simultaneous ambient context " +
+                    "detections is constrained by the SimultaneousDetectionLimit attribute."
             },
 
             Field({ name: "entry", type: "AmbientContextTypeStruct" })
@@ -7801,6 +7806,13 @@ export const SpecMatter = Matter(
                 name: "EventStartTimePos", id: 0x0, type: "posix-ms", conformance: "P, O.a",
                 xref: "cluster§2.16.8.2.1",
                 details: "This field shall indicate the POSIX time stamp when the corresponding AmbientContextDetectStarted " +
+                    "Event was generated."
+            }),
+
+            Field({
+                name: "EventStartTimeSys", id: 0x1, type: "systime-ms", conformance: "P, O.a",
+                xref: "cluster§2.16.8.2.2",
+                details: "This field shall indicate the system time stamp when the corresponding AmbientContextDetectStarted " +
                     "Event was generated."
             })
         ),
@@ -8185,8 +8197,8 @@ export const SpecMatter = Matter(
             name: "CurrentHue", id: 0x0, type: "uint8", access: "R V", conformance: "HS", constraint: "max 254",
             quality: "N Q", xref: "cluster§3.2.7.2",
 
-            details: "Indicates the current hue value of the light. It is updated as fast as practical during commands " +
-                "that change the hue." +
+            details: "The CurrentHue attribute contains the current hue value of the light. It is updated as fast as " +
+                "practical during commands that change the hue." +
                 "\n" +
                 "The hue in degrees shall be related to the CurrentHue attribute by the relationship:" +
                 "\n" +
@@ -8283,8 +8295,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "CompensationText", id: 0x6, type: "string", access: "R V", conformance: "O",
             constraint: "max 254", xref: "cluster§3.2.7.8",
-            details: "Indicates a textual indication of what mechanism, if any, is in use to compensate for " +
-                "color/intensity drift over time."
+            details: "This attribute shall contain a textual indication of what mechanism, if any, is in use to compensate " +
+                "for color/intensity drift over time."
         }),
 
         Attribute({
@@ -9383,8 +9395,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "MaxPressure", id: 0x0, type: "int16", access: "R V", conformance: "M", default: null,
             quality: "X F", xref: "cluster§4.2.7.1",
-            details: "Indicates the maximum pressure the pump can achieve. It is a physical limit, and does not apply to " +
-                "any specific control mode or operation mode." +
+            details: "This attribute specifies the maximum pressure the pump can achieve. It is a physical limit, and does " +
+                "not apply to any specific control mode or operation mode." +
                 "\n" +
                 "Valid range is -3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid."
         }),
@@ -9392,8 +9404,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "MaxSpeed", id: 0x1, type: "uint16", access: "R V", conformance: "M", default: null,
             quality: "X F", xref: "cluster§4.2.7.2",
-            details: "Indicates the maximum speed the pump can achieve. It is a physical limit, and does not apply to any " +
-                "specific control mode or operation mode." +
+            details: "This attribute specifies the maximum speed the pump can achieve. It is a physical limit, and does " +
+                "not apply to any specific control mode or operation mode." +
                 "\n" +
                 "Valid range is 0 to 65,534 RPM (steps of 1 RPM). Null if the value is invalid."
         }),
@@ -9401,8 +9413,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "MaxFlow", id: 0x2, type: "uint16", access: "R V", conformance: "M", default: null,
             quality: "X F", xref: "cluster§4.2.7.3",
-            details: "Indicates the maximum flow the pump can achieve. It is a physical limit, and does not apply to any " +
-                "specific control mode or operation mode." +
+            details: "This attribute specifies the maximum flow the pump can achieve. It is a physical limit, and does not " +
+                "apply to any specific control mode or operation mode." +
                 "\n" +
                 "Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid."
         }),
@@ -9410,8 +9422,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "MinConstPressure", id: 0x3, type: "int16", access: "R V", conformance: "PRSCONST, [AUTO]",
             default: null, quality: "X F", xref: "cluster§4.2.7.4",
-            details: "Indicates the minimum pressure the pump can achieve when it is working with the ControlMode " +
-                "attribute set to ConstantPressure." +
+            details: "This attribute specifies the minimum pressure the pump can achieve when it is working with the " +
+                "ControlMode attribute set to ConstantPressure." +
                 "\n" +
                 "Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid."
         }),
@@ -9419,8 +9431,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "MaxConstPressure", id: 0x4, type: "int16", access: "R V", conformance: "PRSCONST, [AUTO]",
             default: null, quality: "X F", xref: "cluster§4.2.7.5",
-            details: "Indicates the maximum pressure the pump can achieve when it is working with the ControlMode " +
-                "attribute set to ConstantPressure." +
+            details: "This attribute specifies the maximum pressure the pump can achieve when it is working with the " +
+                "ControlMode attribute set to ConstantPressure." +
                 "\n" +
                 "Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid."
         }),
@@ -9428,8 +9440,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "MinCompPressure", id: 0x5, type: "int16", access: "R V", conformance: "PRSCOMP, [AUTO]",
             default: null, quality: "X F", xref: "cluster§4.2.7.6",
-            details: "Indicates the minimum compensated pressure the pump can achieve when it is working with the " +
-                "ControlMode attribute set to ProportionalPressure." +
+            details: "This attribute specifies the minimum compensated pressure the pump can achieve when it is working " +
+                "with the ControlMode attribute set to ProportionalPressure." +
                 "\n" +
                 "Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid."
         }),
@@ -9437,8 +9449,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "MaxCompPressure", id: 0x6, type: "int16", access: "R V", conformance: "PRSCOMP, [AUTO]",
             default: null, quality: "X F", xref: "cluster§4.2.7.7",
-            details: "Indicates the maximum compensated pressure the pump can achieve when it is working with the " +
-                "ControlMode attribute set to ProportionalPressure." +
+            details: "This attribute specifies the maximum compensated pressure the pump can achieve when it is working " +
+                "with the ControlMode attribute set to ProportionalPressure." +
                 "\n" +
                 "Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid."
         }),
@@ -9446,8 +9458,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "MinConstSpeed", id: 0x7, type: "uint16", access: "R V", conformance: "SPD, [AUTO]",
             default: null, quality: "X F", xref: "cluster§4.2.7.8",
-            details: "Indicates the minimum speed the pump can achieve when it is working with the ControlMode attribute " +
-                "set to ConstantSpeed." +
+            details: "This attribute specifies the minimum speed the pump can achieve when it is working with the " +
+                "ControlMode attribute set to ConstantSpeed." +
                 "\n" +
                 "Valid range is 0 to 65,534 RPM (steps of 1 RPM). Null if the value is invalid."
         }),
@@ -9455,8 +9467,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "MaxConstSpeed", id: 0x8, type: "uint16", access: "R V", conformance: "SPD, [AUTO]",
             default: null, quality: "X F", xref: "cluster§4.2.7.9",
-            details: "Indicates the maximum speed the pump can achieve when it is working with the ControlMode attribute " +
-                "set to ConstantSpeed." +
+            details: "This attribute specifies the maximum speed the pump can achieve when it is working with the " +
+                "ControlMode attribute set to ConstantSpeed." +
                 "\n" +
                 "Valid range is 0 to 65,534 RPM (steps of 1 RPM). Null if the value is invalid."
         }),
@@ -9464,8 +9476,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "MinConstFlow", id: 0x9, type: "uint16", access: "R V", conformance: "FLW, [AUTO]",
             default: null, quality: "X F", xref: "cluster§4.2.7.10",
-            details: "Indicates the minimum flow the pump can achieve when it is working with the ControlMode attribute " +
-                "set to ConstantFlow." +
+            details: "This attribute specifies the minimum flow the pump can achieve when it is working with the " +
+                "ControlMode attribute set to ConstantFlow." +
                 "\n" +
                 "Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid."
         }),
@@ -9473,8 +9485,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "MaxConstFlow", id: 0xa, type: "uint16", access: "R V", conformance: "FLW, [AUTO]",
             default: null, quality: "X F", xref: "cluster§4.2.7.11",
-            details: "Indicates the maximum flow the pump can achieve when it is working with the ControlMode attribute " +
-                "set to ConstantFlow." +
+            details: "This attribute specifies the maximum flow the pump can achieve when it is working with the " +
+                "ControlMode attribute set to ConstantFlow." +
                 "\n" +
                 "Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid."
         }),
@@ -9482,8 +9494,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "MinConstTemp", id: 0xb, type: "int16", access: "R V", conformance: "TEMP, [AUTO]",
             constraint: "min -27315", default: null, quality: "X F", xref: "cluster§4.2.7.12",
-            details: "Indicates the minimum temperature the pump can maintain in the system when it is working with the " +
-                "ControlMode attribute set to ConstantTemperature." +
+            details: "This attribute specifies the minimum temperature the pump can maintain in the system when it is " +
+                "working with the ControlMode attribute set to ConstantTemperature." +
                 "\n" +
                 "Valid range is –273.15 °C to 327.67 °C (steps of 0.01 °C). Null if the value is invalid."
         }),
@@ -9491,8 +9503,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "MaxConstTemp", id: 0xc, type: "int16", access: "R V", conformance: "TEMP, [AUTO]",
             constraint: "min -27315", default: null, quality: "X F", xref: "cluster§4.2.7.13",
-            details: "Indicates the maximum temperature the pump can maintain in the system when it is working with the " +
-                "ControlMode attribute set to ConstantTemperature." +
+            details: "This attribute specifies the maximum temperature the pump can maintain in the system when it is " +
+                "working with the ControlMode attribute set to ConstantTemperature." +
                 "\n" +
                 "MaxConstTemp shall be greater than or equal to MinConstTemp Valid range is –273.15 °C to 327.67 °C " +
                 "(steps of 0.01 °C). Null if the value is invalid."
@@ -9501,16 +9513,17 @@ export const SpecMatter = Matter(
         Attribute({
             name: "PumpStatus", id: 0x10, type: "PumpStatusBitmap", access: "R V", conformance: "O",
             constraint: "desc", default: 0, xref: "cluster§4.2.7.14",
-            details: "Indicates the activity status of the pump functions as listed in PumpStatusBitmap. Where a pump " +
-                "controller function is active, the corresponding bit shall be set to 1. Where a pump controller " +
-                "function is not active, the corresponding bit shall be set to 0."
+            details: "This attribute specifies the activity status of the pump functions as listed in PumpStatusBitmap. " +
+                "Where a pump controller function is active, the corresponding bit shall be set to 1. Where a pump " +
+                "controller function is not active, the corresponding bit shall be set to 0."
         }),
 
         Attribute({
             name: "EffectiveOperationMode", id: 0x11, type: "OperationModeEnum", access: "R V",
             conformance: "M", constraint: "desc", quality: "N", xref: "cluster§4.2.7.15",
 
-            details: "Indicates the currently effective operation mode of the pump as defined in OperationModeEnum." +
+            details: "This attribute specifies current effective operation mode of the pump as defined in " +
+                "OperationModeEnum." +
                 "\n" +
                 "The value of the EffectiveOperationMode attribute is the same as the OperationMode attribute, unless " +
                 "one of the following points are true:" +
@@ -9527,7 +9540,8 @@ export const SpecMatter = Matter(
             name: "EffectiveControlMode", id: 0x12, type: "ControlModeEnum", access: "R V", conformance: "M",
             constraint: "desc", quality: "N", xref: "cluster§4.2.7.16",
 
-            details: "Indicates the currently effective control mode of the pump as defined in ControlModeEnum." +
+            details: "This attribute specifies the current effective control mode of the pump as defined in " +
+                "ControlModeEnum." +
                 "\n" +
                 "This attribute contains the control mode that currently applies to the pump. It will have the value " +
                 "of the ControlMode attribute, unless one of the following points are true:" +
@@ -9551,8 +9565,8 @@ export const SpecMatter = Matter(
             name: "Capacity", id: 0x13, type: "int16", access: "R V", conformance: "M", default: null,
             quality: "X", xref: "cluster§4.2.7.17",
 
-            details: "Indicates the actual capacity of the pump as a percentage of the effective maximum setpoint value. " +
-                "It is updated dynamically as the speed of the pump changes." +
+            details: "This attribute specifies the actual capacity of the pump as a percentage of the effective maximum " +
+                "setpoint value. It is updated dynamically as the speed of the pump changes." +
                 "\n" +
                 "If the value is not available (the measurement or estimation of the speed is done in the pump), this " +
                 "attribute will indicate the null value." +
@@ -9565,8 +9579,8 @@ export const SpecMatter = Matter(
             name: "Speed", id: 0x14, type: "uint16", access: "R V", conformance: "O", default: null,
             quality: "X", xref: "cluster§4.2.7.18",
 
-            details: "Indicates the actual speed of the pump measured in RPM. It is updated dynamically as the speed of " +
-                "the pump changes." +
+            details: "This attribute specifies the actual speed of the pump measured in RPM. It is updated dynamically as " +
+                "the speed of the pump changes." +
                 "\n" +
                 "If the value is not available (the measurement or estimation of the speed is done in the pump), this " +
                 "attribute will indicate the null value." +
@@ -9578,9 +9592,10 @@ export const SpecMatter = Matter(
             name: "LifetimeRunningHours", id: 0x15, type: "uint24", access: "RW VM", conformance: "O",
             default: 0, quality: "X N", xref: "cluster§4.2.7.19",
 
-            details: "Indicates the accumulated number of hours that the pump has been powered and the motor has been " +
-                "running. It is updated dynamically as it increases. It is preserved over power cycles of the pump. " +
-                "If LifeTimeRunningHours rises above maximum value it “rolls over” and starts at 0 (zero)." +
+            details: "This attribute specifies the accumulated number of hours that the pump has been powered and the " +
+                "motor has been running. It is updated dynamically as it increases. It is preserved over power cycles " +
+                "of the pump. If LifeTimeRunningHours rises above maximum value it “rolls over” and starts at 0 " +
+                "(zero)." +
                 "\n" +
                 "This attribute is writeable, in order to allow setting to an appropriate value after maintenance. If " +
                 "the value is not available, this attribute will indicate the null value." +
@@ -9592,8 +9607,8 @@ export const SpecMatter = Matter(
             name: "Power", id: 0x16, type: "uint24", access: "R V", conformance: "O", default: null,
             quality: "X", xref: "cluster§4.2.7.20",
 
-            details: "Indicates the actual power consumption of the pump in Watts. The value of this attribute is updated " +
-                "dynamically as the power consumption of the pump changes." +
+            details: "This attribute specifies the actual power consumption of the pump in Watts. The value of this " +
+                "attribute is updated dynamically as the power consumption of the pump changes." +
                 "\n" +
                 "This attribute is read only. If the value is not available (the measurement of power consumption is " +
                 "not done in the pump), this attribute will indicate the null value." +
@@ -9605,10 +9620,10 @@ export const SpecMatter = Matter(
             name: "LifetimeEnergyConsumed", id: 0x17, type: "uint32", access: "RW VM", conformance: "O",
             default: 0, quality: "X N", xref: "cluster§4.2.7.21",
 
-            details: "Indicates the accumulated energy consumption of the pump through the entire lifetime of the pump in " +
-                "kWh. The value of the LifetimeEnergyConsumed attribute is updated dynamically as the energy " +
-                "consumption of the pump increases. If LifetimeEnergyConsumed rises above maximum value it “rolls " +
-                "over” and starts at 0 (zero)." +
+            details: "This attribute specifies the accumulated energy consumption of the pump through the entire lifetime " +
+                "of the pump in kWh. The value of the LifetimeEnergyConsumed attribute is updated dynamically as the " +
+                "energy consumption of the pump increases. If LifetimeEnergyConsumed rises above maximum value it " +
+                "“rolls over” and starts at 0 (zero)." +
                 "\n" +
                 "This attribute is writeable, in order to allow setting to an appropriate value after maintenance." +
                 "\n" +
@@ -9619,7 +9634,7 @@ export const SpecMatter = Matter(
             name: "OperationMode", id: 0x20, type: "OperationModeEnum", access: "RW VM", conformance: "M",
             constraint: "desc", default: 0, quality: "N", xref: "cluster§4.2.7.22",
 
-            details: "Indicates the operation mode of the pump as defined in OperationModeEnum." +
+            details: "This attribute specifies the operation mode of the pump as defined in OperationModeEnum." +
                 "\n" +
                 "The actual operating mode of the pump is a result of the setting of the attributes OperationMode, " +
                 "ControlMode and the optional connection of a remote sensor. The operation and control is prioritized " +
@@ -9650,7 +9665,7 @@ export const SpecMatter = Matter(
             name: "ControlMode", id: 0x21, type: "ControlModeEnum", access: "RW VM", conformance: "O",
             constraint: "desc", default: 0, quality: "N", xref: "cluster§4.2.7.23",
 
-            details: "Indicates the control mode of the pump as defined in ControlModeEnum." +
+            details: "This attribute specifies the control mode of the pump as defined in ControlModeEnum." +
                 "\n" +
                 "See OperationMode Attribute for a detailed description of the operation and control of the pump." +
                 "\n" +
@@ -10159,7 +10174,8 @@ export const SpecMatter = Matter(
             conformance: "AUTO", constraint: "0 to 12.7°C", default: { type: "celsius", value: 2 },
             quality: "N", xref: "cluster§4.3.11.19",
 
-            details: "Indicates the minimum difference between the Heat Setpoint and the Cool Setpoint." +
+            details: "On devices which support the AUTO feature, this attribute shall indicate the minimum difference " +
+                "between the Heat Setpoint and the Cool Setpoint." +
                 "\n" +
                 "Refer to Setpoint Limits for constraints." +
                 "\n" +
@@ -10243,7 +10259,7 @@ export const SpecMatter = Matter(
 
             details: "Indicates the period in minutes for which a setpoint hold is active. Thermostats that support hold " +
                 "for a specified duration SHOULD implement this attribute. The null value indicates the field is " +
-                "unused." +
+                "unused. All other values are reserved." +
                 "\n" +
                 "If this attribute is updated to a non-null value and the TemperatureSetpointHold is set to " +
                 "SetpointHoldOn and the SetpointHoldExpiryTimestamp is supported, the server shall update " +
@@ -10452,7 +10468,7 @@ export const SpecMatter = Matter(
                 name: "Presets", id: 0x50, type: "list", access: "RW VM", conformance: "PRES",
                 constraint: "max numberOfPresets", quality: "N T", xref: "cluster§4.3.11.50",
 
-                details: "Indicates the current list of configured presets." +
+                details: "This attribute shall contain the current list of configured presets." +
                     "\n" +
                     "On receipt of a write request:" +
                     "\n" +
@@ -10551,7 +10567,7 @@ export const SpecMatter = Matter(
                 name: "Schedules", id: 0x51, type: "list", access: "RW VM", conformance: "MSCH",
                 constraint: "max numberOfSchedules", quality: "N T", xref: "cluster§4.3.11.51",
 
-                details: "Indicates a list of schedules." +
+                details: "This attribute shall contain a list of ScheduleStructs." +
                     "\n" +
                     "On receipt of a write request:" +
                     "\n" +
@@ -10668,8 +10684,8 @@ export const SpecMatter = Matter(
             name: "SetpointHoldExpiryTimestamp", id: 0x52, type: "epoch-s", access: "R V", conformance: "O",
             default: null, quality: "X N", xref: "cluster§4.3.11.52",
 
-            details: "Indicates the time when the TemperatureSetpointHold shall be cleared, this attribute shall contain " +
-                "the timestamp in UTC indicating when that will happen. If there is no such known time, this " +
+            details: "If there is a known time when the TemperatureSetpointHold shall be cleared, this attribute shall " +
+                "contain the timestamp in UTC indicating when that will happen. If there is no such known time, this " +
                 "attribute shall be null." +
                 "\n" +
                 "If the TemperatureSetpointHold is set to SetpointHoldOn and the TemperatureSetpointHoldDuration is " +
@@ -11843,7 +11859,7 @@ export const SpecMatter = Matter(
         Attribute({
             name: "FanModeSequence", id: 0x1, type: "FanModeSequenceEnum", access: "R V", conformance: "M",
             quality: "F", xref: "cluster§4.4.6.2",
-            details: "Indicates the fan speed ranges that shall be supported by the server."
+            details: "This attribute indicates the fan speed ranges that shall be supported by the server."
         }),
 
         Attribute({
@@ -11927,7 +11943,7 @@ export const SpecMatter = Matter(
         Attribute({
             name: "RockSupport", id: 0x7, type: "RockBitmap", access: "R V", conformance: "RCK",
             constraint: "min 1", quality: "F", xref: "cluster§4.4.6.8",
-            details: "Indicates the rocking motions that are supported by the server." +
+            details: "This attribute is a bitmap that indicates the rocking motions that are supported by the server." +
                 "\n" +
                 "If this attribute is supported by the server, at least one bit shall be set in this attribute."
         }),
@@ -11936,9 +11952,9 @@ export const SpecMatter = Matter(
             name: "RockSetting", id: 0x8, type: "RockBitmap", access: "RW VO", conformance: "RCK",
             constraint: "desc", xref: "cluster§4.4.6.9",
 
-            details: "Indicates the currently active fan rocking motion setting. Each bit shall only be set to 1, if the " +
-                "corresponding bit in the RockSupport attribute is set to 1, otherwise a status code of " +
-                "CONSTRAINT_ERROR shall be returned." +
+            details: "This attribute is a bitmap that indicates the currently active fan rocking motion setting. Each bit " +
+                "shall only be set to 1, if the corresponding bit in the RockSupport attribute is set to 1, otherwise " +
+                "a status code of CONSTRAINT_ERROR shall be returned." +
                 "\n" +
                 "If a combination of supported bits is set by a client, and the server does not support the " +
                 "combination, the lowest supported single bit in the combination shall be set and active, and all " +
@@ -11953,7 +11969,7 @@ export const SpecMatter = Matter(
         Attribute({
             name: "WindSupport", id: 0x9, type: "WindBitmap", access: "R V", conformance: "WND",
             constraint: "min 1", quality: "F", xref: "cluster§4.4.6.10",
-            details: "Indicates which wind modes are supported by the server." +
+            details: "This attribute is a bitmap that indicates what wind modes are supported by the server." +
                 "\n" +
                 "If this attribute is supported by the server, at least one bit shall be set in this attribute."
         }),
@@ -11962,9 +11978,9 @@ export const SpecMatter = Matter(
             name: "WindSetting", id: 0xa, type: "WindBitmap", access: "RW VO", conformance: "WND",
             constraint: "desc", xref: "cluster§4.4.6.11",
 
-            details: "Indicates the currently active fan wind feature settings. Each bit shall only be set to 1, if the " +
-                "corresponding bit in the WindSupport attribute is set to 1, otherwise a status code of " +
-                "CONSTRAINT_ERROR shall be returned." +
+            details: "This attribute is a bitmap that indicates the current active fan wind feature settings. Each bit " +
+                "shall only be set to 1, if the corresponding bit in the WindSupport attribute is set to 1, otherwise " +
+                "a status code of CONSTRAINT_ERROR shall be returned." +
                 "\n" +
                 "If a combination of supported bits is set by a client, and the server does not support the " +
                 "combination, the lowest supported single bit in the combination shall be set and active, and all " +
@@ -12124,9 +12140,7 @@ export const SpecMatter = Matter(
             name: "ScheduleProgrammingVisibility", id: 0x2, type: "ScheduleProgrammingVisibilityEnum",
             access: "RW VM", conformance: "O", default: 0, xref: "cluster§4.5.6.3",
 
-            details: "Indicates the visibility of the schedule programming functionality." +
-                "\n" +
-                "The attribute is used to hide the weekly schedule programming functionality or menu on a thermostat " +
+            details: "This attribute is used to hide the weekly schedule programming functionality or menu on a thermostat " +
                 "from a user to prevent local user programming of the weekly schedule. The schedule programming may " +
                 "still be performed via a remote interface, and the thermostat may operate in schedule programming " +
                 "mode." +
@@ -12596,13 +12610,11 @@ export const SpecMatter = Matter(
             name: "LockState", id: 0x0, type: "LockStateEnum", access: "R V", conformance: "M",
             constraint: "desc", quality: "X", xref: "cluster§5.2.9.1",
 
-            details: "Indicates the state of the lock." +
-                "\n" +
-                "This attribute may be NULL if the lock hardware does not currently know the status of the locking " +
+            details: "This attribute may be NULL if the lock hardware does not currently know the status of the locking " +
                 "mechanism. For example, a lock may not know the LockState status after a power cycle until the first " +
                 "lock actuation is completed." +
                 "\n" +
-                "The NotFullyLocked value is used by a lock to indicate that the state of the lock is somewhere " +
+                "The Not Fully Locked value is used by a lock to indicate that the state of the lock is somewhere " +
                 "between Locked and Unlocked so it is only partially secured. For example, a deadbolt could be " +
                 "partially extended and not in a dead latched state."
         }),
@@ -12631,19 +12643,22 @@ export const SpecMatter = Matter(
         Attribute({
             name: "DoorOpenEvents", id: 0x4, type: "uint32", access: "RW VM", conformance: "[DPS]",
             xref: "cluster§5.2.9.5",
-            details: "Indicates the number of door open events that have occurred since it was last zeroed."
+            details: "This attribute shall hold the number of door open events that have occurred since it was last " +
+                "zeroed."
         }),
+
         Attribute({
             name: "DoorClosedEvents", id: 0x5, type: "uint32", access: "RW VM", conformance: "[DPS]",
             xref: "cluster§5.2.9.6",
-            details: "Indicates the number of door closed events that have occurred since it was last zeroed."
+            details: "This attribute shall hold the number of door closed events that have occurred since it was last " +
+                "zeroed."
         }),
 
         Attribute({
             name: "OpenPeriod", id: 0x6, type: "uint16", access: "RW VM", conformance: "[DPS]",
             xref: "cluster§5.2.9.7",
-            details: "Indicates the number of minutes the door has been open since the last time it transitioned from " +
-                "closed to open."
+            details: "This attribute shall hold the number of minutes the door has been open since the last time it " +
+                "transitioned from closed to open."
         }),
 
         Attribute({
@@ -12706,7 +12721,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "CredentialRulesSupport", id: 0x1b, type: "CredentialRulesBitmap", access: "R V",
             conformance: "USR", quality: "F", xref: "cluster§5.2.9.18",
-            details: "Indicates a bitmap with the bits set for the values of CredentialRuleEnum supported on this device."
+            details: "This attribute shall contain a bitmap with the bits set for the values of CredentialRuleEnum " +
+                "supported on this device."
         }),
 
         Attribute({
@@ -12760,7 +12776,8 @@ export const SpecMatter = Matter(
             name: "SupportedOperatingModes", id: 0x26, type: "OperatingModesBitmap", access: "R V",
             conformance: "M", quality: "F", xref: "cluster§5.2.9.25",
 
-            details: "Indicates a bitmap with all operating bits of the OperatingMode attribute supported by the lock." +
+            details: "This attribute shall contain a bitmap with all operating bits of the OperatingMode attribute " +
+                "supported by the lock." +
                 "\n" +
                 "A bit position set to zero shall indicate that the mode is supported. A bit position set to one " +
                 "shall indicate that the mode is not supported." +
@@ -12797,7 +12814,7 @@ export const SpecMatter = Matter(
         Attribute({
             name: "EnableLocalProgramming", id: 0x28, type: "bool", access: "R[W] VA", conformance: "O",
             default: true, xref: "cluster§5.2.9.27",
-            details: "Indicates the local programming state (enable/disable) on the door lock of certain features (see " +
+            details: "This attribute shall enable/disable local programming on the door lock of certain features (see " +
                 "LocalProgrammingFeatures attribute). If this value is set to TRUE then local programming is enabled " +
                 "on the door lock for all features. If it is set to FALSE then local programming is disabled on the " +
                 "door lock for those features whose bit is set to 0 in the LocalProgrammingFeatures attribute. Local " +
@@ -12807,21 +12824,21 @@ export const SpecMatter = Matter(
         Attribute({
             name: "EnableOneTouchLocking", id: 0x29, type: "bool", access: "RW VM", conformance: "O",
             default: true, xref: "cluster§5.2.9.28",
-            details: "Indicates the state (enable/disable) of the ability to lock the door lock with a single touch on the " +
+            details: "This attribute shall enable/disable the ability to lock the door lock with a single touch on the " +
                 "door lock."
         }),
 
         Attribute({
             name: "EnableInsideStatusLed", id: 0x2a, type: "bool", access: "RW VM", conformance: "O",
             default: true, xref: "cluster§5.2.9.29",
-            details: "Indicates the state (enable/disable) of an inside LED that allows the user to see at a glance if the " +
+            details: "This attribute shall enable/disable an inside LED that allows the user to see at a glance if the " +
                 "door is locked."
         }),
 
         Attribute({
             name: "EnablePrivacyModeButton", id: 0x2b, type: "bool", access: "RW VM", conformance: "O",
             default: true, xref: "cluster§5.2.9.30",
-            details: "Indicates whether (enable/disable) a button inside the door that is used to put the lock into " +
+            details: "This attribute shall enable/disable a button inside the door that is used to put the lock into " +
                 "privacy mode. When the lock is in privacy mode it cannot be manipulated from the outside."
         }),
 
@@ -14412,8 +14429,21 @@ export const SpecMatter = Matter(
         ),
 
         Datatype(
+            { name: "AlarmMaskBitmap", type: "map16", xref: "cluster§5.2.6.6" },
+            Field({ name: "LockJammed", constraint: "0", description: "Locking Mechanism Jammed" }),
+            Field({ name: "LockFactoryReset", constraint: "1", description: "Lock Reset to Factory Defaults" }),
+            Field({ name: "LockRadioPowerCycled", constraint: "3", description: "RF Module Power Cycled" }),
+            Field({ name: "WrongCodeEntryLimit", constraint: "4", description: "Tamper Alarm - wrong code entry limit" }),
+            Field({
+                name: "FrontEscutcheonRemoved", constraint: "5",
+                description: "Tamper Alarm - front escutcheon removed from main"
+            }),
+            Field({ name: "DoorForcedOpen", constraint: "6", description: "Forced Door Open under Door Locked Condition" })
+        ),
+
+        Datatype(
             {
-                name: "AlarmCodeEnum", type: "enum8", xref: "cluster§5.2.6.6",
+                name: "AlarmCodeEnum", type: "enum8", xref: "cluster§5.2.6.7",
                 details: "This enumeration shall indicate the alarm type."
             },
             Field({ name: "LockJammed", id: 0x0, conformance: "M", description: "Locking Mechanism Jammed" }),
@@ -14437,7 +14467,7 @@ export const SpecMatter = Matter(
 
         Datatype(
             {
-                name: "CredentialRuleEnum", type: "enum8", xref: "cluster§5.2.6.7",
+                name: "CredentialRuleEnum", type: "enum8", xref: "cluster§5.2.6.8",
                 details: "This enumeration shall indicate the credential rule that can be applied to a particular user."
             },
             Field({
@@ -14456,7 +14486,7 @@ export const SpecMatter = Matter(
 
         Datatype(
             {
-                name: "CredentialTypeEnum", type: "enum8", xref: "cluster§5.2.6.8",
+                name: "CredentialTypeEnum", type: "enum8", xref: "cluster§5.2.6.9",
                 details: "This enumeration shall indicate the credential type."
             },
             Field({ name: "ProgrammingPin", id: 0x0, conformance: "O", description: "Programming PIN code credential type" }),
@@ -14468,7 +14498,7 @@ export const SpecMatter = Matter(
 
             Field({
                 name: "AliroCredentialIssuerKey", id: 0x6, conformance: "ALIRO",
-                description: "A Credential Issuer public key as defined in Aliro", xref: "cluster§5.2.6.8.1",
+                description: "A Credential Issuer public key as defined in Aliro", xref: "cluster§5.2.6.9.1",
 
                 details: "Credentials of this type shall be 65-byte uncompressed elliptic curve public keys as defined in " +
                     "section 2.3.3 of SEC 1." +
@@ -14510,7 +14540,7 @@ export const SpecMatter = Matter(
             Field({
                 name: "AliroEvictableEndpointKey", id: 0x7, conformance: "ALIRO",
                 description: "An Endpoint public key as defined in Aliro which can be evicted if space is needed for another endpoint key",
-                xref: "cluster§5.2.6.8.2",
+                xref: "cluster§5.2.6.9.2",
                 details: "Credentials of this type shall be 65-byte uncompressed elliptic curve public keys as defined in " +
                     "section 2.3.3 of SEC 1."
             }),
@@ -14518,7 +14548,7 @@ export const SpecMatter = Matter(
             Field({
                 name: "AliroNonEvictableEndpointKey", id: 0x8, conformance: "ALIRO",
                 description: "An Endpoint public key as defined in Aliro which cannot be evicted if space is needed for another endpoint key",
-                xref: "cluster§5.2.6.8.3",
+                xref: "cluster§5.2.6.9.3",
                 details: "Credentials of this type shall be 65-byte uncompressed elliptic curve public keys as defined in " +
                     "section 2.3.3 of SEC 1."
             })
@@ -14526,7 +14556,7 @@ export const SpecMatter = Matter(
 
         Datatype(
             {
-                name: "DataOperationTypeEnum", type: "enum8", xref: "cluster§5.2.6.9",
+                name: "DataOperationTypeEnum", type: "enum8", xref: "cluster§5.2.6.10",
                 details: "This enumeration shall indicate the data operation performed."
             },
             Field({ name: "Add", id: 0x0, conformance: "M", description: "Data is being added or was added" }),
@@ -14536,7 +14566,7 @@ export const SpecMatter = Matter(
 
         Datatype(
             {
-                name: "DoorStateEnum", type: "enum8", xref: "cluster§5.2.6.10",
+                name: "DoorStateEnum", type: "enum8", xref: "cluster§5.2.6.11",
                 details: "This enumeration shall indicate the current door state."
             },
             Field({ name: "DoorOpen", id: 0x0, conformance: "DPS", description: "Door state is open" }),
@@ -14555,7 +14585,7 @@ export const SpecMatter = Matter(
 
         Datatype(
             {
-                name: "LockDataTypeEnum", type: "enum8", xref: "cluster§5.2.6.11",
+                name: "LockDataTypeEnum", type: "enum8", xref: "cluster§5.2.6.12",
                 details: "This enumeration shall indicate the data type that is being or has changed."
             },
             Field({
@@ -14618,7 +14648,7 @@ export const SpecMatter = Matter(
 
         Datatype(
             {
-                name: "LockOperationTypeEnum", type: "enum8", xref: "cluster§5.2.6.12",
+                name: "LockOperationTypeEnum", type: "enum8", xref: "cluster§5.2.6.13",
                 details: "This enumeration shall indicate the type of Lock operation performed."
             },
             Field({ name: "Lock", id: 0x0, conformance: "M", description: "Lock operation" }),
@@ -14636,7 +14666,7 @@ export const SpecMatter = Matter(
 
         Datatype(
             {
-                name: "OperationErrorEnum", type: "enum8", xref: "cluster§5.2.6.13",
+                name: "OperationErrorEnum", type: "enum8", xref: "cluster§5.2.6.14",
                 details: "This enumeration shall indicate the error cause of the Lock/Unlock operation performed."
             },
             Field({
@@ -14663,7 +14693,7 @@ export const SpecMatter = Matter(
 
         Datatype(
             {
-                name: "OperatingModeEnum", type: "enum8", xref: "cluster§5.2.6.14",
+                name: "OperatingModeEnum", type: "enum8", xref: "cluster§5.2.6.15",
 
                 details: "This enumeration shall indicate the lock operating mode." +
                     "\n" +
@@ -14681,30 +14711,30 @@ export const SpecMatter = Matter(
             },
 
             Field({
-                name: "Normal", id: 0x0, conformance: "M", xref: "cluster§5.2.6.14.1",
+                name: "Normal", id: 0x0, conformance: "M", xref: "cluster§5.2.6.15.1",
                 details: "The lock operates normally. All interfaces are enabled."
             }),
             Field({
-                name: "Vacation", id: 0x1, conformance: "O", xref: "cluster§5.2.6.14.2",
+                name: "Vacation", id: 0x1, conformance: "O", xref: "cluster§5.2.6.15.2",
                 details: "Only remote interaction is enabled. The keypad shall only be operable by the master user."
             }),
 
             Field({
-                name: "Privacy", id: 0x2, conformance: "O", xref: "cluster§5.2.6.14.3",
+                name: "Privacy", id: 0x2, conformance: "O", xref: "cluster§5.2.6.15.3",
                 details: "This mode is only possible if the door is locked. Manual unlocking changes the mode to Normal " +
                     "operating mode. All external interaction with the door lock is disabled. This mode is intended to be " +
                     "used so that users, presumably inside the property, will have control over the entrance."
             }),
 
             Field({
-                name: "NoRemoteLockUnlock", id: 0x3, conformance: "M", xref: "cluster§5.2.6.14.4",
+                name: "NoRemoteLockUnlock", id: 0x3, conformance: "M", xref: "cluster§5.2.6.15.4",
                 details: "This mode only disables remote interaction with the lock. This does not apply to any remote " +
                     "proprietary means of communication. It specifically applies to the Lock, Unlock, Toggle, and Unlock " +
                     "with Timeout Commands."
             }),
 
             Field({
-                name: "Passage", id: 0x4, conformance: "O", xref: "cluster§5.2.6.14.5",
+                name: "Passage", id: 0x4, conformance: "O", xref: "cluster§5.2.6.15.5",
                 details: "The lock is open or can be opened or closed at will without the use of a Keypad or other means of " +
                     "user validation (e.g. a lock for a business during work hours)."
             })
@@ -14712,7 +14742,7 @@ export const SpecMatter = Matter(
 
         Datatype(
             {
-                name: "OperationSourceEnum", type: "enum8", xref: "cluster§5.2.6.15",
+                name: "OperationSourceEnum", type: "enum8", xref: "cluster§5.2.6.16",
                 details: "This enumeration shall indicate the source of the Lock/Unlock or user change operation performed."
             },
             Field({
@@ -14754,7 +14784,7 @@ export const SpecMatter = Matter(
 
         Datatype(
             {
-                name: "UserStatusEnum", type: "enum8", xref: "cluster§5.2.6.16",
+                name: "UserStatusEnum", type: "enum8", xref: "cluster§5.2.6.17",
                 details: "This enumeration shall indicate what the status is for a specific user ID."
             },
             Field({ name: "Available", id: 0x0, conformance: "M", description: "The user ID is available" }),
@@ -14767,20 +14797,20 @@ export const SpecMatter = Matter(
 
         Datatype(
             {
-                name: "UserTypeEnum", type: "enum8", xref: "cluster§5.2.6.17",
+                name: "UserTypeEnum", type: "enum8", xref: "cluster§5.2.6.18",
                 details: "This enumeration shall indicate what the type is for a specific user ID."
             },
 
             Field({
                 name: "UnrestrictedUser", id: 0x0, conformance: "M",
-                description: "The user ID type is unrestricted", xref: "cluster§5.2.6.17.1",
+                description: "The user ID type is unrestricted", xref: "cluster§5.2.6.18.1",
                 details: "This value shall indicate the user has access 24/7 provided proper PIN or RFID is supplied (e.g., " +
                     "owner)."
             }),
 
             Field({
                 name: "YearDayScheduleUser", id: 0x1, conformance: "O", description: "The user ID type is schedule",
-                xref: "cluster§5.2.6.17.2",
+                xref: "cluster§5.2.6.18.2",
 
                 details: "This value shall indicate the user has the ability to open lock within a specific time period (e.g., " +
                     "guest)." +
@@ -14796,7 +14826,7 @@ export const SpecMatter = Matter(
 
             Field({
                 name: "WeekDayScheduleUser", id: 0x2, conformance: "O", description: "The user ID type is schedule",
-                xref: "cluster§5.2.6.17.3",
+                xref: "cluster§5.2.6.18.3",
 
                 details: "This value shall indicate the user has the ability to open lock based on specific time period within " +
                     "a reoccurring weekly schedule (e.g., cleaning worker)." +
@@ -14812,7 +14842,7 @@ export const SpecMatter = Matter(
 
             Field({
                 name: "ProgrammingUser", id: 0x3, conformance: "O", description: "The user ID type is programming",
-                xref: "cluster§5.2.6.17.4",
+                xref: "cluster§5.2.6.18.4",
                 details: "This value shall indicate the user has the ability to both program and operate the door lock. This " +
                     "user can manage the users and user schedules. In all other respects this user matches the " +
                     "unrestricted (default) user. ProgrammingUser is the only user that can disable the user interface " +
@@ -14821,7 +14851,7 @@ export const SpecMatter = Matter(
 
             Field({
                 name: "NonAccessUser", id: 0x4, conformance: "O", description: "The user ID type is non access",
-                xref: "cluster§5.2.6.17.5",
+                xref: "cluster§5.2.6.18.5",
                 details: "This value shall indicate the user is recognized by the lock but does not have the ability to open " +
                     "the lock. This user will only cause the lock to generate the appropriate event notification to any " +
                     "bound devices."
@@ -14829,7 +14859,7 @@ export const SpecMatter = Matter(
 
             Field({
                 name: "ForcedUser", id: 0x5, conformance: "[USR]", description: "The user ID type is forced",
-                xref: "cluster§5.2.6.17.6",
+                xref: "cluster§5.2.6.18.6",
                 details: "This value shall indicate the user has the ability to open lock but a ForcedUser LockOperationType " +
                     "and ForcedUser silent alarm will be emitted to allow a notified Node to alert emergency services or " +
                     "contacts on the user account when used."
@@ -14837,14 +14867,14 @@ export const SpecMatter = Matter(
 
             Field({
                 name: "DisposableUser", id: 0x6, conformance: "[USR]",
-                description: "The user ID type is disposable", xref: "cluster§5.2.6.17.7",
+                description: "The user ID type is disposable", xref: "cluster§5.2.6.18.7",
                 details: "This value shall indicate the user has the ability to open lock once after which the lock shall " +
                     "change the corresponding user record UserStatus value to OccupiedDisabled automatically."
             }),
 
             Field({
                 name: "ExpiringUser", id: 0x7, conformance: "[USR]", description: "The user ID type is expiring",
-                xref: "cluster§5.2.6.17.8",
+                xref: "cluster§5.2.6.18.8",
                 details: "This value shall indicate the user has the ability to open lock for ExpiringUserTimeout attribute " +
                     "minutes after the first use of the PIN code, RFID code, Fingerprint, or other credential. After " +
                     "ExpiringUserTimeout minutes the corresponding user record UserStatus value shall be set to " +
@@ -14854,7 +14884,7 @@ export const SpecMatter = Matter(
 
             Field({
                 name: "ScheduleRestrictedUser", id: 0x8, conformance: "WDSCH | YDSCH",
-                description: "The user ID type is schedule restricted", xref: "cluster§5.2.6.17.9",
+                description: "The user ID type is schedule restricted", xref: "cluster§5.2.6.18.9",
 
                 details: "This value shall indicate the user access is restricted by Week Day and/or Year Day schedule." +
                     "\n" +
@@ -14875,7 +14905,7 @@ export const SpecMatter = Matter(
 
             Field({
                 name: "RemoteOnlyUser", id: 0x9, conformance: "USR & COTA & PIN",
-                description: "The user ID type is remote only", xref: "cluster§5.2.6.17.10",
+                description: "The user ID type is remote only", xref: "cluster§5.2.6.18.10",
                 details: "This value shall indicate the user access and PIN code is restricted to remote lock/unlock commands " +
                     "only. This type of user might be useful for regular delivery services or voice assistant unlocking " +
                     "operations to prevent a PIN code credential created for them from being used at the keypad. The PIN " +
@@ -14884,7 +14914,7 @@ export const SpecMatter = Matter(
         ),
 
         Datatype(
-            { name: "LockStateEnum", type: "enum8", xref: "cluster§5.2.6.18" },
+            { name: "LockStateEnum", type: "enum8", xref: "cluster§5.2.6.19" },
             Field({ name: "NotFullyLocked", id: 0x0, conformance: "M", description: "Lock state is not fully locked" }),
             Field({ name: "Locked", id: 0x1, conformance: "M", description: "Lock state is fully locked" }),
             Field({ name: "Unlocked", id: 0x2, conformance: "M", description: "Lock state is fully unlocked" }),
@@ -14895,7 +14925,7 @@ export const SpecMatter = Matter(
         ),
 
         Datatype(
-            { name: "LockTypeEnum", type: "enum8", xref: "cluster§5.2.6.19" },
+            { name: "LockTypeEnum", type: "enum8", xref: "cluster§5.2.6.20" },
             Field({ name: "DeadBolt", id: 0x0, conformance: "M", description: "Physical lock type is dead bolt" }),
             Field({ name: "Magnetic", id: 0x1, conformance: "M", description: "Physical lock type is magnetic" }),
             Field({ name: "Other", id: 0x2, conformance: "M", description: "Physical lock type is other" }),
@@ -14917,7 +14947,7 @@ export const SpecMatter = Matter(
         ),
 
         Datatype(
-            { name: "LEDSettingEnum", type: "enum8", xref: "cluster§5.2.6.20" },
+            { name: "LEDSettingEnum", type: "enum8", xref: "cluster§5.2.6.21" },
             Field({ name: "NoLedSignal", id: 0x0, conformance: "M", description: "Never use LED for signalization" }),
             Field({
                 name: "NoLedSignalAccessAllowed", id: 0x1, conformance: "M",
@@ -14927,7 +14957,7 @@ export const SpecMatter = Matter(
         ),
 
         Datatype(
-            { name: "SoundVolumeEnum", type: "enum8", xref: "cluster§5.2.6.21" },
+            { name: "SoundVolumeEnum", type: "enum8", xref: "cluster§5.2.6.22" },
             Field({ name: "Silent", id: 0x0, conformance: "M", description: "Silent Mode" }),
             Field({ name: "Low", id: 0x1, conformance: "M", description: "Low Volume" }),
             Field({ name: "High", id: 0x2, conformance: "M", description: "High Volume" }),
@@ -14935,7 +14965,7 @@ export const SpecMatter = Matter(
         ),
 
         Datatype(
-            { name: "EventTypeEnum", type: "enum8", xref: "cluster§5.2.6.22" },
+            { name: "EventTypeEnum", type: "enum8", xref: "cluster§5.2.6.23" },
             Field({ name: "Operation", id: 0x0, conformance: "M", description: "Event type is operation" }),
             Field({ name: "Programming", id: 0x1, conformance: "M", description: "Event type is programming" }),
             Field({ name: "Alarm", id: 0x2, conformance: "M", description: "Event type is alarm" })
@@ -14943,18 +14973,18 @@ export const SpecMatter = Matter(
 
         Datatype(
             {
-                name: "CredentialStruct", type: "struct", xref: "cluster§5.2.6.23",
+                name: "CredentialStruct", type: "struct", xref: "cluster§5.2.6.24",
                 details: "This struct shall indicate the credential types and their corresponding indices (if any) for the " +
                     "event or user record."
             },
             Field({
                 name: "CredentialType", id: 0x0, type: "CredentialTypeEnum", conformance: "M",
-                xref: "cluster§5.2.6.23.1",
+                xref: "cluster§5.2.6.24.1",
                 details: "This field shall indicate the credential field used to authorize the lock operation."
             }),
 
             Field({
-                name: "CredentialIndex", id: 0x1, type: "uint16", conformance: "M", xref: "cluster§5.2.6.23.2",
+                name: "CredentialIndex", id: 0x1, type: "uint16", conformance: "M", xref: "cluster§5.2.6.24.2",
                 details: "This field shall indicate the index of the specific credential used to authorize the lock operation " +
                     "in the list of credentials identified by CredentialType (e.g. PIN, RFID, etc.). This field shall be " +
                     "set to 0 if CredentialType is ProgrammingPIN or does not correspond to a list that can be indexed " +
@@ -15008,7 +15038,7 @@ export const SpecMatter = Matter(
             name: "Type", id: 0x0, type: "TypeEnum", access: "R V", conformance: "M", constraint: "desc",
             default: 0, quality: "F", xref: "cluster§5.3.6.2",
 
-            details: "Indicates the type of window covering." +
+            details: "This attribute shall identify the type of window covering." +
                 "\n" +
                 "If the window covering supports the LF feature and not the TL feature, the following types shall be " +
                 "used as the constraint for this attribute:" +
@@ -15037,7 +15067,7 @@ export const SpecMatter = Matter(
         Attribute({
             name: "ConfigStatus", id: 0x7, type: "ConfigStatusBitmap", access: "R V", conformance: "M",
             constraint: "desc", quality: "N", xref: "cluster§5.3.6.5",
-            details: "Indicates the configuration and status information of the window covering." +
+            details: "This attribute specifies the configuration and status information of the window covering." +
                 "\n" +
                 "To change settings, devices shall write to the Mode attribute. The behavior causing the setting or " +
                 "clearing of each bit is vendor specific."
@@ -15081,7 +15111,7 @@ export const SpecMatter = Matter(
             name: "EndProductType", id: 0xd, type: "EndProductTypeEnum", access: "R V", conformance: "M",
             constraint: "desc", default: 0, quality: "F", xref: "cluster§5.3.6.13",
 
-            details: "Indicates the product type and is intended to provide more detail than can be determined from the " +
+            details: "This attribute SHOULD provide more detail about the product type than can be determined from the " +
                 "main category indicated by the Type attribute." +
                 "\n" +
                 "If the window covering supports the LF feature and not the TL feature, the following types shall be " +
@@ -15116,9 +15146,9 @@ export const SpecMatter = Matter(
             name: "Mode", id: 0x17, type: "ModeBitmap", access: "RW VM", conformance: "M", constraint: "max 15",
             default: 0, quality: "N", xref: "cluster§5.3.6.14",
 
-            details: "Indicates the configuration of the window covering, such as: reversing the motor direction, placing " +
-                "the window covering into calibration mode, placing the motor into maintenance mode, disabling the " +
-                "network, and disabling status LEDs." +
+            details: "The Mode attribute allows configuration of the window covering, such as: reversing the motor " +
+                "direction, placing the window covering into calibration mode, placing the motor into maintenance " +
+                "mode, disabling the network, and disabling status LEDs." +
                 "\n" +
                 "In the case a device does not support or implement a specific mode, e.g. the device has a specific " +
                 "installation method and reversal is not relevant or the device does not include a maintenance mode, " +
@@ -15129,9 +15159,9 @@ export const SpecMatter = Matter(
         Attribute({
             name: "SafetyStatus", id: 0x1a, type: "SafetyStatusBitmap", access: "R V", conformance: "O",
             constraint: "desc", default: 0, xref: "cluster§5.3.6.15",
-            details: "Indicates the state of the safety sensors and the common issues preventing movements. By default for " +
-                "nominal operation all flags are cleared (0). A device might support none, one or several bit flags " +
-                "from this attribute (all optional)."
+            details: "The SafetyStatus attribute reflects the state of the safety sensors and the common issues preventing " +
+                "movements. By default for nominal operation all flags are cleared (0). A device might support none, " +
+                "one or several bit flags from this attribute (all optional)."
         }),
 
         Command({
@@ -15227,7 +15257,13 @@ export const SpecMatter = Matter(
                     "Upon receipt of this command, the server will adjust the window covering to the lift/slide " +
                     "percentage specified in the payload of this command." +
                     "\n" +
-                    "The TargetPositionLiftPercent100ths attribute shall be set to LiftPercent100thsValue." +
+                    "If the command includes LiftPercent100thsValue, then TargetPositionLiftPercent100ths attribute shall " +
+                    "be set to LiftPercent100thsValue. Otherwise the TargetPositionLiftPercent100ths attribute shall be " +
+                    "set to LiftPercentageValue * 100." +
+                    "\n" +
+                    "If a client includes LiftPercent100thsValue in the command, the LiftPercentageValue shall be set to " +
+                    "LiftPercent100thsValue / 100, so a legacy server which only supports LiftPercentageValue (not " +
+                    "LiftPercent100thsValue) has a value to set the target position." +
                     "\n" +
                     "If the server does not support the PositionAware feature, then a zero percentage shall be treated as " +
                     "a UpOrOpen command and a non-zero percentage shall be treated as an DownOrClose command. If the " +
@@ -15249,11 +15285,17 @@ export const SpecMatter = Matter(
                     "Upon receipt of this command, the server will adjust the window covering to the tilt percentage " +
                     "specified in the payload of this command." +
                     "\n" +
-                    "The TargetPositionTiltPercent100ths attribute shall be set to TiltPercent100thsValue." +
+                    "If the command includes TiltPercent100thsValue, then TargetPositionTiltPercent100ths attribute shall " +
+                    "be set to TiltPercent100thsValue. Otherwise the TargetPositionTiltPercent100ths attribute shall be " +
+                    "set to TiltPercentageValue * 100." +
+                    "\n" +
+                    "If a client includes TiltPercent100thsValue in the command, the TiltPercentageValue shall be set to " +
+                    "TiltPercent100thsValue / 100, so a legacy server which only supports TiltPercentageValue (not " +
+                    "TiltPercent100thsValue) has a value to set the target position." +
                     "\n" +
                     "If the server does not support the PositionAware feature, then a zero percentage shall be treated as " +
                     "a UpOrOpen command and a non-zero percentage shall be treated as an DownOrClose command. If the " +
-                    "device is only a lift control device, then the command SHOULD be ignored and a UNSUPPORTED_COMMAND " +
+                    "device is only a tilt control device, then the command SHOULD be ignored and a UNSUPPORTED_COMMAND " +
                     "status SHOULD be returned."
             },
 
@@ -15687,7 +15729,7 @@ export const SpecMatter = Matter(
         Attribute({
             name: "LatchControlModes", id: 0x5, type: "LatchControlModesBitmap", access: "R V",
             conformance: "LT", quality: "F", xref: "cluster§5.4.7.6",
-            details: "Indicates whether the latch mechanism can be latched or unlatched remotely."
+            details: "This attribute shall specify whether the latch mechanism can be latched or unlatched remotely."
         }),
 
         Event(
@@ -16378,7 +16420,7 @@ export const SpecMatter = Matter(
         Attribute({
             name: "LatchControlModes", id: 0xb, type: "LatchControlModesBitmap", access: "R V",
             conformance: "LT", quality: "F", xref: "cluster§5.5.7.12",
-            details: "Indicates whether the latch mechanism can be latched or unlatched remotely."
+            details: "This attribute shall specify whether the latch mechanism can be latched or unlatched remotely."
         }),
 
         Command(
@@ -20605,9 +20647,7 @@ export const SpecMatter = Matter(
         Attribute({
             name: "SupportedModes", id: 0x0, xref: "cluster§7.2.6.1",
 
-            details: "Indicates the list of supported modes." +
-                "\n" +
-                "At least one entry in the SupportedModes attribute shall include the Idle mode tag in the ModeTags " +
+            details: "At least one entry in the SupportedModes attribute shall include the Idle mode tag in the ModeTags " +
                 "field." +
                 "\n" +
                 "At least one entry in the SupportedModes attribute (different from the one above) shall include the " +
@@ -20712,12 +20752,9 @@ export const SpecMatter = Matter(
 
         Attribute({
             name: "SupportedModes", id: 0x0, xref: "cluster§7.3.6.1",
-            details: "Indicates the list of supported modes." +
-                "\n" +
-                "At least one entry in the SupportedModes attribute shall include the Vacuum and/or the Mop mode tag " +
+            details: "At least one entry in the SupportedModes attribute shall include the Vacuum and/or the Mop mode tag " +
                 "in the ModeTags field list."
         }),
-
         Attribute({ name: "CurrentMode", id: 0x1, xref: "cluster§7.3.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§7.3.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§7.3.6" }),
@@ -21084,12 +21121,9 @@ export const SpecMatter = Matter(
 
         Attribute({
             name: "SupportedModes", id: 0x0, conformance: "M", xref: "cluster§8.3.6.1",
-            details: "Indicates the list of supported modes." +
-                "\n" +
-                "At least one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags " +
+            details: "At least one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags " +
                 "field list."
         }),
-
         Attribute({ name: "CurrentMode", id: 0x1, conformance: "M", xref: "cluster§8.3.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§8.3.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§8.3.6" }),
@@ -21161,12 +21195,9 @@ export const SpecMatter = Matter(
 
         Attribute({
             name: "SupportedModes", id: 0x0, conformance: "M", xref: "cluster§8.5.6.1",
-            details: "Indicates the list of supported modes." +
-                "\n" +
-                "At least one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags " +
+            details: "At least one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags " +
                 "field list."
         }),
-
         Attribute({ name: "CurrentMode", id: 0x1, conformance: "M", xref: "cluster§8.5.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§8.5.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§8.5.6" }),
@@ -21323,12 +21354,9 @@ export const SpecMatter = Matter(
 
         Attribute({
             name: "SupportedModes", id: 0x0, conformance: "M", xref: "cluster§8.7.6.1",
-            details: "Indicates the list of supported modes." +
-                "\n" +
-                "At least one entry in the SupportedModes attribute shall include the Auto mode tag in the ModeTags " +
+            details: "At least one entry in the SupportedModes attribute shall include the Auto mode tag in the ModeTags " +
                 "field list."
         }),
-
         Attribute({ name: "CurrentMode", id: 0x1, conformance: "M", xref: "cluster§8.7.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§8.7.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§8.7.6" }),
@@ -21492,12 +21520,9 @@ export const SpecMatter = Matter(
 
         Attribute({
             name: "SupportedModes", id: 0x0, xref: "cluster§8.11.6.1",
-            details: "Indicates the list of supported modes." +
-                "\n" +
-                "At least one entry in the SupportedModes attribute shall include the Bake mode tag in the ModeTags " +
+            details: "At least one entry in the SupportedModes attribute shall include the Bake mode tag in the ModeTags " +
                 "field list."
         }),
-
         Attribute({ name: "CurrentMode", id: 0x1, xref: "cluster§8.11.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§8.11.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§8.11.6" }),
@@ -21591,10 +21616,7 @@ export const SpecMatter = Matter(
 
         Attribute({
             name: "SupportedModes", id: 0x0, xref: "cluster§8.12.5.1",
-
-            details: "Indicates the list of supported modes." +
-                "\n" +
-                "Exactly one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags " +
+            details: "Exactly one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags " +
                 "field." +
                 "\n" +
                 "The Normal and Defrost mode tags are mutually exclusive and shall NOT both be used together in a " +
@@ -22261,7 +22283,8 @@ export const SpecMatter = Matter(
             name: "Forecast", id: 0x6, type: "ForecastStruct", access: "R V", conformance: "PFR | SFR",
             quality: "X Q", xref: "cluster§9.2.8.7",
 
-            details: "Indicates the forecast from e.g. an ESA." +
+            details: "This attribute allows an ESA to share its intended forecast with a client (such as an Energy " +
+                "Management System)." +
                 "\n" +
                 "A null value indicates that there is no forecast currently available (for example, a program has not " +
                 "yet been selected by the user)." +
@@ -24192,9 +24215,7 @@ export const SpecMatter = Matter(
         Attribute({
             name: "SupportedModes", id: 0x0, xref: "cluster§9.4.6.1",
 
-            details: "Indicates the list of supported modes." +
-                "\n" +
-                "At least one entry in the SupportedModes attribute shall include the Manual mode tag in the ModeTags " +
+            details: "At least one entry in the SupportedModes attribute shall include the Manual mode tag in the ModeTags " +
                 "field list." +
                 "\n" +
                 "Modes with entries in the SupportedModes attribute which contain multiple mode tags permitting " +
@@ -24524,9 +24545,7 @@ export const SpecMatter = Matter(
         Attribute({
             name: "SupportedModes", id: 0x0, xref: "cluster§9.6.6.1",
 
-            details: "Indicates the list of supported modes." +
-                "\n" +
-                "At least one entry in the SupportedModes attribute shall include the Manual mode tag in the ModeTags " +
+            details: "At least one entry in the SupportedModes attribute shall include the Manual mode tag in the ModeTags " +
                 "field list." +
                 "\n" +
                 "At least one entry in the SupportedModes attribute shall include the Off mode tag in the ModeTags " +
@@ -24762,9 +24781,7 @@ export const SpecMatter = Matter(
         Attribute({
             name: "SupportedModes", id: 0x0, xref: "cluster§9.8.6.1",
 
-            details: "Indicates the list of supported modes." +
-                "\n" +
-                "At least one entry in the SupportedModes attribute shall include the NoOptimization mode tag in the " +
+            details: "At least one entry in the SupportedModes attribute shall include the NoOptimization mode tag in the " +
                 "ModeTags field." +
                 "\n" +
                 "At least one entry in the SupportedModes attribute shall include the LocalOptimization mode tag in " +
@@ -25135,8 +25152,8 @@ export const SpecMatter = Matter(
             {
                 name: "MeteredQuantity", id: 0x0, type: "list", access: "R V", conformance: "M",
                 constraint: "max maximumMeteredQuantities", quality: "X", xref: "cluster§9.11.5.1",
-                details: "Indicates the most recent summed value of a commodity delivered to and consumed in the premises. A " +
-                    "null value indicates that metering data is currently unavailable."
+                details: "The most recent summed value of a commodity delivered to and consumed in the premises. A null value " +
+                    "indicates that metering data is currently unavailable."
             },
 
             Field({ name: "entry", type: "MeteredQuantityStruct" })
@@ -25145,8 +25162,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "MeteredQuantityTimestamp", id: 0x1, type: "epoch-s", access: "R V", conformance: "M",
             quality: "X", xref: "cluster§9.11.5.2",
-            details: "Indicates the timestamp in UTC for when the value of the MeteredQuantity attribute was last updated. " +
-                "A null value indicates that metering data is currently unavailable."
+            details: "The timestamp in UTC for when the value of the MeteredQuantity attribute was last updated. A null " +
+                "value indicates that metering data is currently unavailable."
         }),
 
         Attribute({
@@ -26065,8 +26082,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "LocalGenerationAvailable", id: 0x0, type: "bool", access: "RW VO", conformance: "M",
             quality: "X", xref: "cluster§9.13.6.1",
-            details: "Indicates if there is known to be local generation (for example Solar PV or Battery Storage) at the " +
-                "premises." +
+            details: "This shall indicate if there is known to be local generation (for example Solar PV or Battery " +
+                "Storage) at the premises." +
                 "\n" +
                 "If the presence of any local generation is unknown, or cannot be determined, the value shall be " +
                 "null."
@@ -26075,8 +26092,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "CurrentConditions", id: 0x1, type: "ElectricalGridConditionsStruct", access: "R V",
             conformance: "M", quality: "X", xref: "cluster§9.13.6.2",
-            details: "Indicates the current electricity supply conditions. If the current conditions are unknown, or " +
-                "cannot be determined, the value shall be null."
+            details: "This shall indicate the current electricity supply conditions. If the current conditions are " +
+                "unknown, or cannot be determined, the value shall be null."
         }),
 
         Attribute(
@@ -26084,8 +26101,8 @@ export const SpecMatter = Matter(
                 name: "ForecastConditions", id: 0x2, type: "list", access: "R V", conformance: "FORE",
                 constraint: "max 56", xref: "cluster§9.13.6.3",
 
-                details: "Indicates the forecast of upcoming electricity supply conditions. If the forecast is unable to be " +
-                    "determined, this list shall be empty." +
+                details: "This shall indicate the forecast of upcoming electricity supply conditions. If the forecast is " +
+                    "unable to be determined, this list shall be empty." +
                     "\n" +
                     "The list entries shall be in time order:" +
                     "\n" +
@@ -26230,8 +26247,8 @@ export const SpecMatter = Matter(
             name: "PassphraseSurrogate", id: 0x1, type: "uint64", access: "R M", conformance: "M",
             quality: "X N", xref: "cluster§10.2.4.2",
 
-            details: "Indicates an arbitrary numeric value; this value shall increase whenever the passphrase or PSK " +
-                "associated with the primary Wi-Fi network provided by this device changes." +
+            details: "This attribute shall contain an arbitrary numeric value; this value shall increase whenever the " +
+                "passphrase or PSK associated with the primary Wi-Fi network provided by this device changes." +
                 "\n" +
                 "A value of null shall indicate that no primary Wi-Fi network is available." +
                 "\n" +
@@ -26356,10 +26373,7 @@ export const SpecMatter = Matter(
         Attribute({
             name: "ActiveDatasetTimestamp", id: 0x4, type: "uint64", access: "R V", conformance: "M",
             quality: "X N", xref: "cluster§10.3.5.5",
-
-            details: "Indicates the timestamp of the active dataset." +
-                "\n" +
-                "Null if the Thread Border Router has no dataset configured, otherwise it shall be the timestamp " +
+            details: "Null if the Thread Border Router has no dataset configured, otherwise it shall be the timestamp " +
                 "value extracted from the Active Dataset value configured by the Thread Node to which the border " +
                 "router is connected. This attribute shall be updated when a new Active dataset is configured on the " +
                 "Thread network to which the border router is connected."
@@ -26368,10 +26382,7 @@ export const SpecMatter = Matter(
         Attribute({
             name: "PendingDatasetTimestamp", id: 0x5, type: "uint64", access: "R V", conformance: "M",
             quality: "X N", xref: "cluster§10.3.5.6",
-
-            details: "Indicates the timestamp of the pending dataset." +
-                "\n" +
-                "Null if the Thread Border Router has no Pending dataset configured, otherwise it shall be the " +
+            details: "Null if the Thread Border Router has no Pending dataset configured, otherwise it shall be the " +
                 "timestamp value extracted from the Pending Dataset value configured by the Thread Node to which the " +
                 "border router is connected. This attribute shall be updated when a new Pending dataset is configured " +
                 "on the Thread network to which the border router is connected."
@@ -26814,8 +26825,8 @@ export const SpecMatter = Matter(
             {
                 name: "RateDistortionTradeOffPoints", id: 0x5, type: "list", access: "R V", conformance: "VDO",
                 quality: "F", xref: "cluster§11.2.7.6",
-                details: "Indicates this attribute shall list the set of rate distortion trade-off points between resolution, " +
-                    "frame rate and bitrate for each supported hardware encoder."
+                details: "This attribute shall list the set of rate distortion trade-off points between resolution, frame rate " +
+                    "and bitrate for each supported hardware encoder."
             },
 
             Field({ name: "entry", type: "RateDistortionTradeOffPointsStruct" })
@@ -26879,8 +26890,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "HdrModeEnabled", id: 0xd, type: "bool", access: "RW M", conformance: "HDR", quality: "N",
             xref: "cluster§11.2.7.14",
-            details: "Indicates the currently selected High Dynamic Range (HDR) mode. A value of TRUE indicates that HDR " +
-                "video capturing is enabled. Otherwise, HDR video capturing is disabled."
+            details: "This attribute indicates the currently selected High Dynamic Range (HDR) mode. A value of TRUE " +
+                "indicates that HDR video capturing is enabled. Otherwise, HDR video capturing is disabled."
         }),
 
         Attribute(
@@ -26945,11 +26956,11 @@ export const SpecMatter = Matter(
             name: "SoftRecordingPrivacyModeEnabled", id: 0x13, type: "bool", access: "RW VO",
             conformance: "PRIV", quality: "N", xref: "cluster§11.2.7.20",
 
-            details: "Indicates the current value of the soft privacy mode for transports using the Stream Usage types " +
-                "Recording and Analysis. A value of TRUE indicates that delivery of video frames and audio samples " +
-                "from any streams to these transports is skipped. A value of TRUE also indicates that no new " +
-                "transports using these stream usage values can be created or started. When FALSE, these transports " +
-                "can be resumed or started, and have video frames and audio samples delivered." +
+            details: "This attribute indicates the current value of the soft privacy mode for transports using the Stream " +
+                "Usage types Recording and Analysis. A value of TRUE indicates that delivery of video frames and " +
+                "audio samples from any streams to these transports is skipped. A value of TRUE also indicates that " +
+                "no new transports using these stream usage values can be created or started. When FALSE, these " +
+                "transports can be resumed or started, and have video frames and audio samples delivered." +
                 "\n" +
                 "When this attribute is set to TRUE, any active WebRTC transports using these stream usage types " +
                 "shall terminate the session by calling End using WebRTCEndReasonEnum PrivacyMode."
@@ -26959,11 +26970,11 @@ export const SpecMatter = Matter(
             name: "SoftLivestreamPrivacyModeEnabled", id: 0x14, type: "bool", access: "RW VO",
             conformance: "PRIV", quality: "N", xref: "cluster§11.2.7.21",
 
-            details: "Indicates the current value of the soft privacy mode for transports using the Stream Usage type " +
-                "LiveView. A value of TRUE indicates that delivery of video frames and audio samples from any streams " +
-                "to these transports is skipped. A value of TRUE also indicates that no new transports using this " +
-                "stream usage type can be created or started. When FALSE, these transports can be resumed or started, " +
-                "and have video frames and audio samples delivered." +
+            details: "This attribute indicates the current value of the soft privacy mode for transports using the Stream " +
+                "Usage type LiveView. A value of TRUE indicates that delivery of video frames and audio samples from " +
+                "any streams to these transports is skipped. A value of TRUE also indicates that no new transports " +
+                "using this stream usage type can be created or started. When FALSE, these transports can be resumed " +
+                "or started, and have video frames and audio samples delivered." +
                 "\n" +
                 "When this attribute is set to TRUE, any active WebRTC transports using this stream usage type shall " +
                 "terminate the session by calling End using WebRTCEndReasonEnum PrivacyMode."
@@ -26972,35 +26983,35 @@ export const SpecMatter = Matter(
         Attribute({
             name: "HardPrivacyModeOn", id: 0x15, type: "bool", access: "R V", conformance: "O", default: true,
             xref: "cluster§11.2.7.22",
-            details: "Indicates the current value of the hard privacy mode for all streams. This is controlled via a " +
-                "physical button or switch, potentially. A value of TRUE indicates that all streams are currently " +
-                "paused. When FALSE, the streams may resume if they are not already paused by their corresponding " +
-                "soft privacy mode."
+            details: "This attribute indicates the current value of the hard privacy mode for all streams. This is " +
+                "controlled via a physical button or switch, potentially. A value of TRUE indicates that all streams " +
+                "are currently paused. When FALSE, the streams may resume if they are not already paused by their " +
+                "corresponding soft privacy mode."
         }),
 
         Attribute({
             name: "NightVision", id: 0x16, type: "TriStateAutoEnum", access: "RW M", conformance: "NV",
             quality: "N", xref: "cluster§11.2.7.23",
-            details: "Indicates the currently selected Night Vision mode. A value of Off means the device will never " +
-                "activate its Night Vision mode of operation. A value of On means the Night Vision mode of operation " +
-                "is always active. A value of Auto means the device will automatically move between active and " +
-                "inactive based on the light level it detects."
+            details: "This attribute indicates the currently selected Night Vision mode. A value of Off means the device " +
+                "will never activate its Night Vision mode of operation. A value of On means the Night Vision mode of " +
+                "operation is always active. A value of Auto means the device will automatically move between active " +
+                "and inactive based on the light level it detects."
         }),
 
         Attribute({
             name: "NightVisionIllum", id: 0x17, type: "TriStateAutoEnum", access: "RW M", conformance: "[NV]",
             quality: "N", xref: "cluster§11.2.7.24",
-            details: "Indicates the currently selected the Night Vision Illumination mode. A value of Off means the device " +
-                "will never activate its built-in Night Vision Illumination. A value of On means the built-in Night " +
-                "Vision Illumination is always active. A value of Auto means the device will automatically enable its " +
-                "built-in Night Vision Illumination based on the light level it detects."
+            details: "This attribute indicates the currently selected the Night Vision Illumination mode. A value of Off " +
+                "means the device will never activate its built-in Night Vision Illumination. A value of On means the " +
+                "built-in Night Vision Illumination is always active. A value of Auto means the device will " +
+                "automatically enable its built-in Night Vision Illumination based on the light level it detects."
         }),
 
         Attribute({
             name: "Viewport", id: 0x18, type: "ViewportStruct", access: "RW M", conformance: "VDO",
             quality: "N", xref: "cluster§11.2.7.25",
 
-            details: "Indicates the viewport to apply to all streams." +
+            details: "This attribute shall be a ViewportStruct representing the viewport to apply to all streams." +
                 "\n" +
                 "The coordinate values represent the upper left corner and lower right corner coordinates of the " +
                 "source rectangle on the sensor. The coordinate values are within the two-dimensional Cartesian plane " +
@@ -27021,62 +27032,65 @@ export const SpecMatter = Matter(
         Attribute({
             name: "SpeakerMuted", id: 0x19, type: "bool", access: "RW M", conformance: "SPKR", quality: "N",
             xref: "cluster§11.2.7.26",
-            details: "Indicates whether the speaker is currently muted or not. A value of TRUE indicates that the speaker " +
-                "has been muted and shall not play anything. A value of FALSE indicates that the Speaker is enabled."
+            details: "This attribute indicates whether the speaker is currently muted or not. A value of TRUE indicates " +
+                "that the speaker has been muted and shall not play anything. A value of FALSE indicates that the " +
+                "Speaker is enabled."
         }),
 
         Attribute({
             name: "SpeakerVolumeLevel", id: 0x1a, type: "uint8", access: "RW M", conformance: "SPKR",
             constraint: "speakerMinLevel to speakerMaxLevel", quality: "N", xref: "cluster§11.2.7.27",
-            details: "Indicates the current volume level of the speaker."
+            details: "This attribute indicates the current volume level of the speaker."
         }),
         Attribute({
             name: "SpeakerMaxLevel", id: 0x1b, type: "uint8", access: "R M", conformance: "SPKR",
             constraint: "speakerMinLevel to 254", xref: "cluster§11.2.7.28",
-            details: "Indicates the maximum value of the SpeakerVolumeLevel that can be assigned."
+            details: "This attribute indicates the maximum value of the SpeakerVolumeLevel that can be assigned."
         }),
         Attribute({
             name: "SpeakerMinLevel", id: 0x1c, type: "uint8", access: "R M", conformance: "SPKR",
             constraint: "max speakerMaxLevel", xref: "cluster§11.2.7.29",
-            details: "Indicates the minimum value of the SpeakerVolumeLevel that can be assigned."
+            details: "This attribute indicates the minimum value of the SpeakerVolumeLevel that can be assigned."
         }),
 
         Attribute({
             name: "MicrophoneMuted", id: 0x1d, type: "bool", access: "RW M", conformance: "ADO", quality: "N",
             xref: "cluster§11.2.7.30",
-            details: "Indicates whether the microphone is currently muted or not. A value of TRUE indicates that the " +
-                "microphone has been muted. In this state, the microphone data shall be replaced with all 0 bits, " +
-                "representing silence. A value of FALSE indicates that the microphone is On and is capable of " +
+            details: "This attribute indicates whether the microphone is currently muted or not. A value of TRUE indicates " +
+                "that the microphone has been muted. In this state, the microphone data shall be replaced with all 0 " +
+                "bits, representing silence. A value of FALSE indicates that the microphone is On and is capable of " +
                 "transmitting audio."
         }),
 
         Attribute({
             name: "MicrophoneVolumeLevel", id: 0x1e, type: "uint8", access: "RW M", conformance: "ADO",
             constraint: "microphoneMinLevel to microphoneMaxLevel", quality: "N", xref: "cluster§11.2.7.31",
-            details: "Indicates the current gain or volume level of the microphone."
+            details: "This attribute indicates the current gain or volume level of the microphone."
         }),
         Attribute({
             name: "MicrophoneMaxLevel", id: 0x1f, type: "uint8", access: "R M", conformance: "ADO",
             constraint: "microphoneMinLevel to 254", xref: "cluster§11.2.7.32",
-            details: "Indicates the maximum value of the MicrophoneVolumeLevel that can be assigned."
+            details: "This attribute indicates the maximum value of the MicrophoneVolumeLevel that can be assigned."
         }),
         Attribute({
             name: "MicrophoneMinLevel", id: 0x20, type: "uint8", access: "R M", conformance: "ADO",
             constraint: "max microphoneMaxLevel", xref: "cluster§11.2.7.33",
-            details: "Indicates the minimum value of the MicrophoneVolumeLevel that can be assigned."
+            details: "This attribute indicates the minimum value of the MicrophoneVolumeLevel that can be assigned."
         }),
 
         Attribute({
             name: "MicrophoneAgcEnabled", id: 0x21, type: "bool", access: "RW M", conformance: "[ADO]",
             default: true, quality: "N", xref: "cluster§11.2.7.34",
-            details: "Indicates the currently selected AGC (Automatic Gain Control) mode for the microphone. A value of " +
-                "TRUE indicates that microphone AGC is enabled. Otherwise, it is disabled."
+            details: "This attribute indicates the currently selected AGC (Automatic Gain Control) mode for the " +
+                "microphone. A value of TRUE indicates that microphone AGC is enabled. Otherwise, it is disabled."
         }),
 
         Attribute({
             name: "ImageRotation", id: 0x22, type: "uint16", access: "RW M", conformance: "[ICTL].b+",
             constraint: "max 359", quality: "N", xref: "cluster§11.2.7.35",
-            details: "Indicates the amount of clockwise rotation in degrees that the image has been subjected to." +
+
+            details: "This attribute indicates the amount of clockwise rotation in degrees that the image has been " +
+                "subjected to." +
                 "\n" +
                 "This attribute may be present if the underlying hardware allows for arbitrary angle rotation within " +
                 "the full 360 degree range. If this attribute is not present, then discrete angle rotation may be " +
@@ -27086,43 +27100,43 @@ export const SpecMatter = Matter(
         Attribute({
             name: "ImageFlipHorizontal", id: 0x23, type: "bool", access: "RW M", conformance: "[ICTL].b+",
             default: true, quality: "N", xref: "cluster§11.2.7.36",
-            details: "Indicates whether the image has been flipped horizontally or not. A value of TRUE indicates that the " +
-                "image has been flipped horizontally."
+            details: "This attribute indicates whether the image has been flipped horizontally or not. A value of TRUE " +
+                "indicates that the image has been flipped horizontally."
         }),
 
         Attribute({
             name: "ImageFlipVertical", id: 0x24, type: "bool", access: "RW M", conformance: "[ICTL].b+",
             default: true, quality: "N", xref: "cluster§11.2.7.37",
-            details: "Indicates whether the image has been flipped vertically or not. A value of TRUE indicates that the " +
-                "image has been flipped vertically."
+            details: "This attribute indicates whether the image has been flipped vertically or not. A value of TRUE " +
+                "indicates that the image has been flipped vertically."
         }),
 
         Attribute({
             name: "LocalVideoRecordingEnabled", id: 0x25, type: "bool", access: "RW M",
             conformance: "VDO & STOR", quality: "N", xref: "cluster§11.2.7.38",
-            details: "Indicates whether local storage based video recording is enabled. A value of TRUE indicates that " +
-                "local storage based video recording has been enabled."
+            details: "This attribute indicates whether local storage based video recording is enabled. A value of TRUE " +
+                "indicates that local storage based video recording has been enabled."
         }),
 
         Attribute({
             name: "LocalSnapshotRecordingEnabled", id: 0x26, type: "bool", access: "RW M",
             conformance: "SNP & STOR", quality: "N", xref: "cluster§11.2.7.39",
-            details: "Indicates whether local storage based snapshot recording is enabled. A value of TRUE indicates that " +
-                "local storage based snapshot recording has been enabled."
+            details: "This attribute indicates whether local storage based snapshot recording is enabled. A value of TRUE " +
+                "indicates that local storage based snapshot recording has been enabled."
         }),
 
         Attribute({
             name: "StatusLightEnabled", id: 0x27, type: "bool", access: "RW M", conformance: "O", default: true,
             quality: "N", xref: "cluster§11.2.7.40",
-            details: "Indicates whether the status light has been enabled or not. A value of TRUE indicates the status " +
-                "light has been enabled. When enabled, the camera may use it for visual signaling purposes to " +
-                "indicate various states of the camera."
+            details: "This attribute indicates whether the status light has been enabled or not. A value of TRUE indicates " +
+                "the status light has been enabled. When enabled, the camera may use it for visual signaling purposes " +
+                "to indicate various states of the camera."
         }),
 
         Attribute({
             name: "StatusLightBrightness", id: 0x28, type: "ThreeLevelAutoEnum", access: "RW M",
             conformance: "O", quality: "N", xref: "cluster§11.2.7.41",
-            details: "Indicates the brightness level of the status light."
+            details: "This attribute indicates the brightness level of the status light."
         }),
 
         Attribute({
@@ -28133,20 +28147,23 @@ export const SpecMatter = Matter(
         Attribute({
             name: "MptzPosition", id: 0x0, type: "MPTZStruct", access: "R V",
             conformance: "MPAN | MTILT | MZOOM", quality: "N", xref: "cluster§11.3.6.1",
-            details: "Indicates the currently selected mechanical pan, tilt, and zoom position."
+            details: "This attribute indicates the currently selected mechanical pan, tilt, and zoom position."
         }),
         Attribute({
             name: "MaxPresets", id: 0x1, type: "uint8", access: "R V", conformance: "MPRESETS", quality: "F",
             xref: "cluster§11.3.6.2",
-            details: "Indicates the maximum number of presets for the mechanical pan, tilt, zoom."
+            details: "This attribute indicates the maximum number of presets for the mechanical pan, tilt, zoom."
         }),
 
         Attribute(
             {
                 name: "MptzPresets", id: 0x2, type: "list", access: "R V", conformance: "MPRESETS",
                 constraint: "max maxPresets", quality: "N", xref: "cluster§11.3.6.3",
-                details: "Indicates a list of presets for mechanical pan, tilt, and/or zoom."
+                details: "This attribute shall be a list of MPTZPresetStruct. Each entry in the list contains a preset for " +
+                    "mechanical pan, tilt, and/or zoom, the values for which are represented by an instance of an " +
+                    "MPTZStruct."
             },
+
             Field({ name: "entry", type: "MPTZPresetStruct" })
         ),
 
@@ -28154,11 +28171,9 @@ export const SpecMatter = Matter(
             {
                 name: "DptzStreams", id: 0x3, type: "list", access: "R V", conformance: "DPTZ", quality: "N",
                 xref: "cluster§11.3.6.4",
-                details: "Indicates a list of streams which supports digital movement." +
-                    "\n" +
-                    "If a video stream is listed, it means digital movement is supported via DPTZSetViewport or " +
-                    "DPTZRelativeMove. The initial values for each Viewport entry shall be the values found in the global " +
-                    "Viewport."
+                details: "This attribute is a list of DPTZStruct. If a video stream is listed, it means digital movement is " +
+                    "supported via DPTZSetViewport or DPTZRelativeMove. The initial values for each Viewport entry shall " +
+                    "be the values found in the global Viewport."
             },
 
             Field({ name: "entry", type: "DPTZStruct" })
@@ -28737,8 +28752,10 @@ export const SpecMatter = Matter(
             {
                 name: "CurrentSessions", id: 0x0, type: "list", access: "R S M", conformance: "M",
                 xref: "cluster§11.5.5.1",
-                details: "Indicates a list of all the active WebRTC Sessions."
+                details: "This attribute shall be a list of WebRTCSessionStruct, which represents all the active WebRTC " +
+                    "Sessions."
             },
+
             Field({ name: "entry", type: "WebRtcTransportDefinitions.WebRTCSessionStruct" })
         ),
 
@@ -29154,8 +29171,10 @@ export const SpecMatter = Matter(
             {
                 name: "CurrentSessions", id: 0x0, type: "list", access: "R S A", conformance: "M",
                 xref: "cluster§11.6.4.1",
-                details: "Indicates a list of all the active WebRTC Sessions on this Node."
+                details: "This attribute shall be a list of WebRTCSessionStruct, which represents all the active WebRTC " +
+                    "Sessions on this Node."
             },
+
             Field({ name: "entry", type: "WebRtcTransportDefinitions.WebRTCSessionStruct" })
         ),
 
@@ -29342,9 +29361,9 @@ export const SpecMatter = Matter(
             {
                 name: "SupportedFormats", id: 0x0, type: "list", access: "R V", conformance: "M",
                 constraint: "min 1", quality: "F", xref: "cluster§11.7.9.1",
-                details: "Indicates a list of Supported Container Format structs, which represents the combinations of " +
-                    "Ingestion Method and Container Format that the Node supports. Nodes shall support at least the " +
-                    "combination CMAFIngest,CMAF."
+                details: "This attribute shall contain a list of Supported Container Format structs, which represents the " +
+                    "combinations of Ingestion Method and Container Format that the Node supports. Nodes shall support at " +
+                    "least the combination CMAFIngest,CMAF."
             },
 
             Field({ name: "entry", type: "SupportedFormatStruct" })
@@ -29355,13 +29374,13 @@ export const SpecMatter = Matter(
                 name: "CurrentConnections", id: 0x1, type: "list", access: "R S V", conformance: "M",
                 constraint: "desc", quality: "N", xref: "cluster§11.7.9.2",
 
-                details: "Indicates a list of TransportConfigurationStruct which represents all the allocated connections " +
-                    "added via AllocatePushTransport. When this attribute is read over a non Large Message (See Large " +
-                    "Message Quality in the Data Model section of [[MatterCore]](#ref_MatterCore)) capable transport, the " +
-                    "TransportOptions field shall NOT be included. To get the full details of the connections use the " +
-                    "FindTransport command. The maximum size of this list is run-time dependent upon the resource " +
-                    "constraints of the system as described in Resource Management and Stream Priorities and the " +
-                    "currently used bandwidth of the total available specified by MaxNetworkBandwidth."
+                details: "This attribute shall be a list of TransportConfigurationStruct which represents all the allocated " +
+                    "connections added via AllocatePushTransport. When this attribute is read over a non Large Message " +
+                    "(See Large Message Quality in the Data Model section of [[MatterCore]](#ref_MatterCore)) capable " +
+                    "transport, the TransportOptions field shall NOT be included. To get the full details of the " +
+                    "connections use the FindTransport command. The maximum size of this list is run-time dependent upon " +
+                    "the resource constraints of the system as described in Resource Management and Stream Priorities and " +
+                    "the currently used bandwidth of the total available specified by MaxNetworkBandwidth."
             },
 
             Field({ name: "entry", type: "TransportConfigurationStruct" })
@@ -30224,8 +30243,8 @@ export const SpecMatter = Matter(
             {
                 name: "InstalledChimeSounds", id: 0x0, type: "list", access: "R V", conformance: "M",
                 constraint: "1 to 255", xref: "cluster§11.8.5.1",
-                details: "Indicates a list of installed chime sounds. Each entry in this list shall have a unique ChimeID " +
-                    "value and a unique Name value."
+                details: "This attribute shall contain all installed chime sounds, represented by a list of Chime Sounds. Each " +
+                    "entry in this list shall have a unique ChimeID value and a unique Name value."
             },
 
             Field({ name: "entry", type: "ChimeSoundStruct" })
@@ -30302,10 +30321,10 @@ export const SpecMatter = Matter(
         name: "ClusterRevision", id: 0xfffd, type: "uint16", access: "R V", conformance: "M",
         constraint: "min 1", isSeed: true, quality: "F", xref: "core§7.13.1",
 
-        details: "Indicates the revision of the server cluster specification supported by the cluster instance. An " +
-            "implementation of a cluster specification before the ClusterRevision attribute was added shall have " +
-            "an assumed cluster revision of 0 (zero). For a new cluster specification, the initial value for the " +
-            "ClusterRevision attribute shall be 1 (not zero)." +
+        details: "The ClusterRevision attribute indicates the revision of the server cluster specification supported " +
+            "by the cluster instance. An implementation of a cluster specification before the ClusterRevision " +
+            "attribute was added shall have an assumed cluster revision of 0 (zero). For a new cluster " +
+            "specification, the initial value for the ClusterRevision attribute shall be 1 (not zero)." +
             "\n" +
             "A history of revision numbers for a cluster specification release is listed in the Revision History " +
             "section for a cluster specification. Each new revision of a cluster specification shall specify a " +
@@ -30319,9 +30338,7 @@ export const SpecMatter = Matter(
         name: "FeatureMap", id: 0xfffc, type: "map32", access: "R V", conformance: "M", default: 0,
         isSeed: true, quality: "F", xref: "core§7.13.2",
 
-        details: "Indicates the features supported by the cluster instance." +
-            "\n" +
-            "Each instance of a cluster shall support this attribute." +
+        details: "Each instance of a cluster shall support this attribute." +
             "\n" +
             "The FeatureMap attribute shall indicate whether the server supports zero or more optional cluster " +
             "features. A cluster feature is a set of cluster elements that are mandatory or optional for a " +
@@ -30366,9 +30383,7 @@ export const SpecMatter = Matter(
         {
             name: "AttributeList", id: 0xfffb, type: "list", access: "R V", conformance: "M", isSeed: true,
             quality: "F", xref: "core§7.13.3",
-            details: "Indicates the attributes supported by the cluster instance." +
-                "\n" +
-                "Each instance of a cluster shall support this attribute. This attribute shall be a list of the " +
+            details: "Each instance of a cluster shall support this attribute. This attribute shall be a list of the " +
                 "attribute IDs of the attributes supported by the cluster instance."
         },
 
@@ -30382,7 +30397,8 @@ export const SpecMatter = Matter(
             name: "AcceptedCommandList", id: 0xfff9, type: "list", access: "R V", conformance: "M",
             isSeed: true, quality: "F", xref: "core§7.13.4",
 
-            details: "Indicates a list of client generated commands which are supported by this cluster server instance." +
+            details: "This attribute is a list of client generated commands which are supported by this cluster server " +
+                "instance." +
                 "\n" +
                 "Each instance of a cluster shall support this attribute." +
                 "\n" +
@@ -30404,8 +30420,8 @@ export const SpecMatter = Matter(
             name: "GeneratedCommandList", id: 0xfff8, type: "list", access: "R V", conformance: "M",
             isSeed: true, quality: "F", xref: "core§7.13.5",
 
-            details: "Indicates a list of server generated commands. A server generated command is a server to client " +
-                "command." +
+            details: "This attribute is a list of server generated commands. A server generated command is a server to " +
+                "client command." +
                 "\n" +
                 "Each instance of a cluster shall support this attribute." +
                 "\n" +
@@ -31359,7 +31375,7 @@ export const SpecMatter = Matter(
                 name: "DeviceTypeList", id: 0x0, type: "list", access: "R V", conformance: "M", constraint: "min 1",
                 quality: "F", xref: "core§9.5.6.1",
 
-                details: "Indicates a list of device types and corresponding revisions declaring endpoint conformance (see " +
+                details: "This is a list of device types and corresponding revisions declaring endpoint conformance (see " +
                     "Section 9.5.5.1, \"DeviceTypeStruct Type\"). At least one device type entry shall be present." +
                     "\n" +
                     "An endpoint shall conform to all device types listed in the DeviceTypeList. A cluster instance that " +
@@ -31374,10 +31390,8 @@ export const SpecMatter = Matter(
             {
                 name: "ServerList", id: 0x1, type: "list", access: "R V", conformance: "M", default: [],
                 quality: "F", xref: "core§9.5.6.2",
-                details: "Indicates a list containing each cluster ID for the server clusters present on the endpoint " +
-                    "instance."
+                details: "This attribute shall list each cluster ID for the server clusters present on the endpoint instance."
             },
-
             Field({ name: "entry", type: "cluster-id" })
         ),
 
@@ -31385,10 +31399,8 @@ export const SpecMatter = Matter(
             {
                 name: "ClientList", id: 0x2, type: "list", access: "R V", conformance: "M", default: [],
                 quality: "F", xref: "core§9.5.6.3",
-                details: "Indicates a list containing each cluster ID for the client clusters present on the endpoint " +
-                    "instance."
+                details: "This attribute shall list each cluster ID for the client clusters present on the endpoint instance."
             },
-
             Field({ name: "entry", type: "cluster-id" })
         ),
 
@@ -31396,8 +31408,8 @@ export const SpecMatter = Matter(
             {
                 name: "PartsList", id: 0x3, type: "list", access: "R V", conformance: "M", default: [],
                 xref: "core§9.5.6.4",
-                details: "Indicates composition of the device type instance. Device type instance composition shall include " +
-                    "the endpoints in this list." +
+                details: "This attribute indicates composition of the device type instance. Device type instance composition " +
+                    "shall include the endpoints in this list." +
                     "\n" +
                     "See Endpoint Composition for more information about which endpoints to include in this list."
             },
@@ -31410,11 +31422,10 @@ export const SpecMatter = Matter(
                 name: "TagList", id: 0x4, type: "list", access: "R V", conformance: "TAGLIST", constraint: "1 to 6",
                 quality: "F", xref: "core§9.5.6.5",
 
-                details: "Indicates a list of tags associated with the endpoint instance and shall be used to disambiguate " +
-                    "sibling endpoints in certain situations, as defined in the Disambiguation section in the System " +
-                    "Model specification. An example of such a situation might be a device with two buttons, with this " +
-                    "attribute being used to indicate which of the two endpoints corresponds to the button on the left " +
-                    "side." +
+                details: "This attribute shall be used to disambiguate sibling endpoints in certain situations, as defined in " +
+                    "the Disambiguation section in the System Model specification. An example of such a situation might " +
+                    "be a device with two buttons, with this attribute being used to indicate which of the two endpoints " +
+                    "corresponds to the button on the left side." +
                     "\n" +
                     "It may also be used to provide information about an endpoint (e.g. the relative location of a " +
                     "Temperature sensor in a Temperature Controlled Cabinet)." +
@@ -31517,7 +31528,7 @@ export const SpecMatter = Matter(
             {
                 name: "Binding", id: 0x0, type: "list", access: "RW F VM", conformance: "M", constraint: "desc",
                 default: [], quality: "N", xref: "core§9.6.6.1",
-                details: "Indicates a list of currently configured bindings."
+                details: "Each entry shall represent a binding."
             },
             Field({ name: "entry", type: "TargetStruct" })
         ),
@@ -31568,7 +31579,7 @@ export const SpecMatter = Matter(
         Attribute(
             {
                 name: "LabelList", id: 0x0, type: "list", conformance: "M", xref: "core§9.7.5.1",
-                details: "Indicates a list of string tuples."
+                details: "This is a list of string tuples. Each entry is a LabelStruct."
             },
             Field({ name: "entry", type: "LabelStruct" })
         ),
@@ -31650,9 +31661,7 @@ export const SpecMatter = Matter(
                 name: "LabelList", id: 0x0, type: "list", access: "RW VM", conformance: "M", constraint: "desc",
                 default: [], quality: "N", xref: "core§9.9.4.1",
 
-                details: "Indicates a list of user defined string tuples." +
-                    "\n" +
-                    "The server shall support the storage of up to 4 list entries in this attribute. The server may " +
+                details: "The server shall support the storage of up to 4 list entries in this attribute. The server may " +
                     "support the storage of more than 4 entries in this attribute." +
                     "\n" +
                     "When reading from this attribute, the server shall respond with the actual contents of the attribute " +
@@ -31741,7 +31750,7 @@ export const SpecMatter = Matter(
             }),
 
             Field({
-                name: "AUX", conformance: "P, desc", constraint: "2", title: "Auxiliary", xref: "core§9.10.4.3",
+                name: "AUX", conformance: "desc", constraint: "2", title: "Auxiliary", xref: "core§9.10.4.3",
                 details: "This feature indicates that there may be entries in the AuxiliaryACL attribute which indicate " +
                     "synthesized ACL entries. For example, when this feature is supported, the configuration of groups " +
                     "via the Groupcast cluster may lead, under some circumstances, to some access being granted via " +
@@ -31776,11 +31785,8 @@ export const SpecMatter = Matter(
             {
                 name: "Extension", id: 0x1, type: "list", access: "RW F A", conformance: "EXTS", constraint: "desc",
                 xref: "core§9.10.6.4",
-
-                details: "Indicates a list of additional data, related to the fabric's Access Control Entries." +
-                    "\n" +
-                    "The Access Control Extensions may be used by Administrators to store arbitrary data related to " +
-                    "fabric's Access Control Entries." +
+                details: "If present, the Access Control Extensions may be used by Administrators to store arbitrary data " +
+                    "related to fabric's Access Control Entries." +
                     "\n" +
                     "The Access Control Extension list shall support a single extension entry per supported fabric."
             },
@@ -31792,7 +31798,8 @@ export const SpecMatter = Matter(
             name: "SubjectsPerAccessControlEntry", id: 0x2, type: "uint16", access: "R V", conformance: "M",
             constraint: "4 to 65534", quality: "F", xref: "core§9.10.6.5",
 
-            details: "Indicates the minimum number of Subjects per entry that are supported by this server." +
+            details: "This attribute shall provide the minimum number of Subjects per entry that are supported by this " +
+                "server." +
                 "\n" +
                 "Since reducing this value over time may invalidate ACL entries already written, this value shall NOT " +
                 "decrease across time as software updates occur that could impact this value. If this is a concern " +
@@ -31804,7 +31811,8 @@ export const SpecMatter = Matter(
             name: "TargetsPerAccessControlEntry", id: 0x3, type: "uint16", access: "R V", conformance: "M",
             constraint: "3 to 65534", quality: "F", xref: "core§9.10.6.6",
 
-            details: "Indicates the minimum number of Targets per entry that are supported by this server." +
+            details: "This attribute shall provide the minimum number of Targets per entry that are supported by this " +
+                "server." +
                 "\n" +
                 "Since reducing this value over time may invalidate ACL entries already written, this value shall NOT " +
                 "decrease across time as software updates occur that could impact this value. If this is a concern " +
@@ -31816,7 +31824,8 @@ export const SpecMatter = Matter(
             name: "AccessControlEntriesPerFabric", id: 0x4, type: "uint16", access: "R V", conformance: "M",
             constraint: "4 to 65534", quality: "F", xref: "core§9.10.6.7",
 
-            details: "Indicates the minimum number of ACL Entries per fabric that are supported by this server." +
+            details: "This attribute shall provide the minimum number of ACL Entries per fabric that are supported by this " +
+                "server." +
                 "\n" +
                 "Since reducing this value over time may invalidate ACL entries already written, this value shall NOT " +
                 "decrease across time as software updates occur that could impact this value. If this is a concern " +
@@ -31829,8 +31838,8 @@ export const SpecMatter = Matter(
                 name: "CommissioningArl", id: 0x5, type: "list", access: "R V", conformance: "MNGD",
                 constraint: "desc", quality: "F", xref: "core§9.10.6.8",
 
-                details: "Indicates the set of CommissioningAccessRestrictionEntryStruct applied during commissioning on a " +
-                    "managed device." +
+                details: "This attribute shall provide the set of CommissioningAccessRestrictionEntryStruct applied during " +
+                    "commissioning on a managed device." +
                     "\n" +
                     "When present, the CommissioningARL attribute shall indicate the access restrictions applying during " +
                     "commissioning." +
@@ -31877,12 +31886,13 @@ export const SpecMatter = Matter(
 
         Attribute(
             {
-                name: "AuxiliaryAcl", id: 0x7, type: "list", access: "R F A", conformance: "P, AUX",
+                name: "AuxiliaryAcl", id: 0x7, type: "list", access: "R F A", conformance: "AUX",
                 constraint: "max 2000", quality: "C", xref: "core§9.10.6.10",
 
-                details: "Indicates a list of additional ACL entries generated by the server that shall be applied during the " +
-                    "Access Control Privilege Granting algorithm. These ACL entries are not writable or removable using " +
-                    "this attribute; they reflect the underlying feature that generated them." +
+                details: "This attribute, when present, shall provide a list of additional ACL entries generated by the server " +
+                    "that shall be applied during the Access Control Privilege Granting algorithm. These ACL entries are " +
+                    "not writable or removable using this attribute; they reflect the underlying feature that generated " +
+                    "them." +
                     "\n" +
                     "Features such as the Groupcast cluster may cause entries to appear in this attribute as a result of " +
                     "internal configurations that grant access to certain subjects by mechanisms other than explicit " +
@@ -32108,7 +32118,7 @@ export const SpecMatter = Matter(
 
         Event(
             {
-                name: "AuxiliaryAccessUpdated", id: 0x3, access: "S A", conformance: "P, AUX", priority: "info",
+                name: "AuxiliaryAccessUpdated", id: 0x3, access: "S A", conformance: "AUX", priority: "info",
                 xref: "core§9.10.9.4",
 
                 details: "The server shall generate AuxiliaryAccessUpdated events whenever its AuxiliaryACL attribute data " +
@@ -32370,7 +32380,7 @@ export const SpecMatter = Matter(
 
             Field({
                 name: "AuxiliaryType", id: 0x5, type: "AccessControlAuxiliaryTypeEnum", access: "S",
-                conformance: "P, O", xref: "core§9.10.5.7.5",
+                conformance: "O", xref: "core§9.10.5.7.5",
 
                 details: "This field, if present, shall indicate the type of AuxiliaryACL entry stored. For example, for " +
                     "Groupcast cluster synthesized entries, this would be set to Groupcast. An administrator may use the " +
@@ -32572,22 +32582,21 @@ export const SpecMatter = Matter(
         Attribute({
             name: "Reachable", id: 0x11, conformance: "M", xref: "core§9.13.5.2",
 
-            details: "Indicates whether the bridged device is reachable by the bridge, so a Matter Node which wants to " +
-                "communicate with a bridged device can get an indication that this might fail (when the attribute is " +
-                "False). Determination of reachability might not be perfect (e.g. depending on technology employed), " +
-                "so the Matter Node SHOULD be aware of the risk of false positives and negatives on reachability " +
-                "determination. For example, a bridged device may be marked as unreachable while it could actually be " +
-                "reached, and vice-versa. Also, detection (and indication) that a bridged device is not longer " +
-                "reachable may be delayed due to the technique employed (e.g. detecting that a number of expected " +
-                "messages from the bridged device did not arrive). Also see event ReachableChanged below."
+            details: "This attribute shall be used to indicate whether the bridged device is reachable by the bridge, so a " +
+                "Matter Node which wants to communicate with a bridged device can get an indication that this might " +
+                "fail (when the attribute is False). Determination of reachability might not be perfect (e.g. " +
+                "depending on technology employed), so the Matter Node SHOULD be aware of the risk of false positives " +
+                "and negatives on reachability determination. For example, a bridged device may be marked as " +
+                "unreachable while it could actually be reached, and vice-versa. Also, detection (and indication) " +
+                "that a bridged device is not longer reachable may be delayed due to the technique employed (e.g. " +
+                "detecting that a number of expected messages from the bridged device did not arrive). Also see event " +
+                "ReachableChanged below."
         }),
 
         Attribute({
             name: "UniqueId", id: 0x12, conformance: "Rev >= v4, O", xref: "core§9.13.5.3",
 
-            details: "Indicates a unique identifier for the bridged device." +
-                "\n" +
-                "This attribute shall, for a Bridged Device, be updated when the Bridge is factory reset. If the " +
+            details: "This attribute shall, for a Bridged Device, be updated when the Bridge is factory reset. If the " +
                 "bridged device does not provide some unique id (e.g. in the case of bridging from non-Matter " +
                 "devices, or in case of bridging Matter devices from an earlier revision which were not required to " +
                 "provide a UniqueID attribute), the bridge shall generate a unique id on behalf of the bridged " +
@@ -32606,8 +32615,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "ConfigurationVersion", id: 0x18, conformance: "[Rev >= v6]", xref: "core§9.13.5.4",
 
-            details: "Indicates the current version number for the configuration of the bridged device. A larger value of " +
-                "ConfigurationVersion shall indicate a newer configuration than a lower value." +
+            details: "This attribute shall contain the current version number for the configuration of the bridged device. " +
+                "A larger value of ConfigurationVersion shall indicate a newer configuration than a lower value." +
                 "\n" +
                 "If the bridge detects a change on a bridged device, which it deems as a change in the configuration " +
                 "of the bridged device, it shall increase this attribute (and the corresponding attribute on the " +
@@ -32780,8 +32789,8 @@ export const SpecMatter = Matter(
             {
                 name: "ActionList", id: 0x0, type: "list", access: "R V", conformance: "M", constraint: "max 256",
                 default: [], xref: "core§9.14.5.1",
-                details: "Indicates a list of actions. Each entry shall have an unique ActionID, and its EndpointListID shall " +
-                    "exist in the EndpointLists attribute."
+                details: "The ActionList attribute holds the list of actions. Each entry shall have an unique ActionID, and " +
+                    "its EndpointListID shall exist in the EndpointLists attribute."
             },
 
             Field({ name: "entry", type: "ActionStruct" })
@@ -32791,8 +32800,10 @@ export const SpecMatter = Matter(
             {
                 name: "EndpointLists", id: 0x1, type: "list", access: "R V", conformance: "M",
                 constraint: "max 256", default: [], xref: "core§9.14.5.2",
-                details: "Indicates a list of endpoint lists. Each entry shall have an unique EndpointListID."
+                details: "The EndpointLists attribute holds the list of endpoint lists. Each entry shall have an unique " +
+                    "EndpointListID."
             },
+
             Field({ name: "entry", type: "EndpointListStruct" })
         ),
 
@@ -32801,10 +32812,9 @@ export const SpecMatter = Matter(
                 name: "SetupUrl", id: 0x2, type: "string", access: "R V", conformance: "O", constraint: "max 512",
                 xref: "core§9.14.5.3",
 
-                details: "Indicates the SetupURL attribute (when provided) shall indicate a URL; its syntax shall follow the " +
-                    "syntax as specified in [[RFC1738]](#ref_Rfc1738), max. 512 ASCII characters and shall use the https " +
-                    "scheme. The location referenced by this URL shall provide additional information for the actions " +
-                    "provided:" +
+                details: "The SetupURL attribute (when provided) shall indicate a URL; its syntax shall follow the syntax as " +
+                    "specified in [[RFC1738]](#ref_Rfc1738), max. 512 ASCII characters and shall use the https scheme. " +
+                    "The location referenced by this URL shall provide additional information for the actions provided:" +
                     "\n" +
                     "  - When used without suffix, it shall provide information about the various actions which the " +
                     "cluster provides." +
@@ -33463,10 +33473,10 @@ export const SpecMatter = Matter(
             {
                 name: "RegisteredClients", id: 0x3, type: "list", access: "R F A", conformance: "CIP",
                 constraint: "desc", default: [], quality: "N", xref: "core§9.16.6.4",
-                details: "Indicates a list of all clients registered to receive notification if their subscription is lost. " +
-                    "The maximum number of entries that can be in the list shall be ClientsSupportedPerFabric for each " +
-                    "fabric supported on the server, as indicated by the value of the SupportedFabrics attribute in the " +
-                    "Operational Credentials cluster."
+                details: "This attribute shall contain all clients registered to receive notification if their subscription is " +
+                    "lost. The maximum number of entries that can be in the list shall be ClientsSupportedPerFabric for " +
+                    "each fabric supported on the server, as indicated by the value of the SupportedFabrics attribute in " +
+                    "the Operational Credentials cluster."
             },
 
             Field({ name: "entry", type: "MonitoringRegistrationStruct" })
@@ -33509,9 +33519,7 @@ export const SpecMatter = Matter(
             name: "UserActiveModeTriggerInstruction", id: 0x7, type: "string", access: "R V",
             conformance: "desc", constraint: "max 128", quality: "F", xref: "core§9.16.6.8",
 
-            details: "Indicates information on how to transition the device to Active Mode." +
-                "\n" +
-                "The meaning of the attribute is dependent upon the UserActiveModeTriggerHint attribute value, and " +
+            details: "The meaning of the attribute is dependent upon the UserActiveModeTriggerHint attribute value, and " +
                 "the conformance is in indicated in the \"dependency\" column in UserActiveModeTriggerHint table. The " +
                 "UserActiveModeTriggerInstruction attribute may give additional information on how to transition the " +
                 "device to Active Mode. If the attribute is present, the value shall be encoded as a valid UTF-8 " +
@@ -33852,9 +33860,9 @@ export const SpecMatter = Matter(
             {
                 name: "DeviceDirectory", id: 0x0, type: "list", access: "R F M", conformance: "M", quality: "N",
                 xref: "core§9.17.5.1",
-                details: "Indicates a list of logical devices represented by a Bridged Node. Most of the time this will " +
-                    "contain a single entry, but may grow with more complex device compositions (e.g. another bridge.) An " +
-                    "empty list indicates that the information is not available."
+                details: "This attribute shall contain the list of logical devices represented by a Bridged Node. Most of the " +
+                    "time this will contain a single entry, but may grow with more complex device compositions (e.g. " +
+                    "another bridge.) An empty list indicates that the information is not available."
             },
 
             Field({ name: "entry", type: "EcosystemDeviceStruct" })
@@ -33865,11 +33873,11 @@ export const SpecMatter = Matter(
                 name: "LocationDirectory", id: 0x1, type: "list", access: "R F M", conformance: "M", quality: "N",
                 xref: "core§9.17.5.2",
 
-                details: "Indicates a list of rooms, areas and groups associated with the DeviceDirectory entries, and shall " +
-                    "NOT contain locations which are dynamically generated and removed by an ecosystem. (E.g. a location " +
-                    "that is generated and removed based on the user being home is not permitted. However, an initially " +
-                    "generated location name that does not quickly change is acceptable.) An empty list indicates that " +
-                    "the information is not available." +
+                details: "This attribute shall contain the list of rooms, areas and groups associated with the DeviceDirectory " +
+                    "entries, and shall NOT contain locations which are dynamically generated and removed by an " +
+                    "ecosystem. (E.g. a location that is generated and removed based on the user being home is not " +
+                    "permitted. However, an initially generated location name that does not quickly change is " +
+                    "acceptable.) An empty list indicates that the information is not available." +
                     "\n" +
                     "LocationDirectory entries shall be removed if there is no DeviceDirectory that references it."
             },
@@ -34033,32 +34041,34 @@ export const SpecMatter = Matter(
         Attribute({
             name: "DataModelRevision", id: 0x0, type: "uint16", access: "R V", conformance: "M",
             constraint: "desc", quality: "F", xref: "core§11.1.5.1",
-            details: "Indicates the revision number of the Data Model against which the Node is certified. The value of " +
-                "this attribute shall be one of the valid values listed in Section 7.1.1, \"Revision History\"."
+            details: "This attribute shall be set to the revision number of the Data Model against which the Node is " +
+                "certified. The value of this attribute shall be one of the valid values listed in Section 7.1.1, " +
+                "\"Revision History\"."
         }),
 
         Attribute({
             name: "VendorName", id: 0x1, type: "string", access: "R V", conformance: "M", constraint: "max 32",
             quality: "F", xref: "core§11.1.5.2",
-            details: "Indicates a human readable (displayable) name of the vendor for the Node."
+            details: "This attribute shall specify a human readable (displayable) name of the vendor for the Node."
         }),
         Attribute({
             name: "VendorId", id: 0x2, type: "vendor-id", access: "R V", conformance: "M", quality: "F",
             xref: "core§11.1.5.3",
-            details: "Indicates the Vendor ID."
+            details: "This attribute shall specify the Vendor ID."
         }),
 
         Attribute({
             name: "ProductName", id: 0x3, type: "string", access: "R V", conformance: "M", constraint: "max 32",
             quality: "F", xref: "core§11.1.5.4",
-            details: "Indicates a human readable (displayable) name of the model for the Node such as the model number (or " +
-                "other identifier) assigned by the vendor."
+            details: "This attribute shall specify a human readable (displayable) name of the model for the Node such as " +
+                "the model number (or other identifier) assigned by the vendor."
         }),
 
         Attribute({
             name: "ProductId", id: 0x4, type: "uint16", access: "R V", conformance: "M", quality: "F",
             xref: "core§11.1.5.5",
-            details: "Indicates the Product ID assigned by the vendor that is unique to the specific product of the Node."
+            details: "This attribute shall specify the Product ID assigned by the vendor that is unique to the specific " +
+                "product of the Node."
         }),
 
         Attribute({
@@ -34072,50 +34082,51 @@ export const SpecMatter = Matter(
             name: "Location", id: 0x6, type: "string", access: "RW VA", conformance: "M", constraint: "2",
             default: "XX", quality: "N", xref: "core§11.1.5.7",
 
-            details: "Indicates an ISO 3166-1 alpha-2 code to represent the country, dependent territory, or special area " +
-                "of geographic interest in which the Node is located at the time of the attribute being set. This " +
-                "attribute shall be set during initial commissioning (unless already set) and may be updated by " +
-                "further reconfigurations. This attribute may affect some regulatory aspects of the Node's operation, " +
-                "such as radio transmission power levels in given spectrum allocation bands if technologies where " +
-                "this is applicable are used. The Location's region code shall be interpreted in a case-insensitive " +
-                "manner. If the Node cannot understand the location code with which it was configured, or the " +
-                "location code has not yet been configured, it shall configure itself in a region-agnostic manner as " +
-                "determined by the vendor, avoiding region-specific assumptions as much as is practical. The special " +
-                "value XX shall indicate that region-agnostic mode is used."
+            details: "This attribute shall be an ISO 3166-1 alpha-2 code to represent the country, dependent territory, or " +
+                "special area of geographic interest in which the Node is located at the time of the attribute being " +
+                "set. This attribute shall be set during initial commissioning (unless already set) and may be " +
+                "updated by further reconfigurations. This attribute may affect some regulatory aspects of the Node's " +
+                "operation, such as radio transmission power levels in given spectrum allocation bands if " +
+                "technologies where this is applicable are used. The Location's region code shall be interpreted in a " +
+                "case-insensitive manner. If the Node cannot understand the location code with which it was " +
+                "configured, or the location code has not yet been configured, it shall configure itself in a " +
+                "region-agnostic manner as determined by the vendor, avoiding region-specific assumptions as much as " +
+                "is practical. The special value XX shall indicate that region-agnostic mode is used."
         }),
 
         Attribute({
             name: "HardwareVersion", id: 0x7, type: "uint16", access: "R V", conformance: "M", default: 0,
             quality: "F", xref: "core§11.1.5.8",
-            details: "Indicates the version number of the hardware of the Node. The meaning of its value, and the " +
-                "versioning scheme, are vendor defined."
+            details: "This attribute shall specify the version number of the hardware of the Node. The meaning of its " +
+                "value, and the versioning scheme, are vendor defined."
         }),
 
         Attribute({
             name: "HardwareVersionString", id: 0x8, type: "string", access: "R V", conformance: "M",
             constraint: "1 to 64", quality: "F", xref: "core§11.1.5.9",
-            details: "Indicates the version number of the hardware of the Node. The meaning of its value, and the " +
-                "versioning scheme, are vendor defined. The HardwareVersionString attribute shall be used to provide " +
-                "a more user-friendly value than that represented by the HardwareVersion attribute."
+            details: "This attribute shall specify the version number of the hardware of the Node. The meaning of its " +
+                "value, and the versioning scheme, are vendor defined. The HardwareVersionString attribute shall be " +
+                "used to provide a more user-friendly value than that represented by the HardwareVersion attribute."
         }),
 
         Attribute({
             name: "SoftwareVersion", id: 0x9, type: "uint32", access: "R V", conformance: "M",
             constraint: "desc", default: 0, quality: "F", xref: "core§11.1.5.10",
-            details: "Indicates the current version number for the software running on this Node. A larger value of " +
-                "SoftwareVersion is newer than a lower value, from the perspective of software updates (see Section " +
-                "11.20.3.3, \"Availability of Software Images\"). Nodes may query this field to determine the currently " +
-                "running version of software on another given Node."
+            details: "This attribute shall contain the current version number for the software running on this Node. A " +
+                "larger value of SoftwareVersion is newer than a lower value, from the perspective of software " +
+                "updates (see Section 11.20.3.3, \"Availability of Software Images\"). Nodes may query this field to " +
+                "determine the currently running version of software on another given Node."
         }),
 
         Attribute({
             name: "SoftwareVersionString", id: 0xa, type: "string", access: "R V", conformance: "M",
             constraint: "1 to 64", quality: "F", xref: "core§11.1.5.11",
 
-            details: "Indicates a current human-readable representation for the software running on the Node. This version " +
-                "information may be conveyed to users. The maximum length of the SoftwareVersionString attribute is " +
-                "64 bytes of UTF-8 characters. The contents SHOULD only use simple 7-bit ASCII alphanumeric and " +
-                "punctuation characters, so as to simplify the conveyance of the value to a variety of cultures." +
+            details: "This attribute shall contain a current human-readable representation for the software running on the " +
+                "Node. This version information may be conveyed to users. The maximum length of the " +
+                "SoftwareVersionString attribute is 64 bytes of UTF-8 characters. The contents SHOULD only use simple " +
+                "7-bit ASCII alphanumeric and punctuation characters, so as to simplify the conveyance of the value " +
+                "to a variety of cultures." +
                 "\n" +
                 "Examples of version strings include \"1.0\", \"1.2.3456\", \"1.2-2\", \"1.0b123\", \"1.2_3\"."
         }),
@@ -34123,49 +34134,51 @@ export const SpecMatter = Matter(
         Attribute({
             name: "ManufacturingDate", id: 0xb, type: "string", access: "R V", conformance: "O",
             constraint: "8 to 16", quality: "F", xref: "core§11.1.5.12",
-            details: "Indicates the date that the Node was manufactured. The first 8 characters shall specify the date of " +
-                "manufacture of the Node in international date notation according to ISO 8601, i.e., YYYYMMDD, e.g., " +
-                "20060814. The final 8 characters may include country, factory, line, shift or other related " +
-                "information at the option of the vendor. The format of this information is vendor defined."
+            details: "This attribute shall specify the date that the Node was manufactured. The first 8 characters shall " +
+                "specify the date of manufacture of the Node in international date notation according to ISO 8601, " +
+                "i.e., YYYYMMDD, e.g., 20060814. The final 8 characters may include country, factory, line, shift or " +
+                "other related information at the option of the vendor. The format of this information is vendor " +
+                "defined."
         }),
 
         Attribute({
             name: "PartNumber", id: 0xc, type: "string", access: "R V", conformance: "O", constraint: "max 32",
             quality: "F", xref: "core§11.1.5.13",
-            details: "Indicates a human-readable (displayable) vendor assigned part number for the Node whose meaning and " +
-                "numbering scheme is vendor defined. Multiple products (and hence PartNumbers) can share a ProductID. " +
-                "For instance, there may be different packaging (with different PartNumbers) for different regions; " +
-                "also different colors of a product might share the ProductID but may have a different PartNumber."
+            details: "This attribute shall specify a human-readable (displayable) vendor assigned part number for the Node " +
+                "whose meaning and numbering scheme is vendor defined. Multiple products (and hence PartNumbers) can " +
+                "share a ProductID. For instance, there may be different packaging (with different PartNumbers) for " +
+                "different regions; also different colors of a product might share the ProductID but may have a " +
+                "different PartNumber."
         }),
 
         Attribute({
             name: "ProductUrl", id: 0xd, type: "string", access: "R V", conformance: "O", constraint: "max 256",
             quality: "F", xref: "core§11.1.5.14",
-            details: "Indicates a link to a product specific web page. The specified URL SHOULD resolve to a maintained " +
-                "web page available for the lifetime of the product. The syntax of this attribute shall follow the " +
-                "syntax as specified in [[RFC1738]](#ref_Rfc1738) and shall use the https scheme. The maximum length " +
-                "of this attribute is 256 ASCII characters."
+            details: "This attribute shall specify a link to a product specific web page. The specified URL SHOULD resolve " +
+                "to a maintained web page available for the lifetime of the product. The syntax of this attribute " +
+                "shall follow the syntax as specified in [[RFC1738]](#ref_Rfc1738) and shall use the https scheme. " +
+                "The maximum length of this attribute is 256 ASCII characters."
         }),
 
         Attribute({
             name: "ProductLabel", id: 0xe, type: "string", access: "R V", conformance: "O",
             constraint: "max 64", quality: "F", xref: "core§11.1.5.15",
-            details: "Indicates a vendor specific human readable (displayable) product label. The ProductLabel attribute " +
-                "may be used to provide a more user-friendly value than that represented by the ProductName " +
-                "attribute. The ProductLabel attribute SHOULD NOT include the name of the vendor as defined within " +
-                "the VendorName attribute."
+            details: "This attribute shall specify a vendor specific human readable (displayable) product label. The " +
+                "ProductLabel attribute may be used to provide a more user-friendly value than that represented by " +
+                "the ProductName attribute. The ProductLabel attribute SHOULD NOT include the name of the vendor as " +
+                "defined within the VendorName attribute."
         }),
 
         Attribute({
             name: "SerialNumber", id: 0xf, type: "string", access: "R V", conformance: "O",
             constraint: "max 32", quality: "F", xref: "core§11.1.5.16",
-            details: "Indicates a human readable (displayable) serial number."
+            details: "This attribute shall specify a human readable (displayable) serial number."
         }),
 
         Attribute({
             name: "LocalConfigDisabled", id: 0x10, type: "bool", access: "RW VM", conformance: "O",
             default: false, quality: "N", xref: "core§11.1.5.17",
-            details: "Indicates if a local Node configuration is to be enabled or disabled. When this attribute is set to " +
+            details: "This attribute shall allow a local Node configuration to be disabled. When this attribute is set to " +
                 "True the Node shall disable the ability to configure the Node through an on-Node user interface. The " +
                 "value of the LocalConfigDisabled attribute shall NOT in any way modify, disable, or otherwise affect " +
                 "the user's ability to trigger a factory reset on the Node."
@@ -34174,9 +34187,10 @@ export const SpecMatter = Matter(
         Attribute({
             name: "Reachable", id: 0x11, type: "bool", access: "R V", conformance: "O", default: true,
             xref: "core§11.1.5.18",
-            details: "Indicates whether the Node can be reached. For a native Node this is implicitly True. Its main use " +
-                "case is in the derived Bridged Device Basic Information cluster where it is used to indicate whether " +
-                "the bridged device is reachable by the bridge over the non-native network."
+            details: "This attribute (when used) shall indicate whether the Node can be reached. For a native Node this is " +
+                "implicitly True (and its use is optional). Its main use case is in the derived Bridged Device Basic " +
+                "Information cluster where it is used to indicate whether the bridged device is reachable by the " +
+                "bridge over the non-native network."
         }),
 
         Attribute({
@@ -34213,10 +34227,10 @@ export const SpecMatter = Matter(
             name: "CapabilityMinima", id: 0x13, type: "CapabilityMinimaStruct", access: "R V", conformance: "M",
             quality: "F", xref: "core§11.1.5.20",
 
-            details: "Indicates the minimum guaranteed value for some system-wide resource capabilities that are not " +
-                "otherwise cluster-specific and do not appear elsewhere. This attribute may be used by clients to " +
-                "optimize communication with Nodes by allowing them to use more than the strict minimum values " +
-                "required by this specification, wherever available." +
+            details: "This attribute shall provide the minimum guaranteed value for some system-wide resource capabilities " +
+                "that are not otherwise cluster-specific and do not appear elsewhere. This attribute may be used by " +
+                "clients to optimize communication with Nodes by allowing them to use more than the strict minimum " +
+                "values required by this specification, wherever available." +
                 "\n" +
                 "The values supported by the server in reality may be larger than the values provided in this " +
                 "attribute, such as if a server is not resource-constrained at all. However, clients SHOULD only rely " +
@@ -34230,16 +34244,16 @@ export const SpecMatter = Matter(
         Attribute({
             name: "ProductAppearance", id: 0x14, type: "ProductAppearanceStruct", access: "R V",
             conformance: "[Rev >= v2]", quality: "F", xref: "core§11.1.5.21",
-            details: "Indicates information about the appearance of the product, which could be useful to a user trying to " +
-                "locate or identify the node."
+            details: "This attribute shall provide information about the appearance of the product, which could be useful " +
+                "to a user trying to locate or identify the node."
         }),
 
         Attribute({
             name: "SpecificationVersion", id: 0x15, type: "uint32", access: "R V", conformance: "Rev >= v3",
             constraint: "desc", default: 0, quality: "F", xref: "core§11.1.5.22",
 
-            details: "Indicates the current version number for the specification version this Node was certified against. " +
-                "A larger value of SpecificationVersion is newer than a lower value." +
+            details: "This attribute shall contain the current version number for the specification version this Node was " +
+                "certified against. A larger value of SpecificationVersion is newer than a lower value." +
                 "\n" +
                 "Nodes may query this field to determine the currently supported version of the specification on " +
                 "another given Node." +
@@ -34289,8 +34303,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "ConfigurationVersion", id: 0x18, type: "uint32", access: "R V", conformance: "Rev >= v6",
             constraint: "min 1", default: 1, quality: "N", xref: "core§11.1.5.24",
-            details: "Indicates the current version number for the configuration of the Node. A larger value of " +
-                "ConfigurationVersion shall indicate a newer configuration than a lower value."
+            details: "This attribute shall contain the current version number for the configuration of the Node. A larger " +
+                "value of ConfigurationVersion shall indicate a newer configuration than a lower value."
         }),
 
         Event(
@@ -34522,10 +34536,7 @@ export const SpecMatter = Matter(
                 name: "GroupKeyMap", id: 0x0, type: "list", access: "RW F VM", conformance: "M", constraint: "desc",
                 default: [], quality: "N C", xref: "core§11.2.6.1",
 
-                details: "Indicates a list of group key sets entries. Each entry associates a logical Group ID with a " +
-                    "particular group key set." +
-                    "\n" +
-                    "If the GCAST feature bit is set in the FeatureMap attribute, the following rules apply to the " +
+                details: "If the GCAST feature bit is set in the FeatureMap attribute, the following rules apply to the " +
                     "accessing Fabric:" +
                     "\n" +
                     "  - When Groupcast is adopted (the GroupcastAdoption entry has GroupcastAdopted set to true):" +
@@ -34544,7 +34555,10 @@ export const SpecMatter = Matter(
                     "a given GroupID in the GroupKeyMap, which exists in the Groupcast cluster's Membership attribute " +
                     "for a given fabric, then the Groupcast cluster's membership attribute shall use placeholder " +
                     "value 65535 for the KeySetID. While this KeySetID is technically valid, administrators SHOULD " +
-                    "avoid allocating it for actual usage to avoid value aliasing for this field."
+                    "avoid allocating it for actual usage to avoid value aliasing for this field." +
+                    "\n" +
+                    "This attribute is a list of GroupKeyMapStruct entries. Each entry associates a logical Group Id with " +
+                    "a particular group key set."
             },
 
             Field({ name: "entry", type: "GroupKeyMapStruct" })
@@ -34555,9 +34569,7 @@ export const SpecMatter = Matter(
                 name: "GroupTable", id: 0x1, type: "list", access: "R F V", conformance: "M", constraint: "desc",
                 default: [], xref: "core§11.2.6.2",
 
-                details: "Indicates a list of group information." +
-                    "\n" +
-                    "If the GCAST feature is set in the FeatureMap:" +
+                details: "If the GCAST feature is set in the FeatureMap:" +
                     "\n" +
                     "  - If the GroupcastAdoption attribute has an entry for the accessing Fabric and that entry has the " +
                     "GroupcastAdopted field set to true, then this field shall be empty." +
@@ -34565,10 +34577,11 @@ export const SpecMatter = Matter(
                     "  - Else this attribute shall contain the Group mappings computed in equivalence to the Groupcast " +
                     "cluster's Membership attribute (one mapping per group per fabric)." +
                     "\n" +
-                    "Each entry provides read-only information about how a given logical Group ID maps to a particular " +
-                    "set of endpoints, and a name for the group. The content of this attribute reflects data managed via " +
-                    "the Groups cluster (see [[AppClusters]](#ref_AppClusters)), and is in general terms referred to as " +
-                    "the 'node-wide Group Table'." +
+                    "This attribute is a list of GroupInfoMapStruct entries. Each entry provides read-only information " +
+                    "about how a given logical Group ID maps to a particular set of endpoints, and a name for the group. " +
+                    "The content of this attribute reflects data managed via the Groups cluster (see " +
+                    "[[AppClusters]](#ref_AppClusters)), and is in general terms referred to as the 'node-wide Group " +
+                    "Table'." +
                     "\n" +
                     "The GroupTable shall NOT contain any entry whose GroupInfoMapStruct has an empty Endpoints list. If " +
                     "a RemoveGroup or RemoveAllGroups command causes the removal of a group mapping from its last mapped " +
@@ -34880,10 +34893,10 @@ export const SpecMatter = Matter(
             name: "ActiveLocale", id: 0x0, type: "string", access: "RW VM", conformance: "M",
             constraint: "max 35", quality: "N", xref: "core§11.3.4.1",
 
-            details: "Indicates the locale that the Node is currently configured to use when conveying information. The " +
-                "ActiveLocale attribute shall be a Language Tag as defined by BCP47. The ActiveLocale attribute shall " +
-                "have a default value assigned by the Vendor and shall be a value contained within the " +
-                "SupportedLocales attribute." +
+            details: "The ActiveLocale attribute shall represent the locale that the Node is currently configured to use " +
+                "when conveying information. The ActiveLocale attribute shall be a Language Tag as defined by BCP47. " +
+                "The ActiveLocale attribute shall have a default value assigned by the Vendor and shall be a value " +
+                "contained within the SupportedLocales attribute." +
                 "\n" +
                 "An attempt to write a value to ActiveLocale that is not present in SupportedLocales shall result in " +
                 "a CONSTRAINT_ERROR error."
@@ -34893,9 +34906,9 @@ export const SpecMatter = Matter(
             {
                 name: "SupportedLocales", id: 0x1, type: "list", access: "R V", conformance: "M",
                 constraint: "max 32[max 35]", quality: "F", xref: "core§11.3.4.2",
-                details: "Indicates a list of locale strings that are valid values for the ActiveLocale attribute. The list " +
-                    "shall NOT contain any duplicate entries. The ordering of items within the list SHOULD NOT express " +
-                    "any meaning."
+                details: "The SupportedLocales attribute shall represent a list of locale strings that are valid values for " +
+                    "the ActiveLocale attribute. The list shall NOT contain any duplicate entries. The ordering of items " +
+                    "within the list SHOULD NOT express any meaning."
             },
 
             Field({ name: "entry", type: "string" })
@@ -35073,9 +35086,10 @@ export const SpecMatter = Matter(
                 name: "Sources", id: 0x0, type: "list", access: "R V", conformance: "M", constraint: "max 6",
                 quality: "N", xref: "core§11.6.4.1",
 
-                details: "Indicates a list of all power sources capable of participating in the power system of this Node. " +
-                    "Each entry in the list shall be the endpoint number of an endpoint having a Power Source cluster, " +
-                    "which corresponds to a physical power source. The endpoint number shall be unique within the list." +
+                details: "This list shall contain the set of all power sources capable of participating in the power system of " +
+                    "this Node. Each entry in the list shall be the endpoint number of an endpoint having a Power Source " +
+                    "cluster, which corresponds to a physical power source. The endpoint number shall be unique within " +
+                    "the list." +
                     "\n" +
                     "The order of power sources on a Node is defined by the Order attribute of its associated Power " +
                     "Source cluster provided on the endpoint. List entries shall be sorted in increasing order, that is, " +
@@ -35135,9 +35149,9 @@ export const SpecMatter = Matter(
         Attribute({
             name: "Description", id: 0x2, type: "string", access: "R V", conformance: "M", constraint: "max 60",
             quality: "F", xref: "core§11.7.7.3",
-            details: "Indicates a user-facing description of this source, used to distinguish it from other power sources, " +
-                "e.g. \"DC Power\", \"Primary Battery\" or \"Battery back-up\". This attribute shall NOT be used to convey " +
-                "information such as battery form factor, or chemistry."
+            details: "This attribute shall provide a user-facing description of this source, used to distinguish it from " +
+                "other power sources, e.g. \"DC Power\", \"Primary Battery\" or \"Battery back-up\". This attribute shall " +
+                "NOT be used to convey information such as battery form factor, or chemistry."
         }),
 
         Attribute({
@@ -35300,8 +35314,9 @@ export const SpecMatter = Matter(
         Attribute({
             name: "BatReplacementDescription", id: 0x13, type: "string", access: "R V", conformance: "REPLC",
             constraint: "max 60", quality: "F", xref: "core§11.7.7.20",
-            details: "Indicates a user-facing description of this battery, which SHOULD contain information required to " +
-                "identify a replacement, such as form factor, chemistry or preferred manufacturer."
+            details: "This attribute shall provide a user-facing description of this battery, which SHOULD contain " +
+                "information required to identify a replacement, such as form factor, chemistry or preferred " +
+                "manufacturer."
         }),
 
         Attribute({
@@ -35936,8 +35951,9 @@ export const SpecMatter = Matter(
         Attribute({
             name: "MaxNetworks", id: 0x0, type: "uint8", access: "R A", conformance: "M", constraint: "min 1",
             quality: "F", xref: "core§11.9.6.1",
-            details: "Indicates the maximum number of network configuration entries that can be added, based on available " +
-                "device resources. The length of the Networks attribute shall be less than or equal to this value."
+            details: "This shall indicate the maximum number of network configuration entries that can be added, based on " +
+                "available device resources. The length of the Networks attribute shall be less than or equal to this " +
+                "value."
         }),
 
         Attribute(
@@ -36865,9 +36881,7 @@ export const SpecMatter = Matter(
             name: "Breadcrumb", id: 0x0, type: "uint64", access: "RW VA", conformance: "M", default: 0,
             xref: "core§11.10.6.1",
 
-            details: "Indicates the current breadcrumb value." +
-                "\n" +
-                "The attribute allows for the storage of a client-provided small payload which Administrators and " +
+            details: "This attribute allows for the storage of a client-provided small payload which Administrators and " +
                 "Commissioners may write and then subsequently read, to keep track of their own progress. This may be " +
                 "used by the Commissioner to avoid repeating already-executed actions upon re-establishing a " +
                 "commissioning link after an error." +
@@ -36886,8 +36900,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "BasicCommissioningInfo", id: 0x1, type: "BasicCommissioningInfo", access: "R V",
             conformance: "M", constraint: "desc", quality: "F", xref: "core§11.10.6.2",
-            details: "Indicates critical parameters needed at the beginning of commissioning flow. See " +
-                "BasicCommissioningInfo for more information."
+            details: "This attribute shall describe critical parameters needed at the beginning of commissioning flow. See " +
+                "Section 11.10.5.4, \"BasicCommissioningInfo\" for more information."
         }),
 
         Attribute({
@@ -36904,11 +36918,11 @@ export const SpecMatter = Matter(
             name: "LocationCapability", id: 0x3, type: "RegulatoryLocationTypeEnum", access: "R V",
             conformance: "M", default: 2, quality: "F", xref: "core§11.10.6.4",
 
-            details: "Indicates if this Node needs to be told an exact RegulatoryLocation and is statically set by the " +
-                "manufacturer. For example a Node which is \"Indoor Only\" would not be certified for outdoor use at " +
-                "all, and thus there is no need for a commissioner to set or ask the user about whether the device " +
-                "will be used inside or outside. However a device which states its capability is \"Indoor/Outdoor\" " +
-                "means it would like clarification if possible." +
+            details: "LocationCapability is statically set by the manufacturer and indicates if this Node needs to be told " +
+                "an exact RegulatoryLocation. For example a Node which is \"Indoor Only\" would not be certified for " +
+                "outdoor use at all, and thus there is no need for a commissioner to set or ask the user about " +
+                "whether the device will be used inside or outside. However a device which states its capability is " +
+                "\"Indoor/Outdoor\" means it would like clarification if possible." +
                 "\n" +
                 "For Nodes without radio network interfaces (e.g. Ethernet-only devices), the value IndoorOutdoor " +
                 "shall always be used." +
@@ -37004,9 +37018,9 @@ export const SpecMatter = Matter(
                 name: "RecoveryIdentifier", id: 0xa, type: "octstr", access: "R M", conformance: "P, NR",
                 constraint: "8", default: { type: "bytes", value: "0" }, quality: "N", xref: "core§11.10.6.11",
 
-                details: "Indicates the identifier to be included in the advertisements used during the Network Recovery Flow. " +
-                    "This identifier is intended to be advertised over the air and used by an Administrator to establish " +
-                    "a Node's identity without revealing its Node ID." +
+                details: "This attribute shall contain the identifier to be included in the advertisements used during the " +
+                    "Network Recovery Flow. This identifier is intended to be advertised over the air and used by an " +
+                    "Administrator to establish a Node's identity without revealing its Node ID." +
                     "\n" +
                     "The attribute shall contain a random 64-bit value, that value shall be reset on factory reset and " +
                     "shall remain unchanged until a next factory reset. It is important that this value be selected at " +
@@ -37018,18 +37032,15 @@ export const SpecMatter = Matter(
         Attribute({
             name: "NetworkRecoveryReason", id: 0xb, type: "NetworkRecoveryReasonEnum", access: "R M",
             conformance: "P, NR", default: null, quality: "X", xref: "core§11.10.6.12",
-            details: "Indicates the primary reason that triggered the Network Recovery flow and its associated " +
-                "advertisements. Null when the Node is not undergoing a Network Recovery flow."
+            details: "This attribute shall contain the primary reason that triggered the Network Recovery flow and its " +
+                "associated advertisements. Null when the Node is not undergoing a Network Recovery flow."
         }),
 
         Attribute({
-            name: "IsCommissioningWithoutPower", id: 0xc, type: "bool", access: "R V", conformance: "O",
+            name: "IsCommissioningWithoutPower", id: 0xc, type: "bool", access: "R V", conformance: "P, O",
             default: false, xref: "core§11.10.6.13",
 
-            details: "Indicates if commissioning is being performed without the device being powered by an operational " +
-                "power source." +
-                "\n" +
-                "The server shall set this attribute to true if and only if is currently operating on the " +
+            details: "The server shall set this attribute to true if and only if is currently operating on the " +
                 "commissioning channel but cannot operate on the operational channel because it is not powered." +
                 "\n" +
                 "This may happen during NFC-based commissioning, when the commissioning channel is NFC Transport " +
@@ -37594,8 +37605,8 @@ export const SpecMatter = Matter(
             {
                 name: "NetworkInterfaces", id: 0x0, type: "list", access: "R V", conformance: "M",
                 constraint: "max 8", xref: "core§11.12.6.1",
-                details: "Indicates a list of network interfaces. Each logical network interface on the Node shall be " +
-                    "represented by a single entry within the NetworkInterfaces attribute."
+                details: "The NetworkInterfaces attribute shall be a list of NetworkInterface structs. Each logical network " +
+                    "interface on the Node shall be represented by a single entry within the NetworkInterfaces attribute."
             },
 
             Field({ name: "entry", type: "NetworkInterface" })
@@ -37604,35 +37615,35 @@ export const SpecMatter = Matter(
         Attribute({
             name: "RebootCount", id: 0x1, type: "uint16", access: "R V", conformance: "M", quality: "N",
             xref: "core§11.12.6.2",
-            details: "Indicates a best-effort count of the number of times the Node has rebooted. The RebootCount " +
-                "attribute SHOULD be incremented each time the Node reboots. The RebootCount attribute shall NOT be " +
-                "incremented when a Node wakes from a low-power or sleep state. The RebootCount attribute shall only " +
-                "be reset to 0 upon a factory reset of the Node."
+            details: "The RebootCount attribute shall indicate a best-effort count of the number of times the Node has " +
+                "rebooted. The RebootCount attribute SHOULD be incremented each time the Node reboots. The " +
+                "RebootCount attribute shall NOT be incremented when a Node wakes from a low-power or sleep state. " +
+                "The RebootCount attribute shall only be reset to 0 upon a factory reset of the Node."
         }),
 
         Attribute({
             name: "UpTime", id: 0x2, type: "uint64", access: "R V", conformance: "M", quality: "C",
             xref: "core§11.12.6.3",
-            details: "Indicates a best-effort assessment of the length of time, in seconds, since the Node's last reboot. " +
-                "This attribute SHOULD be incremented to account for the periods of time that a Node is in a " +
-                "low-power or sleep state. This attribute shall only be reset upon a device reboot. This attribute " +
-                "shall be based on the same System Time source as those used to fulfill any usage of the systime-us " +
-                "and systime-ms data types within the server."
+            details: "The UpTime attribute shall indicate a best-effort assessment of the length of time, in seconds, " +
+                "since the Node's last reboot. This attribute SHOULD be incremented to account for the periods of " +
+                "time that a Node is in a low-power or sleep state. This attribute shall only be reset upon a device " +
+                "reboot. This attribute shall be based on the same System Time source as those used to fulfill any " +
+                "usage of the systime-us and systime-ms data types within the server."
         }),
 
         Attribute({
             name: "TotalOperationalHours", id: 0x3, type: "uint32", access: "R V", conformance: "O",
             quality: "N C", xref: "core§11.12.6.4",
-            details: "Indicates a best-effort attempt at tracking the length of time, in hours, that the Node has been " +
-                "operational. The TotalOperationalHours attribute SHOULD be incremented to account for the periods of " +
-                "time that a Node is in a low-power or sleep state. The TotalOperationalHours attribute shall only be " +
-                "reset upon a factory reset of the Node."
+            details: "The TotalOperationalHours attribute shall indicate a best-effort attempt at tracking the length of " +
+                "time, in hours, that the Node has been operational. The TotalOperationalHours attribute SHOULD be " +
+                "incremented to account for the periods of time that a Node is in a low-power or sleep state. The " +
+                "TotalOperationalHours attribute shall only be reset upon a factory reset of the Node."
         }),
 
         Attribute({
             name: "BootReason", id: 0x4, type: "BootReasonEnum", access: "R V", conformance: "O",
             xref: "core§11.12.6.5",
-            details: "Indicates the reason for the Node's most recent boot."
+            details: "The BootReason attribute shall indicate the reason for the Node's most recent boot."
         }),
 
         Attribute(
@@ -37640,13 +37651,14 @@ export const SpecMatter = Matter(
                 name: "ActiveHardwareFaults", id: 0x5, type: "list", access: "R V", conformance: "O",
                 constraint: "max 11", xref: "core§11.12.6.6",
 
-                details: "Indicates the set of faults currently detected by the Node. When the Node detects a fault has been " +
-                    "raised, the appropriate HardwareFaultEnum value shall be added to this list. This list shall NOT " +
-                    "contain more than one instance of a specific HardwareFaultEnum value. When the Node detects that all " +
-                    "conditions contributing to a fault has been cleared, the corresponding HardwareFaultEnum value shall " +
-                    "be removed from this list. An empty list shall indicate there are currently no active faults. The " +
-                    "order of this list SHOULD have no significance. Clients interested in monitoring changes in active " +
-                    "faults may subscribe to this attribute, or they may subscribe to HardwareFaultChange."
+                details: "The ActiveHardwareFaults attribute shall indicate the set of faults currently detected by the Node. " +
+                    "When the Node detects a fault has been raised, the appropriate HardwareFaultEnum value shall be " +
+                    "added to this list. This list shall NOT contain more than one instance of a specific " +
+                    "HardwareFaultEnum value. When the Node detects that all conditions contributing to a fault has been " +
+                    "cleared, the corresponding HardwareFaultEnum value shall be removed from this list. An empty list " +
+                    "shall indicate there are currently no active faults. The order of this list SHOULD have no " +
+                    "significance. Clients interested in monitoring changes in active faults may subscribe to this " +
+                    "attribute, or they may subscribe to HardwareFaultChange."
             },
 
             Field({ name: "entry", type: "HardwareFaultEnum" })
@@ -37657,13 +37669,14 @@ export const SpecMatter = Matter(
                 name: "ActiveRadioFaults", id: 0x6, type: "list", access: "R V", conformance: "O",
                 constraint: "max 7", xref: "core§11.12.6.7",
 
-                details: "Indicates the set of faults currently detected by the Node. When the Node detects a fault has been " +
-                    "raised, the appropriate RadioFaultEnum value shall be added to this list. This list shall NOT " +
-                    "contain more than one instance of a specific RadioFaultEnum value. When the Node detects that all " +
-                    "conditions contributing to a fault has been cleared, the corresponding RadioFaultEnum value shall be " +
-                    "removed from this list. An empty list shall indicate there are currently no active faults. The order " +
-                    "of this list SHOULD have no significance. Clients interested in monitoring changes in active faults " +
-                    "may subscribe to this attribute, or they may subscribe to RadioFaultChange."
+                details: "The ActiveRadioFaults attribute shall indicate the set of faults currently detected by the Node. " +
+                    "When the Node detects a fault has been raised, the appropriate RadioFaultEnum value shall be added " +
+                    "to this list. This list shall NOT contain more than one instance of a specific RadioFaultEnum value. " +
+                    "When the Node detects that all conditions contributing to a fault has been cleared, the " +
+                    "corresponding RadioFaultEnum value shall be removed from this list. An empty list shall indicate " +
+                    "there are currently no active faults. The order of this list SHOULD have no significance. Clients " +
+                    "interested in monitoring changes in active faults may subscribe to this attribute, or they may " +
+                    "subscribe to RadioFaultChange."
             },
 
             Field({ name: "entry", type: "RadioFaultEnum" })
@@ -37674,13 +37687,14 @@ export const SpecMatter = Matter(
                 name: "ActiveNetworkFaults", id: 0x7, type: "list", access: "R V", conformance: "O",
                 constraint: "max 4", xref: "core§11.12.6.8",
 
-                details: "Indicates the set of faults currently detected by the Node. When the Node detects a fault has been " +
-                    "raised, the appropriate NetworkFaultEnum value shall be added to this list. This list shall NOT " +
-                    "contain more than one instance of a specific NetworkFaultEnum value. When the Node detects that all " +
-                    "conditions contributing to a fault has been cleared, the corresponding NetworkFaultEnum value shall " +
-                    "be removed from this list. An empty list shall indicate there are currently no active faults. The " +
-                    "order of this list SHOULD have no significance. Clients interested in monitoring changes in active " +
-                    "faults may subscribe to this attribute, or they may subscribe to NetworkFaultChange."
+                details: "The ActiveNetworkFaults attribute shall indicate the set of faults currently detected by the Node. " +
+                    "When the Node detects a fault has been raised, the appropriate NetworkFaultEnum value shall be added " +
+                    "to this list. This list shall NOT contain more than one instance of a specific NetworkFaultEnum " +
+                    "value. When the Node detects that all conditions contributing to a fault has been cleared, the " +
+                    "corresponding NetworkFaultEnum value shall be removed from this list. An empty list shall indicate " +
+                    "there are currently no active faults. The order of this list SHOULD have no significance. Clients " +
+                    "interested in monitoring changes in active faults may subscribe to this attribute, or they may " +
+                    "subscribe to NetworkFaultChange."
             },
 
             Field({ name: "entry", type: "NetworkFaultEnum" })
@@ -37690,12 +37704,13 @@ export const SpecMatter = Matter(
             name: "TestEventTriggersEnabled", id: 0x8, type: "bool", access: "R V", conformance: "M",
             xref: "core§11.12.6.9",
 
-            details: "Indicates whether the Node has any TestEventTrigger configured. When this attribute is true, the " +
-                "Node has been configured with one or more test event triggers by virtue of the internally programmed " +
-                "EnableKey value (see TestEventTrigger Command) being set to a non-zero value. This attribute can be " +
-                "used by Administrators to detect if a device was inadvertently commissioned with test event trigger " +
-                "mode enabled, and take appropriate action (e.g. warn the user and/or offer to remove all fabrics on " +
-                "the Node)."
+            details: "The TestEventTriggersEnabled attribute shall indicate whether the Node has any TestEventTrigger " +
+                "configured. When this attribute is true, the Node has been configured with one or more test event " +
+                "triggers by virtue of the internally programmed EnableKey value (see Section 11.12.7.1, " +
+                "\"TestEventTrigger Command\") being set to a non-zero value. This attribute can be used by " +
+                "Administrators to detect if a device was inadvertently commissioned with test event trigger mode " +
+                "enabled, and take appropriate action (e.g. warn the user and/or offer to remove all fabrics on the " +
+                "Node)."
         }),
 
         Attribute({ name: "DoNotUse", id: 0x9, conformance: "X", xref: "core§11.12.6" }),
@@ -38252,8 +38267,8 @@ export const SpecMatter = Matter(
             {
                 name: "ThreadMetrics", id: 0x0, type: "list", access: "R V", conformance: "O", constraint: "max 64",
                 quality: "C", xref: "core§11.13.6.1",
-                details: "Indicates a list of thread metrics. Each active thread on the Node shall be represented by a single " +
-                    "entry in the list."
+                details: "This attribute shall be a list of ThreadMetricsStruct structs. Each active thread on the Node shall " +
+                    "be represented by a single entry within the ThreadMetrics attribute."
             },
 
             Field({ name: "entry", type: "ThreadMetricsStruct" })
@@ -38822,21 +38837,17 @@ export const SpecMatter = Matter(
         Attribute({
             name: "ActiveTimestamp", id: 0x38, type: "uint64", access: "R V", conformance: "O", default: 0,
             quality: "X", xref: "core§11.14.6.57",
-            details: "Indicates the timestamp of the currently active operational dataset. Null when there is no dataset " +
-                "configured."
+            details: "Null when there is no dataset configured."
         }),
-
         Attribute({
             name: "PendingTimestamp", id: 0x39, type: "uint64", access: "R V", conformance: "O", default: 0,
             quality: "X", xref: "core§11.14.6.58",
-            details: "Indicates the timestamp of the currently pending operational dataset. Null when there is no dataset " +
-                "configured."
+            details: "Null when there is no dataset configured."
         }),
-
         Attribute({
             name: "Delay", id: 0x3a, type: "uint32", access: "R V", conformance: "O", default: 0, quality: "X",
             xref: "core§11.14.6.59",
-            details: "Indicates the delay value of the operational dataset. Null when there is no dataset configured."
+            details: "Null when there is no dataset configured."
         }),
 
         Attribute({
@@ -39627,8 +39638,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "UtcTime", id: 0x0, type: "epoch-us", access: "R V", conformance: "M", default: null,
             quality: "X C", xref: "core§11.17.8.1",
-            details: "Indicates the current time, if the node has achieved time synchronization, as a UTC epoch-us (Epoch " +
-                "Time in Microseconds)." +
+            details: "If the node has achieved time synchronization, this attribute shall indicate the current time as a " +
+                "UTC epoch-us (Epoch Time in Microseconds)." +
                 "\n" +
                 "If the node has not achieved time synchronization, this attribute shall be null. This attribute may " +
                 "be set when a SetUTCTime is received."
@@ -39689,10 +39700,10 @@ export const SpecMatter = Matter(
                 name: "TimeZone", id: 0x5, type: "list", access: "R V", conformance: "TZ", constraint: "1 to 2",
                 quality: "N", xref: "core§11.17.8.6",
 
-                details: "Indicates a list of time zone offsets from UTC and when they shall take effect. This attribute uses " +
-                    "a list of time offset configurations to allow Nodes to handle scheduled regulatory time zone " +
-                    "changes. This attribute shall NOT be used to indicate daylight savings time changes (see DSTOffset " +
-                    "Attribute for daylight savings time)." +
+                details: "This attribute shall contain a list of time zone offsets from UTC and when they shall take effect. " +
+                    "This attribute uses a list of time offset configurations to allow Nodes to handle scheduled " +
+                    "regulatory time zone changes. This attribute shall NOT be used to indicate daylight savings time " +
+                    "changes (see Section 11.17.8.7, \"DSTOffset Attribute\" for daylight savings time)." +
                     "\n" +
                     "The first entry shall have a ValidAt entry of 0. If there is a second entry, it shall have a " +
                     "non-zero ValidAt time." +
@@ -39727,7 +39738,8 @@ export const SpecMatter = Matter(
                 name: "DstOffset", id: 0x6, type: "list", access: "R V", conformance: "TZ", default: [],
                 quality: "N", xref: "core§11.17.8.7",
 
-                details: "Indicates a list of offsets to apply for daylight savings time, and their validity period." +
+                details: "This attribute shall contain a list of offsets to apply for daylight savings time, and their " +
+                    "validity period." +
                     "\n" +
                     "List entries shall be sorted by ValidStarting time." +
                     "\n" +
@@ -40239,7 +40251,8 @@ export const SpecMatter = Matter(
                 name: "NoCs", id: 0x0, type: "list", access: "R F A", conformance: "M",
                 constraint: "max supportedFabrics", quality: "N C", xref: "core§11.18.5.1",
 
-                details: "Indicates a list of all NOCs applicable to this Node, encoded as a read-only list of NOCStruct." +
+                details: "This attribute shall contain all NOCs applicable to this Node, encoded as a read-only list of " +
+                    "NOCStruct." +
                     "\n" +
                     "Operational Certificates shall be added through the AddNOC command, and shall be removed through the " +
                     "RemoveFabric command." +
@@ -40296,8 +40309,8 @@ export const SpecMatter = Matter(
                 name: "TrustedRootCertificates", id: 0x4, type: "list", access: "R V", conformance: "M",
                 constraint: "max supportedFabrics[max 400]", quality: "N C", xref: "core§11.18.5.5",
 
-                details: "Indicates a list of Trusted Root CA Certificates (RCAC) installed on the Node, as octet strings " +
-                    "containing their Matter Certificate Encoding representation." +
+                details: "This attribute shall contain the list of Trusted Root CA Certificates (RCAC) installed on the Node, " +
+                    "as octet strings containing their Matter Certificate Encoding representation." +
                     "\n" +
                     "These certificates are installed through the AddTrustedRootCertificate command." +
                     "\n" +
@@ -40382,9 +40395,7 @@ export const SpecMatter = Matter(
 
             Field({
                 name: "CertificateType", id: 0x0, type: "CertificateChainTypeEnum", conformance: "M",
-                constraint: "desc", xref: "core§11.18.6.3.1",
-                details: "This field shall indicate the type of element being requested from the device attestation " +
-                    "credentials."
+                constraint: "desc"
             })
         ),
 
@@ -40399,7 +40410,7 @@ export const SpecMatter = Matter(
             Field({
                 name: "Certificate", id: 0x0, type: "octstr", conformance: "M", constraint: "max 600",
                 xref: "core§11.18.6.4.1",
-                details: "This field shall be the DER-encoded certificate corresponding to the CertificateType field in the " +
+                details: "This field shall be the DER encoded certificate corresponding to the CertificateType field in the " +
                     "CertificateChainRequest command."
             })
         ),
@@ -41036,9 +41047,9 @@ export const SpecMatter = Matter(
             name: "AdminFabricIndex", id: 0x1, type: "fabric-idx", access: "R V", conformance: "M",
             quality: "X", xref: "core§11.19.7.2",
 
-            details: "Indicates the FabricIndex associated with the Fabric scoping of the Administrator that opened the " +
-                "window, when the WindowStatus attribute is not set to WindowNotOpen. This may be used to " +
-                "cross-reference in the Fabrics attribute of the Operational Credentials cluster." +
+            details: "When the WindowStatus attribute is not set to WindowNotOpen, this attribute shall indicate the " +
+                "FabricIndex associated with the Fabric scoping of the Administrator that opened the window. This may " +
+                "be used to cross-reference in the Fabrics attribute of the Operational Credentials cluster." +
                 "\n" +
                 "If, during an open commissioning window, the fabric for the Administrator that opened the window is " +
                 "removed, then this attribute shall be set to null." +
@@ -41050,12 +41061,12 @@ export const SpecMatter = Matter(
             name: "AdminVendorId", id: 0x2, type: "vendor-id", access: "R V", conformance: "M", quality: "X",
             xref: "core§11.19.7.3",
 
-            details: "Indicates the Vendor ID associated with the Fabric scoping of the Administrator that opened the " +
-                "window, when the WindowStatus attribute is not set to WindowNotOpen. This field shall match the " +
-                "VendorID field of the Fabrics attribute list entry associated with the Administrator having opened " +
-                "the window, at the time of window opening. If the fabric for the Administrator that opened the " +
-                "window is removed from the node while the commissioning window is still open, this attribute shall " +
-                "NOT be updated." +
+            details: "When the WindowStatus attribute is not set to WindowNotOpen, this attribute shall indicate the " +
+                "Vendor ID associated with the Fabric scoping of the Administrator that opened the window. This field " +
+                "shall match the VendorID field of the Fabrics attribute list entry associated with the Administrator " +
+                "having opened the window, at the time of window opening. If the fabric for the Administrator that " +
+                "opened the window is removed from the node while the commissioning window is still open, this " +
+                "attribute shall NOT be updated." +
                 "\n" +
                 "When the WindowStatus attribute is set to WindowNotOpen, this attribute shall be set to null."
         }),
@@ -41712,7 +41723,7 @@ export const SpecMatter = Matter(
                 name: "DefaultOtaProviders", id: 0x0, type: "list", access: "RW F VA", conformance: "M",
                 constraint: "desc", default: [], quality: "N", xref: "core§11.20.7.5.1",
 
-                details: "Indicates a list of ProviderLocation whose entries shall be set by Administrators, either during " +
+                details: "This field is a list of ProviderLocation whose entries shall be set by Administrators, either during " +
                     "Commissioning or at a later time, to set the ProviderLocation for the default OTA Provider Node to " +
                     "use for software updates on a given Fabric." +
                     "\n" +
@@ -41729,38 +41740,35 @@ export const SpecMatter = Matter(
         Attribute({
             name: "UpdatePossible", id: 0x1, type: "bool", access: "R V", conformance: "M", default: true,
             xref: "core§11.20.7.5.2",
-
-            details: "Indicates whether the OTA Requestor is currently able to be updated." +
-                "\n" +
-                "The attribute shall be set to True if update is possible. Otherwise, it shall be set to False in " +
-                "case of any condition preventing update being possible, such as insufficient capacity of an internal " +
-                "battery. This field is merely informational for diagnostics purposes and shall NOT affect the " +
-                "responses provided by an OTA Provider to an OTA Requestor."
+            details: "This field shall be set to True if the OTA Requestor is currently able to be updated. Otherwise, it " +
+                "shall be set to False in case of any condition preventing update being possible, such as " +
+                "insufficient capacity of an internal battery. This field is merely informational for diagnostics " +
+                "purposes and shall NOT affect the responses provided by an OTA Provider to an OTA Requestor."
         }),
 
         Attribute({
             name: "UpdateState", id: 0x2, type: "UpdateStateEnum", access: "R V", conformance: "M", default: 0,
             xref: "core§11.20.7.5.3",
-            details: "Indicates the current state of the OTA Requestor with regards to obtaining software updates. See " +
-                "Section 11.20.7.4.2, \"UpdateStateEnum Type\" for possible values." +
+            details: "This field shall reflect the current state of the OTA Requestor with regards to obtaining software " +
+                "updates. See Section 11.20.7.4.2, \"UpdateStateEnum Type\" for possible values." +
                 "\n" +
-                "This attribute SHOULD be updated in a timely manner whenever OTA Requestor internal state updates."
+                "This field SHOULD be updated in a timely manner whenever OTA Requestor internal state updates."
         }),
 
         Attribute({
             name: "UpdateStateProgress", id: 0x3, type: "uint8", access: "R V", conformance: "M",
             constraint: "0 to 100", default: null, quality: "X", xref: "core§11.20.7.5.4",
 
-            details: "Indicates the percentage value of progress, relative to the current UpdateState, if applicable to " +
-                "the state." +
+            details: "This field shall reflect the percentage value of progress, relative to the current UpdateState, if " +
+                "applicable to the state." +
                 "\n" +
                 "The value of this field shall be null if a progress indication does not apply to the current state." +
                 "\n" +
                 "A value of 0 shall indicate that the beginning has occurred. A value of 100 shall indicate " +
                 "completion." +
                 "\n" +
-                "This attribute may be updated infrequently. Some care SHOULD be taken by Nodes to avoid " +
-                "over-reporting progress when this attribute is part of a subscription."
+                "This field may be updated infrequently. Some care SHOULD be taken by Nodes to avoid over-reporting " +
+                "progress when this attribute is part of a subscription."
         }),
 
         Event(
@@ -42154,31 +42162,35 @@ export const SpecMatter = Matter(
         Attribute({
             name: "AnchorRootCa", id: 0x0, type: "octstr", access: "R A", conformance: "M",
             constraint: "max 400", quality: "N", xref: "core§11.24.6.1",
-            details: "Indicates the Anchor Root CA used to sign all NOC Issuers in the Joint Fabric for the accessing " +
-                "fabric. A null value indicates that the Joint Fabric is not yet formed."
+            details: "This shall indicate the Anchor Root CA used to sign all NOC Issuers in the Joint Fabric for the " +
+                "accessing fabric. A null value indicates that the Joint Fabric is not yet formed."
         }),
 
         Attribute({
             name: "AnchorNodeId", id: 0x1, type: "node-id", access: "R A", conformance: "M", quality: "N",
             xref: "core§11.24.6.2",
-            details: "Indicates the Node identifier of the Joint Fabric Anchor Root CA for the accessing fabric."
+            details: "This shall indicate the Node identifier of the Joint Fabric Anchor Root CA for the accessing fabric."
         }),
+
         Attribute({
             name: "AnchorVendorId", id: 0x2, type: "vendor-id", access: "R A", conformance: "M", quality: "N",
             xref: "core§11.24.6.3",
-            details: "Indicates the Vendor identifier of the Joint Fabric Anchor Root CA for the accessing fabric."
+            details: "This shall indicate the Vendor identifier of the Joint Fabric Anchor Root CA for the accessing " +
+                "fabric."
         }),
+
         Attribute({
             name: "FriendlyName", id: 0x3, type: "string", access: "R A", conformance: "M",
             constraint: "max 32", quality: "N", xref: "core§11.24.6.4",
-            details: "Indicates the friendly name for the accessing fabric which can be propagated to nodes."
+            details: "Friendly name for the accessing fabric."
         }),
 
         Attribute(
             {
                 name: "GroupKeySetList", id: 0x4, type: "list", access: "R A", conformance: "M",
                 constraint: "1 to 254", quality: "N", xref: "core§11.24.6.5",
-                details: "Indicates a list of group key sets used in the Joint Fabric for the accessing fabric." +
+                details: "This shall indicate the list of DatastoreGroupKeySetStruct used in the Joint Fabric for the " +
+                    "accessing fabric." +
                     "\n" +
                     "This attribute shall contain at least one entry, the IPK, which has GroupKeySetID of 0."
             },
@@ -42190,7 +42202,7 @@ export const SpecMatter = Matter(
             {
                 name: "GroupList", id: 0x5, type: "list", access: "R A", conformance: "M", constraint: "1 to 254",
                 quality: "N", xref: "core§11.24.6.6",
-                details: "Indicates a list of groups in the Joint Fabric for the accessing fabric." +
+                details: "This shall indicate the list of groups in the Joint Fabric for the accessing fabric." +
                     "\n" +
                     "This list shall include, at a minimum, one group with GroupCAT value set to Administrator CAT and " +
                     "one group with GroupCAT value set to Anchor CAT."
@@ -42203,7 +42215,7 @@ export const SpecMatter = Matter(
             {
                 name: "NodeList", id: 0x6, type: "list", access: "R A", conformance: "M", constraint: "max 1024",
                 quality: "N", xref: "core§11.24.6.7",
-                details: "Indicates a list of nodes in the Joint Fabric for the accessing fabric."
+                details: "This shall indicate the list of nodes in the Joint Fabric for the accessing fabric."
             },
             Field({ name: "entry", type: "DatastoreNodeInformationEntryStruct" })
         ),
@@ -42213,7 +42225,7 @@ export const SpecMatter = Matter(
                 name: "AdminList", id: 0x7, type: "list", access: "R A", conformance: "M", constraint: "1 to 32",
                 quality: "N", xref: "core§11.24.6.8",
 
-                details: "Indicates a list of administrators in the Joint Fabric for the accessing fabric." +
+                details: "This shall indicate the list of administrators in the Joint Fabric for the accessing fabric." +
                     "\n" +
                     "Only one Administrator may serve as the Anchor Root CA and Anchor Fabric Administrator and shall " +
                     "have index value 0. All other Joint Fabric Administrators shall be referenced at index 1 or greater." +
@@ -42228,7 +42240,8 @@ export const SpecMatter = Matter(
             name: "Status", id: 0x8, type: "DatastoreStatusEntryStruct", access: "R A", conformance: "M",
             quality: "N", xref: "core§11.24.6.9",
 
-            details: "Indicates the current state of the Joint Fabric Datastore Cluster for the accessing fabric." +
+            details: "This shall indicate the current state of the Joint Fabric Datastore Cluster for the accessing " +
+                "fabric." +
                 "\n" +
                 "The value shall be one of the following states:" +
                 "\n" +
@@ -42244,7 +42257,7 @@ export const SpecMatter = Matter(
             {
                 name: "EndpointGroupIdList", id: 0x9, type: "list", access: "R A", conformance: "M",
                 constraint: "max 8192", quality: "N", xref: "core§11.24.6.10",
-                details: "Indicates a list of group membership of endpoints in the accessing fabric."
+                details: "This shall indicate the group membership of endpoints in the accessing fabric."
             },
             Field({ name: "entry", type: "DatastoreEndpointGroupIDEntryStruct" })
         ),
@@ -42253,7 +42266,7 @@ export const SpecMatter = Matter(
             {
                 name: "EndpointBindingList", id: 0xa, type: "list", access: "R A", conformance: "M",
                 constraint: "max 8192", quality: "N", xref: "core§11.24.6.11",
-                details: "Indicates a list of bindings for endpoints in the accessing fabric."
+                details: "This shall indicate the binding list for endpoints in the accessing fabric."
             },
             Field({ name: "entry", type: "DatastoreEndpointBindingEntryStruct" })
         ),
@@ -42262,7 +42275,7 @@ export const SpecMatter = Matter(
             {
                 name: "NodeKeySetList", id: 0xb, type: "list", access: "R A", conformance: "M",
                 constraint: "max 8192", quality: "N", xref: "core§11.24.6.12",
-                details: "Indicates a list of KeySet entries for nodes in the accessing fabric."
+                details: "This shall indicate the KeySet entries for nodes in the accessing fabric."
             },
             Field({ name: "entry", type: "DatastoreNodeKeySetEntryStruct" })
         ),
@@ -42271,7 +42284,7 @@ export const SpecMatter = Matter(
             {
                 name: "NodeAclList", id: 0xc, type: "list", access: "R A", conformance: "M", constraint: "max 8192",
                 quality: "N", xref: "core§11.24.6.13",
-                details: "Indicates a list of ACL entries for nodes in the accessing fabric."
+                details: "This shall indicate the ACL entries for nodes in the accessing fabric."
             },
             Field({ name: "entry", type: "DatastoreACLEntryStruct" })
         ),
@@ -42280,7 +42293,7 @@ export const SpecMatter = Matter(
             {
                 name: "NodeEndpointList", id: 0xd, type: "list", access: "R A", conformance: "M",
                 constraint: "max 8192", quality: "N", xref: "core§11.24.6.14",
-                details: "Indicates a list of Endpoint entries for nodes in the accessing fabric."
+                details: "This shall indicate the Endpoint entries for nodes in the accessing fabric."
             },
             Field({ name: "entry", type: "DatastoreEndpointEntryStruct" })
         ),
@@ -43218,7 +43231,42 @@ export const SpecMatter = Matter(
         ),
 
         Datatype(
-            { name: "DatastoreAccessControlEntryPrivilegeEnum", type: "enum8", xref: "core§11.24.5.2" },
+            { name: "DatastoreStatusEntryStruct", type: "struct", xref: "core§11.24.5.2" },
+            Field({
+                name: "State", id: 0x0, type: "DatastoreStateEnum", access: "R V", conformance: "M",
+                xref: "core§11.24.5.2.1",
+                details: "This field shall contain the current state of the target device operation."
+            }),
+            Field({
+                name: "UpdateTimestamp", id: 0x1, type: "epoch-s", access: "R V", conformance: "M",
+                xref: "core§11.24.5.2.2",
+                details: "This field shall contain the timestamp of the last update."
+            }),
+
+            Field({
+                name: "FailureCode", id: 0x2, type: "status", access: "R V", conformance: "M",
+                xref: "core§11.24.5.2.3",
+                details: "This field shall contain the Status Code of the last failed operation where the State field is set " +
+                    "to CommitFailure."
+            })
+        ),
+
+        Datatype(
+            { name: "DatastoreNodeKeySetEntryStruct", type: "struct", xref: "core§11.24.5.3" },
+            Field({
+                name: "NodeId", id: 0x0, type: "node-id", access: "R V", conformance: "M", xref: "core§11.24.5.3.1",
+                details: "The unique identifier for the node."
+            }),
+            Field({ name: "GroupKeySetId", id: 0x1, type: "uint16", access: "R V", conformance: "M" }),
+            Field({
+                name: "StatusEntry", id: 0x2, type: "DatastoreStatusEntryStruct", access: "R V", conformance: "M",
+                xref: "core§11.24.5.3.3",
+                details: "Indicates whether entry in this list is pending, committed, delete-pending, or commit-failed."
+            })
+        ),
+
+        Datatype(
+            { name: "DatastoreAccessControlEntryPrivilegeEnum", type: "enum8", xref: "core§11.24.5.4" },
             Field({
                 name: "View", id: 0x1, conformance: "M",
                 description: "Can read and observe all (except Access Control Cluster)"
@@ -43238,82 +43286,20 @@ export const SpecMatter = Matter(
         ),
 
         Datatype(
-            { name: "DatastoreAccessControlEntryAuthModeEnum", type: "enum8", xref: "core§11.24.5.3" },
-            Field({ name: "Pase", id: 0x1, conformance: "M", description: "Passcode authenticated session" }),
-            Field({ name: "Case", id: 0x2, conformance: "M", description: "Certificate authenticated session" }),
-            Field({ name: "Group", id: 0x3, conformance: "M", description: "Group authenticated session" })
-        ),
-
-        Datatype(
-            { name: "DatastoreGroupKeySecurityPolicyEnum", type: "enum8", xref: "core§11.24.5.4" },
+            { name: "DatastoreGroupInformationEntryStruct", type: "struct", xref: "core§11.24.5.5" },
             Field({
-                name: "TrustFirst", id: 0x0, conformance: "M",
-                description: "Message counter synchronization using trust-first"
-            })
-        ),
-
-        Datatype(
-            { name: "DatastoreGroupKeyMulticastPolicyEnum", type: "enum8", xref: "core§11.24.5.5" },
-            Field({
-                name: "PerGroupId", id: 0x0, conformance: "M",
-                description: "Indicates filtering of multicast messages for a specific Group ID"
-            }),
-            Field({
-                name: "AllNodes", id: 0x1, conformance: "M",
-                description: "Indicates not filtering of multicast messages"
-            })
-        ),
-
-        Datatype(
-            { name: "DatastoreStatusEntryStruct", type: "struct", xref: "core§11.24.5.6" },
-            Field({
-                name: "State", id: 0x0, type: "DatastoreStateEnum", access: "R V", conformance: "M",
-                xref: "core§11.24.5.6.1",
-                details: "This field shall contain the current state of the target device operation."
-            }),
-            Field({
-                name: "UpdateTimestamp", id: 0x1, type: "epoch-s", access: "R V", conformance: "M",
-                xref: "core§11.24.5.6.2",
-                details: "This field shall contain the timestamp of the last update."
-            }),
-
-            Field({
-                name: "FailureCode", id: 0x2, type: "status", access: "R V", conformance: "M",
-                xref: "core§11.24.5.6.3",
-                details: "This field shall contain the Status Code of the last failed operation where the State field is set " +
-                    "to CommitFailure."
-            })
-        ),
-
-        Datatype(
-            { name: "DatastoreNodeKeySetEntryStruct", type: "struct", xref: "core§11.24.5.7" },
-            Field({
-                name: "NodeId", id: 0x0, type: "node-id", access: "R V", conformance: "M", xref: "core§11.24.5.7.1",
-                details: "The unique identifier for the node."
-            }),
-            Field({ name: "GroupKeySetId", id: 0x1, type: "uint16", access: "R V", conformance: "M" }),
-            Field({
-                name: "StatusEntry", id: 0x2, type: "DatastoreStatusEntryStruct", access: "R V", conformance: "M",
-                xref: "core§11.24.5.7.3",
-                details: "Indicates whether entry in this list is pending, committed, delete-pending, or commit-failed."
-            })
-        ),
-
-        Datatype(
-            { name: "DatastoreGroupInformationEntryStruct", type: "struct", xref: "core§11.24.5.8" },
-            Field({
-                name: "GroupId", id: 0x0, type: "uint64", access: "R V", conformance: "M", xref: "core§11.24.5.8.1",
+                name: "GroupId", id: 0x0, type: "uint64", access: "R V", conformance: "M", xref: "core§11.24.5.5.1",
                 details: "The unique identifier for the group."
             }),
             Field({
                 name: "FriendlyName", id: 0x1, type: "string", access: "R V", conformance: "M",
-                constraint: "max 32", xref: "core§11.24.5.8.2",
+                constraint: "max 32", xref: "core§11.24.5.5.2",
                 details: "The friendly name for the group."
             }),
 
             Field({
                 name: "GroupKeySetId", id: 0x2, type: "uint16", access: "R V", conformance: "M",
-                constraint: "1 to 65534", quality: "X", xref: "core§11.24.5.8.3",
+                constraint: "1 to 65534", quality: "X", xref: "core§11.24.5.5.3",
 
                 details: "The unique identifier for the group key set." +
                     "\n" +
@@ -43326,7 +43312,7 @@ export const SpecMatter = Matter(
 
             Field({
                 name: "GroupCat", id: 0x3, type: "uint16", access: "R V", conformance: "M", constraint: "desc",
-                quality: "X", xref: "core§11.24.5.8.4",
+                quality: "X", xref: "core§11.24.5.5.4",
 
                 details: "CAT value for this group. This is used for control of individual members of a group (non-broadcast " +
                     "commands)." +
@@ -43339,7 +43325,7 @@ export const SpecMatter = Matter(
 
             Field({
                 name: "GroupCatVersion", id: 0x4, type: "uint16", access: "R V", conformance: "M",
-                constraint: "1 to 65534", quality: "X", xref: "core§11.24.5.8.5",
+                constraint: "1 to 65534", quality: "X", xref: "core§11.24.5.5.5",
                 details: "Current version number for this CAT." +
                     "\n" +
                     "This value shall be null when GroupCAT value is null."
@@ -43347,7 +43333,7 @@ export const SpecMatter = Matter(
 
             Field({
                 name: "GroupPermission", id: 0x5, type: "DatastoreAccessControlEntryPrivilegeEnum", access: "R V",
-                conformance: "M", xref: "core§11.24.5.8.6",
+                conformance: "M", xref: "core§11.24.5.5.6",
                 details: "The permission level associated with ACL entries for this group. There should be only one " +
                     "Administrator group per fabric, and at most one Manage group per Ecosystem (Vendor Entry)."
             })
@@ -43355,7 +43341,7 @@ export const SpecMatter = Matter(
 
         Datatype(
             {
-                name: "DatastoreBindingTargetStruct", type: "struct", xref: "core§11.24.5.9",
+                name: "DatastoreBindingTargetStruct", type: "struct", xref: "core§11.24.5.6",
                 details: "The DatastoreBindingTargetStruct represents a Binding on a specific Node (identified by the " +
                     "DatastoreEndpointBindingEntryStruct) which is managed by the Datastore. Only bindings on a specific " +
                     "Node that are fabric-scoped to the Joint Fabric are managed by the Datastore. As a result, " +
@@ -43363,26 +43349,26 @@ export const SpecMatter = Matter(
             },
 
             Field({
-                name: "Node", id: 0x1, type: "node-id", conformance: "Endpoint", xref: "core§11.24.5.9.1",
+                name: "Node", id: 0x1, type: "node-id", conformance: "Endpoint", xref: "core§11.24.5.6.1",
                 details: "This field is the binding's remote target node ID. If the Endpoint field is present, this field " +
                     "shall be present."
             }),
 
             Field({
                 name: "Group", id: 0x2, type: "group-id", conformance: "!Endpoint", constraint: "min 1",
-                xref: "core§11.24.5.9.2",
+                xref: "core§11.24.5.6.2",
                 details: "This field is the binding's target group ID that represents remote endpoints. If the Endpoint field " +
                     "is present, this field shall NOT be present."
             }),
 
             Field({
-                name: "Endpoint", id: 0x3, type: "endpoint-no", conformance: "!Group", xref: "core§11.24.5.9.3",
+                name: "Endpoint", id: 0x3, type: "endpoint-no", conformance: "!Group", xref: "core§11.24.5.6.3",
                 details: "This field is the binding's remote endpoint that the local endpoint is bound to. If the Group field " +
                     "is present, this field shall NOT be present."
             }),
 
             Field({
-                name: "Cluster", id: 0x4, type: "cluster-id", conformance: "O", xref: "core§11.24.5.9.4",
+                name: "Cluster", id: 0x4, type: "cluster-id", conformance: "O", xref: "core§11.24.5.6.4",
                 details: "This field is the binding's cluster ID (client & server) on the local and target endpoint(s). If " +
                     "this field is present, the client cluster shall also exist on this endpoint (with this Binding " +
                     "cluster). If this field is present, the target shall be this cluster on the target endpoint(s)."
@@ -43390,20 +43376,19 @@ export const SpecMatter = Matter(
         ),
 
         Datatype(
-            { name: "DatastoreEndpointBindingEntryStruct", type: "struct", xref: "core§11.24.5.10" },
+            { name: "DatastoreEndpointBindingEntryStruct", type: "struct", xref: "core§11.24.5.7" },
             Field({
-                name: "NodeId", id: 0x0, type: "node-id", access: "R V", conformance: "M",
-                xref: "core§11.24.5.10.1",
+                name: "NodeId", id: 0x0, type: "node-id", access: "R V", conformance: "M", xref: "core§11.24.5.7.1",
                 details: "The unique identifier for the node."
             }),
             Field({
                 name: "EndpointId", id: 0x1, type: "endpoint-no", access: "R V", conformance: "M",
-                xref: "core§11.24.5.10.2",
+                xref: "core§11.24.5.7.2",
                 details: "The unique identifier for the endpoint."
             }),
 
             Field({
-                name: "ListId", id: 0x2, type: "uint16", access: "R V", conformance: "M", xref: "core§11.24.5.10.3",
+                name: "ListId", id: 0x2, type: "uint16", access: "R V", conformance: "M", xref: "core§11.24.5.7.3",
                 details: "The unique identifier for the entry in the Datastore's EndpointBindingList attribute, which is a " +
                     "list of DatastoreEndpointBindingEntryStruct." +
                     "\n" +
@@ -43413,43 +43398,42 @@ export const SpecMatter = Matter(
 
             Field({
                 name: "Binding", id: 0x3, type: "DatastoreBindingTargetStruct", access: "R V", conformance: "M",
-                xref: "core§11.24.5.10.4",
+                xref: "core§11.24.5.7.4",
                 details: "The binding target structure."
             }),
             Field({
                 name: "StatusEntry", id: 0x4, type: "DatastoreStatusEntryStruct", access: "R V", conformance: "M",
-                xref: "core§11.24.5.10.5",
+                xref: "core§11.24.5.7.5",
                 details: "Indicates whether entry in this list is pending, committed, delete-pending, or commit-failed."
             })
         ),
 
         Datatype(
-            { name: "DatastoreEndpointGroupIDEntryStruct", type: "struct", xref: "core§11.24.5.11" },
+            { name: "DatastoreEndpointGroupIDEntryStruct", type: "struct", xref: "core§11.24.5.8" },
             Field({
-                name: "NodeId", id: 0x0, type: "node-id", access: "R V", conformance: "M",
-                xref: "core§11.24.5.11.1",
+                name: "NodeId", id: 0x0, type: "node-id", access: "R V", conformance: "M", xref: "core§11.24.5.8.1",
                 details: "The unique identifier for the node."
             }),
             Field({
                 name: "EndpointId", id: 0x1, type: "endpoint-no", access: "R V", conformance: "M",
-                xref: "core§11.24.5.11.2",
+                xref: "core§11.24.5.8.2",
                 details: "The unique identifier for the endpoint."
             }),
             Field({
                 name: "GroupId", id: 0x2, type: "group-id", access: "R V", conformance: "M",
-                xref: "core§11.24.5.11.3",
+                xref: "core§11.24.5.8.3",
                 details: "The unique identifier for the group."
             }),
             Field({
                 name: "StatusEntry", id: 0x3, type: "DatastoreStatusEntryStruct", access: "R V", conformance: "M",
-                xref: "core§11.24.5.11.4",
+                xref: "core§11.24.5.8.4",
                 details: "Indicates whether entry in this list is pending, committed, delete-pending, or commit-failed."
             })
         ),
 
         Datatype(
             {
-                name: "DatastoreEndpointEntryStruct", type: "struct", xref: "core§11.24.5.12",
+                name: "DatastoreEndpointEntryStruct", type: "struct", xref: "core§11.24.5.9",
                 details: "The DatastoreEndpointEntryStruct represents an Endpoint on a specific Node which is managed by the " +
                     "Datastore. Only Nodes on the Joint Fabric are managed by the Datastore. As a result, references to " +
                     "NodeID are specific to the Joint Fabric."
@@ -43457,18 +43441,17 @@ export const SpecMatter = Matter(
 
             Field({
                 name: "EndpointId", id: 0x0, type: "endpoint-no", access: "R V", conformance: "M",
-                xref: "core§11.24.5.12.1",
+                xref: "core§11.24.5.9.1",
                 details: "The unique identifier for the endpoint."
             }),
             Field({
-                name: "NodeId", id: 0x1, type: "node-id", access: "R V", conformance: "M",
-                xref: "core§11.24.5.12.2",
+                name: "NodeId", id: 0x1, type: "node-id", access: "R V", conformance: "M", xref: "core§11.24.5.9.2",
                 details: "The unique identifier for the node."
             }),
 
             Field({
                 name: "FriendlyName", id: 0x2, type: "string", access: "R V", conformance: "M",
-                constraint: "max 32", xref: "core§11.24.5.12.3",
+                constraint: "max 32", xref: "core§11.24.5.9.3",
 
                 details: "This field shall indicate a user-assigned label for this endpoint, as captured by a Joint Fabric " +
                     "Administrator's user interface. By maintaining this value in the Joint Fabric Datastore, all Joint " +
@@ -43483,7 +43466,14 @@ export const SpecMatter = Matter(
         ),
 
         Datatype(
-            { name: "DatastoreAccessControlTargetStruct", type: "struct", xref: "core§11.24.5.13" },
+            { name: "DatastoreAccessControlEntryAuthModeEnum", type: "enum8", xref: "core§11.24.5.10" },
+            Field({ name: "Pase", id: 0x1, conformance: "M", description: "Passcode authenticated session" }),
+            Field({ name: "Case", id: 0x2, conformance: "M", description: "Certificate authenticated session" }),
+            Field({ name: "Group", id: 0x3, conformance: "M", description: "Group authenticated session" })
+        ),
+
+        Datatype(
+            { name: "DatastoreAccessControlTargetStruct", type: "struct", xref: "core§11.24.5.11" },
             Field({ name: "Cluster", id: 0x0, type: "cluster-id", conformance: "M", quality: "X" }),
             Field({ name: "Endpoint", id: 0x1, type: "endpoint-no", conformance: "M", quality: "X" }),
             Field({ name: "DeviceType", id: 0x2, type: "devtype-id", conformance: "M", quality: "X" })
@@ -43491,7 +43481,7 @@ export const SpecMatter = Matter(
 
         Datatype(
             {
-                name: "DatastoreAccessControlEntryStruct", type: "struct", xref: "core§11.24.5.14",
+                name: "DatastoreAccessControlEntryStruct", type: "struct", xref: "core§11.24.5.12",
                 details: "The DatastoreAccessControlEntryStruct represents an ACL on a specific Node (identified by the " +
                     "DatastoreACLEntryStruct) which is managed by the Datastore. Only ACLs on a specific Node that are " +
                     "fabric-scoped to the Joint Fabric are managed by the Datastore. As a result, references to nodes and " +
@@ -43520,7 +43510,7 @@ export const SpecMatter = Matter(
 
         Datatype(
             {
-                name: "DatastoreACLEntryStruct", type: "struct", xref: "core§11.24.5.15",
+                name: "DatastoreACLEntryStruct", type: "struct", xref: "core§11.24.5.13",
                 details: "The DatastoreACLEntryStruct is a holder for an ACL (DatastoreAccessControlEntryStruct) on a specific " +
                     "Node which is managed by the Datastore. Only ACLs on a specific Node that are fabric-scoped to the " +
                     "Joint Fabric are managed by the Datastore. As a result, references to nodes and groups are specific " +
@@ -43529,36 +43519,36 @@ export const SpecMatter = Matter(
 
             Field({
                 name: "NodeId", id: 0x0, type: "node-id", access: "R V", conformance: "M",
-                xref: "core§11.24.5.15.1",
+                xref: "core§11.24.5.13.1",
                 details: "The unique identifier for the node."
             }),
             Field({
-                name: "ListId", id: 0x1, type: "uint16", access: "R V", conformance: "M", xref: "core§11.24.5.15.2",
+                name: "ListId", id: 0x1, type: "uint16", access: "R V", conformance: "M", xref: "core§11.24.5.13.2",
                 details: "The unique identifier for the ACL entry in the Datastore's list of DatastoreACLEntry."
             }),
             Field({
                 name: "AclEntry", id: 0x2, type: "DatastoreAccessControlEntryStruct", access: "R V",
-                conformance: "M", xref: "core§11.24.5.15.3",
+                conformance: "M", xref: "core§11.24.5.13.3",
                 details: "The Access Control Entry structure."
             }),
             Field({
                 name: "StatusEntry", id: 0x3, type: "DatastoreStatusEntryStruct", access: "R V", conformance: "M",
-                xref: "core§11.24.5.15.4",
+                xref: "core§11.24.5.13.4",
                 details: "Indicates whether entry in this list is pending, committed, delete-pending, or commit-failed."
             })
         ),
 
         Datatype(
-            { name: "DatastoreNodeInformationEntryStruct", type: "struct", xref: "core§11.24.5.16" },
+            { name: "DatastoreNodeInformationEntryStruct", type: "struct", xref: "core§11.24.5.14" },
             Field({
                 name: "NodeId", id: 0x0, type: "node-id", access: "R V", conformance: "M",
-                xref: "core§11.24.5.16.1",
+                xref: "core§11.24.5.14.1",
                 details: "The unique identifier for the node."
             }),
 
             Field({
                 name: "FriendlyName", id: 0x1, type: "string", access: "R V", conformance: "M",
-                constraint: "max 32", xref: "core§11.24.5.16.2",
+                constraint: "max 32", xref: "core§11.24.5.14.2",
 
                 details: "This field shall contain a user-assigned label for this node, as captured by a Joint Fabric " +
                     "Administrator's user interface. By maintaining this value in the Joint Fabric Datastore, all Joint " +
@@ -43571,7 +43561,7 @@ export const SpecMatter = Matter(
 
             Field({
                 name: "CommissioningStatusEntry", id: 0x2, type: "DatastoreStatusEntryStruct", access: "R V",
-                conformance: "M", xref: "core§11.24.5.16.3",
+                conformance: "M", xref: "core§11.24.5.14.3",
                 details: "Set to Pending prior to completing commissioning, set to Committed after commissioning complete is " +
                     "successful, or set to CommitFailed if commissioning failed with the FailureCode Field set to the " +
                     "error."
@@ -43579,24 +43569,44 @@ export const SpecMatter = Matter(
         ),
 
         Datatype(
-            { name: "DatastoreAdministratorInformationEntryStruct", type: "struct", xref: "core§11.24.5.17" },
+            { name: "DatastoreAdministratorInformationEntryStruct", type: "struct", xref: "core§11.24.5.15" },
             Field({
-                name: "NodeId", id: 0x0, type: "node-id", conformance: "M", xref: "core§11.24.5.17.1",
+                name: "NodeId", id: 0x0, type: "node-id", conformance: "M", xref: "core§11.24.5.15.1",
                 details: "The unique identifier for the node."
             }),
             Field({
                 name: "FriendlyName", id: 0x1, type: "string", conformance: "M", constraint: "max 32",
-                xref: "core§11.24.5.17.2",
+                xref: "core§11.24.5.15.2",
                 details: "Friendly name for this node which is not propagated to nodes."
             }),
             Field({
-                name: "VendorId", id: 0x2, type: "vendor-id", conformance: "M", xref: "core§11.24.5.17.3",
+                name: "VendorId", id: 0x2, type: "vendor-id", conformance: "M", xref: "core§11.24.5.15.3",
                 details: "The Vendor ID for the node."
             }),
             Field({
                 name: "Icac", id: 0x3, type: "octstr", conformance: "M", constraint: "max 400",
-                xref: "core§11.24.5.17.4",
+                xref: "core§11.24.5.15.4",
                 details: "The ICAC used to issue the NOC."
+            })
+        ),
+
+        Datatype(
+            { name: "DatastoreGroupKeySecurityPolicyEnum", type: "enum8", xref: "core§11.24.5.16" },
+            Field({
+                name: "TrustFirst", id: 0x0, conformance: "M",
+                description: "Message counter synchronization using trust-first"
+            })
+        ),
+
+        Datatype(
+            { name: "DatastoreGroupKeyMulticastPolicyEnum", type: "enum8", xref: "core§11.24.5.17" },
+            Field({
+                name: "PerGroupId", id: 0x0, conformance: "M",
+                description: "Indicates filtering of multicast messages for a specific Group ID"
+            }),
+            Field({
+                name: "AllNodes", id: 0x1, conformance: "M",
+                description: "Indicates not filtering of multicast messages"
             })
         ),
 
@@ -43994,11 +44004,7 @@ export const SpecMatter = Matter(
                 "endpoints to operate as group senders, receivers, or both. This enables low-power and " +
                 "resource-constrained devices to participate in group communication without incurring unnecessary " +
                 "state or processing overhead. Together, these design elements provide a clearer and more " +
-                "interoperable basis for group functionality and form the replacement for the legacy Groups cluster." +
-                "\n" +
-                "> [!NOTE]" +
-                "\n" +
-                "> NOTE: Support for Groupcast cluster is provisional."
+                "interoperable basis for group functionality and form the replacement for the legacy Groups cluster."
         },
 
         Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
@@ -44006,27 +44012,27 @@ export const SpecMatter = Matter(
         Attribute(
             { name: "FeatureMap", id: 0xfffc, type: "FeatureMap", xref: "core§11.27.4" },
             Field({
-                name: "LN", conformance: "P, O.a+", constraint: "0", title: "Listener", xref: "core§11.27.4.1",
+                name: "LN", conformance: "O.a+", constraint: "0", title: "Listener", xref: "core§11.27.4.1",
                 details: "This feature indicates that the device can join one or more Groupcast groups and receive multicast " +
                     "messages targeted to those groups."
             }),
 
             Field({
-                name: "SD", conformance: "P, O.a+", constraint: "1", title: "Sender", xref: "core§11.27.4.2",
+                name: "SD", conformance: "O.a+", constraint: "1", title: "Sender", xref: "core§11.27.4.2",
                 details: "This feature indicates the ability to send multicast messages to one or more targeted groups of " +
                     "nodes to which it belongs. Being a sender does not imply the ability to listen to messages sent to " +
                     "those multicast addresses."
             }),
 
             Field({
-                name: "PGA", conformance: "P, O", constraint: "2", title: "PerGroup",
+                name: "PGA", conformance: "O", constraint: "2", title: "PerGroup",
                 details: "Supports PerGroup multicast addresses"
             })
         ),
 
         Attribute(
             {
-                name: "Membership", id: 0x0, type: "list", access: "R F V", conformance: "P, M", constraint: "desc",
+                name: "Membership", id: 0x0, type: "list", access: "R F V", conformance: "M", constraint: "desc",
                 quality: "N", xref: "core§11.27.6.1",
 
                 details: "Indicates the list of groups memberships currently active on the node." +
@@ -44071,7 +44077,7 @@ export const SpecMatter = Matter(
         ),
 
         Attribute({
-            name: "MaxMembershipCount", id: 0x1, type: "uint16", access: "R V", conformance: "P, M",
+            name: "MaxMembershipCount", id: 0x1, type: "uint16", access: "R V", conformance: "M",
             constraint: "min 10", quality: "F", xref: "core§11.27.6.2",
 
             details: "Indicates the maximum number of Groups which can be joined and appear in entries of the Membership " +
@@ -44083,7 +44089,7 @@ export const SpecMatter = Matter(
         }),
 
         Attribute({
-            name: "MaxMcastAddrCount", id: 0x2, type: "uint16", access: "R V", conformance: "P, M",
+            name: "MaxMcastAddrCount", id: 0x2, type: "uint16", access: "R V", conformance: "M",
             constraint: "min 1", quality: "F", xref: "core§11.27.6.3",
 
             details: "Indicates the maximum number of unique multicast addresses the node can support. The value of this " +
@@ -44095,8 +44101,8 @@ export const SpecMatter = Matter(
         }),
 
         Attribute({
-            name: "UsedMcastAddrCount", id: 0x3, type: "uint16", access: "R V", conformance: "P, M",
-            quality: "F", xref: "core§11.27.6.4",
+            name: "UsedMcastAddrCount", id: 0x3, type: "uint16", access: "R V", conformance: "M", quality: "F",
+            xref: "core§11.27.6.4",
             details: "Indicates the number of unique multicast addresses currently in use by the Groupcast cluster. This " +
                 "count shall include the IANA Assigned IPv6 Multicast Address if at least one group is configured to " +
                 "use the IanaAddr policy. This count shall include one unique multicast address for each group " +
@@ -44105,7 +44111,7 @@ export const SpecMatter = Matter(
         }),
 
         Attribute({
-            name: "FabricUnderTest", id: 0x4, type: "fabric-idx", access: "R V", conformance: "P, M",
+            name: "FabricUnderTest", id: 0x4, type: "fabric-idx", access: "R V", conformance: "M",
             xref: "core§11.27.6.5",
 
             details: "Indicates the FabricIndex of the fabric currently testing the Groupcast feature with the " +
@@ -44122,7 +44128,7 @@ export const SpecMatter = Matter(
 
         Event(
             {
-                name: "GroupcastTesting", id: 0x0, access: "S A", conformance: "P, M", priority: "info",
+                name: "GroupcastTesting", id: 0x0, access: "S A", conformance: "M", priority: "info",
                 xref: "core§11.27.8.1",
                 details: "This event shall be generated during Groupcast testing processing after invocation of the " +
                     "GroupcastTesting command, under the conditions stated in that command's Effect on Receipt section. " +
@@ -44192,7 +44198,7 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "JoinGroup", id: 0x0, access: "F M", conformance: "P, M", direction: "request",
+                name: "JoinGroup", id: 0x0, access: "F M", conformance: "M", direction: "request",
                 response: "status", xref: "core§11.27.7.1",
 
                 details: "This command shall be used to instruct the server to join a multicast group. It provides a " +
@@ -44303,7 +44309,7 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "LeaveGroup", id: 0x1, access: "F M", conformance: "P, M", direction: "request",
+                name: "LeaveGroup", id: 0x1, access: "F M", conformance: "M", direction: "request",
                 response: "LeaveGroupResponse", xref: "core§11.27.7.2",
                 details: "This command shall allow a maintainer to request that the server withdraws itself or specific " +
                     "endpoints from a specific group or from all groups of this client's fabric." +
@@ -44332,7 +44338,7 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "LeaveGroupResponse", id: 0x2, conformance: "P, M", direction: "response",
+                name: "LeaveGroupResponse", id: 0x2, conformance: "M", direction: "response",
                 xref: "core§11.27.7.3",
                 details: "This command shall allow the server to inform the client about the result of the LeaveGroup command." +
                     "\n" +
@@ -44365,7 +44371,7 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "UpdateGroupKey", id: 0x3, access: "F M", conformance: "P, M", direction: "request",
+                name: "UpdateGroupKey", id: 0x3, access: "F M", conformance: "M", direction: "request",
                 response: "status", xref: "core§11.27.7.4",
                 details: "This command shall allow a fabric administrator to update the OperationalGroupKey associated with " +
                     "the existing group identified by GroupID, which is already joined. This command shall be used " +
@@ -44406,7 +44412,7 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "ConfigureAuxiliaryAcl", id: 0x4, access: "F A", conformance: "P, LN", direction: "request",
+                name: "ConfigureAuxiliaryAcl", id: 0x4, access: "F A", conformance: "LN", direction: "request",
                 response: "status", xref: "core§11.27.7.5",
                 details: "This command shall allow an Administrator to enable or disable the generation of AuxiliaryACL " +
                     "entries in the Access Control Cluster based on the groups joined (see Groupcast Auxiliary ACL " +
@@ -44435,7 +44441,7 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "GroupcastTesting", id: 0x5, access: "F A", conformance: "P, M", direction: "request",
+                name: "GroupcastTesting", id: 0x5, access: "F A", conformance: "M", direction: "request",
                 response: "status", xref: "core§11.27.7.6",
                 details: "This command shall allow an Administrator to configure test modes that allow validation of Groupcast " +
                     "communication." +
@@ -45271,7 +45277,7 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 22, revision: 4 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 22, revision: 5 } ], element: "attribute" })
         ),
         Condition({
             name: "CustomNetworkConfig",
@@ -45323,6 +45329,16 @@ export const SpecMatter = Matter(
             description: "The node has at least one endpoint where some Device Type present on the endpoint needs the Access Control instance to have the Extension attribute.",
             xref: "device§2.1.3"
         }),
+        Condition({
+            name: "GroupcastListenerCond",
+            description: "The node has at least one endpoint where some Device Type present on the endpoint needs the Groupcast Server cluster instance with the Listener feature. This condition SHALL be supported if any endpoint implements the Groups cluster server on an endpoint.",
+            xref: "device§2.1.3"
+        }),
+        Condition({
+            name: "GroupcastSenderCond",
+            description: "The node has at least one endpoint where some Device Type present on the endpoint needs the Groupcast Server cluster instance with the Sender feature. This condition SHALL be supported if any endpoint implements the Bindings cluster server on an endpoint.",
+            xref: "device§2.1.3"
+        }),
 
         Requirement(
             {
@@ -45332,6 +45348,7 @@ export const SpecMatter = Matter(
             Requirement(
                 { name: "MANAGEDDEVICE", conformance: "[ManagedAclAllowed]", constraint: "desc", element: "feature" }
             ),
+            Requirement({ name: "AUXILIARY", conformance: "GroupcastListenerCond", element: "feature" }),
             Requirement({ name: "Extension", conformance: "ACLExtensionCond", element: "attribute" })
         ),
 
@@ -45431,10 +45448,14 @@ export const SpecMatter = Matter(
             name: "OperationalCredentials", id: 0x3e, conformance: "M", element: "serverCluster", quality: "I",
             xref: "device§2.1.5"
         }),
-        Requirement({
-            name: "GroupKeyManagement", id: 0x3f, conformance: "M", element: "serverCluster", quality: "I",
-            xref: "device§2.1.5"
-        }),
+
+        Requirement(
+            {
+                name: "GroupKeyManagement", id: 0x3f, conformance: "M", element: "serverCluster", quality: "I",
+                xref: "device§2.1.5"
+            },
+            Requirement({ name: "GROUPCAST", conformance: "GroupcastListenerCond | GroupcastSenderCond, O", element: "feature" })
+        ),
 
         Requirement(
             {
@@ -45442,6 +45463,15 @@ export const SpecMatter = Matter(
                 xref: "device§2.1.5"
             },
             Requirement({ name: "LONGIDLETIMESUPPORT", conformance: "LIT", element: "feature" })
+        ),
+
+        Requirement(
+            {
+                name: "Groupcast", id: 0x65, conformance: "GroupcastListenerCond, GroupcastSenderCond, O",
+                element: "serverCluster", quality: "I", xref: "device§2.1.5"
+            },
+            Requirement({ name: "LISTENER", conformance: "GroupcastListenerCond, O", element: "feature" }),
+            Requirement({ name: "SENDER", conformance: "GroupcastSenderCond, O", element: "feature" })
         ),
 
         Requirement({
@@ -45671,20 +45701,24 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 256, revision: 3 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 256, revision: 4 } ], element: "attribute" })
         ),
+        Requirement({
+            name: "GroupcastListenerCond", type: "RootNode.GroupcastListenerCond", conformance: "M",
+            element: "condition", xref: "device§4.1.4"
+        }),
         Requirement(
-            { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§4.1.4" },
+            { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§4.1.5" },
             Requirement({ name: "TriggerEffect", conformance: "M", element: "command" })
         ),
-        Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§4.1.4" }),
+        Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§4.1.5" }),
         Requirement(
-            { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§4.1.4" },
+            { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§4.1.5" },
             Requirement({ name: "LIGHTING", conformance: "M", element: "feature" })
         ),
 
         Requirement(
-            { name: "LevelControl", id: 0x8, conformance: "O", element: "serverCluster", xref: "device§4.1.4" },
+            { name: "LevelControl", id: 0x8, conformance: "O", element: "serverCluster", xref: "device§4.1.5" },
             Requirement({ name: "ONOFF", conformance: "M", element: "feature" }),
             Requirement({ name: "LIGHTING", conformance: "M", element: "feature" }),
             Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute" }),
@@ -45693,11 +45727,11 @@ export const SpecMatter = Matter(
         ),
 
         Requirement(
-            { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster", xref: "device§4.1.4" },
+            { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster", xref: "device§4.1.5" },
             Requirement({ name: "CopyScene", conformance: "M", element: "command" })
         ),
         Requirement(
-            { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§4.1.4" }
+            { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§4.1.5" }
         )
     ),
 
@@ -45712,20 +45746,24 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 257, revision: 3 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 257, revision: 4 } ], element: "attribute" })
         ),
+        Requirement({
+            name: "GroupcastListenerCond", type: "RootNode.GroupcastListenerCond", conformance: "Rev >= v4",
+            element: "condition", xref: "device§4.2.4"
+        }),
         Requirement(
-            { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§4.2.4" },
+            { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§4.2.5" },
             Requirement({ name: "TriggerEffect", conformance: "M", element: "command" })
         ),
-        Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§4.2.4" }),
+        Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§4.2.5" }),
         Requirement(
-            { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§4.2.4" },
+            { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§4.2.5" },
             Requirement({ name: "LIGHTING", conformance: "M", element: "feature" })
         ),
 
         Requirement(
-            { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§4.2.4" },
+            { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§4.2.5" },
             Requirement({ name: "LIGHTING", conformance: "M", element: "feature" }),
             Requirement({ name: "ONOFF", conformance: "M", element: "feature" }),
             Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute" }),
@@ -45734,11 +45772,11 @@ export const SpecMatter = Matter(
         ),
 
         Requirement(
-            { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster", xref: "device§4.2.4" },
+            { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster", xref: "device§4.2.5" },
             Requirement({ name: "CopyScene", conformance: "M", element: "command" })
         ),
         Requirement(
-            { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§4.2.4" }
+            { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§4.2.5" }
         )
     ),
 
@@ -45753,20 +45791,24 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 268, revision: 4 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 268, revision: 5 } ], element: "attribute" })
         ),
+        Requirement({
+            name: "GroupcastListenerCond", type: "RootNode.GroupcastListenerCond", conformance: "Rev >= v5",
+            element: "condition", xref: "device§4.3.4"
+        }),
         Requirement(
-            { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§4.3.4" },
+            { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§4.3.5" },
             Requirement({ name: "TriggerEffect", conformance: "M", element: "command" })
         ),
-        Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§4.3.4" }),
+        Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§4.3.5" }),
         Requirement(
-            { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§4.3.4" },
+            { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§4.3.5" },
             Requirement({ name: "LIGHTING", conformance: "M", element: "feature" })
         ),
 
         Requirement(
-            { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§4.3.4" },
+            { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§4.3.5" },
             Requirement({ name: "ONOFF", conformance: "M", element: "feature" }),
             Requirement({ name: "LIGHTING", conformance: "M", element: "feature" }),
             Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute" }),
@@ -45775,16 +45817,16 @@ export const SpecMatter = Matter(
         ),
 
         Requirement(
-            { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster", xref: "device§4.3.4" },
+            { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster", xref: "device§4.3.5" },
             Requirement({ name: "CopyScene", conformance: "M", element: "command" })
         ),
         Requirement(
-            { name: "ColorControl", id: 0x300, conformance: "M", element: "serverCluster", xref: "device§4.3.4" },
+            { name: "ColorControl", id: 0x300, conformance: "M", element: "serverCluster", xref: "device§4.3.5" },
             Requirement({ name: "COLORTEMPERATURE", conformance: "M", element: "feature" }),
             Requirement({ name: "RemainingTime", conformance: "M", element: "attribute" })
         ),
         Requirement(
-            { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§4.3.4" }
+            { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§4.3.5" }
         )
     ),
 
@@ -45801,20 +45843,24 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 269, revision: 4 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 269, revision: 5 } ], element: "attribute" })
         ),
+        Requirement({
+            name: "GroupcastListenerCond", type: "RootNode.GroupcastListenerCond", conformance: "Rev >= v5",
+            element: "condition", xref: "device§4.4.4"
+        }),
         Requirement(
-            { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§4.4.4" },
+            { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§4.4.5" },
             Requirement({ name: "TriggerEffect", conformance: "M", element: "command" })
         ),
-        Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§4.4.4" }),
+        Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§4.4.5" }),
         Requirement(
-            { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§4.4.4" },
+            { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§4.4.5" },
             Requirement({ name: "LIGHTING", conformance: "M", element: "feature" })
         ),
 
         Requirement(
-            { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§4.4.4" },
+            { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§4.4.5" },
             Requirement({ name: "ONOFF", conformance: "M", element: "feature" }),
             Requirement({ name: "LIGHTING", conformance: "M", element: "feature" }),
             Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute" }),
@@ -45823,12 +45869,12 @@ export const SpecMatter = Matter(
         ),
 
         Requirement(
-            { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster", xref: "device§4.4.4" },
+            { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster", xref: "device§4.4.5" },
             Requirement({ name: "CopyScene", conformance: "M", element: "command" })
         ),
 
         Requirement(
-            { name: "ColorControl", id: 0x300, conformance: "M", element: "serverCluster", xref: "device§4.4.4" },
+            { name: "ColorControl", id: 0x300, conformance: "M", element: "serverCluster", xref: "device§4.4.5" },
             Requirement({ name: "HUESATURATION", conformance: "O", element: "feature" }),
             Requirement({ name: "ENHANCEDHUE", conformance: "O", element: "feature" }),
             Requirement({ name: "COLORLOOP", conformance: "O", element: "feature" }),
@@ -45838,7 +45884,7 @@ export const SpecMatter = Matter(
         ),
 
         Requirement(
-            { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§4.4.4" }
+            { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§4.4.5" }
         )
     ),
 
@@ -45864,20 +45910,24 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 266, revision: 4 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 266, revision: 5 } ], element: "attribute" })
         ),
+        Requirement({
+            name: "GroupcastListenerCond", type: "RootNode.GroupcastListenerCond", conformance: "M",
+            element: "condition", xref: "device§5.1.4"
+        }),
         Requirement(
-            { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§5.1.4" },
+            { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§5.1.5" },
             Requirement({ name: "TriggerEffect", conformance: "M", element: "command" })
         ),
-        Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§5.1.4" }),
+        Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§5.1.5" }),
         Requirement(
-            { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§5.1.4" },
+            { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§5.1.5" },
             Requirement({ name: "LIGHTING", conformance: "M", element: "feature" })
         ),
 
         Requirement(
-            { name: "LevelControl", id: 0x8, conformance: "O", element: "serverCluster", xref: "device§5.1.4" },
+            { name: "LevelControl", id: 0x8, conformance: "O", element: "serverCluster", xref: "device§5.1.5" },
             Requirement({ name: "ONOFF", conformance: "M", element: "feature" }),
             Requirement({ name: "LIGHTING", conformance: "M", element: "feature" }),
             Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute" }),
@@ -45886,11 +45936,11 @@ export const SpecMatter = Matter(
         ),
 
         Requirement(
-            { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster", xref: "device§5.1.4" },
+            { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster", xref: "device§5.1.5" },
             Requirement({ name: "CopyScene", conformance: "M", element: "command" })
         ),
         Requirement(
-            { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§5.1.4" }
+            { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§5.1.5" }
         )
     ),
 
@@ -45919,20 +45969,24 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 267, revision: 5 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 267, revision: 6 } ], element: "attribute" })
         ),
+        Requirement({
+            name: "GroupcastListenerCond", type: "RootNode.GroupcastListenerCond", conformance: "M",
+            element: "condition", xref: "device§5.2.4"
+        }),
         Requirement(
-            { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§5.2.4" },
+            { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§5.2.5" },
             Requirement({ name: "TriggerEffect", conformance: "M", element: "command" })
         ),
-        Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§5.2.4" }),
+        Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§5.2.5" }),
         Requirement(
-            { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§5.2.4" },
+            { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§5.2.5" },
             Requirement({ name: "LIGHTING", conformance: "M", element: "feature" })
         ),
 
         Requirement(
-            { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§5.2.4" },
+            { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§5.2.5" },
             Requirement({ name: "ONOFF", conformance: "M", element: "feature" }),
             Requirement({ name: "LIGHTING", conformance: "M", element: "feature" }),
             Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute" }),
@@ -45941,11 +45995,11 @@ export const SpecMatter = Matter(
         ),
 
         Requirement(
-            { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster", xref: "device§5.2.4" },
+            { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster", xref: "device§5.2.5" },
             Requirement({ name: "CopyScene", conformance: "M", element: "command" })
         ),
         Requirement(
-            { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§5.2.4" }
+            { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§5.2.5" }
         )
     ),
 
@@ -45972,20 +46026,24 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 271, revision: 2 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 271, revision: 3 } ], element: "attribute" })
         ),
+        Requirement({
+            name: "GroupcastListenerCond", type: "RootNode.GroupcastListenerCond", conformance: "M",
+            element: "condition", xref: "device§5.3.4"
+        }),
         Requirement(
-            { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§5.3.4" },
+            { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§5.3.5" },
             Requirement({ name: "TriggerEffect", conformance: "M", element: "command" })
         ),
-        Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§5.3.4" }),
+        Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§5.3.5" }),
         Requirement(
-            { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§5.3.4" },
+            { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§5.3.5" },
             Requirement({ name: "LIGHTING", conformance: "M", element: "feature" })
         ),
 
         Requirement(
-            { name: "LevelControl", id: 0x8, conformance: "O", element: "serverCluster", xref: "device§5.3.4" },
+            { name: "LevelControl", id: 0x8, conformance: "O", element: "serverCluster", xref: "device§5.3.5" },
             Requirement({ name: "ONOFF", conformance: "M", element: "feature" }),
             Requirement({ name: "LIGHTING", conformance: "M", element: "feature" }),
             Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute" }),
@@ -45994,11 +46052,11 @@ export const SpecMatter = Matter(
         ),
 
         Requirement(
-            { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster", xref: "device§5.3.4" },
+            { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster", xref: "device§5.3.5" },
             Requirement({ name: "CopyScene", conformance: "M", element: "command" })
         ),
         Requirement(
-            { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§5.3.4" }
+            { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§5.3.5" }
         )
     ),
 
@@ -46027,20 +46085,24 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 272, revision: 2 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 272, revision: 3 } ], element: "attribute" })
         ),
+        Requirement({
+            name: "GroupcastListenerCond", type: "RootNode.GroupcastListenerCond", conformance: "M",
+            element: "condition", xref: "device§5.4.4"
+        }),
         Requirement(
-            { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§5.4.4" },
+            { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§5.4.5" },
             Requirement({ name: "TriggerEffect", conformance: "M", element: "command" })
         ),
-        Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§5.4.4" }),
+        Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§5.4.5" }),
         Requirement(
-            { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§5.4.4" },
+            { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§5.4.5" },
             Requirement({ name: "LIGHTING", conformance: "M", element: "feature" })
         ),
 
         Requirement(
-            { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§5.4.4" },
+            { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§5.4.5" },
             Requirement({ name: "ONOFF", conformance: "M", element: "feature" }),
             Requirement({ name: "LIGHTING", conformance: "M", element: "feature" }),
             Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute" }),
@@ -46049,11 +46111,11 @@ export const SpecMatter = Matter(
         ),
 
         Requirement(
-            { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster", xref: "device§5.4.4" },
+            { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster", xref: "device§5.4.5" },
             Requirement({ name: "CopyScene", conformance: "M", element: "command" })
         ),
         Requirement(
-            { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§5.4.4" }
+            { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§5.4.5" }
         )
     ),
 
@@ -46065,31 +46127,35 @@ export const SpecMatter = Matter(
         },
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 771, revision: 3 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 771, revision: 4 } ], element: "attribute" })
         ),
-        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§5.5.4" }),
-        Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "serverCluster", xref: "device§5.5.4" }),
-        Requirement({ name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§5.5.4" }),
-        Requirement({ name: "LevelControl", id: 0x8, conformance: "O", element: "serverCluster", xref: "device§5.5.4" }),
+        Requirement({
+            name: "GroupcastListenerCond", type: "RootNode.GroupcastListenerCond", conformance: "O",
+            element: "condition", xref: "device§5.5.4"
+        }),
+        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§5.5.5" }),
+        Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "serverCluster", xref: "device§5.5.5" }),
+        Requirement({ name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§5.5.5" }),
+        Requirement({ name: "LevelControl", id: 0x8, conformance: "O", element: "serverCluster", xref: "device§5.5.5" }),
         Requirement(
-            { name: "ScenesManagement", id: 0x62, conformance: "O", element: "serverCluster", xref: "device§5.5.4" }
+            { name: "ScenesManagement", id: 0x62, conformance: "O", element: "serverCluster", xref: "device§5.5.5" }
         ),
         Requirement({
             name: "PumpConfigurationAndControl", id: 0x200, conformance: "M", element: "serverCluster",
-            xref: "device§5.5.4"
+            xref: "device§5.5.5"
         }),
-        Requirement({ name: "TemperatureMeasurement", id: 0x402, conformance: "O", element: "serverCluster", xref: "device§5.5.4" }),
-        Requirement({ name: "TemperatureMeasurement", id: 0x402, conformance: "O", element: "clientCluster", xref: "device§5.5.4" }),
-        Requirement({ name: "PressureMeasurement", id: 0x403, conformance: "O", element: "serverCluster", xref: "device§5.5.4" }),
-        Requirement({ name: "PressureMeasurement", id: 0x403, conformance: "O", element: "clientCluster", xref: "device§5.5.4" }),
+        Requirement({ name: "TemperatureMeasurement", id: 0x402, conformance: "O", element: "serverCluster", xref: "device§5.5.5" }),
+        Requirement({ name: "TemperatureMeasurement", id: 0x402, conformance: "O", element: "clientCluster", xref: "device§5.5.5" }),
+        Requirement({ name: "PressureMeasurement", id: 0x403, conformance: "O", element: "serverCluster", xref: "device§5.5.5" }),
+        Requirement({ name: "PressureMeasurement", id: 0x403, conformance: "O", element: "clientCluster", xref: "device§5.5.5" }),
         Requirement(
-            { name: "FlowMeasurement", id: 0x404, conformance: "O", element: "serverCluster", xref: "device§5.5.4" }
+            { name: "FlowMeasurement", id: 0x404, conformance: "O", element: "serverCluster", xref: "device§5.5.5" }
         ),
         Requirement(
-            { name: "FlowMeasurement", id: 0x404, conformance: "O", element: "clientCluster", xref: "device§5.5.4" }
+            { name: "FlowMeasurement", id: 0x404, conformance: "O", element: "clientCluster", xref: "device§5.5.5" }
         ),
         Requirement(
-            { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§5.5.4" }
+            { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§5.5.5" }
         )
     ),
 
@@ -46152,14 +46218,18 @@ export const SpecMatter = Matter(
         },
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 259, revision: 3 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 259, revision: 4 } ], element: "attribute" })
         ),
-        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§6.1.4" }),
-        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "clientCluster", xref: "device§6.1.4" }),
-        Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "clientCluster", xref: "device§6.1.4" }),
-        Requirement({ name: "OnOff", id: 0x6, conformance: "M", element: "clientCluster", xref: "device§6.1.4" }),
+        Requirement({
+            name: "GroupcastSenderCond", type: "RootNode.GroupcastSenderCond", conformance: "O",
+            element: "condition", xref: "device§6.1.4"
+        }),
+        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§6.1.5" }),
+        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "clientCluster", xref: "device§6.1.5" }),
+        Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "clientCluster", xref: "device§6.1.5" }),
+        Requirement({ name: "OnOff", id: 0x6, conformance: "M", element: "clientCluster", xref: "device§6.1.5" }),
         Requirement(
-            { name: "ScenesManagement", id: 0x62, conformance: "O", element: "clientCluster", xref: "device§6.1.4" }
+            { name: "ScenesManagement", id: 0x62, conformance: "O", element: "clientCluster", xref: "device§6.1.5" }
         )
     ),
 
@@ -46174,15 +46244,19 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 260, revision: 3 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 260, revision: 4 } ], element: "attribute" })
         ),
-        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§6.2.4" }),
-        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "clientCluster", xref: "device§6.2.4" }),
-        Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "clientCluster", xref: "device§6.2.4" }),
-        Requirement({ name: "OnOff", id: 0x6, conformance: "M", element: "clientCluster", xref: "device§6.2.4" }),
-        Requirement({ name: "LevelControl", id: 0x8, conformance: "M", element: "clientCluster", xref: "device§6.2.4" }),
+        Requirement({
+            name: "GroupcastSenderCond", type: "RootNode.GroupcastSenderCond", conformance: "O",
+            element: "condition", xref: "device§6.2.4"
+        }),
+        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§6.2.5" }),
+        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "clientCluster", xref: "device§6.2.5" }),
+        Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "clientCluster", xref: "device§6.2.5" }),
+        Requirement({ name: "OnOff", id: 0x6, conformance: "M", element: "clientCluster", xref: "device§6.2.5" }),
+        Requirement({ name: "LevelControl", id: 0x8, conformance: "M", element: "clientCluster", xref: "device§6.2.5" }),
         Requirement(
-            { name: "ScenesManagement", id: 0x62, conformance: "O", element: "clientCluster", xref: "device§6.2.4" }
+            { name: "ScenesManagement", id: 0x62, conformance: "O", element: "clientCluster", xref: "device§6.2.5" }
         )
     ),
 
@@ -46196,17 +46270,21 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 261, revision: 3 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 261, revision: 4 } ], element: "attribute" })
         ),
-        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§6.3.4" }),
-        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "clientCluster", xref: "device§6.3.4" }),
-        Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "clientCluster", xref: "device§6.3.4" }),
-        Requirement({ name: "OnOff", id: 0x6, conformance: "M", element: "clientCluster", xref: "device§6.3.4" }),
-        Requirement({ name: "LevelControl", id: 0x8, conformance: "M", element: "clientCluster", xref: "device§6.3.4" }),
+        Requirement({
+            name: "GroupcastSenderCond", type: "RootNode.GroupcastSenderCond", conformance: "O",
+            element: "condition", xref: "device§6.3.4"
+        }),
+        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§6.3.5" }),
+        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "clientCluster", xref: "device§6.3.5" }),
+        Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "clientCluster", xref: "device§6.3.5" }),
+        Requirement({ name: "OnOff", id: 0x6, conformance: "M", element: "clientCluster", xref: "device§6.3.5" }),
+        Requirement({ name: "LevelControl", id: 0x8, conformance: "M", element: "clientCluster", xref: "device§6.3.5" }),
         Requirement(
-            { name: "ScenesManagement", id: 0x62, conformance: "O", element: "clientCluster", xref: "device§6.3.4" }
+            { name: "ScenesManagement", id: 0x62, conformance: "O", element: "clientCluster", xref: "device§6.3.5" }
         ),
-        Requirement({ name: "ColorControl", id: 0x300, conformance: "M", element: "clientCluster", xref: "device§6.3.4" })
+        Requirement({ name: "ColorControl", id: 0x300, conformance: "M", element: "clientCluster", xref: "device§6.3.5" })
     ),
 
     DeviceType(
@@ -46220,20 +46298,24 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 2112, revision: 3 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 2112, revision: 4 } ], element: "attribute" })
         ),
-        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§6.4.4" }),
-        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "clientCluster", xref: "device§6.4.4" }),
-        Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "clientCluster", xref: "device§6.4.4" }),
-        Requirement({ name: "OnOff", id: 0x6, conformance: "M", element: "clientCluster", xref: "device§6.4.4" }),
-        Requirement({ name: "LevelControl", id: 0x8, conformance: "M", element: "clientCluster", xref: "device§6.4.4" }),
+        Requirement({
+            name: "GroupcastSenderCond", type: "RootNode.GroupcastSenderCond", conformance: "M",
+            element: "condition", xref: "device§6.4.4"
+        }),
+        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§6.4.5" }),
+        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "clientCluster", xref: "device§6.4.5" }),
+        Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "clientCluster", xref: "device§6.4.5" }),
+        Requirement({ name: "OnOff", id: 0x6, conformance: "M", element: "clientCluster", xref: "device§6.4.5" }),
+        Requirement({ name: "LevelControl", id: 0x8, conformance: "M", element: "clientCluster", xref: "device§6.4.5" }),
         Requirement(
-            { name: "ScenesManagement", id: 0x62, conformance: "M", element: "clientCluster", xref: "device§6.4.4" }
+            { name: "ScenesManagement", id: 0x62, conformance: "M", element: "clientCluster", xref: "device§6.4.5" }
         ),
-        Requirement({ name: "ColorControl", id: 0x300, conformance: "M", element: "clientCluster", xref: "device§6.4.4" }),
-        Requirement({ name: "IlluminanceMeasurement", id: 0x400, conformance: "O", element: "clientCluster", xref: "device§6.4.4" }),
+        Requirement({ name: "ColorControl", id: 0x300, conformance: "M", element: "clientCluster", xref: "device§6.4.5" }),
+        Requirement({ name: "IlluminanceMeasurement", id: 0x400, conformance: "O", element: "clientCluster", xref: "device§6.4.5" }),
         Requirement(
-            { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§6.4.4" }
+            { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§6.4.5" }
         )
     ),
 
@@ -46244,24 +46326,28 @@ export const SpecMatter = Matter(
         },
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 772, revision: 4 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 772, revision: 5 } ], element: "attribute" })
         ),
-        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§6.5.4" }),
-        Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "clientCluster", xref: "device§6.5.4" }),
-        Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "clientCluster", xref: "device§6.5.4" }),
-        Requirement({ name: "OnOff", id: 0x6, conformance: "M", element: "clientCluster", xref: "device§6.5.4" }),
-        Requirement({ name: "LevelControl", id: 0x8, conformance: "O", element: "clientCluster", xref: "device§6.5.4" }),
+        Requirement({
+            name: "GroupcastSenderCond", type: "RootNode.GroupcastSenderCond", conformance: "O",
+            element: "condition", xref: "device§6.5.4"
+        }),
+        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§6.5.5" }),
+        Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "clientCluster", xref: "device§6.5.5" }),
+        Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "clientCluster", xref: "device§6.5.5" }),
+        Requirement({ name: "OnOff", id: 0x6, conformance: "M", element: "clientCluster", xref: "device§6.5.5" }),
+        Requirement({ name: "LevelControl", id: 0x8, conformance: "O", element: "clientCluster", xref: "device§6.5.5" }),
         Requirement(
-            { name: "ScenesManagement", id: 0x62, conformance: "O", element: "clientCluster", xref: "device§6.5.4" }
+            { name: "ScenesManagement", id: 0x62, conformance: "O", element: "clientCluster", xref: "device§6.5.5" }
         ),
         Requirement({
             name: "PumpConfigurationAndControl", id: 0x200, conformance: "M", element: "clientCluster",
-            xref: "device§6.5.4"
+            xref: "device§6.5.5"
         }),
-        Requirement({ name: "TemperatureMeasurement", id: 0x402, conformance: "O", element: "clientCluster", xref: "device§6.5.4" }),
-        Requirement({ name: "PressureMeasurement", id: 0x403, conformance: "O", element: "clientCluster", xref: "device§6.5.4" }),
+        Requirement({ name: "TemperatureMeasurement", id: 0x402, conformance: "O", element: "clientCluster", xref: "device§6.5.5" }),
+        Requirement({ name: "PressureMeasurement", id: 0x403, conformance: "O", element: "clientCluster", xref: "device§6.5.5" }),
         Requirement(
-            { name: "FlowMeasurement", id: 0x404, conformance: "O", element: "clientCluster", xref: "device§6.5.4" }
+            { name: "FlowMeasurement", id: 0x404, conformance: "O", element: "clientCluster", xref: "device§6.5.5" }
         )
     ),
 
@@ -46402,17 +46488,21 @@ export const SpecMatter = Matter(
         },
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 2128, revision: 3 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 2128, revision: 4 } ], element: "attribute" })
         ),
-        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§7.8.4" }),
-        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "clientCluster", xref: "device§7.8.4" }),
-        Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "clientCluster", xref: "device§7.8.4" }),
-        Requirement({ name: "OnOff", id: 0x6, conformance: "M", element: "clientCluster", xref: "device§7.8.4" }),
-        Requirement({ name: "LevelControl", id: 0x8, conformance: "O", element: "clientCluster", xref: "device§7.8.4" }),
+        Requirement({
+            name: "GroupcastSenderCond", type: "RootNode.GroupcastSenderCond", conformance: "O",
+            element: "condition", xref: "device§7.8.4"
+        }),
+        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§7.8.5" }),
+        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "clientCluster", xref: "device§7.8.5" }),
+        Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "clientCluster", xref: "device§7.8.5" }),
+        Requirement({ name: "OnOff", id: 0x6, conformance: "M", element: "clientCluster", xref: "device§7.8.5" }),
+        Requirement({ name: "LevelControl", id: 0x8, conformance: "O", element: "clientCluster", xref: "device§7.8.5" }),
         Requirement(
-            { name: "ScenesManagement", id: 0x62, conformance: "O", element: "clientCluster", xref: "device§7.8.4" }
+            { name: "ScenesManagement", id: 0x62, conformance: "O", element: "clientCluster", xref: "device§7.8.5" }
         ),
-        Requirement({ name: "ColorControl", id: 0x300, conformance: "O", element: "clientCluster", xref: "device§7.8.4" })
+        Requirement({ name: "ColorControl", id: 0x300, conformance: "O", element: "clientCluster", xref: "device§7.8.5" })
     ),
 
     DeviceType(
@@ -46434,19 +46524,23 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 118, revision: 1 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 118, revision: 2 } ], element: "attribute" })
         ),
-        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§7.9.5" }),
-        Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "serverCluster", xref: "device§7.9.5" }),
-        Requirement({ name: "SmokeCoAlarm", id: 0x5c, conformance: "M", element: "serverCluster", xref: "device§7.9.5" }),
+        Requirement({
+            name: "GroupcastListenerCond", type: "RootNode.GroupcastListenerCond", conformance: "O",
+            element: "condition", xref: "device§7.9.5"
+        }),
+        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§7.9.6" }),
+        Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "serverCluster", xref: "device§7.9.6" }),
+        Requirement({ name: "SmokeCoAlarm", id: 0x5c, conformance: "M", element: "serverCluster", xref: "device§7.9.6" }),
         Requirement({
             name: "RelativeHumidityMeasurement", id: 0x405, conformance: "O", element: "serverCluster",
-            xref: "device§7.9.5"
+            xref: "device§7.9.6"
         }),
-        Requirement({ name: "TemperatureMeasurement", id: 0x402, conformance: "O", element: "serverCluster", xref: "device§7.9.5" }),
+        Requirement({ name: "TemperatureMeasurement", id: 0x402, conformance: "O", element: "serverCluster", xref: "device§7.9.6" }),
         Requirement({
             name: "CarbonMonoxideConcentrationMeasurement", id: 0x40c, conformance: "O",
-            element: "serverCluster", xref: "device§7.9.5"
+            element: "serverCluster", xref: "device§7.9.6"
         }),
         Requirement({ name: "PowerSource", id: 0x11, conformance: "M", element: "deviceType", xref: "device§7.9.4" })
     ),
@@ -46636,11 +46730,15 @@ export const SpecMatter = Matter(
         },
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 11, revision: 3 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 11, revision: 4 } ], element: "attribute" })
         ),
         Requirement({
             name: "TimeSyncCond", type: "RootNode.TimeSyncCond", conformance: "O", element: "condition",
             xref: "device§8.2.4"
+        }),
+        Requirement({
+            name: "GroupcastSenderCond", type: "RootNode.GroupcastSenderCond", conformance: "O",
+            element: "condition", xref: "device§8.2.4"
         }),
         Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "clientCluster", xref: "device§8.2.5" }),
         Requirement(
@@ -46656,18 +46754,22 @@ export const SpecMatter = Matter(
         },
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 514, revision: 6 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 514, revision: 7 } ], element: "attribute" })
         ),
-        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§8.3.4" }),
-        Requirement({ name: "Groups", id: 0x4, conformance: "Active, O", element: "serverCluster", xref: "device§8.3.4" }),
+        Requirement({
+            name: "GroupcastListenerCond", type: "RootNode.GroupcastListenerCond", conformance: "Active, O",
+            element: "condition", xref: "device§8.3.4"
+        }),
+        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§8.3.5" }),
+        Requirement({ name: "Groups", id: 0x4, conformance: "Active, O", element: "serverCluster", xref: "device§8.3.5" }),
         Requirement(
-            { name: "WindowCovering", id: 0x102, conformance: "M", element: "serverCluster", xref: "device§8.3.4" }
+            { name: "WindowCovering", id: 0x102, conformance: "M", element: "serverCluster", xref: "device§8.3.5" }
         ),
         Requirement(
-            { name: "ClosureControl", id: 0x104, conformance: "X", element: "serverCluster", xref: "device§8.3.4" }
+            { name: "ClosureControl", id: 0x104, conformance: "X", element: "serverCluster", xref: "device§8.3.5" }
         ),
         Requirement(
-            { name: "ClosureDimension", id: 0x105, conformance: "X", element: "serverCluster", xref: "device§8.3.4" }
+            { name: "ClosureDimension", id: 0x105, conformance: "X", element: "serverCluster", xref: "device§8.3.5" }
         )
     ),
 
@@ -46678,13 +46780,17 @@ export const SpecMatter = Matter(
         },
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 515, revision: 4 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 515, revision: 5 } ], element: "attribute" })
         ),
-        Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§8.4.4" }),
-        Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "clientCluster", xref: "device§8.4.4" }),
-        Requirement({ name: "Groups", id: 0x4, conformance: "Active, O", element: "clientCluster", xref: "device§8.4.4" }),
+        Requirement({
+            name: "GroupcastSenderCond", type: "RootNode.GroupcastSenderCond", conformance: "Active, O",
+            element: "condition", xref: "device§8.4.4"
+        }),
+        Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§8.4.5" }),
+        Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "clientCluster", xref: "device§8.4.5" }),
+        Requirement({ name: "Groups", id: 0x4, conformance: "Active, O", element: "clientCluster", xref: "device§8.4.5" }),
         Requirement(
-            { name: "WindowCovering", id: 0x102, conformance: "M", element: "clientCluster", xref: "device§8.4.4" }
+            { name: "WindowCovering", id: 0x102, conformance: "M", element: "clientCluster", xref: "device§8.4.5" }
         )
     ),
 
@@ -46764,14 +46870,18 @@ export const SpecMatter = Matter(
         },
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 574, revision: 1 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 574, revision: 2 } ], element: "attribute" })
         ),
-        Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "clientCluster", xref: "device§8.7.5" }),
+        Requirement({
+            name: "GroupcastSenderCond", type: "RootNode.GroupcastSenderCond", conformance: "O",
+            element: "condition", xref: "device§8.7.5"
+        }),
+        Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "clientCluster", xref: "device§8.7.6" }),
         Requirement(
-            { name: "ClosureControl", id: 0x104, conformance: "M", element: "clientCluster", xref: "device§8.7.5" }
+            { name: "ClosureControl", id: 0x104, conformance: "M", element: "clientCluster", xref: "device§8.7.6" }
         ),
         Requirement(
-            { name: "ClosureDimension", id: 0x105, conformance: "O", element: "clientCluster", xref: "device§8.7.5" }
+            { name: "ClosureDimension", id: 0x105, conformance: "O", element: "clientCluster", xref: "device§8.7.6" }
         )
     ),
 
@@ -46787,30 +46897,34 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 769, revision: 6 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 769, revision: 7 } ], element: "attribute" })
         ),
-        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§9.1.4" }),
-        Requirement({ name: "Groups", id: 0x4, conformance: "Active", element: "serverCluster", xref: "device§9.1.4" }),
+        Requirement({
+            name: "GroupcastListenerCond", type: "RootNode.GroupcastListenerCond", conformance: "Active",
+            element: "condition", xref: "device§9.1.4"
+        }),
+        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§9.1.5" }),
+        Requirement({ name: "Groups", id: 0x4, conformance: "Active", element: "serverCluster", xref: "device§9.1.5" }),
         Requirement(
-            { name: "EnergyPreference", id: 0x9b, conformance: "O", element: "serverCluster", xref: "device§9.1.4" }
+            { name: "EnergyPreference", id: 0x9b, conformance: "O", element: "serverCluster", xref: "device§9.1.5" }
         ),
-        Requirement({ name: "Thermostat", id: 0x201, conformance: "M", element: "serverCluster", xref: "device§9.1.4" }),
-        Requirement({ name: "FanControl", id: 0x202, conformance: "O", element: "clientCluster", xref: "device§9.1.4" }),
+        Requirement({ name: "Thermostat", id: 0x201, conformance: "M", element: "serverCluster", xref: "device§9.1.5" }),
+        Requirement({ name: "FanControl", id: 0x202, conformance: "O", element: "clientCluster", xref: "device§9.1.5" }),
         Requirement({
             name: "ThermostatUserInterfaceConfiguration", id: 0x204, conformance: "O", element: "serverCluster",
-            xref: "device§9.1.4"
+            xref: "device§9.1.5"
         }),
-        Requirement({ name: "TemperatureMeasurement", id: 0x402, conformance: "O", element: "clientCluster", xref: "device§9.1.4" }),
+        Requirement({ name: "TemperatureMeasurement", id: 0x402, conformance: "O", element: "clientCluster", xref: "device§9.1.5" }),
         Requirement({
             name: "RelativeHumidityMeasurement", id: 0x405, conformance: "O", element: "clientCluster",
-            xref: "device§9.1.4"
+            xref: "device§9.1.5"
         }),
         Requirement(
-            { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§9.1.4" }
+            { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§9.1.5" }
         ),
         Requirement({
             name: "AmbientContextSensing", id: 0x431, conformance: "P, [Rev >= v6]", element: "clientCluster",
-            xref: "device§9.1.4"
+            xref: "device§9.1.5"
         })
     ),
 
@@ -46822,12 +46936,16 @@ export const SpecMatter = Matter(
         },
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 43, revision: 4 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 43, revision: 5 } ], element: "attribute" })
         ),
-        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§9.2.5" }),
-        Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§9.2.5" }),
-        Requirement({ name: "OnOff", id: 0x6, conformance: "O", element: "serverCluster", xref: "device§9.2.5" }),
-        Requirement({ name: "FanControl", id: 0x202, conformance: "M", element: "serverCluster", xref: "device§9.2.5" }),
+        Requirement({
+            name: "GroupcastListenerCond", type: "RootNode.GroupcastListenerCond", conformance: "M",
+            element: "condition", xref: "device§9.2.5"
+        }),
+        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§9.2.6" }),
+        Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§9.2.6" }),
+        Requirement({ name: "OnOff", id: 0x6, conformance: "O", element: "serverCluster", xref: "device§9.2.6" }),
+        Requirement({ name: "FanControl", id: 0x202, conformance: "M", element: "serverCluster", xref: "device§9.2.6" }),
         Requirement({ name: "Thermostat", id: 0x301, conformance: "O", element: "deviceType", xref: "device§9.2.4" })
     ),
 
@@ -46842,17 +46960,21 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 45, revision: 2 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 45, revision: 3 } ], element: "attribute" })
         ),
-        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§9.3.5" }),
-        Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "serverCluster", xref: "device§9.3.5" }),
-        Requirement({ name: "OnOff", id: 0x6, conformance: "O", element: "serverCluster", xref: "device§9.3.5" }),
-        Requirement({ name: "HepaFilterMonitoring", id: 0x71, conformance: "O", element: "serverCluster", xref: "device§9.3.5" }),
+        Requirement({
+            name: "GroupcastListenerCond", type: "RootNode.GroupcastListenerCond", conformance: "O",
+            element: "condition", xref: "device§9.3.5"
+        }),
+        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§9.3.6" }),
+        Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "serverCluster", xref: "device§9.3.6" }),
+        Requirement({ name: "OnOff", id: 0x6, conformance: "O", element: "serverCluster", xref: "device§9.3.6" }),
+        Requirement({ name: "HepaFilterMonitoring", id: 0x71, conformance: "O", element: "serverCluster", xref: "device§9.3.6" }),
         Requirement({
             name: "ActivatedCarbonFilterMonitoring", id: 0x72, conformance: "O", element: "serverCluster",
-            xref: "device§9.3.5"
+            xref: "device§9.3.6"
         }),
-        Requirement({ name: "FanControl", id: 0x202, conformance: "M", element: "serverCluster", xref: "device§9.3.5" }),
+        Requirement({ name: "FanControl", id: 0x202, conformance: "M", element: "serverCluster", xref: "device§9.3.6" }),
         Requirement({ name: "AirQualitySensor", id: 0x2c, conformance: "O", element: "deviceType", xref: "device§9.3.4" }),
         Requirement({ name: "Thermostat", id: 0x301, conformance: "O", element: "deviceType", xref: "device§9.3.4" }),
         Requirement(
@@ -46868,14 +46990,18 @@ export const SpecMatter = Matter(
         },
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 778, revision: 1 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 778, revision: 2 } ], element: "attribute" })
         ),
-        Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "clientCluster", xref: "device§9.4.4" }),
-        Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "clientCluster", xref: "device§9.4.4" }),
+        Requirement({
+            name: "GroupcastSenderCond", type: "RootNode.GroupcastSenderCond", conformance: "O",
+            element: "condition", xref: "device§9.4.4"
+        }),
+        Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "clientCluster", xref: "device§9.4.5" }),
+        Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "clientCluster", xref: "device§9.4.5" }),
         Requirement(
-            { name: "ScenesManagement", id: 0x62, conformance: "O", element: "clientCluster", xref: "device§9.4.4" }
+            { name: "ScenesManagement", id: 0x62, conformance: "O", element: "clientCluster", xref: "device§9.4.5" }
         ),
-        Requirement({ name: "Thermostat", id: 0x201, conformance: "M", element: "clientCluster", xref: "device§9.4.4" })
+        Requirement({ name: "Thermostat", id: 0x201, conformance: "M", element: "clientCluster", xref: "device§9.4.5" })
     ),
 
     DeviceType(
@@ -47301,40 +47427,44 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 114, revision: 3 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 114, revision: 4 } ], element: "attribute" })
         ),
-        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§13.3.6" }),
-        Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "serverCluster", xref: "device§13.3.6" }),
+        Requirement({
+            name: "GroupcastListenerCond", type: "RootNode.GroupcastListenerCond", conformance: "O",
+            element: "condition", xref: "device§13.3.6"
+        }),
+        Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§13.3.7" }),
+        Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "serverCluster", xref: "device§13.3.7" }),
         Requirement(
-            { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§13.3.6" },
+            { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§13.3.7" },
             Requirement({ name: "DEADFRONTBEHAVIOR", conformance: "M", element: "feature" })
         ),
         Requirement(
-            { name: "ScenesManagement", id: 0x62, conformance: "O", element: "serverCluster", xref: "device§13.3.6" }
+            { name: "ScenesManagement", id: 0x62, conformance: "O", element: "serverCluster", xref: "device§13.3.7" }
         ),
-        Requirement({ name: "HepaFilterMonitoring", id: 0x71, conformance: "O", element: "serverCluster", xref: "device§13.3.6" }),
+        Requirement({ name: "HepaFilterMonitoring", id: 0x71, conformance: "O", element: "serverCluster", xref: "device§13.3.7" }),
         Requirement({
             name: "ActivatedCarbonFilterMonitoring", id: 0x72, conformance: "O", element: "serverCluster",
-            xref: "device§13.3.6"
+            xref: "device§13.3.7"
         }),
-        Requirement({ name: "Thermostat", id: 0x201, conformance: "M", element: "serverCluster", xref: "device§13.3.6" }),
-        Requirement({ name: "FanControl", id: 0x202, conformance: "O", element: "serverCluster", xref: "device§13.3.6" }),
+        Requirement({ name: "Thermostat", id: 0x201, conformance: "M", element: "serverCluster", xref: "device§13.3.7" }),
+        Requirement({ name: "FanControl", id: 0x202, conformance: "O", element: "serverCluster", xref: "device§13.3.7" }),
 
         Requirement(
             {
                 name: "ThermostatUserInterfaceConfiguration", id: 0x204, conformance: "O", element: "serverCluster",
-                xref: "device§13.3.6"
+                xref: "device§13.3.7"
             },
             Requirement({ name: "KeypadLockout", conformance: "O", element: "attribute" })
         ),
 
         Requirement({
             name: "TemperatureMeasurement", id: 0x402, conformance: "O", element: "serverCluster",
-            xref: "device§13.3.6"
+            xref: "device§13.3.7"
         }),
         Requirement({
             name: "RelativeHumidityMeasurement", id: 0x405, conformance: "O", element: "serverCluster",
-            xref: "device§13.3.6"
+            xref: "device§13.3.7"
         }),
         Requirement(
             { name: "TemperatureSensor", id: 0x302, conformance: "O", element: "deviceType", xref: "device§13.3.5" }
@@ -48403,10 +48533,11 @@ export const SpecMatter = Matter(
         },
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 326, revision: 1 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 326, revision: 2 } ], element: "attribute" })
         ),
-        Requirement({ name: "Chime", id: 0x556, conformance: "M", element: "serverCluster", xref: "device§16.7.4" }),
-        Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§16.7.4" })
+        Requirement({ name: "Chime", id: 0x556, conformance: "M", element: "serverCluster", xref: "device§16.7.5" }),
+        Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§16.7.5" }),
+        Requirement({ name: "Speaker", id: 0x22, conformance: "O", element: "deviceType", xref: "device§16.7.3" })
     ),
 
     DeviceType(

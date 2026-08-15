@@ -152,13 +152,11 @@ Resource.add(
             {
                 tag: "attribute", name: "LockState", xref: "cluster§5.2.9.1",
 
-                details: "Indicates the state of the lock." +
-                    "\n" +
-                    "This attribute may be NULL if the lock hardware does not currently know the status of the locking " +
+                details: "This attribute may be NULL if the lock hardware does not currently know the status of the locking " +
                     "mechanism. For example, a lock may not know the LockState status after a power cycle until the first " +
                     "lock actuation is completed." +
                     "\n" +
-                    "The NotFullyLocked value is used by a lock to indicate that the state of the lock is somewhere " +
+                    "The Not Fully Locked value is used by a lock to indicate that the state of the lock is somewhere " +
                     "between Locked and Unlocked so it is only partially secured. For example, a deadbolt could be " +
                     "partially extended and not in a dead latched state."
             },
@@ -182,16 +180,18 @@ Resource.add(
 
             {
                 tag: "attribute", name: "DoorOpenEvents", xref: "cluster§5.2.9.5",
-                details: "Indicates the number of door open events that have occurred since it was last zeroed."
+                details: "This attribute shall hold the number of door open events that have occurred since it was last " +
+                    "zeroed."
             },
             {
                 tag: "attribute", name: "DoorClosedEvents", xref: "cluster§5.2.9.6",
-                details: "Indicates the number of door closed events that have occurred since it was last zeroed."
+                details: "This attribute shall hold the number of door closed events that have occurred since it was last " +
+                    "zeroed."
             },
             {
                 tag: "attribute", name: "OpenPeriod", xref: "cluster§5.2.9.7",
-                details: "Indicates the number of minutes the door has been open since the last time it transitioned from " +
-                    "closed to open."
+                details: "This attribute shall hold the number of minutes the door has been open since the last time it " +
+                    "transitioned from closed to open."
             },
             {
                 tag: "attribute", name: "NumberOfTotalUsersSupported", xref: "cluster§5.2.9.8",
@@ -242,7 +242,8 @@ Resource.add(
 
             {
                 tag: "attribute", name: "CredentialRulesSupport", xref: "cluster§5.2.9.18",
-                details: "Indicates a bitmap with the bits set for the values of CredentialRuleEnum supported on this device."
+                details: "This attribute shall contain a bitmap with the bits set for the values of CredentialRuleEnum " +
+                    "supported on this device."
             },
 
             {
@@ -288,7 +289,8 @@ Resource.add(
             {
                 tag: "attribute", name: "SupportedOperatingModes", xref: "cluster§5.2.9.25",
 
-                details: "Indicates a bitmap with all operating bits of the OperatingMode attribute supported by the lock." +
+                details: "This attribute shall contain a bitmap with all operating bits of the OperatingMode attribute " +
+                    "supported by the lock." +
                     "\n" +
                     "A bit position set to zero shall indicate that the mode is supported. A bit position set to one " +
                     "shall indicate that the mode is not supported." +
@@ -323,7 +325,7 @@ Resource.add(
 
             {
                 tag: "attribute", name: "EnableLocalProgramming", xref: "cluster§5.2.9.27",
-                details: "Indicates the local programming state (enable/disable) on the door lock of certain features (see " +
+                details: "This attribute shall enable/disable local programming on the door lock of certain features (see " +
                     "LocalProgrammingFeatures attribute). If this value is set to TRUE then local programming is enabled " +
                     "on the door lock for all features. If it is set to FALSE then local programming is disabled on the " +
                     "door lock for those features whose bit is set to 0 in the LocalProgrammingFeatures attribute. Local " +
@@ -332,17 +334,17 @@ Resource.add(
 
             {
                 tag: "attribute", name: "EnableOneTouchLocking", xref: "cluster§5.2.9.28",
-                details: "Indicates the state (enable/disable) of the ability to lock the door lock with a single touch on the " +
+                details: "This attribute shall enable/disable the ability to lock the door lock with a single touch on the " +
                     "door lock."
             },
             {
                 tag: "attribute", name: "EnableInsideStatusLed", xref: "cluster§5.2.9.29",
-                details: "Indicates the state (enable/disable) of an inside LED that allows the user to see at a glance if the " +
+                details: "This attribute shall enable/disable an inside LED that allows the user to see at a glance if the " +
                     "door is locked."
             },
             {
                 tag: "attribute", name: "EnablePrivacyModeButton", xref: "cluster§5.2.9.30",
-                details: "Indicates whether (enable/disable) a button inside the door that is used to put the lock into " +
+                details: "This attribute shall enable/disable a button inside the door that is used to put the lock into " +
                     "privacy mode. When the lock is in privacy mode it cannot be manipulated from the outside."
             },
 
@@ -1704,7 +1706,23 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "AlarmCodeEnum", xref: "cluster§5.2.6.6",
+                tag: "datatype", name: "AlarmMaskBitmap", xref: "cluster§5.2.6.6",
+
+                children: [
+                    { tag: "field", name: "LockJammed", description: "Locking Mechanism Jammed" },
+                    { tag: "field", name: "LockFactoryReset", description: "Lock Reset to Factory Defaults" },
+                    { tag: "field", name: "LockRadioPowerCycled", description: "RF Module Power Cycled" },
+                    { tag: "field", name: "WrongCodeEntryLimit", description: "Tamper Alarm - wrong code entry limit" },
+                    {
+                        tag: "field", name: "FrontEscutcheonRemoved",
+                        description: "Tamper Alarm - front escutcheon removed from main"
+                    },
+                    { tag: "field", name: "DoorForcedOpen", description: "Forced Door Open under Door Locked Condition" }
+                ]
+            },
+
+            {
+                tag: "datatype", name: "AlarmCodeEnum", xref: "cluster§5.2.6.7",
                 details: "This enumeration shall indicate the alarm type.",
 
                 children: [
@@ -1723,7 +1741,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "CredentialRuleEnum", xref: "cluster§5.2.6.7",
+                tag: "datatype", name: "CredentialRuleEnum", xref: "cluster§5.2.6.8",
                 details: "This enumeration shall indicate the credential rule that can be applied to a particular user.",
                 children: [
                     { tag: "field", name: "Single", description: "Only one credential is required for lock operation" },
@@ -1733,7 +1751,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "CredentialTypeEnum", xref: "cluster§5.2.6.8",
+                tag: "datatype", name: "CredentialTypeEnum", xref: "cluster§5.2.6.9",
                 details: "This enumeration shall indicate the credential type.",
 
                 children: [
@@ -1746,7 +1764,7 @@ Resource.add(
 
                     {
                         tag: "field", name: "AliroCredentialIssuerKey",
-                        description: "A Credential Issuer public key as defined in Aliro", xref: "cluster§5.2.6.8.1",
+                        description: "A Credential Issuer public key as defined in Aliro", xref: "cluster§5.2.6.9.1",
 
                         details: "Credentials of this type shall be 65-byte uncompressed elliptic curve public keys as defined in " +
                             "section 2.3.3 of SEC 1." +
@@ -1788,7 +1806,7 @@ Resource.add(
                     {
                         tag: "field", name: "AliroEvictableEndpointKey",
                         description: "An Endpoint public key as defined in Aliro which can be evicted if space is needed for another endpoint key",
-                        xref: "cluster§5.2.6.8.2",
+                        xref: "cluster§5.2.6.9.2",
                         details: "Credentials of this type shall be 65-byte uncompressed elliptic curve public keys as defined in " +
                             "section 2.3.3 of SEC 1."
                     },
@@ -1796,7 +1814,7 @@ Resource.add(
                     {
                         tag: "field", name: "AliroNonEvictableEndpointKey",
                         description: "An Endpoint public key as defined in Aliro which cannot be evicted if space is needed for another endpoint key",
-                        xref: "cluster§5.2.6.8.3",
+                        xref: "cluster§5.2.6.9.3",
                         details: "Credentials of this type shall be 65-byte uncompressed elliptic curve public keys as defined in " +
                             "section 2.3.3 of SEC 1."
                     }
@@ -1804,7 +1822,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "DataOperationTypeEnum", xref: "cluster§5.2.6.9",
+                tag: "datatype", name: "DataOperationTypeEnum", xref: "cluster§5.2.6.10",
                 details: "This enumeration shall indicate the data operation performed.",
                 children: [
                     { tag: "field", name: "Add", description: "Data is being added or was added" },
@@ -1814,7 +1832,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "DoorStateEnum", xref: "cluster§5.2.6.10",
+                tag: "datatype", name: "DoorStateEnum", xref: "cluster§5.2.6.11",
                 details: "This enumeration shall indicate the current door state.",
 
                 children: [
@@ -1831,7 +1849,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "LockDataTypeEnum", xref: "cluster§5.2.6.11",
+                tag: "datatype", name: "LockDataTypeEnum", xref: "cluster§5.2.6.12",
                 details: "This enumeration shall indicate the data type that is being or has changed.",
 
                 children: [
@@ -1886,7 +1904,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "LockOperationTypeEnum", xref: "cluster§5.2.6.12",
+                tag: "datatype", name: "LockOperationTypeEnum", xref: "cluster§5.2.6.13",
                 details: "This enumeration shall indicate the type of Lock operation performed.",
 
                 children: [
@@ -1905,7 +1923,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "OperationErrorEnum", xref: "cluster§5.2.6.13",
+                tag: "datatype", name: "OperationErrorEnum", xref: "cluster§5.2.6.14",
                 details: "This enumeration shall indicate the error cause of the Lock/Unlock operation performed.",
 
                 children: [
@@ -1930,7 +1948,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "OperatingModeEnum", xref: "cluster§5.2.6.14",
+                tag: "datatype", name: "OperatingModeEnum", xref: "cluster§5.2.6.15",
 
                 details: "This enumeration shall indicate the lock operating mode." +
                     "\n" +
@@ -1948,30 +1966,30 @@ Resource.add(
 
                 children: [
                     {
-                        tag: "field", name: "Normal", xref: "cluster§5.2.6.14.1",
+                        tag: "field", name: "Normal", xref: "cluster§5.2.6.15.1",
                         details: "The lock operates normally. All interfaces are enabled."
                     },
                     {
-                        tag: "field", name: "Vacation", xref: "cluster§5.2.6.14.2",
+                        tag: "field", name: "Vacation", xref: "cluster§5.2.6.15.2",
                         details: "Only remote interaction is enabled. The keypad shall only be operable by the master user."
                     },
 
                     {
-                        tag: "field", name: "Privacy", xref: "cluster§5.2.6.14.3",
+                        tag: "field", name: "Privacy", xref: "cluster§5.2.6.15.3",
                         details: "This mode is only possible if the door is locked. Manual unlocking changes the mode to Normal " +
                             "operating mode. All external interaction with the door lock is disabled. This mode is intended to be " +
                             "used so that users, presumably inside the property, will have control over the entrance."
                     },
 
                     {
-                        tag: "field", name: "NoRemoteLockUnlock", xref: "cluster§5.2.6.14.4",
+                        tag: "field", name: "NoRemoteLockUnlock", xref: "cluster§5.2.6.15.4",
                         details: "This mode only disables remote interaction with the lock. This does not apply to any remote " +
                             "proprietary means of communication. It specifically applies to the Lock, Unlock, Toggle, and Unlock " +
                             "with Timeout Commands."
                     },
 
                     {
-                        tag: "field", name: "Passage", xref: "cluster§5.2.6.14.5",
+                        tag: "field", name: "Passage", xref: "cluster§5.2.6.15.5",
                         details: "The lock is open or can be opened or closed at will without the use of a Keypad or other means of " +
                             "user validation (e.g. a lock for a business during work hours)."
                     }
@@ -1979,7 +1997,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "OperationSourceEnum", xref: "cluster§5.2.6.15",
+                tag: "datatype", name: "OperationSourceEnum", xref: "cluster§5.2.6.16",
                 details: "This enumeration shall indicate the source of the Lock/Unlock or user change operation performed.",
 
                 children: [
@@ -2022,7 +2040,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "UserStatusEnum", xref: "cluster§5.2.6.16",
+                tag: "datatype", name: "UserStatusEnum", xref: "cluster§5.2.6.17",
                 details: "This enumeration shall indicate what the status is for a specific user ID.",
                 children: [
                     { tag: "field", name: "Available", description: "The user ID is available" },
@@ -2032,20 +2050,20 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "UserTypeEnum", xref: "cluster§5.2.6.17",
+                tag: "datatype", name: "UserTypeEnum", xref: "cluster§5.2.6.18",
                 details: "This enumeration shall indicate what the type is for a specific user ID.",
 
                 children: [
                     {
                         tag: "field", name: "UnrestrictedUser", description: "The user ID type is unrestricted",
-                        xref: "cluster§5.2.6.17.1",
+                        xref: "cluster§5.2.6.18.1",
                         details: "This value shall indicate the user has access 24/7 provided proper PIN or RFID is supplied (e.g., " +
                             "owner)."
                     },
 
                     {
                         tag: "field", name: "YearDayScheduleUser", description: "The user ID type is schedule",
-                        xref: "cluster§5.2.6.17.2",
+                        xref: "cluster§5.2.6.18.2",
 
                         details: "This value shall indicate the user has the ability to open lock within a specific time period (e.g., " +
                             "guest)." +
@@ -2061,7 +2079,7 @@ Resource.add(
 
                     {
                         tag: "field", name: "WeekDayScheduleUser", description: "The user ID type is schedule",
-                        xref: "cluster§5.2.6.17.3",
+                        xref: "cluster§5.2.6.18.3",
 
                         details: "This value shall indicate the user has the ability to open lock based on specific time period within " +
                             "a reoccurring weekly schedule (e.g., cleaning worker)." +
@@ -2077,7 +2095,7 @@ Resource.add(
 
                     {
                         tag: "field", name: "ProgrammingUser", description: "The user ID type is programming",
-                        xref: "cluster§5.2.6.17.4",
+                        xref: "cluster§5.2.6.18.4",
                         details: "This value shall indicate the user has the ability to both program and operate the door lock. This " +
                             "user can manage the users and user schedules. In all other respects this user matches the " +
                             "unrestricted (default) user. ProgrammingUser is the only user that can disable the user interface " +
@@ -2086,7 +2104,7 @@ Resource.add(
 
                     {
                         tag: "field", name: "NonAccessUser", description: "The user ID type is non access",
-                        xref: "cluster§5.2.6.17.5",
+                        xref: "cluster§5.2.6.18.5",
                         details: "This value shall indicate the user is recognized by the lock but does not have the ability to open " +
                             "the lock. This user will only cause the lock to generate the appropriate event notification to any " +
                             "bound devices."
@@ -2094,7 +2112,7 @@ Resource.add(
 
                     {
                         tag: "field", name: "ForcedUser", description: "The user ID type is forced",
-                        xref: "cluster§5.2.6.17.6",
+                        xref: "cluster§5.2.6.18.6",
                         details: "This value shall indicate the user has the ability to open lock but a ForcedUser LockOperationType " +
                             "and ForcedUser silent alarm will be emitted to allow a notified Node to alert emergency services or " +
                             "contacts on the user account when used."
@@ -2102,14 +2120,14 @@ Resource.add(
 
                     {
                         tag: "field", name: "DisposableUser", description: "The user ID type is disposable",
-                        xref: "cluster§5.2.6.17.7",
+                        xref: "cluster§5.2.6.18.7",
                         details: "This value shall indicate the user has the ability to open lock once after which the lock shall " +
                             "change the corresponding user record UserStatus value to OccupiedDisabled automatically."
                     },
 
                     {
                         tag: "field", name: "ExpiringUser", description: "The user ID type is expiring",
-                        xref: "cluster§5.2.6.17.8",
+                        xref: "cluster§5.2.6.18.8",
                         details: "This value shall indicate the user has the ability to open lock for ExpiringUserTimeout attribute " +
                             "minutes after the first use of the PIN code, RFID code, Fingerprint, or other credential. After " +
                             "ExpiringUserTimeout minutes the corresponding user record UserStatus value shall be set to " +
@@ -2119,7 +2137,7 @@ Resource.add(
 
                     {
                         tag: "field", name: "ScheduleRestrictedUser",
-                        description: "The user ID type is schedule restricted", xref: "cluster§5.2.6.17.9",
+                        description: "The user ID type is schedule restricted", xref: "cluster§5.2.6.18.9",
 
                         details: "This value shall indicate the user access is restricted by Week Day and/or Year Day schedule." +
                             "\n" +
@@ -2140,7 +2158,7 @@ Resource.add(
 
                     {
                         tag: "field", name: "RemoteOnlyUser", description: "The user ID type is remote only",
-                        xref: "cluster§5.2.6.17.10",
+                        xref: "cluster§5.2.6.18.10",
                         details: "This value shall indicate the user access and PIN code is restricted to remote lock/unlock commands " +
                             "only. This type of user might be useful for regular delivery services or voice assistant unlocking " +
                             "operations to prevent a PIN code credential created for them from being used at the keypad. The PIN " +
@@ -2150,7 +2168,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "LockStateEnum", xref: "cluster§5.2.6.18",
+                tag: "datatype", name: "LockStateEnum", xref: "cluster§5.2.6.19",
 
                 children: [
                     { tag: "field", name: "NotFullyLocked", description: "Lock state is not fully locked" },
@@ -2164,7 +2182,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "LockTypeEnum", xref: "cluster§5.2.6.19",
+                tag: "datatype", name: "LockTypeEnum", xref: "cluster§5.2.6.20",
 
                 children: [
                     { tag: "field", name: "DeadBolt", description: "Physical lock type is dead bolt" },
@@ -2183,7 +2201,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "LEDSettingEnum", xref: "cluster§5.2.6.20",
+                tag: "datatype", name: "LEDSettingEnum", xref: "cluster§5.2.6.21",
 
                 children: [
                     { tag: "field", name: "NoLedSignal", description: "Never use LED for signalization" },
@@ -2196,7 +2214,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "SoundVolumeEnum", xref: "cluster§5.2.6.21",
+                tag: "datatype", name: "SoundVolumeEnum", xref: "cluster§5.2.6.22",
 
                 children: [
                     { tag: "field", name: "Silent", description: "Silent Mode" },
@@ -2207,7 +2225,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "EventTypeEnum", xref: "cluster§5.2.6.22",
+                tag: "datatype", name: "EventTypeEnum", xref: "cluster§5.2.6.23",
                 children: [
                     { tag: "field", name: "Operation", description: "Event type is operation" },
                     { tag: "field", name: "Programming", description: "Event type is programming" },
@@ -2216,18 +2234,18 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "CredentialStruct", xref: "cluster§5.2.6.23",
+                tag: "datatype", name: "CredentialStruct", xref: "cluster§5.2.6.24",
                 details: "This struct shall indicate the credential types and their corresponding indices (if any) for the " +
                     "event or user record.",
 
                 children: [
                     {
-                        tag: "field", name: "CredentialType", xref: "cluster§5.2.6.23.1",
+                        tag: "field", name: "CredentialType", xref: "cluster§5.2.6.24.1",
                         details: "This field shall indicate the credential field used to authorize the lock operation."
                     },
 
                     {
-                        tag: "field", name: "CredentialIndex", xref: "cluster§5.2.6.23.2",
+                        tag: "field", name: "CredentialIndex", xref: "cluster§5.2.6.24.2",
                         details: "This field shall indicate the index of the specific credential used to authorize the lock operation " +
                             "in the list of credentials identified by CredentialType (e.g. PIN, RFID, etc.). This field shall be " +
                             "set to 0 if CredentialType is ProgrammingPIN or does not correspond to a list that can be indexed " +

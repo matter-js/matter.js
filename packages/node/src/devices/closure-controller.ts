@@ -56,7 +56,7 @@ export namespace ClosureControllerRequirements {
 export const ClosureControllerDeviceDefinition = MutableEndpoint({
     name: "ClosureController",
     deviceType: 0x23e,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: ClosureControllerRequirements,
     behaviors: SupportedBehaviors()
 });

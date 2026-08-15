@@ -44,10 +44,7 @@ Resource.add({
         "interactions to the binding target.",
 
     children: [
-        {
-            tag: "attribute", name: "Binding", xref: "core§9.6.6.1",
-            details: "Indicates a list of currently configured bindings."
-        },
+        { tag: "attribute", name: "Binding", xref: "core§9.6.6.1", details: "Each entry shall represent a binding." },
 
         {
             tag: "datatype", name: "TargetStruct", xref: "core§9.6.5.1",

@@ -60,9 +60,7 @@ export declare namespace ThermostatUserInterfaceConfiguration {
         keypadLockout: KeypadLockout;
 
         /**
-         * Indicates the visibility of the schedule programming functionality.
-         *
-         * The attribute is used to hide the weekly schedule programming functionality or menu on a thermostat from a
+         * This attribute is used to hide the weekly schedule programming functionality or menu on a thermostat from a
          * user to prevent local user programming of the weekly schedule. The schedule programming may still be
          * performed via a remote interface, and the thermostat may operate in schedule programming mode.
          *
@@ -96,9 +94,7 @@ export declare namespace ThermostatUserInterfaceConfiguration {
         keypadLockout: KeypadLockout;
 
         /**
-         * Indicates the visibility of the schedule programming functionality.
-         *
-         * The attribute is used to hide the weekly schedule programming functionality or menu on a thermostat from a
+         * This attribute is used to hide the weekly schedule programming functionality or menu on a thermostat from a
          * user to prevent local user programming of the weekly schedule. The schedule programming may still be
          * performed via a remote interface, and the thermostat may operate in schedule programming mode.
          *

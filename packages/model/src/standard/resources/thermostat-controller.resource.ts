@@ -13,9 +13,10 @@ Resource.add({
     details: "A Thermostat Controller is a device capable of controlling a Thermostat.",
 
     children: [
-        { tag: "requirement", name: "Identify", xref: "device§9.4.4" },
-        { tag: "requirement", name: "Groups", xref: "device§9.4.4" },
-        { tag: "requirement", name: "ScenesManagement", xref: "device§9.4.4" },
-        { tag: "requirement", name: "Thermostat", xref: "device§9.4.4" }
+        { tag: "requirement", name: "GroupcastSenderCond", xref: "device§9.4.4" },
+        { tag: "requirement", name: "Identify", xref: "device§9.4.5" },
+        { tag: "requirement", name: "Groups", xref: "device§9.4.5" },
+        { tag: "requirement", name: "ScenesManagement", xref: "device§9.4.5" },
+        { tag: "requirement", name: "Thermostat", xref: "device§9.4.5" }
     ]
 });
