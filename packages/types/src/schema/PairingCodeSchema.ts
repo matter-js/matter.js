@@ -31,7 +31,12 @@ import {
 } from "./BitmapSchema.js";
 import { Schema } from "./Schema.js";
 
-/** See {@link MatterSpecification.v16.Core} §5.1.3.2. */
+/**
+ * Counted over the whole code, `MT:` prefix included: § 5.1.3.2's own 255 characters yield 1208 bits,
+ * of which 1120 (140 octets) are TLV data, which only works out with the prefix counted.
+ *
+ * See {@link MatterSpecification.v16.Core} §5.1.3.2.
+ */
 export const MATTER_QR_CODE_SINGLE_PAYLOAD_MAX_LENGTH = 255;
 
 /** See {@link MatterSpecification.v16.Core} §5.1.3.2. */
@@ -239,9 +244,10 @@ class QrPairingCodeSchema extends Schema<QrCodeData[], string> {
                             ? Bytes.of(Bytes.concat(QrCodeDataSchema.encode(payloadData), tlvData))
                             : QrCodeDataSchema.encode(payloadData);
                     const result = Base38.encode(data);
-                    if (result.length > MATTER_QR_CODE_SINGLE_PAYLOAD_MAX_LENGTH) {
+                    const length = PREFIX.length + result.length;
+                    if (length > MATTER_QR_CODE_SINGLE_PAYLOAD_MAX_LENGTH) {
                         throw new UnexpectedDataError(
-                            `Encoded pairing code is too long: ${result.length} characters (max ${MATTER_QR_CODE_SINGLE_PAYLOAD_MAX_LENGTH})`,
+                            `Encoded pairing code is too long: ${length} characters (max ${MATTER_QR_CODE_SINGLE_PAYLOAD_MAX_LENGTH})`,
                         );
                     }
                     return result;

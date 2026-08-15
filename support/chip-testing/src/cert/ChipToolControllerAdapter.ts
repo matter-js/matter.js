@@ -31,6 +31,7 @@ import type {
     ControllerAdapter,
     EventPathSpec,
     EventReadEntry,
+    OnboardingPayloadFields,
     ReadAttributeOptions,
     ReadEventOptions,
     SubscribeEventOptions,
@@ -47,6 +48,7 @@ import type { ChipToolCommissionerName } from "../chip-tool/chip-tool-client.js"
 import { ChipToolClient, resolveChipToolBinary } from "../chip-tool/chip-tool-client.js";
 import { chipJsonToMatter, matterToChipJson, stringifyChipJson } from "../chip-tool/json-codec.js";
 import { certClusterModelFor, findCertCluster } from "./custom-clusters.js";
+import { singleQrPayload } from "./onboarding-payload.js";
 import { timedInteractionTimeoutOf } from "./timed-interaction.js";
 
 /** Name {@link UnsupportedByControllerError} reports for this adapter. */
@@ -59,6 +61,16 @@ const CONTROLLER = "chip-tool";
 export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     // command-by-id sends one command path per invoke and no CommandRef.
     "MCORE.IDM.C.InvokeRequest.BatchCommands": 0,
+
+    "MCORE.ROLE.COMMISSIONER": 1,
+
+    // `pairing code` takes either onboarding payload, the scanned `MT:…` form included.
+    "MCORE.DD.QR_COMMISSIONING": 1,
+    "MCORE.DD.MANUAL_PC_COMMISSIONING": 1,
+    "MCORE.DD.SCAN_QR_CODE": 1,
+
+    // A concatenated payload names several commissionees and is refused; the caller is told to split it.
+    "MCORE.DD.CTRL_CONCATENATED_QR_CODE_1": 0,
 };
 
 const WILDCARD_CLUSTER = 0xffffffff;
@@ -1006,6 +1018,22 @@ class ChipToolCertNodeApi implements CertNodeApi {
     }
 }
 
+/**
+ * One field of chip-tool's own `payload parse-setup-payload` output. Absent means chip-tool parsed the
+ * payload into something other than what a QR code carries — a manual code's short discriminator, say —
+ * which no caller can act on, so it is an error rather than a hole in the returned fields.
+ */
+function payloadField(logs: string[], code: string, pattern: RegExp, radix = 10): number {
+    const value = matchLog(logs, pattern);
+    if (value === undefined) {
+        throw new InternalError(
+            `chip-tool parsed onboarding payload ${code} without logging ${pattern}. Reply logs: ` +
+                JSON.stringify(logs),
+        );
+    }
+    return Number.parseInt(value, radix);
+}
+
 function matchLog(logs: string[], pattern: RegExp) {
     for (const line of logs) {
         const match = pattern.exec(line);
@@ -1124,6 +1152,21 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
         }
     }
 
+    async parseQrPayload(code: string): Promise<OnboardingPayloadFields> {
+        const { reply, logs } = await this.executeWithLogs(`payload parse-setup-payload ${quoteArg(code)}`);
+        assertCommandSucceeded(reply, `parse of onboarding payload ${code}`);
+
+        return {
+            version: payloadField(logs, code, /Version:\s+(\d+)/),
+            vendorId: payloadField(logs, code, /VendorID:\s+(\d+)/),
+            productId: payloadField(logs, code, /ProductID:\s+(\d+)/),
+            flowType: payloadField(logs, code, /Custom flow:\s+(\d+)/),
+            discoveryCapabilities: payloadField(logs, code, /Discovery Bitmask:\s+0x([0-9A-Fa-f]{2})/, 16),
+            discriminator: payloadField(logs, code, /Long discriminator:\s+(\d+)/),
+            passcode: payloadField(logs, code, /Passcode:\s+(\d+)/),
+        };
+    }
+
     async commission(target: CommissioningTarget): Promise<CertNodeRef> {
         const nodeId = NodeId(this.#nextNodeId++);
         const node = nodeId.toString();
@@ -1139,13 +1182,19 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
         }
 
         let command: string;
-        if (target.manualPairingCode !== undefined) {
+        if (target.qrPairingCode) {
+            // `pairing code` reads either payload format, a concatenated one included — and would pair
+            // with whichever commissionee that names first, which is what this refuses.
+            singleQrPayload(target.qrPairingCode);
+            command = `pairing code ${node} ${quoteArg(target.qrPairingCode)}`;
+        } else if (target.manualPairingCode !== undefined) {
             command = `pairing code ${node} ${quoteArg(target.manualPairingCode)}`;
         } else if (target.passcode !== undefined && target.discriminator !== undefined) {
             command = `pairing onnetwork-long ${node} ${target.passcode} ${target.discriminator}`;
         } else {
             throw new ImplementationError(
-                "commission() requires either target.manualPairingCode or both target.passcode and target.discriminator",
+                "commission() requires a target.qrPairingCode, a target.manualPairingCode, or both target.passcode " +
+                    "and target.discriminator",
             );
         }
 

@@ -26,10 +26,14 @@ export type CertNodeRef = string;
  * Structurally compatible with {@link Subject.CommissioningParameters} so a step can pass
  * `subject.commissioning` directly for a device's original setup code.
  *
- * Either `manualPairingCode` or both `passcode`/`discriminator` must be present. An enhanced
- * commissioning window (`CertNodeApi.openCommissioningWindow({enhanced: true})`) generates a fresh
- * random discriminator/passcode pair that only the returned `manualPairingCode` carries — a step
- * commissioning through that window has no other way to obtain them.
+ * A `qrPairingCode`, a `manualPairingCode`, or both `passcode`/`discriminator` must be present; an
+ * adapter reads them in that order, so passing a whole `subject.commissioning` pairs through its
+ * onboarding payload where the subject publishes one and through its setup code otherwise (a
+ * subject that cannot render a payload reports it as an empty string).
+ *
+ * An enhanced commissioning window (`CertNodeApi.openCommissioningWindow({enhanced: true})`)
+ * generates a fresh random discriminator/passcode pair that only the returned pairing codes carry —
+ * a step commissioning through that window has no other way to obtain them.
  */
 export interface CommissioningTarget {
     passcode?: number;
@@ -357,8 +361,38 @@ export interface ControllerAdapter {
     start(): Promise<void>;
     close(): Promise<void>;
     commission(target: CommissioningTarget): Promise<CertNodeRef>;
+
+    /**
+     * What the controller itself reads out of a QR onboarding payload, so a step asserts on the
+     * controller's own parse rather than on one the step performed for it. Rejects a payload the
+     * controller would refuse to commission from.
+     */
+    parseQrPayload(code: string): Promise<OnboardingPayloadFields>;
+
     node(ref: CertNodeRef): CertNodeApi;
     log: LogFollower;
+}
+
+/**
+ * An onboarding payload's fixed fields, as {@link ControllerAdapter.parseQrPayload} reports them.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 5.1.3.1
+ */
+export interface OnboardingPayloadFields {
+    version: number;
+    vendorId: number;
+    productId: number;
+
+    /** 0 standard, 1 user intent, 2 custom (§ 5.1.3.1 Table 59). */
+    flowType: number;
+
+    /** § 5.1.3.1 Table 60's bitmask, as it appears on the wire. */
+    discoveryCapabilities: number;
+
+    /** The full 12-bit form; a QR payload never carries the manual code's 4-bit one. */
+    discriminator: number;
+
+    passcode: number;
 }
 
 /**

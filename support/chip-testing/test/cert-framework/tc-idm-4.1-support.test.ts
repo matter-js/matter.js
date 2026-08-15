@@ -135,6 +135,9 @@ class Fixture {
             async commission() {
                 return "ref";
             },
+            async parseQrPayload() {
+                throw new InternalError("not used in this test");
+            },
             node: () => node,
         };
 

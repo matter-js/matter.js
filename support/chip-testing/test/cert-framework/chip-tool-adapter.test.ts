@@ -204,6 +204,72 @@ describe("ChipToolControllerAdapter", function () {
         expect(fake.commands[1]).equal("pairing code 4098 36217551633");
     });
 
+    it("pairs from a QR onboarding payload, which chip-tool reads with the same command", async () => {
+        const started = await start();
+
+        const ref = await started.commission({ qrPairingCode: "MT:-24J042C00KA0648G00" });
+
+        expect(ref).equal(FIRST_NODE);
+        expect(fake.commands).deep.equal([`pairing code ${FIRST_NODE} MT:-24J042C00KA0648G00`]);
+    });
+
+    it("reads an onboarding payload through chip-tool's own parser", async () => {
+        const started = await start();
+
+        // `SetupPayloadParseCommand::Print`'s own lines, as chip-tool logs them
+        fake.reply = () => ({
+            logs: [
+                "Version:             0",
+                "VendorID:            65521",
+                "ProductID:           32769",
+                "Custom flow:         0    (STANDARD)",
+                "Discovery Bitmask:   0x04 (On IP network)",
+                "Long discriminator:  3840   (0xf00)",
+                "Passcode:            20202021",
+            ],
+        });
+
+        expect(await started.parseQrPayload("MT:-24J042C00KA0648G00")).deep.equal({
+            version: 0,
+            vendorId: 65521,
+            productId: 32769,
+            flowType: 0,
+            discoveryCapabilities: 0x04,
+            discriminator: 3840,
+            passcode: 20202021,
+        });
+        expect(fake.commands).deep.equal(["payload parse-setup-payload MT:-24J042C00KA0648G00"]);
+    });
+
+    it("rejects a payload chip-tool parsed into something other than a QR code's fields", async () => {
+        const started = await start();
+
+        // A manual code parses to a short discriminator, which no caller of this can act on
+        fake.reply = () => ({
+            logs: [
+                "Version:             0",
+                "VendorID:            65521",
+                "ProductID:           32769",
+                "Custom flow:         0    (STANDARD)",
+                "Discovery Bitmask:   0x04 (On IP network)",
+                "Short discriminator: 15   (0xf)",
+                "Passcode:            20202021",
+            ],
+        });
+
+        expect(await rejectionOf(started.parseQrPayload("MT:-24J042C00KA0648G00"))).instanceOf(InternalError);
+    });
+
+    it("refuses a concatenated onboarding payload instead of letting chip-tool choose a device", async () => {
+        const started = await start();
+
+        await expect(started.commission({ qrPairingCode: "MT:-24J042C00KA0648G00*-24J042C00KA0648G00" })).rejectedWith(
+            ImplementationError,
+            /carries 2 payloads/,
+        );
+        expect(fake.commands).deep.equal([]);
+    });
+
     it("reads a concrete path and decodes the value through the model", async () => {
         const { ref, node } = await commissioned();
 

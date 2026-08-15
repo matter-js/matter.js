@@ -56,6 +56,7 @@ export type {
     ControllerAdapterFactory,
     EventPathSpec,
     EventReadEntry,
+    OnboardingPayloadFields,
     ReadAttributeOptions,
     ReadEventOptions,
     SubscribeEventOptions,

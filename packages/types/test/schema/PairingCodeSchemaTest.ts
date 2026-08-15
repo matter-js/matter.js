@@ -133,6 +133,30 @@ describe("QrPairingCodeCodec", () => {
         });
     });
 
+    describe("length validation", () => {
+        // § 5.1.3.2's 255 characters carry 1120 bits (140 octets) of TLV data beyond the 11-byte
+        // structure, which only adds up with the `MT:` prefix counted
+        function tlvDataOf(length: number) {
+            return Bytes.concat(
+                Bytes.fromHex(`152c82${length.toString(16)}`),
+                Bytes.fromString("1".repeat(length)),
+                Bytes.fromHex("18"),
+            );
+        }
+
+        it("encodes a payload of the maximum length", () => {
+            const encoded = QrPairingCodeCodec.encode([{ ...QR_CODE_DATA, tlvData: tlvDataOf(135) }]);
+
+            expect(encoded.length).equal(255);
+        });
+
+        it("rejects a payload one base38 group past it", () => {
+            expect(() => QrPairingCodeCodec.encode([{ ...QR_CODE_DATA, tlvData: tlvDataOf(136) }])).throw(
+                "Encoded pairing code is too long: 257 characters (max 255)",
+            );
+        });
+    });
+
     describe("passcode validation", () => {
         it("rejects encoding an invalid passcode", () => {
             expect(() => QrPairingCodeCodec.encode([{ ...QR_CODE_DATA, passcode: 12345678 }])).throw(

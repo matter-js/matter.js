@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/main";
 import type { CertNodeApi, CertStepContext, ControllerAdapter } from "@matter/testing";
 import { LogFollower } from "@matter/testing";
 import {
@@ -488,6 +489,9 @@ describe("CommissionedRefs", () => {
             async close() {},
             async commission() {
                 return "ref";
+            },
+            async parseQrPayload() {
+                throw new InternalError("not used in this test");
             },
             node: () => nodeFor(role),
         });
