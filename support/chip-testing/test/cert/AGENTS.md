@@ -1265,3 +1265,29 @@ interface and need nothing.
 before that finds only devices this run is not looking for — every cert TH in the process uses
 discriminator 3840, which is all discovery matches on. `expectMdns(th, { commissionable: true })`
 before the next attempt closes that race and records the wait as the step's own network evidence.
+
+## The commissioning-flow block shares one support module (`TC-DD-3.21`)
+
+Everything the DD plans repeat — reading the TH's own payload, recording what the DUT parsed out of
+it, waiting for the commissionable advertisement, and onboarding from a payload — lives in
+`tc-dd-support.ts`, on the same "a second TC needs the same shape" trigger every other promotion in
+this file followed. `record` (record a check, throw if it failed) moved to `tc-support.ts` at the same
+time, since three TCs had their own copy.
+
+**Read the TH's endpoint topology, don't assume it.** TC-DD-3.21 needs every endpoint implementing the
+On/Off light device type. Both flavors happen to put one on endpoints 1 and 2, but that is a
+requirement the plan states of the *TH*, so the TC walks `Descriptor.partsList` and each endpoint's
+`Descriptor.deviceTypeList` for device type 0x0100 instead of naming endpoints. A TH that stops
+satisfying the precondition then fails the step that says so, rather than silently proving less: the
+step also asserts the plan's own "at least 2".
+
+## Known flake: TC-IDM-4.1 step 4's first write reports nothing (unresolved)
+
+`step 4: write 1/3 to {"endpoint":0,"cluster":40,"attribute":5} produced no subscription report
+carrying "tc-idm-4-1-a" within 30s`. Seen on a loaded developer host with the matter.js controller, and
+once in CI on the chip-tool leg; the same commit passed on re-run, and the cert workflow is otherwise
+green on main. Both controller legs have produced it, so it is the step's own report wait rather than
+either adapter, and `subscribeAndModify` only reaches that wait on a device flavor whose log check is
+`unverified` (see "Deterministic per-write report/ack evidence"). Not root-caused. A run that hits it
+again is worth capturing rather than re-running blind: the evidence bundle's controller log shows
+whether the report arrived late or never.

@@ -24,6 +24,19 @@ export class CertCleanupError extends MatterError {}
 export class CertCheckFailedError extends MatterError {}
 
 /**
+ * Records `check` and fails the step on a `"fail"` verdict — `recorder.check()` only records, so a
+ * step whose evidence must gate it has to throw for itself, which is the single easiest thing to
+ * forget. `"unverified"` passes through: that is what a log check reports on a flavor nobody wrote a
+ * pattern for, and it is not a failure (see the flavor-pattern policy in this directory's AGENTS.md).
+ */
+export function record(cx: CertStepContext, check: CheckRecord, what: string) {
+    cx.recorder.check(check);
+    if (check.verdict === "fail") {
+        throw new CertCheckFailedError(`${what} check failed: ${JSON.stringify(check)}`);
+    }
+}
+
+/**
  * Tracks commissioned node refs by role for one cert-test run. Each controller's own
  * `decommission()` only removes *that controller's* fabric via its own CASE session, so cleanup has
  * to visit every role independently. Shared by `TC-IDM-2.1.test.ts`/`TC-ACT-3.2.test.ts`/
