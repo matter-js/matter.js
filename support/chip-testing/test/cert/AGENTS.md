@@ -1192,3 +1192,70 @@ The same code is the TC's own TH-side evidence: it announces every injected resp
 `Injecting the following response:<description>`, and the three descriptions distinguish which fault
 fired. The device never pretty-prints its own outgoing `InvokeResponseMessage`, so these two lines — plus
 the arrival order the controller itself observed — are the whole of the response-shape evidence.
+
+## Commissioning from an onboarding payload (`TC-DD-1.8`)
+
+`CommissioningTarget.qrPairingCode` was declared but decoded by neither adapter; both read it now, and
+a target is resolved in the order `qrPairingCode` → `manualPairingCode` → `passcode`+`discriminator`.
+A QR payload carries the full 12-bit discriminator, so it discovers by the long form where a manual
+code's 4-bit short form does not (§ 5.1.4.1); chip-tool takes either through the same `pairing code`
+command. A concatenated payload (several devices joined by `*`) is refused rather than pairing with
+whichever of them answers first.
+
+**Where a step gets the TH's payload.** A matterjs subject reports it as
+`subject.commissioning.qrPairingCode`; a chip subject reports an empty string there, because rendering
+one needs the base38 encoder that `packages/testing` may not depend on — but the app prints it, once
+per commissioning flow, as `SetupQRCode: [MT:…]`, standard flow first. A TC needing a payload on both
+flavors therefore falls back to the device log.
+
+**PICS.** `MCORE.DD.SCAN_QR_CODE` asks whether the commissioner takes the *scanned* payload — the
+`MT:…` form — rather than only the digits of a manual pairing code. Both controllers do, so both
+declare it; it is not a question about owning a camera. `MCORE.ROLE.COMMISSIONER`,
+`MCORE.DD.QR_COMMISSIONING` and `MCORE.DD.MANUAL_PC_COMMISSIONING` come from the overlay too: CHIP's
+`ci-pics-values` describes a device and answers 0 to all three, so without it every DUT-as-commissioner
+test would be filtered out. `MCORE.DD.CTRL_CONCATENATED_QR_CODE_1` is declared 0 — neither controller
+splits a concatenated payload, which is the one piece of § 5.1.6 missing here.
+`CTRL_CONCATENATED_QR_CODE_2` (does the commissioner *tell the user* to commission the devices
+individually) is deliberately left to the device's file: the adapters' own refusal says exactly that,
+but nothing here proves a user ever sees it.
+
+**The plan's 255-character payload is exactly matter.js's own limit.** The plan's step 4 asks for a
+payload of 255 characters counted with its `MT:` prefix, so 252 base38 characters — the largest single
+payload § 5.1.3.2 allows, which `QrPairingCodeCodec.encode` enforces and `MATTER_QR_CODE_SINGLE_PAYLOAD_MAX_LENGTH`
+names. Decoding has no such bound, which is what lets `Test_TC_DD_1_8.yaml`'s own (older, larger)
+1000-byte TLV example still parse. The TC asserts the length it built rather than trusting the
+arithmetic, since a filler byte count that misses lands on a payload the plan did not ask for.
+
+**Onboarding the same TH twice: open a basic window before removing the fabric.** A chip TH does not
+return to commissioning mode when its last fabric goes — after `RemoveFabric succeeds` its log stops
+there, and the next commissioning fails as `No device could be commissioned (1 of 1 started attempt(s)
+failed, 1 discovered)` against a stale advertisement. Spec-wise the plans cover this with a
+precondition ("place the TH back into commissioning mode using the TH manufacturer's means"), which for
+a TC that drives everything itself means opening the window before the fabric it needs to open it is
+gone. It must be a **basic** window (`openCommissioningWindow({ enhanced: false })`): its PASE verifier
+is the device's own setup code, so the TH's own onboarding payload still pairs, where an enhanced
+window would mint a fresh discriminator and passcode instead (see "Pairing-code commissioning" above).
+
+A restart would satisfy the same precondition, and TC-DD-3.20 asks for one explicitly — but a step
+cannot stop a device today: `raceAgainstDeviceExit` (`cert-test.ts`) treats any device exit during a
+step as the run's failure. Deliberate-restart support is the framework piece that block still needs.
+
+**A factory reset is not the same operation on both flavors.** Removing the last fabric leaves a chip
+app's KVS in place; the storage has to be deleted and the app restarted for it to come up factory-new,
+which is also why it stays out of commissioning mode above. matter.js returns to commissioning mode on
+its own instead. The specification allows either, so a TC whose precondition is a factory-reset TH must
+ask the device for one — per flavor, `ChipLocalDevice`'s own storage directory versus a matterjs
+subject's storage — rather than assume `RemoveFabric` delivered it.
+
+**On a developer host, limit mDNS to one interface.** With VPN tunnels up (`utun*`), a local run of the
+whole cert suite floods `UDP send timeout`/`EMSGSIZE` on every extra interface, stretches a 1m 40s run to
+12–20 minutes, and turns timing-sensitive steps in unrelated TCs into failures — including the
+harness's own "process did not exit cleanly" check. `MATTER_MDNS_NETWORKINTERFACE=en0` (matter.js's
+`mdns.networkInterface` variable) is what makes a local run representative; CI runners have one
+interface and need nothing.
+
+**And an mDNS gate after the removal.** `decommission()` returns as soon as the TH answers
+`RemoveFabric`; the TH re-advertises itself commissionable a moment later, and a discovery started
+before that finds only devices this run is not looking for — every cert TH in the process uses
+discriminator 3840, which is all discovery matches on. `expectMdns(th, { commissionable: true })`
+before the next attempt closes that race and records the wait as the step's own network evidence.

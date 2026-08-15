@@ -26,10 +26,14 @@ export type CertNodeRef = string;
  * Structurally compatible with {@link Subject.CommissioningParameters} so a step can pass
  * `subject.commissioning` directly for a device's original setup code.
  *
- * Either `manualPairingCode` or both `passcode`/`discriminator` must be present. An enhanced
- * commissioning window (`CertNodeApi.openCommissioningWindow({enhanced: true})`) generates a fresh
- * random discriminator/passcode pair that only the returned `manualPairingCode` carries — a step
- * commissioning through that window has no other way to obtain them.
+ * A `qrPairingCode`, a `manualPairingCode`, or both `passcode`/`discriminator` must be present; an
+ * adapter reads them in that order, so passing a whole `subject.commissioning` pairs through its
+ * onboarding payload where the subject publishes one and through its setup code otherwise (a
+ * subject that cannot render a payload reports it as an empty string).
+ *
+ * An enhanced commissioning window (`CertNodeApi.openCommissioningWindow({enhanced: true})`)
+ * generates a fresh random discriminator/passcode pair that only the returned pairing codes carry —
+ * a step commissioning through that window has no other way to obtain them.
  */
 export interface CommissioningTarget {
     passcode?: number;

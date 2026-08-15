@@ -73,6 +73,7 @@ import type {
 import { LineQueue, LogFollower } from "@matter/testing";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { certClusterModelFor, findCertCluster } from "./custom-clusters.js";
+import { singleQrPayload } from "./onboarding-payload.js";
 import { timedInteractionTimeoutOf } from "./timed-interaction.js";
 
 /**
@@ -85,6 +86,15 @@ const activeAdapterId = new AsyncLocalStorage<string>();
 /** As `ChipToolControllerAdapter`'s own declarations: what this controller claims the device's PICS cannot. */
 export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "MCORE.IDM.C.InvokeRequest.BatchCommands": 1,
+    "MCORE.ROLE.COMMISSIONER": 1,
+    "MCORE.DD.QR_COMMISSIONING": 1,
+    "MCORE.DD.MANUAL_PC_COMMISSIONING": 1,
+
+    // Takes the scanned payload itself (`MT:…`), not only the digits of a manual code.
+    "MCORE.DD.SCAN_QR_CODE": 1,
+
+    // A concatenated payload names several commissionees and is refused; the caller is told to split it.
+    "MCORE.DD.CTRL_CONCATENATED_QR_CODE_1": 0,
 };
 
 const adapterStreams = new Map<string, LineQueue>();
@@ -262,8 +272,16 @@ interface ResolvedCommissioningTarget {
  * (§ 5.1.4.1's 4-bit form) and the window's freshly-generated passcode — never the device's original
  * setup passcode/discriminator, which `openEnhancedCommissioningWindow` deliberately replaces per
  * window. `target.passcode`/`target.discriminator` are for the device's original setup code instead.
+ *
+ * A `qrPairingCode` carries the full 12-bit discriminator, so it discovers by the long form. Its
+ * remaining fields (vendor and product id, commissioning flow, discovery capabilities) describe the
+ * commissionee rather than how to reach it; a step asserting on them decodes the payload itself.
  */
 function resolveCommissioningTarget(target: CommissioningTarget): ResolvedCommissioningTarget {
+    if (target.qrPairingCode) {
+        const { discriminator, passcode } = singleQrPayload(target.qrPairingCode);
+        return { identifierData: { longDiscriminator: discriminator }, passcode };
+    }
     if (target.manualPairingCode !== undefined) {
         const { shortDiscriminator, passcode } = ManualPairingCodeCodec.decode(target.manualPairingCode);
         if (shortDiscriminator === undefined) {
@@ -273,7 +291,8 @@ function resolveCommissioningTarget(target: CommissioningTarget): ResolvedCommis
     }
     if (target.passcode === undefined || target.discriminator === undefined) {
         throw new ImplementationError(
-            "commission() requires either target.manualPairingCode or both target.passcode and target.discriminator",
+            "commission() requires a target.qrPairingCode, a target.manualPairingCode, or both target.passcode " +
+                "and target.discriminator",
         );
     }
     return { identifierData: { longDiscriminator: target.discriminator }, passcode: target.passcode };

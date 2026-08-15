@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/main";
-import { Status, StatusResponseError } from "@matter/main/types";
+import { ImplementationError, InternalError } from "@matter/main";
+import { QrPairingCodeCodec, Status, StatusResponseError } from "@matter/main/types";
 import { Matter } from "@matter/model";
 import {
     controllerPicsOverridesFor,
@@ -123,6 +123,23 @@ describe("InProcessControllerAdapter", () => {
         });
 
         await adapter.node(ref).decommission();
+    });
+
+    it("commissions from the device's own QR onboarding payload", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ qrPairingCode: device.commissioning.qrPairingCode });
+
+        await adapter.node(ref).decommission();
+    });
+
+    it("refuses a concatenated onboarding payload, which names more than one device", async function () {
+        const [payload] = QrPairingCodeCodec.decode(device.commissioning.qrPairingCode);
+
+        await expect(adapter.commission({ qrPairingCode: QrPairingCodeCodec.encode([payload, payload]) })).rejectedWith(
+            ImplementationError,
+            /carries 2 payloads/,
+        );
     });
 
     it("commissions, reads an attribute, invokes a command, and decommissions", async function () {
@@ -497,6 +514,13 @@ describe("ControllerAdapter registry", () => {
         expect(controllerPicsOverridesFor("chip-tool")).deep.equal(CHIP_TOOL_CONTROLLER_PICS);
         expect(MATTERJS_CONTROLLER_PICS["MCORE.IDM.C.InvokeRequest.BatchCommands"]).equal(1);
         expect(CHIP_TOOL_CONTROLLER_PICS["MCORE.IDM.C.InvokeRequest.BatchCommands"]).equal(0);
+
+        for (const pics of [MATTERJS_CONTROLLER_PICS, CHIP_TOOL_CONTROLLER_PICS]) {
+            expect(pics["MCORE.ROLE.COMMISSIONER"]).equal(1);
+            expect(pics["MCORE.DD.QR_COMMISSIONING"]).equal(1);
+            expect(pics["MCORE.DD.SCAN_QR_CODE"]).equal(1);
+            expect(pics["MCORE.DD.CTRL_CONCATENATED_QR_CODE_1"]).equal(0);
+        }
     });
 
     it("reports no declarations for an implementation registered without them", () => {

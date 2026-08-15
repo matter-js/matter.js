@@ -204,6 +204,25 @@ describe("ChipToolControllerAdapter", function () {
         expect(fake.commands[1]).equal("pairing code 4098 36217551633");
     });
 
+    it("pairs from a QR onboarding payload, which chip-tool reads with the same command", async () => {
+        const started = await start();
+
+        const ref = await started.commission({ qrPairingCode: "MT:-24J042C00KA0648G00" });
+
+        expect(ref).equal(FIRST_NODE);
+        expect(fake.commands).deep.equal([`pairing code ${FIRST_NODE} MT:-24J042C00KA0648G00`]);
+    });
+
+    it("refuses a concatenated onboarding payload instead of letting chip-tool choose a device", async () => {
+        const started = await start();
+
+        await expect(started.commission({ qrPairingCode: "MT:-24J042C00KA0648G00*-24J042C00KA0648G00" })).rejectedWith(
+            ImplementationError,
+            /carries 2 payloads/,
+        );
+        expect(fake.commands).deep.equal([]);
+    });
+
     it("reads a concrete path and decodes the value through the model", async () => {
         const { ref, node } = await commissioned();
 

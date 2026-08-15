@@ -47,6 +47,7 @@ import type { ChipToolCommissionerName } from "../chip-tool/chip-tool-client.js"
 import { ChipToolClient, resolveChipToolBinary } from "../chip-tool/chip-tool-client.js";
 import { chipJsonToMatter, matterToChipJson, stringifyChipJson } from "../chip-tool/json-codec.js";
 import { certClusterModelFor, findCertCluster } from "./custom-clusters.js";
+import { singleQrPayload } from "./onboarding-payload.js";
 import { timedInteractionTimeoutOf } from "./timed-interaction.js";
 
 /** Name {@link UnsupportedByControllerError} reports for this adapter. */
@@ -59,6 +60,16 @@ const CONTROLLER = "chip-tool";
 export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     // command-by-id sends one command path per invoke and no CommandRef.
     "MCORE.IDM.C.InvokeRequest.BatchCommands": 0,
+
+    "MCORE.ROLE.COMMISSIONER": 1,
+
+    // `pairing code` takes either onboarding payload, the scanned `MT:…` form included.
+    "MCORE.DD.QR_COMMISSIONING": 1,
+    "MCORE.DD.MANUAL_PC_COMMISSIONING": 1,
+    "MCORE.DD.SCAN_QR_CODE": 1,
+
+    // A concatenated payload names several commissionees and is refused; the caller is told to split it.
+    "MCORE.DD.CTRL_CONCATENATED_QR_CODE_1": 0,
 };
 
 const WILDCARD_CLUSTER = 0xffffffff;
@@ -1139,13 +1150,19 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
         }
 
         let command: string;
-        if (target.manualPairingCode !== undefined) {
+        if (target.qrPairingCode) {
+            // `pairing code` reads either payload format, a concatenated one included — and would pair
+            // with whichever commissionee that names first, which is what this refuses.
+            singleQrPayload(target.qrPairingCode);
+            command = `pairing code ${node} ${quoteArg(target.qrPairingCode)}`;
+        } else if (target.manualPairingCode !== undefined) {
             command = `pairing code ${node} ${quoteArg(target.manualPairingCode)}`;
         } else if (target.passcode !== undefined && target.discriminator !== undefined) {
             command = `pairing onnetwork-long ${node} ${target.passcode} ${target.discriminator}`;
         } else {
             throw new ImplementationError(
-                "commission() requires either target.manualPairingCode or both target.passcode and target.discriminator",
+                "commission() requires a target.qrPairingCode, a target.manualPairingCode, or both target.passcode " +
+                    "and target.discriminator",
             );
         }
 
