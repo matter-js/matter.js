@@ -5,20 +5,16 @@
  */
 
 import { Matter } from "@matter/model";
-import type { AttributePathSpec, CheckRecord, LogFollower } from "@matter/testing";
-import { CertLogClosedError, CertLogTimeoutError, certTest } from "@matter/testing";
+import type { AttributePathSpec } from "@matter/testing";
+import { certTest } from "@matter/testing";
+import { MAX_INTERVAL_CEILING_SECONDS, MIN_INTERVAL_FLOOR_SECONDS, subscribeAndModify } from "./tc-idm-4.1-support.js";
 import {
     ACK_WAIT_TIMEOUT_MS,
-    expectReportAck,
-    expectSubscriptionId,
-    MAX_INTERVAL_CEILING_SECONDS,
-    MIN_INTERVAL_FLOOR_SECONDS,
-    subscribeAndModify,
-} from "./tc-idm-4.1-support.js";
-import {
     CommissionedRefs,
-    expectAdjacentLines,
     expectMessageWithPath,
+    expectReportAck,
+    expectSequence,
+    expectSubscriptionId,
     requireId,
     SUBSCRIBE_REQUEST_MESSAGE,
 } from "./tc-support.js";
@@ -59,39 +55,9 @@ const SUBSCRIBE_ENVELOPE_SEQUENCE = [
     /AttributePathIBs =\s*$/,
 ];
 
-/**
- * Confirms the SubscribeRequestMessage envelope's own top-level fields — KeepSubscriptions,
- * MinIntervalFloorSeconds, MaxIntervalCeilingSeconds, then the AttributePathIBs list (chip's own
- * field label for the spec's AttributeRequests; see Test_TC_IDM_4_1.yaml) — appear, in that order, as
- * a consecutive block at or after `from` (see {@link expectAdjacentLines}). Returns `"unverified"` for
- * the matterjs flavor, matching every other chip-only check in this series.
- */
-async function expectSubscribeEnvelope(
-    log: LogFollower,
-    flavor: string,
-    from: number,
-    timeoutMs: number,
-): Promise<CheckRecord> {
-    try {
-        const result = await expectAdjacentLines(log, flavor, SUBSCRIBE_ENVELOPE_SEQUENCE, from, timeoutMs);
-        if (result.verdict === "unverified") {
-            return { type: "device-log", verdict: "unverified" };
-        }
-        return {
-            type: "device-log",
-            verdict: "pass",
-            pattern:
-                "SubscribeRequestMessage envelope (KeepSubscriptions, MinIntervalFloorSeconds, MaxIntervalCeilingSeconds, AttributePathIBs)",
-            matched: result.last.text,
-            logLine: result.last.index,
-        };
-    } catch (e) {
-        if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
-            return { type: "device-log", verdict: "fail", detail: e.message, logLine: from };
-        }
-        throw e;
-    }
-}
+// chip's own field label for the spec's AttributeRequests (see Test_TC_IDM_4_1.yaml)
+const SUBSCRIBE_ENVELOPE_LABEL =
+    "SubscribeRequestMessage envelope (KeepSubscriptions, MinIntervalFloorSeconds, MaxIntervalCeilingSeconds, AttributePathIBs)";
 
 const commissioned = new CommissionedRefs();
 
@@ -143,7 +109,14 @@ certTest("TC-IDM-4.1", {
                 throw new Error(`SubscribeRequestMessage log check failed: ${JSON.stringify(pathCheck)}`);
             }
 
-            const envelopeCheck = await expectSubscribeEnvelope(th.log, th.flavor, from, 15_000);
+            const envelopeCheck = await expectSequence(
+                th.log,
+                th.flavor,
+                SUBSCRIBE_ENVELOPE_LABEL,
+                SUBSCRIBE_ENVELOPE_SEQUENCE,
+                from,
+                15_000,
+            );
             cx.recorder.check(envelopeCheck);
             if (envelopeCheck.verdict === "fail") {
                 throw new Error(`SubscribeRequestMessage envelope check failed: ${JSON.stringify(envelopeCheck)}`);

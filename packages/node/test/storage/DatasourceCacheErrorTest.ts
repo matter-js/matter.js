@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
 import { DatasourceCache } from "#storage/client/DatasourceCache.js";
 import { Lifetime, MemoryStorageDriver, Seconds, StorageDriver, Transaction } from "@matter/general";
@@ -104,6 +105,26 @@ describe("DatasourceCache error handling", () => {
             } as any;
             await cache.externalSet(attrs({ onOff: true }));
             expect(dirty).length(1);
+        });
+    });
+
+    describe("flush", () => {
+        it("persists a report that carried nothing but a new version", async () => {
+            const localWriter = trackingWriter();
+            const buffer = { markDirty: () => {}, removeDirty: () => {} } as any;
+            const cache = createCache({ buffer, localWriter });
+            cache.consumer = {
+                readValues: () => ({}),
+                snapshot: () => ({}),
+                releaseValues: () => ({}),
+                integrateExternalChange: async () => {},
+            } satisfies Datasource.ExternallyMutableStore.Consumer;
+
+            await cache.externalSet(attrs({ __version__: 5 }));
+            const flushed = await cache.flush();
+
+            expect(flushed).deep.equals(new Set(["__version__"]));
+            expect(localWriter.persisted).deep.equals([{ __version__: 5 }]);
         });
     });
 

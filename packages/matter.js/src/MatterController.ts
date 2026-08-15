@@ -28,6 +28,7 @@ import {
     Construction,
     Crypto,
     Diagnostic,
+    Duration,
     Environment,
     ImplementationError,
     InternalError,
@@ -151,6 +152,7 @@ export class MatterController {
         environment: Environment;
         enableOtaProvider?: boolean;
         basicInformation?: Partial<Omit<BasicInformation.Attributes, "vendorId">>;
+        clientCacheFlushInterval?: Duration;
     }): Promise<MatterController> {
         const {
             rootFabric,
@@ -315,6 +317,7 @@ export class MatterController {
         environment: Environment;
         enableOtaProvider?: boolean;
         basicInformation?: Partial<Omit<BasicInformation.Attributes, "vendorId">>;
+        clientCacheFlushInterval?: Duration;
     }) {
         const crypto = options.environment.get(Crypto);
         const {
@@ -335,6 +338,7 @@ export class MatterController {
             fabric,
             enableOtaProvider = false,
             basicInformation = {},
+            clientCacheFlushInterval,
         } = options;
 
         this.#construction = Construction(this, async () => {
@@ -350,6 +354,7 @@ export class MatterController {
                     port: localPort,
                     tcp,
                     transportPreference,
+                    ...(clientCacheFlushInterval === undefined ? undefined : { clientCacheFlushInterval }),
                 },
                 basicInformation: {
                     ...basicInformation,

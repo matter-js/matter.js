@@ -29,6 +29,14 @@ const logger = Logger.get("Datasource");
 const FEATURES_KEY = "__features__";
 
 /**
+ * Whether key is store metadata rather than a state member.  Stores convey metadata such as {@link FEATURES_KEY} and
+ * the client cache's version alongside values; the datasource must not mistake either for a member of the schema.
+ */
+function isMetadataKey(key: string) {
+    return key.startsWith("__");
+}
+
+/**
  * Whether key is a member id, in the only spelling under which id keys are produced (canonical decimal, as emitted
  * by memberKeyFor for members that define an id, persistentKeys and externalSet).
  */
@@ -428,11 +436,10 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
             ...storedValues,
         };
 
-        if (FEATURES_KEY in initialValues) {
-            delete initialValues[FEATURES_KEY];
-        }
-
         for (const key in initialValues) {
+            if (isMetadataKey(key)) {
+                continue;
+            }
             values[key] = initialValues[key];
         }
 
@@ -604,6 +611,9 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
 
         for (const [key, newValue] of potentialChanges) {
             const name = String(key);
+            if (isMetadataKey(name)) {
+                continue;
+            }
             if (isDeepEqual(values[name], newValue)) {
                 continue;
             }

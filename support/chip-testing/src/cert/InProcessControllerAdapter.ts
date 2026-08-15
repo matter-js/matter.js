@@ -15,6 +15,7 @@ import {
     LogDestination,
     LogFormat,
     Logger,
+    Millis,
     MockStorageService,
     ObserverGroup,
     Seconds,
@@ -41,6 +42,7 @@ import {
     ClusterId,
     CommandId,
     EndpointNumber,
+    EventId,
     ManualPairingCodeCodec,
     NodeId,
     Status,
@@ -56,11 +58,17 @@ import type {
     CertNodeRef,
     CommissioningTarget,
     ControllerAdapter,
+    EventPathSpec,
+    EventReadEntry,
     ReadAttributeOptions,
+    ReadEventOptions,
+    SubscribeEventOptions,
     SubscribeOptions,
+    TimedInteractionOptions,
 } from "@matter/testing";
 import { LineQueue, LogFollower } from "@matter/testing";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { timedInteractionTimeoutOf } from "./timed-interaction.js";
 
 /**
  * Attributes a matter.js controller `write`/`invoke` call to the {@link InProcessControllerAdapter} whose
@@ -102,8 +110,75 @@ function toIds(path: AttributePathSpec) {
     };
 }
 
+/**
+ * `Invoke`/`Write` derive `timedRequest` from either flag, and a zero timeout is falsy — asking for one
+ * without `timed` would send the interaction untimed, where chip-tool sends a real timed request for
+ * the same call. An absent option stays absent rather than becoming a default the caller did not ask
+ * for.
+ */
+function timedInteraction(options?: TimedInteractionOptions) {
+    const timeout = timedInteractionTimeoutOf(options);
+    if (timeout === undefined) {
+        return {};
+    }
+    return { timed: true, timeout: Millis(timeout) };
+}
+
 function isConcretePath(path: AttributePathSpec) {
     return path.endpoint !== undefined && path.cluster !== undefined && path.attribute !== undefined;
+}
+
+function toEventIds(path: EventPathSpec) {
+    return {
+        endpointId: path.endpoint !== undefined ? EndpointNumber(path.endpoint) : undefined,
+        clusterId: path.cluster !== undefined ? ClusterId(path.cluster) : undefined,
+        eventId: path.event !== undefined ? EventId(path.event) : undefined,
+    };
+}
+
+function isConcreteEventPath(path: EventPathSpec) {
+    return path.endpoint !== undefined && path.cluster !== undefined && path.event !== undefined;
+}
+
+function toWireEvents(values: ReadResult.EventValue[]): EventReadEntry[] {
+    return values.map(({ path: { endpointId, clusterId, eventId }, number, value }) => ({
+        endpoint: endpointId,
+        cluster: clusterId,
+        event: eventId,
+        eventNumber: number,
+        value,
+    }));
+}
+
+function eventFiltersFor(options?: ReadEventOptions) {
+    return options?.minEventNumber === undefined ? undefined : [{ eventMin: options.minEventNumber }];
+}
+
+/**
+ * A status for a path the step named concretely means it will never see that event; per-path statuses
+ * of a wildcard expansion are results of the expansion instead (see {@link CertNodeApi.readEvents}).
+ *
+ * Reads only. A subscription the device refuses is already rejected by the interaction itself, before
+ * its priming report reaches us.
+ */
+function assertNoConcreteEventStatus(paths: EventPathSpec[], statuses: ReadResult.EventStatus[], operation: string) {
+    for (const status of statuses) {
+        const { endpointId, clusterId, eventId } = status.path;
+        const requested = paths.some(
+            path =>
+                isConcreteEventPath(path) &&
+                path.endpoint === endpointId &&
+                path.cluster === clusterId &&
+                path.event === eventId,
+        );
+        if (requested) {
+            throw new StatusResponseError(
+                `${operation} ${JSON.stringify({ endpoint: endpointId, cluster: clusterId, event: eventId })} failed`,
+                status.status,
+                status.clusterStatus,
+            );
+        }
+    }
 }
 
 function toWireValues(values: ReadResult.AttributeValue[]) {
@@ -207,7 +282,13 @@ class InProcessCertNodeApi implements CertNodeApi {
         return peer;
     }
 
-    invoke(cluster: string | number, command: string, args?: object, endpoint = 0): Promise<unknown> {
+    invoke(
+        cluster: string | number,
+        command: string,
+        args?: object,
+        endpoint = 0,
+        options?: TimedInteractionOptions,
+    ): Promise<unknown> {
         return runTagged(this.#adapterId, async () => {
             const { model: clusterModel, id: clusterId } = clusterModelFor(cluster);
             const commandModel = clusterModel.commands(command);
@@ -215,6 +296,7 @@ class InProcessCertNodeApi implements CertNodeApi {
                 throw new ImplementationError(`Unknown command "${command}" on cluster ${cluster}`);
             }
             const request = Invoke({
+                ...timedInteraction(options),
                 commands: [
                     Invoke.ConcreteCommandRequest({
                         endpoint: EndpointNumber(endpoint),
@@ -307,7 +389,7 @@ class InProcessCertNodeApi implements CertNodeApi {
         });
     }
 
-    writeAttribute(path: AttributePathSpec, value: unknown): Promise<void> {
+    writeAttribute(path: AttributePathSpec, value: unknown, options?: TimedInteractionOptions): Promise<void> {
         return runTagged(this.#adapterId, async () => {
             const { endpoint, cluster, attribute } = path;
             if (endpoint === undefined || cluster === undefined || attribute === undefined) {
@@ -315,6 +397,7 @@ class InProcessCertNodeApi implements CertNodeApi {
             }
             const result = await this.#peer.interaction.write(
                 Write(
+                    timedInteraction(options),
                     Write.Attribute({
                         endpoint: EndpointNumber(endpoint),
                         ...attributeSpecFor(cluster, attribute, value),
@@ -387,6 +470,67 @@ class InProcessCertNodeApi implements CertNodeApi {
                 return seed[0]?.value;
             }
             return toWireValues(seed);
+        });
+    }
+
+    readEvents(paths: EventPathSpec[], options?: ReadEventOptions): Promise<EventReadEntry[]> {
+        return runTagged(this.#adapterId, async () => {
+            if (paths.length === 0) {
+                throw new ImplementationError("readEvents requires at least one path");
+            }
+            const values = new Array<ReadResult.EventValue>();
+            const statuses = new Array<ReadResult.EventStatus>();
+            const request = Read({
+                events: paths.map(toEventIds),
+                eventFilters: eventFiltersFor(options),
+                fabricFilter: options?.fabricFiltered,
+            });
+            for await (const chunk of this.#peer.interaction.read(request)) {
+                for await (const report of chunk) {
+                    if (report.kind === "event-value") {
+                        values.push(report);
+                    } else if (report.kind === "event-status") {
+                        statuses.push(report);
+                    }
+                }
+            }
+            assertNoConcreteEventStatus(paths, statuses, "readEvents");
+            return toWireEvents(values);
+        });
+    }
+
+    subscribeEvents(paths: EventPathSpec[], opts: SubscribeEventOptions): Promise<EventReadEntry[]> {
+        return runTagged(this.#adapterId, async () => {
+            if (paths.length === 0) {
+                throw new ImplementationError("subscribeEvents requires at least one path");
+            }
+            const seed = new Array<ReadResult.EventValue>();
+            let seeding = true;
+            const request = Subscribe({
+                events: paths.map(toEventIds),
+                eventFilters: eventFiltersFor(opts),
+                fabricFilter: opts.fabricFiltered,
+                keepSubscriptions: true,
+                minIntervalFloor: Seconds(opts.minIntervalFloorSeconds),
+                maxIntervalCeiling: Seconds(opts.maxIntervalCeilingSeconds),
+            });
+            request.updated = async data => {
+                for await (const chunk of data) {
+                    for await (const report of chunk) {
+                        if (report.kind !== "event-value") {
+                            continue;
+                        }
+                        if (seeding) {
+                            seed.push(report);
+                        } else {
+                            opts.onUpdate?.(toWireEvents([report])[0]);
+                        }
+                    }
+                }
+            };
+            await this.#peer.interaction.subscribe(request);
+            seeding = false;
+            return toWireEvents(seed);
         });
     }
 
