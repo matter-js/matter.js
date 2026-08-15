@@ -129,10 +129,13 @@ export class Peers extends EndpointContainer<ClientNode> {
             });
 
             // Claiming the construction error keeps a peer we cannot load from surfacing as an unhandled rejection,
-            // and names the peer the failure belongs to
-            node.construction.onError(error =>
-                logger.warn("Peer", Diagnostic.strong(id), "is unavailable because it failed to load:", error),
-            );
+            // and names the peer the failure belongs to.  Construction reports a failure that occurs before it
+            // returns here itself, so adopting that one too would report it twice
+            if (node.construction.status === Lifecycle.Status.Initializing) {
+                node.construction.onError(error =>
+                    logger.warn("Peer", Diagnostic.strong(id), "is unavailable because it failed to load:", error),
+                );
+            }
 
             this.add(node);
         }
