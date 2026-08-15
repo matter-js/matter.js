@@ -14,10 +14,10 @@ import { RvcCleanMode } from "@matter/main/clusters/rvc-clean-mode";
 import { RvcOperationalState } from "@matter/main/clusters/rvc-operational-state";
 import { RvcRunMode } from "@matter/main/clusters/rvc-run-mode";
 import { RoboticVacuumCleanerDevice } from "@matter/main/devices/robotic-vacuum-cleaner";
-import { CleaningAreas, RvcDeviceCleanMode, RvcDeviceLogic, RvcDeviceRunModes } from "./RvcDeviceLogic.js";
 import { CustomRvcCleanModeServer } from "./behaviors/CustomRvcCleanModeServer.js";
 import { CustomRvcOperationalStateServer } from "./behaviors/CustomRvcOperationalStateServer.js";
 import { CustomRvcRunModeServer } from "./behaviors/CustomRvcRunModeServer.js";
+import { CleaningAreas, RvcDeviceCleanMode, RvcDeviceLogic, RvcDeviceRunModes } from "./RvcDeviceLogic.js";
 
 // Physical devices appear as "nodes" on a Matter network.  As a device implementer you use a NodeServer to bring a
 // device online.

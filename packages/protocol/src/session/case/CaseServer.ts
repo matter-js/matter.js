@@ -94,6 +94,7 @@ export class CaseServer implements ProtocolHandler {
             }
         } finally {
             // Destroy the unsecure session used to establish the secure Case session
+            await exchange.session.detachChannel()?.release();
             await exchange.session.initiateClose();
         }
     }

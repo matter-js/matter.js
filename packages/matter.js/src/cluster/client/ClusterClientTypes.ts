@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import type { Duration, OptionalKeys, RequiredKeys, WritableKeys } from "@matter/general";
 import {
     AttributeId,
@@ -18,6 +19,9 @@ import {
 } from "@matter/types";
 import { DecodedEventData } from "./DecodedDataReport.js";
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export interface AttributeClientObj<T = any> {
     readonly id: AttributeId;
     readonly attribute: ClusterType.Attribute<T>;
@@ -39,6 +43,9 @@ export interface AttributeClientObj<T = any> {
     removeListener(listener: (newValue: T) => void): void;
 }
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export interface EventClientObj<T> {
     readonly id: EventId;
     readonly event: ClusterType.Event<T>;
@@ -62,6 +69,8 @@ export interface EventClientObj<T> {
 
 /**
  * Command options shared by all client command invocations.
+ *
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export interface ClientCommandOptions {
     /** Send this command as a timed request also when not required. Default timeout are 10 seconds. */
@@ -175,6 +184,8 @@ type ClientCommandsRecord<C> = ClientCommands<C> & Record<string, (...args: any[
 
 /**
  * Strongly typed interface of a cluster client.
+ *
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export type ClusterClientObj<N extends ClusterTyping = ClusterTyping> = {
     id: ClusterId;
@@ -209,6 +220,9 @@ export type ClusterClientObj<N extends ClusterTyping = ClusterTyping> = {
     ClientEventSubscribers<N["Events"]> &
     ClientEventListeners<N["Events"]>;
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export type ClusterClientObjInternal = ClusterClientObj & {
     /**
      * Trigger an attribute update. This is mainly used internally and not needed to be called by the user.

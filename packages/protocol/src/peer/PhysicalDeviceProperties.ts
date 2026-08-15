@@ -124,6 +124,7 @@ export namespace PhysicalDeviceProperties {
                 : supportsThread
                   ? DEFAULT_SUBSCRIPTION_CEILING_THREAD
                   : DEFAULT_SUBSCRIPTION_CEILING_WIFI;
+        const isExplicitCeiling = maxIntervalCeiling !== undefined;
         if (maxIntervalCeiling === undefined) {
             maxIntervalCeiling = defaultCeiling;
         }
@@ -136,6 +137,10 @@ export namespace PhysicalDeviceProperties {
         if (isIcdCeiling) {
             // The ICD peer reports on its own idleModeDuration clock regardless of our requested ceiling, so jitter
             // would only push our request above idle for no benefit.
+            maxIntervalCeiling = Duration.max(minIntervalFloor, maxIntervalCeiling);
+        } else if (isExplicitCeiling) {
+            // A caller-supplied ceiling is transmitted as requested, with no jitter; only the floor clamp still
+            // applies, since a ceiling below the floor is incoherent (max < min).
             maxIntervalCeiling = Duration.max(minIntervalFloor, maxIntervalCeiling);
         } else {
             // Jitter is added, never subtracted, so it spreads out device responses without raising report

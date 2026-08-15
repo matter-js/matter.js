@@ -322,12 +322,12 @@ export declare namespace CommissionerControl {
     export const events: ClusterType.EventObjects<Events>;
 
     /**
-     * @deprecated Use {@link CommissionerControl}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link CommissionerControl}.
      */
     export const Cluster: typeof CommissionerControl;
 
     /**
-     * @deprecated Use {@link CommissionerControl}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link CommissionerControl}.
      */
     export const Complete: typeof CommissionerControl;
 
@@ -335,7 +335,7 @@ export declare namespace CommissionerControl {
 }
 
 /**
- * @deprecated Use {@link CommissionerControl}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link CommissionerControl}.
  */
 export declare const CommissionerControlCluster: typeof CommissionerControl;
 

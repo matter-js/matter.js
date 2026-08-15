@@ -48,4 +48,5 @@ export class PowerTopologyBaseServer extends PowerTopologyBase {
     }
 }
 
-export class PowerTopologyServer extends PowerTopologyBaseServer.for(PowerTopology) {}
+// Drop the features the base implementation enables internally so consumers select their own
+export class PowerTopologyServer extends PowerTopologyBaseServer.with() {}

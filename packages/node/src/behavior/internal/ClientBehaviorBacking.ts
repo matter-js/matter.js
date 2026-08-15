@@ -5,7 +5,7 @@
  */
 
 import { GlobalAttributeState } from "#behavior/cluster/ClusterState.js";
-import { DatasourceCache } from "#endpoint/index.js";
+import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { SupportedElements } from "#endpoint/properties/Behaviors.js";
 import { MaybePromise } from "@matter/general";
 import { ClusterModel } from "@matter/model";
@@ -56,6 +56,13 @@ export class ClientBehaviorBacking extends BehaviorBacking {
         return options;
     }
 
+    protected override refreshForChangedType() {
+        // Elements are cached from the old schema; drop so they rebuild from the new type.  Base rebuilds the datasource.
+        this.#elements = undefined;
+
+        super.refreshForChangedType();
+    }
+
     /**
      * Map attribute ID keys back to property names before broadcasting.
      *
@@ -70,7 +77,10 @@ export class ClientBehaviorBacking extends BehaviorBacking {
 
     override close(): MaybePromise {
         // Prepare the store for reuse in the case of reset
-        (this.store as DatasourceCache).reclaimValues?.();
+        const { store } = this;
+        if (Datasource.ExternallyMutableStore.is(store)) {
+            store.reclaimValues?.();
+        }
 
         // Omit the agent to skip disposal logic as client behaviors have none
         return super.close();

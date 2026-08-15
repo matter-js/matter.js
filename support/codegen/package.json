@@ -39,9 +39,9 @@
     },
     "devDependencies": {
         "@types/jsdom": "^28.0.3",
-        "jsdom": "^29.1.1",
+        "jsdom": "^30.0.1",
         "word-list": "^4.1.0",
-        "yargs": "^18.0.0"
+        "yargs": "^18.1.0"
     },
     "imports": {
         "#general": "@matter/general",
@@ -60,6 +60,6 @@
         }
     },
     "engines": {
-        "node": ">=20.19.0 <22.0.0 || >=22.13.0"
+        "node": ">=20.19.0 <21.0.0 || >=22.13.0"
     }
 }

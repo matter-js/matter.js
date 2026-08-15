@@ -4,19 +4,46 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { capitalize, ChannelType, decamelize, Diagnostic, ServerAddress } from "@matter/general";
-import { ClientNode, CommissioningClient, NetworkClient, SoftwareUpdateManager } from "@matter/node";
-import { PeerAddress, PeerSet } from "@matter/protocol";
+import {
+    capitalize,
+    ChannelType,
+    decamelize,
+    Diagnostic,
+    ImplementationError,
+    InternalError,
+    Logger,
+    Millis,
+    ServerAddress,
+} from "@matter/general";
+import {
+    ClientNode,
+    CommissioningClient,
+    NetworkClient,
+    NodeConnectionState,
+    SoftwareUpdateManager,
+} from "@matter/node";
+import { BasicInformationClient } from "@matter/node/behaviors/basic-information";
+import { FabricAuthority, PeerAddress, PeerSet } from "@matter/protocol";
 import { FabricIndex, NodeId, VendorId } from "@matter/types";
-import { NodeStateInformation } from "@project-chip/matter.js/device";
 import type { Argv } from "yargs";
-import { createDiagnosticCallbacks, MatterNode } from "../MatterNode.js";
+import { MatterNode } from "../MatterNode.js";
+import { awaitSeeded } from "../util/awaitSeeded.js";
+import { resolveDclMode, withDclModeOption } from "./ota-dcl-mode.js";
+
+const logger = Logger.get("cmd_nodes");
+
+/** Look up a commissioned peer by node id across the controller's default admin fabric. */
+function findCommissionedNode(theNode: MatterNode, nodeId: NodeId): ClientNode | undefined {
+    return theNode.node.peers.commissioned.find(peer => peer.peerAddress?.nodeId === nodeId);
+}
 
 /** Parse a `udp://host:port` / `tcp://host:port` URL (IPv6 host in brackets) into a {@link ServerAddress}. */
 function parseFallbackAddress(input: string): ServerAddress {
     const match = /^(udp|tcp):\/\/(.+)$/i.exec(input);
     if (!match) {
-        throw new Error(`Invalid address "${input}". Expected udp://<host>:<port> or tcp://<host>:<port>`);
+        throw new ImplementationError(
+            `Invalid address "${input}". Expected udp://<host>:<port> or tcp://<host>:<port>`,
+        );
     }
     const type = match[1].toLowerCase() === "tcp" ? "tcp" : "udp";
     const rest = match[2];
@@ -26,14 +53,14 @@ function parseFallbackAddress(input: string): ServerAddress {
     if (rest.startsWith("[")) {
         const end = rest.indexOf("]");
         if (end === -1 || rest[end + 1] !== ":") {
-            throw new Error(`Invalid IPv6 address "${input}". Expected ${type}://[<ipv6>]:<port>`);
+            throw new ImplementationError(`Invalid IPv6 address "${input}". Expected ${type}://[<ipv6>]:<port>`);
         }
         ip = rest.slice(1, end);
         portStr = rest.slice(end + 2);
     } else {
         const idx = rest.lastIndexOf(":");
         if (idx === -1) {
-            throw new Error(`Missing port in "${input}". Expected ${type}://<host>:<port>`);
+            throw new ImplementationError(`Missing port in "${input}". Expected ${type}://<host>:<port>`);
         }
         ip = rest.slice(0, idx);
         portStr = rest.slice(idx + 1);
@@ -41,7 +68,9 @@ function parseFallbackAddress(input: string): ServerAddress {
 
     const port = Number(portStr);
     if (!ip.length || !Number.isInteger(port) || port < 1 || port > 65535) {
-        throw new Error(`Invalid host/port in "${input}". Expected ${type}://<host>:<port> with port 1-65535`);
+        throw new ImplementationError(
+            `Invalid host/port in "${input}". Expected ${type}://<host>:<port> with port 1-65535`,
+        );
     }
 
     return { ip, port, type };
@@ -67,27 +96,27 @@ export default function commands(theNode: MatterNode) {
                     async argv => {
                         const { status } = argv;
                         await theNode.start();
-                        if (theNode.commissioningController === undefined) {
-                            throw new Error("CommissioningController not initialized");
-                        }
+                        const peers = theNode.node.peers.commissioned;
                         switch (status) {
                             case "commissioned": {
-                                const details = theNode.commissioningController.getCommissionedNodesDetails();
-                                details
-                                    .map(detail => ({
-                                        ...detail,
-                                        nodeId: detail.nodeId.toString(),
-                                    }))
-                                    .forEach(detail => {
-                                        console.log(detail);
+                                for (const peer of peers) {
+                                    const { addresses, deviceName } = peer.state.commissioning;
+                                    console.log({
+                                        nodeId: peer.peerAddress?.nodeId.toString(),
+                                        operationalAddress: addresses?.length
+                                            ? ServerAddress.urlFor(addresses[0])
+                                            : undefined,
+                                        advertisedName: deviceName,
+                                        basicInformation: peer.maybeStateOf(BasicInformationClient),
                                     });
+                                }
                                 break;
                             }
                             case "connected": {
-                                const nodeIds = theNode.commissioningController
-                                    .getCommissionedNodes()
-                                    .filter(nodeId => !!theNode.commissioningController?.getPairedNode(nodeId));
-                                console.log(nodeIds.map(nodeId => nodeId.toString()));
+                                const nodeIds = peers
+                                    .filter(peer => peer.lifecycle.isConnected)
+                                    .map(peer => peer.peerAddress?.nodeId);
+                                console.log(nodeIds.map(nodeId => nodeId?.toString()));
                                 break;
                             }
                         }
@@ -106,9 +135,12 @@ export default function commands(theNode: MatterNode) {
                     async argv => {
                         const { nodeId } = argv;
                         const node = (await theNode.connectAndGetNodes(nodeId))[0];
+                        if (!(await awaitSeeded(node))) {
+                            return;
+                        }
 
-                        console.log("Logging structure of Node ", node.nodeId.toString());
-                        node.logStructure();
+                        console.log("Logging structure of Node ", node.peerAddress?.nodeId.toString());
+                        logger.info(node);
                     },
                 )
                 .command(
@@ -124,12 +156,13 @@ export default function commands(theNode: MatterNode) {
                     async argv => {
                         const { nodeId: nodeIdStr } = argv;
                         await theNode.start();
-                        if (theNode.commissioningController === undefined) {
-                            throw new Error("CommissioningController not initialized");
-                        }
 
                         const nodeId = NodeId(BigInt(nodeIdStr));
-                        const peerAddress = theNode.commissioningController.fabric.addressOf(nodeId);
+                        const peerAddress = findCommissionedNode(theNode, nodeId)?.peerAddress;
+                        if (peerAddress === undefined) {
+                            console.log(`Node ${nodeIdStr} not commissioned`);
+                            return;
+                        }
                         const peerSet = theNode.node.env.get(PeerSet);
                         const peer = peerSet.for(peerAddress);
 
@@ -208,30 +241,13 @@ export default function commands(theNode: MatterNode) {
                     },
                     async argv => {
                         const { nodeId: nodeIdStr, maxSubscriptionInterval, minSubscriptionInterval } = argv;
-                        await theNode.start();
-                        if (theNode.commissioningController === undefined) {
-                            throw new Error("CommissioningController not initialized");
-                        }
-                        let nodeIds = theNode.commissioningController.getCommissionedNodes();
-                        if (nodeIdStr !== "all") {
-                            const cmdNodeId = NodeId(BigInt(nodeIdStr));
-                            nodeIds = nodeIds.filter(nodeId => nodeId === cmdNodeId);
-                            if (!nodeIds.length) {
-                                throw new Error(`Node ${nodeIdStr} not commissioned`);
-                            }
-                        }
-
                         const autoSubscribe = minSubscriptionInterval !== undefined;
 
-                        for (const nodeIdToProcess of nodeIds) {
-                            const node = await theNode.commissioningController.getNode(nodeIdToProcess);
-                            node.connect({
-                                autoSubscribe,
-                                subscribeMinIntervalFloorSeconds: autoSubscribe ? minSubscriptionInterval : undefined,
-                                subscribeMaxIntervalCeilingSeconds: autoSubscribe ? maxSubscriptionInterval : undefined,
-                                ...createDiagnosticCallbacks(),
-                            });
-                        }
+                        await theNode.connectAndGetNodes(nodeIdStr !== "all" ? nodeIdStr : undefined, {
+                            autoSubscribe,
+                            subscribeMinIntervalFloorSeconds: autoSubscribe ? minSubscriptionInterval : undefined,
+                            subscribeMaxIntervalCeilingSeconds: autoSubscribe ? maxSubscriptionInterval : undefined,
+                        });
                     },
                 )
                 .command(
@@ -246,27 +262,21 @@ export default function commands(theNode: MatterNode) {
                     },
                     async argv => {
                         const { nodeId: nodeIdStr } = argv;
-                        if (theNode.commissioningController === undefined) {
-                            console.log("Controller not initialized, nothing to disconnect.");
-                            return;
-                        }
+                        await theNode.start();
 
-                        let nodeIds = theNode.commissioningController.getCommissionedNodes();
+                        let nodes = theNode.node.peers.commissioned;
                         if (nodeIdStr !== "all") {
                             const cmdNodeId = NodeId(BigInt(nodeIdStr));
-                            nodeIds = nodeIds.filter(nodeId => nodeId === cmdNodeId);
-                            if (!nodeIds.length) {
-                                throw new Error(`Node ${nodeIdStr} not commissioned`);
+                            nodes = nodes.filter(node => node.peerAddress?.nodeId === cmdNodeId);
+                            if (!nodes.length) {
+                                throw new ImplementationError(`Node ${nodeIdStr} not commissioned`);
                             }
                         }
 
-                        for (const nodeIdToProcess of nodeIds) {
-                            const node = theNode.commissioningController.getPairedNode(nodeIdToProcess);
-                            if (node === undefined) {
-                                console.log(`Node ${nodeIdToProcess} not connected`);
-                                continue;
-                            }
-                            await node.disconnect();
+                        for (const node of nodes) {
+                            // Stop (not disable): peers stay enabled for on-demand reconnect, and the sweep being off
+                            // keeps them disconnected across restarts anyway.
+                            await node.stop();
                         }
                     },
                 )
@@ -284,33 +294,25 @@ export default function commands(theNode: MatterNode) {
                     async argv => {
                         const { nodeIds: nodeIdStr } = argv;
                         await theNode.start();
-                        if (theNode.commissioningController === undefined) {
-                            throw new Error("CommissioningController not initialized");
-                        }
-                        let nodeIds = theNode.commissioningController.getCommissionedNodes();
+                        let nodes = theNode.node.peers.commissioned;
                         if (nodeIdStr !== "all") {
                             const nodeIdList = nodeIdStr.split(",").map(nodeId => NodeId(BigInt(nodeId)));
-                            nodeIds = nodeIds.filter(nodeId => nodeIdList.includes(nodeId));
-                            if (!nodeIds.length) {
-                                throw new Error(`Node ${nodeIdStr} not commissioned`);
+                            nodes = nodes.filter(
+                                node => node.peerAddress !== undefined && nodeIdList.includes(node.peerAddress.nodeId),
+                            );
+                            if (!nodes.length) {
+                                throw new ImplementationError(`Node ${nodeIdStr} not commissioned`);
                             }
                         }
 
-                        const nodeDetails = theNode.commissioningController.getCommissionedNodesDetails();
-
-                        for (const nodeIdToProcess of nodeIds) {
-                            const node = theNode.commissioningController.getPairedNode(nodeIdToProcess);
-                            if (node === undefined) {
-                                const details = nodeDetails.find(nd => nd.nodeId === nodeIdToProcess);
-                                console.log(
-                                    `Node ${nodeIdToProcess}: Not initialized${details?.deviceData?.basicInformation !== undefined ? ` (${details.deviceData.basicInformation.vendorName} ${details.deviceData.basicInformation.productName})` : ""}`,
-                                );
-                            } else {
-                                const basicInfo = node.basicInformation;
-                                console.log(
-                                    `Node ${nodeIdToProcess}: Node Status: ${capitalize(decamelize(NodeStateInformation[node.connectionState], " "))}${basicInfo !== undefined ? ` (${basicInfo.vendorName} ${basicInfo.productName})` : ""}`,
-                                );
-                            }
+                        for (const node of nodes) {
+                            const basicInfo = node.maybeStateOf(BasicInformationClient);
+                            const status = capitalize(
+                                decamelize(NodeConnectionState[node.lifecycle.connectionState], " "),
+                            );
+                            console.log(
+                                `Node ${node.peerAddress?.nodeId}: Node Status: ${status}${basicInfo !== undefined ? ` (${basicInfo.vendorName} ${basicInfo.productName})` : ""}`,
+                            );
                         }
                     },
                 )
@@ -335,20 +337,22 @@ export default function commands(theNode: MatterNode) {
                     async argv => {
                         const { nodeId: nodeIdStr, preference } = argv;
                         await theNode.start();
-                        if (theNode.commissioningController === undefined) {
-                            throw new Error("CommissioningController not initialized");
-                        }
 
                         const nodeId = NodeId(BigInt(nodeIdStr));
-                        const node = await theNode.commissioningController.getNode(nodeId);
+                        const node = findCommissionedNode(theNode, nodeId);
+                        if (node === undefined) {
+                            throw new ImplementationError(`Node ${nodeIdStr} not commissioned`);
+                        }
+                        const peerAddress = node.peerAddress;
+                        if (peerAddress === undefined) {
+                            throw new ImplementationError(`Node ${nodeIdStr} has no peer address`);
+                        }
 
                         const pref = preference === "on" ? "tcp" : preference === "off" ? "udp" : undefined;
-                        await node.node.setStateOf(NetworkClient, { transportPreference: pref });
+                        await node.setStateOf(NetworkClient, { transportPreference: pref });
 
                         // Also update the protocol-level peer preference
-                        const peer = theNode.node.env
-                            .get(PeerSet)
-                            .for(theNode.commissioningController.fabric.addressOf(nodeId));
+                        const peer = theNode.node.env.get(PeerSet).for(peerAddress);
                         if (peer) {
                             peer.transportPreference = pref === "tcp" ? ChannelType.TCP : undefined;
                         }
@@ -376,13 +380,13 @@ export default function commands(theNode: MatterNode) {
                                 async argv => {
                                     const { nodeId: nodeIdStr } = argv;
                                     await theNode.start();
-                                    if (theNode.commissioningController === undefined) {
-                                        throw new Error("CommissioningController not initialized");
-                                    }
 
                                     const nodeId = NodeId(BigInt(nodeIdStr));
-                                    const node = await theNode.commissioningController.getNode(nodeId);
-                                    const addresses = node.node.state.commissioning.addresses;
+                                    const node = findCommissionedNode(theNode, nodeId);
+                                    if (node === undefined) {
+                                        throw new ImplementationError(`Node ${nodeIdStr} not commissioned`);
+                                    }
+                                    const addresses = node.state.commissioning.addresses;
 
                                     if (!addresses?.length) {
                                         console.log(`Node ${nodeIdStr} has no fallback addresses stored`);
@@ -414,21 +418,21 @@ export default function commands(theNode: MatterNode) {
                                 async argv => {
                                     const { nodeId: nodeIdStr, address: addressStr } = argv;
                                     await theNode.start();
-                                    if (theNode.commissioningController === undefined) {
-                                        throw new Error("CommissioningController not initialized");
-                                    }
 
                                     const nodeId = NodeId(BigInt(nodeIdStr));
-                                    const node = await theNode.commissioningController.getNode(nodeId);
+                                    const node = findCommissionedNode(theNode, nodeId);
+                                    if (node === undefined) {
+                                        throw new ImplementationError(`Node ${nodeIdStr} not commissioned`);
+                                    }
 
                                     if (addressStr === "drop") {
-                                        await node.node.setStateOf(CommissioningClient, { addresses: undefined });
+                                        await node.setStateOf(CommissioningClient, { addresses: undefined });
                                         console.log(`Fallback address for node ${nodeIdStr} dropped`);
                                         return;
                                     }
 
                                     const address = parseFallbackAddress(addressStr);
-                                    await node.node.setStateOf(CommissioningClient, { addresses: [address] });
+                                    await node.setStateOf(CommissioningClient, { addresses: [address] });
                                     console.log(
                                         `Fallback address for node ${nodeIdStr} set to ${ServerAddress.urlFor(address)}`,
                                     );
@@ -464,29 +468,25 @@ export default function commands(theNode: MatterNode) {
                     async argv => {
                         const { nodeId: nodeIdStr, maxSubscriptionInterval, minSubscriptionInterval } = argv;
                         await theNode.start();
-                        if (theNode.commissioningController === undefined) {
-                            throw new Error("CommissioningController not initialized");
-                        }
-                        let nodeIds = theNode.commissioningController.getCommissionedNodes();
 
                         const cmdNodeId = NodeId(BigInt(nodeIdStr));
-                        nodeIds = nodeIds.filter(nodeId => nodeId === cmdNodeId);
-                        if (nodeIds.length) {
-                            throw new Error(`Node ${nodeIdStr} already known`);
+                        if (findCommissionedNode(theNode, cmdNodeId) !== undefined) {
+                            throw new ImplementationError(`Node ${nodeIdStr} already known`);
                         }
 
-                        await theNode.commissioningController.node.peers.forAddress(
-                            theNode.commissioningController.fabric.addressOf(cmdNodeId),
-                        );
+                        // Single-fabric shell: the controller's own (first-owned) fabric is the one to address peers on.
+                        const fabric = theNode.node.env.get(FabricAuthority).fabrics[0];
+                        if (fabric === undefined) {
+                            throw new InternalError("No controller fabric present after start");
+                        }
+                        await theNode.node.peers.forAddress(fabric.addressOf(cmdNodeId));
 
                         const autoSubscribe = minSubscriptionInterval !== undefined;
 
-                        const node = await theNode.commissioningController.getNode(cmdNodeId);
-                        node.connect({
+                        await theNode.connectAndGetNodes(nodeIdStr, {
                             autoSubscribe,
                             subscribeMinIntervalFloorSeconds: autoSubscribe ? minSubscriptionInterval : undefined,
                             subscribeMaxIntervalCeilingSeconds: autoSubscribe ? maxSubscriptionInterval : undefined,
-                            ...createDiagnosticCallbacks(),
                         });
                     },
                 )
@@ -515,21 +515,20 @@ export default function commands(theNode: MatterNode) {
                                     const { nodeId: nodeIdStr, local } = argv;
 
                                     await theNode.start();
-                                    if (theNode.commissioningController === undefined) {
-                                        throw new Error("CommissioningController not initialized");
-                                    }
 
                                     let peerToCheck: ClientNode | undefined = undefined;
                                     if (nodeIdStr !== undefined) {
                                         const nodeId = NodeId(BigInt(nodeIdStr));
-                                        peerToCheck = (await theNode.commissioningController.getNode(nodeId))?.node;
+                                        peerToCheck = findCommissionedNode(theNode, nodeId);
+                                        if (peerToCheck === undefined) {
+                                            throw new ImplementationError(`Node ${nodeIdStr} not commissioned`);
+                                        }
                                     }
 
-                                    const updatesAvailable = await theNode.commissioningController.otaProvider.act(
-                                        agent =>
-                                            agent
-                                                .get(SoftwareUpdateManager)
-                                                .queryUpdates({ peerToCheck, includeStoredUpdates: local }),
+                                    const updatesAvailable = await theNode.otaProviderEndpoint.act(agent =>
+                                        agent
+                                            .get(SoftwareUpdateManager)
+                                            .queryUpdates({ peerToCheck, includeStoredUpdates: local }),
                                     );
 
                                     if (updatesAvailable.length) {
@@ -549,69 +548,61 @@ export default function commands(theNode: MatterNode) {
                                 "check <node-id>",
                                 "Check for OTA updates for a commissioned node",
                                 yargs => {
-                                    return yargs
-                                        .positional("node-id", {
+                                    return withDclModeOption(
+                                        yargs.positional("node-id", {
                                             describe: "Node ID to check for updates",
                                             type: "string",
                                             demandOption: true,
-                                        })
-                                        .option("mode", {
-                                            describe: "DCL mode (prod or test)",
-                                            type: "string",
-                                            choices: ["prod", "test", "both"],
-                                            default: "prod",
-                                        })
-                                        .option("local", {
-                                            describe: "include local update files",
-                                            type: "boolean",
-                                            default: false,
-                                        });
+                                        }),
+                                    ).option("local", {
+                                        describe: "include local update files",
+                                        type: "boolean",
+                                        default: false,
+                                    });
                                 },
                                 async argv => {
                                     const { nodeId: nodeIdStr, mode, local } = argv;
-                                    const isProduction = mode === "prod" ? true : mode === "test" ? false : undefined;
+                                    const { label: dclMode, isProduction } = resolveDclMode(theNode, mode);
 
                                     await theNode.start();
-                                    if (theNode.commissioningController === undefined) {
-                                        throw new Error("CommissioningController not initialized");
-                                    }
 
                                     const nodeId = NodeId(BigInt(nodeIdStr));
-                                    const nodeDetails = theNode.commissioningController
-                                        .getCommissionedNodesDetails()
-                                        .find(nd => nd.nodeId === nodeId);
-                                    const basicInfo = nodeDetails?.deviceData?.basicInformation;
-                                    if (!basicInfo) {
-                                        throw new Error(`Node ${nodeIdStr} has no basic information available`);
+                                    const node = findCommissionedNode(theNode, nodeId);
+                                    if (node === undefined) {
+                                        throw new ImplementationError(`Node ${nodeIdStr} not commissioned`);
+                                    }
+                                    const basicInfo = node.maybeStateOf(BasicInformationClient);
+                                    if (basicInfo === undefined) {
+                                        throw new ImplementationError(
+                                            `Node ${nodeIdStr} has no basic information available`,
+                                        );
                                     }
                                     if (
                                         basicInfo.vendorId === undefined ||
                                         basicInfo.productId === undefined ||
                                         basicInfo.softwareVersion === undefined
                                     ) {
-                                        throw new Error(
-                                            `Node ${nodeIdStr} is missing required basic information for OTA check`,
+                                        throw new ImplementationError(
+                                            `Node ${nodeIdStr} BasicInformation is incomplete; connect the node first`,
                                         );
                                     }
 
                                     console.log(`Checking for OTA updates for node ${nodeIdStr}...`);
+                                    console.log(`  Vendor ID: ${Diagnostic.hex(basicInfo.vendorId, 4).toUpperCase()}`);
                                     console.log(
-                                        `  Vendor ID: ${Diagnostic.hex(basicInfo.vendorId as VendorId, 4).toUpperCase()}`,
-                                    );
-                                    console.log(
-                                        `  Product ID: ${Diagnostic.hex(basicInfo.productId as number, 4).toUpperCase()}`,
+                                        `  Product ID: ${Diagnostic.hex(basicInfo.productId, 4).toUpperCase()}`,
                                     );
                                     console.log(
                                         `  Current Software Version: ${basicInfo.softwareVersion} (${basicInfo.softwareVersionString})`,
                                     );
-                                    console.log(`  DCL Mode: ${mode}\n`);
+                                    console.log(`  DCL Mode: ${dclMode}\n`);
 
                                     const updateInfo = await (
                                         await theNode.otaService()
                                     ).checkForUpdate({
-                                        vendorId: basicInfo.vendorId as VendorId,
-                                        productId: basicInfo.productId as number,
-                                        currentSoftwareVersion: basicInfo.softwareVersion as number,
+                                        vendorId: basicInfo.vendorId,
+                                        productId: basicInfo.productId,
+                                        currentSoftwareVersion: basicInfo.softwareVersion,
                                         includeStoredUpdates: local,
                                         isProduction,
                                     });
@@ -630,7 +621,7 @@ export default function commands(theNode: MatterNode) {
                                             console.log(`  Release Notes: ${updateInfo.releaseNotesUrl}`);
                                         }
                                         console.log(
-                                            `\nRun "nodes ota download ${nodeIdStr}${mode === "test" ? " --mode test" : ""}" to download this update.`,
+                                            `\nRun "nodes ota download ${nodeIdStr}${mode === "auto" ? "" : ` --mode ${mode}`}" to download this update.`,
                                         );
                                     } else {
                                         console.log("✓ No updates available. Device is up to date.");
@@ -641,18 +632,13 @@ export default function commands(theNode: MatterNode) {
                                 "download <node-id>",
                                 "Download OTA update for a commissioned node",
                                 yargs => {
-                                    return yargs
-                                        .positional("node-id", {
+                                    return withDclModeOption(
+                                        yargs.positional("node-id", {
                                             describe: "Node ID to download update for",
                                             type: "string",
                                             demandOption: true,
-                                        })
-                                        .option("mode", {
-                                            describe: "DCL mode (prod or test)",
-                                            type: "string",
-                                            choices: ["prod", "test", "both"],
-                                            default: "prod",
-                                        })
+                                        }),
+                                    )
                                         .option("force", {
                                             describe: "Force download even if update is already stored locally",
                                             type: "boolean",
@@ -666,50 +652,48 @@ export default function commands(theNode: MatterNode) {
                                 },
                                 async argv => {
                                     const { nodeId: nodeIdStr, mode, force, local } = argv;
-                                    const isProduction = mode === "prod" ? true : mode === "test" ? false : undefined;
+                                    const { label: dclMode, isProduction } = resolveDclMode(theNode, mode);
                                     const forceDownload = force === true;
 
                                     await theNode.start();
-                                    if (theNode.commissioningController === undefined) {
-                                        throw new Error("CommissioningController not initialized");
-                                    }
 
                                     const nodeId = NodeId(BigInt(nodeIdStr));
-                                    const nodeDetails = theNode.commissioningController
-                                        .getCommissionedNodesDetails()
-                                        .find(nd => nd.nodeId === nodeId);
-                                    const basicInfo = nodeDetails?.deviceData?.basicInformation;
-                                    if (!basicInfo) {
-                                        throw new Error(`Node ${nodeIdStr} has no basic information available`);
+                                    const node = findCommissionedNode(theNode, nodeId);
+                                    if (node === undefined) {
+                                        throw new ImplementationError(`Node ${nodeIdStr} not commissioned`);
+                                    }
+                                    const basicInfo = node.maybeStateOf(BasicInformationClient);
+                                    if (basicInfo === undefined) {
+                                        throw new ImplementationError(
+                                            `Node ${nodeIdStr} has no basic information available`,
+                                        );
                                     }
                                     if (
                                         basicInfo.vendorId === undefined ||
                                         basicInfo.productId === undefined ||
                                         basicInfo.softwareVersion === undefined
                                     ) {
-                                        throw new Error(
-                                            `Node ${nodeIdStr} is missing required basic information for OTA check`,
+                                        throw new ImplementationError(
+                                            `Node ${nodeIdStr} BasicInformation is incomplete; connect the node first`,
                                         );
                                     }
 
                                     console.log(`Checking for OTA updates for node ${nodeIdStr}...`);
+                                    console.log(`  Vendor ID: ${Diagnostic.hex(basicInfo.vendorId, 4).toUpperCase()}`);
                                     console.log(
-                                        `  Vendor ID: ${Diagnostic.hex(basicInfo.vendorId as VendorId, 4).toUpperCase()}`,
-                                    );
-                                    console.log(
-                                        `  Product ID: ${Diagnostic.hex(basicInfo.productId as number, 4).toUpperCase()}`,
+                                        `  Product ID: ${Diagnostic.hex(basicInfo.productId, 4).toUpperCase()}`,
                                     );
                                     console.log(
                                         `  Current Software Version: ${basicInfo.softwareVersion} (${basicInfo.softwareVersionString})`,
                                     );
-                                    console.log(`  DCL Mode: ${mode}\n`);
+                                    console.log(`  DCL Mode: ${dclMode}\n`);
 
                                     const updateInfo = await (
                                         await theNode.otaService()
                                     ).checkForUpdate({
-                                        vendorId: basicInfo.vendorId as VendorId,
-                                        productId: basicInfo.productId as number,
-                                        currentSoftwareVersion: basicInfo.softwareVersion as number,
+                                        vendorId: basicInfo.vendorId,
+                                        productId: basicInfo.productId,
+                                        currentSoftwareVersion: basicInfo.softwareVersion,
                                         includeStoredUpdates: local,
                                         isProduction,
                                     });
@@ -745,18 +729,13 @@ export default function commands(theNode: MatterNode) {
                                 "apply <node-id>",
                                 "Apply OTA update for a commissioned node",
                                 yargs => {
-                                    return yargs
-                                        .positional("node-id", {
+                                    return withDclModeOption(
+                                        yargs.positional("node-id", {
                                             describe: "Node ID to download update for",
                                             type: "string",
                                             demandOption: true,
-                                        })
-                                        .option("mode", {
-                                            describe: "DCL mode (prod or test)",
-                                            type: "string",
-                                            choices: ["prod", "test", "both"],
-                                            default: "prod",
-                                        })
+                                        }),
+                                    )
                                         .option("force", {
                                             describe: "Force download even if update is already stored locally",
                                             type: "boolean",
@@ -766,55 +745,76 @@ export default function commands(theNode: MatterNode) {
                                             describe: "Apply update from local file",
                                             type: "boolean",
                                             default: false,
+                                        })
+                                        .option("max-block-size", {
+                                            describe:
+                                                "Cap the BDX block size for this transfer, in bytes (default: whatever the device requests)",
+                                            type: "number",
+                                        })
+                                        .option("mrp-margin", {
+                                            describe:
+                                                "Additive MRP retransmission margin for this transfer, in milliseconds (default: derived from the device's medium)",
+                                            type: "number",
+                                        })
+                                        .check(argv => {
+                                            const blockSize = argv.maxBlockSize as number | undefined;
+                                            const margin = argv.mrpMargin as number | undefined;
+                                            if (
+                                                blockSize !== undefined &&
+                                                (!Number.isInteger(blockSize) || blockSize <= 0)
+                                            ) {
+                                                throw new Error("--max-block-size must be a positive integer");
+                                            }
+                                            if (margin !== undefined && (!Number.isFinite(margin) || margin < 0)) {
+                                                throw new Error("--mrp-margin must be a non-negative number of ms");
+                                            }
+                                            return true;
                                         });
                                 },
                                 async argv => {
-                                    const { nodeId: nodeIdStr, mode, force, local } = argv;
-                                    const isProduction = mode === "prod" ? true : mode === "test" ? false : undefined;
+                                    const { nodeId: nodeIdStr, mode, force, local, maxBlockSize, mrpMargin } = argv;
+                                    const { label: dclMode, isProduction } = resolveDclMode(theNode, mode);
                                     const forceDownload = force === true;
 
                                     await theNode.start();
 
-                                    if (theNode.commissioningController === undefined) {
-                                        throw new Error("CommissioningController not initialized");
-                                    }
-
                                     const nodeId = NodeId(BigInt(nodeIdStr));
-                                    const nodeDetails = theNode.commissioningController
-                                        .getCommissionedNodesDetails()
-                                        .find(nd => nd.nodeId === nodeId);
-                                    const basicInfo = nodeDetails?.deviceData?.basicInformation;
-                                    if (!basicInfo) {
-                                        throw new Error(`Node ${nodeIdStr} has no basic information available`);
+                                    const node = findCommissionedNode(theNode, nodeId);
+                                    if (node === undefined) {
+                                        throw new ImplementationError(`Node ${nodeIdStr} not commissioned`);
+                                    }
+                                    const basicInfo = node.maybeStateOf(BasicInformationClient);
+                                    if (basicInfo === undefined) {
+                                        throw new ImplementationError(
+                                            `Node ${nodeIdStr} has no basic information available`,
+                                        );
                                     }
                                     if (
                                         basicInfo.vendorId === undefined ||
                                         basicInfo.productId === undefined ||
                                         basicInfo.softwareVersion === undefined
                                     ) {
-                                        throw new Error(
-                                            `Node ${nodeIdStr} is missing required basic information for OTA check`,
+                                        throw new ImplementationError(
+                                            `Node ${nodeIdStr} BasicInformation is incomplete; connect the node first`,
                                         );
                                     }
 
                                     console.log(`Checking for OTA updates for node ${nodeIdStr}...`);
+                                    console.log(`  Vendor ID: ${Diagnostic.hex(basicInfo.vendorId, 4).toUpperCase()}`);
                                     console.log(
-                                        `  Vendor ID: ${Diagnostic.hex(basicInfo.vendorId as VendorId, 4).toUpperCase()}`,
-                                    );
-                                    console.log(
-                                        `  Product ID: ${Diagnostic.hex(basicInfo.productId as number, 4).toUpperCase()}`,
+                                        `  Product ID: ${Diagnostic.hex(basicInfo.productId, 4).toUpperCase()}`,
                                     );
                                     console.log(
                                         `  Current Software Version: ${basicInfo.softwareVersion} (${basicInfo.softwareVersionString})`,
                                     );
-                                    console.log(`  DCL Mode: ${mode}\n`);
+                                    console.log(`  DCL Mode: ${dclMode}\n`);
 
                                     const localUpdates = await (
                                         await theNode.otaService()
                                     ).find({
-                                        vendorId: basicInfo.vendorId as VendorId,
-                                        productId: basicInfo.productId as number,
-                                        currentVersion: basicInfo.softwareVersion as number,
+                                        vendorId: basicInfo.vendorId,
+                                        productId: basicInfo.productId,
+                                        currentVersion: basicInfo.softwareVersion,
                                     });
 
                                     if (local && !localUpdates.length) {
@@ -825,9 +825,9 @@ export default function commands(theNode: MatterNode) {
                                     const updateInfo = await (
                                         await theNode.otaService()
                                     ).checkForUpdate({
-                                        vendorId: basicInfo.vendorId as VendorId,
-                                        productId: basicInfo.productId as number,
-                                        currentSoftwareVersion: basicInfo.softwareVersion as number,
+                                        vendorId: basicInfo.vendorId,
+                                        productId: basicInfo.productId,
+                                        currentSoftwareVersion: basicInfo.softwareVersion,
                                         includeStoredUpdates: local,
                                         isProduction,
                                     });
@@ -864,20 +864,32 @@ export default function commands(theNode: MatterNode) {
                                         );
                                     }
 
-                                    const node = theNode.commissioningController.getPairedNode(nodeId);
-                                    if (node === undefined) {
-                                        throw new Error(`Node ${nodeIdStr} not connected`);
+                                    if (!node.lifecycle.isConnected) {
+                                        throw new ImplementationError(`Node ${nodeIdStr} not connected`);
+                                    }
+                                    const peerAddress = node.peerAddress;
+                                    if (peerAddress === undefined) {
+                                        throw new ImplementationError(`Node ${nodeIdStr} has no peer address`);
                                     }
 
-                                    await theNode.commissioningController.otaProvider.act(agent => {
+                                    if (maxBlockSize !== undefined) {
+                                        console.log(`Capping BDX block size to ${maxBlockSize} bytes`);
+                                    }
+                                    if (mrpMargin !== undefined) {
+                                        console.log(`Using an MRP retransmission margin of ${mrpMargin}ms`);
+                                    }
+
+                                    await theNode.otaProviderEndpoint.act(agent => {
                                         return agent
                                             .get(SoftwareUpdateManager)
-                                            .forceUpdate(
-                                                PeerAddress({ nodeId, fabricIndex: FabricIndex(1) }),
-                                                basicInfo.vendorId as VendorId,
-                                                basicInfo.productId as number,
-                                                updateVersion,
-                                            );
+                                            .forceUpdate(PeerAddress({ nodeId, fabricIndex: FabricIndex(1) }), {
+                                                vendorId: basicInfo.vendorId as VendorId,
+                                                productId: basicInfo.productId as number,
+                                                targetSoftwareVersion: updateVersion,
+                                                maxBdxBlockSize: maxBlockSize,
+                                                bdxAdditionalMrpDelay:
+                                                    mrpMargin === undefined ? undefined : Millis(mrpMargin),
+                                            });
                                     });
                                 },
                             )

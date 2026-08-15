@@ -287,6 +287,24 @@ describe("StorageDrivers", () => {
         });
     }
 
+    if (supportsSqlite()) {
+        it("sqlite driver opens when the parent directory does not exist yet", async () => {
+            const freshRoot = resolve(TEST_STORAGE_LOCATION, "fresh");
+            await rm(freshRoot, { recursive: true, force: true });
+            const storage: StorageDriver = new SqliteStorageDriver({
+                namespaceOrPath: resolve(freshRoot, "nested", "storage.db"),
+            });
+            await storage.initialize();
+            try {
+                await storage.set(CONTEXTx1, "key", "value");
+                assert.equal(await storage.get(CONTEXTx1, "key"), "value");
+            } finally {
+                await storage.close();
+                await rm(freshRoot, { recursive: true, force: true });
+            }
+        });
+    }
+
     // Cleanup
     after(async () => {
         await rm(TEST_STORAGE_LOCATION, { recursive: true, force: true });

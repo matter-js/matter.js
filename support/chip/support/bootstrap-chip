@@ -9,8 +9,8 @@
 
 set -e
 
-# We do not need extra 1.3GB of ARM toolchain
-sed -i '/arm.json/d' scripts/setup/environment.json
+# Drop only the arm.json entry (skips 1.3GB ARM toolchain); it shares a line with zap.json, so a line delete drops zap too
+sed -i -E 's#"[^"]*arm\.json",[[:space:]]*##' scripts/setup/environment.json
 
 # Nor 2.5GB of other CIPD packages we don't use
 function exclude {

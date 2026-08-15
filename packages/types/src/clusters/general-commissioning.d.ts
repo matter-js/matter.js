@@ -226,7 +226,7 @@ export declare namespace GeneralCommissioning {
          *
          * @see {@link MatterSpecification.v16.Core} § 11.10.6.11
          */
-        recoveryIdentifier: Bytes;
+        recoveryIdentifier?: Bytes;
 
         /**
          * Indicates the primary reason that triggered the Network Recovery flow and its associated advertisements. Null
@@ -234,7 +234,7 @@ export declare namespace GeneralCommissioning {
          *
          * @see {@link MatterSpecification.v16.Core} § 11.10.6.12
          */
-        networkRecoveryReason: NetworkRecoveryReason | null;
+        networkRecoveryReason?: NetworkRecoveryReason | null;
     }
 
     /**
@@ -970,12 +970,12 @@ export declare namespace GeneralCommissioning {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link GeneralCommissioning}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link GeneralCommissioning}.
      */
     export const Cluster: ClusterType.WithCompat<typeof GeneralCommissioning, GeneralCommissioning>;
 
     /**
-     * @deprecated Use {@link GeneralCommissioning}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link GeneralCommissioning}.
      */
     export const Complete: typeof GeneralCommissioning;
 
@@ -983,7 +983,7 @@ export declare namespace GeneralCommissioning {
 }
 
 /**
- * @deprecated Use {@link GeneralCommissioning}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link GeneralCommissioning}.
  */
 export declare const GeneralCommissioningCluster: typeof GeneralCommissioning;
 

@@ -186,12 +186,12 @@ export declare namespace ThermostatUserInterfaceConfiguration {
     export const attributes: ClusterType.AttributeObjects<Attributes>;
 
     /**
-     * @deprecated Use {@link ThermostatUserInterfaceConfiguration}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ThermostatUserInterfaceConfiguration}.
      */
     export const Cluster: typeof ThermostatUserInterfaceConfiguration;
 
     /**
-     * @deprecated Use {@link ThermostatUserInterfaceConfiguration}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ThermostatUserInterfaceConfiguration}.
      */
     export const Complete: typeof ThermostatUserInterfaceConfiguration;
 
@@ -199,7 +199,7 @@ export declare namespace ThermostatUserInterfaceConfiguration {
 }
 
 /**
- * @deprecated Use {@link ThermostatUserInterfaceConfiguration}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link ThermostatUserInterfaceConfiguration}.
  */
 export declare const ThermostatUserInterfaceConfigurationCluster: typeof ThermostatUserInterfaceConfiguration;
 

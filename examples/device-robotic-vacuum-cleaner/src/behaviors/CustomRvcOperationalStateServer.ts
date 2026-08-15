@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { AsyncObservable } from "@matter/main";
 import { OperationalStateUtils } from "@matter/main/behaviors/operational-state";
 import { RvcOperationalStateServer } from "@matter/main/behaviors/rvc-operational-state";

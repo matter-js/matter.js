@@ -1002,12 +1002,12 @@ export declare namespace GeneralDiagnostics {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link GeneralDiagnostics}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link GeneralDiagnostics}.
      */
     export const Cluster: ClusterType.WithCompat<typeof GeneralDiagnostics, GeneralDiagnostics>;
 
     /**
-     * @deprecated Use {@link GeneralDiagnostics}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link GeneralDiagnostics}.
      */
     export const Complete: typeof GeneralDiagnostics;
 
@@ -1015,7 +1015,7 @@ export declare namespace GeneralDiagnostics {
 }
 
 /**
- * @deprecated Use {@link GeneralDiagnostics}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link GeneralDiagnostics}.
  */
 export declare const GeneralDiagnosticsCluster: typeof GeneralDiagnostics;
 

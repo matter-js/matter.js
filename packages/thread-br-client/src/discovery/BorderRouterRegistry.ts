@@ -348,8 +348,8 @@ export class BorderRouterRegistry {
                     rawXa === undefined ? "missing" : `${rawXa.byteLength}B:${Bytes.toHex(rawXa).toUpperCase()}`;
                 const nn = params.get("nn");
                 const vn = params.get("vn");
-                logger.info(
-                    `BR instance dropped (no valid xa) qname="${name.qname}" source=${source} xa=${xaInfo} nn="${nn ?? ""}" vn="${vn ?? ""}"`,
+                logger.debug(
+                    `BR instance skipped (missing or malformed xa) qname="${name.qname}" source=${source} xa=${xaInfo} nn="${nn ?? ""}" vn="${vn ?? ""}"`,
                 );
                 return;
             }

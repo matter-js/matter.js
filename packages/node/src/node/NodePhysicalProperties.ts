@@ -12,6 +12,7 @@ import { IcdManagementClient } from "#behaviors/icd-management";
 import { NetworkCommissioningClient } from "#behaviors/network-commissioning";
 import { PowerSourceClient } from "#behaviors/power-source";
 import { ThreadNetworkDiagnosticsClient } from "#behaviors/thread-network-diagnostics";
+import { WiFiNetworkDiagnosticsClient } from "#behaviors/wi-fi-network-diagnostics";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { Node } from "#node/Node.js";
@@ -50,7 +51,55 @@ export function NodePhysicalProperties(node: Node) {
 
     inspectEndpoint(node, properties);
 
+    if (!properties.supportsWifi && !properties.supportsThread && !properties.supportsEthernet) {
+        inferNetworkMediumFromDiagnostics(node, properties);
+    }
+
     return properties;
+}
+
+/**
+ * Determine the operational medium of a node that reports no network interfaces via Network Commissioning ("commissioned
+ * by other means") from the network diagnostics cluster of the medium it operates on.
+ *
+ * The mandatory diagnostics attributes are all nullable and null while the interface is not associated, so a populated
+ * one distinguishes an operational interface from a cluster that merely exists.
+ *
+ * Diagnostics describe the node itself, so only the root endpoint is considered.
+ */
+function inferNetworkMediumFromDiagnostics(node: Node, properties: PhysicalDeviceProperties) {
+    const wifiDiagnosticsType = node.behaviors.typeFor(WiFiNetworkDiagnosticsClient);
+    const wifi = wifiDiagnosticsType ? node.maybeStateOf(wifiDiagnosticsType) : undefined;
+    if (wifi?.bssid !== undefined && wifi.bssid !== null) {
+        properties.supportsWifi = true;
+    }
+
+    const threadDiagnosticsType = node.behaviors.typeFor(ThreadNetworkDiagnosticsClient);
+    const thread = threadDiagnosticsType ? node.maybeStateOf(threadDiagnosticsType) : undefined;
+    if (
+        thread !== undefined &&
+        (isPresent(thread.extendedPanId) ||
+            isPresent(thread.panId) ||
+            isPresent(thread.channel) ||
+            isPresent(thread.networkName))
+    ) {
+        properties.supportsThread = true;
+
+        // A null extended PAN ID leaves threadActive false.  When Thread is the only medium the node reports we trust
+        // the remaining details instead, otherwise the node stays unclassified despite being reachable.
+        if (
+            !properties.supportsWifi &&
+            properties.wifiActive === undefined &&
+            properties.ethernetActive === undefined
+        ) {
+            properties.threadActive = true;
+            properties.threadChannel ??= thread.channel ?? undefined;
+        }
+    }
+}
+
+function isPresent(value: unknown) {
+    return value !== undefined && value !== null;
 }
 
 // Device types are collected node-wide (including bridged endpoints behind an aggregator) so consumers such as the

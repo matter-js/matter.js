@@ -507,12 +507,12 @@ export declare namespace WaterHeaterManagement {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link WaterHeaterManagement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link WaterHeaterManagement}.
      */
     export const Cluster: ClusterType.WithCompat<typeof WaterHeaterManagement, WaterHeaterManagement>;
 
     /**
-     * @deprecated Use {@link WaterHeaterManagement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link WaterHeaterManagement}.
      */
     export const Complete: typeof WaterHeaterManagement;
 
@@ -520,7 +520,7 @@ export declare namespace WaterHeaterManagement {
 }
 
 /**
- * @deprecated Use {@link WaterHeaterManagement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link WaterHeaterManagement}.
  */
 export declare const WaterHeaterManagementCluster: typeof WaterHeaterManagement;
 

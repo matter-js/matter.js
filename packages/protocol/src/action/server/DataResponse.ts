@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { InteractionSession } from "#action/Interactable.js";
 import { NodeProtocol } from "#action/protocols.js";
 import { AccessControl } from "#action/server/AccessControl.js";

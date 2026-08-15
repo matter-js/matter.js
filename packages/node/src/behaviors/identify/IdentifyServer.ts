@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Behavior } from "#behavior/Behavior.js";
 import { MaybePromise, Observable, Seconds, Time, Timer } from "@matter/general";
 import { hasRemoteActor } from "@matter/protocol";
 import { Identify } from "@matter/types/clusters/identify";
@@ -23,6 +24,9 @@ import { IdentifyBehavior } from "./IdentifyBehavior.js";
  * * `startIdentifying` - Emitted when the device starts identifying. Use it to start your own identifying logic. This is mandatory.
  * * `stopIdentifying` - Emitted when the device stops identifying. This is mandatory.
  * * `effectTriggered` - Emitted when an effect should be triggered. Use it to trigger the effect. Depending on the device type this is mandatory!
+ *
+ * The following protected methods are available for override:
+ * * `suppressTriggerEffect` - Decides whether the TriggerEffect command is supported by this endpoint.
  */
 export class IdentifyServer extends IdentifyBehavior {
     declare protected internal: IdentifyServer.Internal;
@@ -52,6 +56,37 @@ export class IdentifyServer extends IdentifyBehavior {
 
         // So whenever the attribute OR the identify command was invoked we react to it.
         this.reactTo(this.events.identifyTime$Changed, this.#identifyTimeChangedHandler);
+
+        this.suppressTriggerEffect();
+    }
+
+    /**
+     * Withdraw support for the optional TriggerEffect command.
+     *
+     * Support is retained when {@link triggerEffect} is implemented rather than inherited, or when the schema
+     * declares the command supported.  The latter covers device types that require the command, such as lights and
+     * plug-in units, as well as `IdentifyServer.alter({ commands: { triggerEffect: { optional: false } } })` and
+     * `IdentifyServer.enable({ commands: { triggerEffect: true } })`.
+     *
+     * Override with an empty implementation to offer the command in any other case.  Note that an override on a
+     * type derived via `alter()`, `enable()` or `with()` must be public, as {@link IdentifyServer.ExtensionInterface}
+     * exposes this method publicly to such types.
+     *
+     * Withdrawal applies to the Matter view of the endpoint.  Local invocation via the agent still runs
+     * {@link triggerEffect}.
+     */
+    protected suppressTriggerEffect() {
+        if (this.triggerEffect !== IdentifyServer.prototype.triggerEffect) {
+            return;
+        }
+
+        const schema = this.type.schema;
+        const command = schema.commands("triggerEffect");
+        if (command === undefined || schema.scope.hasOperationalSupport(command)) {
+            return;
+        }
+
+        this.triggerEffect = Behavior.unimplemented;
     }
 
     #startIdentifying() {
@@ -114,4 +149,8 @@ export namespace IdentifyServer {
         stopIdentifying = Observable();
         effectTriggered = Observable<[effect: Identify.TriggerEffectRequest]>();
     }
+
+    export declare const ExtensionInterface: {
+        suppressTriggerEffect(): void;
+    };
 }

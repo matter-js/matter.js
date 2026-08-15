@@ -16,7 +16,7 @@ export class TlvWrapper<O, T> extends TlvSchema<O> {
         super();
     }
 
-    /** @deprecated Part of old ClusterType() compat layer. */
+    /** @deprecated Part of old ClusterType() compat layer.  Scheduled for removal in 0.19. */
     override get element(): TlvSchema.Element | undefined {
         return this.underlyingSchema.element;
     }

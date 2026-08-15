@@ -294,6 +294,5 @@ export namespace ServiceAreaBaseServer {
     };
 }
 
-// We had turned on some more features to provide the default implementation, but export the cluster with no
-// Features again.
+// Drop the features the base implementation enables internally so consumers select their own
 export class ServiceAreaServer extends ServiceAreaBaseServer.with() {}

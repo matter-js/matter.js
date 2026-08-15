@@ -49,7 +49,7 @@ export namespace TestDescriptor {
      */
     export const CURRENT_FORMAT = 2;
 
-    export type Kind = "suite" | "js" | "py" | "yaml" | "manual" | "step";
+    export type Kind = "suite" | "js" | "py" | "yaml" | "manual" | "step" | "cert";
 
     export const DEFAULT_FILENAME = "build/test-report.json";
 

@@ -9,11 +9,17 @@ import { ClientNode, ClientNodePhysicalProperties } from "@matter/node";
 import { BasicInformationClient } from "@matter/node/behaviors/basic-information";
 import { PhysicalDeviceProperties } from "@matter/protocol";
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export type DeviceInformationData = {
     basicInformation?: Record<string, SupportedStorageTypes>;
     deviceMeta?: PhysicalDeviceProperties;
 };
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export class DeviceInformation {
     readonly #node: ClientNode;
 

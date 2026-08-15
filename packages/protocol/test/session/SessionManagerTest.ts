@@ -7,6 +7,9 @@
 import { Fabric } from "#fabric/Fabric.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import { SessionParameters } from "#index.js";
+import type { MessageExchange } from "#protocol/MessageExchange.js";
+import { DuplicateMessageError } from "#protocol/MessageReceptionState.js";
+import { NodeSession } from "#session/NodeSession.js";
 import { SessionManager } from "#session/SessionManager.js";
 import {
     b$,
@@ -198,6 +201,133 @@ describe("SessionManager", () => {
             const result = sessionManager.maybeSessionFor(PEER_ADDRESS);
             expect(result).to.equal(sessionB);
         });
+
+        it("closes the peer's least recently used session beyond the per-peer cap", async () => {
+            const PEER_NODE_ID = NodeId(0x1234n);
+
+            const sessions = new Array<NodeSession>();
+            for (let i = 0; i < 6; i++) {
+                sessions.push(
+                    await sessionManager.createSecureSession({
+                        id: 0x0100 + i,
+                        fabric: undefined,
+                        peerNodeId: PEER_NODE_ID,
+                        peerSessionId: 0x0001 + i,
+                        sharedSecret: DUMMY_BYTEARRAY,
+                        salt: DUMMY_BYTEARRAY,
+                        isInitiator: false, // the peer established these; we are the responder
+                        isResumption: false,
+                    }),
+                );
+                // Least-recently-used ordering decides who goes
+                sessions[i].timestamp = Timestamp(1000 + i);
+            }
+
+            await MockTime.yield3();
+
+            expect(sessions[0].isClosing).is.true;
+            expect(sessions.slice(1).filter(session => session.isClosing)).is.empty;
+        });
+
+        it("never evicts a session we initiated, even when it is the least recently used", async () => {
+            const PEER_NODE_ID = NodeId(0x9abcn);
+
+            // Ours, and the oldest -- a naive least-recently-used sweep would take this one first
+            const ours = await sessionManager.createSecureSession({
+                id: 0x0300,
+                fabric: undefined,
+                peerNodeId: PEER_NODE_ID,
+                peerSessionId: 0x0021,
+                sharedSecret: DUMMY_BYTEARRAY,
+                salt: DUMMY_BYTEARRAY,
+                isInitiator: true,
+                isResumption: false,
+            });
+            ours.timestamp = Timestamp(1);
+
+            const theirs = new Array<NodeSession>();
+            for (let i = 0; i < 6; i++) {
+                theirs.push(
+                    await sessionManager.createSecureSession({
+                        id: 0x0301 + i,
+                        fabric: undefined,
+                        peerNodeId: PEER_NODE_ID,
+                        peerSessionId: 0x0031 + i,
+                        sharedSecret: DUMMY_BYTEARRAY,
+                        salt: DUMMY_BYTEARRAY,
+                        isInitiator: false,
+                        isResumption: false,
+                    }),
+                );
+                theirs[i].timestamp = Timestamp(1000 + i);
+            }
+
+            await MockTime.yield3();
+
+            expect(ours.isClosing).is.false;
+            expect(theirs[0].isClosing).is.true;
+            expect(theirs.slice(1).filter(session => session.isClosing)).is.empty;
+        });
+
+        it("leaves sessions we initiated alone; peer loss reclaims those", async () => {
+            const PEER_NODE_ID = NodeId(0x5678n);
+
+            const sessions = new Array<NodeSession>();
+            for (let i = 0; i < 6; i++) {
+                sessions.push(
+                    await sessionManager.createSecureSession({
+                        id: 0x0200 + i,
+                        fabric: undefined,
+                        peerNodeId: PEER_NODE_ID,
+                        peerSessionId: 0x0011 + i,
+                        sharedSecret: DUMMY_BYTEARRAY,
+                        salt: DUMMY_BYTEARRAY,
+                        isInitiator: true,
+                        isResumption: false,
+                    }),
+                );
+                sessions[i].timestamp = Timestamp(1000 + i);
+            }
+
+            await MockTime.yield3();
+
+            expect(sessions.filter(session => session.isClosing)).is.empty;
+        });
+
+        it("conveys the initiating exchange when reporting peer loss", async () => {
+            const PEER_NODE_ID = NodeId(0x1234n);
+            const PEER_ADDRESS = { fabricIndex: FabricIndex(0), nodeId: PEER_NODE_ID };
+
+            const session = await sessionManager.createSecureSession({
+                id: 0x0100,
+                fabric: undefined,
+                peerNodeId: PEER_NODE_ID,
+                peerSessionId: 0x0001,
+                sharedSecret: DUMMY_BYTEARRAY,
+                salt: DUMMY_BYTEARRAY,
+                isInitiator: true,
+                isResumption: false,
+            });
+
+            const currentExchange = {} as MessageExchange;
+            const received = new Array<MessageExchange | undefined>();
+            session.subscriptions.add({
+                subscriptionId: 1,
+                isTerminated: false,
+                async handlePeerCancel() {},
+                async close(_flushViaSession, exchange) {
+                    received.push(exchange);
+                },
+            });
+
+            await sessionManager.handlePeerLoss(PEER_ADDRESS, {
+                cause: new Error("unresponsive"),
+                asOf: Timestamp(Number.MAX_SAFE_INTEGER),
+                currentExchange,
+            });
+
+            expect(received[0]).equals(currentExchange);
+        });
     });
 
     describe("group data message counter", () => {
@@ -296,6 +426,106 @@ describe("SessionManager", () => {
             const after = await sessionManager.groupDataMessageCounter.getIncrementedCounter();
             expect(after).greaterThan(before);
         });
+
+        const keySet = (groupKeySetId: number, epochKey0: Bytes) => ({
+            groupKeySetId,
+            groupKeySecurityPolicy: 0,
+            epochKey0,
+            epochStartTime0: 1,
+            epochKey1: null,
+            epochStartTime1: null,
+            epochKey2: null,
+            epochStartTime2: null,
+            groupKeyMulticastPolicy: 0,
+        });
+
+        it("forgets group message reception state when its key set is removed so a reused key re-syncs", async () => {
+            const crypto = new StandardCrypto();
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            const fabricManager = new FabricManager(crypto);
+            await fabricManager.construction.ready;
+            const fabric = groupFabric(crypto, new StorageContext(storage, ["fabric"]));
+            fabricManager.addFabric(fabric);
+
+            const epochKey = b$`000102030405060708090a0b0c0d0e0f`;
+            await fabric.groups.setFromGroupKeySet(keySet(1, epochKey));
+
+            const source = NodeId(2);
+            const operationalKey = fabric.groups.keySets.get("groupKeySetId", 1)!.operationalEpochKey0;
+
+            // Advance the replay window; a lower counter on the retained state is then a replay.
+            fabric.groups.messaging.receptionStateFor(source, operationalKey).updateMessageCounter(1000);
+            expect(() =>
+                fabric.groups.messaging.receptionStateFor(source, operationalKey).updateMessageCounter(500),
+            ).throws(DuplicateMessageError);
+
+            // Remove and re-provision the identical epoch key (same derived operational key).
+            fabric.groups.removeGroupKeySet(1);
+            await fabric.groups.setFromGroupKeySet(keySet(1, epochKey));
+            const reusedKey = fabric.groups.keySets.get("groupKeySetId", 1)!.operationalEpochKey0;
+            expect(Bytes.toHex(reusedKey)).equals(Bytes.toHex(operationalKey));
+
+            // The fresh window syncs on the first (lower) counter instead of rejecting it as a replay.
+            expect(() =>
+                fabric.groups.messaging.receptionStateFor(source, reusedKey).updateMessageCounter(500),
+            ).not.throws();
+        });
+
+        it("keeps reception state until the last key set sharing an operational key is removed", async () => {
+            const crypto = new StandardCrypto();
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            const fabricManager = new FabricManager(crypto);
+            await fabricManager.construction.ready;
+            const fabric = groupFabric(crypto, new StorageContext(storage, ["fabric"]));
+            fabricManager.addFabric(fabric);
+
+            const epochKey = b$`000102030405060708090a0b0c0d0e0f`;
+            await fabric.groups.setFromGroupKeySet(keySet(1, epochKey));
+            await fabric.groups.setFromGroupKeySet(keySet(2, epochKey));
+
+            const source = NodeId(2);
+            const operationalKey = fabric.groups.keySets.get("groupKeySetId", 1)!.operationalEpochKey0;
+            fabric.groups.messaging.receptionStateFor(source, operationalKey).updateMessageCounter(1000);
+
+            // One of two key sets shares the derived key, so its reception window must survive this removal.
+            fabric.groups.removeGroupKeySet(1);
+            expect(() =>
+                fabric.groups.messaging.receptionStateFor(source, operationalKey).updateMessageCounter(500),
+            ).throws(DuplicateMessageError);
+
+            // Removing the last referencing key set forgets it.
+            fabric.groups.removeGroupKeySet(2);
+            expect(() =>
+                fabric.groups.messaging.receptionStateFor(source, operationalKey).updateMessageCounter(500),
+            ).not.throws();
+        });
+
+        it("forgets the previous operational key when a key set is rewritten with a new epoch key", async () => {
+            const crypto = new StandardCrypto();
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            const fabricManager = new FabricManager(crypto);
+            await fabricManager.construction.ready;
+            const fabric = groupFabric(crypto, new StorageContext(storage, ["fabric"]));
+            fabricManager.addFabric(fabric);
+
+            const epochA = b$`000102030405060708090a0b0c0d0e0f`;
+            const epochB = b$`0f0e0d0c0b0a09080706050403020100`;
+            await fabric.groups.setFromGroupKeySet(keySet(1, epochA));
+
+            const source = NodeId(2);
+            const operationalA = fabric.groups.keySets.get("groupKeySetId", 1)!.operationalEpochKey0;
+            fabric.groups.messaging.receptionStateFor(source, operationalA).updateMessageCounter(1000);
+
+            // In-place rewrite with a different epoch key drops key A, so its window must be forgotten.
+            await fabric.groups.setFromGroupKeySet(keySet(1, epochB));
+
+            expect(() =>
+                fabric.groups.messaging.receptionStateFor(source, operationalA).updateMessageCounter(500),
+            ).not.throws();
+        });
     });
 
     describe("active threshold validation", () => {
@@ -331,6 +561,28 @@ describe("SessionManager", () => {
             await sessionManager.construction.ready;
 
             expect(sessionManager.sessionParameters.activeThreshold).equal(Millis(65535));
+        });
+    });
+
+    describe("session parameter setter", () => {
+        function newManager(parameters: Partial<SessionParameters>) {
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            return new SessionManager({
+                parameters: parameters as SessionParameters,
+                fabrics: new FabricManager(new StandardCrypto()),
+                storage: new StorageContext(storage, ["context"]),
+            });
+        }
+
+        it("ignores undefined values and retains current values", async () => {
+            const sessionManager = newManager({ idleInterval: Millis(1000), activeInterval: Millis(700) });
+            await sessionManager.construction.ready;
+
+            sessionManager.sessionParameters = { idleInterval: undefined, activeInterval: Millis(600) };
+
+            expect(sessionManager.sessionParameters.idleInterval).equal(Millis(1000));
+            expect(sessionManager.sessionParameters.activeInterval).equal(Millis(600));
         });
     });
 });

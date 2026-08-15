@@ -168,7 +168,11 @@ async function bundle(files: string[], { pkg, entrypointPreprocessor }: TestRunn
         bundle: true,
         format: "cjs",
         outfile: bundlePath,
-        external: ["wtfnode"],
+        // Node-only test-support code (e.g. chip-app-subject.ts's process/container spawning) is
+        // dynamically imported behind a `typeof window === "undefined"` guard so it never actually
+        // runs in the browser; these entries just let esbuild leave the (unreachable) requires as-is
+        // instead of failing to resolve them.
+        external: ["wtfnode", "node:*", "dockerode"],
         keepNames: true,
         conditions: ["static-load"],
 

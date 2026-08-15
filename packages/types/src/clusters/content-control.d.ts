@@ -1468,12 +1468,12 @@ export declare namespace ContentControl {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link ContentControl}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ContentControl}.
      */
     export const Cluster: ClusterType.WithCompat<typeof ContentControl, ContentControl>;
 
     /**
-     * @deprecated Use {@link ContentControl}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ContentControl}.
      */
     export const Complete: typeof ContentControl;
 
@@ -1481,7 +1481,7 @@ export declare namespace ContentControl {
 }
 
 /**
- * @deprecated Use {@link ContentControl}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link ContentControl}.
  */
 export declare const ContentControlCluster: typeof ContentControl;
 

@@ -15,8 +15,11 @@ class MockBleScannerClient implements BleScannerClient {
     setDiscoveryCallback(callback: (peripheral: BlePeripheral, data: Bytes) => void) {
         this.callback = callback;
     }
+    stopScanningError?: Error;
     async startScanning() {}
-    async stopScanning() {}
+    async stopScanning() {
+        if (this.stopScanningError) throw this.stopScanningError;
+    }
 
     discover(address: string, data: Bytes) {
         this.callback!({ address }, data);
@@ -94,6 +97,61 @@ describe("BleScanner", () => {
 
             expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1737 })).to.have.lengthOf(1);
             expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1000 })).to.have.lengthOf(1);
+        });
+    });
+
+    describe("close", () => {
+        it("settles a timeout-less continuous discovery driven by an external cancel signal", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            // Mirrors Discovery.ts: no timeout, external cancelSignal that never resolves during shutdown.
+            const cancelSignal = new Promise<void>(() => {});
+
+            let settled = false;
+            const discovery = scanner
+                .findCommissionableDevicesContinuously({ longDiscriminator: 1737 }, () => {}, undefined, cancelSignal)
+                .then(() => (settled = true));
+
+            await Promise.resolve();
+            expect(settled).to.equal(false);
+
+            await scanner.close();
+            await discovery;
+
+            expect(settled).to.equal(true);
+        });
+
+        it("settles a timeout-less continuous discovery with an internal cancel signal", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            let settled = false;
+            const discovery = scanner
+                .findCommissionableDevicesContinuously({ longDiscriminator: 1737 }, () => {})
+                .then(() => (settled = true));
+
+            await Promise.resolve();
+            expect(settled).to.equal(false);
+
+            await scanner.close();
+            await discovery;
+
+            expect(settled).to.equal(true);
+        });
+
+        it("releases waiters and rethrows when the client fails to stop scanning", async () => {
+            const client = new MockBleScannerClient();
+            client.stopScanningError = new Error("stop failed");
+            const scanner = new BleScanner(client);
+
+            // Would hang (mocha timeout) if close() left the waiter orphaned on the closeClient() throw.
+            const discovery = scanner.findCommissionableDevicesContinuously({ longDiscriminator: 1737 }, () => {});
+
+            await Promise.resolve();
+
+            await expect(scanner.close()).to.be.rejectedWith("stop failed");
+            await expect(discovery).to.be.rejectedWith("stop failed");
         });
     });
 });

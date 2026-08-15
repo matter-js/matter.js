@@ -707,12 +707,12 @@ export declare namespace CameraAvSettingsUserLevelManagement {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link CameraAvSettingsUserLevelManagement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link CameraAvSettingsUserLevelManagement}.
      */
     export const Cluster: ClusterType.WithCompat<typeof CameraAvSettingsUserLevelManagement, CameraAvSettingsUserLevelManagement>;
 
     /**
-     * @deprecated Use {@link CameraAvSettingsUserLevelManagement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link CameraAvSettingsUserLevelManagement}.
      */
     export const Complete: typeof CameraAvSettingsUserLevelManagement;
 
@@ -720,7 +720,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
 }
 
 /**
- * @deprecated Use {@link CameraAvSettingsUserLevelManagement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link CameraAvSettingsUserLevelManagement}.
  */
 export declare const CameraAvSettingsUserLevelManagementCluster: typeof CameraAvSettingsUserLevelManagement;
 

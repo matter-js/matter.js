@@ -23,8 +23,8 @@ import {
 } from "@matter/general";
 import { isValidPasscode, NodeId, SecureChannelStatusCode } from "@matter/types";
 import { TransientPeerCommunicationError } from "../../peer/PeerCommunicationError.js";
-import { MessageExchange } from "../../protocol/MessageExchange.js";
 import { RetransmissionLimitReachedError } from "../../protocol/errors.js";
+import { MessageExchange } from "../../protocol/MessageExchange.js";
 import { DEFAULT_PASSCODE_ID, PaseClientMessenger, SPAKE_CONTEXT } from "./PaseMessenger.js";
 
 const logger = Logger.get("PaseClient");

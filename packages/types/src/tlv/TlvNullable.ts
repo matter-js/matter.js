@@ -47,7 +47,7 @@ export class NullableSchema<T> extends TlvSchema<T | null> {
         this.schema = schema;
     }
 
-    /** @deprecated Part of old ClusterType() compat layer. */
+    /** @deprecated Part of old ClusterType() compat layer.  Scheduled for removal in 0.19. */
     override get element(): TlvSchema.Element | undefined {
         const inner = this.schema.element;
         if (inner === undefined) {

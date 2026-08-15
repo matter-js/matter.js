@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# @license
+# Copyright 2022-2026 Matter.js Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# Combines the per-architecture images already pushed by publish-arch into the published
+# multi-arch manifest list tags: "latest" and the CHIP commit.
+#
+# Usage: publish-manifest <arch-suffix>...
+
+source "$(dirname "${BASH_SOURCE[0]}")/config.sh"
+
+if [ "$#" -eq 0 ]; then
+    echo "Usage: publish-manifest <arch-suffix>..." >&2
+    exit 1
+fi
+
+CHIP_COMMIT="$(cat "$CHIP_DIR/sha.txt")"
+
+SOURCES=()
+for ARCH_SUFFIX in "$@"; do
+    SOURCES+=("ghcr.io/matter-js/chip:${CHIP_COMMIT}-${ARCH_SUFFIX}")
+done
+
+docker buildx imagetools create \
+    -t ghcr.io/matter-js/chip:latest \
+    -t "ghcr.io/matter-js/chip:${CHIP_COMMIT}" \
+    "${SOURCES[@]}"

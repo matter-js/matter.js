@@ -24,13 +24,13 @@
         "clean": "nacho-build clean",
         "build": "nacho-build",
         "build-clean": "nacho-build --clean",
-        "test": "matter-test",
+        "test": "matter-test -w",
         "coverage": "c8 matter-test esm"
     },
     "dependencies": {
         "@matter/general": "*",
         "@matter/protocol": "*",
-        "@noble/curves": "^2.2.0"
+        "@noble/curves": "^2.3.0"
     },
     "devDependencies": {
         "@matter/testing": "*"

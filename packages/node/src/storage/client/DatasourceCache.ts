@@ -20,12 +20,15 @@ import type { RemoteWriter } from "./RemoteWriter.js";
  */
 export class DatasourceCache implements Datasource.ExternallyMutableStore, RemoteWriteParticipant.Compensator {
     #writer: RemoteWriter;
+    #nodeId: string;
     #endpointNumber: EndpointNumber;
     #behaviorId: string;
     #localWriter?: LocalWriter;
     #buffer?: ClientCacheBuffer;
     #version: number;
     #dirtyKeys = new Set<string>();
+    #reportEpoch = 0;
+    #reportedAt = new Map<string, number>();
     #erased = false;
     #reclaimed = false;
     #consumer?: Datasource.ExternallyMutableStore.Consumer;
@@ -34,6 +37,7 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
 
     constructor(options: DatasourceCache.Options) {
         this.#writer = options.writer;
+        this.#nodeId = options.nodeId;
         this.#endpointNumber = options.endpointNumber;
         this.#behaviorId = options.behaviorId;
         this.#localWriter = options.localWriter;
@@ -69,24 +73,31 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
     async set(transaction: Transaction, values: Val.Struct) {
         let participant = transaction.getParticipant(this.#writer);
         if (participant === undefined) {
-            participant = new RemoteWriteParticipant(this.#writer);
+            participant = new RemoteWriteParticipant(this.#writer, this.#nodeId);
             transaction.addParticipants(participant);
         }
         const previousValues = this.#consumer?.readValues(new Set(Object.keys(values))) ?? {};
         (participant as RemoteWriteParticipant).set(this.#endpointNumber, this.#behaviorId, values, {
             compensator: this,
             previousValues,
+            reportEpoch: this.#reportEpoch,
         });
     }
 
     /**
-     * Restores local cache values whose remote write was declined.
+     * Restores local cache values whose remote write the peer did not accept.
      *
      * Only restores keys that:
      *   - had a captured pre-write value (skip if the snapshot doesn't know the prior state), AND
-     *   - still hold the value we attempted to write (skip if a concurrent subscription update already moved on).
+     *   - still hold the value we attempted to write (skip if a concurrent subscription update already moved on), AND
+     *   - the peer has said nothing about the attribute since the write was queued.
      */
-    async compensate(failedAttributeIds: Set<string>, previousValues: Val.Struct, writtenValues: Val.Struct) {
+    async compensate(
+        failedAttributeIds: Set<string>,
+        previousValues: Val.Struct,
+        writtenValues: Val.Struct,
+        reportEpoch: number,
+    ) {
         if (this.#erased || this.#reclaimed || !this.#consumer) {
             return;
         }
@@ -103,15 +114,36 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
             if (current[id] !== writtenValues[id]) {
                 continue;
             }
+            // The device defines its own state: anything it reported while the write was in flight outranks our
+            // pre-write snapshot.  A report carrying the value we wrote is discarded as unchanged, so it leaves the
+            // reference alone and the check above cannot see it — this is its only trace.
+            if ((this.#reportedAt.get(id) ?? -1) > reportEpoch) {
+                continue;
+            }
             restore.set(id, previousValues[id]);
         }
 
         if (restore.size) {
-            await this.externalSet(restore);
+            // Our own undo, not something the peer said, so it must not count as a report
+            await this.#applyExternal(restore);
         }
     }
 
     async externalSet(values: Val.StructMap) {
+        // Note what the peer spoke about, even where the value is unchanged: that is the only trace a report leaves
+        // when it confirms a value we already hold, and compensation of an unanswered write depends on it
+        const epoch = ++this.#reportEpoch;
+        for (const key of values.keys()) {
+            const id = String(key);
+            if (!id.startsWith("__")) {
+                this.#reportedAt.set(id, epoch);
+            }
+        }
+
+        await this.#applyExternal(values);
+    }
+
+    async #applyExternal(values: Val.StructMap) {
         if (this.#erased || this.#reclaimed) {
             return;
         }
@@ -216,13 +248,22 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
             this.#dirtyKeys.delete(key);
         }
 
+        // The datasource holds attribute values only; our own metadata is written below, so a report that carried
+        // nothing but a new version leaves no attribute to look up and still has something to persist
+        const attributeKeys = new Set<string>();
+        for (const key of flushing) {
+            if (!key.startsWith("__")) {
+                attributeKeys.add(key);
+            }
+        }
+
         // Prefer live values from the Datasource.  After reclaimValues() the Datasource's values are empty,
         // so fall back to initialValues which holds the reclaimed data.
-        let values = this.consumer?.readValues(flushing);
+        let values = this.consumer?.readValues(attributeKeys);
         if (values === undefined || !Object.keys(values).length) {
             if (this.initialValues !== undefined) {
                 values = {};
-                for (const key of flushing) {
+                for (const key of attributeKeys) {
                     if (key in this.initialValues) {
                         values[key] = this.initialValues[key];
                     }
@@ -230,7 +271,7 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
             }
         }
 
-        if (values === undefined || !Object.keys(values).length) {
+        if (attributeKeys.size && (values === undefined || !Object.keys(values).length)) {
             // Values vanished between marking dirty and flushing; restore keys and re-mark so the buffer
             // retries on the next cycle
             for (const key of flushing) {
@@ -240,6 +281,7 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
             return;
         }
 
+        values ??= {};
         values[DatasourceCache.VERSION_KEY] = this.#version;
 
         try {
@@ -270,6 +312,7 @@ export namespace DatasourceCache {
 
     export interface Options {
         writer: RemoteWriter;
+        nodeId: string;
         endpointNumber: EndpointNumber;
         behaviorId: string;
         initialValues?: Val.Struct;

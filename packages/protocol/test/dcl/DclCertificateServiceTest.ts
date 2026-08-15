@@ -11,7 +11,6 @@ import { DclCertificateService } from "#dcl/DclCertificateService.js";
 import {
     Bytes,
     Crypto,
-    Days,
     Diagnostic,
     Environment,
     LogFormat,
@@ -759,7 +758,7 @@ describe("DclCertificateService", () => {
             );
             fetchMock.install();
 
-            const service = new DclCertificateService(environment, { updateInterval: Days(365) }); // Disable auto-updates
+            const service = new DclCertificateService(environment, { updateInterval: null });
             await service.construction;
 
             // Clear the index to simulate the certificate not being present
@@ -799,7 +798,7 @@ describe("DclCertificateService", () => {
             });
             fetchMock.install();
 
-            const service = new DclCertificateService(environment, { updateInterval: Days(365) });
+            const service = new DclCertificateService(environment, { updateInterval: null });
             await service.construction;
 
             const cert = await service.getOrFetchCertificate("NONEXISTENTCERTIFICATE");
@@ -813,7 +812,7 @@ describe("DclCertificateService", () => {
             fetchMock.addResponse("/dcl/pki/root-certificates", { error: "Server error" }, { status: 500 });
             fetchMock.install();
 
-            const service = new DclCertificateService(environment, { updateInterval: Days(365) });
+            const service = new DclCertificateService(environment, { updateInterval: null });
             await service.construction;
 
             const cert = await service.getOrFetchCertificate("785CE705B86B8F4E6FC793AA60CB43EA696882D5");

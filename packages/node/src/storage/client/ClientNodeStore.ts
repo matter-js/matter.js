@@ -6,7 +6,7 @@
 
 import { Endpoint } from "#endpoint/Endpoint.js";
 import type { ClientNode } from "#node/ClientNode.js";
-import { InternalError, StorageContext, StorageContextFactory } from "@matter/general";
+import { InternalError, MatterAggregateError, StorageContext, StorageContextFactory } from "@matter/general";
 import { EndpointNumber } from "@matter/types";
 import { NodeStore } from "../NodeStore.js";
 import type { ClientCacheBuffer } from "./ClientCacheBuffer.js";
@@ -86,14 +86,24 @@ export class ClientNodeStore extends NodeStore {
     }
 
     override async erase() {
-        // Cascade so caches unregister from the shared ClientCacheBuffer before storage is cleared.
-        for (const store of this.#stores.values()) {
-            await store.erase();
-        }
-        this.#stores = new Map();
-        this.#onErase?.();
-        await this.#storage?.clearAll();
-        await this.construction.close();
+        const stores = [...this.#stores.values()];
+
+        await MatterAggregateError.settleSeries(
+            [
+                // Cascade so caches unregister from the shared ClientCacheBuffer before storage is cleared; one that
+                // stays registered flushes stale data back into the cleared context
+                ...stores.map(store => () => store.erase()),
+
+                () => {
+                    this.#stores = new Map();
+                    this.#onErase?.();
+                    return this.#storage?.clearAll();
+                },
+
+                () => this.construction.close(),
+            ],
+            `Error while erasing ${this}`,
+        );
     }
 
     override storeForEndpoint(endpoint: Endpoint) {

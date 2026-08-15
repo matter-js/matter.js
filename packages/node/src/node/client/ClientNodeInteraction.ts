@@ -392,8 +392,8 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
      * Temporary accessor of cached data, if any are stored. This will be implemented by the ClientNodeInteraction and
      * point to the node state of the relevant endpoint and is needed to support the old API behavior for
      * AttributeClient.
-     * TODO Remove when we remove the legacy controller API
-     * @deprecated
+     *
+     * @deprecated Scheduled for removal in 0.19 with the legacy controller API.
      */
     localStateFor(endpointId: EndpointNumber): Record<string, Record<string, Val.Struct> | undefined> | undefined {
         if (!this.#node.endpoints.has(endpointId)) {

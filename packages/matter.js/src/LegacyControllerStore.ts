@@ -13,6 +13,8 @@ import { ControllerStoreInterface } from "./ControllerStore.js";
  * The default implementation for matter.js uses synchronous APIs for storage.
  * However, this will change in the future, and other implementations may be
  * backed by asynchronous storage.  So the public API is asynchronous.
+ *
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export class LegacyControllerStore implements ControllerStoreInterface {
     #rootStorage: StorageContext;

@@ -20,10 +20,12 @@ import { afterRun, beforeRun } from "../mocha.js";
 import { TestRunner } from "../runner.js";
 import { RootTestDescriptor, TestDescriptor, TestFileDescriptor } from "../test-descriptor.js";
 import { AccessoryServer } from "./accessory-server.js";
+import { createRegisteredCertTest } from "./cert/cert-test.js";
+import { CERT_BINS_PLATFORM, chipBinsPlatformSupported, prepareChipBins, resolveChipBinsSource } from "./chip-bins.js";
 import type { chip } from "./chip.js";
-import { Constants, ContainerPaths } from "./config.js";
+import { Constants, ContainerPaths, HARNESS_COMPOSITION_NAME, HARNESS_DBUS_PART_NAME } from "./config.js";
 import { ContainerCommandPipe } from "./container-command-pipe.js";
-import { PicsFile } from "./pics/file.js";
+import { PicsFile, PicsUnavailableError } from "./pics/file.js";
 import { PicsSource } from "./pics/source.js";
 import { PythonTest } from "./python-test.js";
 import { YamlTest } from "./yaml-test.js";
@@ -104,7 +106,7 @@ export const State = {
 
     get defaultPics() {
         if (Values.defaultPics === undefined) {
-            throw new Error("PICS not initialized");
+            throw new PicsUnavailableError("PICS not initialized");
         }
 
         return Values.defaultPics;
@@ -112,7 +114,7 @@ export const State = {
 
     get defaultPicsFilename() {
         if (Values.defaultPicsFilename === undefined) {
-            throw new Error("PICS not initialized");
+            throw new PicsUnavailableError("PICS not initialized");
         }
 
         return Values.defaultPicsFilename;
@@ -168,6 +170,11 @@ export const State = {
             progress.success(
                 `Initialized CHIP ${ansi.bold(chipCommit)} image ${ansi.bold(imageVersion)} for ${ansi.bold(arch)}`,
             );
+
+            if (resolveChipBinsSource() === "cert-bins") {
+                const { tag } = await prepareChipBins();
+                progress.success(`Using official chip-cert-bins ${ansi.bold(tag)} for chip-tool`);
+            }
         } catch (e) {
             progress.failure("Initializing containers");
             throw e;
@@ -432,6 +439,20 @@ async function configureContainer() {
         platform = `linux/${arch}`;
     }
 
+    // chip-cert-bins publishes linux/arm64 only (no amd64 manifest exists at any tag). Bind-mounting
+    // its binaries into a container running a different platform fails at exec time with a
+    // confusing "cannot execute: required file not found" deep inside a test run, so fail fast here
+    // instead, before spending time on extraction.
+    const chipBinsSelected = resolveChipBinsSource() === "cert-bins";
+    if (chipBinsSelected && !chipBinsPlatformSupported(platform)) {
+        throw new Error(
+            `MATTER_CHIP_BINS_SOURCE=cert-bins requires the harness "chip" container to run ` +
+                `${CERT_BINS_PLATFORM} (chip-cert-bins publishes no other platform), but it is configured for ` +
+                `${platform}. Set MATTER_CHIP_PLATFORM=${CERT_BINS_PLATFORM} and point MATTER_CHIP_IMAGE at an ` +
+                `${CERT_BINS_PLATFORM} build of the harness image, or unset MATTER_CHIP_BINS_SOURCE.`,
+        );
+    }
+
     const mdnsVolume = Volume(docker, Constants.mdnsVolumeName);
     await mdnsVolume.open();
 
@@ -440,7 +461,13 @@ async function configureContainer() {
     const restartFlagHostDir = await mkdtemp(join(tmpdir(), "matter-restart-"));
     Values.restartFlagHostDir = restartFlagHostDir;
 
-    const composition = docker.compose("matter.js", {
+    // MATTER_CHIP_BINS_SOURCE=cert-bins swaps the classic yaml/python tests' chip-tool for the
+    // official connectedhomeip/chip-cert-bins build; bind-mounted rather than baked into our own
+    // image so selecting it needs no image rebuild. Constants.chipToolPath (config.ts) already
+    // points --server_path at the mount below.
+    const chipBins = chipBinsSelected ? await prepareChipBins() : undefined;
+
+    const composition = docker.compose(HARNESS_COMPOSITION_NAME, {
         image: Constants.imageName,
         platform,
         binds: { [mdnsVolume.name]: "/run/dbus" },
@@ -451,7 +478,7 @@ async function configureContainer() {
     });
 
     await composition.add({
-        name: "dbus",
+        name: HARNESS_DBUS_PART_NAME,
         command: ["/usr/bin/dbus-daemon", "--nopidfile", "--system", "--nofork"],
     });
 
@@ -466,6 +493,7 @@ async function configureContainer() {
         binds: {
             [mdnsVolume.name]: "/run/dbus",
             [restartFlagHostDir]: Constants.RestartFlagDir,
+            ...(chipBins ? { [chipBins.dir]: ContainerPaths.officialChipBinsDir } : {}),
         },
     });
 
@@ -509,8 +537,8 @@ async function configureScripts() {
  * Create a PICS file in the container appropriate for matter.js.
  */
 async function configurePics() {
-    Values.defaultPics = await PicsSource.load(Constants.defaultPics);
-    Values.defaultPicsFilename = await PicsSource.install(Values.defaultPics);
+    Values.defaultPics = await PicsSource.load(Constants.defaultPics, State.container);
+    Values.defaultPicsFilename = await PicsSource.install(State.container, Values.defaultPics);
 }
 
 /**
@@ -641,6 +669,9 @@ function createTest(descriptor: TestDescriptor) {
 
         case "py":
             return new PythonTest(descriptor as TestFileDescriptor, State.container, Values.restartFlagHostDir);
+
+        case "cert":
+            return createRegisteredCertTest(descriptor);
 
         default:
             throw new Error(`Cannot implement CHIP test ${descriptor.name} of kind ${descriptor.kind}`);

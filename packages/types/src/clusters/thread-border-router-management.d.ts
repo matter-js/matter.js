@@ -368,12 +368,12 @@ export declare namespace ThreadBorderRouterManagement {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link ThreadBorderRouterManagement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ThreadBorderRouterManagement}.
      */
     export const Cluster: ClusterType.WithCompat<typeof ThreadBorderRouterManagement, ThreadBorderRouterManagement>;
 
     /**
-     * @deprecated Use {@link ThreadBorderRouterManagement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ThreadBorderRouterManagement}.
      */
     export const Complete: typeof ThreadBorderRouterManagement;
 
@@ -381,7 +381,7 @@ export declare namespace ThreadBorderRouterManagement {
 }
 
 /**
- * @deprecated Use {@link ThreadBorderRouterManagement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link ThreadBorderRouterManagement}.
  */
 export declare const ThreadBorderRouterManagementCluster: typeof ThreadBorderRouterManagement;
 

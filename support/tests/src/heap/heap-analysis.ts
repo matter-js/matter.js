@@ -384,10 +384,7 @@ export async function analyzeHeapDelta(
             const referrers: IHeapEdge[] = node.referrers;
             const category = referrers
                 .filter((e: IHeapEdge) => e.type !== "weak" && e.fromNode)
-                .map(
-                    (e: IHeapEdge) =>
-                        `.${e.name_or_index}[${e.type}] from ${e.fromNode.name}(${e.fromNode.type})`,
-                )
+                .map((e: IHeapEdge) => `.${e.name_or_index}[${e.type}] from ${e.fromNode.name}(${e.fromNode.type})`)
                 .sort()
                 .join("; ");
             const entry = referrerCategories.get(category);

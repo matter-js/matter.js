@@ -23,7 +23,7 @@ import {
     UnknownEnumValueError,
     Val,
 } from "@matter/protocol";
-import { BitmapEncodedValue } from "@matter/types";
+import { BitmapEncodedValue, FabricIndex } from "@matter/types";
 
 describe("ValueValidator", () => {
     implementInt("uint8", 0, 0xff);
@@ -72,6 +72,57 @@ describe("ValueValidator", () => {
                     path: new DataModelPath(schema.path),
                 }),
             ).not.throws();
+        });
+    });
+
+    describe("struct member id fallback", () => {
+        // The struct validator's container is name-keyed; per the same policy StructManager applies on read, a
+        // member present only at its TLV tag number must still resolve.
+        const memberSchema = new FieldModel(
+            { name: "Entry", type: "struct" },
+            Field({ id: 1, name: "subject", type: "uint8", conformance: "M" }),
+            Field({ id: 2, name: "count", type: "uint8", constraint: "0 to 10" }),
+        );
+        const memberValidator = RootSupervisor.for(memberSchema).validate!;
+        const memberPath = { path: new DataModelPath(memberSchema.path) };
+        const session = {} as ValueSupervisor.Session;
+
+        it("throws on a constraint violation stored only at the field's id slot", () => {
+            expect(() => memberValidator({ subject: 1, 2: 20 }, session, memberPath)).throws(ConstraintError);
+        });
+
+        it("satisfies conformance for a mandatory field present only at its id slot", () => {
+            expect(() => memberValidator({ 1: 5 }, session, memberPath)).not.throws();
+        });
+    });
+
+    describe("fabricIndex sentinel slot", () => {
+        const memberSchema = new FieldModel(
+            { name: "Entry", type: "struct" },
+            Field({ id: 1, name: "subject", type: "uint8" }),
+            Field({ id: 0xfe, name: "FabricIndex", type: "fabric-idx", constraint: "1 to 254" }),
+        );
+        const validator = RootSupervisor.for(memberSchema).validate!;
+        const memberPath = { path: new DataModelPath(memberSchema.path) };
+
+        function peerSession(fabricIndexOnPeer: FabricIndex | undefined) {
+            return { clientPeerContext: { fabricIndexOnPeer } } as ValueSupervisor.Session;
+        }
+
+        it("substitutes in place when the sentinel is stored at the field's id slot", () => {
+            const struct: Val.Struct = { subject: 5, 254: FabricIndex.OMIT_FABRIC };
+            validator(struct, peerSession(FabricIndex(3)), memberPath);
+            expect(struct[254]).equals(3);
+            expect("fabricIndex" in struct).is.false;
+        });
+
+        it("substitutes in place when the sentinel is stored at the field's name slot", () => {
+            // Characterizes pre-existing name-slot behavior; passes unchanged before and after this fix, so it is
+            // not evidence for it.
+            const struct: Val.Struct = { subject: 5, fabricIndex: FabricIndex.OMIT_FABRIC };
+            validator(struct, peerSession(FabricIndex(3)), memberPath);
+            expect(struct.fabricIndex).equals(3);
+            expect(254 in struct).is.false;
         });
     });
 

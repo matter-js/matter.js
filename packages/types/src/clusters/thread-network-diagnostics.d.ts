@@ -181,6 +181,27 @@ export declare namespace ThreadNetworkDiagnostics {
         activeNetworkFaultsList: NetworkFault[];
 
         /**
+         * Null when there is no dataset configured.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.14.6.57
+         */
+        activeTimestamp?: number | bigint | null;
+
+        /**
+         * Null when there is no dataset configured.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.14.6.58
+         */
+        pendingTimestamp?: number | bigint | null;
+
+        /**
+         * Null when there is no dataset configured.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.14.6.59
+         */
+        delay?: number | null;
+
+        /**
          * Indicates the IEEE 802.15.4 extended address for the Node. A value of null shall indicate that the extended
          * address is not yet known. The uint64 value is composed by taking the 8 octets of the extended address EUI-64
          * and treating them as a big-endian integer. For example, octet string (in hexadecimal, from first octet to
@@ -188,7 +209,7 @@ export declare namespace ThreadNetworkDiagnostics {
          *
          * @see {@link MatterSpecification.v16.Core} § 11.14.6.64
          */
-        extAddress: number | bigint | null;
+        extAddress?: number | bigint | null;
 
         /**
          * Indicates the RLOC16 of the Node. A value of null shall indicate that the Thread interface is not currently
@@ -198,30 +219,7 @@ export declare namespace ThreadNetworkDiagnostics {
          *
          * @see {@link MatterSpecification.v16.Core} § 11.14.6.65
          */
-        rloc16: number | null;
-
-        /**
-         * Indicates the timestamp of the currently active operational dataset. Null when there is no dataset
-         * configured.
-         *
-         * @see {@link MatterSpecification.v16.Core} § 11.14.6.57
-         */
-        activeTimestamp?: number | bigint | null;
-
-        /**
-         * Indicates the timestamp of the currently pending operational dataset. Null when there is no dataset
-         * configured.
-         *
-         * @see {@link MatterSpecification.v16.Core} § 11.14.6.58
-         */
-        pendingTimestamp?: number | bigint | null;
-
-        /**
-         * Indicates the delay value of the operational dataset. Null when there is no dataset configured.
-         *
-         * @see {@link MatterSpecification.v16.Core} § 11.14.6.59
-         */
-        delay?: number | null;
+        rloc16?: number | null;
     }
 
     /**
@@ -743,6 +741,27 @@ export declare namespace ThreadNetworkDiagnostics {
         activeNetworkFaultsList: NetworkFault[];
 
         /**
+         * Null when there is no dataset configured.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.14.6.57
+         */
+        activeTimestamp: number | bigint | null;
+
+        /**
+         * Null when there is no dataset configured.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.14.6.58
+         */
+        pendingTimestamp: number | bigint | null;
+
+        /**
+         * Null when there is no dataset configured.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.14.6.59
+         */
+        delay: number | null;
+
+        /**
          * Indicates the IEEE 802.15.4 extended address for the Node. A value of null shall indicate that the extended
          * address is not yet known. The uint64 value is composed by taking the 8 octets of the extended address EUI-64
          * and treating them as a big-endian integer. For example, octet string (in hexadecimal, from first octet to
@@ -761,29 +780,6 @@ export declare namespace ThreadNetworkDiagnostics {
          * @see {@link MatterSpecification.v16.Core} § 11.14.6.65
          */
         rloc16: number | null;
-
-        /**
-         * Indicates the timestamp of the currently active operational dataset. Null when there is no dataset
-         * configured.
-         *
-         * @see {@link MatterSpecification.v16.Core} § 11.14.6.57
-         */
-        activeTimestamp: number | bigint | null;
-
-        /**
-         * Indicates the timestamp of the currently pending operational dataset. Null when there is no dataset
-         * configured.
-         *
-         * @see {@link MatterSpecification.v16.Core} § 11.14.6.58
-         */
-        pendingTimestamp: number | bigint | null;
-
-        /**
-         * Indicates the delay value of the operational dataset. Null when there is no dataset configured.
-         *
-         * @see {@link MatterSpecification.v16.Core} § 11.14.6.59
-         */
-        delay: number | null;
 
         /**
          * Indicates the number of packets dropped either at ingress or egress, due to lack of buffer memory to retain
@@ -1233,7 +1229,7 @@ export declare namespace ThreadNetworkDiagnostics {
         /**
          * PacketCounts (PKTCNT)
          *
-         * Server supports the counts for the number of received and transmitted packets on the Thread interface
+         * Server supports the counts for the number of received and transmitted packets on the Thread interface.
          */
         PacketCounts = "PacketCounts",
 
@@ -1241,21 +1237,21 @@ export declare namespace ThreadNetworkDiagnostics {
          * ErrorCounts (ERRCNT)
          *
          * Server supports the counts for the number of errors that have occurred during the reception and transmission
-         * of packets on the Thread interface
+         * of packets on the Thread interface.
          */
         ErrorCounts = "ErrorCounts",
 
         /**
          * MleCounts (MLECNT)
          *
-         * Server supports the counts for various MLE layer happenings
+         * Server supports the counts for various MLE layer happenings.
          */
         MleCounts = "MleCounts",
 
         /**
          * MacCounts (MACCNT)
          *
-         * Server supports the counts for various MAC layer happenings
+         * Server supports the counts for various MAC layer happenings.
          */
         MacCounts = "MacCounts"
     }
@@ -1724,12 +1720,12 @@ export declare namespace ThreadNetworkDiagnostics {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link ThreadNetworkDiagnostics}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ThreadNetworkDiagnostics}.
      */
     export const Cluster: ClusterType.WithCompat<typeof ThreadNetworkDiagnostics, ThreadNetworkDiagnostics>;
 
     /**
-     * @deprecated Use {@link ThreadNetworkDiagnostics}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ThreadNetworkDiagnostics}.
      */
     export const Complete: typeof ThreadNetworkDiagnostics;
 
@@ -1737,7 +1733,7 @@ export declare namespace ThreadNetworkDiagnostics {
 }
 
 /**
- * @deprecated Use {@link ThreadNetworkDiagnostics}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link ThreadNetworkDiagnostics}.
  */
 export declare const ThreadNetworkDiagnosticsCluster: typeof ThreadNetworkDiagnostics;
 

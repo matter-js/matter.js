@@ -80,7 +80,7 @@ const AclExtensionAttributeId = AccessControl.attributes.extension.id;
 /**
  * Types of discovery that may be performed when connecting operationally.
  *
- * @deprecated node discovery is now continuous with MDNS queries sent as needed
+ * @deprecated Scheduled for removal in 0.19.  Node discovery is now continuous with MDNS queries sent as needed
  */
 export enum NodeDiscoveryType {
     /** No discovery is done, in calls means that only known addresses are tried. */
@@ -98,13 +98,15 @@ export enum NodeDiscoveryType {
 
 /**
  * Error when an unknown node is tried to be connected or any other action done with it.
+ *
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export class UnknownNodeError extends MatterError {}
 
 /**
  * Configuration for discovering when establishing a peer connection.
  *
- * @deprecated discovery occurs automatically based on node state
+ * @deprecated Scheduled for removal in 0.19.  Discovery occurs automatically based on node state
  */
 export interface DiscoveryOptions {
     discoveryType?: NodeDiscoveryType;
@@ -115,18 +117,18 @@ export interface DiscoveryOptions {
 /**
  * Extended discovery options that include case authenticated tags for peer connections.
  *
- * @deprecated these options are ignored
+ * @deprecated Scheduled for removal in 0.19.  These options are ignored
  */
 export interface PeerConnectionOptions {
     discoveryOptions?: DiscoveryOptions;
 
     /**
-     * @deprecated set CATs on CommissioningBehavior#state
+     * @deprecated Scheduled for removal in 0.19.  Set CATs on CommissioningBehavior#state
      */
     caseAuthenticatedTags?: CaseAuthenticatedTag[];
 
     /**
-     * @deprected configure queuing using the NetworkProfiles environmental service
+     * @deprecated Scheduled for removal in 0.19.  Configure queuing using the NetworkProfiles environmental service
      */
     queue?: Semaphore;
 }
@@ -136,11 +138,17 @@ function isAclOrExtensionPath(path: { clusterId: ClusterId; attributeId: Attribu
     return clusterId === AclClusterId && (attributeId === AclAttributeId || attributeId === AclExtensionAttributeId);
 }
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export type ResponseDataReport = Omit<
     DecodedDataReport,
     "isNormalized" | "subscriptionId" | "interactionModelRevision"
 >;
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export interface AttributeStatus {
     path: {
         nodeId?: NodeId;
@@ -161,6 +169,9 @@ type CommandRequest<C extends ClusterType.Command> =
 type CommandResponse<C extends ClusterType.Command> =
     C extends ClusterType.Command<infer F> ? Awaited<ReturnType<F>> : unknown;
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export type InvokeOptions<C extends ClusterType.Command = ClusterType.Command> = {
     endpointId?: EndpointNumber;
     clusterId: ClusterId;
@@ -186,6 +197,9 @@ export type InvokeOptions<C extends ClusterType.Command = ClusterType.Command> =
     skipValidation?: boolean;
 };
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export class InteractionClientProvider {
     readonly #owner: ServerNode;
     readonly #peers: PeerSet;
@@ -265,6 +279,9 @@ export class InteractionClientProvider {
     }
 }
 
+/**
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
+ */
 export class InteractionClient {
     readonly #address?: PeerAddress;
     readonly isGroupAddress: boolean;

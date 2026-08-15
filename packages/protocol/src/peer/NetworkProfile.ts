@@ -5,6 +5,7 @@
  */
 
 import { PeerAddress } from "#peer/PeerAddress.js";
+import type { MRP } from "#protocol/MRP.js";
 import {
     Diagnostic,
     Duration,
@@ -44,6 +45,14 @@ export interface ConcreteNetworkProfile {
      * with the local "own" profile margin via max at send time.
      */
     additionalMrpDelay: Duration;
+
+    /**
+     * The additive MRP margins for this profile, by traffic class.
+     *
+     * Precomputed because it is read on the send path; {@link MRP.Margins.bdx} is {@link additionalMrpDelay} unless
+     * the medium needs bulk transfer paced differently from normal messaging.
+     */
+    mrpMargins: MRP.Margins;
 }
 
 /**
@@ -144,6 +153,10 @@ export class NetworkProfiles {
             id,
             semaphore: new Semaphore(`network semaphore ${id}`, limits.exchanges, limits.delay, limits.timeout),
             additionalMrpDelay,
+            mrpMargins: {
+                messaging: additionalMrpDelay,
+                bdx: limits.bdxAdditionalMrpDelay ?? additionalMrpDelay,
+            },
         };
         if (limits.connect) {
             network.connect = this.configure(
@@ -247,6 +260,14 @@ export namespace NetworkProfiles {
      * Parameters that control exchange throttling for a specific medium.
      */
     export interface Limits extends ConcreteLimits {
+        /**
+         * {@link additionalMrpDelay} for bulk transfer (BDX) exchanges, which sustain many round trips over one path.
+         *
+         * Defaults to {@link additionalMrpDelay}.  Values above roughly 7s are inert: a BDX retransmission interval is
+         * capped so the whole schedule fits the peer's response budget.
+         */
+        bdxAdditionalMrpDelay?: Duration;
+
         /**
          * Overrides specifically for establishing new sessions.
          *

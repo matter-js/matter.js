@@ -7,8 +7,8 @@
 import { Environment } from "#environment/Environment.js";
 import { Environmental } from "#environment/Environmental.js";
 import { SharedEnvironmentServices } from "#environment/SharedEnvironmentServices.js";
-import { LogLevel } from "#log/LogLevel.js";
 import { Logger } from "#log/Logger.js";
+import { LogLevel } from "#log/LogLevel.js";
 
 /** Asserts that all provided values are strictly equal to each other */
 function expectAllEqual<T>(...values: T[]) {

@@ -94,12 +94,12 @@ export declare namespace UserLabel {
     export const attributes: ClusterType.AttributeObjects<Attributes>;
 
     /**
-     * @deprecated Use {@link UserLabel}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link UserLabel}.
      */
     export const Cluster: typeof UserLabel;
 
     /**
-     * @deprecated Use {@link UserLabel}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link UserLabel}.
      */
     export const Complete: typeof UserLabel;
 
@@ -107,7 +107,7 @@ export declare namespace UserLabel {
 }
 
 /**
- * @deprecated Use {@link UserLabel}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link UserLabel}.
  */
 export declare const UserLabelCluster: typeof UserLabel;
 

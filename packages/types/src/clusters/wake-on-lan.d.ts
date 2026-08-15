@@ -133,12 +133,12 @@ export declare namespace WakeOnLan {
     export const attributes: ClusterType.AttributeObjects<Attributes>;
 
     /**
-     * @deprecated Use {@link WakeOnLan}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link WakeOnLan}.
      */
     export const Cluster: typeof WakeOnLan;
 
     /**
-     * @deprecated Use {@link WakeOnLan}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link WakeOnLan}.
      */
     export const Complete: typeof WakeOnLan;
 
@@ -146,7 +146,7 @@ export declare namespace WakeOnLan {
 }
 
 /**
- * @deprecated Use {@link WakeOnLan}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link WakeOnLan}.
  */
 export declare const WakeOnLanCluster: typeof WakeOnLan;
 

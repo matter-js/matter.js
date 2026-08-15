@@ -246,12 +246,12 @@ export declare namespace TimeFormatLocalization {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link TimeFormatLocalization}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link TimeFormatLocalization}.
      */
     export const Cluster: ClusterType.WithCompat<typeof TimeFormatLocalization, TimeFormatLocalization>;
 
     /**
-     * @deprecated Use {@link TimeFormatLocalization}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link TimeFormatLocalization}.
      */
     export const Complete: typeof TimeFormatLocalization;
 
@@ -259,7 +259,7 @@ export declare namespace TimeFormatLocalization {
 }
 
 /**
- * @deprecated Use {@link TimeFormatLocalization}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link TimeFormatLocalization}.
  */
 export declare const TimeFormatLocalizationCluster: typeof TimeFormatLocalization;
 

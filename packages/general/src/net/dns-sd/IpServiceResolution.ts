@@ -80,7 +80,7 @@ export async function IpServiceResolution(service: IpService, abort: AbortSignal
             continue;
         }
 
-        hosts.add(service.names.get(record.name));
+        hosts.add(service.names.get(record.value.target));
     }
 
     // Wire the service to a.) stop discovery when we discover a new address, and b.) update known hosts

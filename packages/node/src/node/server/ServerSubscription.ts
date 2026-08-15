@@ -10,6 +10,7 @@ import { IcdManagementServer } from "#behaviors/icd-management";
 import type { ServerNode } from "#node/ServerNode.js";
 import {
     AsyncObservable,
+    causedBy,
     ClosedError,
     Diagnostic,
     Duration,
@@ -42,6 +43,7 @@ import {
     ReadResult,
     SessionClosedError,
     Subscription,
+    TransientPeerCommunicationError,
 } from "@matter/protocol";
 import {
     AttributeId,
@@ -130,7 +132,7 @@ export class ServerSubscription implements Subscription {
 
     #id: SubscriptionId;
     #isClosed = false;
-    #isCanceledByPeer = false;
+    #isTerminated = false;
     #request: Omit<SubscribeRequest, "interactionModelRevision" | "keepSubscriptions">;
     #cancelled = AsyncObservable<[subscription: Subscription]>();
     #maxInterval?: Duration;
@@ -206,8 +208,8 @@ export class ServerSubscription implements Subscription {
         return this.#context.session;
     }
 
-    get isCanceledByPeer() {
-        return this.#isCanceledByPeer;
+    get isTerminated() {
+        return this.#isTerminated;
     }
 
     get request() {
@@ -245,7 +247,8 @@ export class ServerSubscription implements Subscription {
     }
 
     async handlePeerCancel() {
-        this.#isCanceledByPeer = true;
+        logger.notice(`Subscription ${this.idStr} cancelled by peer`);
+        this.#isTerminated = true;
         // Force-close any in-flight send exchange so MRP retransmissions stop immediately.
         // Use try/finally so this.close() always runs even if the exchange close throws.
         try {
@@ -398,7 +401,16 @@ export class ServerSubscription implements Subscription {
         );
     }
 
+    /** @returns true if the subscription became active, false if it was dropped because its session is closing. */
     activate() {
+        if (this.session.isClosing) {
+            // The owning session is already tearing down and its subscriptions have been swept, so registering here
+            // would orphan us on a dead session and spin the update timer against a closing session manager.  Drop the
+            // change handlers registered while seeding and stay inert; the controller re-subscribes on reconnect.
+            this.#changeHandlers.close();
+            this.#isClosed = true;
+            return false;
+        }
         this.session.subscriptions.add(this);
         logger.debug(this.session.via, "New subscription", Diagnostic.strong(this.idStr));
         this.#lifetime = this.#context.session.join("subscription", Diagnostic.strong(this.#id));
@@ -426,6 +438,7 @@ export class ServerSubscription implements Subscription {
         this.#updateTimer = Time.getTimer("Subscription update", this.#sendInterval, () =>
             this.#prepareDataUpdate(),
         ).start();
+        return true;
     }
 
     /**
@@ -498,7 +511,7 @@ export class ServerSubscription implements Subscription {
                     this.#sendUpdateErrorCounter = 0;
                 }
             } catch (error) {
-                if (this.#isClosed || this.#isCanceledByPeer) {
+                if (this.#isClosed || this.#isTerminated) {
                     // No need to care about resubmissions when the server is closing or peer cancelled us
                     return;
                 }
@@ -525,20 +538,24 @@ export class ServerSubscription implements Subscription {
                         this.#outstandingEventsMinNumber = eventsMinNumber; // newer number are always higher, so we can just set it
                     }
                 } else {
-                    logger.info(
-                        `Sending update failed 3 times in a row, canceling subscription ${this.idStr} and let controller subscribe again.`,
+                    logger.notice(
+                        `Giving up on subscription ${this.idStr} after 3 failed updates; the controller must subscribe again`,
                     );
                     this.#sendNextUpdateImmediately = false;
                     if (
-                        error instanceof NoResponseTimeoutError ||
-                        error instanceof NetworkError ||
-                        error instanceof SessionClosedError
+                        causedBy(
+                            error,
+                            TransientPeerCommunicationError,
+                            NoResponseTimeoutError,
+                            NetworkError,
+                            SessionClosedError,
+                        )
                     ) {
-                        // Let's consider this subscription as dead and wait for a reconnect.  We handle as if the
-                        // controller cancelled
-                        using _messaging = updating?.join("canceling");
-                        this.#isCanceledByPeer = true;
-                        await this.#cancel();
+                        // The session is left alone: failing to push reports says nothing about whether the
+                        // controller can still reach us, and recovery is its call regardless
+                        using _messaging = updating?.join("abandoning");
+                        this.#isTerminated = true;
+                        await this.#closeFromUpdate();
                         break;
                     } else {
                         throw error;
@@ -683,12 +700,12 @@ export class ServerSubscription implements Subscription {
         });
     }
 
-    async #flush(flushViaSession?: Session) {
+    async #flush(flushViaSession?: Session, currentExchange?: MessageExchange) {
         this.#sendDelayTimer.stop();
         if (this.#outstandingAttributeUpdates !== undefined || this.#outstandingEventsMinNumber !== undefined) {
             logger.debug(`Flushing subscription ${this.idStr}${this.#isClosed ? " (for closing)" : ""}`);
             this.#triggerSendUpdate(true, flushViaSession);
-            if (this.#currentUpdatePromise) {
+            if (this.#currentUpdatePromise && !this.#isSendingOn(currentExchange)) {
                 using _waiting = this.#lifetime?.join("waiting on flush");
                 await this.#currentUpdatePromise;
             }
@@ -698,21 +715,35 @@ export class ServerSubscription implements Subscription {
     /**
      * Closes the subscription and flushes all outstanding data updates if requested.
      */
-    async close(flushViaSession?: Session) {
+    async close(flushViaSession?: Session, currentExchange?: MessageExchange) {
         if (this.#isClosed) {
             return;
         }
         this.#isClosed = true;
 
-        await this.#cancel(flushViaSession);
+        await this.#cancel(flushViaSession, currentExchange);
 
-        if (this.#currentUpdatePromise) {
+        if (this.#currentUpdatePromise && !this.#isSendingOn(currentExchange)) {
             using _waiting = this.#lifetime?.closing()?.join("waiting on update");
             await this.#currentUpdatePromise;
         }
     }
 
-    async #cancel(flushViaSession?: Session) {
+    /** Close from within the update loop, which {@link close} would wait on -- it is our own caller. */
+    async #closeFromUpdate() {
+        if (this.#isClosed) {
+            return;
+        }
+        this.#isClosed = true;
+        await this.#cancel();
+    }
+
+    /** Whether our in-flight update is sending on this exchange, making it this close's own caller. */
+    #isSendingOn(currentExchange?: MessageExchange) {
+        return currentExchange !== undefined && currentExchange === this.#currentSendExchange;
+    }
+
+    async #cancel(flushViaSession?: Session, currentExchange?: MessageExchange) {
         const closing = this.#lifetime?.closing();
 
         this.#sendUpdatesActivated = false;
@@ -721,7 +752,7 @@ export class ServerSubscription implements Subscription {
 
         if (flushViaSession !== undefined) {
             using _flushing = closing?.join("flushing");
-            await this.#flush(flushViaSession);
+            await this.#flush(flushViaSession, currentExchange);
         }
 
         this.#updateTimer.stop();
@@ -835,19 +866,20 @@ export class ServerSubscription implements Subscription {
             }
         } catch (error) {
             if (StatusResponseError.is(error, Status.InvalidSubscription, Status.Failure)) {
-                logger.notice(`Subscription ${this.idStr} cancelled by peer`);
-                this.#isCanceledByPeer = true;
+                logger.notice(`Subscription ${this.idStr} reported invalid by peer`);
+                this.#isTerminated = true;
             } else {
                 StatusResponseError.accept(error);
                 logger.info(`Subscription ${this.idStr} update failed:`, error);
             }
 
             using _canceling = lifetime?.join("canceling");
-            await this.#cancel();
+            await this.#closeFromUpdate();
         } finally {
-            this.#currentSendExchange = undefined;
             using _closing = lifetime?.join("closing messenger");
+            // Reset only after the close: it can still send, and #isSendingOn must recognise this exchange until then
             await messenger.close();
+            this.#currentSendExchange = undefined;
         }
         return true;
     }

@@ -296,12 +296,12 @@ export declare namespace Identify {
     export const commands: ClusterType.CommandObjects<Commands>;
 
     /**
-     * @deprecated Use {@link Identify}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Identify}.
      */
     export const Cluster: typeof Identify;
 
     /**
-     * @deprecated Use {@link Identify}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Identify}.
      */
     export const Complete: typeof Identify;
 
@@ -309,7 +309,7 @@ export declare namespace Identify {
 }
 
 /**
- * @deprecated Use {@link Identify}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link Identify}.
  */
 export declare const IdentifyCluster: typeof Identify;
 

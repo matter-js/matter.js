@@ -16,6 +16,7 @@ import {
     SharedEnvironmentServices,
     TransportSet,
 } from "@matter/general";
+import { MatterModel } from "@matter/model";
 import {
     Ble,
     ClientSubscriptions,
@@ -59,6 +60,11 @@ export class ControllerBehavior extends Behavior {
 
         const node = Node.forEndpoint(this.endpoint);
 
+        // Publish the controller's model so auto-created peer nodes inherit it via the environment
+        if (this.state.matter !== undefined) {
+            node.env.set(MatterModel, this.state.matter);
+        }
+
         // Configure discovery transports
         if (this.state.ip === undefined) {
             this.state.ip = true;
@@ -100,11 +106,11 @@ export class ControllerBehavior extends Behavior {
         }
         this.reactTo(node.lifecycle.goingOffline, this.#nodeGoingOffline);
 
-        // Mark addresses in use (or not) based on known peers and the controller's own addresses
+        // A peer tracked by PeerSet is authoritative for its address, so drop the transient reservation the
+        // allocator made for it during commissioning.
         const identity = this.env.get(IdentityService);
         const peers = this.env.get(PeerSet);
-        this.reactTo(peers.added, peer => identity.reservePeerAddress(peer.address));
-        this.reactTo(peers.deleted, peer => identity.releasePeerAddress(peer.address));
+        this.reactTo(peers.added, peer => identity.releasePeerAddress(peer.address));
 
         // Reserve the controller's own node ID in each fabric to prevent assigning it to a peer
         for (const fabric of authority.fabrics) {
@@ -297,5 +303,13 @@ export namespace ControllerBehavior {
          * Case Authenticated Tags to be used to commission and connect to devices.
          */
         caseAuthenticatedTags?: CaseAuthenticatedTag[] = undefined;
+
+        /**
+         * Model of Matter semantics used for peers commissioned or discovered by this controller.
+         *
+         * Supply a model extended with custom or manufacturer-specific clusters (see {@link MatterModel.withClusters}) so
+         * their attributes and commands resolve to real names instead of synthetic `attr$…`/`command$…` identifiers.
+         */
+        matter?: MatterModel = undefined;
     }
 }

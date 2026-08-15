@@ -9,6 +9,7 @@ import type { Schema } from "@matter/model";
 import { ClusterModel, Model, ValueModel, type FieldValue } from "@matter/model";
 import { Val } from "@matter/protocol";
 import { Internal } from "./Internal.js";
+import { memberValueOf } from "./MemberKeys.js";
 
 /**
  * Obtain a function that returns a visible property by name from the ownership hierarchy of a managed value.
@@ -59,7 +60,10 @@ export function NameResolver(
 
     /**
      * Read a property by name, preferring the id-keyed slot when available — client mirrors
-     * (`primaryKey: "id"`) hold live values at attribute ids while the property-name slot may be a stale default.
+     * (`primaryKey: "id"`) hold live values at attribute ids.
+     *
+     * The name-slot fallback must stay: the same resolver serves name-keyed containers, where the value
+     * legitimately lives at the property name.
      */
     function createDirectResolver(id?: number) {
         if (id === undefined) {
@@ -70,10 +74,7 @@ export function NameResolver(
             if (struct === undefined || struct === null) {
                 return undefined;
             }
-            if (id in struct) {
-                return struct[id];
-            }
-            return struct[name];
+            return memberValueOf(struct, id, name);
         };
     }
 

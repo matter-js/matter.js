@@ -16,11 +16,11 @@ import {
     MaybePromise,
 } from "@matter/general";
 import { hasRemoteActor } from "@matter/protocol";
-import type { Reactor } from "../Reactor.js";
 import { ActionContext } from "../context/ActionContext.js";
 import { Contextual } from "../context/Contextual.js";
 import { NodeActivity } from "../context/NodeActivity.js";
 import { LocalActorContext } from "../context/server/LocalActorContext.js";
+import type { Reactor } from "../Reactor.js";
 import type { BehaviorBacking } from "./BehaviorBacking.js";
 
 const logger = Logger.get("Reactors");

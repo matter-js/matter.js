@@ -62,6 +62,5 @@ export class PowerSourceBaseServer extends PowerSourceLevelBase {
     }
 }
 
-// We had turned on some more features to provide the default implementation, but export the cluster with default
-// Features again.
-export class PowerSourceServer extends PowerSourceBaseServer.for(PowerSource) {}
+// Drop the features the base implementation enables internally so consumers select their own
+export class PowerSourceServer extends PowerSourceBaseServer.with() {}

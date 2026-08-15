@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { OvenCavityOperationalStateServer } from "@matter/main/behaviors";
 import { OperationalState } from "@matter/main/clusters/operational-state";
 import { OvenCavityOperationalState } from "@matter/main/clusters/oven-cavity-operational-state";

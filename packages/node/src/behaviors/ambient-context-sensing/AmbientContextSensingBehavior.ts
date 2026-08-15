@@ -14,8 +14,8 @@ import { Identity } from "@matter/general";
  * AmbientContextSensingBehavior is the base class for objects that support interaction with
  * {@link AmbientContextSensing.Cluster}.
  *
- * AmbientContextSensing.Cluster requires you to enable one or more optional features. You can do so using
- * {@link AmbientContextSensingBehavior.with}.
+ * This class does not have optional features of AmbientContextSensing.Cluster enabled. You can enable additional
+ * features using AmbientContextSensingBehavior.with.
  */
 export const AmbientContextSensingBehaviorConstructor = ClusterBehavior.for(AmbientContextSensing);
 

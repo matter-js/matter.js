@@ -143,12 +143,12 @@ export declare namespace Binding {
     export const attributes: ClusterType.AttributeObjects<Attributes>;
 
     /**
-     * @deprecated Use {@link Binding}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Binding}.
      */
     export const Cluster: typeof Binding;
 
     /**
-     * @deprecated Use {@link Binding}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Binding}.
      */
     export const Complete: typeof Binding;
 
@@ -156,7 +156,7 @@ export declare namespace Binding {
 }
 
 /**
- * @deprecated Use {@link Binding}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link Binding}.
  */
 export declare const BindingCluster: typeof Binding;
 

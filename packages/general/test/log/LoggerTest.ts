@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError } from "#MatterError.js";
 import { Console } from "#log/Console.js";
 import { Diagnostic } from "#log/Diagnostic.js";
 import { LogDestination } from "#log/LogDestination.js";
 import { LogFormat } from "#log/LogFormat.js";
-import { LogLevel } from "#log/LogLevel.js";
 import { Logger } from "#log/Logger.js";
+import { LogLevel } from "#log/LogLevel.js";
+import { ImplementationError } from "#MatterError.js";
 import { Bytes } from "#util/Bytes.js";
 
 const LOGGER_NAME = "UnitTest";

@@ -88,7 +88,7 @@ export class ClientStructureEvents {
     emitEndpoint(endpoint: Endpoint) {
         if (this.#endpointEvents && endpoint.behaviors.supported.descriptor) {
             const deviceTypes = endpoint.stateOf(DescriptorClient).deviceTypeList;
-            for (const dt of deviceTypes) {
+            for (const dt of deviceTypes ?? []) {
                 this.#endpointEvents.get(dt.deviceType)?.emit(endpoint);
             }
         }

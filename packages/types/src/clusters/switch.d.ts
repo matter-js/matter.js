@@ -741,12 +741,12 @@ export declare namespace Switch {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link Switch}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Switch}.
      */
     export const Cluster: ClusterType.WithCompat<typeof Switch, Switch>;
 
     /**
-     * @deprecated Use {@link Switch}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Switch}.
      */
     export const Complete: typeof Switch;
 
@@ -754,7 +754,7 @@ export declare namespace Switch {
 }
 
 /**
- * @deprecated Use {@link Switch}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link Switch}.
  */
 export declare const SwitchCluster: typeof Switch;
 

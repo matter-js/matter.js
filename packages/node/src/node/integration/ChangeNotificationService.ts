@@ -130,9 +130,18 @@ export namespace ChangeNotificationService {
         properties?: string[];
     }
 
+    /**
+     * The wire timestamp variant {@link OccurrenceProperties.timestamp} carries. Matter Core §10.7 defines exactly
+     * four and an event sets exactly one: an absolute time against the Posix epoch or against device system (uptime)
+     * time, or, on either clock, a delta from the preceding event of the same priority. A consumer forwarding the
+     * occurrence must not guess which, as neither the clock nor absolute-vs-delta is recoverable from the value.
+     */
+    export type TimestampKind = "epoch" | "system" | "epoch-delta" | "system-delta";
+
     export interface OccurrenceProperties {
         number: EventNumber;
         timestamp: Timestamp;
+        timestampKind: TimestampKind;
         priority: Priority;
         payload?: Val.Struct;
     }

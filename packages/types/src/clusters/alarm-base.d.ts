@@ -316,7 +316,7 @@ export declare namespace AlarmBase {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link AlarmBase}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link AlarmBase}.
      */
     export const Complete: typeof AlarmBase;
 

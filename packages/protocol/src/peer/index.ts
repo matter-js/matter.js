@@ -17,3 +17,4 @@ export * from "./PeerLossContext.js";
 export * from "./PeerSet.js";
 export * from "./PeerTimingParameters.js";
 export * from "./PhysicalDeviceProperties.js";
+export * from "./RebootResubscribeArmer.js";

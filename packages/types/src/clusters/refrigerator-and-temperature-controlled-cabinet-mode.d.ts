@@ -303,12 +303,12 @@ export declare namespace RefrigeratorAndTemperatureControlledCabinetMode {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link RefrigeratorAndTemperatureControlledCabinetMode}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link RefrigeratorAndTemperatureControlledCabinetMode}.
      */
     export const Cluster: ClusterType.WithCompat<typeof RefrigeratorAndTemperatureControlledCabinetMode, RefrigeratorAndTemperatureControlledCabinetMode>;
 
     /**
-     * @deprecated Use {@link RefrigeratorAndTemperatureControlledCabinetMode}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link RefrigeratorAndTemperatureControlledCabinetMode}.
      */
     export const Complete: typeof RefrigeratorAndTemperatureControlledCabinetMode;
 
@@ -316,7 +316,7 @@ export declare namespace RefrigeratorAndTemperatureControlledCabinetMode {
 }
 
 /**
- * @deprecated Use {@link RefrigeratorAndTemperatureControlledCabinetMode}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link RefrigeratorAndTemperatureControlledCabinetMode}.
  */
 export declare const RefrigeratorAndTemperatureControlledCabinetModeCluster: typeof RefrigeratorAndTemperatureControlledCabinetMode;
 

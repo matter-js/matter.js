@@ -90,7 +90,7 @@ export class StringSchema<T extends TlvType.ByteString | TlvType.Utf8String> ext
             );
     }
 
-    /** @deprecated Part of old ClusterType() compat layer. */
+    /** @deprecated Part of old ClusterType() compat layer.  Scheduled for removal in 0.19. */
     override get element(): TlvSchema.Element {
         const result: TlvSchema.Element = {
             type: this.type === TlvType.Utf8String ? "string" : "octstr",

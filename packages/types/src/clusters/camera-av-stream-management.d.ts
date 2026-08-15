@@ -2227,12 +2227,12 @@ export declare namespace CameraAvStreamManagement {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link CameraAvStreamManagement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link CameraAvStreamManagement}.
      */
     export const Cluster: ClusterType.WithCompat<typeof CameraAvStreamManagement, CameraAvStreamManagement>;
 
     /**
-     * @deprecated Use {@link CameraAvStreamManagement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link CameraAvStreamManagement}.
      */
     export const Complete: typeof CameraAvStreamManagement;
 
@@ -2240,7 +2240,7 @@ export declare namespace CameraAvStreamManagement {
 }
 
 /**
- * @deprecated Use {@link CameraAvStreamManagement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link CameraAvStreamManagement}.
  */
 export declare const CameraAvStreamManagementCluster: typeof CameraAvStreamManagement;
 

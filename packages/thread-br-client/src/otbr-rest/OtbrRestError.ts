@@ -7,7 +7,12 @@
 import { MatterError } from "@matter/general";
 
 export type OtbrRestErrorCode =
-    "rest_unreachable" | "rest_protocol" | "rest_disabled" | "rest_unsupported" | "rest_conflict" | "rest_not_allowed";
+    | "rest_unreachable"
+    | "rest_protocol"
+    | "rest_disabled"
+    | "rest_unsupported"
+    | "rest_conflict"
+    | "rest_not_allowed";
 
 export interface OtbrRestErrorOptions {
     cause?: Error;

@@ -18,6 +18,7 @@ import {
     FeatureBitmap,
     FeatureSet,
     Matter,
+    MatterModel,
     type ValueModel,
 } from "@matter/model";
 import { AttributeId, ClusterId, CommandId } from "@matter/types";
@@ -25,7 +26,10 @@ import { ClientCommandMethod } from "./ClientCommandMethod.js";
 
 const BIT_BLOCK_SIZE = Math.log2(Number.MAX_SAFE_INTEGER);
 
-const discoveredCaches = new Map<ClusterBehaviorType.CommandFactory, Record<string, ClusterBehavior.Type>>();
+const discoveredCaches = new Map<
+    ClusterBehaviorType.CommandFactory,
+    WeakMap<MatterModel, Record<string, ClusterBehavior.Type>>
+>();
 const knownCaches = new Map<ClusterBehaviorType.CommandFactory, WeakMap<ClusterBehavior.Type, ClusterBehavior.Type>>();
 
 const isPeer = Symbol("is-peer");
@@ -73,6 +77,12 @@ export namespace PeerBehavior {
         commands?: CommandId[];
         generatedCommands?: CommandId[];
         commandFactory?: ClusterBehaviorType.CommandFactory;
+
+        /**
+         * Model used to resolve standard element names/shapes.  Defaults to the global {@link Matter} model; a client
+         * node supplies its own so custom or extended clusters resolve to real names.
+         */
+        matter?: MatterModel;
     }
 
     /**
@@ -86,12 +96,17 @@ export namespace PeerBehavior {
 }
 
 function instrumentDiscoveredShape(shape: PeerBehavior.DiscoveredClusterShape) {
-    const analysis = DiscoveredShapeAnalysis(shape);
+    const matter = shape.matter ?? Matter;
+    const analysis = DiscoveredShapeAnalysis(shape, matter);
     const factory = shape.commandFactory ?? ClientCommandMethod;
 
-    let cache = discoveredCaches.get(factory);
+    let byModel = discoveredCaches.get(factory);
+    if (!byModel) {
+        discoveredCaches.set(factory, (byModel = new WeakMap()));
+    }
+    let cache = byModel.get(matter);
     if (!cache) {
-        discoveredCaches.set(factory, (cache = {}));
+        byModel.set(matter, (cache = {}));
     }
 
     const fingerprint = createFingerprint(analysis);
@@ -102,7 +117,7 @@ function instrumentDiscoveredShape(shape: PeerBehavior.DiscoveredClusterShape) {
 
     // Find a base behavior for the standard cluster, if available
     let baseType: Behavior.Type | undefined;
-    const standardSchema = Matter.get(ClusterModel, shape.id);
+    const standardSchema = matter.get(ClusterModel, shape.id);
     if (standardSchema) {
         // Create a base behavior from the standard schema
         baseType = ClusterBehaviorType({
@@ -360,8 +375,11 @@ interface DiscoveredShapeAnalysis {
 /**
  * Analyze a discovered cluster shape to determine how we should override the behavior and schema.
  */
-function DiscoveredShapeAnalysis(shape: PeerBehavior.DiscoveredClusterShape): DiscoveredShapeAnalysis {
-    const standardCluster = Matter.clusters(shape.id);
+function DiscoveredShapeAnalysis(
+    shape: PeerBehavior.DiscoveredClusterShape,
+    matter: MatterModel = Matter,
+): DiscoveredShapeAnalysis {
+    const standardCluster = matter.clusters(shape.id);
     const schema =
         standardCluster ??
         new ClusterModel({ id: shape.id, name: createUnknownName("Cluster", shape.id), revision: shape.revision });

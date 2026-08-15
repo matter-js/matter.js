@@ -9,7 +9,7 @@ import { ValidationLocation } from "#behavior/state/validation/location.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { Supervision } from "#behavior/supervision/Supervision.js";
 import { GlobalConfig, LocalConfig, maybeConfigOf } from "#behavior/supervision/SupervisionConfig.js";
-import { ClusterModel, CommandModel, DataModelPath, FieldModel } from "@matter/model";
+import { AttributeModel, ClusterModel, CommandModel, DataModelPath, FieldModel } from "@matter/model";
 import { ConstraintError } from "@matter/protocol";
 
 describe("Supervision", () => {
@@ -312,6 +312,86 @@ describe("Supervision", () => {
             const config = new GlobalConfig();
             config.child("nested").supervision = { conformance: false };
             expect(() => validateWith(supervisor, { nested: {} }, config)).throws();
+        });
+    });
+
+    describe("RootSupervisor#persistentKeys()", () => {
+        // ClusterModel injects global attributes (ClusterRevision, FeatureMap, ...) alongside our own fields, so
+        // assert membership of the fields under test rather than the full set.
+        function supervisorFor(fields: FieldModel[]) {
+            return RootSupervisor.for(new ClusterModel({ name: "TestCluster", children: fields }));
+        }
+
+        it("keys a persistent member by attribute id when it defines one", () => {
+            const supervisor = supervisorFor([
+                new FieldModel({ name: "withId", id: 5, type: "uint8", quality: "N" }),
+                new FieldModel({ name: "transient", id: 6, type: "uint8" }),
+            ]);
+            const keys = supervisor.persistentKeys("id");
+            expect(keys.has("5")).true;
+            expect(keys.has("6")).false;
+        });
+
+        it("falls back to propertyName when a persistent member has no id", () => {
+            const supervisor = supervisorFor([new FieldModel({ name: "noId", type: "uint8", quality: "N" })]);
+            expect(supervisor.persistentKeys("id").has("noId")).true;
+        });
+
+        it("keys persistent members by propertyName regardless of id", () => {
+            const supervisor = supervisorFor([
+                new FieldModel({ name: "withId", id: 5, type: "uint8", quality: "N" }),
+                new FieldModel({ name: "transient", id: 6, type: "uint8" }),
+            ]);
+            const keys = supervisor.persistentKeys("name");
+            expect(keys.has("withId")).true;
+            expect(keys.has("transient")).false;
+        });
+    });
+
+    describe("RootSupervisor#attributeKeys()", () => {
+        function supervisorFor(attributes: AttributeModel[]) {
+            return RootSupervisor.for(new ClusterModel({ name: "TestCluster", children: attributes }));
+        }
+
+        it("keys every attribute regardless of quality or writability", () => {
+            const supervisor = supervisorFor([
+                new AttributeModel({ name: "nonvolatile", id: 5, type: "uint8", quality: "N" }),
+                new AttributeModel({ name: "volatileReadOnly", id: 6, type: "uint8" }),
+                new AttributeModel({ name: "fixed", id: 7, type: "uint8", quality: "F" }),
+            ]);
+            const keys = supervisor.attributeKeys("id");
+            expect(keys.has("5")).true;
+            expect(keys.has("6")).true;
+            expect(keys.has("7")).true;
+        });
+
+        it("includes the global attributes the cluster model injects", () => {
+            const supervisor = supervisorFor([new AttributeModel({ name: "own", id: 5, type: "uint8" })]);
+            const keys = supervisor.attributeKeys("id");
+            for (const id of AttributeModel.globalIds) {
+                expect(keys.has(String(id))).true;
+            }
+        });
+
+        it("excludes non-attribute members", () => {
+            // A FieldModel child of a ClusterModel is a member (Scope's default tags cover Field and Attribute), so
+            // this exercises the tag filter.  A CommandModel would not be a member at all and would pass vacuously.
+            const supervisor = RootSupervisor.for(
+                new ClusterModel({
+                    name: "TestCluster",
+                    children: [
+                        new AttributeModel({ name: "attr", id: 5, type: "uint8" }),
+                        new FieldModel({ name: "field", id: 6, type: "uint8", quality: "N" }),
+                    ],
+                }),
+            );
+            const keys = supervisor.attributeKeys("name");
+            expect(keys.has("attr")).true;
+            expect(keys.has("field")).false;
+            // …and that member is nonetheless persistent, so a mirror carrying non-attribute members would lose its
+            // store write.  Real cluster schemas carry attributes as AttributeModel, which is what makes the tag
+            // filter safe.
+            expect(supervisor.persistentKeys("name").has("field")).true;
         });
     });
 

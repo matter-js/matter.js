@@ -4,10 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { DnsMessageType, DnsRecordClass, DnsRecordType } from "#codec/DnsCodec.js";
 import { Time } from "#time/Time.js";
-import { Minutes } from "#time/TimeUnit.js";
+import { Hours, Minutes } from "#time/TimeUnit.js";
 import { Abort } from "#util/Abort.js";
-import { expectAddresses, expectKvs, MockSite } from "./dns-sd-helpers.js";
+import { expectAddresses, expectKvs, MockSite, qnameOf } from "./dns-sd-helpers.js";
 
 describe("IpServiceStatus", () => {
     before(() => {
@@ -53,6 +54,46 @@ describe("IpServiceStatus", () => {
         // Should have resolved
         expectAddresses(service.addresses);
         expectKvs(service);
+    });
+
+    it("queries addresses of the SRV target rather than the service instance", async () => {
+        await using site = new MockSite();
+        const { client, server } = await site.addPair();
+
+        const qname = qnameOf(1);
+        const service = client.addService(qname);
+
+        // Cache an SRV without any address record for its target
+        await server.mdns.send({
+            messageType: DnsMessageType.Response,
+            answers: [
+                {
+                    name: qname,
+                    recordType: DnsRecordType.SRV,
+                    recordClass: DnsRecordClass.IN,
+                    ttl: Hours(1),
+                    value: { port: 1234, priority: 10, weight: 1, target: server.hostname },
+                },
+            ],
+            additionalRecords: [],
+        });
+        await MockTime.advance(10);
+
+        const queried = new Set<string>();
+        server.mdns.receipt.on(message => {
+            for (const query of message.queries) {
+                if (query.recordType === DnsRecordType.A || query.recordType === DnsRecordType.AAAA) {
+                    queried.add(query.name);
+                }
+            }
+        });
+
+        const abort = new Abort();
+        service.status.connecting(abort.then(() => !abort.aborted));
+        await MockTime.resolve(Time.sleep("wait for queries", Minutes(1)));
+        abort();
+
+        expect([...queried]).deep.equals([server.hostname]);
     });
 
     it("marks unreachable when connecting() resolves with false", async () => {

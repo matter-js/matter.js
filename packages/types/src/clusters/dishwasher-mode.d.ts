@@ -310,12 +310,12 @@ export declare namespace DishwasherMode {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link DishwasherMode}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link DishwasherMode}.
      */
     export const Cluster: ClusterType.WithCompat<typeof DishwasherMode, DishwasherMode>;
 
     /**
-     * @deprecated Use {@link DishwasherMode}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link DishwasherMode}.
      */
     export const Complete: typeof DishwasherMode;
 
@@ -323,7 +323,7 @@ export declare namespace DishwasherMode {
 }
 
 /**
- * @deprecated Use {@link DishwasherMode}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link DishwasherMode}.
  */
 export declare const DishwasherModeCluster: typeof DishwasherMode;
 

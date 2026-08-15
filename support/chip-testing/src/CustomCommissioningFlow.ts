@@ -3,6 +3,8 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
+import { InternalError } from "@matter/general";
 import {
     CertificateAuthority,
     ClientInteraction,
@@ -34,7 +36,7 @@ export class CustomCommissioningFlow extends ControllerCommissioningFlow {
             step => step.name === "OperationalCredentials.UpdateFabricLabel",
         );
         if (updateLabelStepIndex === -1) {
-            throw new Error("UpdateFabricLabel step not found");
+            throw new InternalError("UpdateFabricLabel step not found");
         }
         this.commissioningSteps.splice(updateLabelStepIndex, 1);
     }

@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { MAX_COUNTER_VALUE_32BIT } from "#protocol/MessageCounter.js";
 import { MessageReceptionStateEncryptedWithRollover } from "#protocol/MessageReceptionState.js";
 import { Bytes, InternalError, Logger, StorageContext } from "@matter/general";
@@ -86,5 +87,14 @@ export class MessagingState {
             this.#messageDataReceptionState.set(operationalKeyHex, keyMap);
         }
         return receptionState;
+    }
+
+    /**
+     * Discards the replay-protection reception state for an operational key.  Called when the key's key set is removed
+     * so that a later key set reusing the same epoch key starts a fresh counter window and its first message
+     * re-synchronizes instead of being rejected as a replay against the removed key's high-water counter.
+     */
+    forgetReceptionState(operationalKey: Bytes) {
+        this.#messageDataReceptionState.delete(Bytes.toHex(operationalKey));
     }
 }

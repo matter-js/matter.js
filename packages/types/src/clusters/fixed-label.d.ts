@@ -85,12 +85,12 @@ export declare namespace FixedLabel {
     export const attributes: ClusterType.AttributeObjects<Attributes>;
 
     /**
-     * @deprecated Use {@link FixedLabel}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link FixedLabel}.
      */
     export const Cluster: typeof FixedLabel;
 
     /**
-     * @deprecated Use {@link FixedLabel}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link FixedLabel}.
      */
     export const Complete: typeof FixedLabel;
 
@@ -98,7 +98,7 @@ export declare namespace FixedLabel {
 }
 
 /**
- * @deprecated Use {@link FixedLabel}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link FixedLabel}.
  */
 export declare const FixedLabelCluster: typeof FixedLabel;
 

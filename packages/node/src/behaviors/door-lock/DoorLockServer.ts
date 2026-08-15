@@ -1160,4 +1160,4 @@ export namespace DoorLockBaseServer {
 /**
  * Default DoorLock server with no features enabled. Use `.with()` to enable features.
  */
-export class DoorLockServer extends DoorLockBaseServer.for(DoorLock) {}
+export class DoorLockServer extends DoorLockBaseServer.with() {}

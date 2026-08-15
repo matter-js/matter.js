@@ -192,7 +192,7 @@ export class IcdClient extends Behavior {
                 await icd.register({ allowMultiAdmin: true });
             });
         } catch (error) {
-            logger.warn("ICD auto-registration for LIT peer failed", error);
+            logger.warn(`ICD auto-registration for LIT peer ${this.#peerAddress} failed`, error);
         } finally {
             this.internal.autoRegister = undefined;
         }
@@ -452,6 +452,15 @@ export class IcdClient extends Behavior {
         return this.agent.get(IcdManagementClient);
     }
 
+    /**
+     * Peer address for log context; undefined before commissioning. Reads the sync state view, so safe off-transaction.
+     * Interned via {@link PeerAddress} so a rehydrated plain-struct address renders `@fabric:node` rather than
+     * `[object Object]`.
+     */
+    get #peerAddress() {
+        return PeerAddress(this.endpoint.maybeStateOf(CommissioningClient)?.peerAddress);
+    }
+
     #feedFabricIcd(fabric: ReturnType<FabricManager["for"]>, peerNodeId: NodeId, seed: boolean) {
         const { key, counterStart, lastOffset } = this.state;
         if (key === undefined || counterStart === undefined || lastOffset === undefined) {
@@ -535,9 +544,12 @@ export class IcdClient extends Behavior {
             // A transient failure leaves the old key intact (the new key persists only after registerClient resolves)
             // and the next Check-In retries; an ImplementationError can desync controller and peer keys, so surface it.
             if (error instanceof ImplementationError) {
-                logger.error("ICD key refresh failed unexpectedly; controller and peer keys may be out of sync", error);
+                logger.error(
+                    `ICD key refresh for peer ${this.#peerAddress} failed unexpectedly; controller and peer keys may be out of sync`,
+                    error,
+                );
             } else {
-                logger.warn("ICD key refresh failed; will retry on next check-in", error);
+                logger.warn(`ICD key refresh for peer ${this.#peerAddress} failed; will retry on next check-in`, error);
             }
         } finally {
             this.internal.keyRefresh = undefined;

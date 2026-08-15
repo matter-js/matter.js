@@ -146,7 +146,7 @@ describe("IpService", () => {
         await expectAdd("fd00::1");
 
         // Should expire all addresses
-        await server.broadcast(1, 0);
+        await MockTime.resolve(server.broadcast(1, 0), { macrotasks: true });
         await expectDelete("fd00::1");
         await expectDelete("abcd::91");
         await expectDelete("10.10.10.145");

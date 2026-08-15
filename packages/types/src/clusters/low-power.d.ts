@@ -79,12 +79,12 @@ export declare namespace LowPower {
     export const commands: ClusterType.CommandObjects<Commands>;
 
     /**
-     * @deprecated Use {@link LowPower}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link LowPower}.
      */
     export const Cluster: typeof LowPower;
 
     /**
-     * @deprecated Use {@link LowPower}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link LowPower}.
      */
     export const Complete: typeof LowPower;
 
@@ -92,7 +92,7 @@ export declare namespace LowPower {
 }
 
 /**
- * @deprecated Use {@link LowPower}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link LowPower}.
  */
 export declare const LowPowerCluster: typeof LowPower;
 

@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { ProtocolStatusMessage, ProtocolStatusMessageSchema } from "#protocol/index.js";
 import { Bytes } from "@matter/general";
 import { BDX_PROTOCOL_ID, BdxStatusCode, GeneralStatusCode, VendorId } from "@matter/types";

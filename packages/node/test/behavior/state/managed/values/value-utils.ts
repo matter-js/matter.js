@@ -7,6 +7,7 @@
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
+import { Internal } from "#behavior/state/managed/Internal.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import type { Node } from "#node/Node.js";
@@ -68,7 +69,11 @@ class TestState {}
 /**
  * Utility for creating a managed struct via a datasource.
  */
-export function TestStruct(fields: Record<string, string | Partial<FieldElement>>, defaults: Val.Struct = {}) {
+export function TestStruct(
+    fields: Record<string, string | Partial<FieldElement>>,
+    defaults: Val.Struct = {},
+    primaryKey?: "name" | "id",
+) {
     const supervisor = RootSupervisor.for(new FieldModel(structOf(fields)));
 
     const notifies: { index: string | undefined; oldValue: Val; newValue: Val }[] = [];
@@ -93,6 +98,7 @@ export function TestStruct(fields: Record<string, string | Partial<FieldElement>
         supervisor,
         defaults,
         events,
+        primaryKey,
     });
 
     return {
@@ -124,6 +130,13 @@ export function TestStruct(fields: Record<string, string | Partial<FieldElement>
 }
 
 export type TestStruct = Identity<ReturnType<typeof TestStruct>>;
+
+/**
+ * Bypass the managed proxy to inspect the container's raw stored slots.
+ */
+export function rawValuesOf(value: object) {
+    return (value as Internal.Collection)[Internal.reference].value as Val.Struct;
+}
 
 export function aclEndpoint() {
     return {

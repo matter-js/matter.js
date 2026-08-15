@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type Chai from "chai";
-import "chai-as-promised";
+import type * as Chai from "chai" with { "resolution-mode": "import" };
+import type {} from "chai-as-promised" with { "resolution-mode": "import" };
 import type { DiffMarker } from "./chai.js";
 import type { BootKind } from "./mocks/boot.js";
 import type { DiagnosticMessageLike, MockLogger } from "./mocks/logging.js";

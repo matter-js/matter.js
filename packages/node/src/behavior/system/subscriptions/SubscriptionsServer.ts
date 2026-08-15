@@ -7,16 +7,27 @@
 import { InteractionServer, PeerSubscription } from "#node/server/InteractionServer.js";
 import { ServerSubscription } from "#node/server/ServerSubscription.js";
 import {
+    causedBy,
     ChannelType,
     deepCopy,
     Logger,
     MatterAggregateError,
     MatterError,
     MaybePromise,
+    NetworkError,
+    NoResponseTimeoutError,
     Seconds,
 } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
-import { GroupSession, PeerAddress, PeerAddressMap, PeerAddressSet, PeerSet, Subscription } from "@matter/protocol";
+import {
+    GroupSession,
+    PeerAddress,
+    PeerAddressMap,
+    PeerAddressSet,
+    PeerSet,
+    Subscription,
+    TransientPeerCommunicationError,
+} from "@matter/protocol";
 import { Status, StatusResponseError } from "@matter/types";
 import { Behavior } from "../../Behavior.js";
 import { SessionsBehavior } from "../sessions/SessionsBehavior.js";
@@ -162,7 +173,7 @@ export class SubscriptionsServer extends Behavior {
     }
 
     #subscriptionCancelled(subscription: Subscription): MaybePromise {
-        if (subscription.isCanceledByPeer && this.state.persistenceEnabled !== false) {
+        if (subscription.isTerminated && this.state.persistenceEnabled !== false) {
             const { subscriptionId: id } = subscription;
             const subscriptionIndex = this.state.subscriptions.findIndex(({ subscriptionId }) => id === subscriptionId);
             if (subscriptionIndex !== -1) {
@@ -273,7 +284,16 @@ export class SubscriptionsServer extends Behavior {
                                         : sre.message
                                     : error,
                             );
+                            if (
+                                causedBy(error, TransientPeerCommunicationError, NoResponseTimeoutError, NetworkError)
+                            ) {
+                                // Report sends do not declare peer loss, so nothing else stops this loop from
+                                // spending a full MRP window on each of the peer's remaining subscriptions
+                                break;
+                            }
                             if (isInvalidSubscription) {
+                                // The peer dropped its state for us; too unlikely another of its subscriptions
+                                // survived to spend an initial report finding out
                                 break;
                             }
                             continue;

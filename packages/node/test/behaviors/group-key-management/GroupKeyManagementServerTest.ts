@@ -15,6 +15,12 @@ describe("GroupKeyManagementServer", () => {
         MockTime.init();
     });
 
+    it("does not implement the provisional GroupcastAdoption attribute by default", () => {
+        const state = new (GroupKeyManagementServer.with("Groupcast").State)();
+
+        expect(state.groupcastAdoption).undefined;
+    });
+
     it("prevents too many group keys", async () => {
         await using site = new MockSite();
         // Device is automatically configured with vendorId 0xfff1 and productId 0x8000

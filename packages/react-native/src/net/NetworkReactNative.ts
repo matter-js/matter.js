@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import dgram from "react-native-udp";
 
 // @ts-expect-error globalThis is no index structure

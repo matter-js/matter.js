@@ -180,12 +180,12 @@ export declare namespace IlluminanceMeasurement {
     export const attributes: ClusterType.AttributeObjects<Attributes>;
 
     /**
-     * @deprecated Use {@link IlluminanceMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link IlluminanceMeasurement}.
      */
     export const Cluster: typeof IlluminanceMeasurement;
 
     /**
-     * @deprecated Use {@link IlluminanceMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link IlluminanceMeasurement}.
      */
     export const Complete: typeof IlluminanceMeasurement;
 
@@ -193,7 +193,7 @@ export declare namespace IlluminanceMeasurement {
 }
 
 /**
- * @deprecated Use {@link IlluminanceMeasurement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link IlluminanceMeasurement}.
  */
 export declare const IlluminanceMeasurementCluster: typeof IlluminanceMeasurement;
 

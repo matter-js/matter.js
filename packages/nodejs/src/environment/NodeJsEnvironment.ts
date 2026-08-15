@@ -253,6 +253,8 @@ function configureStorage(env: Environment) {
                 service.configuredBlobDriver = blobDriver;
             }
 
+            service.clearOnFirstOpen = env.vars.boolean("storage.clear") ?? false;
+
             return;
         }
         // Extends default Storage

@@ -3,8 +3,11 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import type { Directory } from "../fs/Directory.js";
 import { ImplementationError, MatterError } from "../MatterError.js";
+import type { Duration } from "../time/Duration.js";
+import { Minutes } from "../time/TimeUnit.js";
 import { MaybePromise } from "../util/Promises.js";
 import { BaseStorageDriver, type StorageType } from "./BaseStorageDriver.js";
 import { DatafileRoot } from "./DatafileRoot.js";
@@ -22,6 +25,16 @@ export class StorageLockError extends StorageError {}
  */
 export abstract class StorageDriver extends BaseStorageDriver {
     override readonly type = "kv" as const;
+
+    /**
+     * The interval for which a consumer may buffer dirty values before writing them.
+     *
+     * Drivers that coalesce writes themselves, or where a write is cheap, report `Instant` so consumers write
+     * immediately.
+     */
+    get writeCoalescingInterval(): Duration {
+        return Minutes(20);
+    }
 
     abstract get(contexts: string[], key: string): MaybePromise<SupportedStorageTypes | undefined>;
     abstract set(contexts: string[], values: Record<string, SupportedStorageTypes>): MaybePromise<void>;
@@ -156,6 +169,10 @@ export namespace StorageDriver {
 
         override get initialized() {
             return this.storage.initialized;
+        }
+
+        override get writeCoalescingInterval() {
+            return this.storage.writeCoalescingInterval;
         }
 
         override initialize(): MaybePromise<void> {

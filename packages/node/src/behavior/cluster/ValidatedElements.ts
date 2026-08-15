@@ -5,7 +5,7 @@
  */
 
 import { Diagnostic, ImplementationError, Logger, MatterAggregateError, Observable } from "@matter/general";
-import { ClusterModel, Conformance, Schema } from "@matter/model";
+import { ClusterModel, Conformance, FeatureSelectionErrors, Schema } from "@matter/model";
 import type { ClusterType } from "@matter/types";
 import { Behavior } from "../Behavior.js";
 import { introspectionInstanceOf } from "./cluster-behavior-utils.js";
@@ -14,6 +14,11 @@ import { resolveInterElementConformance } from "./inter-element-conformance.js";
 import { NameDependentElements } from "./NameDependentElements.js";
 
 const logger = Logger.get("ValidatedElements");
+
+/**
+ * Schema whose feature selection we have already assessed.
+ */
+const validatedFeatureSelections = new WeakSet<ClusterModel>();
 
 /**
  * Thrown when a {@link ClusterBehavior} cannot be constructed due to fatal errors.
@@ -121,6 +126,7 @@ export class ValidatedElements {
             this.error("instance", "Is not an object", true);
         }
 
+        this.#validateFeatures();
         this.#validateAttributes();
         this.#validateCommands();
         this.#validateEvents();
@@ -156,6 +162,25 @@ export class ValidatedElements {
         if (fatalErrors) {
             throw new ClusterImplementationError(this.#type.name, fatalErrors);
         }
+    }
+
+    /**
+     * Feature selection is a property of the schema, so assess each schema once however many behaviors share it.
+     */
+    #validateFeatures() {
+        if (validatedFeatureSelections.has(this.#schema)) {
+            return;
+        }
+
+        const errors = FeatureSelectionErrors(this.#schema);
+        if (errors.length) {
+            for (const error of errors) {
+                this.error("features", error, true);
+            }
+            return;
+        }
+
+        validatedFeatureSelections.add(this.#schema);
     }
 
     #validateAttributes() {

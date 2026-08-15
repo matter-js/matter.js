@@ -49,6 +49,7 @@ export class ClientEndpointStore extends EndpointStore {
         const initialValues = this.consumeInitialValues(behaviorId);
         const cache = new DatasourceCache({
             writer: this.#owner.write,
+            nodeId: this.#owner.id,
             endpointNumber: this.#number,
             behaviorId,
             initialValues,

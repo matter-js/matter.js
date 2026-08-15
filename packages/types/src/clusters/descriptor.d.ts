@@ -295,12 +295,12 @@ export declare namespace Descriptor {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link Descriptor}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Descriptor}.
      */
     export const Cluster: ClusterType.WithCompat<typeof Descriptor, Descriptor>;
 
     /**
-     * @deprecated Use {@link Descriptor}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Descriptor}.
      */
     export const Complete: typeof Descriptor;
 
@@ -308,7 +308,7 @@ export declare namespace Descriptor {
 }
 
 /**
- * @deprecated Use {@link Descriptor}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link Descriptor}.
  */
 export declare const DescriptorCluster: typeof Descriptor;
 

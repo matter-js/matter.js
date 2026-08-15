@@ -569,12 +569,12 @@ export declare namespace WiFiNetworkDiagnostics {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link WiFiNetworkDiagnostics}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link WiFiNetworkDiagnostics}.
      */
     export const Cluster: ClusterType.WithCompat<typeof WiFiNetworkDiagnostics, WiFiNetworkDiagnostics>;
 
     /**
-     * @deprecated Use {@link WiFiNetworkDiagnostics}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link WiFiNetworkDiagnostics}.
      */
     export const Complete: typeof WiFiNetworkDiagnostics;
 
@@ -582,7 +582,7 @@ export declare namespace WiFiNetworkDiagnostics {
 }
 
 /**
- * @deprecated Use {@link WiFiNetworkDiagnostics}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link WiFiNetworkDiagnostics}.
  */
 export declare const WiFiNetworkDiagnosticsCluster: typeof WiFiNetworkDiagnostics;
 

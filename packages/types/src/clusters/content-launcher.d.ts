@@ -844,12 +844,12 @@ export declare namespace ContentLauncher {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link ContentLauncher}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ContentLauncher}.
      */
     export const Cluster: ClusterType.WithCompat<typeof ContentLauncher, ContentLauncher>;
 
     /**
-     * @deprecated Use {@link ContentLauncher}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ContentLauncher}.
      */
     export const Complete: typeof ContentLauncher;
 
@@ -857,7 +857,7 @@ export declare namespace ContentLauncher {
 }
 
 /**
- * @deprecated Use {@link ContentLauncher}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link ContentLauncher}.
  */
 export declare const ContentLauncherCluster: typeof ContentLauncher;
 

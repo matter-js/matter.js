@@ -30,8 +30,10 @@ export class AtomicWriteState {
     readonly pendingAttributeValues: Val.Struct = {};
     readonly timeout: number;
     readonly initialValues: Val.Struct;
+    /** Emitted exactly once when the state is closed. */
     readonly closed = Observable<[void]>();
     #timer: Timer;
+    #isClosed = false;
 
     constructor(
         peerAddress: PeerAddress,
@@ -80,6 +82,10 @@ export class AtomicWriteState {
     }
 
     close() {
+        if (this.#isClosed) {
+            return;
+        }
+        this.#isClosed = true;
         logger.debug(
             `Closing atomic write state for peer ${this.peerAddress.toString()} on endpoint ${this.endpoint.id}`,
         );

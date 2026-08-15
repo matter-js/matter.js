@@ -147,12 +147,12 @@ export declare namespace UnitLocalization {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link UnitLocalization}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link UnitLocalization}.
      */
     export const Cluster: ClusterType.WithCompat<typeof UnitLocalization, UnitLocalization>;
 
     /**
-     * @deprecated Use {@link UnitLocalization}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link UnitLocalization}.
      */
     export const Complete: typeof UnitLocalization;
 
@@ -160,7 +160,7 @@ export declare namespace UnitLocalization {
 }
 
 /**
- * @deprecated Use {@link UnitLocalization}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link UnitLocalization}.
  */
 export declare const UnitLocalizationCluster: typeof UnitLocalization;
 

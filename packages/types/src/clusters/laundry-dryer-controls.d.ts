@@ -136,12 +136,12 @@ export declare namespace LaundryDryerControls {
     export const attributes: ClusterType.AttributeObjects<Attributes>;
 
     /**
-     * @deprecated Use {@link LaundryDryerControls}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link LaundryDryerControls}.
      */
     export const Cluster: typeof LaundryDryerControls;
 
     /**
-     * @deprecated Use {@link LaundryDryerControls}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link LaundryDryerControls}.
      */
     export const Complete: typeof LaundryDryerControls;
 
@@ -149,7 +149,7 @@ export declare namespace LaundryDryerControls {
 }
 
 /**
- * @deprecated Use {@link LaundryDryerControls}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link LaundryDryerControls}.
  */
 export declare const LaundryDryerControlsCluster: typeof LaundryDryerControls;
 

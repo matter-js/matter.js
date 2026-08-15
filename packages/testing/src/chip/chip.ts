@@ -129,7 +129,7 @@ function createBuilder(initial: {
 }): chip.Builder {
     const implementations = new Map<TestDescriptor, Mocha.Test>();
     let subject: undefined | Subject.Factory;
-    let startCommissioned = true;
+    let startCommissioned: undefined | boolean;
     let only = false;
     const beforeStartHooks = Array<chip.BeforeHook>();
     const beforeTestHooks = Array<chip.BeforeHook>();
@@ -152,7 +152,7 @@ function createBuilder(initial: {
 
             const tests = TestDescriptor.filter(chip.tests.descriptor, {
                 includePaths: [...includePaths],
-                kinds: ["py", "yaml"],
+                kinds: ["py", "yaml", "cert"],
                 pics: subject?.pics ?? chip.defaultPics,
             });
 
@@ -216,6 +216,11 @@ function createBuilder(initial: {
 
         uncommissioned() {
             startCommissioned = false;
+            return this;
+        },
+
+        commissioned() {
+            startCommissioned = true;
             return this;
         },
 
@@ -327,7 +332,7 @@ function createBuilder(initial: {
 
             await State.activateSubject(
                 factory,
-                startCommissioned,
+                startCommissioned ?? !descriptor.startUncommissioned,
                 test,
                 (subject, test) => runBeforeHooks(beforeStartHooks, subject, test),
                 appArgs,
@@ -489,6 +494,11 @@ export namespace chip {
          * Start subject as new-from-factory rather than commissioned.
          */
         uncommissioned(): Builder;
+
+        /**
+         * Start subject commissioned even if the test descriptor asks for new-from-factory.
+         */
+        commissioned(): Builder;
 
         /**
          * Run following tests defined by this builder only.

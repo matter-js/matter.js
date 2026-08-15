@@ -10,7 +10,7 @@
  * These provide a backward-compatible API for consumers that define clusters using the deprecated
  * {@link ClusterType}() factory rather than generated cluster namespaces or the decorator system.
  *
- * @deprecated use generated cluster namespaces or the decorator system instead.
+ * @deprecated Scheduled for removal in 0.19; use generated cluster namespaces or the decorator system instead.
  */
 
 import { Priority } from "#globals/Priority.js";
@@ -24,7 +24,7 @@ import { TlvSchema } from "../tlv/TlvSchema.js";
 /* Attribute interfaces */
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export interface Attribute<T, _F extends BitSchema> {
     id: AttributeId;
@@ -44,63 +44,63 @@ export interface Attribute<T, _F extends BitSchema> {
 }
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export interface OptionalAttribute<T, F extends BitSchema> extends Attribute<T, F> {
     optional: true;
 }
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export interface WritableAttribute<T, F extends BitSchema> extends Attribute<T, F> {
     writable: true;
 }
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export interface OptionalWritableAttribute<T, F extends BitSchema> extends OptionalAttribute<T, F> {
     writable: true;
 }
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export interface FabricScopedAttribute<T, F extends BitSchema> extends Attribute<T, F> {
     fabricScoped: true;
 }
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export interface WritableFabricScopedAttribute<T, F extends BitSchema> extends WritableAttribute<T, F> {
     fabricScoped: true;
 }
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export interface OptionalWritableFabricScopedAttribute<T, F extends BitSchema> extends OptionalWritableAttribute<T, F> {
     fabricScoped: true;
 }
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export interface FixedAttribute<T, F extends BitSchema> extends Attribute<T, F> {
     fixed: true;
 }
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export interface WritableFixedAttribute<T, F extends BitSchema> extends WritableAttribute<T, F> {
     fixed: true;
 }
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export interface OptionalFixedAttribute<T, F extends BitSchema> extends OptionalAttribute<T, F> {
     fixed: true;
@@ -119,7 +119,7 @@ interface AttributeOptions<T> {
 }
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export const Attribute = <T, V extends T, F extends BitSchema>(
     id: number,
@@ -149,7 +149,7 @@ export const Attribute = <T, V extends T, F extends BitSchema>(
 });
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export const OptionalAttribute = <T, V extends T, F extends BitSchema>(
     id: number,
@@ -179,7 +179,7 @@ export const OptionalAttribute = <T, V extends T, F extends BitSchema>(
 });
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export const WritableAttribute = <T, V extends T, F extends BitSchema>(
     id: number,
@@ -211,7 +211,7 @@ export const WritableAttribute = <T, V extends T, F extends BitSchema>(
 });
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export const OptionalWritableAttribute = <T, V extends T, F extends BitSchema>(
     id: number,
@@ -243,7 +243,7 @@ export const OptionalWritableAttribute = <T, V extends T, F extends BitSchema>(
 });
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export const FabricScopedAttribute = <T, V extends T, F extends BitSchema>(
     id: number,
@@ -273,7 +273,7 @@ export const FabricScopedAttribute = <T, V extends T, F extends BitSchema>(
 });
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export const WritableFabricScopedAttribute = <T, V extends T, F extends BitSchema>(
     id: number,
@@ -305,7 +305,7 @@ export const WritableFabricScopedAttribute = <T, V extends T, F extends BitSchem
 });
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export const OptionalWritableFabricScopedAttribute = <T, V extends T, F extends BitSchema>(
     id: number,
@@ -337,7 +337,7 @@ export const OptionalWritableFabricScopedAttribute = <T, V extends T, F extends 
 });
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export const FixedAttribute = <T, V extends T, F extends BitSchema>(
     id: number,
@@ -367,7 +367,7 @@ export const FixedAttribute = <T, V extends T, F extends BitSchema>(
 });
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export const WritableFixedAttribute = <T, V extends T, F extends BitSchema>(
     id: number,
@@ -397,7 +397,7 @@ export const WritableFixedAttribute = <T, V extends T, F extends BitSchema>(
 });
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export const OptionalFixedAttribute = <T, V extends T, F extends BitSchema>(
     id: number,
@@ -429,7 +429,7 @@ export const OptionalFixedAttribute = <T, V extends T, F extends BitSchema>(
 /* Command interfaces */
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export interface Command<RequestT, ResponseT, _F extends BitSchema> {
     optional: boolean;
@@ -442,7 +442,7 @@ export interface Command<RequestT, ResponseT, _F extends BitSchema> {
 }
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export interface OptionalCommand<RequestT, ResponseT, F extends BitSchema> extends Command<RequestT, ResponseT, F> {
     optional: true;
@@ -456,7 +456,7 @@ interface CommandOptions {
 }
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export const Command = <RequestT, ResponseT, F extends BitSchema>(
     requestId: number,
@@ -475,7 +475,7 @@ export const Command = <RequestT, ResponseT, F extends BitSchema>(
 });
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export const OptionalCommand = <RequestT, ResponseT, F extends BitSchema>(
     requestId: number,
@@ -496,7 +496,7 @@ export const OptionalCommand = <RequestT, ResponseT, F extends BitSchema>(
 /* Event interfaces */
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export interface Event<T, _F extends BitSchema> {
     id: EventId;
@@ -508,7 +508,7 @@ export interface Event<T, _F extends BitSchema> {
 }
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export interface OptionalEvent<T, F extends BitSchema> extends Event<T, F> {
     optional: true;
@@ -521,7 +521,7 @@ interface EventOptions {
 }
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export const Event = <T, F extends BitSchema>(
     id: number,
@@ -538,7 +538,7 @@ export const Event = <T, F extends BitSchema>(
 });
 
 /**
- * @deprecated
+ * @deprecated Scheduled for removal in 0.19.
  */
 export const OptionalEvent = <T, F extends BitSchema>(
     id: number,

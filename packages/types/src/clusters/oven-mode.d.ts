@@ -380,12 +380,12 @@ export declare namespace OvenMode {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link OvenMode}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link OvenMode}.
      */
     export const Cluster: ClusterType.WithCompat<typeof OvenMode, OvenMode>;
 
     /**
-     * @deprecated Use {@link OvenMode}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link OvenMode}.
      */
     export const Complete: typeof OvenMode;
 
@@ -393,7 +393,7 @@ export declare namespace OvenMode {
 }
 
 /**
- * @deprecated Use {@link OvenMode}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link OvenMode}.
  */
 export declare const OvenModeCluster: typeof OvenMode;
 

@@ -1111,12 +1111,12 @@ export declare namespace OperationalCredentials {
     export const commands: ClusterType.CommandObjects<Commands>;
 
     /**
-     * @deprecated Use {@link OperationalCredentials}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link OperationalCredentials}.
      */
     export const Cluster: typeof OperationalCredentials;
 
     /**
-     * @deprecated Use {@link OperationalCredentials}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link OperationalCredentials}.
      */
     export const Complete: typeof OperationalCredentials;
 
@@ -1124,7 +1124,7 @@ export declare namespace OperationalCredentials {
 }
 
 /**
- * @deprecated Use {@link OperationalCredentials}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link OperationalCredentials}.
  */
 export declare const OperationalCredentialsCluster: typeof OperationalCredentials;
 

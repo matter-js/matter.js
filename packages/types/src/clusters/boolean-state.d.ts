@@ -167,12 +167,12 @@ export declare namespace BooleanState {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link BooleanState}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link BooleanState}.
      */
     export const Cluster: ClusterType.WithCompat<typeof BooleanState, BooleanState>;
 
     /**
-     * @deprecated Use {@link BooleanState}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link BooleanState}.
      */
     export const Complete: typeof BooleanState;
 
@@ -180,7 +180,7 @@ export declare namespace BooleanState {
 }
 
 /**
- * @deprecated Use {@link BooleanState}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link BooleanState}.
  */
 export declare const BooleanStateCluster: typeof BooleanState;
 

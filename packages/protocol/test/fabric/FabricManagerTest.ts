@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { FabricManager, FabricTableFullError } from "#fabric/FabricManager.js";
 import { TestFabric } from "#fabric/TestFabric.js";
 import { MatterFlowError, MemoryStorageDriver, StandardCrypto, StorageManager } from "@matter/general";

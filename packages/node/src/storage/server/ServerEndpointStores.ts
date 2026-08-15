@@ -5,8 +5,8 @@
  */
 
 import type { Endpoint } from "#endpoint/Endpoint.js";
-import { type ServerNode } from "#node/ServerNode.js";
 import { IdentityConflictError } from "#node/server/IdentityService.js";
+import { type ServerNode } from "#node/ServerNode.js";
 import type { StorageContext } from "@matter/general";
 import { ImplementationError, InternalError, Logger } from "@matter/general";
 import { ServerEndpointStore } from "./ServerEndpointStore.js";

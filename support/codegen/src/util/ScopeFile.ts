@@ -6,8 +6,8 @@
 
 import { decamelize, InternalError } from "#general";
 import { ClusterModel, DatatypeModel, GeneratorScope, Model } from "#model";
-import { TsFile } from "./TsFile.js";
 import { camelize } from "./string.js";
+import { TsFile } from "./TsFile.js";
 
 /**
  * A TS file that understands {@link GeneratorScope} semantics.

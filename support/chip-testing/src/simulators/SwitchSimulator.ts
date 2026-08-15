@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Logger, Millis, Time, Timer } from "@matter/general";
+import { Duration, InternalError, Logger, Millis, Time, Timer } from "@matter/general";
 import { Endpoint } from "@matter/main";
 import { SwitchServer } from "@matter/main/behaviors/switch";
 import { BackchannelCommand } from "@matter/testing";
@@ -24,7 +24,7 @@ export class SwitchSimulator {
 
     executeActions(actions: { position: number; delay?: Duration }[]) {
         if (this.#switchActions.length !== 0 || this.#executionDelayTimer !== undefined) {
-            throw new Error("Still unprocessed actions existing ... Invalid state!");
+            throw new InternalError("Still unprocessed actions existing ... Invalid state!");
         }
         logger.debug("Switch action step", actions, ". Existing actions:", this.#switchActions);
         this.#switchActions = actions;

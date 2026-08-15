@@ -9,6 +9,11 @@ inputs:
     description: 'Container source (artifact or repository)'
     required: true
 
+  artifact-name:
+    description: 'Name of the uploaded chip image artifact, when image-source is "artifact"'
+    required: false
+    default: 'chip-image'
+
   test-group:
     description: 'Name of the test group to run'
     required: true
@@ -43,6 +48,8 @@ runs:
     - name: Load image from artifact
       if: inputs.image-source == 'artifact'
       uses: ./.github/actions/load-chip
+      with:
+        artifact-name: ${{ inputs.artifact-name }}
 
     - name: Run tests
       shell: bash

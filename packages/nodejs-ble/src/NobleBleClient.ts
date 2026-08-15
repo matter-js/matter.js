@@ -13,18 +13,32 @@ import { BleOptions } from "./NodeJsBle.js";
 
 const logger = Logger.get("NobleBleClient");
 let noble: Noble;
+let hciStatusMessage: (reason: number) => string;
 
 function loadNoble(hciId?: number) {
     // load noble driver with the correct device selected
     if (hciId !== undefined) {
         process.env.NOBLE_HCI_DEVICE_ID = hciId.toString();
     }
-    noble = require("@stoprocent/noble");
+    const nobleExports = require("@stoprocent/noble");
+    hciStatusMessage = nobleExports.hciStatusMessage;
+    noble = nobleExports;
     if (typeof noble.on !== "function") {
         // The following commit broke the default exported instance of noble:
         // https://github.com/abandonware/noble/commit/b67eea246f719947fc45b1b52b856e61637a8a8e
-        noble = (noble as any)({ extended: false });
+        noble = nobleExports({ extended: false });
     }
+}
+
+/**
+ * Render a noble disconnect reason. Linux HCI bindings report a numeric controller status, other bindings a
+ * descriptive string.
+ */
+export function nobleDisconnectReason(reason: unknown) {
+    if (typeof reason === "number") {
+        return `0x${reason.toString(16).padStart(2, "0")} (${hciStatusMessage(reason)})`;
+    }
+    return reason === undefined ? "unknown" : String(reason);
 }
 
 export class NobleBleClient {

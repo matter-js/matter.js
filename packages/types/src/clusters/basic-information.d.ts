@@ -1017,12 +1017,12 @@ export declare namespace BasicInformation {
     export const events: ClusterType.EventObjects<Events>;
 
     /**
-     * @deprecated Use {@link BasicInformation}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link BasicInformation}.
      */
     export const Cluster: typeof BasicInformation;
 
     /**
-     * @deprecated Use {@link BasicInformation}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link BasicInformation}.
      */
     export const Complete: typeof BasicInformation;
 
@@ -1030,7 +1030,7 @@ export declare namespace BasicInformation {
 }
 
 /**
- * @deprecated Use {@link BasicInformation}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link BasicInformation}.
  */
 export declare const BasicInformationCluster: typeof BasicInformation;
 

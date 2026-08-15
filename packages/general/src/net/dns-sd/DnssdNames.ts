@@ -185,18 +185,20 @@ export class DnssdNames {
          */
         const handleRecord = (record: DnsRecord) => {
             filtered.delete(record);
-            packetRelevant = true;
             const name = this.get(record.name);
             if (record.ttl) {
                 if (record.ttl < this.#minTtl) {
                     record = { ...record, ttl: this.#minTtl };
                 }
                 const wasDiscovered = name.isDiscovered;
-                name.installRecord(record, { sourceIntf });
+                if (name.installRecord(record, { sourceIntf })) {
+                    packetRelevant = true;
+                }
                 if (!wasDiscovered && name.isDiscovered) {
                     newlyDiscovered.push(name);
                 }
             } else {
+                packetRelevant = true;
                 if (goodbyesBefore === undefined) {
                     goodbyesBefore = Timestamp(Time.nowMs - this.#goodbyeProtectionWindow);
                 }

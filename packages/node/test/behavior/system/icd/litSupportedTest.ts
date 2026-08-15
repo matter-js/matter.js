@@ -17,6 +17,7 @@ const { litSupported, MIN_LIT_SPECIFICATION_VERSION } = IcdClient;
 const LitIcdServer = IcdManagementServer.with(
     IcdManagement.Feature.CheckInProtocolSupport,
     IcdManagement.Feature.LongIdleTimeSupport,
+    IcdManagement.Feature.UserActiveModeTrigger,
 );
 const RootWithLitIcd = ServerNode.RootEndpoint.with(LitIcdServer);
 

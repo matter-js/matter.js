@@ -1263,12 +1263,12 @@ export declare namespace MediaPlayback {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link MediaPlayback}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link MediaPlayback}.
      */
     export const Cluster: ClusterType.WithCompat<typeof MediaPlayback, MediaPlayback>;
 
     /**
-     * @deprecated Use {@link MediaPlayback}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link MediaPlayback}.
      */
     export const Complete: typeof MediaPlayback;
 
@@ -1276,7 +1276,7 @@ export declare namespace MediaPlayback {
 }
 
 /**
- * @deprecated Use {@link MediaPlayback}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link MediaPlayback}.
  */
 export declare const MediaPlaybackCluster: typeof MediaPlayback;
 

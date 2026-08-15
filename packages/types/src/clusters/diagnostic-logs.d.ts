@@ -299,12 +299,12 @@ export declare namespace DiagnosticLogs {
     export const commands: ClusterType.CommandObjects<Commands>;
 
     /**
-     * @deprecated Use {@link DiagnosticLogs}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link DiagnosticLogs}.
      */
     export const Cluster: typeof DiagnosticLogs;
 
     /**
-     * @deprecated Use {@link DiagnosticLogs}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link DiagnosticLogs}.
      */
     export const Complete: typeof DiagnosticLogs;
 
@@ -312,7 +312,7 @@ export declare namespace DiagnosticLogs {
 }
 
 /**
- * @deprecated Use {@link DiagnosticLogs}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link DiagnosticLogs}.
  */
 export declare const DiagnosticLogsCluster: typeof DiagnosticLogs;
 

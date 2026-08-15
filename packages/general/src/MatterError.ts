@@ -5,8 +5,8 @@
  */
 
 import { NodeJsStyleInspectable } from "#log/NodeJsStyleInspectable.js";
-import type { MaybePromise } from "#util/Promises.js";
 import { decamelize } from "#util/identifier-case.js";
+import type { MaybePromise } from "#util/Promises.js";
 import { asError, errorOf } from "./util/Error.js";
 
 const codes = new WeakMap<{}, string>();
@@ -256,6 +256,29 @@ export class MatterAggregateError extends AggregateError {
             throw new this(errors, message);
         }
         return (results as PromiseFulfilledResult<T>[]).map(result => result.value);
+    }
+
+    /**
+     * Run tasks in order, continuing past a task that throws, and throw the accumulated errors as
+     * MatterAggregateError (or extended class) once every task has run.
+     *
+     * Use where ordering matters and each step must run regardless of its predecessors, such as teardown that must
+     * not leave state behind when one area fails.
+     */
+    static async settleSeries(tasks: Iterable<() => MaybePromise<unknown>>, message = "Errors happened") {
+        const errors = new Array<unknown>();
+
+        for (const task of tasks) {
+            try {
+                await task();
+            } catch (error) {
+                errors.push(error);
+            }
+        }
+
+        if (errors.length) {
+            throw new this(errors, message);
+        }
     }
 
     format = MatterError.prototype.format;

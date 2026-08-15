@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { ActivatedCarbonFilterMonitoringServer } from "@matter/main/behaviors/activated-carbon-filter-monitoring";
 import { ResourceMonitoring } from "@matter/main/clusters/resource-monitoring";
 

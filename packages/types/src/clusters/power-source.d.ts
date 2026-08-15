@@ -1739,12 +1739,12 @@ export declare namespace PowerSource {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link PowerSource}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link PowerSource}.
      */
     export const Cluster: ClusterType.WithCompat<typeof PowerSource, PowerSource>;
 
     /**
-     * @deprecated Use {@link PowerSource}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link PowerSource}.
      */
     export const Complete: typeof PowerSource;
 
@@ -1752,7 +1752,7 @@ export declare namespace PowerSource {
 }
 
 /**
- * @deprecated Use {@link PowerSource}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link PowerSource}.
  */
 export declare const PowerSourceCluster: typeof PowerSource;
 

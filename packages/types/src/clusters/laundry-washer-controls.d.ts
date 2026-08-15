@@ -215,12 +215,12 @@ export declare namespace LaundryWasherControls {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link LaundryWasherControls}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link LaundryWasherControls}.
      */
     export const Cluster: ClusterType.WithCompat<typeof LaundryWasherControls, LaundryWasherControls>;
 
     /**
-     * @deprecated Use {@link LaundryWasherControls}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link LaundryWasherControls}.
      */
     export const Complete: typeof LaundryWasherControls;
 
@@ -228,7 +228,7 @@ export declare namespace LaundryWasherControls {
 }
 
 /**
- * @deprecated Use {@link LaundryWasherControls}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link LaundryWasherControls}.
  */
 export declare const LaundryWasherControlsCluster: typeof LaundryWasherControls;
 

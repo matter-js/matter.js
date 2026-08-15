@@ -62,7 +62,7 @@ RUN --mount=type=cache,sharing=locked,target=/var/cache/apt \
     #   libcairo2-dev - also pygobject dep
     #
     apt-get -qq -y install --no-install-recommends \
-        git clang pkg-config libssl-dev libdbus-1-dev libavahi-client-dev clang pkg-config \
+        git curl clang pkg-config libssl-dev libdbus-1-dev libavahi-client-dev clang pkg-config \
         ninja-build python3-venv python3-dev unzip libreadline-dev python3-pip \
         g++ libglib2.0-dev libglib2.0-dev-bin libpcsclite-dev libevent-dev
 EOF
@@ -118,6 +118,16 @@ FROM source AS bins
 # Build chip-tool
 RUN build-one chip-tool
 
+# Build the all-clusters app twice: once plain, once with CHIP's nlfaultinjection GN arg so
+# TC-SC-3.5 and other CASE fault-injection cert tests can drive its FaultInjection cluster as
+# TH_SERVER. Binary name follows CHIP's own build_examples.py convention (host.py's ALL_CLUSTERS +
+# use_nl_fault_injection rename step) so th_server_app_path expectations line up.
+RUN build-one all-clusters-app/linux chip-all-clusters-app
+RUN build-one all-clusters-app/linux chip-all-clusters-app chip-all-clusters-app-nlfaultinject chip_with_nlfaultinjection=true
+
+# TC-ACT-3.2's TH app for the cert tests' chip-local flavor, which spawns from this image's /bin
+RUN build-one bridge-app/linux chip-bridge-app
+
 # Install Python stuff
 COPY support/install-chip-python /bin
 RUN install-chip-python
@@ -168,6 +178,9 @@ WORKDIR /
 # Some scripts expect pigweed root
 ENV PW_PROJECT_ROOT=/
 
+# chiptest derives CHIP_ROOT by walking parents of its own file for this marker (upstream #72527)
+COPY --from=source /connectedhomeip/SPECIFICATION_VERSION /SPECIFICATION_VERSION
+
 # YAML tests of course use a different data model
 COPY --from=source /connectedhomeip/src/app/zap-templates/zcl/data-model/chip \
     /src/app/zap-templates/zcl/data-model/chip
@@ -200,32 +213,3 @@ COPY --from=source /etc/chip-version /etc
 
 # Configure avahi
 RUN echo allow-interfaces
-
-
-################################################################################
-#
-# STAGE 6 - build example app
-#
-
-FROM install AS app-bins
-
-ARG APP_TARGET
-
-# Build binaries
-RUN build-one "$APP_TARGET"
-
-
-################################################################################
-#
-# STAGE 7 - augment base container with app
-#
-
-FROM chip AS chip-app
-
-ARG APP_BIN
-
-COPY --from=app-bins "/dist/bin/$APP_BIN" /bin
-
-ENV APP_BIN="$APP_BIN"
-
-ENTRYPOINT "/bin/$APP_BIN"

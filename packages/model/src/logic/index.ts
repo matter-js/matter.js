@@ -16,5 +16,6 @@ export * from "./ModelDiff.js";
 export * from "./ModelIndex.js";
 export * from "./ModelVariantTraversal.js";
 export * from "./Scope.js";
+export * from "./SelectDefaultValue.js";
 export * from "./ValidateModel.js";
 import "./definition-validation/index.js";

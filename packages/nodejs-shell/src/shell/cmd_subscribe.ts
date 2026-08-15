@@ -4,9 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic } from "@matter/general";
+import { ImplementationError, ObserverGroup } from "@matter/general";
+import { NetworkClient } from "@matter/node";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
+
+const watchers = new Map<string, ObserverGroup>();
 
 export default function commands(theNode: MatterNode) {
     return {
@@ -23,21 +26,41 @@ export default function commands(theNode: MatterNode) {
         handler: async (argv: any) => {
             const { nodeId: subscribeNodeId } = argv;
             const node = (await theNode.connectAndGetNodes(subscribeNodeId))[0];
+            if (node === undefined) {
+                throw new ImplementationError("No commissioned node to subscribe to");
+            }
+            const nodeId = node.peerAddress?.nodeId;
+            if (nodeId === undefined) {
+                throw new ImplementationError("Resolved node has no peer address to subscribe to");
+            }
+            const key = String(nodeId);
 
-            await node.subscribeAllAttributesAndEvents({
-                attributeChangedCallback: ({ path: { nodeId, clusterId, endpointId, attributeName }, value }) =>
-                    console.log(
-                        `${subscribeNodeId}: Attribute ${nodeId}/${endpointId}/${clusterId}/${attributeName} changed to ${Diagnostic.json(
-                            value,
-                        )}`,
-                    ),
-                eventTriggeredCallback: ({ path: { nodeId, clusterId, endpointId, eventName }, events }) =>
-                    console.log(
-                        `${subscribeNodeId} Event ${nodeId}/${endpointId}/${clusterId}/${eventName} triggered with ${Diagnostic.json(
-                            events,
-                        )}`,
-                    ),
+            // Re-subscribing the same node replaces its watcher so change lines are not logged twice.
+            watchers.get(key)?.close();
+            watchers.delete(key);
+            const observers = new ObserverGroup();
+            watchers.set(key, observers);
+            observers.on(node.lifecycle.destroyed, () => {
+                watchers.get(key)?.close();
+                watchers.delete(key);
             });
+
+            // Attribute/event/structure changes for every peer are logged node-wide by installDiagnosticLogging
+            // (MatterNode.start); this command only establishes the subscription and reports its liveness.
+
+            // Surface subscription liveness transitions (establishment, drop, re-establishment).
+            observers.on(node.eventsOf(NetworkClient).subscriptionStatusChanged, isActive => {
+                console.log(`${nodeId}: subscription ${isActive ? "active" : "inactive"}`);
+            });
+
+            // Enabling auto-subscribe establishes (and thereafter re-establishes) the sustained subscription; changes
+            // flow to the already-registered listener above.
+            await node.set({ network: { autoSubscribe: true } });
+
+            const subscriptionActive = await node.act(agent => agent.get(NetworkClient).subscriptionActive);
+            console.log(
+                `Subscribed to node ${nodeId} (subscription active: ${subscriptionActive}). Attribute and event changes will be logged below as they arrive.`,
+            );
         },
     };
 }

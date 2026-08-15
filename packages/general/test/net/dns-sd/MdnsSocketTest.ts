@@ -620,7 +620,7 @@ describe("MdnsSocket", () => {
             // literal labels "_matter._tcp.local" (starting at offset 31); #2's name is a compression pointer to that
             // RDATA. The only literal "_matter" lives in RDATA the matcher skips, so it is found solely by following
             // the pointer in #2's name.
-            // prettier-ignore
+            // oxfmt-ignore
             const raw = Uint8Array.from([
                 0x00, 0x00, 0x84, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, // header: response, 2 answers
                 0x01, 0x78, 0x05, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x00, // #1 name "x.local"

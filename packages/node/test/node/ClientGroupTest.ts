@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ClientGroup } from "#node/ClientGroup.js";
 import { InvalidGroupOperationError } from "#node/client/ClientGroupInteraction.js";
+import { ClientGroup } from "#node/ClientGroup.js";
 
 describe("ClientGroup", () => {
     it("throws InvalidGroupOperationError on get()", async () => {

@@ -269,12 +269,12 @@ export declare namespace WebRtcTransportRequestor {
     export const commands: ClusterType.CommandObjects<Commands>;
 
     /**
-     * @deprecated Use {@link WebRtcTransportRequestor}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link WebRtcTransportRequestor}.
      */
     export const Cluster: typeof WebRtcTransportRequestor;
 
     /**
-     * @deprecated Use {@link WebRtcTransportRequestor}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link WebRtcTransportRequestor}.
      */
     export const Complete: typeof WebRtcTransportRequestor;
 
@@ -282,7 +282,7 @@ export declare namespace WebRtcTransportRequestor {
 }
 
 /**
- * @deprecated Use {@link WebRtcTransportRequestor}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link WebRtcTransportRequestor}.
  */
 export declare const WebRtcTransportRequestorCluster: typeof WebRtcTransportRequestor;
 

@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Conformance } from "#aspects/Conformance.js";
+import { Conformance } from "#aspects/Conformance.js";
 import { ModelIndex } from "#logic/ModelIndex.js";
 import { ModelTraversal } from "#logic/ModelTraversal.js";
-import { camelize, describeList } from "@matter/general";
+import { describeList } from "@matter/general";
 import { Access } from "../aspects/Access.js";
 import { Quality } from "../aspects/Quality.js";
 import { SchemaImplementationError } from "../common/errors.js";
@@ -137,18 +137,47 @@ export class ClusterModel
         return new FeatureSet(this.features.map(feature => feature.name));
     }
 
+    /**
+     * Features the implementation supports.
+     *
+     * A feature's `default` conveys the specification's fallback value and never implies support.
+     */
     get supportedFeatures(): FeatureSet {
         const supported = {} as { [name: string]: boolean | undefined };
         for (const feature of this.features) {
-            if (feature.default) {
+            if (feature.effectiveIsSupported) {
                 supported[feature.name] = true;
             }
         }
         return new FeatureSet(supported);
     }
 
+    /**
+     * Features the specification mandates without condition.
+     *
+     * These are not an application choice.  A server implementation supports them regardless of selection; a client
+     * defers to the features its peer reports.
+     */
+    get unconditionalFeatures(): FeatureSet {
+        const features = new FeatureSet();
+        for (const feature of this.features) {
+            if (feature.effectiveConformance.ast.type === Conformance.Flag.Mandatory) {
+                features.add(feature.name);
+            }
+        }
+        return features;
+    }
+
     set supportedFeatures(features: FeatureSet.Definition | undefined) {
-        const featureSet = new FeatureSet(features);
+        const all = this.features;
+        const { features: selected, unresolved } = FeatureSet.resolve(all, new FeatureSet(features));
+
+        if (unresolved.length) {
+            throw new SchemaImplementationError(
+                this,
+                `Cannot set unknown feature${unresolved.length > 1 ? "s" : ""} ${describeList("and", ...unresolved)}`,
+            );
+        }
 
         let featureMap = this.featureMap;
 
@@ -157,18 +186,11 @@ export class ClusterModel
             this.children.push(featureMap);
         }
 
+        // Taking ownership of the feature map shadows the models resolved above, so resolve again
         for (let feature of this.features) {
-            const desc = feature.title && camelize(feature.title);
-            let isSupported;
-            if (desc !== undefined && featureSet.has(desc)) {
-                isSupported = true;
-                featureSet.delete(desc);
-            } else if (featureSet.has(feature.name)) {
-                isSupported = true;
-                featureSet.delete(feature.name);
-            }
+            const isSupported = selected.has(feature.name);
 
-            if (!!feature.default === isSupported) {
+            if (feature.effectiveIsSupported === isSupported) {
                 continue;
             }
 
@@ -177,14 +199,7 @@ export class ClusterModel
                 featureMap.children.push(feature);
             }
 
-            feature.default = isSupported ? true : undefined;
-        }
-
-        if (featureSet.size) {
-            throw new SchemaImplementationError(
-                this,
-                `Cannot set unknown feature${featureSet.size > 1 ? "s" : ""} ${describeList("and", ...featureSet)}`,
-            );
+            feature.operationalIsSupported = isSupported;
         }
     }
 

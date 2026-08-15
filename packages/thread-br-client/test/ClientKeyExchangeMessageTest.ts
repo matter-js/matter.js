@@ -5,22 +5,14 @@
  */
 
 import { Bytes } from "@matter/main";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { EcJpakeRound } from "../src/dtls/ecjpake/EcJpakeRound.js";
 import { ClientKeyExchangeMessage } from "../src/dtls/handshake/ClientKeyExchangeMessage.js";
 import { ServerHelloDoneMessage } from "../src/dtls/handshake/ServerHelloDoneMessage.js";
-
-const PACKAGE_ROOT = process.cwd();
-const FIXTURE = resolve(PACKAGE_ROOT, "test/fixtures/ecjpake/mbedtls-self-test-vectors.json");
+import { data as mbedtlsVectors } from "./fixtures/ecjpake/mbedtls-self-test-vectors.json.js";
 
 interface MbedTlsVectors {
     cli_two: string;
     srv_two: string;
-}
-
-function loadVectors(): MbedTlsVectors {
-    return JSON.parse(readFileSync(FIXTURE, "utf8")) as MbedTlsVectors;
 }
 
 describe("ServerHelloDoneMessage.parse", () => {
@@ -35,7 +27,7 @@ describe("ServerHelloDoneMessage.parse", () => {
 });
 
 describe("ClientKeyExchangeMessage.build", () => {
-    const vectors = loadVectors();
+    const vectors: MbedTlsVectors = mbedtlsVectors;
 
     it("emits the round-2 ECJPAKEKeyKP without any ECParameters prefix", () => {
         const cliKp = EcJpakeRound.parseRound2(Bytes.of(Bytes.fromHex(vectors.cli_two)), {

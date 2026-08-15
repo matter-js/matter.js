@@ -6,12 +6,8 @@
 
 import { StandardCrypto } from "@matter/general";
 import { Bytes } from "@matter/main";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { pbkdf2AesCmac } from "../src/crypto/Pbkdf2AesCmac.js";
-
-const PACKAGE_ROOT = process.cwd();
-const FIXTURE_DIR = resolve(PACKAGE_ROOT, "test/fixtures");
+import { data as pbkdf2AesCmacVectors } from "./fixtures/pbkdf2-aescmac-vectors.json.js";
 
 interface PbkdfFixture {
     vectors: Array<{
@@ -24,14 +20,10 @@ interface PbkdfFixture {
     }>;
 }
 
-function loadJson<T>(name: string): T {
-    return JSON.parse(readFileSync(resolve(FIXTURE_DIR, name), "utf8")) as T;
-}
-
 const crypto = new StandardCrypto();
 
 describe("pbkdf2AesCmac", () => {
-    const fixture = loadJson<PbkdfFixture>("pbkdf2-aescmac-vectors.json");
+    const fixture: PbkdfFixture = pbkdf2AesCmacVectors;
 
     for (const vector of fixture.vectors) {
         it(`matches cross-validated vector: ${vector.name}`, () => {

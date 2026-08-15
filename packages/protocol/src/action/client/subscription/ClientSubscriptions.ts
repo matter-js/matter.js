@@ -7,7 +7,7 @@
 import { ReadResult } from "#action/response/ReadResult.js";
 import type { ActiveSubscription } from "#action/response/SubscribeResult.js";
 import { SubscriptionId } from "#interaction/Subscription.js";
-import { PeerAddress } from "#peer/PeerAddress.js";
+import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
 import {
     BasicSet,
     createPromise,
@@ -29,7 +29,7 @@ import type { PeerSubscription } from "./PeerSubscription.js";
 export class ClientSubscriptions implements Lifetime.Owner {
     #lifetime: Lifetime;
     #active = new BasicSet<ClientSubscription>();
-    #peers = new Map<PeerAddress, Map<number, PeerSubscription>>();
+    #peers = new PeerAddressMap<Map<number, PeerSubscription>>();
     #timeout?: Timer;
     #blocked = false;
     #inFlightCount = 0;
@@ -145,6 +145,25 @@ export class ClientSubscriptions implements Lifetime.Owner {
     }
 
     /**
+     * The most recent {@link PeerSubscription.lastReportStartedAt} across a peer's subscriptions, or `undefined` if
+     * the peer has no subscription that has yet started receiving a report.
+     */
+    lastReportStartedAtFor(address: PeerAddress): Timestamp | undefined {
+        const forPeer = this.#peers.get(address);
+        if (forPeer === undefined) {
+            return undefined;
+        }
+        let latest: Timestamp | undefined;
+        for (const subscription of forPeer.values()) {
+            const reportedAt = subscription.lastReportStartedAt;
+            if (reportedAt !== undefined && (latest === undefined || reportedAt > latest)) {
+                latest = reportedAt;
+            }
+        }
+        return latest;
+    }
+
+    /**
      * Close all {@link PeerSubscription}s for a specific peer, triggering re-subscription.
      */
     closeForPeer(address: PeerAddress) {
@@ -226,7 +245,7 @@ export class ClientSubscriptions implements Lifetime.Owner {
                 if (timeoutAt === undefined) {
                     // Set timeout time
                     timeoutAt = subscription.timeoutAt = Timestamp(now + subscription.timeout);
-                } else if (timeoutAt < now) {
+                } else if (timeoutAt <= now) {
                     // Timeout
                     subscription.timedOut();
                     continue;

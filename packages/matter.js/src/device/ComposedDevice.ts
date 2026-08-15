@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { Endpoint as NodeEndpoint } from "@matter/node";
 import { Device } from "./Device.js";
 import { DeviceTypeDefinition } from "./DeviceTypes.js";
@@ -11,6 +12,8 @@ import { Endpoint, EndpointOptions } from "./Endpoint.js";
 /**
  * A ComposedDevice is a special endpoint that allows to combine multiple sub devices and expose this as one device
  * (e.g. a fan and a light).
+ *
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export class ComposedDevice extends Endpoint {
     /**

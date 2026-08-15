@@ -281,12 +281,12 @@ export declare namespace MicrowaveOvenMode {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link MicrowaveOvenMode}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link MicrowaveOvenMode}.
      */
     export const Cluster: ClusterType.WithCompat<typeof MicrowaveOvenMode, MicrowaveOvenMode>;
 
     /**
-     * @deprecated Use {@link MicrowaveOvenMode}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link MicrowaveOvenMode}.
      */
     export const Complete: typeof MicrowaveOvenMode;
 
@@ -294,7 +294,7 @@ export declare namespace MicrowaveOvenMode {
 }
 
 /**
- * @deprecated Use {@link MicrowaveOvenMode}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link MicrowaveOvenMode}.
  */
 export declare const MicrowaveOvenModeCluster: typeof MicrowaveOvenMode;
 

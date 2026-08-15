@@ -410,7 +410,7 @@ export declare namespace ConcentrationMeasurement {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link ConcentrationMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ConcentrationMeasurement}.
      */
     export const Complete: typeof ConcentrationMeasurement;
 

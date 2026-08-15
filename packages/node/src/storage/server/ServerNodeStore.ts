@@ -16,11 +16,12 @@ import {
     Environment,
     ImplementationError,
     Logger,
+    MatterAggregateError,
     StorageManager,
     StorageService,
 } from "@matter/general";
-import { NodeStore } from "../NodeStore.js";
 import { ClientNodeStores } from "../client/ClientNodeStores.js";
+import { NodeStore } from "../NodeStore.js";
 import { ServerEndpointStores } from "./ServerEndpointStores.js";
 
 const logger = Logger.get("ServerNodeStore");
@@ -129,8 +130,15 @@ export class ServerNodeStore extends NodeStore implements Destructable {
         return this.#bdxHandle.driver;
     }
 
-    erase() {
-        return this.#endpointStores.erase();
+    /**
+     * Discard the endpoint and peer data persisted for the node.  Both are erased even if one fails, so a single
+     * failure cannot leave the other behind.
+     */
+    async erase() {
+        await MatterAggregateError.allSettled(
+            [this.#clientStores?.erase(), this.#endpointStores.erase()],
+            "Error while erasing node storage",
+        );
     }
 
     async load() {

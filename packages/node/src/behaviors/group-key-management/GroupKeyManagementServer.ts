@@ -138,6 +138,14 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
         if (this.state.groupKeyMap.length) {
             this.#updateGroupKeyMap(this.state.groupKeyMap);
         }
+        if (this.state.groupTable.length) {
+            // Restore the runtime endpoint map, which group command dispatch expands over
+            for (const { fabricIndex, groupId, endpoints } of this.state.groupTable) {
+                if (fabrics.has(fabricIndex)) {
+                    fabrics.for(fabricIndex).groups.endpoints.set(groupId, [...endpoints]);
+                }
+            }
+        }
     }
 
     /** Handle the recreation (update) of a fabric, so we need to reinitialize the group key sets */

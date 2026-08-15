@@ -88,12 +88,12 @@ export declare namespace PowerSourceConfiguration {
     export const attributes: ClusterType.AttributeObjects<Attributes>;
 
     /**
-     * @deprecated Use {@link PowerSourceConfiguration}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link PowerSourceConfiguration}.
      */
     export const Cluster: typeof PowerSourceConfiguration;
 
     /**
-     * @deprecated Use {@link PowerSourceConfiguration}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link PowerSourceConfiguration}.
      */
     export const Complete: typeof PowerSourceConfiguration;
 
@@ -101,7 +101,7 @@ export declare namespace PowerSourceConfiguration {
 }
 
 /**
- * @deprecated Use {@link PowerSourceConfiguration}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link PowerSourceConfiguration}.
  */
 export declare const PowerSourceConfigurationCluster: typeof PowerSourceConfiguration;
 

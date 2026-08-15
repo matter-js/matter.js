@@ -584,12 +584,12 @@ export declare namespace BooleanStateConfiguration {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link BooleanStateConfiguration}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link BooleanStateConfiguration}.
      */
     export const Cluster: ClusterType.WithCompat<typeof BooleanStateConfiguration, BooleanStateConfiguration>;
 
     /**
-     * @deprecated Use {@link BooleanStateConfiguration}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link BooleanStateConfiguration}.
      */
     export const Complete: typeof BooleanStateConfiguration;
 
@@ -597,7 +597,7 @@ export declare namespace BooleanStateConfiguration {
 }
 
 /**
- * @deprecated Use {@link BooleanStateConfiguration}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link BooleanStateConfiguration}.
  */
 export declare const BooleanStateConfigurationCluster: typeof BooleanStateConfiguration;
 

@@ -304,12 +304,12 @@ export declare namespace TemperatureControl {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link TemperatureControl}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link TemperatureControl}.
      */
     export const Cluster: ClusterType.WithCompat<typeof TemperatureControl, TemperatureControl>;
 
     /**
-     * @deprecated Use {@link TemperatureControl}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link TemperatureControl}.
      */
     export const Complete: typeof TemperatureControl;
 
@@ -317,7 +317,7 @@ export declare namespace TemperatureControl {
 }
 
 /**
- * @deprecated Use {@link TemperatureControl}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link TemperatureControl}.
  */
 export declare const TemperatureControlCluster: typeof TemperatureControl;
 

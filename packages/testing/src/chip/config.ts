@@ -5,6 +5,7 @@
  */
 
 import { env } from "node:process";
+import { resolveChipBinsSource } from "./chip-bins.js";
 import { FIFO_PATH } from "./container-command-pipe.js";
 import { PicsSource } from "./pics/source.js";
 
@@ -22,10 +23,31 @@ export namespace ContainerPaths {
     export const accessoryClient =
         "/usr/local/lib/python3.12/dist-packages/matter/yamltests/pseudo_clusters/clusters/accessory_server_bridge.py";
     export const dummyWsServer = "/bin/mjs-ws-dummy";
+
+    /**
+     * Where the harness "chip" container's `configureContainer()` bind-mounts the host directory
+     * `chip-bins.ts`'s extraction fills, when `MATTER_CHIP_BINS_SOURCE=cert-bins` selects the
+     * official `connectedhomeip/chip-cert-bins` binaries for the classic yaml/python tests.
+     */
+    export const officialChipBinsDir = "/official-chip-bins";
 }
 
 export type ContainerPathsType = typeof ContainerPaths;
 export interface ContainerPaths extends ContainerPathsType {}
+
+/** Name of the shared harness composition `chip/state.ts`'s `configureContainer()` starts. */
+export const HARNESS_COMPOSITION_NAME = "matter.js";
+
+/** Part name of the harness composition's dbus sidecar. */
+export const HARNESS_DBUS_PART_NAME = "dbus";
+
+/**
+ * Container name of the harness composition's dbus sidecar (`Composition.add` names containers
+ * `<composition>-<part>`). Cert-test chip-docker subjects check for this container and reuse the
+ * harness's dbus/mdns pair instead of starting their own — see `chip/cert/chip-app-subject.ts`'s
+ * `ChipDockerDevice`.
+ */
+export const HARNESS_DBUS_CONTAINER = `${HARNESS_COMPOSITION_NAME}-${HARNESS_DBUS_PART_NAME}`;
 
 /**
  * Specify the base filename to use for a test.  This specifies a "winner" in the case of conflicts.
@@ -76,8 +98,13 @@ export namespace Constants {
     /**
      * The server will not find chip-tool unless we provide an explicit path.  The failure mode is a little
      * non-obvious as it doesn't try to start the server but attempts to establish a websocket connection regardless.
+     *
+     * When MATTER_CHIP_BINS_SOURCE=cert-bins, points at the official chip-tool binary bind-mounted
+     * into the container at {@link ContainerPaths.officialChipBinsDir} (see chip/state.ts's
+     * configureContainer) instead of the one baked into matter.js's own image.
      */
-    const chipToolPath = "/bin/chip-tool";
+    export const chipToolPath =
+        resolveChipBinsSource() === "cert-bins" ? `${ContainerPaths.officialChipBinsDir}/chip-tool` : "/bin/chip-tool";
 
     /**
      * Default arguments provided to the YAML runner.

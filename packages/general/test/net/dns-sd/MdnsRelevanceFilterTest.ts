@@ -261,7 +261,7 @@ describe("MdnsRelevanceFilter", () => {
         it("follows a pointer to a footprint reachable only via the pointer", () => {
             // Answer #1 (TXT, name x.local) carries the literal labels "_matter._tcp.local" in its RDATA at offset 31;
             // answer #2's name is a compression pointer to that RDATA. The only literal "_matter" is in skipped RDATA.
-            // prettier-ignore
+            // oxfmt-ignore
             const raw = Uint8Array.from([
                 0x00, 0x00, 0x84, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, // header: response, 2 answers
                 0x01, 0x78, 0x05, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x00, // "x.local"
@@ -277,7 +277,7 @@ describe("MdnsRelevanceFilter", () => {
 
         it("keeps (defers) a packet with a forward/self compression pointer rather than looping", () => {
             // A single answer whose name is a pointer to itself (offset 12) — illegal forward/self ref.
-            // prettier-ignore
+            // oxfmt-ignore
             const raw = Uint8Array.from([
                 0x00, 0x00, 0x84, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, // header: 1 answer
                 0xc0, 0x0c, // name: pointer -> offset 12 (itself)
@@ -298,14 +298,14 @@ describe("MdnsRelevanceFilter", () => {
 
         it("keeps a packet whose record count exceeds the available bytes", () => {
             // header claims 100 answers, body has none
-            // prettier-ignore
+            // oxfmt-ignore
             const raw = Uint8Array.from([0x00, 0x00, 0x84, 0x00, 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x00]);
             expect(filter.isRelevant(raw)).true;
         });
 
         it("keeps a packet with a name label running past the end", () => {
             // header: 1 answer; name claims a 20-byte label but packet ends
-            // prettier-ignore
+            // oxfmt-ignore
             const raw = Uint8Array.from([
                 0x00, 0x00, 0x84, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
                 0x14, 0x5f, 0x6d, 0x61, 0x74, 0x74, 0x65, 0x72, // length 20 but only a few bytes follow
@@ -315,7 +315,7 @@ describe("MdnsRelevanceFilter", () => {
 
         it("keeps a packet using a reserved label type (top bits 0b01/0b10)", () => {
             // header: 1 answer; first name octet 0x40 is a reserved label type
-            // prettier-ignore
+            // oxfmt-ignore
             const raw = Uint8Array.from([
                 0x00, 0x00, 0x84, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
                 0x40, 0x01, 0x02,
@@ -325,7 +325,7 @@ describe("MdnsRelevanceFilter", () => {
 
         it("keeps a packet whose name pointer targets the header", () => {
             // name is a compression pointer to offset 5 (inside the 12-byte header) — illegal
-            // prettier-ignore
+            // oxfmt-ignore
             const raw = Uint8Array.from([
                 0x00, 0x00, 0x84, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
                 0xc0, 0x05, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x78, 0x00, 0x00,
@@ -335,7 +335,7 @@ describe("MdnsRelevanceFilter", () => {
 
         it("keeps a question packet truncated before QTYPE/QCLASS", () => {
             // query, qd=1, root name (single 0x00) and nothing after it
-            // prettier-ignore
+            // oxfmt-ignore
             const raw = Uint8Array.from([
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             ]);
@@ -344,7 +344,7 @@ describe("MdnsRelevanceFilter", () => {
 
         it("keeps a record whose RDLENGTH runs past the end", () => {
             // response, 1 answer "x.local" A record claiming rdlength=255 with no RDATA present
-            // prettier-ignore
+            // oxfmt-ignore
             const raw = Uint8Array.from([
                 0x00, 0x00, 0x84, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
                 0x01, 0x78, 0x05, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x00, // "x.local"

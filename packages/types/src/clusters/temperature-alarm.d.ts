@@ -680,12 +680,12 @@ export declare namespace TemperatureAlarm {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link TemperatureAlarm}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link TemperatureAlarm}.
      */
     export const Cluster: ClusterType.WithCompat<typeof TemperatureAlarm, TemperatureAlarm>;
 
     /**
-     * @deprecated Use {@link TemperatureAlarm}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link TemperatureAlarm}.
      */
     export const Complete: typeof TemperatureAlarm;
 
@@ -693,7 +693,7 @@ export declare namespace TemperatureAlarm {
 }
 
 /**
- * @deprecated Use {@link TemperatureAlarm}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link TemperatureAlarm}.
  */
 export declare const TemperatureAlarmCluster: typeof TemperatureAlarm;
 

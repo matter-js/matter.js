@@ -5,6 +5,7 @@
  */
 
 export * from "./FeatureBitmap.js";
+export * from "./FeatureSelectionErrors.js";
 export * from "./IllegalFeatureCombinations.js";
 export * from "./InferredComponents.js";
 export * from "./NamedComponents.js";

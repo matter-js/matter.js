@@ -759,12 +759,12 @@ export declare namespace IcdManagement {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link IcdManagement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link IcdManagement}.
      */
     export const Cluster: ClusterType.WithCompat<typeof IcdManagement, IcdManagement>;
 
     /**
-     * @deprecated Use {@link IcdManagement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link IcdManagement}.
      */
     export const Complete: typeof IcdManagement;
 
@@ -772,7 +772,7 @@ export declare namespace IcdManagement {
 }
 
 /**
- * @deprecated Use {@link IcdManagement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link IcdManagement}.
  */
 export declare const IcdManagementCluster: typeof IcdManagement;
 

@@ -623,12 +623,12 @@ export declare namespace RvcOperationalState {
     export const events: ClusterType.EventObjects<Events>;
 
     /**
-     * @deprecated Use {@link RvcOperationalState}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link RvcOperationalState}.
      */
     export const Cluster: typeof RvcOperationalState;
 
     /**
-     * @deprecated Use {@link RvcOperationalState}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link RvcOperationalState}.
      */
     export const Complete: typeof RvcOperationalState;
 
@@ -636,7 +636,7 @@ export declare namespace RvcOperationalState {
 }
 
 /**
- * @deprecated Use {@link RvcOperationalState}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link RvcOperationalState}.
  */
 export declare const RvcOperationalStateCluster: typeof RvcOperationalState;
 

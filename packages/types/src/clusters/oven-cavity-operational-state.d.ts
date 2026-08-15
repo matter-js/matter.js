@@ -351,12 +351,12 @@ export declare namespace OvenCavityOperationalState {
     export const events: ClusterType.EventObjects<Events>;
 
     /**
-     * @deprecated Use {@link OvenCavityOperationalState}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link OvenCavityOperationalState}.
      */
     export const Cluster: typeof OvenCavityOperationalState;
 
     /**
-     * @deprecated Use {@link OvenCavityOperationalState}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link OvenCavityOperationalState}.
      */
     export const Complete: typeof OvenCavityOperationalState;
 
@@ -364,7 +364,7 @@ export declare namespace OvenCavityOperationalState {
 }
 
 /**
- * @deprecated Use {@link OvenCavityOperationalState}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link OvenCavityOperationalState}.
  */
 export declare const OvenCavityOperationalStateCluster: typeof OvenCavityOperationalState;
 

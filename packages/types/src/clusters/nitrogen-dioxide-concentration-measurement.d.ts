@@ -316,12 +316,12 @@ export declare namespace NitrogenDioxideConcentrationMeasurement {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link NitrogenDioxideConcentrationMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link NitrogenDioxideConcentrationMeasurement}.
      */
     export const Cluster: ClusterType.WithCompat<typeof NitrogenDioxideConcentrationMeasurement, NitrogenDioxideConcentrationMeasurement>;
 
     /**
-     * @deprecated Use {@link NitrogenDioxideConcentrationMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link NitrogenDioxideConcentrationMeasurement}.
      */
     export const Complete: typeof NitrogenDioxideConcentrationMeasurement;
 
@@ -329,7 +329,7 @@ export declare namespace NitrogenDioxideConcentrationMeasurement {
 }
 
 /**
- * @deprecated Use {@link NitrogenDioxideConcentrationMeasurement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link NitrogenDioxideConcentrationMeasurement}.
  */
 export declare const NitrogenDioxideConcentrationMeasurementCluster: typeof NitrogenDioxideConcentrationMeasurement;
 

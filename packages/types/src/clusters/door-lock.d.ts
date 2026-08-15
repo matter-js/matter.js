@@ -4085,12 +4085,12 @@ export declare namespace DoorLock {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link DoorLock}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link DoorLock}.
      */
     export const Cluster: ClusterType.WithCompat<typeof DoorLock, DoorLock>;
 
     /**
-     * @deprecated Use {@link DoorLock}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link DoorLock}.
      */
     export const Complete: typeof DoorLock;
 
@@ -4098,7 +4098,7 @@ export declare namespace DoorLock {
 }
 
 /**
- * @deprecated Use {@link DoorLock}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link DoorLock}.
  */
 export declare const DoorLockCluster: typeof DoorLock;
 

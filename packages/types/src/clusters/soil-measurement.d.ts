@@ -114,12 +114,12 @@ export declare namespace SoilMeasurement {
     export const attributes: ClusterType.AttributeObjects<Attributes>;
 
     /**
-     * @deprecated Use {@link SoilMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link SoilMeasurement}.
      */
     export const Cluster: typeof SoilMeasurement;
 
     /**
-     * @deprecated Use {@link SoilMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link SoilMeasurement}.
      */
     export const Complete: typeof SoilMeasurement;
 
@@ -127,7 +127,7 @@ export declare namespace SoilMeasurement {
 }
 
 /**
- * @deprecated Use {@link SoilMeasurement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link SoilMeasurement}.
  */
 export declare const SoilMeasurementCluster: typeof SoilMeasurement;
 

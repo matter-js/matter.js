@@ -95,7 +95,7 @@ export declare namespace Label {
     export const attributes: ClusterType.AttributeObjects<Attributes>;
 
     /**
-     * @deprecated Use {@link Label}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Label}.
      */
     export const Complete: typeof Label;
 

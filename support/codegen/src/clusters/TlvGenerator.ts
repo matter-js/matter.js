@@ -20,8 +20,8 @@ import {
 } from "#model";
 import { ModelBounds } from "@matter/types";
 import { ScopeFile } from "../util/ScopeFile.js";
-import { Block, Entry } from "../util/TsFile.js";
 import { asObjectKey, camelize, serialize } from "../util/string.js";
+import { Block, Entry } from "../util/TsFile.js";
 import { SpecializedNumbers, specializedNumberTypeFor } from "./NumberConstants.js";
 
 /**

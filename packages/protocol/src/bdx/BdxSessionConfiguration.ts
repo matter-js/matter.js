@@ -38,8 +38,8 @@ export class BdxSessionConfiguration {
         if (preferredDriverModes.length === 0) {
             throw new ImplementationError("At least one preferred driver mode must be set.");
         }
-        if (maxBlockSize !== undefined && maxBlockSize <= 0) {
-            throw new ImplementationError("Max block size must be greater than 0");
+        if (maxBlockSize !== undefined && (!Number.isInteger(maxBlockSize) || maxBlockSize <= 0)) {
+            throw new ImplementationError(`Max block size must be a positive integer, got ${maxBlockSize}`);
         }
         if (maxTransferSize !== undefined && maxTransferSize <= 0) {
             throw new ImplementationError("Max transfer size must be greater than 0");

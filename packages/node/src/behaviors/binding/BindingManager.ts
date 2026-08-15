@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { isClientBehavior } from "#behavior/cluster/cluster-behavior-utils.js";
+import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { ClientGroup } from "#node/ClientGroup.js";
 import { ClientNode } from "#node/ClientNode.js";

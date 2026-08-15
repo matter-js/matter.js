@@ -177,11 +177,7 @@ export class MessageChannel implements Channel<Message> {
         const wasAlreadyClosed = this.closed;
         this.closed = true;
 
-        // Detach address observer before closing
-        if (this.#channelAddressObserver && this.#isIpNetworkChannel) {
-            (this.#channel as IpNetworkChannel<Bytes>).networkAddressChanged.off(this.#channelAddressObserver);
-            this.#channelAddressObserver = undefined;
-        }
+        this.#unobserveChannelAddress();
 
         // TCP connections are 1:1 with sessions — lifecycle managed by ExchangeManager
         // (session eviction on disconnect, channel close on session close). UDP/BLE
@@ -191,6 +187,29 @@ export class MessageChannel implements Channel<Message> {
         }
         if (!wasAlreadyClosed) {
             await this.#onClose?.();
+        }
+    }
+
+    /**
+     * Release the channel without closing the underlying transport channel, for use when the transport rather than the
+     * session owns it.  Closing a BLE channel disconnects the peripheral and closing a connected transport channel
+     * drops messages of other sessions using it.
+     */
+    async release() {
+        const wasAlreadyClosed = this.closed;
+        this.closed = true;
+
+        this.#unobserveChannelAddress();
+
+        if (!wasAlreadyClosed) {
+            await this.#onClose?.();
+        }
+    }
+
+    #unobserveChannelAddress() {
+        if (this.#channelAddressObserver && this.#isIpNetworkChannel) {
+            (this.#channel as IpNetworkChannel<Bytes>).networkAddressChanged.off(this.#channelAddressObserver);
+            this.#channelAddressObserver = undefined;
         }
     }
 

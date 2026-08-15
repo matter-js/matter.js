@@ -22,6 +22,7 @@ import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import {
     DependencyLifecycleError,
     Diagnostic,
+    Duration,
     Identity,
     ImplementationError,
     InternalError,
@@ -33,6 +34,7 @@ import { Matter, MatterModel } from "@matter/model";
 import { Interactable, OccurrenceManager, PeerAddress, PeerSet } from "@matter/protocol";
 import { ClientEndpointInitializer } from "./client/ClientEndpointInitializer.js";
 import { ClientNodeInteraction } from "./client/ClientNodeInteraction.js";
+import { ClientNodeLifecycle } from "./ClientNodeLifecycle.js";
 import { Node } from "./Node.js";
 import type { ServerNode } from "./ServerNode.js";
 
@@ -45,7 +47,7 @@ const logger = Logger.get("ClientNode");
  * you invoke {@link commissioned}.
  */
 export class ClientNode extends Node<ClientNode.RootEndpoint> {
-    #matter: MatterModel;
+    #matter?: MatterModel;
     #interaction?: ClientNodeInteraction;
     #blockInteractions = false;
     #cachedPeerAddress?: PeerAddress;
@@ -67,7 +69,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         this.env.set(Node, this);
         this.env.set(ClientNode, this);
 
-        this.#matter = options.matter ?? Matter;
+        this.#matter = options.matter;
     }
 
     override readonly nodeType: "client" | "group" = "client";
@@ -77,8 +79,12 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
      *
      * Matter elements missing from this model will not support all functionality.
      */
-    get matter() {
-        return this.#matter;
+    override get matter(): MatterModel {
+        return this.#matter ?? this.env.maybeGet(MatterModel) ?? Matter;
+    }
+
+    override get lifecycle(): ClientNodeLifecycle {
+        return super.lifecycle as ClientNodeLifecycle;
     }
 
     override get endpoints(): ClientNodeEndpoints {
@@ -154,6 +160,25 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     }
 
     /**
+     * Open a Basic Commissioning Window on this peer (uses the passcode originally printed on the device).
+     *
+     * This is an optional feature and not all devices support it; use {@link openEnhancedCommissioningWindow} unless
+     * you specifically need the basic commissioning method.
+     */
+    async openBasicCommissioningWindow(commissioningTimeout?: Duration) {
+        await this.act(agent => agent.commissioning.openBasicCommissioningWindow(commissioningTimeout));
+    }
+
+    /**
+     * Open an Enhanced Commissioning Window on this peer using a freshly generated random passcode.
+     *
+     * @returns the manual and QR pairing codes encoding the generated passcode.
+     */
+    async openEnhancedCommissioningWindow(commissioningTimeout?: Duration) {
+        return await this.act(agent => agent.commissioning.openEnhancedCommissioningWindow(commissioningTimeout));
+    }
+
+    /**
      * Force-remove the node without first decommissioning.
      *
      * If the node is still available, you should use {@link decommission} to remove it properly from the fabric and only use
@@ -162,12 +187,14 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     override async delete() {
         const address = this.peerAddress;
 
-        await super.delete();
-
-        // Ensure there is no remaining @matter/protocol Peer installed.  This may occur if deleted while still
-        // commissioned
-        if (address) {
-            await this.env.maybeGet(PeerSet)?.get(address)?.delete();
+        try {
+            await super.delete();
+        } finally {
+            // Ensure there is no remaining @matter/protocol Peer installed.  This may occur if deleted while still
+            // commissioned, and must hold even when teardown fails or the peer outlives its fabric
+            if (address) {
+                await this.env.maybeGet(PeerSet)?.get(address)?.delete();
+            }
         }
     }
 
@@ -185,7 +212,12 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
             return;
         }
 
+        // A disabled node should be offline; setting this before teardown also lets the connection-state engine settle
+        // straight to Disconnected instead of flashing Reconnecting as the subscription drops.
+        this.lifecycle.targetState = "offline";
         await this.lifecycle.mutex.produce(async () => {
+            // Drop the subscription before flipping isDisabled so the connection-state engine cannot momentarily read
+            // Connected while disabling (subscriptionActive is checked ahead of isDisabled).
             await this.cancelWithMutex();
             await this.setStateOf(NetworkClient, { isDisabled: true });
         });
@@ -215,6 +247,10 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     protected override async resetWithMutex() {
         this.#cachedPeerAddress = undefined;
         await super.resetWithMutex();
+    }
+
+    protected override createLifecycle(): ClientNodeLifecycle {
+        return new ClientNodeLifecycle(this);
     }
 
     protected createRuntime(): NetworkRuntime {

@@ -107,6 +107,9 @@ export class ClusterBehavior extends Behavior {
      *
      * If you invoke on an existing subclass, you will receive a new implementation with the cluster in the subclass
      * replaced.  You should generally only do this with a namespace with the same cluster ID.
+     *
+     * Feature selection comes from {@link ns} if it designates features, otherwise it is unchanged.  Use
+     * {@link withFeatures} to select features.
      */
     static for<This extends ClusterBehavior.Type, const NS extends ClusterType>(
         this: This,

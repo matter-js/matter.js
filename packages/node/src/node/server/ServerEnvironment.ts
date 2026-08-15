@@ -82,6 +82,30 @@ export namespace ServerEnvironment {
         env.get(Crypto).reportUsage(node.id);
     }
 
+    /**
+     * Discard the credentials the node issues fabrics under.
+     *
+     * The authorities cache key material for the lifetime of their instances, so both are dropped along with what they
+     * persist.  An authority supplied by an ancestor environment belongs to whoever supplied it, but key material the
+     * node persisted under its own storage is ours to discard either way: the authority is created lazily and may be
+     * configured without storage, so neither its absence nor its presence proves the node's context is empty.
+     */
+    export async function eraseCredentials(node: ServerNode) {
+        const { env } = node;
+
+        env.delete(FabricAuthority);
+
+        if (env.owns(CertificateAuthority)) {
+            try {
+                await env.get(CertificateAuthority).erase();
+            } finally {
+                env.delete(CertificateAuthority);
+            }
+        }
+
+        await CertificateAuthority.eraseFor(env);
+    }
+
     export async function close(node: ServerNode) {
         const { env } = node;
 

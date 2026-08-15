@@ -1008,12 +1008,12 @@ export declare namespace ClosureControl {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link ClosureControl}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ClosureControl}.
      */
     export const Cluster: ClusterType.WithCompat<typeof ClosureControl, ClosureControl>;
 
     /**
-     * @deprecated Use {@link ClosureControl}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ClosureControl}.
      */
     export const Complete: typeof ClosureControl;
 
@@ -1021,7 +1021,7 @@ export declare namespace ClosureControl {
 }
 
 /**
- * @deprecated Use {@link ClosureControl}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link ClosureControl}.
  */
 export declare const ClosureControlCluster: typeof ClosureControl;
 

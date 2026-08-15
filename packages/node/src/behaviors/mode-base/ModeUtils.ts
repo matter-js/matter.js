@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { ImplementationError } from "@matter/general";
 import { ModeBase } from "@matter/types/clusters/mode-base";
 

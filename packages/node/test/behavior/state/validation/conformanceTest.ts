@@ -6,7 +6,15 @@
 
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
-import { ClusterModel, CommandModel, DataModelPath, FeatureMap, FieldElement, FieldModel } from "@matter/model";
+import {
+    AttributeModel,
+    ClusterModel,
+    CommandModel,
+    DataModelPath,
+    FeatureMap,
+    FieldElement,
+    FieldModel,
+} from "@matter/model";
 import { ConformanceError, EnumValueConformanceError, UnknownEnumValueError } from "@matter/protocol";
 import { Features, Fields, Tests, testValidation } from "./validation-test-utils.js";
 
@@ -449,6 +457,108 @@ const AllTests = Tests({
                     },
                 },
             ),
+
+            "two or more": Tests(
+                Fields(
+                    { name: "Test1", conformance: "O.a2+" },
+                    { name: "Test2", conformance: "O.a2+" },
+                    { name: "Test3", conformance: "O.a2+" },
+                ),
+                {
+                    "allows two fields": {
+                        record: { test1: 1234, test2: 4321 },
+                    },
+
+                    "allows three fields": {
+                        record: { test1: 1234, test2: 4321, test3: 1111 },
+                    },
+
+                    "disallows no fields": {
+                        error: {
+                            type: ConformanceError,
+                            message: 'Validating Test: Conformance choice "a": Too few fields present (0 of min 2)',
+                        },
+                    },
+
+                    "disallows one field": {
+                        record: { test1: 1234 },
+                        error: {
+                            type: ConformanceError,
+                            message: 'Validating Test: Conformance choice "a": Too few fields present (1 of min 2)',
+                        },
+                    },
+                },
+            ),
+
+            "at most one": Tests(
+                Fields({ name: "Test1", conformance: "O.a-" }, { name: "Test2", conformance: "O.a-" }),
+                {
+                    "allows one field": {
+                        record: { test1: 1234 },
+                    },
+
+                    "allows omission": {},
+
+                    "disallows multiple fields": {
+                        record: { test1: 1234, test2: 4321 },
+                        error: {
+                            type: ConformanceError,
+                            message: 'Validating Test: Conformance choice "a": Too many fields present (2 of max 1)',
+                        },
+                    },
+                },
+            ),
+
+            "at most two": Tests(
+                Fields(
+                    { name: "Test1", conformance: "O.a2-" },
+                    { name: "Test2", conformance: "O.a2-" },
+                    { name: "Test3", conformance: "O.a2-" },
+                ),
+                {
+                    "allows two fields": {
+                        record: { test1: 1234, test2: 4321 },
+                    },
+
+                    "allows omission": {},
+
+                    "disallows three fields": {
+                        record: { test1: 1234, test2: 4321, test3: 1111 },
+                        error: {
+                            type: ConformanceError,
+                            message: 'Validating Test: Conformance choice "a": Too many fields present (3 of max 2)',
+                        },
+                    },
+                },
+            ),
+
+            // A choice group whose members are all gated by an unsupported feature must not apply: omission is
+            // allowed, a set value is still disallowed, and the "at least one" rule only holds once enabled
+            "feature-gated group": Tests(
+                Features({ F: "Foo" }),
+                Fields({ name: "Test1", conformance: "[F].a+" }, { name: "Test2", conformance: "[F].a+" }),
+                {
+                    "allows omission if feature disabled": {},
+
+                    "disallows field if feature disabled": {
+                        record: { test1: 1234 },
+                        error: disallowed("[F].a+", "test1"),
+                    },
+
+                    "allows one field if feature enabled": {
+                        supports: ["foo"],
+                        record: { test1: 1234 },
+                    },
+
+                    "requires one field if feature enabled": {
+                        supports: ["foo"],
+                        error: {
+                            type: ConformanceError,
+                            message: 'Validating Test: Conformance choice "a": Too few fields present (0 of min 1)',
+                        },
+                    },
+                },
+            ),
         }),
 
         "enum values": Tests(
@@ -542,6 +652,260 @@ const AllTests = Tests({
                 },
             },
         ),
+
+        "value operators": Tests({
+            "not equal": Tests(
+                Fields(
+                    { name: "Value", type: "uint8" },
+                    { name: "Dependent", type: "bool", conformance: "Value != 4" },
+                ),
+                {
+                    "requires if unequal": {
+                        record: { value: 5 },
+                        error: missing("Value != 4", "dependent"),
+                    },
+
+                    "allows if unequal": {
+                        record: { value: 5, dependent: true },
+                    },
+
+                    "disallows if equal": {
+                        record: { value: 4, dependent: true },
+                        error: disallowed("Value != 4", "dependent"),
+                    },
+
+                    "allows omission if equal": {
+                        record: { value: 4 },
+                    },
+                },
+            ),
+
+            "at least": Tests(
+                Fields(
+                    { name: "Value", type: "uint8" },
+                    { name: "Dependent", type: "bool", conformance: "Value >= 4" },
+                ),
+                {
+                    "requires if equal": {
+                        record: { value: 4 },
+                        error: missing("Value >= 4", "dependent"),
+                    },
+
+                    "requires if greater": {
+                        record: { value: 5 },
+                        error: missing("Value >= 4", "dependent"),
+                    },
+
+                    "disallows if less": {
+                        record: { value: 3, dependent: true },
+                        error: disallowed("Value >= 4", "dependent"),
+                    },
+                },
+            ),
+
+            "at most": Tests(
+                Fields(
+                    { name: "Value", type: "uint8" },
+                    { name: "Dependent", type: "bool", conformance: "Value <= 4" },
+                ),
+                {
+                    "requires if equal": {
+                        record: { value: 4 },
+                        error: missing("Value <= 4", "dependent"),
+                    },
+
+                    "requires if less": {
+                        record: { value: 3 },
+                        error: missing("Value <= 4", "dependent"),
+                    },
+
+                    "disallows if greater": {
+                        record: { value: 5, dependent: true },
+                        error: disallowed("Value <= 4", "dependent"),
+                    },
+                },
+            ),
+
+            range: Tests(
+                Fields(
+                    { name: "Value", type: "uint8" },
+                    { name: "Dependent", type: "bool", conformance: "Value >= 2 & Value <= 8" },
+                ),
+                {
+                    "requires within range": {
+                        record: { value: 5 },
+                        error: missing("Value >= 2 & Value <= 8", "dependent"),
+                    },
+
+                    "allows within range": {
+                        record: { value: 5, dependent: true },
+                    },
+
+                    "disallows below range": {
+                        record: { value: 1, dependent: true },
+                        error: disallowed("Value >= 2 & Value <= 8", "dependent"),
+                    },
+
+                    "disallows above range": {
+                        record: { value: 9, dependent: true },
+                        error: disallowed("Value >= 2 & Value <= 8", "dependent"),
+                    },
+                },
+            ),
+        }),
+
+        "exclusive or": Tests(Features({ F: "Foo", B: "Bar" }), {
+            mandatory: Tests(Fields({ conformance: "F ^ B" }), {
+                "allows if one enabled (LHS)": {
+                    supports: ["foo"],
+                    record: { test: 1234 },
+                },
+
+                "requires if one enabled": {
+                    supports: ["bar"],
+                    error: missing("F ^ B"),
+                },
+
+                "disallows if both enabled": {
+                    supports: ["foo", "bar"],
+                    record: { test: 1234 },
+                    error: disallowed("F ^ B"),
+                },
+
+                "disallows if neither enabled": {
+                    record: { test: 1234 },
+                    error: disallowed("F ^ B"),
+                },
+
+                "allows omission if both enabled": {
+                    supports: ["foo", "bar"],
+                },
+            }),
+
+            optional: Tests(Fields({ conformance: "[F ^ B]" }), {
+                "allows if one enabled": {
+                    supports: ["foo"],
+                    record: { test: 1234 },
+                },
+
+                "allows omission if one enabled": {
+                    supports: ["foo"],
+                },
+
+                "disallows if both enabled": {
+                    supports: ["foo", "bar"],
+                    record: { test: 1234 },
+                    error: disallowed("[F ^ B]"),
+                },
+            }),
+        }),
+
+        otherwise: Tests(Features({ F: "Foo", B: "Bar" }), {
+            "mandatory otherwise optional": Tests(Fields({ conformance: "F, O" }), {
+                "requires if enabled": {
+                    supports: ["foo"],
+                    error: missing("F, O"),
+                },
+
+                "allows if enabled": {
+                    supports: ["foo"],
+                    record: { test: 1234 },
+                },
+
+                "allows if disabled": {
+                    record: { test: 1234 },
+                },
+
+                "allows omission if disabled": {},
+            }),
+
+            "optional otherwise mandatory": Tests(Fields({ conformance: "[F], M" }), {
+                "allows if enabled": {
+                    supports: ["foo"],
+                    record: { test: 1234 },
+                },
+
+                "allows omission if enabled": {
+                    supports: ["foo"],
+                },
+
+                "requires if disabled": {
+                    error: missing("[F], M"),
+                },
+            }),
+
+            "negated mandatory otherwise optional": Tests(Fields({ conformance: "!F, O" }), {
+                "requires if disabled": {
+                    error: missing("!F, O"),
+                },
+
+                "allows if enabled": {
+                    supports: ["foo"],
+                    record: { test: 1234 },
+                },
+
+                "allows omission if enabled": {
+                    supports: ["foo"],
+                },
+            }),
+
+            "mandatory otherwise optional-if": Tests(Fields({ conformance: "F, [B]" }), {
+                "requires if first enabled": {
+                    supports: ["foo"],
+                    error: missing("F, [B]"),
+                },
+
+                "allows if second enabled": {
+                    supports: ["bar"],
+                    record: { test: 1234 },
+                },
+
+                "allows omission if second enabled": {
+                    supports: ["bar"],
+                },
+
+                "disallows if neither enabled": {
+                    record: { test: 1234 },
+                    error: disallowed("F, [B]"),
+                },
+            }),
+
+            "optional list equals disjunction": Tests(Fields({ conformance: "[F], [B]" }), {
+                "allows if enabled (LHS)": {
+                    supports: ["foo"],
+                    record: { test: 1234 },
+                },
+
+                "allows if enabled (RHS)": {
+                    supports: ["bar"],
+                    record: { test: 1234 },
+                },
+
+                "disallows if disabled": {
+                    record: { test: 1234 },
+                    error: disallowed("[F], [B]"),
+                },
+
+                "allows omission if disabled": {},
+            }),
+        }),
+
+        disallowed: Tests(Fields({ conformance: "X" }), {
+            "disallows the field": {
+                record: { test: 1234 },
+                error: disallowed("X"),
+            },
+
+            "allows omission": {},
+        }),
+
+        provisional: Tests(Fields({ conformance: "P" }), {
+            "allows the field": {
+                record: { test: 1234 },
+            },
+
+            "allows omission": {},
+        }),
 
         "enum equality": Tests(
             Fields(
@@ -790,6 +1154,48 @@ describe("conformance", () => {
 
         it("requires field when conformance references cluster element", () => {
             expect(() => validate({})).throw(ConformanceError);
+        });
+    });
+
+    describe("revision", () => {
+        function managerFor(revision: number, conformance: string) {
+            const cluster = new ClusterModel({
+                name: "Test",
+                children: [
+                    FeatureMap.clone(),
+                    new AttributeModel({ name: "ClusterRevision", id: 0xfffd, type: "uint16", default: revision }),
+                    new FieldModel({ name: "Dependent", type: "uint8", conformance }),
+                ],
+            });
+            return RootSupervisor.for(cluster).get(cluster);
+        }
+
+        function validate(manager: ReturnType<typeof managerFor>, record: Record<string, unknown>) {
+            manager.validate?.(record, LocalActorContext.ReadOnly, { path: new DataModelPath("Test") });
+        }
+
+        it("requires field when revision satisfies mandatory condition", () => {
+            const manager = managerFor(2, "Rev >= v2");
+            expect(() => validate(manager, {})).throw(ConformanceError);
+            expect(() => validate(manager, { dependent: 42 })).not.throw();
+        });
+
+        it("disallows field when revision below mandatory condition", () => {
+            const manager = managerFor(1, "Rev >= v2");
+            expect(() => validate(manager, { dependent: 42 })).throw(ConformanceError);
+            expect(() => validate(manager, {})).not.throw();
+        });
+
+        it("allows field when revision satisfies optional condition", () => {
+            const manager = managerFor(2, "[Rev >= v2]");
+            expect(() => validate(manager, { dependent: 42 })).not.throw();
+            expect(() => validate(manager, {})).not.throw();
+        });
+
+        it("disallows field when revision below optional condition", () => {
+            const manager = managerFor(1, "[Rev >= v2]");
+            expect(() => validate(manager, { dependent: 42 })).throw(ConformanceError);
+            expect(() => validate(manager, {})).not.throw();
         });
     });
 });

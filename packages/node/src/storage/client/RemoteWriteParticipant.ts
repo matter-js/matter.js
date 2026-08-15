@@ -11,6 +11,20 @@ import type { RemoteWriter } from "./RemoteWriter.js";
 
 const logger = Logger.get("RemoteWriteParticipant");
 
+// A peer ID is unique only within one controller, but a transaction may span peers of several controllers, so the
+// diagnostic name — which the transaction requires to be unique — carries an ordinal derived from writer identity
+const writerOrdinals = new WeakMap<RemoteWriter, number>();
+let nextWriterOrdinal = 0;
+
+function ordinalFor(writer: RemoteWriter) {
+    let ordinal = writerOrdinals.get(writer);
+    if (ordinal === undefined) {
+        ordinal = nextWriterOrdinal++;
+        writerOrdinals.set(writer, ordinal);
+    }
+    return ordinal;
+}
+
 /**
  * A transaction participant that persists changes to a remote node.
  *
@@ -19,6 +33,7 @@ const logger = Logger.get("RemoteWriteParticipant");
 export class RemoteWriteParticipant implements Transaction.Participant {
     #request: RemoteWriter.Request = [];
     #writer: RemoteWriter;
+    #name: string;
     #snapshots = new Map<string, RemoteWriteParticipant.Snapshot>();
 
     /**
@@ -62,6 +77,7 @@ export class RemoteWriteParticipant implements Transaction.Participant {
                     compensator: snapshot.compensator,
                     previousValues: { ...snapshot.previousValues },
                     writtenValues: { ...values },
+                    reportEpoch: snapshot.reportEpoch,
                 });
             }
         }
@@ -105,7 +121,12 @@ export class RemoteWriteParticipant implements Transaction.Participant {
                 continue;
             }
             try {
-                await snapshot.compensator.compensate(failedIds, snapshot.previousValues, snapshot.writtenValues);
+                await snapshot.compensator.compensate(
+                    failedIds,
+                    snapshot.previousValues,
+                    snapshot.writtenValues,
+                    snapshot.reportEpoch,
+                );
             } catch (compensateError) {
                 logger.warn(`Failed to restore local state for ${key} after remote write decline:`, compensateError);
             }
@@ -118,11 +139,12 @@ export class RemoteWriteParticipant implements Transaction.Participant {
     }
 
     toString() {
-        return `remote-writer`;
+        return `remote-writer<${this.#name}>`;
     }
 
-    constructor(writer: RemoteWriter) {
+    constructor(writer: RemoteWriter, name: string) {
         this.#writer = writer;
+        this.#name = `${name}#${ordinalFor(writer)}`;
     }
 }
 
@@ -132,17 +154,19 @@ function snapshotKey(endpointNumber: EndpointNumber | number, behaviorId: string
 
 export namespace RemoteWriteParticipant {
     /**
-     * Restores local cache state for attribute writes the remote device declined.
+     * Restores local cache state for attribute writes the remote device did not accept.
      *
      * The participant invokes this with the failed attribute keys after a write fails.  Implementations should only
-     * restore values for keys present in {@link previousValues} AND only when the current local value still equals
-     * what was just written — leaving concurrently-mutated values alone.
+     * restore values for keys present in {@link previousValues}, only when the current local value still equals what
+     * was just written, and only when the peer has said nothing about the attribute since {@link reportEpoch} — the
+     * device defines its own state, so anything it told us during the write outranks our pre-write snapshot.
      */
     export interface Compensator {
         compensate(
             failedAttributeIds: Set<string>,
             previousValues: Val.Struct,
             writtenValues: Val.Struct,
+            reportEpoch: number,
         ): Promise<void>;
     }
 
@@ -153,6 +177,12 @@ export namespace RemoteWriteParticipant {
     export interface SnapshotInput {
         compensator: Compensator;
         previousValues: Val.Struct;
+
+        /**
+         * The compensator's report counter when this write was queued, so it can tell a report that arrived afterwards
+         * from one that predates the write.
+         */
+        reportEpoch: number;
     }
 
     /**
@@ -162,5 +192,6 @@ export namespace RemoteWriteParticipant {
         compensator: Compensator;
         previousValues: Val.Struct;
         writtenValues: Val.Struct;
+        reportEpoch: number;
     }
 }

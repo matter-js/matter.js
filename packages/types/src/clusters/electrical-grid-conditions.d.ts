@@ -315,12 +315,12 @@ export declare namespace ElectricalGridConditions {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link ElectricalGridConditions}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ElectricalGridConditions}.
      */
     export const Cluster: ClusterType.WithCompat<typeof ElectricalGridConditions, ElectricalGridConditions>;
 
     /**
-     * @deprecated Use {@link ElectricalGridConditions}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ElectricalGridConditions}.
      */
     export const Complete: typeof ElectricalGridConditions;
 
@@ -328,7 +328,7 @@ export declare namespace ElectricalGridConditions {
 }
 
 /**
- * @deprecated Use {@link ElectricalGridConditions}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link ElectricalGridConditions}.
  */
 export declare const ElectricalGridConditionsCluster: typeof ElectricalGridConditions;
 

@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 // From https://github.com/Koenkk/zigbee-herdsman-converters/blob/master/src/lib/kelvinToXy.ts
 
 let lookupTableExpanded = false;

@@ -457,12 +457,12 @@ export declare namespace CommodityPrice {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link CommodityPrice}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link CommodityPrice}.
      */
     export const Cluster: ClusterType.WithCompat<typeof CommodityPrice, CommodityPrice>;
 
     /**
-     * @deprecated Use {@link CommodityPrice}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link CommodityPrice}.
      */
     export const Complete: typeof CommodityPrice;
 
@@ -470,7 +470,7 @@ export declare namespace CommodityPrice {
 }
 
 /**
- * @deprecated Use {@link CommodityPrice}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link CommodityPrice}.
  */
 export declare const CommodityPriceCluster: typeof CommodityPrice;
 

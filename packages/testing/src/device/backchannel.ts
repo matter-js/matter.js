@@ -13,6 +13,7 @@ export type BackchannelCommand =
     | BackchannelCommand.SimulateLatchPosition
     | BackchannelCommand.SimulateSwitchIdle
     | BackchannelCommand.OperationalStateChange
+    | BackchannelCommand.ModeChange
     | BackchannelCommand.RvcErrors
     | BackchannelCommand.RvcNoParameters
     | BackchannelCommand.RvcRemoveMap
@@ -62,6 +63,13 @@ export namespace BackchannelCommand {
         device: "Generic" | "Oven";
         operation: "Stop" | "OnFault" | "Start" | "Resume" | "Pause"; // Stop only when Running state
         param: number; // Only with OnFault and is the error state Id
+    };
+
+    export type ModeChange = {
+        name: "modeChange";
+        device: "DishWasher" | "LaundryWasher" | "RvcClean" | "RvcRun";
+        type: "Current" | "StartUp" | "On" | "ToggleFailTransition";
+        mode?: number | null; // Absent for ToggleFailTransition, null clears StartUp/On
     };
 
     export type RvcNoParameters = {

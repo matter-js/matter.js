@@ -224,12 +224,12 @@ export declare namespace WaterTankLevelMonitoring {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link WaterTankLevelMonitoring}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link WaterTankLevelMonitoring}.
      */
     export const Cluster: ClusterType.WithCompat<typeof WaterTankLevelMonitoring, WaterTankLevelMonitoring>;
 
     /**
-     * @deprecated Use {@link WaterTankLevelMonitoring}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link WaterTankLevelMonitoring}.
      */
     export const Complete: typeof WaterTankLevelMonitoring;
 
@@ -237,7 +237,7 @@ export declare namespace WaterTankLevelMonitoring {
 }
 
 /**
- * @deprecated Use {@link WaterTankLevelMonitoring}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link WaterTankLevelMonitoring}.
  */
 export declare const WaterTankLevelMonitoringCluster: typeof WaterTankLevelMonitoring;
 

@@ -762,12 +762,12 @@ export declare namespace ElectricalEnergyMeasurement {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link ElectricalEnergyMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ElectricalEnergyMeasurement}.
      */
     export const Cluster: ClusterType.WithCompat<typeof ElectricalEnergyMeasurement, ElectricalEnergyMeasurement>;
 
     /**
-     * @deprecated Use {@link ElectricalEnergyMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ElectricalEnergyMeasurement}.
      */
     export const Complete: typeof ElectricalEnergyMeasurement;
 
@@ -775,7 +775,7 @@ export declare namespace ElectricalEnergyMeasurement {
 }
 
 /**
- * @deprecated Use {@link ElectricalEnergyMeasurement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link ElectricalEnergyMeasurement}.
  */
 export declare const ElectricalEnergyMeasurementCluster: typeof ElectricalEnergyMeasurement;
 

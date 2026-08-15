@@ -232,12 +232,12 @@ export declare namespace Chime {
     export const events: ClusterType.EventObjects<Events>;
 
     /**
-     * @deprecated Use {@link Chime}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Chime}.
      */
     export const Cluster: typeof Chime;
 
     /**
-     * @deprecated Use {@link Chime}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Chime}.
      */
     export const Complete: typeof Chime;
 
@@ -245,7 +245,7 @@ export declare namespace Chime {
 }
 
 /**
- * @deprecated Use {@link Chime}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link Chime}.
  */
 export declare const ChimeCluster: typeof Chime;
 

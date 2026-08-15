@@ -372,8 +372,13 @@ function addElement(components: InferredComponents, element: ValueModel) {
         return;
     }
 
+    // The intended conformance of a provisional element contributes its condition but may not make it mandatory
+    let provisional = false;
+
     while (true) {
-        if (text.match(/^[DP], /)) {
+        const leading = text.match(/^([DP]), /);
+        if (leading) {
+            provisional ||= leading[1] === "P";
             text = text.substring(3);
         } else {
             break;
@@ -382,8 +387,10 @@ function addElement(components: InferredComponents, element: ValueModel) {
 
     if (text === "D") {
         text = "O";
-    } else if (text === "M, D" || text === "P") {
+    } else if (text === "M, D") {
         text = "M";
+    } else if (text === "P") {
+        text = "O";
     }
 
     // Revision conformance (Rev >= vN) indicates when an element was introduced.
@@ -415,7 +422,7 @@ function addElement(components: InferredComponents, element: ValueModel) {
         const match = text.match(matcher.pattern);
         if (match) {
             matcher.processor((optional, condition) => {
-                addVariance(components, element, optional, condition);
+                addVariance(components, element, optional || provisional, condition);
             }, match.slice(1));
             return;
         }

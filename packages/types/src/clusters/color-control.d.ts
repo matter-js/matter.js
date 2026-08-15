@@ -2221,12 +2221,12 @@ export declare namespace ColorControl {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link ColorControl}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ColorControl}.
      */
     export const Cluster: ClusterType.WithCompat<typeof ColorControl, ColorControl>;
 
     /**
-     * @deprecated Use {@link ColorControl}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ColorControl}.
      */
     export const Complete: typeof ColorControl;
 
@@ -2234,7 +2234,7 @@ export declare namespace ColorControl {
 }
 
 /**
- * @deprecated Use {@link ColorControl}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link ColorControl}.
  */
 export declare const ColorControlCluster: typeof ColorControl;
 

@@ -17,8 +17,8 @@ import {
     Transaction,
 } from "@matter/general";
 import { ClassSemantics, Schema, Semantics } from "@matter/model";
-import { Reactor } from "./Reactor.js";
 import type { BehaviorBacking } from "./internal/BehaviorBacking.js";
+import { Reactor } from "./Reactor.js";
 import { DerivedState, EmptyState } from "./state/StateType.js";
 import { RootSupervisor } from "./supervision/RootSupervisor.js";
 

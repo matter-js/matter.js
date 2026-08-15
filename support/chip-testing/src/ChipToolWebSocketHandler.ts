@@ -4,7 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, causedBy, Diagnostic, Logger, LogLevel, Millis } from "@matter/general";
+import {
+    Bytes,
+    causedBy,
+    Diagnostic,
+    ImplementationError,
+    InternalError,
+    Logger,
+    LogLevel,
+    Millis,
+    NotImplementedError,
+} from "@matter/general";
 import {
     AttributeId,
     camelize,
@@ -120,7 +130,7 @@ const LogLevelMap: { [key: number]: string } = {
 export function parseNumber(number: string): number | bigint {
     const parsed = number.startsWith("0x") ? BigInt(number) : parseInt(number);
     if (typeof parsed === "number" && isNaN(parsed)) {
-        throw new Error(`Failed to parse number: ${number}`);
+        throw new ImplementationError(`Failed to parse number: ${number}`);
     }
     return parsed;
 }
@@ -190,7 +200,7 @@ function convertMatterToWebSocketTagBased(value: unknown, model: ValueModel, clu
                 continue;
             }
             if (typeof memberValue !== "boolean" && typeof memberValue !== "number") {
-                throw new Error("Invalid bitmap value", memberValue);
+                throw new ImplementationError(`Invalid bitmap value ${JSON.stringify(memberValue)}`);
             }
 
             const constraintValue = FieldValue.numericValue(member.constraint.value);
@@ -235,8 +245,15 @@ function parseChipJSON(json: string) {
     return JSON.parse(json);
 }
 
-/** Use the matter.js model to convert the incoming data for write and invoke commands into the expected format. */
-function convertWebsocketDataToMatter(value: any, model: ValueModel): any {
+/**
+ * Use the matter.js model to convert the incoming data for write and invoke commands into the
+ * expected format.
+ *
+ * Exported only as a test seam (see `resetControllerAdapterFactoryForTesting` in
+ * `packages/testing/src/chip/cert/controller-adapter.ts` for the same pattern); no production
+ * caller outside this module should import it.
+ */
+export function convertWebsocketDataToMatter(value: any, model: ValueModel): any {
     if (value === undefined) {
         return undefined;
     }
@@ -293,14 +310,25 @@ function convertWebsocketDataToMatter(value: any, model: ValueModel): any {
     }
 
     if (typeof value === "string") {
-        if (model.metabase?.metatype === "bytes" && value.startsWith("hex:")) {
-            return Bytes.fromHex(value.slice(4));
+        if (model.metabase?.metatype === "bytes") {
+            // chip-tool's own JSON encoder (`TlvJson.cpp`, `kTLVType_ByteString` case) writes the
+            // `base64:` header only inside `if (encodedLen)`: `Base64Encode` of a zero-length span
+            // returns 0, so a zero-length octet string comes back as `""` with no prefix at all.
+            if (value === "") {
+                return Bytes.fromHex("");
+            }
+            if (value.startsWith("base64:")) {
+                return Bytes.fromBase64(value.slice(7));
+            }
+            if (value.startsWith("hex:")) {
+                return Bytes.fromHex(value.slice(4));
+            }
         }
 
         if (model.metabase?.metatype === "bitmap") {
             const numberValue = parseInt(value);
             if (isNaN(numberValue)) {
-                throw new Error("Invalid bitmap value");
+                throw new ImplementationError(`Invalid bitmap value ${value}`);
             }
             const bitmapValue: { [key: string]: boolean } = {};
             model.members.forEach(member => {
@@ -443,7 +471,7 @@ export class ChipToolWebSocketHandler {
     async #commandHandlerFor(controllerName?: string) {
         const handler = this.#commandHandlers?.get(controllerName ?? "alpha");
         if (handler === undefined) {
-            throw new Error(`Unknown controller: ${controllerName}`);
+            throw new ImplementationError(`Unknown controller: ${controllerName}`);
         }
         // Do start the controllers just if needed
         if (!handler.started) {
@@ -503,7 +531,7 @@ export class ChipToolWebSocketHandler {
     /** Handles an incoming one line text command */
     async #handleTextCommand(data: string): Promise<ChipWebSocketCommandResponse> {
         if (!this.#commandHandlers) {
-            throw new Error("Command handlers not initialized");
+            throw new InternalError("Command handlers not initialized");
         }
 
         logger.info("Received Text based command:", data);
@@ -511,7 +539,7 @@ export class ChipToolWebSocketHandler {
         // Empty data means we return the subscription data
         if (data === "") {
             if (!this.#subscriptionUpdated) {
-                throw new Error("No subscription active");
+                throw new ImplementationError("No subscription active");
             }
             if (this.#subscriptionData.length === 0) {
                 // If no data are there we wait for next subscription update
@@ -542,17 +570,17 @@ export class ChipToolWebSocketHandler {
                             return { results: [{ error: "FAILURE" }] };
                         }
                     default:
-                        throw new Error(`Unknown pairing text command: ${commandData[1]}`);
+                        throw new NotImplementedError(`Pairing text command ${commandData[1]}`);
                 }
             }
         }
-        throw new Error(`Unknown text command: ${commandData[0]}`);
+        throw new NotImplementedError(`Text command ${commandData[0]}`);
     }
 
     /** Handles an incoming JSON based command */
     async #handleJsonCommand(incoming: IncomingChipWebSocketCommand): Promise<ChipWebSocketCommandResponse> {
         if (!this.#commandHandlers) {
-            throw new Error("Command handlers not initialized");
+            throw new InternalError("Command handlers not initialized");
         }
 
         // Arguments is a base64 encoded stringified JSON
@@ -563,10 +591,10 @@ export class ChipToolWebSocketHandler {
                 try {
                     commandArguments = JSON.parse(Buffer.from(base64Arguments.substring(7), "base64").toString("utf8"));
                 } catch (error) {
-                    throw new Error(`Failed to parse base64 arguments: ${error}`);
+                    throw new ImplementationError("Failed to parse base64 arguments", { cause: error });
                 }
             } else {
-                throw new Error(`Unknown argument encoding: ${base64Arguments}`);
+                throw new ImplementationError(`Unknown argument encoding: ${base64Arguments}`);
             }
         }
 
@@ -609,7 +637,7 @@ export class ChipToolWebSocketHandler {
             },
         } = data;
         if (command !== "wait-for-commissionee") {
-            throw new Error(`Unknown delay command: ${command}`);
+            throw new NotImplementedError(`Delay command ${command}`);
         }
         // {"cluster":"delay","command":"wait-for-commissionee","arguments":"base64( { \"nodeId\":\"305414945\" } )"}
         await (
@@ -698,7 +726,7 @@ export class ChipToolWebSocketHandler {
                 };
             }
         }
-        throw new Error(`Unknown pairing command: ${command}`);
+        throw new NotImplementedError(`Pairing command ${command}`);
     }
 
     /** Handles Commands for cluster "any" */
@@ -718,7 +746,7 @@ export class ChipToolWebSocketHandler {
                 return this.#handleAnySubscribeById(data);
 
             default:
-                throw new Error(`Unknown any command: ${command}`);
+                throw new NotImplementedError(`Any command ${command}`);
         }
     }
 
@@ -811,7 +839,7 @@ export class ChipToolWebSocketHandler {
         const handler = await this.#commandHandlerFor(commissionerName);
 
         if (value === undefined) {
-            throw new Error("Missing attribute name or value");
+            throw new ImplementationError("Missing attribute name or value");
         }
 
         let parsedValue: any = value;
@@ -906,7 +934,7 @@ export class ChipToolWebSocketHandler {
             }
         }
         if (findBy === undefined) {
-            throw new Error("Missing find by details");
+            throw new ImplementationError("Missing find by details");
         }
 
         try {
@@ -964,7 +992,7 @@ export class ChipToolWebSocketHandler {
         const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
 
         if (commandSpecifier === undefined) {
-            throw new Error("Missing attribute name");
+            throw new ImplementationError("Missing attribute name");
         }
         const attributeName = camelize(commandSpecifier);
         const attributeModel = clusterData.attributes[attributeName.toLowerCase()] ?? GlobalAttributes[attributeName];
@@ -1016,7 +1044,7 @@ export class ChipToolWebSocketHandler {
         const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
 
         if (commandSpecifier === undefined) {
-            throw new Error("Missing event name");
+            throw new ImplementationError("Missing event name");
         }
         const eventName = camelize(commandSpecifier);
 
@@ -1068,11 +1096,11 @@ export class ChipToolWebSocketHandler {
         const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
 
         if (commandSpecifier === undefined) {
-            throw new Error("Missing attribute name");
+            throw new ImplementationError("Missing attribute name");
         }
         const attributeName = camelize(commandSpecifier);
         if (attributeName === undefined) {
-            throw new Error("Missing attribute name");
+            throw new ImplementationError("Missing attribute name");
         }
         const attributeModel = clusterData.attributes[attributeName.toLowerCase()] ?? GlobalAttributes[attributeName];
         try {
@@ -1121,7 +1149,7 @@ export class ChipToolWebSocketHandler {
         const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
 
         if (commandSpecifier === undefined) {
-            throw new Error("Missing event name");
+            throw new ImplementationError("Missing event name");
         }
         const eventName = camelize(commandSpecifier);
 
@@ -1171,11 +1199,11 @@ export class ChipToolWebSocketHandler {
         const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
 
         if (commandSpecifier === undefined) {
-            throw new Error("Missing attribute name");
+            throw new ImplementationError("Missing attribute name");
         }
         const attributeName = camelize(commandSpecifier);
         if (value === undefined) {
-            throw new Error("Missing attribute name or value");
+            throw new ImplementationError("Missing attribute name or value");
         }
         const attributeModel = clusterData.attributes[attributeName.toLowerCase()] ?? GlobalAttributes[attributeName];
         let parsedValue: any = value;

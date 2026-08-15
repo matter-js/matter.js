@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import Chai from "chai";
+import * as Chai from "chai";
 import "./global-definitions.js";
 
 export interface DiffMarker {}
@@ -25,8 +25,8 @@ expect.BYTES = createDiffMarker("bytes");
 expect.NUMBER = createDiffMarker("number");
 expect.STRING = createDiffMarker("string");
 
-(Chai.config as any).deepEqual = (expected: unknown, actual: unknown) => {
-    return (Chai.util as any).eql(expected, actual, {
+Chai.config.deepEqual = (expected: unknown, actual: unknown) => {
+    return Chai.util.eql(expected, actual, {
         comparator(expected: unknown, actual: unknown) {
             // Handle special "type-only" checks
             switch (expected) {

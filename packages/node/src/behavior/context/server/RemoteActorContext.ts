@@ -183,7 +183,6 @@ export function RemoteActorContext(options: RemoteActorContext.Options) {
             }
 
             const notifyInteractionComplete = () => {
-                exchange.closing.off(notifyInteractionComplete);
                 exchangeCompleteEvents.delete(exchange);
                 function handleErr(err: unknown) {
                     logger.warn("interactionComplete observer failed", Diagnostic.error(err));
@@ -199,7 +198,7 @@ export function RemoteActorContext(options: RemoteActorContext.Options) {
                     }
                 }
             };
-            exchange.closing.on(notifyInteractionComplete);
+            exchange.closing.once(notifyInteractionComplete);
         }
         const context: RemoteActorContext & T = {
             ...options,

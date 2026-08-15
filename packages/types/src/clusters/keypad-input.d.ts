@@ -293,12 +293,12 @@ export declare namespace KeypadInput {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link KeypadInput}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link KeypadInput}.
      */
     export const Cluster: ClusterType.WithCompat<typeof KeypadInput, KeypadInput>;
 
     /**
-     * @deprecated Use {@link KeypadInput}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link KeypadInput}.
      */
     export const Complete: typeof KeypadInput;
 
@@ -306,7 +306,7 @@ export declare namespace KeypadInput {
 }
 
 /**
- * @deprecated Use {@link KeypadInput}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link KeypadInput}.
  */
 export declare const KeypadInputCluster: typeof KeypadInput;
 

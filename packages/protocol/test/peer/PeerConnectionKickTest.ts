@@ -64,6 +64,34 @@ describe("PeerConnection kick redesign", () => {
             expect(custom.kickRestartCooldown.addressChange).equals(Minutes(5));
             expect(custom.kickRestartCooldown.connect).equals(Seconds(30));
         });
+
+        it("keeps the untouched members of a partially overridden group", () => {
+            const custom = PeerTimingParameters({
+                kickRestartCooldown: { connect: Seconds(30) },
+                addressChangeProbeCooldown: { minimum: Seconds(45) },
+            });
+
+            expect(custom.kickRestartCooldown.connect).equals(Seconds(30));
+            expect(custom.kickRestartCooldown.addressChange).equals(
+                PeerTimingParameters.defaults.kickRestartCooldown.addressChange,
+            );
+
+            expect(custom.addressChangeProbeCooldown.minimum).equals(Seconds(45));
+            expect(custom.addressChangeProbeCooldown.maximum).equals(
+                PeerTimingParameters.defaults.addressChangeProbeCooldown.maximum,
+            );
+        });
+
+        it("keeps the untouched members of a group when merging onto a custom base", () => {
+            const base = PeerTimingParameters({
+                kickRestartCooldown: { addressChange: Minutes(5), connect: Minutes(5) },
+            });
+
+            const merged = PeerTimingParameters.merge(base, { kickRestartCooldown: { connect: Seconds(30) } });
+
+            expect(merged.kickRestartCooldown.connect).equals(Seconds(30));
+            expect(merged.kickRestartCooldown.addressChange).equals(Minutes(5));
+        });
     });
 
     describe("KickOrigin through QuietObservable", () => {

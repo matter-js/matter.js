@@ -434,12 +434,12 @@ export declare namespace Groups {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link Groups}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Groups}.
      */
     export const Cluster: ClusterType.WithCompat<typeof Groups, Groups>;
 
     /**
-     * @deprecated Use {@link Groups}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link Groups}.
      */
     export const Complete: typeof Groups;
 
@@ -447,7 +447,7 @@ export declare namespace Groups {
 }
 
 /**
- * @deprecated Use {@link Groups}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link Groups}.
  */
 export declare const GroupsCluster: typeof Groups;
 

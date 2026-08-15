@@ -133,12 +133,12 @@ export declare namespace TemperatureMeasurement {
     export const attributes: ClusterType.AttributeObjects<Attributes>;
 
     /**
-     * @deprecated Use {@link TemperatureMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link TemperatureMeasurement}.
      */
     export const Cluster: typeof TemperatureMeasurement;
 
     /**
-     * @deprecated Use {@link TemperatureMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link TemperatureMeasurement}.
      */
     export const Complete: typeof TemperatureMeasurement;
 
@@ -146,7 +146,7 @@ export declare namespace TemperatureMeasurement {
 }
 
 /**
- * @deprecated Use {@link TemperatureMeasurement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link TemperatureMeasurement}.
  */
 export declare const TemperatureMeasurementCluster: typeof TemperatureMeasurement;
 

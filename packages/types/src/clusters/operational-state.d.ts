@@ -680,12 +680,12 @@ export declare namespace OperationalState {
     export const events: ClusterType.EventObjects<Events>;
 
     /**
-     * @deprecated Use {@link OperationalState}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link OperationalState}.
      */
     export const Cluster: typeof OperationalState;
 
     /**
-     * @deprecated Use {@link OperationalState}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link OperationalState}.
      */
     export const Complete: typeof OperationalState;
 
@@ -693,7 +693,7 @@ export declare namespace OperationalState {
 }
 
 /**
- * @deprecated Use {@link OperationalState}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link OperationalState}.
  */
 export declare const OperationalStateCluster: typeof OperationalState;
 

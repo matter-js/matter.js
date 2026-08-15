@@ -135,12 +135,12 @@ export declare namespace FlowMeasurement {
     export const attributes: ClusterType.AttributeObjects<Attributes>;
 
     /**
-     * @deprecated Use {@link FlowMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link FlowMeasurement}.
      */
     export const Cluster: typeof FlowMeasurement;
 
     /**
-     * @deprecated Use {@link FlowMeasurement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link FlowMeasurement}.
      */
     export const Complete: typeof FlowMeasurement;
 
@@ -148,7 +148,7 @@ export declare namespace FlowMeasurement {
 }
 
 /**
- * @deprecated Use {@link FlowMeasurement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link FlowMeasurement}.
  */
 export declare const FlowMeasurementCluster: typeof FlowMeasurement;
 

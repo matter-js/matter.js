@@ -875,12 +875,12 @@ export declare namespace ScenesManagement {
     export const features: ClusterType.Features<Features>;
 
     /**
-     * @deprecated Use {@link ScenesManagement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ScenesManagement}.
      */
     export const Cluster: ClusterType.WithCompat<typeof ScenesManagement, ScenesManagement>;
 
     /**
-     * @deprecated Use {@link ScenesManagement}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link ScenesManagement}.
      */
     export const Complete: typeof ScenesManagement;
 
@@ -888,7 +888,7 @@ export declare namespace ScenesManagement {
 }
 
 /**
- * @deprecated Use {@link ScenesManagement}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link ScenesManagement}.
  */
 export declare const ScenesManagementCluster: typeof ScenesManagement;
 

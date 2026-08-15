@@ -13,6 +13,7 @@ import { RootSupervisor } from "../../supervision/RootSupervisor.js";
 import { maybeConfigOf } from "../../supervision/SupervisionConfig.js";
 import type { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
 import { Internal } from "../managed/Internal.js";
+import { memberSlotOf, memberValueOf } from "../managed/MemberKeys.js";
 import {
     assertArray,
     assertBoolean,
@@ -309,6 +310,8 @@ function createIntegerValidator(schema: ValueModel, supervisor: RootSupervisor, 
     // per-field StructManager setter path AND the ListManager.writeEntry path (which writes raw entry objects
     // bypassing per-field setters).  One mechanism handles every setStateOf path.
     if (isFabricIndexSentinel(schema)) {
+        const fieldName = schema.propertyName;
+        const fieldId = schema.id;
         const fabricSentinelOrSubstitute: ValueSupervisor.Validate = (value, session, location) => {
             const peerContext = session.clientPeerContext;
             if (value !== FabricIndex.OMIT_FABRIC || peerContext === undefined) {
@@ -317,7 +320,9 @@ function createIntegerValidator(schema: ValueModel, supervisor: RootSupervisor, 
             }
             const siblings = location.siblings as Val.Struct | undefined;
             if (siblings !== undefined && peerContext.fabricIndexOnPeer !== undefined) {
-                siblings.fabricIndex = peerContext.fabricIndexOnPeer;
+                // Substitute into the slot holding the sentinel — a name-keyed container may hold it under the
+                // field's TLV tag number, and writing another slot would leave two disagreeing fabricIndex values
+                siblings[memberSlotOf(siblings, fieldName, fieldId) ?? fieldName] = peerContext.fabricIndexOnPeer;
                 return;
             }
             logger.debug(
@@ -332,7 +337,7 @@ function createIntegerValidator(schema: ValueModel, supervisor: RootSupervisor, 
 }
 
 function createStructValidator(schema: Schema, supervisor: RootSupervisor): ValueSupervisor.Validate {
-    const validators = {} as Record<string, ValueSupervisor.Validate>;
+    const validators = {} as Record<string, { id: number | undefined; validate: ValueSupervisor.Validate }>;
 
     for (const field of supervisor.membersOf(schema)) {
         // Skip deprecated, and global attributes we currently handle in lower levels
@@ -341,7 +346,7 @@ function createStructValidator(schema: Schema, supervisor: RootSupervisor): Valu
         }
         const validate = supervisor.get(field).validate;
         if (validate) {
-            validators[field.propertyName] = validate;
+            validators[field.propertyName] = { id: field.id, validate };
         }
     }
 
@@ -359,23 +364,27 @@ function createStructValidator(schema: Schema, supervisor: RootSupervisor): Valu
         } as ValidationLocation;
 
         for (const name in validators) {
+            const { id, validate } = validators[name];
             let value;
 
+            // The validator has no reference and thus no primaryKey, so it accepts either spelling, name preferred:
+            // a name-keyed struct decoded without a schema keys members by TLV tag number, and an id-keyed mirror
+            // root keys by id canonically — do not narrow this to the read-fallback policy
             if ((struct as Val.Dynamic)[Val.properties]) {
                 const rootOwner = (struct as unknown as Internal.Collection)[Internal.reference];
                 const properties = (struct as Val.Dynamic)[Val.properties](rootOwner, session);
                 if (name in properties) {
                     value = properties[name];
                 } else {
-                    value = struct[name];
+                    value = memberValueOf(struct, name, id);
                 }
             } else {
-                value = struct[name];
+                value = memberValueOf(struct, name, id);
             }
 
             sublocation.path.id = name;
             sublocation.config = config?.readonlyChild?.(name);
-            validators[name](value, session, sublocation);
+            validate(value, session, sublocation);
         }
 
         for (const name in sublocation.choices) {

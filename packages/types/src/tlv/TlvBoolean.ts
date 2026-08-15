@@ -29,7 +29,7 @@ export class BooleanSchema extends TlvSchema<boolean> {
             throw new ValidationDatatypeMismatchError(`Expected boolean, got ${typeof value}.`);
     }
 
-    /** @deprecated Part of old ClusterType() compat layer. */
+    /** @deprecated Part of old ClusterType() compat layer.  Scheduled for removal in 0.19. */
     override get element(): TlvSchema.Element {
         return { type: "bool" };
     }

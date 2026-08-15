@@ -4,6 +4,11 @@
 
 name: 'Load CHIP from artifact'
 description: 'Installs CHIP docker image from build artifact into runner'
+inputs:
+  artifact-name:
+    description: 'Name of the uploaded chip image artifact'
+    required: false
+    default: 'chip-image'
 
 runs:
   using: 'composite'
@@ -11,7 +16,7 @@ runs:
     - name: Install artifact image
       uses: actions/download-artifact@v8
       with:
-        name: chip-image
+        name: ${{ inputs.artifact-name }}
         path: /tmp
 
     - name: Load image from artifact

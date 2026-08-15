@@ -190,7 +190,7 @@ export type CommissionableDeviceIdentifiers =
           /** The product ID of the commissionable device, if devices with a special product should be discovered. */
           productId: number;
       }
-    | { /** Pass empty object to discover any commissionable device. */ };
+    | {/** Pass empty object to discover any commissionable device. */};
 
 export interface Scanner {
     type: ChannelType;

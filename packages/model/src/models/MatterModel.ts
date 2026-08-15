@@ -47,6 +47,28 @@ export class MatterModel extends ScopeModel<MatterElement, MatterModel.Child> im
     }
 
     /**
+     * Create a copy of this model with clusters added or replaced.
+     *
+     * A supplied cluster replaces the standard cluster with the same ID (a plain addition loses to the standard entry
+     * during lookup) and clusters with new IDs are appended.  Use this to teach a {@link ClientNode} about custom or
+     * extended clusters so a controller resolves their elements to real names instead of synthetic `attr$…`/`command$…`.
+     */
+    withClusters(...clusters: ClusterModel[]): MatterModel {
+        const model = this.clone();
+        for (const cluster of clusters) {
+            const child = cluster.clone();
+            const existing = model.clusters(cluster.id);
+            const index = existing ? model.children.indexOf(existing) : -1;
+            if (index >= 0) {
+                model.children.splice(index, 1, child);
+            } else {
+                model.children.push(child);
+            }
+        }
+        return model;
+    }
+
+    /**
      * Device types.
      */
     get deviceTypes() {

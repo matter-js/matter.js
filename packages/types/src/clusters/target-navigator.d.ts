@@ -288,12 +288,12 @@ export declare namespace TargetNavigator {
     export const events: ClusterType.EventObjects<Events>;
 
     /**
-     * @deprecated Use {@link TargetNavigator}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link TargetNavigator}.
      */
     export const Cluster: typeof TargetNavigator;
 
     /**
-     * @deprecated Use {@link TargetNavigator}.
+     * @deprecated Scheduled for removal in 0.19. Use {@link TargetNavigator}.
      */
     export const Complete: typeof TargetNavigator;
 
@@ -301,7 +301,7 @@ export declare namespace TargetNavigator {
 }
 
 /**
- * @deprecated Use {@link TargetNavigator}.
+ * @deprecated Scheduled for removal in 0.19. Use {@link TargetNavigator}.
  */
 export declare const TargetNavigatorCluster: typeof TargetNavigator;
 

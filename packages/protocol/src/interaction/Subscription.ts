@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { MessageExchange } from "#protocol/MessageExchange.js";
 import { Session } from "#session/Session.js";
 import { hex } from "@matter/general";
 
@@ -16,9 +17,16 @@ export interface Subscription {
     subscriptionId: SubscriptionId;
 
     // TODO - these should reside in a server-specific interface
-    isCanceledByPeer: boolean;
+    /**
+     * Whether the subscription ended for good and the peer must establish a new one.  False for one torn down with
+     * its session, which may still be re-established.
+     */
+    isTerminated: boolean;
+
     handlePeerCancel(): Promise<void>;
-    close(flushViaSession?: Session): Promise<void>;
+
+    /** @param currentExchange the exchange whose send triggered this close; a subscription sending on it must not wait for itself */
+    close(flushViaSession?: Session, currentExchange?: MessageExchange): Promise<void>;
 }
 
 export namespace Subscription {
