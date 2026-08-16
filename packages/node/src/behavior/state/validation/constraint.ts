@@ -62,37 +62,54 @@ export function createConstraintValidator(
  *
  * The specification writes a bound of a temperature or percentage with its unit, such as the "Min to 100.00%" of a
  * percent100ths field.  Values arrive encoded, so a bound that keeps its unit never constrains anything.
+ *
+ * The entry constraint of a list bounds the entries, so it converts with the type of the entry rather than of the
+ * list.
  */
 function inEncodingUnits(constraint: Constraint, schema: ValueModel): Constraint {
+    return new Constraint(convertAst(constraint, schema));
+}
+
+function convertAst(ast: Constraint.Ast, schema: ValueModel): Constraint.Ast {
     const type = schema.effectiveType;
 
-    function convert(value: Constraint.Expression | undefined) {
-        if (
-            value === undefined ||
-            !(
-                FieldValue.is(value as FieldValue, FieldValue.percent) ||
-                FieldValue.is(value as FieldValue, FieldValue.celsius)
-            )
-        ) {
-            return value;
-        }
+    return {
+        ...ast,
+        value: convertExpression(ast.value, type),
+        min: convertExpression(ast.min, type),
+        max: convertExpression(ast.max, type),
+        in: convertValue(ast.in, type),
+        entry: ast.entry === undefined ? undefined : convertAst(ast.entry, schema.listEntry ?? schema),
+        parts: ast.parts?.map(part => convertAst(part, schema)),
+    };
+}
 
-        return FieldValue.numericValue(value as FieldValue, type) ?? value;
+function convertExpression(expression: Constraint.Expression | undefined, type?: string): Constraint.Expression {
+    if (expression === undefined || typeof expression !== "object" || expression === null) {
+        return expression as Constraint.Expression;
     }
 
-    function convertAst(ast: Constraint.Ast): Constraint.Ast {
+    if ("args" in expression) {
+        return { ...expression, args: expression.args.map(arg => convertExpression(arg, type)) };
+    }
+
+    if ("lhs" in expression) {
         return {
-            ...ast,
-            value: convert(ast.value),
-            min: convert(ast.min),
-            max: convert(ast.max),
-            entry: ast.entry === undefined ? undefined : convertAst(ast.entry),
-            parts: ast.parts?.map(convertAst),
+            ...expression,
+            lhs: convertExpression(expression.lhs, type),
+            rhs: convertExpression(expression.rhs, type),
         };
     }
 
-    const converted = convertAst(constraint);
-    return new Constraint(converted);
+    return convertValue(expression, type) as Constraint.Expression;
+}
+
+function convertValue<T extends FieldValue | undefined>(value: T, type?: string): T {
+    if (!(FieldValue.is(value, FieldValue.percent) || FieldValue.is(value, FieldValue.celsius))) {
+        return value;
+    }
+
+    return (FieldValue.numericValue(value, type) ?? value) as T;
 }
 
 function create(
