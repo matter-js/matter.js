@@ -41,11 +41,11 @@ export const ClosureDimension = Cluster(
     }),
     Attribute({
         name: "Resolution", id: 0x2, type: "percent100ths", access: "R V", conformance: "PS",
-        constraint: "min 0.01%", default: { type: "percent", value: 0 }, quality: "F"
+        constraint: "min 0.01%", default: { type: "percent", value: 0.01 }, quality: "F"
     }),
     Attribute({
         name: "StepValue", id: 0x3, type: "percent100ths", access: "R V", conformance: "PS",
-        constraint: "min 0.01%", default: { type: "percent", value: 0 }, quality: "F"
+        constraint: "min 0.01%", default: { type: "percent", value: 0.01 }, quality: "F"
     }),
     Attribute({ name: "Unit", id: 0x4, type: "ClosureUnitEnum", access: "R V", conformance: "UT", quality: "F" }),
     Attribute({
@@ -172,8 +172,8 @@ export const ClosureDimension = Cluster(
 
     Datatype(
         { name: "LatchControlModesBitmap", type: "map8" },
-        Field({ name: "RemoteLatching", constraint: "0" }),
-        Field({ name: "RemoteUnlatching", constraint: "1" })
+        Field({ name: "RemoteLatching", conformance: "LT", constraint: "0" }),
+        Field({ name: "RemoteUnlatching", conformance: "LT", constraint: "1" })
     )
 );
 

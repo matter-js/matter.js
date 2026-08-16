@@ -31,6 +31,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A choice set whose members are gated on a conformance expression, such as `[!PA].a` or `[PS].b`, requires a selection only where the gate admits a member, and rejects a member the gate excludes
     - Fix: An entry of an otherwise conformance applies only where the entries preceding it do not, and a feature is disallowed where no entry applies
     - Fix: A choice set whose members are all provisional, such as the `Groupcast` and `AmbientContextSensing` feature sets, no longer requires a selection
+    - Fix: A boolean whose specification default is `0`, such as `DoorLock.EnableOneTouchLocking`, now defaults to false instead of true
+    - Fix: A fractional temperature or percentage default, such as `Thermostat.EmergencyHeatDelta` (25.5 °C) and `ClosureDimension.Resolution` (0.01%), keeps its fraction
+    - Fix: The bits of a bitmap carry the conformance the specification states for them
+    - Fix: An event of a derived cluster takes the priority of the event it derives from, so `BridgedDeviceBasicInformation.Leave` and `ReachableChanged` are informational rather than critical
+    - Fix: A derived cluster's changes to the fields of an inherited struct now apply, such as the `1 to 8` constraint the mode clusters place on `ModeOptionStruct.ModeTags`
+    - Fix: An element whose access states a privilege but neither read nor write, such as `JointFabricAdministrator.AdministratorFabricIndex`, is read-only; previously it inherited the default read/write and accepted writes the specification does not grant
 
 - @matter/node
     - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding how long it waits for the operational CASE connection that follows it

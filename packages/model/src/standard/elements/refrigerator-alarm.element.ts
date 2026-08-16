@@ -23,7 +23,7 @@ export const RefrigeratorAlarm = Cluster(
         Field({ name: "RESET", conformance: "X", constraint: "0", title: "Reset" })
     ),
     Command({ name: "ModifyEnabledAlarms", id: 0x1, conformance: "X" }),
-    Datatype({ name: "AlarmBitmap", type: "map32" }, Field({ name: "DoorOpen", constraint: "0" }))
+    Datatype({ name: "AlarmBitmap", type: "map32" }, Field({ name: "DoorOpen", conformance: "M", constraint: "0" }))
 );
 
 MatterDefinition.children.push(RefrigeratorAlarm);

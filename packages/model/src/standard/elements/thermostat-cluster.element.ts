@@ -148,7 +148,7 @@ export const Thermostat = Cluster(
     Attribute({ name: "UnoccupiedSetbackMax", id: 0x39, conformance: "D" }),
     Attribute({
         name: "EmergencyHeatDelta", id: 0x3a, type: "UnsignedTemperature", access: "RW VM",
-        conformance: "O", default: { type: "celsius", value: 25 }, quality: "N"
+        conformance: "O", default: { type: "celsius", value: 25.5 }, quality: "N"
     }),
     Attribute({
         name: "AcType", id: 0x40, type: "ACTypeEnum", access: "RW VM", conformance: "O", constraint: "desc",
@@ -400,74 +400,74 @@ export const Thermostat = Cluster(
 
     Datatype(
         { name: "ACErrorCodeBitmap", type: "map32" },
-        Field({ name: "CompressorFail", constraint: "0" }),
-        Field({ name: "RoomSensorFail", constraint: "1" }),
-        Field({ name: "OutdoorSensorFail", constraint: "2" }),
-        Field({ name: "CoilSensorFail", constraint: "3" }),
-        Field({ name: "FanFail", constraint: "4" })
+        Field({ name: "CompressorFail", conformance: "M", constraint: "0" }),
+        Field({ name: "RoomSensorFail", conformance: "M", constraint: "1" }),
+        Field({ name: "OutdoorSensorFail", conformance: "M", constraint: "2" }),
+        Field({ name: "CoilSensorFail", conformance: "M", constraint: "3" }),
+        Field({ name: "FanFail", conformance: "M", constraint: "4" })
     ),
 
-    Datatype({ name: "OccupancyBitmap", type: "map8" }, Field({ name: "Occupied", constraint: "0" })),
+    Datatype({ name: "OccupancyBitmap", type: "map8" }, Field({ name: "Occupied", conformance: "M", constraint: "0" })),
     Datatype(
         { name: "PresetTypeFeaturesBitmap", type: "map16" },
-        Field({ name: "Automatic", constraint: "0" }),
-        Field({ name: "SupportsNames", constraint: "1" })
+        Field({ name: "Automatic", conformance: "M", constraint: "0" }),
+        Field({ name: "SupportsNames", conformance: "M", constraint: "1" })
     ),
 
     Datatype(
         { name: "RelayStateBitmap", type: "map16" },
-        Field({ name: "Heat", constraint: "0" }),
-        Field({ name: "Cool", constraint: "1" }),
-        Field({ name: "Fan", constraint: "2" }),
-        Field({ name: "HeatStage2", constraint: "3" }),
-        Field({ name: "CoolStage2", constraint: "4" }),
-        Field({ name: "FanStage2", constraint: "5" }),
-        Field({ name: "FanStage3", constraint: "6" })
+        Field({ name: "Heat", conformance: "M", constraint: "0" }),
+        Field({ name: "Cool", conformance: "M", constraint: "1" }),
+        Field({ name: "Fan", conformance: "M", constraint: "2" }),
+        Field({ name: "HeatStage2", conformance: "M", constraint: "3" }),
+        Field({ name: "CoolStage2", conformance: "M", constraint: "4" }),
+        Field({ name: "FanStage2", conformance: "M", constraint: "5" }),
+        Field({ name: "FanStage3", conformance: "M", constraint: "6" })
     ),
 
     Datatype(
         { name: "RemoteSensingBitmap", type: "map8" },
-        Field({ name: "LocalTemperature", constraint: "0" }),
-        Field({ name: "OutdoorTemperature", constraint: "1" }),
-        Field({ name: "Occupancy", constraint: "2" })
+        Field({ name: "LocalTemperature", conformance: "M", constraint: "0" }),
+        Field({ name: "OutdoorTemperature", conformance: "OutdoorTemperature", constraint: "1" }),
+        Field({ name: "Occupancy", conformance: "OCC", constraint: "2" })
     ),
 
     Datatype(
         { name: "ScheduleTypeFeaturesBitmap", type: "map16" },
-        Field({ name: "SupportsPresets", constraint: "0" }),
-        Field({ name: "SupportsSetpoints", constraint: "1" }),
-        Field({ name: "SupportsNames", constraint: "2" }),
-        Field({ name: "SupportsOff", constraint: "3" })
+        Field({ name: "SupportsPresets", conformance: "[PRES].b+", constraint: "0" }),
+        Field({ name: "SupportsSetpoints", conformance: "O.b+", constraint: "1" }),
+        Field({ name: "SupportsNames", conformance: "O", constraint: "2" }),
+        Field({ name: "SupportsOff", conformance: "O", constraint: "3" })
     ),
 
     Datatype(
         { name: "ScheduleDayOfWeekBitmap", type: "map8" },
-        Field({ name: "Sunday", constraint: "0" }),
-        Field({ name: "Monday", constraint: "1" }),
-        Field({ name: "Tuesday", constraint: "2" }),
-        Field({ name: "Wednesday", constraint: "3" }),
-        Field({ name: "Thursday", constraint: "4" }),
-        Field({ name: "Friday", constraint: "5" }),
-        Field({ name: "Saturday", constraint: "6" }),
-        Field({ name: "Away", constraint: "7" })
+        Field({ name: "Sunday", conformance: "M", constraint: "0" }),
+        Field({ name: "Monday", conformance: "M", constraint: "1" }),
+        Field({ name: "Tuesday", conformance: "M", constraint: "2" }),
+        Field({ name: "Wednesday", conformance: "M", constraint: "3" }),
+        Field({ name: "Thursday", conformance: "M", constraint: "4" }),
+        Field({ name: "Friday", conformance: "M", constraint: "5" }),
+        Field({ name: "Saturday", conformance: "M", constraint: "6" }),
+        Field({ name: "Away", conformance: "M", constraint: "7" })
     ),
 
     Datatype(
         { name: "ScheduleModeBitmap", type: "map8" },
-        Field({ name: "HeatSetpointPresent", constraint: "0" }),
-        Field({ name: "CoolSetpointPresent", constraint: "1" })
+        Field({ name: "HeatSetpointPresent", conformance: "M", constraint: "0" }),
+        Field({ name: "CoolSetpointPresent", conformance: "M", constraint: "1" })
     ),
 
     Datatype(
         { name: "ThermostatSuggestionNotFollowingReasonBitmap", type: "map16" },
-        Field({ name: "DemandResponseEvent", constraint: "0" }),
-        Field({ name: "OngoingHold", constraint: "1" }),
-        Field({ name: "Schedule", constraint: "2" }),
-        Field({ name: "Occupancy", constraint: "3" }),
-        Field({ name: "VacationMode", constraint: "4" }),
-        Field({ name: "TimeOfUseCostSavings", constraint: "5" }),
-        Field({ name: "PreCoolingOrPreHeating", constraint: "6" }),
-        Field({ name: "ConflictingSuggestions", constraint: "7" })
+        Field({ name: "DemandResponseEvent", conformance: "M", constraint: "0" }),
+        Field({ name: "OngoingHold", conformance: "M", constraint: "1" }),
+        Field({ name: "Schedule", conformance: "M", constraint: "2" }),
+        Field({ name: "Occupancy", conformance: "M", constraint: "3" }),
+        Field({ name: "VacationMode", conformance: "M", constraint: "4" }),
+        Field({ name: "TimeOfUseCostSavings", conformance: "M", constraint: "5" }),
+        Field({ name: "PreCoolingOrPreHeating", conformance: "M", constraint: "6" }),
+        Field({ name: "ConflictingSuggestions", conformance: "M", constraint: "7" })
     ),
 
     Datatype({ name: "ACCapacityFormatEnum", type: "enum8" }, Field({ name: "BtUh", id: 0x0, conformance: "O" })),

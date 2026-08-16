@@ -127,9 +127,9 @@ export const Channel = Cluster(
 
     Datatype(
         { name: "RecordingFlagBitmap", type: "map8" },
-        Field({ name: "Scheduled", constraint: "0" }),
-        Field({ name: "RecordSeries", constraint: "1" }),
-        Field({ name: "Recorded", constraint: "2" })
+        Field({ name: "Scheduled", conformance: "M", constraint: "0" }),
+        Field({ name: "RecordSeries", conformance: "M", constraint: "1" }),
+        Field({ name: "Recorded", conformance: "M", constraint: "2" })
     ),
 
     Datatype({ name: "LineupInfoTypeEnum", type: "enum8" }, Field({ name: "Mso", id: 0x0, conformance: "M" })),
