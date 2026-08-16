@@ -19,6 +19,7 @@ import { env } from "node:process";
 import {
     ChipToolCommandError,
     ChipToolControllerAdapter,
+    ChipToolPayloadError,
     ChipToolUnmappedStatusError,
 } from "../../src/cert/ChipToolControllerAdapter.js";
 import { registerCertCustomCluster } from "../../src/cert/custom-clusters.js";
@@ -290,6 +291,37 @@ describe("ChipToolControllerAdapter", function () {
 
         expect(ref).equal(FIRST_NODE);
         expect(fake.commands).deep.equal([`pairing code ${FIRST_NODE} MT:034J042C00KA0648G00`]);
+    });
+
+    it("separates chip-tool refusing the payload from chip-tool failing later", async () => {
+        const started = await start();
+
+        // `SetupPayload::FromStringRepresentation`'s own refusal, as chip-tool renders a CHIP_ERROR
+        fake.reply = () => ({
+            status: 1,
+            logs: [
+                "Run command failure: src/setup_payload/SetupPayload.cpp:361: CHIP Error 0x0000002F: Invalid argument",
+            ],
+        });
+
+        const refusal = await rejectionOf(started.commission({ qrPairingCode: "MT:034J042C00KA0648G00" }));
+        expect(refusal).instanceOf(ChipToolPayloadError);
+    });
+
+    it("does not report a handshake failure as a refused payload", async () => {
+        const started = await start();
+
+        // A commissioner that took the code and only then failed reaching the device
+        fake.reply = () => ({
+            status: 1,
+            logs: [
+                "Run command failure: src/protocols/secure_channel/PASESession.cpp:610: CHIP Error 0x00000032: Timeout",
+            ],
+        });
+
+        const failure = await rejectionOf(started.commission({ qrPairingCode: "MT:-24J042C00KA0648G00" }));
+        expect(failure).instanceOf(ChipToolCommandError);
+        expect(failure).not.instanceOf(ChipToolPayloadError);
     });
 
     it("reads a concrete path and decodes the value through the model", async () => {

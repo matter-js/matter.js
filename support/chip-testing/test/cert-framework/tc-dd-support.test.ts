@@ -8,6 +8,7 @@ import { InternalError, UnexpectedDataError } from "@matter/main";
 import type { CertNodeApi, CertNodeRef, CertStepContext, ControllerAdapter } from "@matter/testing";
 import { LogFollower } from "@matter/testing";
 import { expect } from "chai";
+import { ChipToolCommandError, ChipToolPayloadError } from "../../src/cert/ChipToolControllerAdapter.js";
 import { CommissioningRefusals, ON_NETWORK_ONLY, qrPayloadWith, qrPayloadWithPrefix } from "../cert/tc-dd-support.js";
 import { CertCheckFailedError, CertCleanupError } from "../cert/tc-support.js";
 
@@ -156,6 +157,24 @@ describe("CommissioningRefusals", () => {
             CertCheckFailedError,
             /unrelated reason/,
         );
+    });
+
+    it("does not accept chip-tool failing after it took the payload", async () => {
+        const cx = contextWith(() => Promise.reject(new ChipToolCommandError("chip-tool commissioning failed")));
+        const refusals = new CommissioningRefusals(BUDGETS);
+
+        await expect(refusals.requireRefusal(cx, "MT:whatever", "must be refused")).rejectedWith(
+            CertCheckFailedError,
+            /unrelated reason/,
+        );
+    });
+
+    it("accepts chip-tool refusing the payload in its own setup-payload layer", async () => {
+        const cx = contextWith(() => Promise.reject(new ChipToolPayloadError("chip-tool refused the payload")));
+        const refusals = new CommissioningRefusals(BUDGETS);
+
+        await refusals.requireRefusal(cx, "MT:whatever", "must be refused");
+        await refusals.settle(cx);
     });
 
     it("removes the fabric of a commissioning that succeeded after its own budget expired", async () => {

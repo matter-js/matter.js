@@ -8,7 +8,7 @@ import { Bytes, Duration, InternalError, Millis, Time, UnexpectedDataError } fro
 import { Base38, DiscoveryCapabilitiesBitmap, DiscoveryCapabilitiesSchema } from "@matter/main/types";
 import type { CertNodeRef, CertStepContext } from "@matter/testing";
 import type { CertDevice } from "@matter/testing";
-import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
+import { ChipToolPayloadError } from "../../src/cert/ChipToolControllerAdapter.js";
 import { expectMdns } from "../../src/cert/mdns-check.js";
 import { CertCleanupError, CommissionedRefs, expectRejection, expectSequence, record } from "./tc-support.js";
 
@@ -298,12 +298,15 @@ export class CommissioningRefusals {
 
 /**
  * Whether `error` is a controller refusing the onboarding payload rather than failing for some other
- * reason. matter.js's codec raises {@link UnexpectedDataError}; chip-tool reports its own verdict as
- * a failed command, where a dead process, a closed client or an expired command budget raise their
- * own types instead.
+ * reason. matter.js's codec raises {@link UnexpectedDataError}; chip-tool's driver raises
+ * {@link ChipToolPayloadError} only for a failure its setup-payload layer reported.
+ *
+ * The base `ChipToolCommandError` is deliberately not accepted: chip-tool funnels discovery, PASE,
+ * attestation and command timeouts into it as well, so a commissioner that took a forbidden passcode
+ * and only then failed its handshake would be recorded as having refused the code.
  */
 function isPayloadRefusal(error: unknown): boolean {
-    return error instanceof UnexpectedDataError || error instanceof ChipToolCommandError;
+    return error instanceof UnexpectedDataError || error instanceof ChipToolPayloadError;
 }
 
 /**

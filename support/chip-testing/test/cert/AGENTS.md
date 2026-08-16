@@ -1300,11 +1300,22 @@ Integrity check failed` for a prefix that is not `MT:` (chip-tool treats a non-`
 one). matter.js rejects the same three in `QrPairingCodeCodec`, inside a millisecond.
 
 **"It failed" is not the assertion; "it refused this payload" is.** `expectRejection` takes an
-`accept` predicate, and `CommissioningRefusals` only accepts `UnexpectedDataError` (matter.js's
-codec) or `ChipToolCommandError` (chip-tool's own verdict). Without it the steps pass on a controller
-that crashed, timed out or was never asked — `ChipToolClient.execute` alone has a 3-minute budget
-whose expiry is a rejection like any other, and both adapters refuse these payloads before touching
-the network, so the steps would also pass with no TH running at all.
+`accept` predicate, and `CommissioningRefusals` accepts only `UnexpectedDataError` (matter.js's
+codec) or `ChipToolPayloadError`. Without it the steps pass on a controller that crashed, timed out
+or was never asked — `ChipToolClient.execute` alone has a 3-minute budget whose expiry is a rejection
+like any other, and both adapters refuse these payloads before touching the network, so the steps
+would also pass with no TH running at all.
+
+**`ChipToolCommandError` is not that assertion either, and this is the subtle one.** Its own doc says
+chip-tool funnels discovery, PASE, attestation, CASE, timeout and argument-parse failures into the
+same bare marker. So a commissioner that *accepted* a forbidden passcode and only then failed its
+handshake raises exactly the error a refusal raises — the false pass this whole TC exists to prevent,
+reintroduced through the check meant to prevent it. What separates them is where chip-tool says the
+failure came from: `SetupPayload::FromStringRepresentation` reports its own source location, so
+`ChipToolControllerAdapter.commission` matches `Run command failure: src/setup_payload/` in the
+command's logs and raises `ChipToolPayloadError` for that case alone. Real evidence from both
+chip-tool legs: `chip-tool refused the onboarding payload for node 4097: Run command failure:
+src/setup_payload/SetupPayload.cpp:361: CHIP Error 0x0000002F: Invalid argument`.
 
 **A negative check needs a bound and a cleanup path.** `expectRejection` (promoted from
 `TC-CADMIN-1.17` to `tc-support.ts`, now taking its own timeout) reports `"fail"` for a call that
