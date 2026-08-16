@@ -150,6 +150,9 @@ function stubControllerAdapter(log: LogFollower): ControllerAdapter {
         async parseQrPayload(): Promise<never> {
             throw new InternalError("not used in this test");
         },
+        async parseManualPairingCode(): Promise<never> {
+            throw new InternalError("not used in this test");
+        },
         async commission() {
             return "ref";
         },
@@ -894,6 +897,9 @@ describe("CertTest", () => {
                 return "ref-dut";
             },
             async parseQrPayload(): Promise<never> {
+                throw new InternalError("not used in this test");
+            },
+            async parseManualPairingCode(): Promise<never> {
                 throw new InternalError("not used in this test");
             },
             node: () => nodeFor("dut"),

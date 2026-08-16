@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Duration, InternalError, Millis, Time } from "@matter/main";
+import { Bytes, Duration, InternalError, Millis, Time, Verhoeff } from "@matter/main";
 import { Base38, DiscoveryCapabilitiesBitmap, DiscoveryCapabilitiesSchema } from "@matter/main/types";
 import type { CertNodeRef, CertStepContext } from "@matter/testing";
 import type { CertDevice } from "@matter/testing";
@@ -369,4 +369,62 @@ export async function commissionByQr(
         ),
         "TH commissioning",
     );
+}
+
+/** First digit CHIP and matter.js both read as "a format this implementation does not know". */
+const FUTURE_FORMAT_DIGIT = 8;
+
+/**
+ * The parts § 5.1.4.1 Table 62 packs into a manual pairing code, as {@link manualPairingCode} writes
+ * them.
+ */
+export interface ManualPairingCodeParts {
+    /**
+     * Marks a format after v1 (§ 5.1.4.1.2), which sets the first digit to 8. The fields v1 packs
+     * into that digit are not representable alongside the marker, since a decimal digit holds 0-9.
+     */
+    futureFormat?: boolean;
+
+    /**
+     * The `VID_PID_PRESENT` bit. Set independently of whether the ids themselves follow, because a
+     * code where the two disagree is exactly what one of the negative plans asks for.
+     */
+    vidPidPresent: boolean;
+
+    /** The full 12-bit form; only its 4 most significant bits reach the code. */
+    discriminator: number;
+
+    passcode: number;
+    vendorId?: number;
+    productId?: number;
+
+    /** Replaces the Verhoeff digit the parts produce, for a step asking for a wrong one. */
+    checkDigit?: number;
+}
+
+/**
+ * A manual pairing code carrying `parts`, whatever the specification makes of them.
+ *
+ * The negative plans substitute values `ManualPairingCodeCodec` refuses to write — a reserved
+ * version, a forbidden passcode, a product id of 0 — so the digits are laid out here rather than
+ * encoded. The layout is § 5.1.4.1 Table 62's, and every code the plan prints for its own example
+ * device is asserted against this in `tc-dd-support.test.ts`.
+ */
+export function manualPairingCode(parts: ManualPairingCodeParts): string {
+    const { futureFormat = false, vidPidPresent, discriminator, passcode, vendorId, productId, checkDigit } = parts;
+
+    const chunk1 = futureFormat ? FUTURE_FORMAT_DIGIT : (vidPidPresent ? 1 << 2 : 0) | (discriminator >> 10);
+    const chunk2 = (((discriminator & 0x300) << 6) | (passcode & 0x3fff)).toString().padStart(5, "0");
+    const chunk3 = (passcode >>> 14).toString().padStart(4, "0");
+
+    if ((vendorId === undefined) !== (productId === undefined)) {
+        throw new InternalError("A manual pairing code carries a vendor and a product id together or not at all");
+    }
+
+    let digits = `${chunk1}${chunk2}${chunk3}`;
+    if (vendorId !== undefined && productId !== undefined) {
+        digits += vendorId.toString().padStart(5, "0") + productId.toString().padStart(5, "0");
+    }
+
+    return digits + (checkDigit ?? new Verhoeff().computeChecksum(digits));
 }

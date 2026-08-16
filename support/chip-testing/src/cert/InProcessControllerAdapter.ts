@@ -63,6 +63,7 @@ import type {
     ControllerAdapter,
     EventPathSpec,
     EventReadEntry,
+    ManualPairingCodeFields,
     OnboardingPayloadFields,
     ReadAttributeOptions,
     ReadEventOptions,
@@ -803,6 +804,17 @@ export class InProcessControllerAdapter implements ControllerAdapter {
         const { version, vendorId, productId, flowType, discoveryCapabilities, discriminator, passcode } =
             singleQrPayload(code);
         return { version, vendorId, productId, flowType, discoveryCapabilities, discriminator, passcode };
+    }
+
+    async parseManualPairingCode(code: string): Promise<ManualPairingCodeFields> {
+        const { shortDiscriminator, passcode, vendorId, productId } = refusalOf(
+            () => ManualPairingCodeCodec.decode(code),
+            `manual pairing code ${code}`,
+        );
+        if (shortDiscriminator === undefined) {
+            throw new InternalError(`Manual pairing code ${code} decoded to no short discriminator`);
+        }
+        return { shortDiscriminator, passcode, vendorId, productId };
     }
 
     commission(target: CommissioningTarget): Promise<CertNodeRef> {

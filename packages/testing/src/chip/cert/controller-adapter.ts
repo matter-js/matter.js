@@ -369,6 +369,13 @@ export interface ControllerAdapter {
      */
     parseQrPayload(code: string): Promise<OnboardingPayloadFields>;
 
+    /**
+     * {@link parseQrPayload} for the digits of a manual pairing code. Separate because the two code
+     * forms carry different fields: a manual code has only the 4-bit discriminator, states no
+     * discovery capabilities, and names a vendor and product only in its 21-digit form.
+     */
+    parseManualPairingCode(code: string): Promise<ManualPairingCodeFields>;
+
     node(ref: CertNodeRef): CertNodeApi;
     log: LogFollower;
 }
@@ -393,6 +400,22 @@ export interface OnboardingPayloadFields {
     discriminator: number;
 
     passcode: number;
+}
+
+/**
+ * A manual pairing code's fields, as {@link ControllerAdapter.parseManualPairingCode} reports them.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 5.1.4.1
+ */
+export interface ManualPairingCodeFields {
+    /** § 5.1.4.1 Table 62's 4-bit form, the 4 most significant bits of the device's discriminator. */
+    shortDiscriminator: number;
+
+    passcode: number;
+
+    /** Present only in the 21-digit form, which sets `VID_PID_PRESENT`. */
+    vendorId?: number;
+    productId?: number;
 }
 
 /**
