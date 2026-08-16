@@ -7,9 +7,11 @@
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { ChannelType, Minutes } from "@matter/general";
+import { ChannelType, Logger, Minutes } from "@matter/general";
 import { Discovery } from "./Discovery.js";
 import { ParallelPaseDiscovery } from "./ParallelPaseDiscovery.js";
+
+const logger = Logger.get("CommissioningDiscovery");
 
 /**
  * Discovers and commissions nodes.  All discovered candidates are commissioned in parallel; the first to establish
@@ -62,6 +64,10 @@ export class CommissioningDiscovery extends ParallelPaseDiscovery<ClientNode> {
     protected override onDiscovered(node: ClientNode) {
         if (this.paseWon) return;
 
+        if (!this.#namesThisDevice(node)) {
+            return;
+        }
+
         const peers = this.owner.peers;
         this.registerAttempt(
             winOnPase =>
@@ -77,8 +83,59 @@ export class CommissioningDiscovery extends ParallelPaseDiscovery<ClientNode> {
             () => node,
         );
     }
+
+    #namesThisDevice(node: ClientNode) {
+        const { vendorId, productId } = CommissioningClient.PasscodeOptions(this.#options);
+        const mismatch = CommissioningDiscovery.identityMismatch({ vendorId, productId }, node.state.commissioning);
+
+        if (mismatch !== undefined) {
+            logger.info(`Passing over ${node}: ${mismatch}`);
+            return false;
+        }
+
+        return true;
+    }
 }
 
 export namespace CommissioningDiscovery {
     export type Options = Discovery.InstanceOptions & CommissioningClient.CommissioningOptions;
+
+    /** What an onboarding payload and a commissionable advertisement each say about a device's identity. */
+    export interface Identity {
+        vendorId?: number;
+        productId?: number;
+    }
+
+    /**
+     * Why `advertised` is not the device `payload` names, or `undefined` if it may be.
+     *
+     * Discovery browses one DNS-SD sub-service, so a discriminator is all it can narrow by; the vendor
+     * and product a payload names are checked against what the device advertises (§ 4.3.1's `VP`
+     * record) once it is found. Either side may say nothing — a manual pairing code carries no identity
+     * in its 11-digit form and the record is optional — and absence never rejects, so this only ever
+     * refuses a device that positively advertises something else.
+     *
+     * Mirrors CHIP's `SetUpCodePairer::NodeMatchesCurrentFilter`. Both codecs already report § 2.5.2 /
+     * § 2.5.3's "unspecified" as an absent identifier, so nothing here has to know that it is 0 on the
+     * wire.
+     */
+    export function identityMismatch(payload: Identity, advertised: Identity) {
+        if (
+            payload.vendorId !== undefined &&
+            advertised.vendorId !== undefined &&
+            payload.vendorId !== advertised.vendorId
+        ) {
+            return `it advertises vendor ${advertised.vendorId} where the onboarding payload names ${payload.vendorId}`;
+        }
+
+        if (
+            payload.productId !== undefined &&
+            advertised.productId !== undefined &&
+            payload.productId !== advertised.productId
+        ) {
+            return `it advertises product ${advertised.productId} where the onboarding payload names ${payload.productId}`;
+        }
+
+        return undefined;
+    }
 }

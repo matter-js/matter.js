@@ -48,6 +48,7 @@ import {
     NodeId,
     Status,
     StatusResponseError,
+    VendorId,
 } from "@matter/main/types";
 import { AttributeModel } from "@matter/model";
 import type {
@@ -63,6 +64,7 @@ import type {
     ControllerAdapter,
     EventPathSpec,
     EventReadEntry,
+    OnboardingPayloadFields,
     ReadAttributeOptions,
     ReadEventOptions,
     SubscribeEventOptions,
@@ -73,6 +75,7 @@ import type {
 import { LineQueue, LogFollower } from "@matter/testing";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { certClusterModelFor, findCertCluster } from "./custom-clusters.js";
+import { refusalOf, singleQrPayload } from "./onboarding-payload.js";
 import { timedInteractionTimeoutOf } from "./timed-interaction.js";
 
 /**
@@ -85,6 +88,15 @@ const activeAdapterId = new AsyncLocalStorage<string>();
 /** As `ChipToolControllerAdapter`'s own declarations: what this controller claims the device's PICS cannot. */
 export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "MCORE.IDM.C.InvokeRequest.BatchCommands": 1,
+    "MCORE.ROLE.COMMISSIONER": 1,
+    "MCORE.DD.QR_COMMISSIONING": 1,
+    "MCORE.DD.MANUAL_PC_COMMISSIONING": 1,
+
+    // Takes the scanned payload itself (`MT:…`), not only the digits of a manual code.
+    "MCORE.DD.SCAN_QR_CODE": 1,
+
+    // A concatenated payload names several commissionees and is refused; the caller is told to split it.
+    "MCORE.DD.CTRL_CONCATENATED_QR_CODE_1": 0,
 };
 
 const adapterStreams = new Map<string, LineQueue>();
@@ -255,6 +267,10 @@ function inferAttributeModel(id: number, value: unknown): AttributeModel {
 interface ResolvedCommissioningTarget {
     identifierData: CommissionableDeviceIdentifiers;
     passcode: number;
+
+    /** What the payload names, so a device advertising another identity is passed over. */
+    vendorId?: VendorId;
+    productId?: number;
 }
 
 /**
@@ -262,18 +278,36 @@ interface ResolvedCommissioningTarget {
  * (§ 5.1.4.1's 4-bit form) and the window's freshly-generated passcode — never the device's original
  * setup passcode/discriminator, which `openEnhancedCommissioningWindow` deliberately replaces per
  * window. `target.passcode`/`target.discriminator` are for the device's original setup code instead.
+ *
+ * A `qrPairingCode` carries the full 12-bit discriminator, so it discovers by the long form. Its
+ * remaining fields (vendor and product id, commissioning flow, discovery capabilities) describe the
+ * commissionee rather than how to reach it; a step asserting on them decodes the payload itself.
  */
 function resolveCommissioningTarget(target: CommissioningTarget): ResolvedCommissioningTarget {
+    if (target.qrPairingCode) {
+        const { discriminator, passcode, vendorId, productId } = singleQrPayload(target.qrPairingCode);
+        return {
+            identifierData: { longDiscriminator: discriminator },
+            passcode,
+            vendorId: vendorId === undefined ? undefined : VendorId(vendorId, false),
+            productId,
+        };
+    }
     if (target.manualPairingCode !== undefined) {
-        const { shortDiscriminator, passcode } = ManualPairingCodeCodec.decode(target.manualPairingCode);
+        const code = target.manualPairingCode;
+        const { shortDiscriminator, passcode, vendorId, productId } = refusalOf(
+            () => ManualPairingCodeCodec.decode(code),
+            `manual pairing code ${code}`,
+        );
         if (shortDiscriminator === undefined) {
             throw new ImplementationError("Manual pairing code did not decode to a short discriminator");
         }
-        return { identifierData: { shortDiscriminator }, passcode };
+        return { identifierData: { shortDiscriminator }, passcode, vendorId, productId };
     }
     if (target.passcode === undefined || target.discriminator === undefined) {
         throw new ImplementationError(
-            "commission() requires either target.manualPairingCode or both target.passcode and target.discriminator",
+            "commission() requires a target.qrPairingCode, a target.manualPairingCode, or both target.passcode " +
+                "and target.discriminator",
         );
     }
     return { identifierData: { longDiscriminator: target.discriminator }, passcode: target.passcode };
@@ -775,14 +809,22 @@ export class InProcessControllerAdapter implements ControllerAdapter {
         }
     }
 
+    async parseQrPayload(code: string): Promise<OnboardingPayloadFields> {
+        const { version, vendorId, productId, flowType, discoveryCapabilities, discriminator, passcode } =
+            singleQrPayload(code);
+        return { version, vendorId, productId, flowType, discoveryCapabilities, discriminator, passcode };
+    }
+
     commission(target: CommissioningTarget): Promise<CertNodeRef> {
         return runTagged(this.id, async () => {
-            const { identifierData, passcode } = resolveCommissioningTarget(target);
+            const { identifierData, passcode, vendorId, productId } = resolveCommissioningTarget(target);
             // A commissioned peer holds the sustained wildcard subscription that bootstraps its own structure
             // read, so the standalone post-commissioning read is suppressed — one read, not two.
             const peer = await this.#startedController.peers.commission({
                 ...identifierData,
                 passcode,
+                vendorId,
+                productId,
                 autoStateInitialize: false,
                 caseConnectionTimeout: target.singleHandshakeAttempt ? SINGLE_HANDSHAKE_TIMEOUT : undefined,
                 regulatoryLocation: GeneralCommissioning.RegulatoryLocationType.IndoorOutdoor,
