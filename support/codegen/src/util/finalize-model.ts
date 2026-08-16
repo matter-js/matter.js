@@ -12,6 +12,8 @@ import {
     CommandModel,
     DatatypeModel,
     ElementTag,
+    EventElement,
+    EventModel,
     FieldModel,
     MatterModel,
     Metatype,
@@ -38,6 +40,7 @@ export function finalizeModel(matter: MatterModel) {
             patchClusterTypes(child);
             patchOptionsTypes(child);
             patchStatusTypes(child);
+            installEventPriorities(child);
         } else if (child instanceof SemanticNamespaceModel) {
             semanticNamespaces.push(child);
         }
@@ -52,6 +55,30 @@ export function finalizeModel(matter: MatterModel) {
     return Logger.nest(() => {
         return ValidateModel(matter);
     });
+}
+
+/**
+ * Install the priority of events that do not state one.
+ *
+ * A derived cluster's event table leaves the priority column empty for an event it inherits unchanged.  Priority is
+ * mandatory in our model, so we resolve it from the event we derive from, falling back to the most conservative value
+ * where the specification states none at all.
+ */
+function installEventPriorities(cluster: ClusterModel) {
+    for (const event of cluster.events) {
+        if (event.priority !== undefined) {
+            continue;
+        }
+
+        const inherited = event.shadow;
+        if (inherited instanceof EventModel && inherited.priority !== undefined) {
+            event.priority = inherited.priority;
+            continue;
+        }
+
+        logger.warn(`${event.path} has no priority, assuming CRITICAL`);
+        event.priority = EventElement.Priority.Critical;
+    }
 }
 
 export type ScopedDatatypes = Record<string, Model | undefined>;
