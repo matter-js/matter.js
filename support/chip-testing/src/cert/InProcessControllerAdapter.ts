@@ -48,6 +48,7 @@ import {
     NodeId,
     Status,
     StatusResponseError,
+    VendorId,
 } from "@matter/main/types";
 import { AttributeModel } from "@matter/model";
 import type {
@@ -266,6 +267,10 @@ function inferAttributeModel(id: number, value: unknown): AttributeModel {
 interface ResolvedCommissioningTarget {
     identifierData: CommissionableDeviceIdentifiers;
     passcode: number;
+
+    /** What the payload names, so a device advertising another identity is passed over. */
+    vendorId?: VendorId;
+    productId?: number;
 }
 
 /**
@@ -280,19 +285,24 @@ interface ResolvedCommissioningTarget {
  */
 function resolveCommissioningTarget(target: CommissioningTarget): ResolvedCommissioningTarget {
     if (target.qrPairingCode) {
-        const { discriminator, passcode } = singleQrPayload(target.qrPairingCode);
-        return { identifierData: { longDiscriminator: discriminator }, passcode };
+        const { discriminator, passcode, vendorId, productId } = singleQrPayload(target.qrPairingCode);
+        return {
+            identifierData: { longDiscriminator: discriminator },
+            passcode,
+            vendorId: VendorId(vendorId, false),
+            productId,
+        };
     }
     if (target.manualPairingCode !== undefined) {
         const code = target.manualPairingCode;
-        const { shortDiscriminator, passcode } = refusalOf(
+        const { shortDiscriminator, passcode, vendorId, productId } = refusalOf(
             () => ManualPairingCodeCodec.decode(code),
             `manual pairing code ${code}`,
         );
         if (shortDiscriminator === undefined) {
             throw new ImplementationError("Manual pairing code did not decode to a short discriminator");
         }
-        return { identifierData: { shortDiscriminator }, passcode };
+        return { identifierData: { shortDiscriminator }, passcode, vendorId, productId };
     }
     if (target.passcode === undefined || target.discriminator === undefined) {
         throw new ImplementationError(
@@ -807,12 +817,14 @@ export class InProcessControllerAdapter implements ControllerAdapter {
 
     commission(target: CommissioningTarget): Promise<CertNodeRef> {
         return runTagged(this.id, async () => {
-            const { identifierData, passcode } = resolveCommissioningTarget(target);
+            const { identifierData, passcode, vendorId, productId } = resolveCommissioningTarget(target);
             // A commissioned peer holds the sustained wildcard subscription that bootstraps its own structure
             // read, so the standalone post-commissioning read is suppressed — one read, not two.
             const peer = await this.#startedController.peers.commission({
                 ...identifierData,
                 passcode,
+                vendorId,
+                productId,
                 autoStateInitialize: false,
                 caseConnectionTimeout: target.singleHandshakeAttempt ? SINGLE_HANDSHAKE_TIMEOUT : undefined,
                 regulatoryLocation: GeneralCommissioning.RegulatoryLocationType.IndoorOutdoor,
