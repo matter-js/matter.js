@@ -183,6 +183,9 @@ export namespace FieldValue {
         if (is(value, percent)) {
             return `${(value as Percent).value}%`;
         }
+        if (is(value, bytes)) {
+            return (value as Bytes).value;
+        }
         if (is(value, properties)) {
             return stringSerialize((value as Properties).properties) ?? "?";
         }
@@ -315,6 +318,7 @@ export namespace FieldValue {
             case "boolean":
                 if (typeof value === "string") {
                     switch (value.trim().toLowerCase()) {
+                        case "":
                         case "0":
                         case "no":
                         case "off":
@@ -357,7 +361,8 @@ export namespace FieldValue {
                     if (type) {
                         // Both units are fractional in the specification's notation ("25.5°C", "0.01%") and scale to
                         // an integer only once the field's own unit is known
-                        value = Number.parseFloat(value);
+                        const radix = value.match(/^\s*([+-]?0[xb][\da-f]+)/i);
+                        value = radix === null ? Number.parseFloat(value) : Number(radix[1]);
                         if (!Number.isFinite(value)) {
                             return FieldValue.Invalid;
                         }

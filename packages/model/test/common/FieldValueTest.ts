@@ -33,5 +33,19 @@ describe("FieldValue", () => {
         it("rejects a temperature without a number", () => {
             expect(FieldValue.cast(Metatype.integer, "°C")).equal(FieldValue.Invalid);
         });
+
+        it("reads a value stated in another radix", () => {
+            expect(FieldValue.cast(Metatype.integer, "0x1F°C")).deep.equal(FieldValue.Celsius(31));
+        });
+
+        it("reads whitespace as no value", () => {
+            expect(FieldValue.cast(Metatype.boolean, " ")).equal(false);
+        });
+    });
+
+    describe("serialize", () => {
+        it("states bytes as their hex", () => {
+            expect(FieldValue.serialize(FieldValue.Bytes("0a1b"))).equal("0a1b");
+        });
     });
 });
