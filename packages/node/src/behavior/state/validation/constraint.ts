@@ -43,7 +43,7 @@ export function createConstraintValidator(
         };
     };
 
-    const inner = create(constraint, schema, nameResolverFactory);
+    const inner = create(inEncodingUnits(constraint, schema), schema, nameResolverFactory);
     if (!inner) {
         return undefined;
     }
@@ -55,6 +55,44 @@ export function createConstraintValidator(
         }
         inner(value, session, location);
     };
+}
+
+/**
+ * Restate the bounds of a constraint in the units the value is encoded in.
+ *
+ * The specification writes a bound of a temperature or percentage with its unit, such as the "Min to 100.00%" of a
+ * percent100ths field.  Values arrive encoded, so a bound that keeps its unit never constrains anything.
+ */
+function inEncodingUnits(constraint: Constraint, schema: ValueModel): Constraint {
+    const type = schema.effectiveType;
+
+    function convert(value: Constraint.Expression | undefined) {
+        if (
+            value === undefined ||
+            !(
+                FieldValue.is(value as FieldValue, FieldValue.percent) ||
+                FieldValue.is(value as FieldValue, FieldValue.celsius)
+            )
+        ) {
+            return value;
+        }
+
+        return FieldValue.numericValue(value as FieldValue, type) ?? value;
+    }
+
+    function convertAst(ast: Constraint.Ast): Constraint.Ast {
+        return {
+            ...ast,
+            value: convert(ast.value),
+            min: convert(ast.min),
+            max: convert(ast.max),
+            entry: ast.entry === undefined ? undefined : convertAst(ast.entry),
+            parts: ast.parts?.map(convertAst),
+        };
+    }
+
+    const converted = convertAst(constraint);
+    return new Constraint(converted);
 }
 
 function create(
