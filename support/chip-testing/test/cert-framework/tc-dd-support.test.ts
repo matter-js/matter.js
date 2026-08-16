@@ -190,7 +190,17 @@ describe("CommissioningRefusals", () => {
         await refusals.settle(cx);
     });
 
-    it("accepts any failure when the claim is only that nothing was commissioned", async () => {
+    it("does not accept a payload refusal as proof that no device was there", async () => {
+        // Otherwise a malformed generated code passes the step at ~1ms, having never reached discovery
+        const cx = contextWith(() => Promise.reject(new OnboardingPayloadRefusedError("bad code")));
+        const refusals = new CommissioningRefusals(BUDGETS);
+
+        await expect(
+            refusals.requireNoCommissioning(cx, { manualPairingCode: "749" }, "nothing commissioned", 100),
+        ).rejectedWith(CertCheckFailedError, /unrelated reason/);
+    });
+
+    it("accepts any other failure when the claim is only that nothing was commissioned", async () => {
         // The wrong-discriminator step: the code is well formed, so the DUT fails for lack of a device
         const cx = contextWith(() => Promise.reject(new ChipToolCommandError("chip-tool commissioning failed")));
         const refusals = new CommissioningRefusals(BUDGETS);
@@ -316,6 +326,16 @@ describe("manualPairingCode", () => {
 
     it("writes an 11-digit code when neither id is given", () => {
         expect(manualPairingCode({ vidPidPresent: false, discriminator: 0xf00, passcode: 20202021 })).length(11);
+    });
+
+    it("refuses a part that does not fit its field", () => {
+        expect(() => manualPairingCode({ ...PLAN_DEVICE, productId: 0x10000 }), "productId").throw(InternalError);
+        expect(() => manualPairingCode({ ...PLAN_DEVICE, productId: 1, discriminator: 0x1000 }), "disc").throw(
+            InternalError,
+        );
+        expect(() => manualPairingCode({ ...PLAN_DEVICE, productId: 1, checkDigit: 10 }), "checkDigit").throw(
+            InternalError,
+        );
     });
 
     it("refuses one id without the other", () => {

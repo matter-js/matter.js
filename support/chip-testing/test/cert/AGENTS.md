@@ -1396,11 +1396,30 @@ it did until `CommissioningTarget.giveUpAfterMs` was added. matter.js maps it to
 timeout; chip-tool cannot be bounded and says so, stopping on its own after ~30s, so the step's own
 budget has to outlast chip-tool rather than matter.js.
 
-**Step 6 is the plan's own "unless" branch.** It substitutes each test vendor id, but a manual code's
-vendor id is informational — no commissioner matches it against the discovered device — so all four
-codes commission the same TH and the step cannot discriminate on that alone. It commissions once and
-records that a cert harness onboards uncertified devices deliberately, its operator being the user the
-clause speaks of, rather than pretending to test something it cannot.
+**Step 6 records a real disagreement between the two controllers, and this one cost a review round.**
+The obvious reading — "a manual code's vendor id is informational, no commissioner matches it against
+the device it found" — is **false for chip-tool**:
+`SetUpCodePairer::NodeMatchesCurrentFilter` (`src/controller/SetUpCodePairer.cpp`) skips a discovered
+device whose advertised vendor or product id disagrees with the code's, so a code naming another
+vendor finds nothing and chip-tool gives up after its 30s discovery budget. matter.js discovers on
+the discriminator alone (`resolveCommissioningTarget` passes only `shortDiscriminator`/`passcode`)
+and onboards. **The plan's expected outcome admits both** — terminate, "unless the user is made fully
+aware of the security risks" — so the step records which happened instead of asserting one. Both
+outcomes appear in the evidence, one per controller.
+
+Two traps behind that, both of which a green run hid at first:
+
+- **Substituting the TH's own vendor id substitutes nothing.** `thCodeParts` reads VID/PID back from
+  the TH, so `0xFFF1` on a harness device reproduces step 1's code byte for byte and the step
+  commissions from an unmodified code while claiming to test a substitution. A reviewer caught that.
+- **Fixing it turned the chip legs red**, which is what exposed the vendor-matching behaviour above.
+  Do not "fix" a failure there by reverting to the matching id — that restores a step that proves
+  nothing.
+
+**`requireNoCommissioning` must refuse a payload refusal.** Without the complementary predicate every
+outcome that satisfies `requireRefusal` also satisfies it, so a malformed generated code would make
+step 4 pass at ~1ms having never reached discovery. The two checks are only a partition because the
+predicate says so.
 
 ## chip-tool delivers one result per async report and discards the rest
 

@@ -48,6 +48,11 @@ export interface CommissioningTarget {
      * far longer than the step needs — matter.js waits out the specification's 3-minute minimum
      * commissioning window. A controller that cannot be bounded says so and reports whatever its own
      * policy produces.
+     *
+     * On matter.js this **also caps PASE establishment**, which otherwise gets 30 seconds of its own:
+     * `CommissioningDiscovery.Options` merges the discovery and commissioning option sets and both
+     * declare `timeout`. Harmless where no device is expected to answer; a step that sets this on a
+     * target that does resolve is shortening its handshake budget too.
      */
     giveUpAfterMs?: number;
 
@@ -383,6 +388,11 @@ export interface ControllerAdapter {
      * {@link parseQrPayload} for the digits of a manual pairing code. Separate because the two code
      * forms carry different fields: a manual code has only the 4-bit discriminator, states no
      * discovery capabilities, and names a vendor and product only in its 21-digit form.
+     *
+     * How much a controller validates while reading is its own: matter.js's codec applies § 5.1's
+     * rules and refuses a code it would not commission from, where chip-tool's `parse-setup-payload`
+     * reports the fields of any code its parser can decode. Assert a refusal through
+     * {@link commission}, which both controllers judge, rather than through this.
      */
     parseManualPairingCode(code: string): Promise<ManualPairingCodeFields>;
 

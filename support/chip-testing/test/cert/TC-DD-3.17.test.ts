@@ -6,10 +6,13 @@
 
 import { certTest } from "@matter/testing";
 import {
-    CommissioningRefusals,
-    recordManualParse,
-    thManualPairingCode,
     commissionByManualCode,
+    CommissioningRefusals,
+    manualPairingCode,
+    recordManualParse,
+    recordVendorMismatchOutcome,
+    thCodeParts,
+    thManualPairingCode,
 } from "./tc-dd-support.js";
 import { CommissionedRefs, record } from "./tc-support.js";
 
@@ -24,8 +27,11 @@ const INVALID_PASSCODES = [
 /** The test vendor identifiers the plan's step 6.a substitutes. */
 const TEST_VENDOR_IDS = [0xfff1, 0xfff2, 0xfff3, 0xfff4];
 
-/** The plan's own substitute for the TH's discriminator, which changes its 4 most significant bits. */
-const OTHER_DISCRIMINATOR = 0xe00;
+/**
+ * Flips a bit the plan requires to change: § 5.1.4.1 Table 62 carries only the discriminator's 4 most
+ * significant bits, so a substitution the code can express has to land in them.
+ */
+const DISCRIMINATOR_MSB = 0x100;
 
 /**
  * What step 4 gives the DUT to look for a device that is not there. matter.js otherwise waits out
@@ -33,7 +39,15 @@ const OTHER_DISCRIMINATOR = 0xe00;
  * on its own after roughly 45 seconds, so the step's own budget has to outlast that.
  */
 const GIVE_UP_AFTER_MS = 20_000;
+
+/** Step 6's mismatched-vendor attempt, bounded the same way step 4's absent device is. */
+const VENDOR_MISMATCH_TIMEOUT_MS = 20_000;
 const NO_COMMISSIONEE_TIMEOUT_MS = 90_000;
+
+/** The plan repeats this in the expected outcome of every step that generates a code. */
+const GUIDELINES =
+    "The generated Manual Pairing Code follows all guidelines laid out in the Preconditions #2, above, with " +
+    "special attention to the CHECK_DIGIT using the Verhoeff algorithm.";
 
 const commissioned = new CommissionedRefs();
 const refusals = new CommissioningRefusals();
@@ -63,7 +77,7 @@ certTest("TC-DD-3.17", {
                 "Reserved-version code",
             );
         },
-        { expected: "User has a manual code generated to pass into DUT." },
+        { expected: `User has a manual code generated to pass into DUT. ${GUIDELINES}` },
     )
     .step(
         "2.b",
@@ -94,7 +108,7 @@ certTest("TC-DD-3.17", {
                 "Header/length mismatch code",
             );
         },
-        { expected: "User has a manual code generated to pass into DUT." },
+        { expected: `User has a manual code generated to pass into DUT. ${GUIDELINES}` },
     )
     .step(
         "3.b",
@@ -113,9 +127,13 @@ certTest("TC-DD-3.17", {
         "4.a",
         "SHORT DISCRIMINATOR: Using the manual code from Step 1, generate a new manual code but substituting out " +
             "the current SHORT DISCRIMINATOR string with a discriminator value that makes the generated manual code " +
-            "differ from Step 1's manual code",
+            "differ from Step 1's manual code (i.e. Choose a discriminator value that changes any of the 4 " +
+            "most-significant bits of Step 1's 12-bit discriminator value and adheres to rules of section 5.1.1.5. " +
+            '"Discriminator value")',
         async cx => {
-            const code = await thManualPairingCode(cx, { discriminator: OTHER_DISCRIMINATOR });
+            const code = await thManualPairingCode(cx, {
+                discriminator: cx.devices.th.commissioning.discriminator ^ DISCRIMINATOR_MSB,
+            });
             record(
                 cx,
                 {
@@ -126,13 +144,15 @@ certTest("TC-DD-3.17", {
                 "Wrong-discriminator code",
             );
         },
-        { expected: "User has a manual code generated to pass into DUT." },
+        { expected: `User has a manual code generated to pass into DUT. ${GUIDELINES}` },
     )
     .step(
         "4.b",
         "Provide the Manual Pairing Code, generated in the previous step, to the DUT in any format supported by the DUT",
         async cx => {
-            const manualPairingCode = await thManualPairingCode(cx, { discriminator: OTHER_DISCRIMINATOR });
+            const manualPairingCode = await thManualPairingCode(cx, {
+                discriminator: cx.devices.th.commissioning.discriminator ^ DISCRIMINATOR_MSB,
+            });
             await refusals.requireNoCommissioning(
                 cx,
                 { manualPairingCode, giveUpAfterMs: GIVE_UP_AFTER_MS },
@@ -153,7 +173,8 @@ certTest("TC-DD-3.17", {
             "component to one of the invalid Passcode and generate a new manual code: 00000000, 11111111, 22222222, " +
             "33333333, 44444444, 55555555, 66666666, 77777777, 88888888, 99999999, 12345678, 87654321",
         async cx => {
-            const codes = await Promise.all(INVALID_PASSCODES.map(passcode => thManualPairingCode(cx, { passcode })));
+            const parts = await thCodeParts(cx);
+            const codes = INVALID_PASSCODES.map(passcode => manualPairingCode({ ...parts, passcode }));
             record(
                 cx,
                 {
@@ -169,7 +190,7 @@ certTest("TC-DD-3.17", {
         {
             expected:
                 "User has 12 manual codes (one for each passcode in the list of invalid passcodes) generated to " +
-                "pass into DUT",
+                `pass into DUT. ${GUIDELINES}`,
         },
     )
     .step(
@@ -177,10 +198,11 @@ certTest("TC-DD-3.17", {
         "Provide each of the Manual Pairing Codes, generated in the previous step, to the DUT in any format " +
             "supported by the DUT",
         async cx => {
+            const parts = await thCodeParts(cx);
             for (const passcode of INVALID_PASSCODES) {
                 await refusals.requireRefusal(
                     cx,
-                    { manualPairingCode: await thManualPairingCode(cx, { passcode }) },
+                    { manualPairingCode: manualPairingCode({ ...parts, passcode }) },
                     `Code carrying passcode ${passcode} refused`,
                 );
             }
@@ -197,7 +219,8 @@ certTest("TC-DD-3.17", {
             "Payload components except for the VENDOR_ID. For each VENDOR_ID in the following list, set the " +
             "VENDOR_ID component to one of the invalid Test VENDOR_IDs: 0xFFF1, 0xFFF2, 0xFFF3, 0xFFF4",
         async cx => {
-            const codes = await Promise.all(TEST_VENDOR_IDS.map(vendorId => thManualPairingCode(cx, { vendorId })));
+            const parts = await thCodeParts(cx);
+            const codes = TEST_VENDOR_IDS.map(vendorId => manualPairingCode({ ...parts, vendorId }));
             record(
                 cx,
                 {
@@ -213,7 +236,7 @@ certTest("TC-DD-3.17", {
         {
             expected:
                 "User has 4 manual codes (one for each VENDOR_ID in the list of invalid VENDOR_IDs) generated to " +
-                "pass into DUT",
+                `pass into DUT. ${GUIDELINES}`,
         },
     )
     .step(
@@ -223,8 +246,20 @@ certTest("TC-DD-3.17", {
         async cx => {
             // The plan's own "unless" branch: a cert harness commissions uncertified devices on
             // purpose, and its operator is the user the clause speaks of.
-            const manualPairingCode = await thManualPairingCode(cx, { vendorId: TEST_VENDOR_IDS[0] });
-            await commissionByManualCode(cx, manualPairingCode, commissioned);
+            const parts = await thCodeParts(cx);
+            const [mismatched] = TEST_VENDOR_IDS.filter(vendorId => vendorId !== parts.vendorId);
+
+            // A code naming a vendor the TH is not: chip-tool refuses to pair with a device whose
+            // advertisement disagrees, matter.js discovers on the discriminator alone and onboards.
+            // The plan's expected outcome admits both, so the step records which rather than asserting.
+            await recordVendorMismatchOutcome(
+                cx,
+                manualPairingCode({ ...parts, vendorId: mismatched }),
+                `Code naming vendor 0x${mismatched.toString(16)}`,
+                VENDOR_MISMATCH_TIMEOUT_MS,
+            );
+
+            await commissionByManualCode(cx, manualPairingCode({ ...parts, vendorId: parts.vendorId }), commissioned);
         },
         {
             expected:
@@ -246,7 +281,7 @@ certTest("TC-DD-3.17", {
                 "Product-id-0 code",
             );
         },
-        { expected: "User has a manual code generated to pass into DUT." },
+        { expected: `User has a manual code generated to pass into DUT. ${GUIDELINES}` },
     )
     .step(
         "7.b",
@@ -273,7 +308,7 @@ certTest("TC-DD-3.17", {
                 "Wrong-check-digit code",
             );
         },
-        { expected: "User has a manual code generated to pass into DUT." },
+        { expected: `User has a manual code generated to pass into DUT. ${GUIDELINES}` },
     )
     .step(
         "8.b",

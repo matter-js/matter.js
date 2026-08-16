@@ -274,7 +274,18 @@ export class CommissioningRefusals {
             ),
         );
 
-        record(cx, await expectRejection(`commissioning from ${describeTarget(target)}`, attempt, timeoutMs), what);
+        record(
+            cx,
+            await expectRejection(
+                `commissioning from ${describeTarget(target)}`,
+                attempt,
+                timeoutMs,
+                // A payload refusal would mean the code never reached discovery, so the step proved
+                // nothing about a commissionee that is not there
+                error => !isPayloadRefusal(error),
+            ),
+            what,
+        );
     }
 
     /**
@@ -323,6 +334,10 @@ export class CommissioningRefusals {
     }
 }
 
+function describeTarget(target: CommissioningTarget): string {
+    return target.qrPairingCode ?? target.manualPairingCode ?? JSON.stringify(target);
+}
+
 /**
  * Whether `error` is a controller refusing the onboarding payload rather than failing for some other
  * reason. Both adapters mark that refusal where it happens, because neither controller's own error
@@ -331,10 +346,6 @@ export class CommissioningRefusals {
  * invalid CSR response, for one). Either would let a commissioner that took a forbidden code and only
  * then failed be recorded as having refused it.
  */
-function describeTarget(target: CommissioningTarget): string {
-    return target.qrPairingCode ?? target.manualPairingCode ?? JSON.stringify(target);
-}
-
 function isPayloadRefusal(error: unknown): boolean {
     return error instanceof OnboardingPayloadRefusedError;
 }
@@ -350,17 +361,24 @@ export async function thManualPairingCode(
     cx: CertStepContext,
     overrides: Partial<ManualPairingCodeParts> = {},
 ): Promise<string> {
+    return manualPairingCode({ ...(await thCodeParts(cx)), ...overrides });
+}
+
+/**
+ * What the TH's own setup code puts into a 21-digit manual code. Read once by a step that builds
+ * several, so a dozen substitutions do not become a dozen concurrent requests to the DUT.
+ */
+export async function thCodeParts(cx: CertStepContext): Promise<ManualPairingCodeParts> {
     const th = cx.devices.th;
     const { vendorId, productId } = await cx.controllers.dut.parseQrPayload(await thQrPayload(th));
 
-    return manualPairingCode({
+    return {
         vidPidPresent: true,
         discriminator: th.commissioning.discriminator,
         passcode: th.commissioning.passcode,
         vendorId,
         productId,
-        ...overrides,
-    });
+    };
 }
 
 /**
@@ -408,6 +426,48 @@ export async function recordCommissionable(
     what = "TH advertising as commissionable",
 ): Promise<void> {
     record(cx, await expectMdns(cx.devices.th, { commissionable: true }, { timeoutMs: MDNS_TIMEOUT_MS }), what);
+}
+
+/**
+ * Records what the DUT made of a code whose vendor id is not the TH's, where the plan accepts either
+ * outcome: terminating commissioning, or onboarding anyway with the user aware of the risk.
+ *
+ * The two controllers genuinely differ. chip-tool matches a code's vendor and product id against the
+ * device it discovered (`SetUpCodePairer::NodeMatchesCurrentFilter`) and finds nothing; matter.js
+ * discovers on the discriminator alone and onboards. A fabric that results is removed here rather
+ * than left for the step's own cleanup, so it cannot collide with the ref the step keeps.
+ */
+export async function recordVendorMismatchOutcome(
+    cx: CertStepContext,
+    manualPairingCode: string,
+    what: string,
+    timeoutMs: number,
+): Promise<void> {
+    const dut = cx.controllers.dut;
+    const attempt = dut.commission({ manualPairingCode, giveUpAfterMs: timeoutMs });
+
+    const outcome = await expectRejection(`commissioning from ${manualPairingCode}`, attempt, timeoutMs + 30_000);
+    if (outcome.verdict === "pass") {
+        record(cx, { ...outcome, detail: `DUT terminated commissioning: ${outcome.detail}` }, what);
+        return;
+    }
+
+    const ref = await attempt;
+    try {
+        record(
+            cx,
+            {
+                type: "response",
+                verdict: "pass",
+                detail:
+                    `DUT onboarded the TH as node ${ref} despite the code naming another vendor, which the ` +
+                    `plan allows where the user accepts the risk`,
+            },
+            what,
+        );
+    } finally {
+        await dut.node(ref).decommission();
+    }
 }
 
 /** {@link commissionByQr} for a manual pairing code, which discovers by the short discriminator. */
@@ -483,6 +543,17 @@ async function commissionByTarget(
     );
 }
 
+/**
+ * A part that does not fit its field would be written as extra digits or roll into its neighbour,
+ * putting a code nobody asked for into the evidence — the same trap `writeBits` guards for a QR
+ * payload.
+ */
+function assertFits(value: number, max: number, what: string): void {
+    if (!Number.isInteger(value) || value < 0 || value > max) {
+        throw new InternalError(`${what} ${value} does not fit a manual pairing code`);
+    }
+}
+
 /** First digit CHIP and matter.js both read as "a format this implementation does not know". */
 const FUTURE_FORMAT_DIGIT = 8;
 
@@ -528,6 +599,12 @@ export function manualPairingCode(parts: ManualPairingCodeParts): string {
     const chunk1 = futureFormat ? FUTURE_FORMAT_DIGIT : (vidPidPresent ? 1 << 2 : 0) | (discriminator >> 10);
     const chunk2 = (((discriminator & 0x300) << 6) | (passcode & 0x3fff)).toString().padStart(5, "0");
     const chunk3 = (passcode >>> 14).toString().padStart(4, "0");
+
+    assertFits(discriminator, 0xfff, "discriminator");
+    assertFits(passcode, 0x7ffffff, "passcode");
+    assertFits(vendorId ?? 0, 0xffff, "vendorId");
+    assertFits(productId ?? 0, 0xffff, "productId");
+    assertFits(checkDigit ?? 0, 9, "checkDigit");
 
     if ((vendorId === undefined) !== (productId === undefined)) {
         throw new InternalError("A manual pairing code carries a vendor and a product id together or not at all");
