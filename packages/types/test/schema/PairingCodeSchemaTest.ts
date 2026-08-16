@@ -424,6 +424,12 @@ describe("ManualPairingCodeCodec", () => {
             );
         });
 
+        it("rejects the mismatch even when validation is disabled, since it is structural", () => {
+            expect(() => ManualPairingCodeCodec.decode("349701123365521327696", false)).throw(
+                "A 21-digit manual pairing code must set VID_PID_PRESENT",
+            );
+        });
+
         it("accepts the plan's own 21-digit example", () => {
             const decoded = ManualPairingCodeCodec.decode("749701123365521327694");
 
@@ -442,6 +448,11 @@ describe("ManualPairingCodeCodec", () => {
 
         it("decodes it when validation is disabled", () => {
             expect(ManualPairingCodeCodec.decode("749701123365521000006", false).productId).equal(0);
+        });
+
+        it("rejects a product ID the field cannot hold", () => {
+            // Five digits reach 99999, so a manual code can name a product ID past 16 bits
+            expect(() => ManualPairingCodeCodec.decode("749701123365521655363")).throw("Invalid product ID 65536");
         });
     });
 
