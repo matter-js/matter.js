@@ -1213,6 +1213,14 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
             );
         }
 
+        if (target.giveUpAfterMs !== undefined) {
+            // Said out loud for the same reason singleHandshakeAttempt is: a step asking for this is
+            // asserting an outcome, and chip-tool's own give-up is what decides it.
+            console.warn(
+                `chip-tool cannot bound discovery for node ${node}; its own policy decides when it stops looking`,
+            );
+        }
+
         let command: string;
         if (target.qrPairingCode) {
             // `pairing code` reads either payload format, a concatenated one included — and would pair

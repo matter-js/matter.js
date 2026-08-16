@@ -6,7 +6,7 @@
 
 import { Bytes, Duration, InternalError, Millis, Time, Verhoeff } from "@matter/main";
 import { Base38, DiscoveryCapabilitiesBitmap, DiscoveryCapabilitiesSchema } from "@matter/main/types";
-import type { CertNodeRef, CertStepContext } from "@matter/testing";
+import type { CertNodeRef, CertStepContext, CommissioningTarget } from "@matter/testing";
 import type { CertDevice } from "@matter/testing";
 import { expectMdns } from "../../src/cert/mdns-check.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
@@ -232,8 +232,8 @@ export class CommissioningRefusals {
      * rejection would let the step pass on a controller that died, timed out or was never asked —
      * outcomes that say nothing about what the DUT made of the code.
      */
-    async requireRefusal(cx: CertStepContext, payload: string, what: string): Promise<void> {
-        const attempt = cx.controllers.dut.commission({ qrPairingCode: payload });
+    async requireRefusal(cx: CertStepContext, target: CommissioningTarget, what: string): Promise<void> {
+        const attempt = cx.controllers.dut.commission(target);
         // Kept as a settled outcome so an attempt nobody awaits again cannot surface as an unhandled
         // rejection, and so settle() can collect the ref of one that succeeded after its budget
         this.#attempts.push(
@@ -245,9 +245,36 @@ export class CommissioningRefusals {
 
         record(
             cx,
-            await expectRejection(`commissioning from ${payload}`, attempt, this.#refusalTimeoutMs, isPayloadRefusal),
+            await expectRejection(
+                `commissioning from ${describeTarget(target)}`,
+                attempt,
+                this.#refusalTimeoutMs,
+                isPayloadRefusal,
+            ),
             what,
         );
+    }
+
+    /**
+     * Records that the DUT does not commission from `target`, without claiming why. The plans use
+     * this where the code is well-formed but names a device that is not there: any failure satisfies
+     * "the DUT terminated commissioning", where a success does not.
+     */
+    async requireNoCommissioning(
+        cx: CertStepContext,
+        target: CommissioningTarget,
+        what: string,
+        timeoutMs: number,
+    ): Promise<void> {
+        const attempt = cx.controllers.dut.commission(target);
+        this.#attempts.push(
+            attempt.then(
+                ref => ref,
+                () => undefined,
+            ),
+        );
+
+        record(cx, await expectRejection(`commissioning from ${describeTarget(target)}`, attempt, timeoutMs), what);
     }
 
     /**
@@ -304,9 +331,73 @@ export class CommissioningRefusals {
  * invalid CSR response, for one). Either would let a commissioner that took a forbidden code and only
  * then failed be recorded as having refused it.
  */
+function describeTarget(target: CommissioningTarget): string {
+    return target.qrPairingCode ?? target.manualPairingCode ?? JSON.stringify(target);
+}
+
 function isPayloadRefusal(error: unknown): boolean {
     return error instanceof OnboardingPayloadRefusedError;
 }
+
+/**
+ * The TH's own setup code rendered as a 21-digit manual pairing code.
+ *
+ * No subject publishes one: a device on the standard commissioning flow prints the 11-digit form,
+ * and § 5.1.4.1 Table 64's longer form is what the manual-code plans test. It names the same device
+ * — the same discriminator and passcode — in the form the plan's preconditions describe.
+ */
+export async function thManualPairingCode(
+    cx: CertStepContext,
+    overrides: Partial<ManualPairingCodeParts> = {},
+): Promise<string> {
+    const th = cx.devices.th;
+    const { vendorId, productId } = await cx.controllers.dut.parseQrPayload(await thQrPayload(th));
+
+    return manualPairingCode({
+        vidPidPresent: true,
+        discriminator: th.commissioning.discriminator,
+        passcode: th.commissioning.passcode,
+        vendorId,
+        productId,
+        ...overrides,
+    });
+}
+
+/**
+ * Records what the DUT read out of `code` and whether it names the TH. As {@link recordParse}, the
+ * parse is the DUT's: a step that decoded the code itself would pass against a controller that
+ * cannot read one.
+ */
+export async function recordManualParse(cx: CertStepContext, code: string): Promise<void> {
+    const th = cx.devices.th;
+
+    let parsed;
+    try {
+        parsed = await cx.controllers.dut.parseManualPairingCode(code);
+    } catch (e) {
+        cx.recorder.check({ type: "response", verdict: "fail", detail: `DUT could not parse ${code}: ${e}` });
+        throw e;
+    }
+
+    const shortDiscriminator = th.commissioning.discriminator >> SHORT_DISCRIMINATOR_SHIFT;
+    const matches = parsed.shortDiscriminator === shortDiscriminator && parsed.passcode === th.commissioning.passcode;
+
+    record(
+        cx,
+        {
+            type: "response",
+            verdict: matches ? "pass" : "fail",
+            detail:
+                `DUT read the ${code.length}-digit code as shortDiscriminator=${parsed.shortDiscriminator} ` +
+                `passcode=${parsed.passcode} vendorId=${parsed.vendorId} productId=${parsed.productId}; the TH's own ` +
+                `setup code is shortDiscriminator=${shortDiscriminator} passcode=${th.commissioning.passcode}`,
+        },
+        "Manual pairing code parse",
+    );
+}
+
+/** § 5.1.4.1 Table 62 carries only the discriminator's 4 most significant bits. */
+const SHORT_DISCRIMINATOR_SHIFT = 8;
 
 /**
  * Records that the TH is discoverable as a commissionable device, which every commissioning-flow plan
@@ -319,6 +410,15 @@ export async function recordCommissionable(
     record(cx, await expectMdns(cx.devices.th, { commissionable: true }, { timeoutMs: MDNS_TIMEOUT_MS }), what);
 }
 
+/** {@link commissionByQr} for a manual pairing code, which discovers by the short discriminator. */
+export async function commissionByManualCode(
+    cx: CertStepContext,
+    manualPairingCode: string,
+    commissioned: CommissionedRefs,
+): Promise<void> {
+    await commissionByTarget(cx, { manualPairingCode }, commissioned);
+}
+
 /**
  * Onboards the TH from `payload`, first taking off a fabric an earlier step commissioned.
  *
@@ -329,6 +429,14 @@ export async function recordCommissionable(
 export async function commissionByQr(
     cx: CertStepContext,
     payload: string,
+    commissioned: CommissionedRefs,
+): Promise<void> {
+    await commissionByTarget(cx, { qrPairingCode: payload }, commissioned);
+}
+
+async function commissionByTarget(
+    cx: CertStepContext,
+    target: CommissioningTarget,
     commissioned: CommissionedRefs,
 ): Promise<void> {
     const dut = cx.controllers.dut;
@@ -349,9 +457,13 @@ export async function commissionByQr(
     const from = th.log.mark();
     let ref;
     try {
-        ref = await dut.commission({ qrPairingCode: payload });
+        ref = await dut.commission(target);
     } catch (e) {
-        cx.recorder.check({ type: "response", verdict: "fail", detail: `commissioning by payload failed: ${e}` });
+        cx.recorder.check({
+            type: "response",
+            verdict: "fail",
+            detail: `commissioning from ${describeTarget(target)} failed: ${e}`,
+        });
         throw e;
     }
     commissioned.set("dut", ref);

@@ -827,6 +827,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
                 passcode,
                 autoStateInitialize: false,
                 caseConnectionTimeout: target.singleHandshakeAttempt ? SINGLE_HANDSHAKE_TIMEOUT : undefined,
+                timeout: target.giveUpAfterMs === undefined ? undefined : Millis(target.giveUpAfterMs),
                 regulatoryLocation: GeneralCommissioning.RegulatoryLocationType.IndoorOutdoor,
                 regulatoryCountryCode: "XX",
                 onAttestationFailure: () => true,

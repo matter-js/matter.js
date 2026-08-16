@@ -42,6 +42,16 @@ export interface CommissioningTarget {
     manualPairingCode?: string;
 
     /**
+     * Bounds how long the controller looks for the commissionee before giving up.
+     *
+     * For a step whose code names a device that is not there, where the controller's own budget is
+     * far longer than the step needs — matter.js waits out the specification's 3-minute minimum
+     * commissioning window. A controller that cannot be bounded says so and reports whatever its own
+     * policy produces.
+     */
+    giveUpAfterMs?: number;
+
+    /**
      * Ask for commissioning to give up after a single operational handshake attempt, so a step that means to prove the
      * device refused a commissioner is not answered by a retry that succeeded instead.
      *

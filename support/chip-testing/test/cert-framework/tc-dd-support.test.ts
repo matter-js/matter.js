@@ -154,7 +154,7 @@ describe("CommissioningRefusals", () => {
         const cx = contextWith(() => Promise.reject(new UnexpectedDataError("Invalid response from device")));
         const refusals = new CommissioningRefusals(BUDGETS);
 
-        await expect(refusals.requireRefusal(cx, "MT:whatever", "must be refused")).rejectedWith(
+        await expect(refusals.requireRefusal(cx, { qrPairingCode: "MT:whatever" }, "must be refused")).rejectedWith(
             CertCheckFailedError,
             /unrelated reason/,
         );
@@ -164,7 +164,7 @@ describe("CommissioningRefusals", () => {
         const cx = contextWith(() => Promise.reject(new InternalError("chip-tool produced no reply")));
         const refusals = new CommissioningRefusals(BUDGETS);
 
-        await expect(refusals.requireRefusal(cx, "MT:whatever", "must be refused")).rejectedWith(
+        await expect(refusals.requireRefusal(cx, { qrPairingCode: "MT:whatever" }, "must be refused")).rejectedWith(
             CertCheckFailedError,
             /unrelated reason/,
         );
@@ -174,7 +174,7 @@ describe("CommissioningRefusals", () => {
         const cx = contextWith(() => Promise.reject(new ChipToolCommandError("chip-tool commissioning failed")));
         const refusals = new CommissioningRefusals(BUDGETS);
 
-        await expect(refusals.requireRefusal(cx, "MT:whatever", "must be refused")).rejectedWith(
+        await expect(refusals.requireRefusal(cx, { qrPairingCode: "MT:whatever" }, "must be refused")).rejectedWith(
             CertCheckFailedError,
             /unrelated reason/,
         );
@@ -186,8 +186,35 @@ describe("CommissioningRefusals", () => {
         );
         const refusals = new CommissioningRefusals(BUDGETS);
 
-        await refusals.requireRefusal(cx, "MT:whatever", "must be refused");
+        await refusals.requireRefusal(cx, { qrPairingCode: "MT:whatever" }, "must be refused");
         await refusals.settle(cx);
+    });
+
+    it("accepts any failure when the claim is only that nothing was commissioned", async () => {
+        // The wrong-discriminator step: the code is well formed, so the DUT fails for lack of a device
+        const cx = contextWith(() => Promise.reject(new ChipToolCommandError("chip-tool commissioning failed")));
+        const refusals = new CommissioningRefusals(BUDGETS);
+
+        await refusals.requireNoCommissioning(cx, { manualPairingCode: "749" }, "nothing commissioned", 100);
+        await refusals.settle(cx);
+    });
+
+    it("fails when something was commissioned after all", async () => {
+        const removed = new Array<CertNodeRef>();
+        const cx = contextWith(
+            () => Promise.resolve("unexpected-ref"),
+            async ref => {
+                removed.push(ref);
+            },
+        );
+        const refusals = new CommissioningRefusals(BUDGETS);
+
+        await expect(
+            refusals.requireNoCommissioning(cx, { manualPairingCode: "749" }, "nothing commissioned", 100),
+        ).rejectedWith(CertCheckFailedError);
+
+        await refusals.settle(cx);
+        expect(removed).deep.equal(["unexpected-ref"]);
     });
 
     it("removes the fabric of a commissioning that succeeded after its own budget expired", async () => {
@@ -201,7 +228,9 @@ describe("CommissioningRefusals", () => {
         );
         const refusals = new CommissioningRefusals(BUDGETS);
 
-        await expect(refusals.requireRefusal(cx, "MT:whatever", "must be refused")).rejectedWith(CertCheckFailedError);
+        await expect(refusals.requireRefusal(cx, { qrPairingCode: "MT:whatever" }, "must be refused")).rejectedWith(
+            CertCheckFailedError,
+        );
 
         // On a macrotask, so a settle() that did not actually wait returns with nothing to remove
         const settling = refusals.settle(cx);
@@ -220,7 +249,9 @@ describe("CommissioningRefusals", () => {
         );
         const refusals = new CommissioningRefusals(BUDGETS);
 
-        await expect(refusals.requireRefusal(cx, "MT:whatever", "must be refused")).rejectedWith(CertCheckFailedError);
+        await expect(refusals.requireRefusal(cx, { qrPairingCode: "MT:whatever" }, "must be refused")).rejectedWith(
+            CertCheckFailedError,
+        );
 
         await expect(refusals.settle(cx)).rejectedWith(CertCleanupError, /stray-ref: node is unreachable/);
     });
@@ -229,7 +260,7 @@ describe("CommissioningRefusals", () => {
         const cx = contextWith(() => new Promise<CertNodeRef>(() => {}));
         const refusals = new CommissioningRefusals(BUDGETS);
 
-        await expect(refusals.requireRefusal(cx, "MT:whatever", "must be refused")).rejected;
+        await expect(refusals.requireRefusal(cx, { qrPairingCode: "MT:whatever" }, "must be refused")).rejected;
 
         await expect(refusals.settle(cx)).rejectedWith(CertCleanupError, /still running/);
     });

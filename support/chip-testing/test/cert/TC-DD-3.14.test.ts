@@ -70,7 +70,7 @@ certTest("TC-DD-3.14", {
         "Scan/read the QR code, generated in the previous step, using the DUT",
         async cx => {
             const payload = qrPayloadWith(await thQrPayload(cx.devices.th), { version: INVALID_VERSION });
-            await refusals.requireRefusal(cx, payload, "Invalid-version payload refused");
+            await refusals.requireRefusal(cx, { qrPairingCode: payload }, "Invalid-version payload refused");
         },
         {
             expected:
@@ -168,7 +168,7 @@ certTest("TC-DD-3.14", {
             for (const passcode of INVALID_PASSCODES) {
                 await refusals.requireRefusal(
                     cx,
-                    qrPayloadWith(th, { passcode }),
+                    { qrPairingCode: qrPayloadWith(th, { passcode }) },
                     `Payload carrying passcode ${passcode} refused`,
                 );
             }
@@ -194,7 +194,7 @@ certTest("TC-DD-3.14", {
         "Scan/read the QR code, generated in the previous step, using the DUT",
         async cx => {
             const payload = qrPayloadWithPrefix(await thQrPayload(cx.devices.th), INVALID_PREFIX);
-            await refusals.requireRefusal(cx, payload, "Invalid-prefix payload refused");
+            await refusals.requireRefusal(cx, { qrPairingCode: payload }, "Invalid-prefix payload refused");
         },
         {
             expected:
