@@ -46,6 +46,14 @@ export interface Finding {
     override?: string;
 }
 
+interface ElementContext {
+    /** The element defines an entry of an enum or a bit of a bitmap */
+    inValueTable?: boolean;
+
+    /** The element defines a cluster feature */
+    isFeature?: boolean;
+}
+
 /** Attributes at or above this ID are global; CHIP does not repeat them in cluster definitions */
 const GLOBAL_ATTRIBUTE_ID = 0xfff8;
 
@@ -170,7 +178,7 @@ class Comparison {
                     this.#absent([...path, chip.name], "feature", shadowFeatures.get(key));
                     continue;
                 }
-                this.#element([...path, feature.name], chip, feature, shadowFeatures.get(key));
+                this.#element([...path, feature.name], chip, feature, shadowFeatures.get(key), { isFeature: true });
                 continue;
             }
 
@@ -210,7 +218,7 @@ class Comparison {
         }
     }
 
-    #element(path: string[], chip: DmElement, model: Model, shadow?: Model, inBitmap = false) {
+    #element(path: string[], chip: DmElement, model: Model, shadow?: Model, context: ElementContext = {}) {
         this.#value(path, "name", canonicalize(chip.name), canonicalize(model.name), shadowName(shadow));
 
         if (chip.tag !== ElementTag.Datatype || chip.type !== undefined) {
@@ -229,7 +237,7 @@ class Comparison {
 
         this.#value(path, "id", hex(chip.id), hex(model.id), shadow === undefined ? undefined : hex(shadow.id));
 
-        this.#aspect(path, "conformance", chip, model, shadow, inBitmap);
+        this.#aspect(path, "conformance", chip, model, shadow, context);
         this.#aspect(path, "constraint", chip, model, shadow);
         this.#access(path, chip, model, shadow);
         this.#aspect(path, "quality", chip, model, shadow);
@@ -254,7 +262,8 @@ class Comparison {
     }
 
     #fields(path: string[], chip: DmElement, model: ValueModel, shadow?: ValueModel) {
-        const inBitmap = model.effectiveMetatype === Metatype.bitmap;
+        const metatype = model.effectiveMetatype;
+        const inValueTable = metatype === Metatype.enum || metatype === Metatype.bitmap;
         const fields = new Map([...model.members].map(field => [canonicalize(field.name), field]));
         const shadowFields = new Map([...(shadow?.members ?? [])].map(field => [canonicalize(field.name), field]));
         const seen = new Set<string>();
@@ -269,7 +278,7 @@ class Comparison {
                 continue;
             }
 
-            this.#element([...path, field.name], chipField, field, shadowFields.get(key), inBitmap);
+            this.#element([...path, field.name], chipField, field, shadowFields.get(key), { inValueTable });
         }
 
         for (const [key, field] of fields) {
@@ -562,7 +571,14 @@ class Comparison {
         );
     }
 
-    #aspect(path: string[], property: string, chip: DmElement, model: Model, shadow?: Model, inBitmap = false) {
+    #aspect(
+        path: string[],
+        property: string,
+        chip: DmElement,
+        model: Model,
+        shadow?: Model,
+        context: ElementContext = {},
+    ) {
         const chipValue = normalizeAspect(chip[property as "conformance"]?.toString(), property);
         if (chipValue === undefined) {
             return;
@@ -573,8 +589,13 @@ class Comparison {
             return;
         }
 
-        // We define the bits of a bitmap but not their conformance
-        if (property === "conformance" && inBitmap && matterValue === undefined) {
+        // Feature, bit and status code tables carry a conformance column only sometimes.  We read it where it exists,
+        // so an unconditional conformance CHIP states for an element we leave open is CHIP's own inference
+        if (
+            property === "conformance" &&
+            matterValue === undefined &&
+            ((context.inValueTable && chipValue === "m") || (context.isFeature && chipValue === "o"))
+        ) {
             this.#report(Category.Tolerated, path, property, chipValue, matterValue);
             return;
         }
@@ -773,7 +794,12 @@ function normalizeAspect(text?: string, property?: string) {
         return;
     }
 
-    let normalized = text.toLowerCase().replace(/[\s-]+/g, "");
+    let normalized = text.toLowerCase().replace(/\s+/g, "");
+
+    if (property === "conformance") {
+        // A condition name loses its punctuation ("Wi-Fi" and "WiFi" name the same condition)
+        normalized = normalized.replace(/-/g, "");
+    }
 
     if (property === "constraint") {
         // CHIP computes powers and drops the unit of a percentage; an unconstrained list entry states nothing
