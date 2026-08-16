@@ -67,11 +67,19 @@ for (const version of versions) {
     try {
         models = await buildModels(version);
     } catch (cause) {
-        if (args.all) {
+        // A version we have no model of is not a failure; anything else is
+        if (args.all && (cause as { code?: string }).code === "ERR_MODULE_NOT_FOUND") {
             logger.warn(`Skipping Matter ${version}: ${asError(cause).message}`);
             continue;
         }
-        throw cause;
+
+        if (!args.all) {
+            throw cause;
+        }
+
+        logger.error(`Building our model of Matter ${version} failed`, cause);
+        failures++;
+        continue;
     }
 
     try {

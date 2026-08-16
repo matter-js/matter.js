@@ -249,6 +249,16 @@ class Comparison {
             this.#type(path, "type", typeName(chip.type), model, shadow);
         }
 
+        if (chip.response !== undefined) {
+            this.#value(
+                path,
+                "response",
+                canonicalize(chip.response),
+                canonicalize(responseOf(model)),
+                canonicalize(responseOf(shadow)),
+            );
+        }
+
         if (chip.priority !== undefined) {
             this.#value(
                 path,
@@ -463,8 +473,11 @@ class Comparison {
 
     #compareNamespaces() {
         const { merged, unmodified } = this.#models;
+        const seen = new Set<number>();
 
         for (const chip of this.#dm.namespaces) {
+            seen.add(chip.id);
+
             const namespace = merged.semanticNamespaces.find(candidate => candidate.id === chip.id);
             const shadow = unmodified.semanticNamespaces.find(candidate => candidate.id === chip.id);
 
@@ -485,11 +498,11 @@ class Comparison {
                 shadow === undefined ? undefined : namespaceName(shadow.name),
             );
 
-            const seen = new Set<string>();
+            const tagsSeen = new Set<string>();
 
             for (const chipTag of chip.children) {
                 const key = canonicalize(chipTag.name);
-                seen.add(key);
+                tagsSeen.add(key);
 
                 const tag = tags.get(key);
                 if (tag === undefined) {
@@ -500,9 +513,19 @@ class Comparison {
             }
 
             for (const [key, tag] of tags) {
-                if (!seen.has(key)) {
+                if (!tagsSeen.has(key)) {
                     this.#extra([...path, tag.name], "semanticTag", !shadowTags.has(key));
                 }
+            }
+        }
+
+        for (const namespace of merged.semanticNamespaces) {
+            if (namespace.id !== undefined && !seen.has(namespace.id)) {
+                this.#extra(
+                    [namespace.name],
+                    "semanticNamespace",
+                    !unmodified.semanticNamespaces.some(candidate => candidate.id === namespace.id),
+                );
             }
         }
     }
@@ -915,7 +938,7 @@ function normalizeAspect(text?: string, property?: string) {
     if (property === "constraint") {
         // CHIP computes powers and drops the unit of a percentage; an unconstrained list entry states nothing
         normalized = normalized
-            .replace(/(\d+)\^(\d+)/g, (_match, base, exponent) => `${Math.pow(Number(base), Number(exponent))}`)
+            .replace(/(\d+)\^(\d+)/g, (_match, base, exponent) => `${BigInt(base) ** BigInt(exponent)}`)
             .replace(/%/g, "")
             .replace(/[()]/g, "")
             .replace(/\[all\]/g, "");
@@ -940,6 +963,10 @@ function accessOf(model?: Model) {
 
 function priorityOf(model?: Model) {
     return model instanceof EventModel ? model.priority : undefined;
+}
+
+function responseOf(model?: Model) {
+    return model instanceof CommandModel ? model.effectiveResponse : undefined;
 }
 
 /** Our type names carry the defining scope where CHIP relies on a single global namespace */

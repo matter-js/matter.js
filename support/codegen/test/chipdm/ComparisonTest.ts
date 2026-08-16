@@ -228,6 +228,43 @@ describe("comparison against the CHIP data model", () => {
         expect(result.filter(finding => finding.category === Category.Mismatch)).deep.equal([]);
     });
 
+    it("reports the response of a command", () => {
+        const dm = dataModel(
+            cluster(0x101, "Test", {
+                tag: ElementTag.Command,
+                id: 0x0,
+                name: "Go",
+                direction: "request",
+                response: "GoResponse",
+                children: [],
+            }),
+        );
+
+        const result = findings(
+            dm,
+            ClusterElement({
+                name: "Test",
+                id: 0x101,
+                classification: "application",
+                children: [{ tag: ElementTag.Command, id: 0x0, name: "Go", direction: "request", response: "status" }],
+            }),
+        );
+
+        const response = of(result, "response");
+        expect(response.length).equal(1);
+        expect(response[0].chip).equal("goresponse");
+        expect(response[0].matter).equal("status");
+    });
+
+    it("reports a semantic namespace only we define", () => {
+        const result = findings(
+            dataModel(),
+            ClusterElement({ name: "Test", id: 0x101, classification: "application" }),
+        );
+
+        expect(of(result, "cluster").length).equal(1);
+    });
+
     it("reports a cluster neither model shares with the other", () => {
         const dm = dataModel(cluster(0x101, "OnlyChip"));
 

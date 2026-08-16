@@ -26,7 +26,14 @@ export function translateValue(text: string): FieldValue {
     }
 
     if (/^[+-]?(\d+(\.\d+)?|0x[\da-f]+|0b[01]+)$/i.test(text)) {
-        return Number(text);
+        const value = Number(text);
+
+        // A 64 bit value loses precision as a number, and two such values would then compare equal
+        if (Number.isInteger(value) && !Number.isSafeInteger(value)) {
+            return BigInt(text);
+        }
+
+        return value;
     }
 
     return FieldValue.Reference(text);

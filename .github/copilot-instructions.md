@@ -231,7 +231,8 @@ versions reflect the state of our scrape at the time and are reported without be
 downloads the `data_model` directory of
 [connectedhomeip](https://github.com/project-chip/connectedhomeip) for the Matter version under
 test and reports every difference from the model we scrape from the specification. It exits
-non-zero when a difference is not explained by a `LocalMatter` override. Run it after
+non-zero when a difference is unexplained; a difference a `LocalMatter` override accounts for, one
+recorded as known by design, and one CHIP cannot express are reported without failing. Run it after
 `generate-model`. Useful flags:
 
 ```bash

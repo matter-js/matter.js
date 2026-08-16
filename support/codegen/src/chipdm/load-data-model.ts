@@ -156,7 +156,7 @@ function loadCommand(node: Element): DmElement {
 
         // A derived cluster restates a command without its direction, so leave the direction open here
         direction: direction === undefined ? undefined : direction === "responseFromServer" ? "response" : "request",
-        response: response === "Y" ? "status" : response,
+        response: response === "N" ? undefined : response === "Y" ? "status" : response,
     };
 }
 

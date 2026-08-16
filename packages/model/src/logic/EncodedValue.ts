@@ -17,5 +17,16 @@ import type { ValueModel } from "../models/ValueModel.js";
  * Returns undefined for a value that has no numeric form, such as a reference to another field.
  */
 export function EncodedValue(model: ValueModel, value: FieldValue.Open | undefined) {
-    return FieldValue.numericValue(value, model.effectiveType);
+    const encoded = FieldValue.numericValue(value, model.effectiveType);
+
+    // Scaling a fraction to its encoding units is a binary multiplication, so it lands next to the integer the units
+    // count rather than on it; 0.07% of a percent100ths is 7.000000000000001
+    if (typeof encoded === "number" && Number.isFinite(encoded) && !Number.isInteger(encoded)) {
+        const rounded = Math.round(encoded);
+        if (Math.abs(encoded - rounded) < Math.max(1, Math.abs(rounded)) * Number.EPSILON * 8) {
+            return rounded;
+        }
+    }
+
+    return encoded;
 }
