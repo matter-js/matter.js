@@ -4,9 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError } from "@matter/main";
+import { ImplementationError, MatterError, UnexpectedDataError } from "@matter/main";
 import type { QrCodeData } from "@matter/main/types";
 import { QrPairingCodeCodec } from "@matter/main/types";
+
+/**
+ * A controller refused an onboarding payload itself, before it looked for any commissionee.
+ *
+ * A step asserting "the DUT terminates commissioning" needs this and nothing broader. Both
+ * controllers report a later failure — discovery, PASE, attestation, an invalid CSR response, a
+ * command timeout — through error types that a payload refusal would otherwise share, so a
+ * commissioner that *accepted* a forbidden code and only then failed would be recorded as having
+ * refused it.
+ */
+export class OnboardingPayloadRefusedError extends MatterError {}
 
 /**
  * The one onboarding payload `code` carries.
@@ -16,11 +27,28 @@ import { QrPairingCodeCodec } from "@matter/main/types";
  * whichever device answers first.
  */
 export function singleQrPayload(code: string): QrCodeData {
-    const payloads = QrPairingCodeCodec.decode(code);
+    const payloads = refusalOf(() => QrPairingCodeCodec.decode(code), `onboarding payload ${code}`);
     if (payloads.length !== 1) {
         throw new ImplementationError(concatenationRefusal(payloads.length));
     }
     return payloads[0];
+}
+
+/**
+ * Runs `decode`, reporting the codec's own rejection of `what` as an
+ * {@link OnboardingPayloadRefusedError}. matter.js raises {@link UnexpectedDataError} from the
+ * commissioning flow as well, so the refusal has to be marked where it happens rather than
+ * recognised by type afterwards.
+ */
+export function refusalOf<T>(decode: () => T, what: string): T {
+    try {
+        return decode();
+    } catch (e) {
+        if (e instanceof UnexpectedDataError) {
+            throw new OnboardingPayloadRefusedError(`Refused ${what}: ${e.message}`);
+        }
+        throw e;
+    }
 }
 
 const QR_PREFIX = "MT:";

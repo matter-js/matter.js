@@ -48,7 +48,7 @@ import type { ChipToolCommissionerName } from "../chip-tool/chip-tool-client.js"
 import { ChipToolClient, resolveChipToolBinary } from "../chip-tool/chip-tool-client.js";
 import { chipJsonToMatter, matterToChipJson, stringifyChipJson } from "../chip-tool/json-codec.js";
 import { certClusterModelFor, findCertCluster } from "./custom-clusters.js";
-import { assertSingleQrPayload } from "./onboarding-payload.js";
+import { assertSingleQrPayload, OnboardingPayloadRefusedError } from "./onboarding-payload.js";
 import { timedInteractionTimeoutOf } from "./timed-interaction.js";
 
 /** Name {@link UnsupportedByControllerError} reports for this adapter. */
@@ -605,19 +605,13 @@ function eventStatusFor(statuses: ChipPathStatus[], paths: EventPathSpec[]) {
 export class ChipToolCommandError extends MatterError {}
 
 /**
- * chip-tool refused the onboarding payload itself, before it looked for any commissionee.
+ * chip-tool's own marker for a failure raised inside its setup-payload layer, as `CHIP_ERROR`'s
+ * formatter renders it: `Run command failure: src/setup_payload/<file>:<line>: …`.
  *
- * `SetupPayload::FromStringRepresentation` is where chip-tool applies § 5.1's payload rules, and it
- * reports the refusal with its own source location. That location is the only thing separating "the
- * commissioner would not use this code" from every later way a commissioning fails — discovery, PASE,
- * attestation and a command timeout all reach {@link ChipToolCommandError} too, so a step asserting a
- * refusal must not accept the base type.
- */
-export class ChipToolPayloadError extends ChipToolCommandError {}
-
-/**
- * chip-tool's own marker for a failure raised inside its setup-payload layer, as
- * `CHIP_ERROR`'s formatter renders it: `Run command failure: src/setup_payload/<file>:<line>: …`.
+ * `SetupPayload::FromStringRepresentation` is where chip-tool applies § 5.1's payload rules, and this
+ * location is the only thing separating "the commissioner would not use this code" from every later
+ * way a commissioning fails: discovery, PASE, attestation and a command timeout all reach
+ * {@link ChipToolCommandError} alike.
  */
 const PAYLOAD_FAILURE = /Run command failure: src\/setup_payload\//;
 
@@ -1219,7 +1213,9 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
         const { reply, logs } = await this.executeWithLogs(command);
         if (reply.commandFailed && logs.some(line => PAYLOAD_FAILURE.test(line))) {
             const detail = logs.find(line => PAYLOAD_FAILURE.test(line))?.trim();
-            throw new ChipToolPayloadError(`chip-tool refused the onboarding payload for node ${node}: ${detail}`);
+            throw new OnboardingPayloadRefusedError(
+                `chip-tool refused the onboarding payload for node ${node}: ${detail}`,
+            );
         }
         assertCommandSucceeded(reply, `commissioning of node ${node}`);
 

@@ -21,6 +21,7 @@ import { env } from "node:process";
 import { AllClustersTestInstance } from "../../src/AllClustersTestInstance.js";
 import { CHIP_TOOL_CONTROLLER_PICS, ChipToolControllerAdapter } from "../../src/cert/ChipToolControllerAdapter.js";
 import { InProcessControllerAdapter, MATTERJS_CONTROLLER_PICS } from "../../src/cert/InProcessControllerAdapter.js";
+import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
 
 function fakeControllerAdapter(id: string): ControllerAdapter {
     return {
@@ -134,6 +135,17 @@ describe("InProcessControllerAdapter", () => {
         const ref = await adapter.commission({ qrPairingCode: device.commissioning.qrPairingCode });
 
         await adapter.node(ref).decommission();
+    });
+
+    it("marks its own refusal of an onboarding payload, so a later failure cannot pass for one", async () => {
+        // Version 2, which QrPairingCodeCodec rejects. matter.js raises UnexpectedDataError from the
+        // commissioning flow too, so the refusal has to carry its own marker.
+        const refusal = await rejectionOf(adapter.commission({ qrPairingCode: "MT:034J042C00KA0648G00" }));
+
+        expect(refusal).instanceOf(OnboardingPayloadRefusedError);
+        expect(await rejectionOf(adapter.parseQrPayload("MT:034J042C00KA0648G00"))).instanceOf(
+            OnboardingPayloadRefusedError,
+        );
     });
 
     it("reports the fields it reads out of an onboarding payload", async function () {

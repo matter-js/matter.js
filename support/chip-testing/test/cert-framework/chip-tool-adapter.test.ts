@@ -19,10 +19,10 @@ import { env } from "node:process";
 import {
     ChipToolCommandError,
     ChipToolControllerAdapter,
-    ChipToolPayloadError,
     ChipToolUnmappedStatusError,
 } from "../../src/cert/ChipToolControllerAdapter.js";
 import { registerCertCustomCluster } from "../../src/cert/custom-clusters.js";
+import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
 import { ChipToolExitError } from "../../src/chip-tool/chip-tool-client.js";
 import { FaultInjectionCluster } from "../cert/fault-injection.js";
 import { countMatches } from "../cert/tc-support.js";
@@ -305,7 +305,7 @@ describe("ChipToolControllerAdapter", function () {
         });
 
         const refusal = await rejectionOf(started.commission({ qrPairingCode: "MT:034J042C00KA0648G00" }));
-        expect(refusal).instanceOf(ChipToolPayloadError);
+        expect(refusal).instanceOf(OnboardingPayloadRefusedError);
     });
 
     it("does not report a handshake failure as a refused payload", async () => {
@@ -321,7 +321,7 @@ describe("ChipToolControllerAdapter", function () {
 
         const failure = await rejectionOf(started.commission({ qrPairingCode: "MT:-24J042C00KA0648G00" }));
         expect(failure).instanceOf(ChipToolCommandError);
-        expect(failure).not.instanceOf(ChipToolPayloadError);
+        expect(failure).not.instanceOf(OnboardingPayloadRefusedError);
     });
 
     it("reads a concrete path and decodes the value through the model", async () => {

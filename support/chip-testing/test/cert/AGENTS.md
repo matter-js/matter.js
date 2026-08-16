@@ -1300,22 +1300,32 @@ Integrity check failed` for a prefix that is not `MT:` (chip-tool treats a non-`
 one). matter.js rejects the same three in `QrPairingCodeCodec`, inside a millisecond.
 
 **"It failed" is not the assertion; "it refused this payload" is.** `expectRejection` takes an
-`accept` predicate, and `CommissioningRefusals` accepts only `UnexpectedDataError` (matter.js's
-codec) or `ChipToolPayloadError`. Without it the steps pass on a controller that crashed, timed out
-or was never asked — `ChipToolClient.execute` alone has a 3-minute budget whose expiry is a rejection
-like any other, and both adapters refuse these payloads before touching the network, so the steps
-would also pass with no TH running at all.
+`accept` predicate, and `CommissioningRefusals` accepts only `OnboardingPayloadRefusedError`. Without
+a predicate the steps pass on a controller that crashed, timed out or was never asked —
+`ChipToolClient.execute` alone has a 3-minute budget whose expiry is a rejection like any other, and
+both adapters refuse these payloads before touching the network, so the steps would also pass with no
+TH running at all.
 
-**`ChipToolCommandError` is not that assertion either, and this is the subtle one.** Its own doc says
-chip-tool funnels discovery, PASE, attestation, CASE, timeout and argument-parse failures into the
-same bare marker. So a commissioner that *accepted* a forbidden passcode and only then failed its
-handshake raises exactly the error a refusal raises — the false pass this whole TC exists to prevent,
-reintroduced through the check meant to prevent it. What separates them is where chip-tool says the
-failure came from: `SetupPayload::FromStringRepresentation` reports its own source location, so
-`ChipToolControllerAdapter.commission` matches `Run command failure: src/setup_payload/` in the
-command's logs and raises `ChipToolPayloadError` for that case alone. Real evidence from both
-chip-tool legs: `chip-tool refused the onboarding payload for node 4097: Run command failure:
-src/setup_payload/SetupPayload.cpp:361: CHIP Error 0x0000002F: Invalid argument`.
+**Neither controller's own error types are enough, and this is the subtle part — it caught two
+rounds of review.** chip-tool funnels discovery, PASE, attestation, CASE, timeout and argument-parse
+failures into one `ChipToolCommandError`; matter.js raises `UnexpectedDataError` from the
+commissioning flow as well (`ControllerCommissioningFlow.ts`'s "Invalid response from device", for
+one). Accepting either type means a commissioner that *took* a forbidden passcode and only then
+failed its handshake is recorded as having refused the code — the exact false pass this TC exists to
+prevent, reintroduced through the check meant to prevent it.
+
+So the refusal is marked **where it happens**, never recognised by type afterwards.
+`OnboardingPayloadRefusedError` (`onboarding-payload.ts`) is the one marker, raised by both adapters:
+
+- matter.js — `refusalOf()` wraps the codec call in `singleQrPayload` and in the manual-code branch of
+  `resolveCommissioningTarget`, so only the codec's own rejection carries it.
+- chip-tool — `commission()` matches `Run command failure: src/setup_payload/` in the command's logs.
+  `SetupPayload::FromStringRepresentation` is where chip-tool applies § 5.1's payload rules and it
+  names its own source location; that location is the only discriminator chip-tool offers.
+
+Real evidence from all four legs: `chip-tool refused the onboarding payload for node 4097: Run command
+failure: src/setup_payload/SetupPayload.cpp:361: CHIP Error 0x0000002F: Invalid argument`, and
+`Refused onboarding payload MT:034J042C00KA0648G00: Unsupported onboarding payload version 2`.
 
 **A negative check needs a bound and a cleanup path.** `expectRejection` (promoted from
 `TC-CADMIN-1.17` to `tc-support.ts`, now taking its own timeout) reports `"fail"` for a call that

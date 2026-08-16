@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Duration, InternalError, Millis, Time, UnexpectedDataError } from "@matter/main";
+import { Bytes, Duration, InternalError, Millis, Time } from "@matter/main";
 import { Base38, DiscoveryCapabilitiesBitmap, DiscoveryCapabilitiesSchema } from "@matter/main/types";
 import type { CertNodeRef, CertStepContext } from "@matter/testing";
 import type { CertDevice } from "@matter/testing";
-import { ChipToolPayloadError } from "../../src/cert/ChipToolControllerAdapter.js";
 import { expectMdns } from "../../src/cert/mdns-check.js";
+import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
 import { CertCleanupError, CommissionedRefs, expectRejection, expectSequence, record } from "./tc-support.js";
 
 export const LOG_TIMEOUT_MS = 30_000;
@@ -298,15 +298,14 @@ export class CommissioningRefusals {
 
 /**
  * Whether `error` is a controller refusing the onboarding payload rather than failing for some other
- * reason. matter.js's codec raises {@link UnexpectedDataError}; chip-tool's driver raises
- * {@link ChipToolPayloadError} only for a failure its setup-payload layer reported.
- *
- * The base `ChipToolCommandError` is deliberately not accepted: chip-tool funnels discovery, PASE,
- * attestation and command timeouts into it as well, so a commissioner that took a forbidden passcode
- * and only then failed its handshake would be recorded as having refused the code.
+ * reason. Both adapters mark that refusal where it happens, because neither controller's own error
+ * types distinguish it: chip-tool funnels discovery, PASE, attestation and command timeouts into one
+ * command error, and matter.js raises `UnexpectedDataError` from the commissioning flow as well (an
+ * invalid CSR response, for one). Either would let a commissioner that took a forbidden code and only
+ * then failed be recorded as having refused it.
  */
 function isPayloadRefusal(error: unknown): boolean {
-    return error instanceof UnexpectedDataError || error instanceof ChipToolPayloadError;
+    return error instanceof OnboardingPayloadRefusedError;
 }
 
 /**

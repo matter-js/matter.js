@@ -8,7 +8,8 @@ import { InternalError, UnexpectedDataError } from "@matter/main";
 import type { CertNodeApi, CertNodeRef, CertStepContext, ControllerAdapter } from "@matter/testing";
 import { LogFollower } from "@matter/testing";
 import { expect } from "chai";
-import { ChipToolCommandError, ChipToolPayloadError } from "../../src/cert/ChipToolControllerAdapter.js";
+import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
+import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
 import { CommissioningRefusals, ON_NETWORK_ONLY, qrPayloadWith, qrPayloadWithPrefix } from "../cert/tc-dd-support.js";
 import { CertCheckFailedError, CertCleanupError } from "../cert/tc-support.js";
 
@@ -141,12 +142,14 @@ describe("CommissioningRefusals", () => {
         };
     }
 
-    it("passes when the controller refuses the payload itself", async () => {
-        const cx = contextWith(() => Promise.reject(new UnexpectedDataError("Invalid passcode 0")));
+    it("does not accept a bare UnexpectedDataError, which commissioning raises after taking the payload", async () => {
+        const cx = contextWith(() => Promise.reject(new UnexpectedDataError("Invalid response from device")));
         const refusals = new CommissioningRefusals(BUDGETS);
 
-        await refusals.requireRefusal(cx, "MT:whatever", "must be refused");
-        await refusals.settle(cx);
+        await expect(refusals.requireRefusal(cx, "MT:whatever", "must be refused")).rejectedWith(
+            CertCheckFailedError,
+            /unrelated reason/,
+        );
     });
 
     it("fails on a rejection that says nothing about the payload", async () => {
@@ -169,8 +172,10 @@ describe("CommissioningRefusals", () => {
         );
     });
 
-    it("accepts chip-tool refusing the payload in its own setup-payload layer", async () => {
-        const cx = contextWith(() => Promise.reject(new ChipToolPayloadError("chip-tool refused the payload")));
+    it("accepts a controller that marked the payload itself as refused", async () => {
+        const cx = contextWith(() =>
+            Promise.reject(new OnboardingPayloadRefusedError("chip-tool refused the payload")),
+        );
         const refusals = new CommissioningRefusals(BUDGETS);
 
         await refusals.requireRefusal(cx, "MT:whatever", "must be refused");
