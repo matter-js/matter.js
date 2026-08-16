@@ -22,6 +22,7 @@ import { AllClustersTestInstance } from "../../src/AllClustersTestInstance.js";
 import { CHIP_TOOL_CONTROLLER_PICS, ChipToolControllerAdapter } from "../../src/cert/ChipToolControllerAdapter.js";
 import { InProcessControllerAdapter, MATTERJS_CONTROLLER_PICS } from "../../src/cert/InProcessControllerAdapter.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
+import { manualPairingCode } from "../cert/tc-dd-support.js";
 
 function fakeControllerAdapter(id: string): ControllerAdapter {
     return {
@@ -33,6 +34,9 @@ function fakeControllerAdapter(id: string): ControllerAdapter {
             throw new InternalError("not used in this test");
         },
         async parseQrPayload() {
+            throw new InternalError("not used in this test");
+        },
+        async parseManualPairingCode(): Promise<never> {
             throw new InternalError("not used in this test");
         },
         node() {
@@ -135,6 +139,23 @@ describe("InProcessControllerAdapter", () => {
         const ref = await adapter.commission({ qrPairingCode: device.commissioning.qrPairingCode });
 
         await adapter.node(ref).decommission();
+    });
+
+    it("reports the fields it reads out of a manual pairing code", async () => {
+        const code = manualPairingCode({
+            vidPidPresent: true,
+            discriminator: device.commissioning.discriminator,
+            passcode: device.commissioning.passcode,
+            vendorId: 0xfff1,
+            productId: 0x8001,
+        });
+
+        expect(await adapter.parseManualPairingCode(code)).deep.equal({
+            shortDiscriminator: device.commissioning.discriminator >> 8,
+            passcode: device.commissioning.passcode,
+            vendorId: 0xfff1,
+            productId: 0x8001,
+        });
     });
 
     it("marks its own refusal of an onboarding payload, so a later failure cannot pass for one", async () => {

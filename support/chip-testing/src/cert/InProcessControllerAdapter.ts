@@ -64,6 +64,7 @@ import type {
     ControllerAdapter,
     EventPathSpec,
     EventReadEntry,
+    ManualPairingCodeFields,
     OnboardingPayloadFields,
     ReadAttributeOptions,
     ReadEventOptions,
@@ -815,6 +816,17 @@ export class InProcessControllerAdapter implements ControllerAdapter {
         return { version, vendorId, productId, flowType, discoveryCapabilities, discriminator, passcode };
     }
 
+    async parseManualPairingCode(code: string): Promise<ManualPairingCodeFields> {
+        const { shortDiscriminator, passcode, vendorId, productId } = refusalOf(
+            () => ManualPairingCodeCodec.decode(code),
+            `manual pairing code ${code}`,
+        );
+        if (shortDiscriminator === undefined) {
+            throw new InternalError(`Manual pairing code ${code} decoded to no short discriminator`);
+        }
+        return { shortDiscriminator, passcode, vendorId, productId };
+    }
+
     commission(target: CommissioningTarget): Promise<CertNodeRef> {
         return runTagged(this.id, async () => {
             const { identifierData, passcode, vendorId, productId } = resolveCommissioningTarget(target);
@@ -827,6 +839,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
                 productId,
                 autoStateInitialize: false,
                 caseConnectionTimeout: target.singleHandshakeAttempt ? SINGLE_HANDSHAKE_TIMEOUT : undefined,
+                timeout: target.giveUpAfterMs === undefined ? undefined : Millis(target.giveUpAfterMs),
                 regulatoryLocation: GeneralCommissioning.RegulatoryLocationType.IndoorOutdoor,
                 regulatoryCountryCode: "XX",
                 onAttestationFailure: () => true,

@@ -42,6 +42,21 @@ export interface CommissioningTarget {
     manualPairingCode?: string;
 
     /**
+     * Bounds how long the controller looks for the commissionee before giving up.
+     *
+     * For a step whose code names a device that is not there, where the controller's own budget is
+     * far longer than the step needs — matter.js waits out the specification's 3-minute minimum
+     * commissioning window. A controller that cannot be bounded says so and reports whatever its own
+     * policy produces.
+     *
+     * On matter.js this **also caps PASE establishment**, which otherwise gets 30 seconds of its own:
+     * `CommissioningDiscovery.Options` merges the discovery and commissioning option sets and both
+     * declare `timeout`. Harmless where no device is expected to answer; a step that sets this on a
+     * target that does resolve is shortening its handshake budget too.
+     */
+    giveUpAfterMs?: number;
+
+    /**
      * Ask for commissioning to give up after a single operational handshake attempt, so a step that means to prove the
      * device refused a commissioner is not answered by a retry that succeeded instead.
      *
@@ -369,6 +384,18 @@ export interface ControllerAdapter {
      */
     parseQrPayload(code: string): Promise<OnboardingPayloadFields>;
 
+    /**
+     * {@link parseQrPayload} for the digits of a manual pairing code. Separate because the two code
+     * forms carry different fields: a manual code has only the 4-bit discriminator, states no
+     * discovery capabilities, and names a vendor and product only in its 21-digit form.
+     *
+     * How much a controller validates while reading is its own: matter.js's codec applies § 5.1's
+     * rules and refuses a code it would not commission from, where chip-tool's `parse-setup-payload`
+     * reports the fields of any code its parser can decode. Assert a refusal through
+     * {@link commission}, which both controllers judge, rather than through this.
+     */
+    parseManualPairingCode(code: string): Promise<ManualPairingCodeFields>;
+
     node(ref: CertNodeRef): CertNodeApi;
     log: LogFollower;
 }
@@ -395,6 +422,22 @@ export interface OnboardingPayloadFields {
     discriminator: number;
 
     passcode: number;
+}
+
+/**
+ * A manual pairing code's fields, as {@link ControllerAdapter.parseManualPairingCode} reports them.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 5.1.4.1
+ */
+export interface ManualPairingCodeFields {
+    /** § 5.1.4.1 Table 62's 4-bit form, the 4 most significant bits of the device's discriminator. */
+    shortDiscriminator: number;
+
+    passcode: number;
+
+    /** Present only in the 21-digit form, which sets `VID_PID_PRESENT`. */
+    vendorId?: number;
+    productId?: number;
 }
 
 /**

@@ -10,7 +10,14 @@ import { LogFollower } from "@matter/testing";
 import { expect } from "chai";
 import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
-import { CommissioningRefusals, ON_NETWORK_ONLY, qrPayloadWith, qrPayloadWithPrefix } from "../cert/tc-dd-support.js";
+import type { ManualPairingCodeParts } from "../cert/tc-dd-support.js";
+import {
+    CommissioningRefusals,
+    manualPairingCode,
+    ON_NETWORK_ONLY,
+    qrPayloadWith,
+    qrPayloadWithPrefix,
+} from "../cert/tc-dd-support.js";
 import { CertCheckFailedError, CertCleanupError } from "../cert/tc-support.js";
 
 /**
@@ -123,6 +130,7 @@ describe("CommissioningRefusals", () => {
             async close() {},
             commission,
             parseQrPayload: unused,
+            parseManualPairingCode: unused,
             node: nodeFor,
         } satisfies ControllerAdapter;
 
@@ -146,7 +154,7 @@ describe("CommissioningRefusals", () => {
         const cx = contextWith(() => Promise.reject(new UnexpectedDataError("Invalid response from device")));
         const refusals = new CommissioningRefusals(BUDGETS);
 
-        await expect(refusals.requireRefusal(cx, "MT:whatever", "must be refused")).rejectedWith(
+        await expect(refusals.requireRefusal(cx, { qrPairingCode: "MT:whatever" }, "must be refused")).rejectedWith(
             CertCheckFailedError,
             /unrelated reason/,
         );
@@ -156,7 +164,7 @@ describe("CommissioningRefusals", () => {
         const cx = contextWith(() => Promise.reject(new InternalError("chip-tool produced no reply")));
         const refusals = new CommissioningRefusals(BUDGETS);
 
-        await expect(refusals.requireRefusal(cx, "MT:whatever", "must be refused")).rejectedWith(
+        await expect(refusals.requireRefusal(cx, { qrPairingCode: "MT:whatever" }, "must be refused")).rejectedWith(
             CertCheckFailedError,
             /unrelated reason/,
         );
@@ -166,7 +174,7 @@ describe("CommissioningRefusals", () => {
         const cx = contextWith(() => Promise.reject(new ChipToolCommandError("chip-tool commissioning failed")));
         const refusals = new CommissioningRefusals(BUDGETS);
 
-        await expect(refusals.requireRefusal(cx, "MT:whatever", "must be refused")).rejectedWith(
+        await expect(refusals.requireRefusal(cx, { qrPairingCode: "MT:whatever" }, "must be refused")).rejectedWith(
             CertCheckFailedError,
             /unrelated reason/,
         );
@@ -178,8 +186,45 @@ describe("CommissioningRefusals", () => {
         );
         const refusals = new CommissioningRefusals(BUDGETS);
 
-        await refusals.requireRefusal(cx, "MT:whatever", "must be refused");
+        await refusals.requireRefusal(cx, { qrPairingCode: "MT:whatever" }, "must be refused");
         await refusals.settle(cx);
+    });
+
+    it("does not accept a payload refusal as proof that no device was there", async () => {
+        // Otherwise a malformed generated code passes the step at ~1ms, having never reached discovery
+        const cx = contextWith(() => Promise.reject(new OnboardingPayloadRefusedError("bad code")));
+        const refusals = new CommissioningRefusals(BUDGETS);
+
+        await expect(
+            refusals.requireNoCommissioning(cx, { manualPairingCode: "749" }, "nothing commissioned", 100),
+        ).rejectedWith(CertCheckFailedError, /unrelated reason/);
+    });
+
+    it("accepts any other failure when the claim is only that nothing was commissioned", async () => {
+        // The wrong-discriminator step: the code is well formed, so the DUT fails for lack of a device
+        const cx = contextWith(() => Promise.reject(new ChipToolCommandError("chip-tool commissioning failed")));
+        const refusals = new CommissioningRefusals(BUDGETS);
+
+        await refusals.requireNoCommissioning(cx, { manualPairingCode: "749" }, "nothing commissioned", 100);
+        await refusals.settle(cx);
+    });
+
+    it("fails when something was commissioned after all", async () => {
+        const removed = new Array<CertNodeRef>();
+        const cx = contextWith(
+            () => Promise.resolve("unexpected-ref"),
+            async ref => {
+                removed.push(ref);
+            },
+        );
+        const refusals = new CommissioningRefusals(BUDGETS);
+
+        await expect(
+            refusals.requireNoCommissioning(cx, { manualPairingCode: "749" }, "nothing commissioned", 100),
+        ).rejectedWith(CertCheckFailedError);
+
+        await refusals.settle(cx);
+        expect(removed).deep.equal(["unexpected-ref"]);
     });
 
     it("removes the fabric of a commissioning that succeeded after its own budget expired", async () => {
@@ -193,7 +238,9 @@ describe("CommissioningRefusals", () => {
         );
         const refusals = new CommissioningRefusals(BUDGETS);
 
-        await expect(refusals.requireRefusal(cx, "MT:whatever", "must be refused")).rejectedWith(CertCheckFailedError);
+        await expect(refusals.requireRefusal(cx, { qrPairingCode: "MT:whatever" }, "must be refused")).rejectedWith(
+            CertCheckFailedError,
+        );
 
         // On a macrotask, so a settle() that did not actually wait returns with nothing to remove
         const settling = refusals.settle(cx);
@@ -212,7 +259,9 @@ describe("CommissioningRefusals", () => {
         );
         const refusals = new CommissioningRefusals(BUDGETS);
 
-        await expect(refusals.requireRefusal(cx, "MT:whatever", "must be refused")).rejectedWith(CertCheckFailedError);
+        await expect(refusals.requireRefusal(cx, { qrPairingCode: "MT:whatever" }, "must be refused")).rejectedWith(
+            CertCheckFailedError,
+        );
 
         await expect(refusals.settle(cx)).rejectedWith(CertCleanupError, /stray-ref: node is unreachable/);
     });
@@ -221,8 +270,75 @@ describe("CommissioningRefusals", () => {
         const cx = contextWith(() => new Promise<CertNodeRef>(() => {}));
         const refusals = new CommissioningRefusals(BUDGETS);
 
-        await expect(refusals.requireRefusal(cx, "MT:whatever", "must be refused")).rejected;
+        await expect(refusals.requireRefusal(cx, { qrPairingCode: "MT:whatever" }, "must be refused")).rejected;
 
         await expect(refusals.settle(cx)).rejectedWith(CertCleanupError, /still running/);
+    });
+});
+
+describe("manualPairingCode", () => {
+    /** devicediscovery.adoc TC-DD-3.17's own example device: discriminator 0xF00, passcode 20202021. */
+    const PLAN_DEVICE = { vidPidPresent: true, discriminator: 0xf00, passcode: 20202021, vendorId: 0xfff1 };
+    const PLAN_PRODUCT_ID = 0x8001;
+
+    function planCode(overrides: Partial<ManualPairingCodeParts> = {}) {
+        return manualPairingCode({ ...PLAN_DEVICE, productId: PLAN_PRODUCT_ID, ...overrides });
+    }
+
+    it("writes the plan's own example code", () => {
+        expect(planCode()).equal("749701123365521327694");
+    });
+
+    it("writes the plan's own substituted codes", () => {
+        expect(planCode({ futureFormat: true }), "version").equal("849701123365521327693");
+        expect(planCode({ vidPidPresent: false }), "VID_PID_PRESENT").equal("349701123365521327696");
+        expect(planCode({ discriminator: 0xe00 }), "short discriminator").equal("733317123365521327692");
+        expect(planCode({ productId: 0 }), "product id").equal("749701123365521000006");
+        expect(planCode({ checkDigit: 3 }), "check digit").equal("749701123365521327693");
+    });
+
+    it("writes the plan's own code for each forbidden passcode", () => {
+        const expected: [passcode: number, code: string][] = [
+            [0, "749152000065521327698"],
+            [11111111, "751911067865521327698"],
+            [22222222, "754670135665521327694"],
+            [33333333, "757429203465521327699"],
+            [44444444, "760188271265521327697"],
+            [55555555, "762947339065521327695"],
+            [66666666, "749322406965521327695"],
+            [77777777, "752081474765521327697"],
+            [88888888, "754840542565521327693"],
+            [99999999, "757599610365521327695"],
+            [12345678, "757678075365521327695"],
+            [87654321, "765457534965521327696"],
+        ];
+
+        for (const [passcode, code] of expected) {
+            expect(planCode({ passcode }), `passcode ${passcode}`).equal(code);
+        }
+    });
+
+    it("writes the plan's own code for each test vendor id", () => {
+        expect(planCode({ vendorId: 0xfff2 })).equal("749701123365522327692");
+        expect(planCode({ vendorId: 0xfff3 })).equal("749701123365523327697");
+        expect(planCode({ vendorId: 0xfff4 })).equal("749701123365524327693");
+    });
+
+    it("writes an 11-digit code when neither id is given", () => {
+        expect(manualPairingCode({ vidPidPresent: false, discriminator: 0xf00, passcode: 20202021 })).length(11);
+    });
+
+    it("refuses a part that does not fit its field", () => {
+        expect(() => manualPairingCode({ ...PLAN_DEVICE, productId: 0x10000 }), "productId").throw(InternalError);
+        expect(() => manualPairingCode({ ...PLAN_DEVICE, productId: 1, discriminator: 0x1000 }), "disc").throw(
+            InternalError,
+        );
+        expect(() => manualPairingCode({ ...PLAN_DEVICE, productId: 1, checkDigit: 10 }), "checkDigit").throw(
+            InternalError,
+        );
+    });
+
+    it("refuses one id without the other", () => {
+        expect(() => manualPairingCode({ ...PLAN_DEVICE, productId: undefined })).throw(InternalError);
     });
 });
