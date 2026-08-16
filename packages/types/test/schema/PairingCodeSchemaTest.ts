@@ -195,6 +195,30 @@ describe("QrPairingCodeCodec", () => {
         });
     });
 
+    describe("vendor and product identifier validation", () => {
+        it("rejects decoding a product ID of 0 beside a real vendor ID", () => {
+            expect(() => QrPairingCodeCodec.decode("MT:Y.K904KP00KA0648G00")).throw(
+                "Product ID 0 is reserved and cannot accompany vendor ID 65521",
+            );
+        });
+
+        it("accepts a product ID of 0 when the payload names no vendor either", () => {
+            const [decoded] = QrPairingCodeCodec.decode("MT:000004KP00KA0648G00");
+
+            expect(decoded.vendorId).equal(0);
+            expect(decoded.productId).equal(0);
+        });
+
+        it("rejects decoding a vendor ID past the last test vendor", () => {
+            expect(() => QrPairingCodeCodec.decode("MT:U34J029Q00KA0648G00")).throw("Invalid vendor ID 65525");
+        });
+
+        it("decodes either when validation is disabled", () => {
+            expect(QrPairingCodeCodec.decode("MT:Y.K904KP00KA0648G00", false)[0].productId).equal(0);
+            expect(QrPairingCodeCodec.decode("MT:U34J029Q00KA0648G00", false)[0].vendorId).equal(65525);
+        });
+    });
+
     describe("Encode/Decode TlvData", () => {
         it("encodes and decodes just serialNumber as string", () => {
             const tlvData = Bytes.fromHex("152C000A3132333435363738393018"); // from Specs
@@ -383,6 +407,52 @@ describe("ManualPairingCodeCodec", () => {
     describe("reserved version", () => {
         it("rejects decoding a manual code whose first digit marks a future format", () => {
             expect(() => ManualPairingCodeCodec.decode("80000000000")).throw("Unsupported onboarding payload version");
+        });
+    });
+
+    describe("VID_PID_PRESENT agrees with the code length", () => {
+        it("rejects a 21-digit code whose VID_PID_PRESENT bit is clear", () => {
+            // devicediscovery.adoc TC-DD-3.17 step 3.a's own example payload
+            expect(() => ManualPairingCodeCodec.decode("349701123365521327696")).throw(
+                "A 21-digit manual pairing code must set VID_PID_PRESENT",
+            );
+        });
+
+        it("rejects an 11-digit code whose VID_PID_PRESENT bit is set", () => {
+            expect(() => ManualPairingCodeCodec.decode("74970112334")).throw(
+                "An 11-digit manual pairing code must not set VID_PID_PRESENT",
+            );
+        });
+
+        it("rejects the mismatch even when validation is disabled, since it is structural", () => {
+            expect(() => ManualPairingCodeCodec.decode("349701123365521327696", false)).throw(
+                "A 21-digit manual pairing code must set VID_PID_PRESENT",
+            );
+        });
+
+        it("accepts the plan's own 21-digit example", () => {
+            const decoded = ManualPairingCodeCodec.decode("749701123365521327694");
+
+            expect(decoded.vendorId).equal(0xfff1);
+            expect(decoded.productId).equal(0x8001);
+        });
+    });
+
+    describe("vendor and product identifier validation", () => {
+        it("rejects a product ID of 0 beside a real vendor ID", () => {
+            // devicediscovery.adoc TC-DD-3.17 step 7.a's own example payload
+            expect(() => ManualPairingCodeCodec.decode("749701123365521000006")).throw(
+                "Product ID 0 is reserved and cannot accompany vendor ID 65521",
+            );
+        });
+
+        it("decodes it when validation is disabled", () => {
+            expect(ManualPairingCodeCodec.decode("749701123365521000006", false).productId).equal(0);
+        });
+
+        it("rejects a product ID the field cannot hold", () => {
+            // Five digits reach 99999, so a manual code can name a product ID past 16 bits
+            expect(() => ManualPairingCodeCodec.decode("749701123365521655363")).throw("Invalid product ID 65536");
         });
     });
 
