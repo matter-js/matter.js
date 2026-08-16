@@ -91,13 +91,19 @@ function withChoice(node: Element, ast: Conformance.Ast): Conformance.Ast {
     const min = num(node, "min");
     const max = num(node, "max");
 
+    // Our conformance states a count with an "or more" or "or less" qualifier, so a range of two different counts has
+    // no equivalent
+    if (min !== undefined && max !== undefined && min !== max) {
+        throw new DataModelSyntaxError(`Choice ${name} states both a minimum of ${min} and a maximum of ${max}`);
+    }
+
     return {
         type: Conformance.Special.Choice,
         param: {
             name: name as Conformance.ChoiceName,
             num: min ?? max ?? 1,
             orMore: str(node, "more") === "true" || undefined,
-            orLess: max === undefined ? undefined : true,
+            orLess: max === undefined || max === min ? undefined : true,
             expr: ast,
         },
     };
