@@ -42,6 +42,7 @@
     "devDependencies": {
         "@matter/testing": "*",
         "@types/jsdom": "^28.0.3",
+        "@xmldom/xmldom": "^0.9.11",
         "jsdom": "^30.0.1",
         "word-list": "^4.1.0",
         "yargs": "^18.1.0"

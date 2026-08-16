@@ -7,7 +7,7 @@
 import { Conformance, FieldValue } from "#model";
 import { DataModelSyntaxError } from "./errors.js";
 import { translateValue } from "./values.js";
-import { children, num, str, value } from "./xml.js";
+import { children, num, str, value, type XmlElement } from "./xml.js";
 
 const FLAGS: Record<string, Conformance.Ast["type"]> = {
     mandatoryConform: Conformance.Flag.Mandatory,
@@ -37,7 +37,7 @@ export const CONFORMANCE_TAGS = [...Object.keys(FLAGS), "otherwiseConform"];
  *
  * Returns undefined if CHIP defines no conformance, which is not the same as empty conformance.
  */
-export function translateConformance(node: Element) {
+export function translateConformance(node: XmlElement) {
     const definitions = children(node, ...CONFORMANCE_TAGS);
     if (!definitions.length) {
         return;
@@ -49,7 +49,7 @@ export function translateConformance(node: Element) {
     return new Conformance({ ast: astOf(definitions[0]) });
 }
 
-function astOf(node: Element): Conformance.Ast {
+function astOf(node: XmlElement): Conformance.Ast {
     if (node.tagName === "otherwiseConform") {
         return {
             type: Conformance.Special.Otherwise,
@@ -82,7 +82,7 @@ function astOf(node: Element): Conformance.Ast {
     return withChoice(node, ast);
 }
 
-function withChoice(node: Element, ast: Conformance.Ast): Conformance.Ast {
+function withChoice(node: XmlElement, ast: Conformance.Ast): Conformance.Ast {
     const name = str(node, "choice");
     if (name === undefined) {
         return ast;
@@ -109,7 +109,7 @@ function withChoice(node: Element, ast: Conformance.Ast): Conformance.Ast {
     };
 }
 
-function expressionOf(node: Element): Conformance.Ast {
+function expressionOf(node: XmlElement): Conformance.Ast {
     const revision = revisionOf(node);
     if (revision !== undefined) {
         return revision;
@@ -169,7 +169,7 @@ function expressionOf(node: Element): Conformance.Ast {
  * Recognize conformance on the cluster revision, which CHIP writes as a comparison of the current revision against a
  * literal and we model as a dedicated node.
  */
-function revisionOf(node: Element): Conformance.Ast | undefined {
+function revisionOf(node: XmlElement): Conformance.Ast | undefined {
     if (node.tagName !== "greaterOrEqualTerm") {
         return;
     }
@@ -191,7 +191,7 @@ function revisionOf(node: Element): Conformance.Ast | undefined {
     return { type: Conformance.Special.Revision, param: revision };
 }
 
-function nameOf(node: Element) {
+function nameOf(node: XmlElement) {
     const name = str(node, "name") ?? str(node, "code");
     if (name === undefined) {
         throw new DataModelSyntaxError(`<${node.tagName}> in conformance has no name`);
@@ -206,7 +206,7 @@ function statusNameOf(name: string) {
         .join("");
 }
 
-function valueNameOf(node: Element) {
+function valueNameOf(node: XmlElement) {
     const name = str(node, "value");
     if (name === undefined) {
         throw new DataModelSyntaxError(`<${node.tagName}> in conformance has no value`);
@@ -214,7 +214,7 @@ function valueNameOf(node: Element) {
     return name;
 }
 
-function valueOf(node: Element): FieldValue {
+function valueOf(node: XmlElement): FieldValue {
     const text = value(node);
     if (text === undefined) {
         throw new DataModelSyntaxError(`<${node.tagName}> in conformance has no value`);

@@ -7,7 +7,7 @@
 import { Constraint, FieldValue } from "#model";
 import { DataModelSyntaxError } from "./errors.js";
 import { translateValue } from "./values.js";
-import { child, children, num, str, value } from "./xml.js";
+import { child, children, num, str, value, type XmlElement } from "./xml.js";
 
 const OPERATIONS: Record<string, Constraint.BinaryOperator["type"]> = {
     add: "+",
@@ -23,7 +23,7 @@ const OPERATIONS: Record<string, Constraint.BinaryOperator["type"]> = {
  * qualified by the element's type.  The entry constraint of a list is a nested element for CHIP and part of the
  * parent's constraint for us.
  */
-export function translateConstraint(node: Element) {
+export function translateConstraint(node: XmlElement) {
     const definitions = children(node, "constraint");
     const entry = child(node, "entry");
     const entryDefinition = entry === undefined ? undefined : child(entry, "constraint");
@@ -62,7 +62,7 @@ function combine(ast: Constraint.Ast, addition: Constraint.Ast): Constraint.Ast 
     return { parts: [ast, addition] };
 }
 
-function astOf(node: Element) {
+function astOf(node: XmlElement) {
     const ast: Constraint.Ast = {};
 
     for (const bound of children(node)) {
@@ -128,7 +128,7 @@ function astOf(node: Element) {
     return ast;
 }
 
-function requiredChild(node: Element, name: string) {
+function requiredChild(node: XmlElement, name: string) {
     const result = child(node, name);
     if (result === undefined) {
         throw new DataModelSyntaxError(`<${node.tagName}> has no <${name}>`);
@@ -137,7 +137,7 @@ function requiredChild(node: Element, name: string) {
 }
 
 /** A bound is either a value attribute or a nested expression */
-function boundOf(node: Element): Constraint.Expression {
+function boundOf(node: XmlElement): Constraint.Expression {
     const literal = str(node, "value");
     if (literal !== undefined) {
         return translateValue(literal);
@@ -151,7 +151,7 @@ function boundOf(node: Element): Constraint.Expression {
     return expressionOf(expressions[0]);
 }
 
-function expressionOf(node: Element): Constraint.Expression {
+function expressionOf(node: XmlElement): Constraint.Expression {
     switch (node.tagName) {
         case "attribute":
         case "field":
@@ -200,7 +200,7 @@ function expressionOf(node: Element): Constraint.Expression {
     }
 }
 
-function nameOf(node: Element) {
+function nameOf(node: XmlElement) {
     const name = str(node, "name") ?? str(node, "code");
     if (name === undefined) {
         throw new DataModelSyntaxError(`<${node.tagName}> in constraint has no name`);

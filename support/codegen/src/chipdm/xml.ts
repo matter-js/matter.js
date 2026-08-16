@@ -4,17 +4,26 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { JSDOM } from "jsdom";
+import { asError } from "#general";
+import { DOMParser, type Element } from "@xmldom/xmldom";
 import { DataModelSyntaxError } from "./errors.js";
 
-const parser = new new JSDOM("").window.DOMParser();
+/**
+ * An element of a CHIP data model document.
+ *
+ * We parse with a standalone XML parser rather than a DOM implementation because the latter requires a newer Node
+ * than we support.
+ */
+export type XmlElement = Element;
+
+const ELEMENT_NODE = 1;
 
 export function parseXml(text: string, filename: string) {
-    const document = parser.parseFromString(text, "text/xml");
-
-    const error = document.querySelector("parsererror");
-    if (error) {
-        throw new DataModelSyntaxError(`${filename}: ${error.textContent}`);
+    let document;
+    try {
+        document = new DOMParser({ onError: () => {} }).parseFromString(text, "text/xml");
+    } catch (cause) {
+        throw new DataModelSyntaxError(`${filename}: ${asError(cause).message}`);
     }
 
     const root = document.documentElement;
@@ -25,30 +34,42 @@ export function parseXml(text: string, filename: string) {
     return root;
 }
 
-export function children(node: Element, ...names: string[]) {
-    const result = new Array<Element>();
-    for (let element = node.firstElementChild; element !== null; element = element.nextElementSibling) {
+export function children(node: XmlElement, ...names: string[]) {
+    const result = new Array<XmlElement>();
+
+    for (let child = node.firstChild; child !== null; child = child.nextSibling) {
+        if (child.nodeType !== ELEMENT_NODE) {
+            continue;
+        }
+
+        const element = child as XmlElement;
         if (!names.length || names.includes(element.tagName)) {
             result.push(element);
         }
     }
+
     return result;
 }
 
-export function child(node: Element, ...names: string[]) {
-    for (let element = node.firstElementChild; element !== null; element = element.nextElementSibling) {
+export function child(node: XmlElement, ...names: string[]) {
+    for (let child = node.firstChild; child !== null; child = child.nextSibling) {
+        if (child.nodeType !== ELEMENT_NODE) {
+            continue;
+        }
+
+        const element = child as XmlElement;
         if (names.includes(element.tagName)) {
             return element;
         }
     }
 }
 
-export function str(node: Element, name: string) {
+export function str(node: XmlElement, name: string) {
     const value = node.getAttribute(name);
     return value === null ? undefined : value;
 }
 
-export function num(node: Element, name: string) {
+export function num(node: XmlElement, name: string) {
     const value = node.getAttribute(name);
     if (value === null) {
         return undefined;
@@ -61,7 +82,7 @@ export function num(node: Element, name: string) {
 }
 
 /** Like {@link num} but ignores a non-numeric value, which CHIP uses where "code" names a feature */
-export function maybeNum(node: Element, name: string) {
+export function maybeNum(node: XmlElement, name: string) {
     const value = node.getAttribute(name);
     if (value === null) {
         return undefined;
@@ -70,7 +91,7 @@ export function maybeNum(node: Element, name: string) {
     return Number.isNaN(result) ? undefined : result;
 }
 
-export function bool(node: Element, name: string) {
+export function bool(node: XmlElement, name: string) {
     const value = node.getAttribute(name);
     if (value === null) {
         return undefined;
@@ -86,7 +107,7 @@ export function bool(node: Element, name: string) {
 }
 
 /** Content of a value-bearing element, either a `value` attribute or the element text. */
-export function value(node: Element) {
+export function value(node: XmlElement) {
     const attribute = node.getAttribute("value");
     if (attribute !== null) {
         return attribute;

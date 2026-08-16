@@ -6,7 +6,7 @@
 
 import { Access, Quality } from "#model";
 import { DataModelSyntaxError } from "./errors.js";
-import { bool, child, str } from "./xml.js";
+import { bool, child, str, type XmlElement } from "./xml.js";
 
 const PRIVILEGES: Record<string, Access.Privilege> = {
     view: Access.Privilege.View,
@@ -37,7 +37,7 @@ const PERSISTENCE: Record<string, Quality.Field> = {
  * CHIP has no equivalent of our optional write ("R[W]") and omits the fabric flag on elements it considers implicitly
  * fabric scoped, so those differences require interpretation by the comparator.
  */
-export function translateAccess(node: Element) {
+export function translateAccess(node: XmlElement) {
     const definition = child(node, "access");
     if (definition === undefined) {
         return;
@@ -87,7 +87,7 @@ export function translateAccess(node: Element) {
  *
  * CHIP does not express our "P" (reportable) quality so the comparator ignores it.
  */
-export function translateQuality(node: Element) {
+export function translateQuality(node: XmlElement) {
     const definition = child(node, "quality");
     if (definition === undefined) {
         return;
@@ -113,7 +113,7 @@ export function translateQuality(node: Element) {
     return new Quality(flags.join(" "));
 }
 
-function privilegeOf(node: Element, attribute: string) {
+function privilegeOf(node: XmlElement, attribute: string) {
     const name = str(node, attribute);
     if (name === undefined) {
         return;

@@ -15,7 +15,7 @@ import { translateAccess, translateQuality } from "./translate-aspects.js";
 import { translateConformance } from "./translate-conformance.js";
 import { translateConstraint } from "./translate-constraint.js";
 import { translateValue } from "./values.js";
-import { child, children, maybeNum, num, parseXml, str } from "./xml.js";
+import { child, children, maybeNum, num, parseXml, str, type XmlElement } from "./xml.js";
 
 const logger = Logger.get("load-data-model");
 
@@ -52,7 +52,7 @@ export async function loadDataModel(source: ChipDataModel, version: string): Pro
     };
 }
 
-function load<T>(path: string, directory: string, loader: (root: Element, filename: string) => T) {
+function load<T>(path: string, directory: string, loader: (root: XmlElement, filename: string) => T) {
     const dir = resolve(path, directory);
     if (!statSync(dir, { throwIfNoEntry: false })?.isDirectory()) {
         return new Array<T>();
@@ -73,7 +73,7 @@ function load<T>(path: string, directory: string, loader: (root: Element, filena
  * A file defines a single cluster, a family of clusters that share one definition (the concentration measurement
  * clusters) or a base cluster with no ID of its own, so this always returns an array.
  */
-function loadCluster(root: Element, filename: string) {
+function loadCluster(root: XmlElement, filename: string) {
     if (root.tagName !== "cluster") {
         throw new DataModelSyntaxError(`${filename}: root element is <${root.tagName}>, expected <cluster>`);
     }
@@ -116,7 +116,7 @@ function loadCluster(root: Element, filename: string) {
     );
 }
 
-function loadFeature(node: Element): DmElement {
+function loadFeature(node: XmlElement): DmElement {
     return {
         tag: ElementTag.Field,
         name: str(node, "code") ?? nameOf(node, "feature"),
@@ -127,7 +127,7 @@ function loadFeature(node: Element): DmElement {
 }
 
 function loadValue(tag: ElementTag) {
-    return function loadValueElement(node: Element): DmElement {
+    return function loadValueElement(node: XmlElement): DmElement {
         const entry = child(node, "entry");
         const defaultValue = str(node, "default");
 
@@ -147,7 +147,7 @@ function loadValue(tag: ElementTag) {
     };
 }
 
-function loadCommand(node: Element): DmElement {
+function loadCommand(node: XmlElement): DmElement {
     const response = str(node, "response");
     const direction = str(node, "direction");
 
@@ -160,14 +160,14 @@ function loadCommand(node: Element): DmElement {
     };
 }
 
-function loadEvent(node: Element): DmElement {
+function loadEvent(node: XmlElement): DmElement {
     return {
         ...loadValue(ElementTag.Event)(node),
         priority: str(node, "priority"),
     };
 }
 
-function loadDatatype(node: Element): DmElement {
+function loadDatatype(node: XmlElement): DmElement {
     switch (node.tagName) {
         case "enum":
             return {
@@ -203,7 +203,7 @@ function loadDatatype(node: Element): DmElement {
     }
 }
 
-function loadDeviceType(root: Element, filename: string): DmDeviceType {
+function loadDeviceType(root: XmlElement, filename: string): DmDeviceType {
     if (root.tagName !== "deviceType") {
         throw new DataModelSyntaxError(`${filename}: root element is <${root.tagName}>, expected <deviceType>`);
     }
@@ -224,7 +224,7 @@ function loadDeviceType(root: Element, filename: string): DmDeviceType {
     };
 }
 
-function loadClusterRequirement(node: Element): DmElement {
+function loadClusterRequirement(node: XmlElement): DmElement {
     const members = new Array<DmElement>();
     collect(node, "features", "feature", loadRequirement(RequirementElement.ElementType.Feature), members);
     collect(node, "attributes", "attribute", loadRequirement(RequirementElement.ElementType.Attribute), members);
@@ -240,7 +240,7 @@ function loadClusterRequirement(node: Element): DmElement {
 }
 
 function loadRequirement(element: RequirementElement.ElementType) {
-    return function loadRequirementElement(node: Element): DmElement {
+    return function loadRequirementElement(node: XmlElement): DmElement {
         return {
             tag: ElementTag.Requirement,
             element,
@@ -255,7 +255,7 @@ function loadRequirement(element: RequirementElement.ElementType) {
     };
 }
 
-function loadNamespace(root: Element, filename: string): DmSemanticNamespace {
+function loadNamespace(root: XmlElement, filename: string): DmSemanticNamespace {
     if (root.tagName !== "namespace") {
         throw new DataModelSyntaxError(`${filename}: root element is <${root.tagName}>, expected <namespace>`);
     }
@@ -276,7 +276,7 @@ function loadNamespace(root: Element, filename: string): DmSemanticNamespace {
     };
 }
 
-function loadTag(node: Element): DmElement {
+function loadTag(node: XmlElement): DmElement {
     return {
         tag: ElementTag.SemanticTag,
         id: num(node, "id"),
@@ -285,7 +285,7 @@ function loadTag(node: Element): DmElement {
     };
 }
 
-function loadGlobals(root: Element) {
+function loadGlobals(root: XmlElement) {
     return children(root).map(node => (node.tagName === "command" ? loadCommand(node) : loadDatatype(node)));
 }
 
@@ -293,10 +293,10 @@ function loadGlobals(root: Element) {
  * Collect the children of a wrapper element such as `<attributes>`, which CHIP omits when empty.
  */
 function collect(
-    parent: Element,
+    parent: XmlElement,
     wrapper: string,
     name: string | undefined,
-    loader: (node: Element) => DmElement,
+    loader: (node: XmlElement) => DmElement,
     into: DmElement[],
 ) {
     const container = child(parent, wrapper);
@@ -309,7 +309,7 @@ function collect(
     }
 }
 
-function nameOf(node: Element, context: string) {
+function nameOf(node: XmlElement, context: string) {
     const name = str(node, "name");
     if (name === undefined) {
         throw new DataModelSyntaxError(`${context}: <${node.tagName}> has no name`);
@@ -317,7 +317,7 @@ function nameOf(node: Element, context: string) {
     return name;
 }
 
-function clusterClassificationOf(classification: Element | undefined) {
+function clusterClassificationOf(classification: XmlElement | undefined) {
     if (classification === undefined) {
         return;
     }
