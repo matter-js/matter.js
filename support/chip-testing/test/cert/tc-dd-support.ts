@@ -429,8 +429,8 @@ export async function recordCommissionable(
 }
 
 /**
- * Records what the DUT made of a code whose vendor id is not the TH's, where the plan accepts either
- * outcome: terminating commissioning, or onboarding anyway with the user aware of the risk.
+ * Records what the DUT made of a code naming a given vendor, where the plan accepts either outcome:
+ * terminating commissioning, or onboarding anyway with the user aware of the risk.
  *
  * The two controllers genuinely differ. chip-tool matches a code's vendor and product id against the
  * device it discovered (`SetUpCodePairer::NodeMatchesCurrentFilter`) and finds nothing; matter.js
@@ -438,13 +438,15 @@ export async function recordCommissionable(
  * `commissioned`, whose next {@link commissionByManualCode} takes it off the TH the only way a chip
  * TH survives — opening a window before the fabric that opens it is gone.
  */
-export async function recordVendorMismatchOutcome(
+export async function recordVendorOutcome(
     cx: CertStepContext,
     manualPairingCode: string,
     commissioned: CommissionedRefs,
     what: string,
     timeoutMs: number,
 ): Promise<void> {
+    await restoreCommissioningMode(cx, commissioned);
+
     const dut = cx.controllers.dut;
     const attempt = dut.commission({ manualPairingCode, giveUpAfterMs: timeoutMs });
 
@@ -461,12 +463,34 @@ export async function recordVendorMismatchOutcome(
         {
             type: "response",
             verdict: "pass",
-            detail:
-                `DUT onboarded the TH as node ${ref} despite the code naming another vendor, which the ` +
-                `plan allows where the user accepts the risk`,
+            detail: `DUT onboarded the TH as node ${ref}, which the plan allows where the user accepts the risk`,
         },
         what,
     );
+}
+
+/**
+ * Puts the TH back into commissioning mode if a fabric from an earlier onboarding is still on it.
+ *
+ * A chip TH does not return there when its last fabric goes, so the window is opened while the fabric
+ * that can open it is still present. It is a basic one: that is the window whose PASE verifier is the
+ * device's own setup code, which is what an onboarding code carries.
+ */
+async function restoreCommissioningMode(cx: CertStepContext, commissioned: CommissionedRefs): Promise<void> {
+    const previous = commissioned.get("dut");
+    if (previous === undefined) {
+        return;
+    }
+
+    const dut = cx.controllers.dut;
+    await dut.node(previous).openCommissioningWindow({ timeout: WINDOW_TIMEOUT_SECONDS, enhanced: false });
+    await dut.node(previous).decommission();
+    commissioned.clear("dut");
+
+    // Removing the fabric returns as soon as the TH answers; the TH advertises itself commissionable
+    // again on its own schedule, and a discovery started before that finds only the devices this run
+    // is not looking for.
+    await recordCommissionable(cx, "TH back in commissioning mode");
 }
 
 /** {@link commissionByQr} for a manual pairing code, which discovers by the short discriminator. */
@@ -501,17 +525,7 @@ async function commissionByTarget(
     const dut = cx.controllers.dut;
     const th = cx.devices.th;
 
-    const previous = commissioned.get("dut");
-    if (previous !== undefined) {
-        await dut.node(previous).openCommissioningWindow({ timeout: WINDOW_TIMEOUT_SECONDS, enhanced: false });
-        await dut.node(previous).decommission();
-        commissioned.clear("dut");
-
-        // Removing the fabric returns as soon as the TH answers; the TH advertises itself
-        // commissionable again on its own schedule, and a discovery started before that finds only
-        // the devices this run is not looking for.
-        await recordCommissionable(cx, "TH back in commissioning mode");
-    }
+    await restoreCommissioningMode(cx, commissioned);
 
     const from = th.log.mark();
     let ref;

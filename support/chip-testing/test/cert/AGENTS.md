@@ -1407,6 +1407,12 @@ and onboards. **The plan's expected outcome admits both** — terminate, "unless
 aware of the security risks" — so the step records which happened instead of asserting one. Both
 outcomes appear in the evidence, one per controller.
 
+**All four codes go to the DUT, which needs the TH restored between them.** The plan says "provide
+each", and an attempt that onboards leaves the TH out of commissioning mode for the next one — so
+`recordVendorOutcome` runs the same open-window-then-remove dance `commissionByTarget` does, hoisted
+into `restoreCommissioningMode`. A first version handed over only two of the four codes; a reviewer
+caught it.
+
 Two traps behind that, both of which a green run hid at first:
 
 - **Substituting the TH's own vendor id substitutes nothing.** `thCodeParts` reads VID/PID back from

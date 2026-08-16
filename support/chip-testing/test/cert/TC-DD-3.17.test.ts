@@ -6,11 +6,10 @@
 
 import { certTest } from "@matter/testing";
 import {
-    commissionByManualCode,
     CommissioningRefusals,
     manualPairingCode,
     recordManualParse,
-    recordVendorMismatchOutcome,
+    recordVendorOutcome,
     thCodeParts,
     thManualPairingCode,
 } from "./tc-dd-support.js";
@@ -40,8 +39,8 @@ const DISCRIMINATOR_MSB = 0x100;
  */
 const GIVE_UP_AFTER_MS = 20_000;
 
-/** Step 6's mismatched-vendor attempt, bounded the same way step 4's absent device is. */
-const VENDOR_MISMATCH_TIMEOUT_MS = 20_000;
+/** Step 6's per-vendor attempt, bounded the same way step 4's absent device is. */
+const VENDOR_OUTCOME_TIMEOUT_MS = 20_000;
 const NO_COMMISSIONEE_TIMEOUT_MS = 90_000;
 
 /** The plan repeats this in the expected outcome of every step that generates a code. */
@@ -245,22 +244,20 @@ certTest("TC-DD-3.17", {
             "supported by the DUT",
         async cx => {
             // The plan's own "unless" branch: a cert harness commissions uncertified devices on
-            // purpose, and its operator is the user the clause speaks of.
+            // purpose, and its operator is the user the clause speaks of. A code naming a vendor the TH
+            // is not is where the two commissioners part: chip-tool refuses to pair with a device whose
+            // advertisement disagrees, matter.js discovers on the discriminator alone. Both are outcomes
+            // the plan admits, so the step records which happened for each of the four codes.
             const parts = await thCodeParts(cx);
-            const [mismatched] = TEST_VENDOR_IDS.filter(vendorId => vendorId !== parts.vendorId);
-
-            // A code naming a vendor the TH is not: chip-tool refuses to pair with a device whose
-            // advertisement disagrees, matter.js discovers on the discriminator alone and onboards.
-            // The plan's expected outcome admits both, so the step records which rather than asserting.
-            await recordVendorMismatchOutcome(
-                cx,
-                manualPairingCode({ ...parts, vendorId: mismatched }),
-                commissioned,
-                `Code naming vendor 0x${mismatched.toString(16)}`,
-                VENDOR_MISMATCH_TIMEOUT_MS,
-            );
-
-            await commissionByManualCode(cx, manualPairingCode({ ...parts, vendorId: parts.vendorId }), commissioned);
+            for (const vendorId of TEST_VENDOR_IDS) {
+                await recordVendorOutcome(
+                    cx,
+                    manualPairingCode({ ...parts, vendorId }),
+                    commissioned,
+                    `Code naming vendor 0x${vendorId.toString(16)}`,
+                    VENDOR_OUTCOME_TIMEOUT_MS,
+                );
+            }
         },
         {
             expected:
