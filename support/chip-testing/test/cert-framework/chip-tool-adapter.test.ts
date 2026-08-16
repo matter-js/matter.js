@@ -24,6 +24,7 @@ import {
 import { registerCertCustomCluster } from "../../src/cert/custom-clusters.js";
 import { ChipToolExitError } from "../../src/chip-tool/chip-tool-client.js";
 import { FaultInjectionCluster } from "../cert/fault-injection.js";
+import { countMatches } from "../cert/tc-support.js";
 import { delay, FakeChipTool, waitFor, writeStandInBinary } from "./fake-chip-tool.js";
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
@@ -202,6 +203,15 @@ describe("ChipToolControllerAdapter", function () {
         expect(fake.commands).deep.equal([`pairing onnetwork-long ${FIRST_NODE} 20202021 3840`]);
         expect(await started.commission({ manualPairingCode: "36217551633" })).equal("4098");
         expect(fake.commands[1]).equal("pairing code 4098 36217551633");
+    });
+
+    it("does not report a successful frame as a failure, which would hide a real one", async () => {
+        // ws hands its callback `null` on success rather than leaving the argument out
+        const started = await start();
+        await started.commission({ passcode: 20202021, discriminator: 3840 });
+
+        await new Promise(resolve => setImmediate(resolve));
+        expect(countMatches(started.log, "chip-tool", /failed to send/, 0)).equal(0);
     });
 
     it("pairs from a QR onboarding payload, which chip-tool reads with the same command", async () => {

@@ -18,7 +18,9 @@ import {
     expectChunkedTransfer,
     expectCommandInvoke,
     expectMessageWithPath,
+    expectReportAck,
     expectSequence,
+    expectSubscriptionId,
     fabricFilteredPattern,
     READ_REQUEST_MESSAGE,
     requireId,
@@ -334,6 +336,89 @@ describe("expectMessageWithPath", () => {
 
         expect(record.verdict).equal("fail");
         expect(elapsed).lessThan(timeoutMs * 1.25);
+    });
+});
+
+describe("expectSubscriptionId and expectReportAck against a matter.js TH", () => {
+    // Lines a matter.js TH writes for one subscription: the response naming the id it minted, the
+    // report it then sends on that subscription, and the DUT's answer to that very report — the
+    // payload is a StatusResponseMessage whose context tag 0 holds the status, so 00 is Success
+    const SUBSCRIBE_RESPONSE =
+        "DEBUG MessageChannel Message » for: I/SubscribeResponse sub#: 54c99e7e maxInterval: 1m 27s " +
+        "id: @1:1b669•2d86⇵7689✉05ab904c type: 0x1/0x4";
+    const REPORT =
+        "DEBUG MessageChannel Message » for: I/ReportData sub#: 54c99e7e attr: 1 backOff: 342ms " +
+        "id: @1:1b669•2d86⇵7689✉05ab904b type: 0x1/0x5";
+    const ACK =
+        "DEBUG MessageExchange Message « for: I/StatusResponse id: @1:1b669•2d86⇵7689✉082f5518 type: 0x1/0x1 " +
+        "acked: 05ab904b reqAck size: 8 payload: 1524000024ff0c18";
+
+    async function ack(lines: string[], subscriptionId = 0x54c99e7e) {
+        return withFollower(lines, follower => expectReportAck(follower, "matterjs", subscriptionId, 0, 200), {
+            endSource: true,
+        });
+    }
+
+    it("reads the id the TH minted", async () => {
+        const lookup = await withFollower([SUBSCRIBE_RESPONSE], follower =>
+            expectSubscriptionId(follower, "matterjs", 0, 200),
+        );
+
+        expect(lookup.subscriptionId).equal(0x54c99e7e);
+        expect(lookup.check.verdict).equal("pass");
+    });
+
+    it("passes when the DUT acked this report with Success", async () => {
+        const record = await ack([REPORT, ACK]);
+
+        expect(record.verdict).equal("pass");
+        expect(record.matched).equal(ACK);
+    });
+
+    it("fails on an ack for another report, however close it sits", async () => {
+        const record = await ack([REPORT, ACK.replace("acked: 05ab904b", "acked: 05ab9999")]);
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("fails on a report of another subscription", async () => {
+        const record = await ack([REPORT.replace("sub#: 54c99e7e", "sub#: 54c99e7f"), ACK]);
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("ignores the keepalive an idle subscription sends, which carries no data", async () => {
+        const keepalive = REPORT.replace("attr: 1", "empty").replace("✉05ab904b", "✉05ab9052");
+        const keepaliveAck = ACK.replace("acked: 05ab904b", "acked: 05ab9052");
+
+        expect((await ack([keepalive, keepaliveAck])).verdict).equal("fail");
+        expect((await ack([keepalive, keepaliveAck, REPORT, ACK])).verdict).equal("pass");
+    });
+
+    it("matches an id of fewer digits, which the TH pads to eight", async () => {
+        const short = 0xa6c2b1e;
+        const record = await ack([REPORT.replace("sub#: 54c99e7e", `sub#: 0${short.toString(16)}`), ACK], short);
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("does not take a longer id that merely starts with ours", async () => {
+        const record = await ack([REPORT.replace("sub#: 54c99e7e", "sub#: 54c99e7ef"), ACK]);
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("accepts an event report, which says `ev:` where an attribute report says `attr:`", async () => {
+        const record = await ack([REPORT.replace("attr: 1", "ev: 1"), ACK]);
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("fails when the DUT acked with a status other than Success", async () => {
+        const record = await ack([REPORT, ACK.replace("payload: 15240000", "payload: 15240001")]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).match(/status 0x01/);
     });
 });
 

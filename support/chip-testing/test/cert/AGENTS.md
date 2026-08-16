@@ -1281,13 +1281,43 @@ requirement the plan states of the *TH*, so the TC walks `Descriptor.partsList` 
 satisfying the precondition then fails the step that says so, rather than silently proving less: the
 step also asserts the plan's own "at least 2".
 
-## Known flake: TC-IDM-4.1 step 4's first write reports nothing (unresolved)
+## chip-tool delivers one result per async report and discards the rest
 
-`step 4: write 1/3 to {"endpoint":0,"cluster":40,"attribute":5} produced no subscription report
-carrying "tc-idm-4-1-a" within 30s`. Seen on a loaded developer host with the matter.js controller, and
-once in CI on the chip-tool leg; the same commit passed on re-run, and the cert workflow is otherwise
-green on main. Both controller legs have produced it, so it is the step's own report wait rather than
-either adapter, and `subscribeAndModify` only reaches that wait on a device flavor whose log check is
-`unverified` (see "Deterministic per-write report/ack evidence"). Not root-caused. A run that hits it
-again is worth capturing rather than re-running blind: the evidence bundle's controller log shows
-whether the report arrived late or never.
+`step 4: write 1/3 … produced no subscription report carrying "tc-idm-4-1-a" within 30s`,
+intermittently, on the chip-tool controller against a matterjs device — about half of full-suite runs
+locally, once in CI.
+
+**Root cause**, readable in chip-tool's own source and corroborated by a traced reproduction (add a log
+line to `ChipToolClient`'s frame handler and `ChipToolControllerAdapter.#dispatchReports`, then run the
+whole suite with `MATTER_CERT_CONTROLLER=chip-tool` until a run fails — roughly one in two): while no
+command runs, the client parks an async-report frame (`ChipToolClient`). chip-tool's
+`InteractiveServerCommand::LogJSON` (`examples/chip-tool/commands/interactive/InteractiveCommands.cpp`)
+sends the reply and calls `Reset()` on the **first** result recorded in that mode, and `Reset()` clears
+`mEnabled`, after which `MaybeAddResult` drops the rest. One parked frame yields exactly one attribute;
+a numeric park does not batch, its timer only logs a timeout error. matter.js reports every changed
+attribute of a cluster in one `ReportData`, and writing `nodeLabel` bumps the whole `BasicInformation`
+data version, so step 3's still-live subscription on `localConfigDisabled` rides along and can win the
+race. Nothing on the client side recovers the dropped result.
+
+**What the plan actually asks for is the TH's own view**: "verify on the TH that the status response
+received from the DUT for every report data sent is a Success". So the fix is to read that from the
+device, as the chip flavors already did, rather than from a controller callback. `expectSubscriptionId`
+and `expectReportAck` now have matterjs branches:
+
+- `Message » for: I/SubscribeResponse sub#: <id>` names the subscription.
+- `Message » for: I/ReportData sub#: <id> attr: N` (or `ev: N`) is a report carrying data; the
+  keepalive an idle subscription sends at its maximum interval is marked `empty` and must not stand in
+  for one.
+- `Message « for: I/StatusResponse … acked: <that report's counter> … payload: 152400 00` is the DUT's
+  answer to **that** report — matter.js names the acked message counter, which is a tighter correlation
+  than the chip path's exchange id — and the byte after `152400` is the status, `00` being Success.
+
+Two traps in those lines. matter.js renders a subscription id through `Subscription.idStrOf`, which is
+`hex.fixed(id, 8)` — an id built with a plain `toString(16)` matches no line at all whenever the id has
+fewer than eight significant digits. And an event report says `ev:` where an attribute report says
+`attr:`, which TC-IDM-6.4 needs.
+
+With the device's own log carrying every write, `subscribeAndModify` no longer fails a step when the
+controller's `onUpdate` callbacks come up short — it records that as `"unverified"` with the counts.
+A report carrying a value nobody wrote is still a failure. What this gives up: a controller that
+delivered the values out of order is no longer caught, which the plan never asked about anyway.

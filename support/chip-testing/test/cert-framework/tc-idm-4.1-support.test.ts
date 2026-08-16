@@ -230,8 +230,8 @@ describe("subscribeAndModify", () => {
 
             expect(f.failures).deep.equal([]);
             const summary = f.passes[f.passes.length - 1];
-            expect(summary.detail).match(/3 confirmed by their own report on subscription 0x2a/);
-            expect(summary.detail).match(/onUpdate delivered 6 reports carrying the written values in order/);
+            expect(summary.detail).match(/each confirmed by its own report on subscription 0x2a/);
+            expect(summary.detail).match(/onUpdate delivered 6 reports, 3\/3 of the written values in order/);
         });
     });
 
@@ -269,17 +269,19 @@ describe("subscribeAndModify", () => {
         });
     });
 
-    it("fails when the reported values are not the written ones in order", async () => {
+    it("records, rather than fails, callbacks that do not carry the written values in order", async () => {
         const fixture = new Fixture("chip-local", (f, _index) => {
             f.pushReport(SUBSCRIPTION_ID);
             f.report(true);
         });
 
         await withFixture(fixture, async f => {
-            await expect(f.run(VALUES, IMPATIENT)).rejectedWith(
-                CertCheckFailedError,
-                /does not carry the written values \[true,false,true\] in order \(matched 1\/3\)/,
-            );
+            await f.run(VALUES, IMPATIENT);
+
+            expect(f.failures).deep.equal([]);
+            const unverified = f.checks.filter(check => check.verdict === "unverified");
+            expect(unverified).to.have.lengthOf(1);
+            expect(unverified[0].detail).match(/matched 1\/3/);
         });
     });
 
@@ -320,32 +322,32 @@ describe("subscribeAndModify", () => {
         });
     });
 
-    it("confirms a write through onUpdate when the log carries no subscription id", async () => {
-        const fixture = new Fixture("matterjs", (f, _index, value) => {
-            f.report(value);
-            f.report(value);
-        });
+    it("passes on the TH's own report and ack when the controller's callbacks lag behind", async () => {
+        // chip-tool's interactive server hands over only the first result of a batch, so a report the
+        // TH coalesced with another attribute reaches no callback — the log is what proves the write
+        const fixture = new Fixture("chip-local", f => f.pushReport(SUBSCRIPTION_ID));
 
         await withFixture(fixture, async f => {
-            await f.run();
+            await f.run(VALUES, IMPATIENT);
 
             expect(f.failures).deep.equal([]);
-            const summary = f.passes[f.passes.length - 1];
-            expect(summary.detail).match(/3 by onUpdate/);
-            expect(summary.detail).match(/onUpdate delivered 6 reports carrying the written values in order/);
+            const unverified = f.checks.filter(check => check.verdict === "unverified");
+            expect(unverified).to.have.lengthOf(1);
+            expect(unverified[0].detail).match(/matched 0\/3/);
+            expect(unverified[0].detail).match(/confirmed by the TH's own report and its Success ack/);
         });
     });
 
-    it("fails by timeout when the log carries no subscription id and onUpdate never fires", async () => {
-        const fixture = new Fixture("matterjs", () => {});
+    it("fails when the TH's log carries no report for this write, whatever the callbacks say", async () => {
+        const fixture = new Fixture("chip-local", (f, _index, value) => {
+            f.report(value);
+        });
 
         await withFixture(fixture, async f => {
             await expect(f.run(VALUES, IMPATIENT)).rejectedWith(
                 CertCheckFailedError,
-                /produced no subscription report carrying true/,
+                /StatusResponse ack check failed/,
             );
-
-            expect(f.failures[f.failures.length - 1].type).equal("response");
         });
     });
 });
