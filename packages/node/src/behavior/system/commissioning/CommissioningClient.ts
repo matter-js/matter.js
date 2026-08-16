@@ -1170,6 +1170,19 @@ export namespace CommissioningClient {
          * The device's long discriminator.
          */
         discriminator?: number;
+
+        /**
+         * The vendor the onboarding payload names, if it names one.
+         *
+         * A commissionable advertisement may state its own vendor and product (§ 4.3.1's `VP` record).
+         * Where both the payload and the advertisement name one, a device that disagrees is not the
+         * device the payload describes and is passed over — otherwise a code for one device silently
+         * onboards another sharing its discriminator.
+         */
+        vendorId?: VendorId;
+
+        /** The product the onboarding payload names, matched as {@link vendorId} is. */
+        productId?: number;
     }
 
     export interface PairingCodeOptions extends BaseCommissioningOptions {
