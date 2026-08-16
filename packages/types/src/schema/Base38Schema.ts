@@ -9,6 +9,9 @@ import { Schema } from "./Schema.js";
 
 const BASE38_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-.";
 
+/** § 5.1.3.1's character count per encoded byte group, indexed by that count. */
+const BYTES_PER_GROUP: Record<number, number> = { 2: 1, 4: 2, 5: 3 };
+
 /** See {@link MatterSpecification.v16.Core} § 5.1.3.1 */
 class Base38Schema extends Schema<Bytes, string> {
     protected encodeInternal(data: Bytes): string {
@@ -46,6 +49,8 @@ class Base38Schema extends Schema<Bytes, string> {
         const remainderEncodedLength = encodedLength % 5;
         let decodeLength = ((encodedLength - remainderEncodedLength) / 5) * 3;
         switch (remainderEncodedLength) {
+            case 0:
+                break;
             case 4:
                 decodeLength += 2;
                 break;
@@ -60,7 +65,7 @@ class Base38Schema extends Schema<Bytes, string> {
         let encodedOffset = 0;
         while (encodedOffset < encodedLength) {
             const remaining = encodedLength - encodedOffset;
-            if (remaining > 5) {
+            if (remaining >= 5) {
                 const value = this.decodeBase38(encoded, encodedOffset, 5);
                 result[decodedOffset++] = value & 0xff;
                 result[decodedOffset++] = (value >> 8) & 0xff;
@@ -88,6 +93,13 @@ class Base38Schema extends Schema<Bytes, string> {
             const code = BASE38_ALPHABET.indexOf(char);
             if (code === -1) throw new UnexpectedDataError(`Unexpected character ${char} at ${offset + i}`);
             result = result * 38 + code;
+        }
+        // A group of n characters holds more values than the n bytes it stands for, so one that overflows
+        // is not something `encode` could have written
+        if (result >= 1 << (8 * BYTES_PER_GROUP[charCount])) {
+            throw new UnexpectedDataError(
+                `Base38 group at ${offset} decodes to more than ${BYTES_PER_GROUP[charCount]} bytes`,
+            );
         }
         return result;
     }

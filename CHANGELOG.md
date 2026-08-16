@@ -110,6 +110,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Deprecation: The generated `Cluster`, `Complete` and `<Name>Cluster` aliases and the `ClusterType.WithCompat` `with()` shim are scheduled for removal in 0.19
     - Fix: `Cluster.with()` rejects a feature the cluster does not define and returns one frozen namespace per selection
     - Fix: An onboarding payload carrying a vendor ID past the last test vendor, or a product ID of 0 beside a real vendor ID, is now rejected
+    - Fix: Fixes Base38 decoding which rejected payloads whose length was a multiple of three bytes
     - Fix: A manual pairing code whose `VID_PID_PRESENT` bit disagrees with its length is now rejected
 
 - @matter/testing
