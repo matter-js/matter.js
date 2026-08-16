@@ -182,11 +182,14 @@ const MATTERJS_SUBSCRIBE_RESPONSE = /Message » for: I\/SubscribeResponse sub#: 
  * keepalive's ack must not stand in for a report's.
  */
 function matterjsReportPattern(subscriptionId: number): RegExp {
-    // matter.js pads the id to eight digits on a report and leaves it unpadded on the response that
-    // announced it, so the id is matched for its value rather than for how it was printed
     return new RegExp(
-        `Message » for: I/ReportData sub#: 0*${subscriptionId.toString(16)}\\b (?:attr|ev): \\d+.*?✉([0-9a-f]+)`,
+        `Message » for: I/ReportData sub#: ${matterjsSubscriptionIdOf(subscriptionId)} (?:attr|ev): \\d+.*?✉([0-9a-f]+)`,
     );
+}
+
+/** As `Subscription.idStrOf` renders it (`hex.fixed(id, 8)`); an unpadded id matches no line at all. */
+function matterjsSubscriptionIdOf(subscriptionId: number): string {
+    return subscriptionId.toString(16).padStart(8, "0");
 }
 
 /**
@@ -616,7 +619,7 @@ export const ACK_WAIT_TIMEOUT_MS = 15_000;
 /** What the TH's own SubscribeResponse says about the subscription a step just established. */
 export interface SubscriptionIdLookup {
     check: CheckRecord;
-    /** Absent when the lookup failed, and for the matterjs flavor. */
+    /** Absent when the lookup failed, or for a flavor whose log names no subscription. */
     subscriptionId?: number;
 }
 
@@ -669,7 +672,8 @@ async function matterjsSubscriptionId(
  * Reads back the id the TH minted for the subscription whose SubscribeResponse it sends at or after
  * `from`. Every step here keeps its subscriptions (`keepSubscriptions: true`) and their max interval
  * is shorter than the whole run, so several subscriptions report concurrently from step 3 onward —
- * the id is what tells one step's reports from another's.
+ * the id is what tells one step's reports from another's. Both flavors name it: chip in its decode
+ * dump, matter.js on the response itself.
  */
 export async function expectSubscriptionId(
     log: LogFollower,
@@ -857,8 +861,11 @@ async function matterjsReportAck(
  * This closes that gap by reading the CHIP Exchange id our report was sent on (see
  * {@link REPORT_SENT_LINE}) and requiring the ack to arrive on that same exchange — a different
  * subscription's own report/ack pair carries its own, different exchange id, so it can no longer
- * stand in for ours. `"unverified"` for the matterjs flavor (no `subscriptionId`, no chip decode
- * dump to match).
+ * stand in for ours.
+ *
+ * Against a matter.js TH the correlation is tighter still: it names the message counter each ack
+ * carries, so the ack is matched to this very report rather than to whatever answered on the same
+ * exchange next.
  */
 export async function expectReportAck(
     log: LogFollower,

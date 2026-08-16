@@ -1287,8 +1287,10 @@ step also asserts the plan's own "at least 2".
 intermittently, on the chip-tool controller against a matterjs device — about half of full-suite runs
 locally, once in CI.
 
-**Root cause**, read off a traced reproduction and confirmed in chip-tool's source: while no command
-runs, the client parks an async-report frame (`ChipToolClient`). chip-tool's
+**Root cause**, readable in chip-tool's own source and corroborated by a traced reproduction (add a log
+line to `ChipToolClient`'s frame handler and `ChipToolControllerAdapter.#dispatchReports`, then run the
+whole suite with `MATTER_CERT_CONTROLLER=chip-tool` until a run fails — roughly one in two): while no
+command runs, the client parks an async-report frame (`ChipToolClient`). chip-tool's
 `InteractiveServerCommand::LogJSON` (`examples/chip-tool/commands/interactive/InteractiveCommands.cpp`)
 sends the reply and calls `Reset()` on the **first** result recorded in that mode, and `Reset()` clears
 `mEnabled`, after which `MaybeAddResult` drops the rest. One parked frame yields exactly one attribute;
@@ -1310,9 +1312,10 @@ and `expectReportAck` now have matterjs branches:
   answer to **that** report — matter.js names the acked message counter, which is a tighter correlation
   than the chip path's exchange id — and the byte after `152400` is the status, `00` being Success.
 
-Two traps in those lines: matter.js pads the id to eight digits on a report but not on the response
-that announced it, so the id is matched by value; and an event report says `ev:` where an attribute
-report says `attr:`, which TC-IDM-6.4 needs.
+Two traps in those lines. matter.js renders a subscription id through `Subscription.idStrOf`, which is
+`hex.fixed(id, 8)` — an id built with a plain `toString(16)` matches no line at all whenever the id has
+fewer than eight significant digits. And an event report says `ev:` where an attribute report says
+`attr:`, which TC-IDM-6.4 needs.
 
 With the device's own log carrying every write, `subscribeAndModify` no longer fails a step when the
 controller's `onUpdate` callbacks come up short — it records that as `"unverified"` with the counts.

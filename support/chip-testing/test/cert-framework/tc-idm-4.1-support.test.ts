@@ -230,8 +230,8 @@ describe("subscribeAndModify", () => {
 
             expect(f.failures).deep.equal([]);
             const summary = f.passes[f.passes.length - 1];
-            expect(summary.detail).match(/3 confirmed by their own report on subscription 0x2a/);
-            expect(summary.detail).match(/onUpdate delivered 6 reports carrying the written values in order/);
+            expect(summary.detail).match(/each confirmed by its own report on subscription 0x2a/);
+            expect(summary.detail).match(/onUpdate delivered 6 reports, 3\/3 of the written values in order/);
         });
     });
 

@@ -395,8 +395,9 @@ describe("expectSubscriptionId and expectReportAck against a matter.js TH", () =
         expect((await ack([keepalive, keepaliveAck, REPORT, ACK])).verdict).equal("pass");
     });
 
-    it("matches the id by value, which a report pads to eight digits and the response does not", async () => {
-        const record = await ack([REPORT.replace("sub#: 54c99e7e", "sub#: 054c99e7e"), ACK]);
+    it("matches an id of fewer digits, which the TH pads to eight", async () => {
+        const short = 0xa6c2b1e;
+        const record = await ack([REPORT.replace("sub#: 54c99e7e", `sub#: 0${short.toString(16)}`), ACK], short);
 
         expect(record.verdict).equal("pass");
     });

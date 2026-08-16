@@ -83,15 +83,15 @@ export interface SubscribeAndModifyTimeouts {
  * bare mark taken after subscribe() — subscribe() resolving only means the client has sent the priming
  * ack, not that this log has decoded it yet.
  *
- * `onUpdate` asserts values rather than arrival counts: `values` must come back as an in-order
- * subsequence of what it delivers, so a duplicate or keepalive report is an extra element of that
- * sequence and never the next write's confirmation, while a value this step never wrote is a mismatch.
- * A flavor whose log carries no subscription id (matterjs) has nothing to correlate on, so there that
- * subsequence is also what confirms each write.
+ * `onUpdate` is secondary evidence, and asserts values rather than arrival counts: a value this step
+ * never wrote fails it, while `values` failing to come back as an in-order subsequence is recorded
+ * `"unverified"` — chip-tool's interactive server hands over only the first result of a batch and
+ * discards the rest (see this directory's AGENTS.md), so a report a TH coalesced with another
+ * attribute reaches no callback however well the interaction went.
  *
  * What the log confirmation does not prove: that the report it matched carried this write's data
- * rather than being a keepalive on the same subscription. Conversely a report the controller drops
- * before `onUpdate` fails the value assertion even though the interaction itself succeeded.
+ * rather than another change on the same subscription. A report carrying no data at all — the
+ * keepalive an idle subscription sends — is excluded on both flavors.
  */
 export async function subscribeAndModify<Value>(
     cx: CertStepContext,
@@ -179,7 +179,6 @@ export async function subscribeAndModify<Value>(
     }
 
     let ackCursor = primingAckCheck.logLine !== undefined ? primingAckCheck.logLine + 1 : th.log.mark();
-    let logConfirmed = 0;
     for (let i = 0; i < values.length; i++) {
         // A report already in the log when the write was issued cannot be this write's — a further
         // chunk of the priming report, or a keepalive on this same subscription, would otherwise
@@ -205,7 +204,6 @@ export async function subscribeAndModify<Value>(
                 `StatusResponse ack check failed for step ${step}, write ${i + 1}/${values.length}: ${JSON.stringify(ackCheck)}`,
             );
         }
-        logConfirmed++;
         if (ackCheck.logLine !== undefined) {
             ackCursor = ackCheck.logLine + 1;
         }
@@ -247,8 +245,8 @@ export async function subscribeAndModify<Value>(
         type: "response",
         verdict: "pass",
         detail:
-            `step ${step}: ${values.length} distinct writes to ${JSON.stringify(path)} — ${logConfirmed} confirmed ` +
-            `by their own report on subscription ${idText} in the TH's log, ${values.length - logConfirmed} by ` +
-            `onUpdate; onUpdate delivered ${reported.length} reports carrying the written values in order`,
+            `step ${step}: ${values.length} distinct writes to ${JSON.stringify(path)}, each confirmed by its own ` +
+            `report on subscription ${idText} in the TH's log and the DUT's Success ack for it; onUpdate ` +
+            `delivered ${reported.length} reports, ${matched}/${values.length} of the written values in order`,
     });
 }
