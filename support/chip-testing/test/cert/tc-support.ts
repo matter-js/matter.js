@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError, MatterError, Time } from "@matter/main";
+import { Duration, InternalError, MatterError, Millis, Time } from "@matter/main";
 import type {
     AttributePathSpec,
     CertNodeRef,
@@ -978,6 +978,68 @@ export async function expectReportAck(
             return { type: "device-log", verdict: "fail", pattern, detail: e.message, logLine: from };
         }
         throw e;
+    }
+}
+
+type SettleOutcome = { kind: "resolved" } | { kind: "rejected"; error: unknown } | { kind: "timeout" };
+
+function settled(promise: Promise<unknown>): Promise<SettleOutcome> {
+    return promise.then(
+        (): SettleOutcome => ({ kind: "resolved" }),
+        (error: unknown): SettleOutcome => ({ kind: "rejected", error }),
+    );
+}
+
+/**
+ * Asserts `op` rejects rather than resolves, bounded by `timeoutMs` so an implementation that
+ * neither errors nor gives up cannot hang the step for the whole mocha timeout — which is useless as
+ * either evidence or a fast local failure. A timeout is reported `"fail"`, same as an unexpected
+ * success, and the elapsed time reaches the evidence either way.
+ *
+ * `accept` narrows *which* rejection counts. Without it any error passes, including one that says
+ * nothing about the behaviour under test — a controller that crashed, timed out or was never asked.
+ * A step whose evidence is "it failed" rather than "it failed for this reason" should pass one.
+ */
+export async function expectRejection(
+    label: string,
+    op: Promise<unknown>,
+    timeoutMs: number,
+    accept?: (error: unknown) => boolean,
+): Promise<CheckRecord> {
+    // nowUs is the monotonic clock despite the name; nowMs tracks UTC and a step of it would put a
+    // negative elapsed into the evidence
+    const start = Time.nowUs;
+    const timeout = Time.sleep(`${label} rejection timeout`, Millis(timeoutMs));
+    let outcome: SettleOutcome;
+    try {
+        outcome = await Promise.race([settled(op), timeout.then((): SettleOutcome => ({ kind: "timeout" }))]);
+    } finally {
+        // A lost race leaves the sleep armed for its full duration, keeping the process alive past teardown
+        timeout.cancel();
+    }
+    const elapsed = Duration.format(Millis(Time.nowUs - start));
+
+    switch (outcome.kind) {
+        case "resolved":
+            return { type: "response", verdict: "fail", detail: `${label} unexpectedly succeeded after ${elapsed}` };
+        case "timeout":
+            return {
+                type: "response",
+                verdict: "fail",
+                detail: `${label} neither resolved nor rejected within ${Duration.format(Millis(timeoutMs))}`,
+            };
+        case "rejected": {
+            const { error } = outcome;
+            const message = error instanceof Error ? `${error.constructor.name}: ${error.message}` : String(error);
+            if (accept !== undefined && !accept(error)) {
+                return {
+                    type: "response",
+                    verdict: "fail",
+                    detail: `${label} failed after ${elapsed} for an unrelated reason: ${message}`,
+                };
+            }
+            return { type: "response", verdict: "pass", detail: `${label} rejected after ${elapsed}: ${message}` };
+        }
     }
 }
 

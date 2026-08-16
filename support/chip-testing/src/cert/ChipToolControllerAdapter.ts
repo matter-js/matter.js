@@ -48,7 +48,7 @@ import type { ChipToolCommissionerName } from "../chip-tool/chip-tool-client.js"
 import { ChipToolClient, resolveChipToolBinary } from "../chip-tool/chip-tool-client.js";
 import { chipJsonToMatter, matterToChipJson, stringifyChipJson } from "../chip-tool/json-codec.js";
 import { certClusterModelFor, findCertCluster } from "./custom-clusters.js";
-import { singleQrPayload } from "./onboarding-payload.js";
+import { assertSingleQrPayload, OnboardingPayloadRefusedError } from "./onboarding-payload.js";
 import { timedInteractionTimeoutOf } from "./timed-interaction.js";
 
 /** Name {@link UnsupportedByControllerError} reports for this adapter. */
@@ -603,6 +603,17 @@ function eventStatusFor(statuses: ChipPathStatus[], paths: EventPathSpec[]) {
  * step asserting `Failure` pass without the device ever having answered.
  */
 export class ChipToolCommandError extends MatterError {}
+
+/**
+ * chip-tool's own marker for a failure raised inside its setup-payload layer, as `CHIP_ERROR`'s
+ * formatter renders it: `Run command failure: src/setup_payload/<file>:<line>: …`.
+ *
+ * `SetupPayload::FromStringRepresentation` is where chip-tool applies § 5.1's payload rules, and this
+ * location is the only thing separating "the commissioner would not use this code" from every later
+ * way a commissioning fails: discovery, PASE, attestation and a command timeout all reach
+ * {@link ChipToolCommandError} alike.
+ */
+const PAYLOAD_FAILURE = /Run command failure: src\/setup_payload\//;
 
 /**
  * For read/write/invoke. A pathless status is one chip-tool derived from a raw `CHIP_ERROR`
@@ -1184,8 +1195,9 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
         let command: string;
         if (target.qrPairingCode) {
             // `pairing code` reads either payload format, a concatenated one included — and would pair
-            // with whichever commissionee that names first, which is what this refuses.
-            singleQrPayload(target.qrPairingCode);
+            // with whichever commissionee that names first, which is what this refuses. Everything else
+            // the payload can get wrong is chip-tool's own to refuse.
+            assertSingleQrPayload(target.qrPairingCode);
             command = `pairing code ${node} ${quoteArg(target.qrPairingCode)}`;
         } else if (target.manualPairingCode !== undefined) {
             command = `pairing code ${node} ${quoteArg(target.manualPairingCode)}`;
@@ -1198,7 +1210,13 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
             );
         }
 
-        const reply = await this.execute(command);
+        const { reply, logs } = await this.executeWithLogs(command);
+        if (reply.commandFailed && logs.some(line => PAYLOAD_FAILURE.test(line))) {
+            const detail = logs.find(line => PAYLOAD_FAILURE.test(line))?.trim();
+            throw new OnboardingPayloadRefusedError(
+                `chip-tool refused the onboarding payload for node ${node}: ${detail}`,
+            );
+        }
         assertCommandSucceeded(reply, `commissioning of node ${node}`);
 
         return node;

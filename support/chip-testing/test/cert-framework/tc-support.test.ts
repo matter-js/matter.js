@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/main";
+import { InternalError, Time } from "@matter/main";
 import type { CertNodeApi, CertStepContext, ControllerAdapter } from "@matter/testing";
 import { LogFollower } from "@matter/testing";
 import {
@@ -18,6 +18,7 @@ import {
     expectChunkedTransfer,
     expectCommandInvoke,
     expectMessageWithPath,
+    expectRejection,
     expectReportAck,
     expectSequence,
     expectSubscriptionId,
@@ -637,5 +638,62 @@ describe("CommissionedRefs", () => {
         await refs.decommissionAll(cx);
 
         expect(attempts).deep.equal(["dut"]);
+    });
+});
+
+describe("expectRejection", () => {
+    const BUDGET_MS = 200;
+
+    it("passes on a rejection and reports what it rejected with", async () => {
+        const check = await expectRejection("op", Promise.reject(new Error("refused")), BUDGET_MS);
+
+        expect(check.verdict).equal("pass");
+        expect(check.detail).match(/^op rejected after .*: refused$/);
+    });
+
+    it("fails on an unexpected success", async () => {
+        const check = await expectRejection("op", Promise.resolve("commissioned"), BUDGET_MS);
+
+        expect(check.verdict).equal("fail");
+        expect(check.detail).match(/^op unexpectedly succeeded after /);
+    });
+
+    it("fails once the budget expires rather than waiting for the call", async () => {
+        const check = await expectRejection("op", new Promise(() => {}), BUDGET_MS);
+
+        expect(check.verdict).equal("fail");
+        expect(check.detail).match(/^op neither resolved nor rejected within /);
+    });
+
+    it("fails a rejection the caller does not accept", async () => {
+        const check = await expectRejection(
+            "op",
+            Promise.reject(new InternalError("the process died")),
+            BUDGET_MS,
+            error => error instanceof TypeError,
+        );
+
+        expect(check.verdict).equal("fail");
+        expect(check.detail).match(/^op failed after .* for an unrelated reason: InternalError: the process died$/);
+    });
+
+    it("passes a rejection the caller accepts", async () => {
+        const check = await expectRejection(
+            "op",
+            Promise.reject(new InternalError("refused")),
+            BUDGET_MS,
+            error => error instanceof InternalError,
+        );
+
+        expect(check.verdict).equal("pass");
+    });
+
+    it("leaves no timer armed after a settled call", async () => {
+        // A budget nothing waits out would otherwise hold the process open past teardown
+        const before = Time.timers.size;
+
+        await expectRejection("op", Promise.reject(new Error("refused")), 60_000);
+
+        expect(Time.timers.size).equal(before);
     });
 });

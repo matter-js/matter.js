@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, InternalError, Millis, Time } from "@matter/main";
+import { InternalError } from "@matter/main";
 import { Matter } from "@matter/model";
 import type {
     CertNodeApi,
@@ -17,7 +17,7 @@ import type {
 } from "@matter/testing";
 import { CertLogClosedError, CertLogTimeoutError, certTest } from "@matter/testing";
 import { expectMdns } from "../../src/cert/mdns-check.js";
-import { CommissionedRefs, PendingPairingCode } from "./tc-support.js";
+import { CommissionedRefs, expectRejection, PendingPairingCode } from "./tc-support.js";
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
 const VENDOR_ID = BASIC_INFORMATION.attributes.require("vendorId");
@@ -217,50 +217,6 @@ async function openWindowAndCheck(cx: CertStepContext): Promise<void> {
     }
 }
 
-type SettleOutcome = { kind: "resolved" } | { kind: "rejected"; error: unknown } | { kind: "timeout" };
-
-function settled(promise: Promise<unknown>): Promise<SettleOutcome> {
-    return promise.then(
-        (): SettleOutcome => ({ kind: "resolved" }),
-        (error: unknown): SettleOutcome => ({ kind: "rejected", error }),
-    );
-}
-
-/**
- * Asserts `op` rejects (the TH_CR2-post-removal expectation) rather than resolves, bounded by
- * {@link POST_REMOVAL_TIMEOUT_MS} so a session that neither errors nor times out at the transport layer
- * can't hang this step for the full mocha timeout. `settled()` attaches its handlers before the race
- * starts, so a late resolution/rejection after the timeout branch wins is still observed, just not
- * awaited — no unhandled-rejection risk.
- */
-async function expectRejection(label: string, op: Promise<unknown>): Promise<CheckRecord> {
-    const start = Time.nowMs;
-    const timeout = Time.sleep("TC-CADMIN-1.17 post-removal check timeout", Millis(POST_REMOVAL_TIMEOUT_MS));
-    let outcome: SettleOutcome;
-    try {
-        outcome = await Promise.race([settled(op), timeout.then((): SettleOutcome => ({ kind: "timeout" }))]);
-    } finally {
-        // A lost race leaves the sleep armed for its full duration, keeping the process alive past teardown
-        timeout.cancel();
-    }
-    const elapsed = Duration.format(Millis(Time.nowMs - start));
-
-    switch (outcome.kind) {
-        case "resolved":
-            return { type: "response", verdict: "fail", detail: `${label} unexpectedly succeeded after ${elapsed}` };
-        case "timeout":
-            return {
-                type: "response",
-                verdict: "fail",
-                detail: `${label} neither resolved nor rejected within ${Duration.format(Millis(POST_REMOVAL_TIMEOUT_MS))}`,
-            };
-        case "rejected": {
-            const message = outcome.error instanceof Error ? outcome.error.message : String(outcome.error);
-            return { type: "response", verdict: "pass", detail: `${label} rejected after ${elapsed}: ${message}` };
-        }
-    }
-}
-
 certTest("TC-CADMIN-1.17", {
     plan: "multiplefabrics.adoc",
     pics: ["CADMIN.C", "CADMIN.C.C00.Tx"],
@@ -426,10 +382,15 @@ certTest("TC-CADMIN-1.17", {
             const writeCheck = await expectRejection(
                 "writeAttribute(NodeLabel)",
                 node.writeAttribute(path, "post-removal"),
+                POST_REMOVAL_TIMEOUT_MS,
             );
             cx.recorder.check(writeCheck);
 
-            const readCheck = await expectRejection("readAttribute(NodeLabel)", node.readAttribute(path));
+            const readCheck = await expectRejection(
+                "readAttribute(NodeLabel)",
+                node.readAttribute(path),
+                POST_REMOVAL_TIMEOUT_MS,
+            );
             cx.recorder.check(readCheck);
 
             if (writeCheck.verdict !== "pass" || readCheck.verdict !== "pass") {

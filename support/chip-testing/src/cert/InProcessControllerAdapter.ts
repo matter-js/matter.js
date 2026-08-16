@@ -74,7 +74,7 @@ import type {
 import { LineQueue, LogFollower } from "@matter/testing";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { certClusterModelFor, findCertCluster } from "./custom-clusters.js";
-import { singleQrPayload } from "./onboarding-payload.js";
+import { refusalOf, singleQrPayload } from "./onboarding-payload.js";
 import { timedInteractionTimeoutOf } from "./timed-interaction.js";
 
 /**
@@ -284,7 +284,11 @@ function resolveCommissioningTarget(target: CommissioningTarget): ResolvedCommis
         return { identifierData: { longDiscriminator: discriminator }, passcode };
     }
     if (target.manualPairingCode !== undefined) {
-        const { shortDiscriminator, passcode } = ManualPairingCodeCodec.decode(target.manualPairingCode);
+        const code = target.manualPairingCode;
+        const { shortDiscriminator, passcode } = refusalOf(
+            () => ManualPairingCodeCodec.decode(code),
+            `manual pairing code ${code}`,
+        );
         if (shortDiscriminator === undefined) {
             throw new ImplementationError("Manual pairing code did not decode to a short discriminator");
         }
