@@ -161,8 +161,9 @@ class CachedDownload implements ChipDataModel {
         const path = absolute(CACHE_PATH);
         const marker = resolve(path, REF_FILE);
 
-        // The download is a single commit so a different ref, or a refresh of the same one, means downloading again
-        if (refresh || (existsSync(marker) && readFileSync(marker, "utf-8") !== ref)) {
+        // The download is a single commit, so anything but a confirmed match of the same ref means downloading again
+        const cached = existsSync(marker) && readFileSync(marker, "utf-8") === ref;
+        if (refresh || !cached) {
             rmSync(path, { force: true, recursive: true });
         }
 

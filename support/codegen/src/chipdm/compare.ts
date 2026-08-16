@@ -9,6 +9,7 @@ import {
     AnyElement,
     ClusterModel,
     CommandModel,
+    DatatypeModel,
     ElementTag,
     EventModel,
     FieldValue,
@@ -18,6 +19,7 @@ import {
     ValueModel,
 } from "#model";
 import { ValidationModels } from "./build-models.js";
+import { aliasOf, matterNameFor, reasonFor } from "./by-design.js";
 import { DataModel, DmCluster, DmElement } from "./data-model.js";
 import { canonicalizeValue } from "./values.js";
 
@@ -33,6 +35,9 @@ export enum Category {
 
     /** A difference in an area where CHIP's model is known to carry less information than ours */
     Tolerated = "tolerated",
+
+    /** A difference we know of and do not intend to remove */
+    Informative = "informative",
 }
 
 export interface Finding {
@@ -44,6 +49,9 @@ export interface Finding {
 
     /** The LocalMatter override responsible, if we can identify one */
     override?: string;
+
+    /** Why the difference exists, for a difference that is by design */
+    reason?: string;
 }
 
 interface ElementContext {
@@ -187,7 +195,7 @@ class Comparison {
             const member = members.get(key);
             if (member === undefined) {
                 // CHIP repeats a global data type in every cluster that uses it; we define it once
-                if (chip.tag === ElementTag.Datatype && this.#models.merged.datatypes(chip.name) !== undefined) {
+                if (chip.tag === ElementTag.Datatype && this.#globalDatatypeOf(chip.name) !== undefined) {
                     continue;
                 }
                 this.#absent([...path, chip.name], chip.tag, shadowMembers.get(key));
@@ -211,7 +219,11 @@ class Comparison {
                 this.#report(Category.Tolerated, [...path, member.name], member.tag, "absent", "present");
                 continue;
             }
-            if (member.tag === ElementTag.Datatype && this.#globalDatatypes.has(canonicalize(member.name))) {
+            if (
+                member.tag === ElementTag.Datatype &&
+                (this.#globalDatatypes.has(canonicalize(member.name)) ||
+                    this.#globalDatatypes.has(aliasOf(canonicalize(member.name)) ?? ""))
+            ) {
                 continue;
             }
             this.#extra([...path, member.name], member.tag, !shadowMembers.has(key));
@@ -219,7 +231,19 @@ class Comparison {
     }
 
     #element(path: string[], chip: DmElement, model: Model, shadow?: Model, context: ElementContext = {}) {
-        this.#value(path, "name", canonicalize(chip.name), canonicalize(model.name), shadowName(shadow));
+        const name = canonicalize(model.name);
+        if (aliasOf(name) === canonicalize(chip.name)) {
+            this.#report(
+                Category.Informative,
+                path,
+                "name",
+                canonicalize(chip.name),
+                name,
+                "We and CHIP name the same type differently",
+            );
+        } else {
+            this.#value(path, "name", canonicalize(chip.name), name, shadowName(shadow));
+        }
 
         if (chip.tag !== ElementTag.Datatype || chip.type !== undefined) {
             this.#type(path, "type", typeName(chip.type), model, shadow);
@@ -409,6 +433,34 @@ class Comparison {
         return keys;
     }
 
+    /**
+     * The type of the given name a cluster defines, if exactly one does.
+     *
+     * A name several clusters define identifies no single definition, so there is nothing to compare against.
+     */
+    #scopedDatatype(name: string) {
+        let found: DatatypeModel | undefined;
+
+        for (const cluster of this.#models.merged.clusters) {
+            const datatype = cluster.datatypes(name);
+            if (datatype === undefined || datatype === found) {
+                continue;
+            }
+            if (found !== undefined) {
+                return;
+            }
+            found = datatype;
+        }
+
+        return found;
+    }
+
+    /** The global data type CHIP names, under either name */
+    #globalDatatypeOf(name: string) {
+        const datatypes = this.#models.merged.datatypes;
+        return datatypes(name) ?? datatypes(matterNameFor(name) ?? name);
+    }
+
     #compareNamespaces() {
         const { merged, unmodified } = this.#models;
 
@@ -459,13 +511,31 @@ class Comparison {
         const { merged, unmodified } = this.#models;
 
         for (const chip of this.#dm.globals) {
-            const datatype = merged.datatypes(chip.name);
+            const name = matterNameFor(chip.name) ?? chip.name;
+            const datatype = merged.datatypes(name);
+
             if (datatype === undefined) {
-                this.#absent([chip.name], "datatype", unmodified.datatypes(chip.name));
+                // We scope a type to the cluster that defines it where CHIP places it in global scope
+                const scoped = this.#scopedDatatype(name);
+                if (scoped === undefined) {
+                    this.#absent([chip.name], "datatype", unmodified.datatypes(name));
+                    continue;
+                }
+
+                this.#report(
+                    Category.Informative,
+                    [chip.name],
+                    "datatype",
+                    "global",
+                    `defined by ${scoped.owner(ClusterModel)?.name}`,
+                    "We scope this type to the cluster that defines it",
+                );
+
+                this.#element([chip.name], chip, scoped);
                 continue;
             }
 
-            this.#element([datatype.name], chip, datatype, unmodified.datatypes(chip.name));
+            this.#element([datatype.name], chip, datatype, unmodified.datatypes(name));
         }
     }
 
@@ -485,8 +555,24 @@ class Comparison {
             return;
         }
 
-        if (model instanceof ValueModel && canonicalize(model.metabase?.name) === chipType) {
+        const metabase = model instanceof ValueModel ? model.metabase : undefined;
+        if (
+            metabase !== undefined &&
+            (canonicalize(metabase.name) === chipType || canonicalize(metabase.type) === chipType)
+        ) {
             this.#report(Category.Tolerated, path, property, chipType, type);
+            return;
+        }
+
+        if (type !== undefined && aliasOf(type) === chipType) {
+            this.#report(
+                Category.Informative,
+                path,
+                property,
+                chipType,
+                type,
+                "We and CHIP name the same type differently",
+            );
             return;
         }
 
@@ -553,13 +639,14 @@ class Comparison {
             if (chipAccess.fabric !== undefined) {
                 this.#report(Category.Tolerated, path, "access fabric", chipAccess.fabric, "absent");
             }
-        } else if (chipAccess.fabric === undefined) {
-            // CHIP omits the fabric facet on elements the specification marks fabric scoped only in prose
-            if (access?.fabric !== undefined) {
-                this.#report(Category.Tolerated, path, "access fabric", "absent", access.fabric);
-            }
         } else {
-            this.#value(path, "access fabric", chipAccess.fabric, access?.fabric, shadowAccess?.fabric);
+            this.#value(
+                path,
+                "access fabric",
+                chipAccess.fabric ?? "absent",
+                access?.fabric ?? "absent",
+                shadowAccess === undefined ? undefined : (shadowAccess.fabric ?? "absent"),
+            );
         }
 
         this.#value(
@@ -637,14 +724,25 @@ class Comparison {
         this.#report(addedByOverride ? Category.Override : Category.Mismatch, path, property, "absent", "present");
     }
 
-    #report(category: Category, path: string[], property: string, chip?: string, matter?: string) {
+    #report(category: Category, path: string[], property: string, chip?: string, matter?: string, reason?: string) {
+        const address = path.join(".");
+
+        if (category === Category.Mismatch) {
+            const known = reasonFor(address, property, chip, matter);
+            if (known !== undefined) {
+                category = Category.Informative;
+                reason = known;
+            }
+        }
+
         this.#findings.push({
             category,
-            path: path.join("."),
+            path: address,
             property,
             chip,
             matter,
             override: category === Category.Override ? describeOverride(path) : undefined,
+            reason,
         });
     }
 }
@@ -705,10 +803,18 @@ function isGlobal(model: Model) {
 
 /** Merge a derived CHIP element over the base element it refines */
 function inherit(derived: DmElement, base: DmElement): DmElement {
+    const children = new Map(base.children.map(child => [`${child.tag}:${canonicalize(child.name)}`, child]));
+
+    for (const child of derived.children) {
+        const key = `${child.tag}:${canonicalize(child.name)}`;
+        const inherited = children.get(key);
+        children.set(key, inherited === undefined ? child : inherit(child, inherited));
+    }
+
     return {
         ...base,
         ...Object.fromEntries(Object.entries(derived).filter(([, value]) => value !== undefined)),
-        children: derived.children.length ? derived.children : base.children,
+        children: [...children.values()],
     } as DmElement;
 }
 
@@ -763,7 +869,12 @@ function resolvedDefault(model?: Model, depth = 0): FieldValue | undefined {
         return;
     }
 
-    return model.default ?? resolvedDefault(model.shadow, depth + 1);
+    // A null default is a value, not the absence of one
+    if (model.default !== undefined) {
+        return model.default;
+    }
+
+    return resolvedDefault(model.shadow, depth + 1);
 }
 
 /** Classification is a property of the cluster family, stated once on the base cluster */
@@ -806,6 +917,7 @@ function normalizeAspect(text?: string, property?: string) {
         normalized = normalized
             .replace(/(\d+)\^(\d+)/g, (_match, base, exponent) => `${Math.pow(Number(base), Number(exponent))}`)
             .replace(/%/g, "")
+            .replace(/[()]/g, "")
             .replace(/\[all\]/g, "");
     }
 

@@ -10,8 +10,14 @@ import { DataModel } from "./data-model.js";
 const HEADINGS: Record<Category, string> = {
     [Category.Mismatch]: "Mismatches",
     [Category.Override]: "Intended divergences (LocalMatter overrides)",
+    [Category.Informative]: "Known differences (by design)",
     [Category.Tolerated]: "Tolerated divergences (CHIP carries less information)",
 };
+
+const ORDER = [Category.Mismatch, Category.Informative, Category.Override, Category.Tolerated];
+
+/** Paths listed for a group of explained differences before the remainder is summarized */
+const PATHS_SHOWN = 6;
 
 export interface Report {
     version: string;
@@ -34,26 +40,38 @@ export function report(dm: DataModel, findings: Finding[], verbose: boolean): Re
         lines.push(`  not compared: ${dm.globalCommands.map(command => command.name).join(", ")}`);
     }
 
-    for (const category of [Category.Mismatch, Category.Override, Category.Tolerated]) {
+    for (const category of ORDER) {
         const matching = findings.filter(finding => finding.category === category);
         if (!matching.length) {
             continue;
         }
 
+        const groups = group(matching);
+
         lines.push("");
-        lines.push(`${HEADINGS[category]} (${matching.length})`);
+        lines.push(`${HEADINGS[category]} — ${matching.length} in ${groups.length} group${plural(groups.length)}`);
 
-        if (category !== Category.Mismatch && !verbose) {
-            for (const [subject, count] of summarize(matching)) {
-                lines.push(`  ${subject}: ${count}`);
+        for (const { property, chip, matter, reason, findings: members } of groups) {
+            lines.push(`  ${property}: chip "${chip}", ours "${matter}" (${members.length})`);
+
+            if (reason !== undefined) {
+                lines.push(`    ${reason}`);
             }
-            continue;
-        }
 
-        for (const finding of matching) {
-            lines.push(`  ${finding.path} ${finding.property}: chip "${finding.chip}", ours "${finding.matter}"`);
-            if (finding.override !== undefined) {
-                lines.push(`    via ${finding.override}`);
+            const paths = members.map(finding => finding.path);
+
+            // A mismatch is what the reader must act on, so it is never summarized away
+            const shown = verbose || category === Category.Mismatch ? paths : paths.slice(0, PATHS_SHOWN);
+            for (const path of shown) {
+                lines.push(`    ${path}`);
+            }
+            if (shown.length < paths.length) {
+                lines.push(`    …and ${paths.length - shown.length} more`);
+            }
+
+            const overrides = new Set(members.map(finding => finding.override).filter(override => override));
+            for (const override of overrides) {
+                lines.push(`    via ${override}`);
             }
         }
     }
@@ -61,22 +79,48 @@ export function report(dm: DataModel, findings: Finding[], verbose: boolean): Re
     const mismatches = findings.filter(finding => finding.category === Category.Mismatch).length;
 
     lines.push("");
-    lines.push(
-        mismatches
-            ? `${mismatches} unexplained difference${mismatches === 1 ? "" : "s"}`
-            : "No unexplained differences",
-    );
+    lines.push(mismatches ? `${mismatches} unexplained difference${plural(mismatches)}` : "No unexplained differences");
 
     return { version: dm.version, source: dm.source, findings, text: lines.join("\n"), mismatches };
 }
 
-function summarize(findings: Finding[]) {
-    const counts = new Map<string, number>();
+interface Group {
+    property: string;
+    chip?: string;
+    matter?: string;
+    reason?: string;
+    findings: Finding[];
+}
+
+/**
+ * Collect findings that state the same difference.
+ *
+ * One decision usually appears once per cluster that inherits it, so the number of groups is the number of decisions
+ * a reader faces.
+ */
+function group(findings: Finding[]) {
+    const groups = new Map<string, Group>();
 
     for (const finding of findings) {
-        const subject = finding.path.split(".")[0];
-        counts.set(subject, (counts.get(subject) ?? 0) + 1);
+        const key = `${finding.property}|${finding.chip}|${finding.matter}|${finding.reason ?? ""}`;
+
+        const existing = groups.get(key);
+        if (existing === undefined) {
+            groups.set(key, {
+                property: finding.property,
+                chip: finding.chip,
+                matter: finding.matter,
+                reason: finding.reason,
+                findings: [finding],
+            });
+        } else {
+            existing.findings.push(finding);
+        }
     }
 
-    return [...counts.entries()].sort(([a], [b]) => a.localeCompare(b));
+    return [...groups.values()].sort((a, b) => b.findings.length - a.findings.length);
+}
+
+function plural(count: number) {
+    return count === 1 ? "" : "s";
 }

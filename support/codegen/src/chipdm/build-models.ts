@@ -43,7 +43,12 @@ function build(revision: string, inputs: TraverseMap, what: string) {
     // Codegen applies the same fixups before writing the model, so validation must see them too
     const validation = Logger.nest(() => finalizeModel(model));
     if (validation.errors.length) {
-        logger.warn(`${what} has ${validation.errors.length} validation errors of its own`);
+        logger.warn(`${what} has ${validation.errors.length} validation errors of its own:`);
+        Logger.nest(() => {
+            for (const error of validation.errors) {
+                logger.warn(`${error.source}: ${error.message}`);
+            }
+        });
     }
 
     return model;

@@ -38,7 +38,7 @@ export function translateValue(text: string): FieldValue {
  * CHIP and our model differ in capitalization of references and in numeric radix, neither of which is a semantic
  * difference.  Values CHIP cannot express ("MS" for manufacturer specific, "desc" for prose) compare as absent.
  */
-export function canonicalizeValue(value: FieldValue | undefined) {
+export function canonicalizeValue(value: FieldValue | undefined): string | undefined {
     if (value === undefined) {
         return;
     }
@@ -49,6 +49,14 @@ export function canonicalizeValue(value: FieldValue | undefined) {
 
     if (typeof value === "number" || typeof value === "bigint") {
         return value.toString();
+    }
+
+    if (FieldValue.is(value, FieldValue.properties)) {
+        const properties = FieldValue.objectValue(value) ?? {};
+        const fields = Object.entries(properties)
+            .map(([name, property]) => `${name.toLowerCase()}=${canonicalizeValue(property) ?? ""}`)
+            .sort();
+        return `{${fields.join(",")}}`;
     }
 
     const text = FieldValue.serialize(value).trim().toLowerCase();
