@@ -1285,7 +1285,7 @@ step also asserts the plan's own "at least 2".
 
 The negative payload plans all read "DUT parses the code and terminates the commissioning process".
 The only way to record that is to hand the payload to `commission()` and require a rejection — and
-that only proves something about the DUT if the DUT is what refused.
+that only proves something about the DUT if the DUT is what refused, for the reason under test.
 
 `ChipToolControllerAdapter.commission` used to run every payload through matter.js's own codec first
 (`singleQrPayload`), so on a chip-tool leg matter.js refused before chip-tool ever saw the code, and
@@ -1299,13 +1299,23 @@ version and each forbidden passcode, and as `ManualSetupPayloadParser.cpp:46: CH
 Integrity check failed` for a prefix that is not `MT:` (chip-tool treats a non-`MT:` code as a manual
 one). matter.js rejects the same three in `QrPairingCodeCodec`, inside a millisecond.
 
+**"It failed" is not the assertion; "it refused this payload" is.** `expectRejection` takes an
+`accept` predicate, and `CommissioningRefusals` only accepts `UnexpectedDataError` (matter.js's
+codec) or `ChipToolCommandError` (chip-tool's own verdict). Without it the steps pass on a controller
+that crashed, timed out or was never asked — `ChipToolClient.execute` alone has a 3-minute budget
+whose expiry is a rejection like any other, and both adapters refuse these payloads before touching
+the network, so the steps would also pass with no TH running at all.
+
 **A negative check needs a bound and a cleanup path.** `expectRejection` (promoted from
 `TC-CADMIN-1.17` to `tc-support.ts`, now taking its own timeout) reports `"fail"` for a call that
-neither resolved nor rejected, which is what a controller that skipped the payload rules and went
-looking for the commissionee produces — verified by deleting matter.js's passcode validation, where
-step 5.b turned into "neither resolved nor rejected within 30s" rather than hanging the run.
-`expectCommissioningRefused` records the ref *before* judging the check, so a refusal that never came
-leaves the accidental fabric to the run's own `finalize`, not to whatever runs next.
+neither resolved nor rejected — verified by deleting matter.js's passcode validation, where step 5.b
+turned into "neither resolved nor rejected" rather than hanging the run. `CommissioningRefusals`
+keeps every attempt it started and `settle()` decommissions the fabric of any that succeeded after
+its own budget expired; it owns those refs rather than writing them into the TC's `CommissionedRefs`,
+which holds one ref per role and would collapse two stray fabrics into one. Its budget is under
+`CertTest`'s own 2-minute finalization timeout, and deliberately does not try to outwait a chip-tool
+command stuck in its 3-minute one — a controller stuck that long has left the TH in a state this run
+cannot report on, which is what the `CertCleanupError` says.
 
 **Building a payload the encoder refuses to write.** Every value these plans substitute — a non-zero
 version, the twelve trivial passcodes — is exactly what `QrPairingCodeCodec.encode` validates
@@ -1315,12 +1325,21 @@ its own expected payload for each substitution against its example code; `tc-dd-
 asserts all thirteen of them, which is what caught the first version of the bit writer setting bits
 without clearing them.
 
-**Steps 3 and 4 are `notApplicable`, not PICS-gated.** They ask the DUT to commission over a
-capability it prefers over IP, which needs `MCORE.DD.DISCOVERY_BLE`/`MCORE.DD.DISCOVERY_PAF`; both
-controller overlays now declare those 0, since this harness wires either controller onto the IP
-network alone. That declaration gates the steps under `matterjs` only — per-step PICS is inert on the
-chip flavors (see "PICS handling" above), where the steps would otherwise run with nothing to check —
-so the reason is carried by `notApplicable` and the PICS stays as transcription.
+**Steps 3 and 4 substitute the discovery bitmask — they are not skippable.** They read as a
+precondition on the TH ("ensure the TH's Discovery Capability bit string is NOT set to BLE"), but for
+a TC that drives everything itself that is one more substitution, and `qrPayloadWith` takes
+`discoveryCapabilities` for it. It is load-bearing rather than cosmetic: `chip-all-clusters-app`
+publishes a **BLE-only** bitmask (`0b00000010`), so on that TH the precondition does not hold at all
+and an unsubstituted step 3.a fails. With the OnNetwork form both steps commission for real and
+record the DUT onboarding the TH over IP, which is the plan's own expected outcome.
+
+Their `pics` (`MCORE.DD.DISCOVERY_BLE`, `MCORE.DD.DISCOVERY_PAF`) stays as transcription and gates
+only under `matterjs`, where CHIP's `ci-pics-values` answers `DISCOVERY_PAF=0` and step 4 records a
+PICS skip. Do **not** answer these from a controller overlay to force a skip: `certPicsFile()` feeds
+every cert test's report, so a device-scoped key set there makes every other run's evidence claim
+something false about its TH. And note `notApplicable` is evaluated *before* both the `flavors` and
+the PICS gate in `cert-test.ts`, so a step carrying both never evaluates its PICS on any flavor —
+combining them documents nothing and hides the gate that would otherwise fire.
 
 ## chip-tool delivers one result per async report and discards the rest
 

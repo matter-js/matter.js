@@ -996,11 +996,19 @@ function settled(promise: Promise<unknown>): Promise<SettleOutcome> {
  * either evidence or a fast local failure. A timeout is reported `"fail"`, same as an unexpected
  * success, and the elapsed time reaches the evidence either way.
  *
- * `settled()` attaches its handlers before the race starts, so a late settlement after the timeout
- * branch wins is still observed, just not awaited — no unhandled-rejection risk.
+ * `accept` narrows *which* rejection counts. Without it any error passes, including one that says
+ * nothing about the behaviour under test — a controller that crashed, timed out or was never asked.
+ * A step whose evidence is "it failed" rather than "it failed for this reason" should pass one.
  */
-export async function expectRejection(label: string, op: Promise<unknown>, timeoutMs: number): Promise<CheckRecord> {
-    const start = Time.nowMs;
+export async function expectRejection(
+    label: string,
+    op: Promise<unknown>,
+    timeoutMs: number,
+    accept?: (error: unknown) => boolean,
+): Promise<CheckRecord> {
+    // nowUs is the monotonic clock despite the name; nowMs tracks UTC and a step of it would put a
+    // negative elapsed into the evidence
+    const start = Time.nowUs;
     const timeout = Time.sleep(`${label} rejection timeout`, Millis(timeoutMs));
     let outcome: SettleOutcome;
     try {
@@ -1009,7 +1017,7 @@ export async function expectRejection(label: string, op: Promise<unknown>, timeo
         // A lost race leaves the sleep armed for its full duration, keeping the process alive past teardown
         timeout.cancel();
     }
-    const elapsed = Duration.format(Millis(Time.nowMs - start));
+    const elapsed = Duration.format(Millis(Time.nowUs - start));
 
     switch (outcome.kind) {
         case "resolved":
@@ -1021,7 +1029,15 @@ export async function expectRejection(label: string, op: Promise<unknown>, timeo
                 detail: `${label} neither resolved nor rejected within ${Duration.format(Millis(timeoutMs))}`,
             };
         case "rejected": {
-            const message = outcome.error instanceof Error ? outcome.error.message : String(outcome.error);
+            const { error } = outcome;
+            const message = error instanceof Error ? `${error.constructor.name}: ${error.message}` : String(error);
+            if (accept !== undefined && !accept(error)) {
+                return {
+                    type: "response",
+                    verdict: "fail",
+                    detail: `${label} failed after ${elapsed} for an unrelated reason: ${message}`,
+                };
+            }
             return { type: "response", verdict: "pass", detail: `${label} rejected after ${elapsed}: ${message}` };
         }
     }

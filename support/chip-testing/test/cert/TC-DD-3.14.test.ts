@@ -6,9 +6,12 @@
 
 import { certTest } from "@matter/testing";
 import {
-    expectCommissioningRefused,
+    CommissioningRefusals,
+    commissionByQr,
     qrPayloadWith,
     qrPayloadWithPrefix,
+    onNetworkOnlyPayload,
+    recordDiscoveryCapabilityAbsent,
     recordParse,
     thQrPayload,
 } from "./tc-dd-support.js";
@@ -28,9 +31,8 @@ const INVALID_PASSCODES = [
     0, 11111111, 22222222, 33333333, 44444444, 55555555, 66666666, 77777777, 88888888, 99999999, 12345678, 87654321,
 ];
 
-const IP_ONLY = "The controllers in this harness discover over IP only";
-
 const commissioned = new CommissionedRefs();
+const refusals = new CommissioningRefusals();
 
 certTest("TC-DD-3.14", {
     plan: "devicediscovery.adoc",
@@ -68,7 +70,7 @@ certTest("TC-DD-3.14", {
         "Scan/read the QR code, generated in the previous step, using the DUT",
         async cx => {
             const payload = qrPayloadWith(await thQrPayload(cx.devices.th), { version: INVALID_VERSION });
-            await expectCommissioningRefused(cx, payload, commissioned, "Invalid-version payload refused");
+            await refusals.requireRefusal(cx, payload, "Invalid-version payload refused");
         },
         {
             expected:
@@ -80,24 +82,56 @@ certTest("TC-DD-3.14", {
         "3.a",
         "Using the QR code from Step 1, ensure the TH's Discovery Capability bit string is NOT set to BLE for " +
             "discovery (i.e. set to OnNetwork discovery capability)",
-        async () => {},
-        { pics: "MCORE.DD.DISCOVERY_BLE", notApplicable: `${IP_ONLY}, so MCORE.DD.DISCOVERY_BLE is 0` },
+        async cx =>
+            recordDiscoveryCapabilityAbsent(cx, await onNetworkOnlyPayload(cx), "ble", "Payload does not offer BLE"),
+        {
+            pics: "MCORE.DD.DISCOVERY_BLE",
+            expected: "User has a QR code generated to pass into DUT.",
+        },
     )
-    .step("3.b", "Scan/read the QR code of the TH device using the DUT", async () => {}, {
-        pics: "MCORE.DD.DISCOVERY_BLE",
-        notApplicable: `${IP_ONLY}, so MCORE.DD.DISCOVERY_BLE is 0`,
-    })
+    .step(
+        "3.b",
+        "Scan/read the QR code of the TH device using the DUT",
+        async cx => {
+            await commissionByQr(cx, await onNetworkOnlyPayload(cx), commissioned);
+        },
+        {
+            pics: "MCORE.DD.DISCOVERY_BLE",
+            expected:
+                "If TH Commissionee's Discovery Capabilities do not support BLE, ensure that the DUT commissions " +
+                "the TH onto the Matter network over a capability that is NOT BLE. In this example, over OnNetwork.",
+        },
+    )
     .step(
         "4.a",
         "Using the QR code from Step 1, ensure the TH's Discovery Capability bit string is NOT set to Wi-Fi PAF " +
             "for discovery (i.e. set to OnNetwork discovery capability)",
-        async () => {},
-        { pics: "MCORE.DD.DISCOVERY_PAF", notApplicable: `${IP_ONLY}, so MCORE.DD.DISCOVERY_PAF is 0` },
+        async cx =>
+            recordDiscoveryCapabilityAbsent(
+                cx,
+                await onNetworkOnlyPayload(cx),
+                "wifiPublicActionFrame",
+                "Payload does not offer Wi-Fi PAF",
+            ),
+        {
+            pics: "MCORE.DD.DISCOVERY_PAF",
+            expected: "User has a QR code generated to pass into DUT.",
+        },
     )
-    .step("4.b", "Scan/read the QR code of the TH device using the DUT", async () => {}, {
-        pics: "MCORE.DD.DISCOVERY_PAF",
-        notApplicable: `${IP_ONLY}, so MCORE.DD.DISCOVERY_PAF is 0`,
-    })
+    .step(
+        "4.b",
+        "Scan/read the QR code of the TH device using the DUT",
+        async cx => {
+            await commissionByQr(cx, await onNetworkOnlyPayload(cx), commissioned);
+        },
+        {
+            pics: "MCORE.DD.DISCOVERY_PAF",
+            expected:
+                "If TH Commissionee's Discovery Capabilities do not support Wi-Fi PAF, ensure that the DUT " +
+                "commissions the TH onto the Matter network over a capability that is NOT Wi-Fi PAF. In this " +
+                "example, over OnNetwork.",
+        },
+    )
     .step(
         "5.a",
         "Passcode: Using the QR code from Step 1, generate a new QR code using all the same Onboarding Payload " +
@@ -132,10 +166,9 @@ certTest("TC-DD-3.14", {
         async cx => {
             const th = await thQrPayload(cx.devices.th);
             for (const passcode of INVALID_PASSCODES) {
-                await expectCommissioningRefused(
+                await refusals.requireRefusal(
                     cx,
                     qrPayloadWith(th, { passcode }),
-                    commissioned,
                     `Payload carrying passcode ${passcode} refused`,
                 );
             }
@@ -161,7 +194,7 @@ certTest("TC-DD-3.14", {
         "Scan/read the QR code, generated in the previous step, using the DUT",
         async cx => {
             const payload = qrPayloadWithPrefix(await thQrPayload(cx.devices.th), INVALID_PREFIX);
-            await expectCommissioningRefused(cx, payload, commissioned, "Invalid-prefix payload refused");
+            await refusals.requireRefusal(cx, payload, "Invalid-prefix payload refused");
         },
         {
             expected:
@@ -169,4 +202,10 @@ certTest("TC-DD-3.14", {
                 "commissioning process in a DUT-specific manner according to the DUT manufacturer's instructions.",
         },
     )
-    .finalize(cx => commissioned.decommissionAll(cx));
+    .finalize(async cx => {
+        try {
+            await refusals.settle(cx);
+        } finally {
+            await commissioned.decommissionAll(cx);
+        }
+    });
