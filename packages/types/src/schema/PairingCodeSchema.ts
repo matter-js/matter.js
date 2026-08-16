@@ -176,6 +176,35 @@ export function assertValidPasscode(passcode: number): void {
     }
 }
 
+/** Inclusive upper bound of a product identifier, which § 5.1.3.1 Table 59 carries in 16 bits. */
+const PRODUCT_ID_MAX = 0xffff;
+
+/**
+ * Rejects a vendor/product identifier pair an onboarding payload may not carry: a vendor id past the
+ * last test vendor (§ 2.5.2), or a product id outside 16 bits. Product id 0 announces an anonymized
+ * product and is reserved for a payload that names no vendor either, so it may not accompany a real
+ * vendor id (§ 2.5.3).
+ *
+ * Mirrors CHIP's `PayloadContents::CheckPayloadCommonConstraints`, which applies to both onboarding
+ * code forms.
+ *
+ * Applied when reading a code, never when writing one: `CommissioningServer` renders a node's pairing
+ * codes from `BasicInformation` state that may still carry the pre-default product id 0, and a node
+ * whose own code cannot be generated does not start at all. What a commissioner must refuse to *act*
+ * on is a separate question from what a device may render.
+ */
+export function assertValidPayloadIdentity(vendorId: number, productId: number): void {
+    if (!VendorId.isValid(vendorId)) {
+        throw new UnexpectedDataError(`Invalid vendor ID ${vendorId} in onboarding payload`);
+    }
+    if (!Number.isInteger(productId) || productId < 0 || productId > PRODUCT_ID_MAX) {
+        throw new UnexpectedDataError(`Invalid product ID ${productId} in onboarding payload`);
+    }
+    if (productId === 0 && vendorId !== 0) {
+        throw new UnexpectedDataError(`Product ID 0 is reserved and cannot accompany vendor ID ${vendorId}`);
+    }
+}
+
 const PREFIX = "MT:";
 
 /**
@@ -230,6 +259,17 @@ class QrPairingCodeSchema extends Schema<QrCodeData[], string> {
             }
             assertValidPasscode(passcode);
         }
+    }
+
+    /** Adds the identity rules {@link assertValidPayloadIdentity} applies to a code being read. */
+    override decode(encoded: string, validate = true): QrCodeData[] {
+        const payloads = super.decode(encoded, validate);
+        if (validate) {
+            for (const { vendorId, productId } of payloads) {
+                assertValidPayloadIdentity(vendorId, productId);
+            }
+        }
+        return payloads;
     }
 
     protected encodeInternal(payloadData: QrCodeData[]): string {
@@ -384,6 +424,15 @@ class ManualPairingCodeSchema extends Schema<ManualPairingData, string> {
         return result;
     }
 
+    /** Adds the identity rules {@link assertValidPayloadIdentity} applies to a code being read. */
+    override decode(encoded: string, validate = true): ManualPairingData {
+        const data = super.decode(encoded, validate);
+        if (validate && data.vendorId !== undefined && data.productId !== undefined) {
+            assertValidPayloadIdentity(data.vendorId, data.productId);
+        }
+        return data;
+    }
+
     protected decodeInternal(encoded: string): ManualPairingData {
         encoded = encoded.replace(/\D/g, ""); // we SHALL be robust against other characters
         if (encoded.length !== 11 && encoded.length !== 21) {
@@ -396,7 +445,16 @@ class ManualPairingCodeSchema extends Schema<ManualPairingData, string> {
         if (new Verhoeff().computeChecksum(encoded.slice(0, -1)) !== parseInt(encoded.slice(-1))) {
             throw new UnexpectedDataError("Invalid checksum");
         }
+        // § 5.1.4.1 Table 62/64: the VID_PID_PRESENT bit and the code's length state the same thing, so a
+        // code whose bit disagrees with its length is malformed rather than a short code with a long tail
         const hasVendorProductIds = !!(parseInt(encoded[0]) & (1 << 2));
+        if (hasVendorProductIds !== (encoded.length === 21)) {
+            throw new UnexpectedDataError(
+                encoded.length === 21
+                    ? "A 21-digit manual pairing code must set VID_PID_PRESENT"
+                    : "An 11-digit manual pairing code must not set VID_PID_PRESENT",
+            );
+        }
         const shortDiscriminator = ((parseInt(encoded[0]) & 0x03) << 2) | ((parseInt(encoded.slice(1, 6)) >> 14) & 0x3);
         const passcode = (parseInt(encoded.slice(1, 6)) & 0x3fff) | (parseInt(encoded.slice(6, 10)) << 14);
         let vendorId: VendorId | undefined;
