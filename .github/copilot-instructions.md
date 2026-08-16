@@ -226,7 +226,9 @@ npm run generate-vscode      # Generate VS Code configuration
 npm run validate-chipdm-model       # Compare our model against CHIP's data model XML
 ```
 
-`validate-chipdm-model` downloads the `data_model` directory of
+`validate-chipdm-model` compares the model for Matter 1.6.0 and later; the differences of earlier
+versions reflect the state of our scrape at the time and are reported without being explained. It
+downloads the `data_model` directory of
 [connectedhomeip](https://github.com/project-chip/connectedhomeip) for the Matter version under
 test and reports every difference from the model we scrape from the specification. It exits
 non-zero when a difference is not explained by a `LocalMatter` override. Run it after

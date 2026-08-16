@@ -18,7 +18,11 @@ import { report } from "./chipdm/report.js";
 import "./util/setup.js";
 
 const args = await yargs(hideBin(process.argv))
-    .usage("Compares our Matter model against the CHIP data model XML for the same Matter version")
+    .usage(
+        "Compares our Matter model against the CHIP data model XML for the same Matter version.\n\n" +
+            "The comparison is calibrated for Matter 1.6.0 and later.  An earlier version reports differences that " +
+            "come from the state of our scrape at the time rather than from a defect of the model we ship.",
+    )
     .option("revision", {
         type: "string",
         default: Specification.REVISION,

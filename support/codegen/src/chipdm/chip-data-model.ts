@@ -81,7 +81,8 @@ export namespace ChipDataModel {
     }
 }
 
-function compareVersions(a: string, b: string) {
+/** Order two data model versions numerically rather than lexically */
+export function compareVersions(a: string, b: string) {
     const left = a.split(".").map(Number);
     const right = b.split(".").map(Number);
 

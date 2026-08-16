@@ -4,8 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { compareVersions } from "./chip-data-model.js";
 import { Category, Finding } from "./compare.js";
 import { DataModel } from "./data-model.js";
+
+/** The earliest version whose differences we have reviewed and explained */
+const CALIBRATED_FOR = "1.6.0";
 
 const HEADINGS: Record<Category, string> = {
     [Category.Mismatch]: "Mismatches",
@@ -38,6 +42,13 @@ export function report(dm: DataModel, findings: Finding[], verbose: boolean): Re
 
     if (dm.globalCommands.length) {
         lines.push(`  not compared: ${dm.globalCommands.map(command => command.name).join(", ")}`);
+    }
+
+    if (compareVersions(dm.version, CALIBRATED_FOR) < 0) {
+        lines.push(
+            `  note: the comparison is calibrated for Matter ${CALIBRATED_FOR} and later; differences below may ` +
+                `come from the state of our scrape of ${dm.version} rather than from a defect`,
+        );
     }
 
     for (const category of ORDER) {
