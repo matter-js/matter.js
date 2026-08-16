@@ -70,15 +70,24 @@ function installEventPriorities(cluster: ClusterModel) {
             continue;
         }
 
-        const inherited = event.shadow;
-        if (inherited instanceof EventModel && inherited.priority !== undefined) {
-            event.priority = inherited.priority;
+        const inherited = inheritedPriority(event.shadow);
+        if (inherited !== undefined) {
+            event.priority = inherited;
             continue;
         }
 
         logger.warn(`${event.path} has no priority, assuming CRITICAL`);
         event.priority = EventElement.Priority.Critical;
     }
+}
+
+/** The priority of the nearest event in the derivation chain that states one, independent of the order of clusters */
+function inheritedPriority(model: Model | undefined, depth = 0): EventElement.Priority | undefined {
+    if (!(model instanceof EventModel) || depth > 8) {
+        return;
+    }
+
+    return model.priority ?? inheritedPriority(model.shadow, depth + 1);
 }
 
 export type ScopedDatatypes = Record<string, Model | undefined>;
