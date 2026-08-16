@@ -49,14 +49,10 @@ describe("CommissioningDiscovery.identityMismatch", () => {
         );
     });
 
-    it("reads 0 as unstated on either side", () => {
-        // A QR payload always carries both fields and says nothing by zeroing them, so matching on 0
-        // would refuse every device that does name a vendor
-        expect(identityMismatch({ vendorId: 0, productId: 0 }, { vendorId: 0xfff1, productId: 0x8001 })).equal(
-            undefined,
-        );
-        expect(identityMismatch({ vendorId: 0xfff1, productId: 0x8001 }, { vendorId: 0, productId: 0 })).equal(
-            undefined,
-        );
+    it("compares only what both sides state", () => {
+        // § 2.5.2 / § 2.5.3's "unspecified" is 0 on the wire, and the payload codecs and the
+        // advertisement parser both report it as absent, so it never arrives here as a value
+        expect(identityMismatch({}, {})).equal(undefined);
+        expect(identityMismatch({ productId: 0x8001 }, { productId: 0x8001 })).equal(undefined);
     });
 });

@@ -98,7 +98,15 @@ const QrCodeDataSchema = ByteArrayBitmapSchema({
     passcode: BitField(57, 27),
 });
 
-export type QrCodeData = TypeFromBitmapSchema<typeof QrCodeDataSchema> & {
+/**
+ * § 2.5.2 and § 2.5.3 give 0 the meaning "unspecified" for a vendor and a product. A QR payload
+ * carries both fields whether or not it names anything, so the codec reports an unspecified one as
+ * absent rather than as a value a caller might compare against.
+ */
+export type QrCodeData = Omit<TypeFromBitmapSchema<typeof QrCodeDataSchema>, "vendorId" | "productId"> & {
+    vendorId?: number;
+    productId?: number;
+} & {
     /**
      * See {@link MatterSpecification.v16.Core} § 5.1.5
      * Variable length TLV data. Zero length if TLV is not included. This data is byte-aligned.
@@ -176,6 +184,14 @@ export function assertValidPasscode(passcode: number): void {
     }
 }
 
+/** § 2.5.2 / § 2.5.3's "unspecified", which the codecs report as an absent identifier. */
+const UNSPECIFIED_ID = 0;
+
+/** An identifier as a caller should see it: absent when the payload states nothing. */
+function stated(id: number | undefined) {
+    return id === undefined || id === UNSPECIFIED_ID ? undefined : id;
+}
+
 /** Inclusive upper bound of a product identifier, which § 5.1.3.1 Table 59 carries in 16 bits. */
 const PRODUCT_ID_MAX = 0xffff;
 
@@ -193,14 +209,14 @@ const PRODUCT_ID_MAX = 0xffff;
  * whose own code cannot be generated does not start at all. What a commissioner must refuse to *act*
  * on is a separate question from what a device may render.
  */
-export function assertValidPayloadIdentity(vendorId: number, productId: number): void {
-    if (!VendorId.isValid(vendorId)) {
+export function assertValidPayloadIdentity(vendorId?: number, productId?: number): void {
+    if (vendorId !== undefined && !VendorId.isValid(vendorId)) {
         throw new UnexpectedDataError(`Invalid vendor ID ${vendorId} in onboarding payload`);
     }
-    if (!Number.isInteger(productId) || productId < 0 || productId > PRODUCT_ID_MAX) {
+    if (productId !== undefined && (!Number.isInteger(productId) || productId < 0 || productId > PRODUCT_ID_MAX)) {
         throw new UnexpectedDataError(`Invalid product ID ${productId} in onboarding payload`);
     }
-    if (productId === 0 && vendorId !== 0) {
+    if (productId === undefined && vendorId !== undefined) {
         throw new UnexpectedDataError(`Product ID 0 is reserved and cannot accompany vendor ID ${vendorId}`);
     }
 }
@@ -279,10 +295,16 @@ class QrPairingCodeSchema extends Schema<QrCodeData[], string> {
             payloadData
                 .map(payloadData => {
                     const { tlvData } = payloadData;
+                    // The fields are always on the wire; "unspecified" is written as 0 (§ 2.5.2, § 2.5.3)
+                    const fields = {
+                        ...payloadData,
+                        vendorId: payloadData.vendorId ?? UNSPECIFIED_ID,
+                        productId: payloadData.productId ?? UNSPECIFIED_ID,
+                    };
                     const data =
                         tlvData !== undefined && tlvData.byteLength > 0
-                            ? Bytes.of(Bytes.concat(QrCodeDataSchema.encode(payloadData), tlvData))
-                            : QrCodeDataSchema.encode(payloadData);
+                            ? Bytes.of(Bytes.concat(QrCodeDataSchema.encode(fields), tlvData))
+                            : QrCodeDataSchema.encode(fields);
                     const result = Base38.encode(data);
                     const length = PREFIX.length + result.length;
                     if (length > MATTER_QR_CODE_SINGLE_PAYLOAD_MAX_LENGTH) {
@@ -308,8 +330,11 @@ class QrPairingCodeSchema extends Schema<QrCodeData[], string> {
             .split("*")
             .map(encodedData => {
                 const data = Bytes.of(Base38.decode(encodedData));
+                const { vendorId, productId, ...fields } = QrCodeDataSchema.decode(data.slice(0, 11));
                 return {
-                    ...QrCodeDataSchema.decode(data.slice(0, 11)),
+                    ...fields,
+                    vendorId: stated(vendorId),
+                    productId: stated(productId),
                     tlvData: data.length > 11 ? data.slice(11) : undefined, // TlvData (if any) is after the fixed-length data
                 };
             });
@@ -427,7 +452,7 @@ class ManualPairingCodeSchema extends Schema<ManualPairingData, string> {
     /** Adds the identity rules {@link assertValidPayloadIdentity} applies to a code being read. */
     override decode(encoded: string, validate = true): ManualPairingData {
         const data = super.decode(encoded, validate);
-        if (validate && data.vendorId !== undefined && data.productId !== undefined) {
+        if (validate) {
             assertValidPayloadIdentity(data.vendorId, data.productId);
         }
         return data;
@@ -460,8 +485,9 @@ class ManualPairingCodeSchema extends Schema<ManualPairingData, string> {
         let vendorId: VendorId | undefined;
         let productId: number | undefined;
         if (hasVendorProductIds) {
-            vendorId = VendorId(parseInt(encoded.slice(10, 15)));
-            productId = parseInt(encoded.slice(15, 20));
+            const stated1 = stated(parseInt(encoded.slice(10, 15)));
+            vendorId = stated1 === undefined ? undefined : VendorId(stated1);
+            productId = stated(parseInt(encoded.slice(15, 20)));
         }
         return { shortDiscriminator, passcode, vendorId, productId };
     }

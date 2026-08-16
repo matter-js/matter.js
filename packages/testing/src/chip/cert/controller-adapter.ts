@@ -380,8 +380,10 @@ export interface ControllerAdapter {
  */
 export interface OnboardingPayloadFields {
     version: number;
-    vendorId: number;
-    productId: number;
+
+    /** Absent where the payload states nothing, which § 2.5.2 / § 2.5.3 write as 0. */
+    vendorId?: number;
+    productId?: number;
 
     /** 0 standard, 1 user intent, 2 custom (§ 5.1.3.1 Table 59). */
     flowType: number;

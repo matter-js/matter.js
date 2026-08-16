@@ -74,6 +74,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Factory reset removes commissioned peers and the certificate authority's key material; a peer that cannot be torn down no longer blocks the reset
     - Fix: A client node's storage metadata no longer surfaces as state: a peer report that only bumps the data version emits no change notification, and `__version__` no longer appears among the changed properties or in cluster state
     - Fix: Commissioning passes over a discovered device whose advertised vendor or product ID disagrees with the onboarding payload's
+    - Breaking: A commissionable advertisement stating vendor or product ID 0 now reports it absent, matching the specification's "unspecified"
 
 - @matter/nodejs
     - Breaking: `FileStorageDriver`'s constructor no longer accepts a `clear` argument; clearing is handled by `StorageService`
@@ -112,6 +113,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `Cluster.with()` rejects a feature the cluster does not define and returns one frozen namespace per selection
     - Fix: An onboarding payload carrying a vendor ID past the last test vendor, or a product ID of 0 beside a real vendor ID, is now rejected
     - Fix: A manual pairing code whose `VID_PID_PRESENT` bit disagrees with its length is now rejected
+    - Breaking: An onboarding payload's vendor and product ID are reported absent where it states none; the specification writes "unspecified" as 0, which callers had to know
 
 - @matter/testing
     - Enhancement: `certTest()` defines controller-side certification tests with per-step PICS gating, device-log expectations, and evidence recording; devices run as chip apps (docker or local binary) or matter.js test apps, selected via `MATTER_CERT_DEVICE`

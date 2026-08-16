@@ -202,11 +202,17 @@ describe("QrPairingCodeCodec", () => {
             );
         });
 
-        it("accepts a product ID of 0 when the payload names no vendor either", () => {
+        it("reports an unspecified vendor and product as absent, not as 0", () => {
             const [decoded] = QrPairingCodeCodec.decode("MT:000004KP00KA0648G00");
 
-            expect(decoded.vendorId).equal(0);
-            expect(decoded.productId).equal(0);
+            expect(decoded.vendorId).equal(undefined);
+            expect(decoded.productId).equal(undefined);
+        });
+
+        it("writes an absent identifier back as the 0 the wire carries", () => {
+            const [decoded] = QrPairingCodeCodec.decode("MT:000004KP00KA0648G00");
+
+            expect(QrPairingCodeCodec.encode([decoded])).equal("MT:000004KP00KA0648G00");
         });
 
         it("rejects decoding a vendor ID past the last test vendor", () => {
@@ -214,7 +220,7 @@ describe("QrPairingCodeCodec", () => {
         });
 
         it("decodes either when validation is disabled", () => {
-            expect(QrPairingCodeCodec.decode("MT:Y.K904KP00KA0648G00", false)[0].productId).equal(0);
+            expect(QrPairingCodeCodec.decode("MT:Y.K904KP00KA0648G00", false)[0].productId).equal(undefined);
             expect(QrPairingCodeCodec.decode("MT:U34J029Q00KA0648G00", false)[0].vendorId).equal(65525);
         });
     });
@@ -447,7 +453,7 @@ describe("ManualPairingCodeCodec", () => {
         });
 
         it("decodes it when validation is disabled", () => {
-            expect(ManualPairingCodeCodec.decode("749701123365521000006", false).productId).equal(0);
+            expect(ManualPairingCodeCodec.decode("749701123365521000006", false).productId).equal(undefined);
         });
 
         it("rejects a product ID the field cannot hold", () => {

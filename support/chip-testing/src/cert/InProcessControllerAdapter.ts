@@ -289,7 +289,7 @@ function resolveCommissioningTarget(target: CommissioningTarget): ResolvedCommis
         return {
             identifierData: { longDiscriminator: discriminator },
             passcode,
-            vendorId: VendorId(vendorId, false),
+            vendorId: vendorId === undefined ? undefined : VendorId(vendorId, false),
             productId,
         };
     }

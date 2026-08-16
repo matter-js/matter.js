@@ -115,24 +115,27 @@ export namespace CommissioningDiscovery {
      * in its 11-digit form and the record is optional — and absence never rejects, so this only ever
      * refuses a device that positively advertises something else.
      *
-     * Zero is "not stated" on either side, not a value to match: a QR payload always carries both
-     * fields and says nothing by setting them to zero (§ 2.5.2, § 2.5.3), which is also the only form
-     * in which a payload may name a product of zero at all. Mirrors CHIP's
-     * `SetUpCodePairer::NodeMatchesCurrentFilter`, whose `kNotAvailable` is zero.
+     * Mirrors CHIP's `SetUpCodePairer::NodeMatchesCurrentFilter`. Both codecs already report § 2.5.2 /
+     * § 2.5.3's "unspecified" as an absent identifier, so nothing here has to know that it is 0 on the
+     * wire.
      */
     export function identityMismatch(payload: Identity, advertised: Identity) {
-        if (stated(payload.vendorId) && stated(advertised.vendorId) && payload.vendorId !== advertised.vendorId) {
+        if (
+            payload.vendorId !== undefined &&
+            advertised.vendorId !== undefined &&
+            payload.vendorId !== advertised.vendorId
+        ) {
             return `it advertises vendor ${advertised.vendorId} where the onboarding payload names ${payload.vendorId}`;
         }
 
-        if (stated(payload.productId) && stated(advertised.productId) && payload.productId !== advertised.productId) {
+        if (
+            payload.productId !== undefined &&
+            advertised.productId !== undefined &&
+            payload.productId !== advertised.productId
+        ) {
             return `it advertises product ${advertised.productId} where the onboarding payload names ${payload.productId}`;
         }
 
         return undefined;
-    }
-
-    function stated(id?: number): id is number {
-        return id !== undefined && id !== 0;
     }
 }
