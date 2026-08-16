@@ -314,9 +314,18 @@ export namespace FieldValue {
 
             case "boolean":
                 if (typeof value === "string") {
-                    value = value.trim().toLowerCase();
+                    switch (value.trim().toLowerCase()) {
+                        case "0":
+                        case "no":
+                        case "off":
+                        case "false":
+                            return false;
+
+                        default:
+                            return true;
+                    }
                 }
-                return value !== "false" && value !== "no" && !!value;
+                return !!value;
 
             case "bitmap":
             case "enum":
@@ -346,7 +355,9 @@ export namespace FieldValue {
                         type = FieldValue.percent;
                     }
                     if (type) {
-                        value = Number.parseInt(value);
+                        // Both units are fractional in the specification's notation ("25.5°C", "0.01%") and scale to
+                        // an integer only once the field's own unit is known
+                        value = Number.parseFloat(value);
                         if (!Number.isFinite(value)) {
                             return FieldValue.Invalid;
                         }
