@@ -6,7 +6,7 @@
 
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { InternalError } from "@matter/general";
-import { Constraint, FieldValue, Metatype, ValueModel } from "@matter/model";
+import { Constraint, EncodedValue, FieldValue, Metatype, ValueModel } from "@matter/model";
 import { ConstraintError, Val } from "@matter/protocol";
 import { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
 import { NameResolver } from "../managed/NameResolver.js";
@@ -71,45 +71,43 @@ function inEncodingUnits(constraint: Constraint, schema: ValueModel): Constraint
 }
 
 function convertAst(ast: Constraint.Ast, schema: ValueModel): Constraint.Ast {
-    const type = schema.effectiveType;
-
     return {
         ...ast,
-        value: convertExpression(ast.value, type),
-        min: convertExpression(ast.min, type),
-        max: convertExpression(ast.max, type),
-        in: convertValue(ast.in, type),
+        value: convertExpression(ast.value, schema),
+        min: convertExpression(ast.min, schema),
+        max: convertExpression(ast.max, schema),
+        in: convertValue(ast.in, schema),
         entry: ast.entry === undefined ? undefined : convertAst(ast.entry, schema.listEntry ?? schema),
         parts: ast.parts?.map(part => convertAst(part, schema)),
     };
 }
 
-function convertExpression(expression: Constraint.Expression | undefined, type?: string): Constraint.Expression {
+function convertExpression(expression: Constraint.Expression | undefined, schema: ValueModel): Constraint.Expression {
     if (expression === undefined || typeof expression !== "object" || expression === null) {
         return expression as Constraint.Expression;
     }
 
     if ("args" in expression) {
-        return { ...expression, args: expression.args.map(arg => convertExpression(arg, type)) };
+        return { ...expression, args: expression.args.map(arg => convertExpression(arg, schema)) };
     }
 
     if ("lhs" in expression) {
         return {
             ...expression,
-            lhs: convertExpression(expression.lhs, type),
-            rhs: convertExpression(expression.rhs, type),
+            lhs: convertExpression(expression.lhs, schema),
+            rhs: convertExpression(expression.rhs, schema),
         };
     }
 
-    return convertValue(expression, type) as Constraint.Expression;
+    return convertValue(expression, schema) as Constraint.Expression;
 }
 
-function convertValue<T extends FieldValue | undefined>(value: T, type?: string): T {
+function convertValue<T extends FieldValue | undefined>(value: T, schema: ValueModel): T {
     if (!(FieldValue.is(value, FieldValue.percent) || FieldValue.is(value, FieldValue.celsius))) {
         return value;
     }
 
-    return (FieldValue.numericValue(value, type) ?? value) as T;
+    return (EncodedValue(schema, value) ?? value) as T;
 }
 
 function create(
