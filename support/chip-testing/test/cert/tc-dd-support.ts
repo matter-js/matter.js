@@ -434,12 +434,14 @@ export async function recordCommissionable(
  *
  * The two controllers genuinely differ. chip-tool matches a code's vendor and product id against the
  * device it discovered (`SetUpCodePairer::NodeMatchesCurrentFilter`) and finds nothing; matter.js
- * discovers on the discriminator alone and onboards. A fabric that results is removed here rather
- * than left for the step's own cleanup, so it cannot collide with the ref the step keeps.
+ * discovers on the discriminator alone and onboards. A fabric that results is handed to
+ * `commissioned`, whose next {@link commissionByManualCode} takes it off the TH the only way a chip
+ * TH survives — opening a window before the fabric that opens it is gone.
  */
 export async function recordVendorMismatchOutcome(
     cx: CertStepContext,
     manualPairingCode: string,
+    commissioned: CommissionedRefs,
     what: string,
     timeoutMs: number,
 ): Promise<void> {
@@ -453,21 +455,18 @@ export async function recordVendorMismatchOutcome(
     }
 
     const ref = await attempt;
-    try {
-        record(
-            cx,
-            {
-                type: "response",
-                verdict: "pass",
-                detail:
-                    `DUT onboarded the TH as node ${ref} despite the code naming another vendor, which the ` +
-                    `plan allows where the user accepts the risk`,
-            },
-            what,
-        );
-    } finally {
-        await dut.node(ref).decommission();
-    }
+    commissioned.set("dut", ref);
+    record(
+        cx,
+        {
+            type: "response",
+            verdict: "pass",
+            detail:
+                `DUT onboarded the TH as node ${ref} despite the code naming another vendor, which the ` +
+                `plan allows where the user accepts the risk`,
+        },
+        what,
+    );
 }
 
 /** {@link commissionByQr} for a manual pairing code, which discovers by the short discriminator. */

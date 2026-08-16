@@ -255,6 +255,7 @@ certTest("TC-DD-3.17", {
             await recordVendorMismatchOutcome(
                 cx,
                 manualPairingCode({ ...parts, vendorId: mismatched }),
+                commissioned,
                 `Code naming vendor 0x${mismatched.toString(16)}`,
                 VENDOR_MISMATCH_TIMEOUT_MS,
             );
