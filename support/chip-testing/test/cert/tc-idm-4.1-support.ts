@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Millis, Time } from "@matter/main";
+import { Millis, Time } from "@matter/main";
 import type { AttributePathSpec, CertNodeRef, CertStepContext } from "@matter/testing";
 import {
     ACK_WAIT_TIMEOUT_MS,
@@ -160,6 +160,16 @@ export async function subscribeAndModify<Value>(
         );
     }
 
+    // Every flavor names its subscriptions in its own log. One that does not cannot show the TH's own
+    // side of what this step claims, and the controller's callbacks are no substitute for it — chip-tool
+    // drops reports its device coalesced (see AGENTS.md) — so the step says so rather than proving less.
+    if (idLookup.subscriptionId === undefined) {
+        throw new CertCheckFailedError(
+            `Step ${step} cannot read a subscription id from a ${th.flavor} TH's log, so the reports this step ` +
+                "writes for cannot be attributed to its own subscription",
+        );
+    }
+
     const primingAckCheck = await expectReportAck(th.log, th.flavor, idLookup.subscriptionId, established, establishMs);
     cx.recorder.check(primingAckCheck);
     if (primingAckCheck.verdict === "fail") {
@@ -190,29 +200,14 @@ export async function subscribeAndModify<Value>(
             reportMs,
         );
         cx.recorder.check(ackCheck);
-        if (ackCheck.verdict === "fail") {
+        if (ackCheck.verdict !== "pass") {
             throw new CertCheckFailedError(
                 `StatusResponse ack check failed for step ${step}, write ${i + 1}/${values.length}: ${JSON.stringify(ackCheck)}`,
             );
         }
-        if (ackCheck.verdict === "pass") {
-            logConfirmed++;
-            if (ackCheck.logLine !== undefined) {
-                ackCursor = ackCheck.logLine + 1;
-            }
-        } else {
-            const arrived = await waitForReport(
-                () => matched > i,
-                fn => (notify = fn),
-                reportMs,
-            );
-            if (!arrived) {
-                failResponse(
-                    `step ${step}: write ${i + 1}/${values.length} to ${JSON.stringify(path)} produced no ` +
-                        `subscription report carrying ${JSON.stringify(values[i])} within ` +
-                        Duration.format(Millis(reportMs)),
-                );
-            }
+        logConfirmed++;
+        if (ackCheck.logLine !== undefined) {
+            ackCursor = ackCheck.logLine + 1;
         }
 
         if (mismatch !== undefined) {
@@ -231,11 +226,20 @@ export async function subscribeAndModify<Value>(
         failResponse(`step ${step}: ${mismatch}`);
     }
     if (!allReported) {
-        failResponse(
-            `step ${step}: onUpdate delivered ${JSON.stringify(reported)}, which does not carry the written values ` +
-                `${JSON.stringify(values)} in order (matched ${matched}/${values.length}) within ` +
-                Duration.format(Millis(reportMs)),
-        );
+        // What the plan asks to verify is the TH's own view: it reported, and the DUT acked Success,
+        // which the loop above took from the TH's log for every write. A value missing from the
+        // controller's own callbacks is a gap in that controller's delivery rather than in the
+        // behaviour under test — chip-tool's interactive server hands over only the first result of a
+        // batch and discards the rest, so a report the TH coalesced with another attribute reaches no
+        // callback at all.
+        cx.recorder.check({
+            type: "response",
+            verdict: "unverified",
+            detail:
+                `step ${step}: onUpdate delivered ${JSON.stringify(reported)} of the written values ` +
+                `${JSON.stringify(values)} (matched ${matched}/${values.length}); every write is confirmed by the ` +
+                "TH's own report and its Success ack instead",
+        });
     }
 
     const idText = idLookup.subscriptionId === undefined ? "(none)" : `0x${idLookup.subscriptionId.toString(16)}`;
