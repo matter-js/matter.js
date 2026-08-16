@@ -1281,6 +1281,47 @@ requirement the plan states of the *TH*, so the TC walks `Descriptor.partsList` 
 satisfying the precondition then fails the step that says so, rather than silently proving less: the
 step also asserts the plan's own "at least 2".
 
+## A refusal must be the controller's own (`TC-DD-3.14`)
+
+The negative payload plans all read "DUT parses the code and terminates the commissioning process".
+The only way to record that is to hand the payload to `commission()` and require a rejection — and
+that only proves something about the DUT if the DUT is what refused.
+
+`ChipToolControllerAdapter.commission` used to run every payload through matter.js's own codec first
+(`singleQrPayload`), so on a chip-tool leg matter.js refused before chip-tool ever saw the code, and
+the evidence would have carried matter.js's message under chip-tool's name. It now calls
+`assertSingleQrPayload`, which refuses a **concatenated** code and judges nothing else: that one is
+the harness's to refuse, because chip-tool told to pair one device from such a code silently pairs
+whichever answers first. Everything else reaches chip-tool, which rejects it in
+`SetupPayload::FromStringRepresentation` — captured in this TC's own evidence as
+`src/setup_payload/SetupPayload.cpp:361: CHIP Error 0x0000002F: Invalid argument` for an unsupported
+version and each forbidden passcode, and as `ManualSetupPayloadParser.cpp:46: CHIP Error 0x00000013:
+Integrity check failed` for a prefix that is not `MT:` (chip-tool treats a non-`MT:` code as a manual
+one). matter.js rejects the same three in `QrPairingCodeCodec`, inside a millisecond.
+
+**A negative check needs a bound and a cleanup path.** `expectRejection` (promoted from
+`TC-CADMIN-1.17` to `tc-support.ts`, now taking its own timeout) reports `"fail"` for a call that
+neither resolved nor rejected, which is what a controller that skipped the payload rules and went
+looking for the commissionee produces — verified by deleting matter.js's passcode validation, where
+step 5.b turned into "neither resolved nor rejected within 30s" rather than hanging the run.
+`expectCommissioningRefused` records the ref *before* judging the check, so a refusal that never came
+leaves the accidental fabric to the run's own `finalize`, not to whatever runs next.
+
+**Building a payload the encoder refuses to write.** Every value these plans substitute — a non-zero
+version, the twelve trivial passcodes — is exactly what `QrPairingCodeCodec.encode` validates
+against, so `qrPayloadWith` writes the bits into the decoded structure directly (§ 5.1.3.1 Table 59's
+own offsets) and re-encodes base38, carrying any appended TLV data through untouched. The plan prints
+its own expected payload for each substitution against its example code; `tc-dd-support.test.ts`
+asserts all thirteen of them, which is what caught the first version of the bit writer setting bits
+without clearing them.
+
+**Steps 3 and 4 are `notApplicable`, not PICS-gated.** They ask the DUT to commission over a
+capability it prefers over IP, which needs `MCORE.DD.DISCOVERY_BLE`/`MCORE.DD.DISCOVERY_PAF`; both
+controller overlays now declare those 0, since this harness wires either controller onto the IP
+network alone. That declaration gates the steps under `matterjs` only — per-step PICS is inert on the
+chip flavors (see "PICS handling" above), where the steps would otherwise run with nothing to check —
+so the reason is carried by `notApplicable` and the PICS stays as transcription.
+
 ## chip-tool delivers one result per async report and discards the rest
 
 `step 4: write 1/3 … produced no subscription report carrying "tc-idm-4-1-a" within 30s`,

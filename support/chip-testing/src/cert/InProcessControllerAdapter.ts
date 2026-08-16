@@ -96,6 +96,11 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
 
     // A concatenated payload names several commissionees and is refused; the caller is told to split it.
     "MCORE.DD.CTRL_CONCATENATED_QR_CODE_1": 0,
+
+    // This harness wires the controller onto the IP network only, so it discovers no commissionee
+    // over BLE or Wi-Fi PAF.
+    "MCORE.DD.DISCOVERY_BLE": 0,
+    "MCORE.DD.DISCOVERY_PAF": 0,
 };
 
 const adapterStreams = new Map<string, LineQueue>();

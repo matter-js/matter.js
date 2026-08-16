@@ -48,7 +48,7 @@ import type { ChipToolCommissionerName } from "../chip-tool/chip-tool-client.js"
 import { ChipToolClient, resolveChipToolBinary } from "../chip-tool/chip-tool-client.js";
 import { chipJsonToMatter, matterToChipJson, stringifyChipJson } from "../chip-tool/json-codec.js";
 import { certClusterModelFor, findCertCluster } from "./custom-clusters.js";
-import { singleQrPayload } from "./onboarding-payload.js";
+import { assertSingleQrPayload } from "./onboarding-payload.js";
 import { timedInteractionTimeoutOf } from "./timed-interaction.js";
 
 /** Name {@link UnsupportedByControllerError} reports for this adapter. */
@@ -71,6 +71,11 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
 
     // A concatenated payload names several commissionees and is refused; the caller is told to split it.
     "MCORE.DD.CTRL_CONCATENATED_QR_CODE_1": 0,
+
+    // This harness wires the controller onto the IP network only, so it discovers no commissionee
+    // over BLE or Wi-Fi PAF whatever the binary was built with.
+    "MCORE.DD.DISCOVERY_BLE": 0,
+    "MCORE.DD.DISCOVERY_PAF": 0,
 };
 
 const WILDCARD_CLUSTER = 0xffffffff;
@@ -1184,8 +1189,9 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
         let command: string;
         if (target.qrPairingCode) {
             // `pairing code` reads either payload format, a concatenated one included — and would pair
-            // with whichever commissionee that names first, which is what this refuses.
-            singleQrPayload(target.qrPairingCode);
+            // with whichever commissionee that names first, which is what this refuses. Everything else
+            // the payload can get wrong is chip-tool's own to refuse.
+            assertSingleQrPayload(target.qrPairingCode);
             command = `pairing code ${node} ${quoteArg(target.qrPairingCode)}`;
         } else if (target.manualPairingCode !== undefined) {
             command = `pairing code ${node} ${quoteArg(target.manualPairingCode)}`;

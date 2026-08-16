@@ -280,6 +280,18 @@ describe("ChipToolControllerAdapter", function () {
         expect(fake.commands).deep.equal([]);
     });
 
+    it("leaves a payload chip-tool would refuse for chip-tool to refuse", async () => {
+        const started = await start();
+
+        // Version 2, which chip-tool's own `SetupPayload::FromStringRepresentation` rejects. A refusal
+        // raised here instead would put matter.js's verdict in a cert test's evidence in place of the
+        // controller's.
+        const ref = await started.commission({ qrPairingCode: "MT:034J042C00KA0648G00" });
+
+        expect(ref).equal(FIRST_NODE);
+        expect(fake.commands).deep.equal([`pairing code ${FIRST_NODE} MT:034J042C00KA0648G00`]);
+    });
+
     it("reads a concrete path and decodes the value through the model", async () => {
         const { ref, node } = await commissioned();
 
