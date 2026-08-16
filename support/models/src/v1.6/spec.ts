@@ -16724,12 +16724,12 @@ export const SpecMatter = Matter(
         Datatype(
             { name: "RangePercent100thsStruct", type: "struct", xref: "cluster§5.5.6.7" },
             Field({ name: "Min", id: 0x0, type: "percent100ths", conformance: "M" }),
-            Field({ name: "Max", id: 0x1, type: "percent100ths", conformance: "M", constraint: "min to 100%" })
+            Field({ name: "Max", id: 0x1, type: "percent100ths", conformance: "M", constraint: "Min to 100%" })
         ),
         Datatype(
             { name: "UnitRangeStruct", type: "struct", xref: "cluster§5.5.6.8" },
             Field({ name: "Min", id: 0x0, type: "int16", conformance: "M" }),
-            Field({ name: "Max", id: 0x1, type: "int16", conformance: "M", constraint: "min to 32767" })
+            Field({ name: "Max", id: 0x1, type: "int16", conformance: "M", constraint: "Min to 32767" })
         ),
 
         Datatype(

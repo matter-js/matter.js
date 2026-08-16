@@ -37,8 +37,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: An event of a derived cluster takes the priority of the event it derives from, so `BridgedDeviceBasicInformation.Leave` and `ReachableChanged` are informational rather than critical
     - Fix: A derived cluster's changes to the fields of an inherited struct now apply, such as the `1 to 8` constraint the mode clusters place on `ModeOptionStruct.ModeTags`
     - Fix: An element whose access states a privilege but neither read nor write, such as `JointFabricAdministrator.AdministratorFabricIndex`, is read-only; previously it inherited the default read/write and accepted writes the specification does not grant
+    - Fix: A constraint that bounds a value by a field named like a constraint keyword, such as the `Min` of ClosureDimension's range structs, survives serialization; the bound was lost when the model was rebuilt from it
 
 - @matter/node
+    - Fix: A constraint whose bound carries a unit, such as the `0.01% to 100.00%` of a `percent100ths` value, is enforced in the units the value is encoded in; such a bound previously constrained nothing
     - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding how long it waits for the operational CASE connection that follows it
     - Breaking: Default server exports no longer inherit the features their base implementation enables internally.
         - `ColorControlServer`, `DoorLockServer`, `ElectricalEnergyMeasurementServer`, `LevelControlServer`, `ModeSelectServer`, `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer` and `WindowCoveringServer` now select no features. Select the features your device supports with `.with(...)` or use the DeviceType specific Requirement definitions of these clusters which automatically enable the needed features for the device type
