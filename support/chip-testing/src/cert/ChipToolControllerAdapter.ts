@@ -16,7 +16,7 @@ import {
 } from "@matter/main";
 import { OperationalCredentials } from "@matter/main/clusters";
 import { getOperationalDeviceQname } from "@matter/main/protocol";
-import { FabricId, GlobalFabricId, NodeId, Status, StatusResponseError } from "@matter/main/types";
+import { FabricId, GlobalFabricId, NodeId, statedIdentifier, Status, StatusResponseError } from "@matter/main/types";
 import { ClusterModel, CommandModel, ValueModel } from "@matter/model";
 import type {
     AttributePathSpec,
@@ -89,11 +89,6 @@ const MAX_PATHS_PER_COMMAND = 64;
 
 /** Digit count of the manual code form that carries a vendor and product id (§ 5.1.4.1 Table 64). */
 const MANUAL_CODE_LONG_LENGTH = 21;
-
-/** § 2.5.2 / § 2.5.3 write "unspecified" as 0; callers see an absent identifier instead. */
-function stated(id: number) {
-    return id === 0 ? undefined : id;
-}
 
 /** `chip::Crypto::kSpake2p_Min_PBKDF_Iterations`, the cheapest verifier chip-tool accepts. */
 const PBKDF_ITERATIONS = 1000;
@@ -1179,8 +1174,8 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
         return {
             version: payloadField(logs, code, /Version:\s+(\d+)/),
             // chip-tool prints 0 for an identifier the payload states nothing about
-            vendorId: stated(payloadField(logs, code, /VendorID:\s+(\d+)/)),
-            productId: stated(payloadField(logs, code, /ProductID:\s+(\d+)/)),
+            vendorId: statedIdentifier(payloadField(logs, code, /VendorID:\s+(\d+)/)),
+            productId: statedIdentifier(payloadField(logs, code, /ProductID:\s+(\d+)/)),
             flowType: payloadField(logs, code, /Custom flow:\s+(\d+)/),
             discoveryCapabilities: payloadField(logs, code, /Discovery Bitmask:\s+0x([0-9A-Fa-f]{2})/, 16),
             discriminator: payloadField(logs, code, /Long discriminator:\s+(\d+)/),

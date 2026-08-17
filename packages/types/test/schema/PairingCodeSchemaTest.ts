@@ -198,7 +198,7 @@ describe("QrPairingCodeCodec", () => {
     describe("vendor and product identifier validation", () => {
         it("rejects decoding a product ID of 0 beside a real vendor ID", () => {
             expect(() => QrPairingCodeCodec.decode("MT:Y.K904KP00KA0648G00")).throw(
-                "Product ID 0 is reserved and cannot accompany vendor ID 65521",
+                "An onboarding payload naming vendor ID 65521 must name a product too",
             );
         });
 
@@ -448,12 +448,18 @@ describe("ManualPairingCodeCodec", () => {
         it("rejects a product ID of 0 beside a real vendor ID", () => {
             // devicediscovery.adoc TC-DD-3.17 step 7.a's own example payload
             expect(() => ManualPairingCodeCodec.decode("749701123365521000006")).throw(
-                "Product ID 0 is reserved and cannot accompany vendor ID 65521",
+                "An onboarding payload naming vendor ID 65521 must name a product too",
             );
         });
 
         it("decodes it when validation is disabled", () => {
             expect(ManualPairingCodeCodec.decode("749701123365521000006", false).productId).equal(undefined);
+        });
+
+        it("says what is wrong when a code names a vendor but no product", () => {
+            expect(() => ManualPairingCodeCodec.decode("749701123365521000006")).throw(
+                "An onboarding payload naming vendor ID 65521 must name a product too",
+            );
         });
 
         it("rejects a product ID the field cannot hold", () => {

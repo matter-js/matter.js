@@ -187,8 +187,12 @@ export function assertValidPasscode(passcode: number): void {
 /** § 2.5.2 / § 2.5.3's "unspecified", which the codecs report as an absent identifier. */
 const UNSPECIFIED_ID = 0;
 
-/** An identifier as a caller should see it: absent when the payload states nothing. */
-function stated(id: number | undefined) {
+/**
+ * An onboarding payload's vendor or product identifier as a caller should see it: absent where the
+ * payload states nothing. § 2.5.2 and § 2.5.3 write "unspecified" as 0, and a reader comparing that
+ * against a real identifier would reject devices the payload never spoke about.
+ */
+export function statedIdentifier<T extends number>(id: T | undefined): T | undefined {
     return id === undefined || id === UNSPECIFIED_ID ? undefined : id;
 }
 
@@ -197,19 +201,17 @@ const PRODUCT_ID_MAX = 0xffff;
 
 /**
  * Rejects a vendor/product identifier pair an onboarding payload may not carry: a vendor id past the
- * last test vendor (§ 2.5.2), or a product id outside 16 bits. Product id 0 announces an anonymized
- * product and is reserved for a payload that names no vendor either, so it may not accompany a real
- * vendor id (§ 2.5.3).
+ * last test vendor (§ 2.5.2), a product id outside 16 bits, or a product the payload leaves unstated
+ * while naming a real vendor — 0 announces an anonymized product and is reserved for a payload that
+ * names no vendor either (§ 2.5.3).
  *
- * Mirrors CHIP's `PayloadContents::CheckPayloadCommonConstraints`, which applies to both onboarding
- * code forms.
- *
- * Applied when reading a code, never when writing one: `CommissioningServer` renders a node's pairing
- * codes from `BasicInformation` state that may still carry the pre-default product id 0, and a node
- * whose own code cannot be generated does not start at all. What a commissioner must refuse to *act*
- * on is a separate question from what a device may render.
+ * Takes the pair as the payload carries it, so 0 and `undefined` mean the same thing here and no
+ * caller has to normalise first. Mirrors CHIP's `PayloadContents::CheckPayloadCommonConstraints`.
  */
-export function assertValidPayloadIdentity(vendorId?: number, productId?: number): void {
+export function assertValidPayloadIdentity(rawVendorId?: number, rawProductId?: number): void {
+    const vendorId = statedIdentifier(rawVendorId);
+    const productId = statedIdentifier(rawProductId);
+
     if (vendorId !== undefined && !VendorId.isValid(vendorId)) {
         throw new UnexpectedDataError(`Invalid vendor ID ${vendorId} in onboarding payload`);
     }
@@ -217,7 +219,7 @@ export function assertValidPayloadIdentity(vendorId?: number, productId?: number
         throw new UnexpectedDataError(`Invalid product ID ${productId} in onboarding payload`);
     }
     if (productId === undefined && vendorId !== undefined) {
-        throw new UnexpectedDataError(`Product ID 0 is reserved and cannot accompany vendor ID ${vendorId}`);
+        throw new UnexpectedDataError(`An onboarding payload naming vendor ID ${vendorId} must name a product too`);
     }
 }
 
@@ -277,15 +279,11 @@ class QrPairingCodeSchema extends Schema<QrCodeData[], string> {
         }
     }
 
-    /** Adds the identity rules {@link assertValidPayloadIdentity} applies to a code being read. */
-    override decode(encoded: string, validate = true): QrCodeData[] {
-        const payloads = super.decode(encoded, validate);
-        if (validate) {
-            for (const { vendorId, productId } of payloads) {
-                assertValidPayloadIdentity(vendorId, productId);
-            }
+    /** § 2.5's identity rules, which bind a code being read but not one a caller may write. */
+    protected override validateDecoded(payloadData: QrCodeData[]): void {
+        for (const { vendorId, productId } of payloadData) {
+            assertValidPayloadIdentity(vendorId, productId);
         }
-        return payloads;
     }
 
     protected encodeInternal(payloadData: QrCodeData[]): string {
@@ -333,8 +331,8 @@ class QrPairingCodeSchema extends Schema<QrCodeData[], string> {
                 const { vendorId, productId, ...fields } = QrCodeDataSchema.decode(data.slice(0, 11));
                 return {
                     ...fields,
-                    vendorId: stated(vendorId),
-                    productId: stated(productId),
+                    vendorId: statedIdentifier(vendorId),
+                    productId: statedIdentifier(productId),
                     tlvData: data.length > 11 ? data.slice(11) : undefined, // TlvData (if any) is after the fixed-length data
                 };
             });
@@ -449,13 +447,9 @@ class ManualPairingCodeSchema extends Schema<ManualPairingData, string> {
         return result;
     }
 
-    /** Adds the identity rules {@link assertValidPayloadIdentity} applies to a code being read. */
-    override decode(encoded: string, validate = true): ManualPairingData {
-        const data = super.decode(encoded, validate);
-        if (validate) {
-            assertValidPayloadIdentity(data.vendorId, data.productId);
-        }
-        return data;
+    /** § 2.5's identity rules, which bind a code being read but not one a caller may write. */
+    protected override validateDecoded({ vendorId, productId }: ManualPairingData): void {
+        assertValidPayloadIdentity(vendorId, productId);
     }
 
     protected decodeInternal(encoded: string): ManualPairingData {
@@ -485,9 +479,9 @@ class ManualPairingCodeSchema extends Schema<ManualPairingData, string> {
         let vendorId: VendorId | undefined;
         let productId: number | undefined;
         if (hasVendorProductIds) {
-            const stated1 = stated(parseInt(encoded.slice(10, 15)));
-            vendorId = stated1 === undefined ? undefined : VendorId(stated1);
-            productId = stated(parseInt(encoded.slice(15, 20)));
+            const statedVendorId = statedIdentifier(parseInt(encoded.slice(10, 15)));
+            vendorId = statedVendorId === undefined ? undefined : VendorId(statedVendorId);
+            productId = statedIdentifier(parseInt(encoded.slice(15, 20)));
         }
         return { shortDiscriminator, passcode, vendorId, productId };
     }
