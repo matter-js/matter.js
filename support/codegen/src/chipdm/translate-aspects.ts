@@ -15,20 +15,20 @@ const PRIVILEGES: Record<string, Access.Privilege> = {
     admin: Access.Privilege.Administer,
 };
 
-const QUALITIES: Record<string, Quality.Field> = {
-    nullable: Quality.Field.nullable,
-    scene: Quality.Field.scene,
-    changeOmitted: Quality.Field.changesOmitted,
-    quieterReporting: Quality.Field.quieter,
-    largeMessage: Quality.Field.largeMessage,
-    singleton: Quality.Field.singleton,
-    diagnostics: Quality.Field.diagnostics,
-    atomicWrite: Quality.Field.atomic,
+const QUALITIES: Record<string, keyof Quality.Ast> = {
+    nullable: "nullable",
+    scene: "scene",
+    changeOmitted: "changesOmitted",
+    quieterReporting: "quieter",
+    largeMessage: "largeMessage",
+    singleton: "singleton",
+    diagnostics: "diagnostics",
+    atomicWrite: "atomic",
 };
 
-const PERSISTENCE: Record<string, Quality.Field> = {
-    nonVolatile: Quality.Field.nonvolatile,
-    fixed: Quality.Field.fixed,
+const PERSISTENCE: Record<string, keyof Quality.Ast> = {
+    nonVolatile: "nonvolatile",
+    fixed: "fixed",
 };
 
 /**
@@ -43,43 +43,38 @@ export function translateAccess(node: XmlElement) {
         return;
     }
 
-    const parts = new Array<string>();
-
     const read = bool(definition, "read");
     const write = str(definition, "write");
+
+    let rw;
     if (read && write === "optional") {
-        parts.push(Access.Rw.ReadWriteOption);
+        rw = Access.Rw.ReadWriteOption;
     } else if (read && write === "true") {
-        parts.push(Access.Rw.ReadWrite);
+        rw = Access.Rw.ReadWrite;
     } else if (read) {
-        parts.push(Access.Rw.Read);
+        rw = Access.Rw.Read;
     } else if (write === "true") {
-        parts.push(Access.Rw.Write);
+        rw = Access.Rw.Write;
     } else if (write !== undefined) {
         throw new DataModelSyntaxError(`Unsupported write access "${write}"`);
     }
 
+    let fabric;
     if (bool(definition, "fabricSensitive")) {
-        parts.push(Access.Fabric.Sensitive);
+        fabric = Access.Fabric.Sensitive;
     } else if (bool(definition, "fabricScoped")) {
-        parts.push(Access.Fabric.Scoped);
+        fabric = Access.Fabric.Scoped;
     }
 
-    const readPrivilege = privilegeOf(definition, "readPrivilege") ?? privilegeOf(definition, "invokePrivilege");
-    const writePrivilege = privilegeOf(definition, "writePrivilege");
-    if (readPrivilege !== undefined && writePrivilege !== undefined) {
-        parts.push(`${readPrivilege}${writePrivilege}`);
-    } else if (readPrivilege !== undefined) {
-        parts.push(readPrivilege);
-    } else if (writePrivilege !== undefined) {
-        parts.push(writePrivilege);
-    }
-
-    if (bool(definition, "timed")) {
-        parts.push(Access.Timed.Required);
-    }
-
-    return new Access(parts.join(" "));
+    // Each privilege is stated on its own, so build the access directly; the textual form states them as one token
+    // from which read and write can only be inferred
+    return new Access({
+        rw,
+        readPriv: privilegeOf(definition, "readPrivilege") ?? privilegeOf(definition, "invokePrivilege"),
+        writePriv: privilegeOf(definition, "writePrivilege") ?? privilegeOf(definition, "invokePrivilege"),
+        fabric,
+        timed: bool(definition, "timed"),
+    });
 }
 
 /**
@@ -93,24 +88,24 @@ export function translateQuality(node: XmlElement) {
         return;
     }
 
-    const flags = new Array<Quality.Field>();
+    const ast: Quality.Ast = {};
 
-    for (const [attribute, flag] of Object.entries(QUALITIES)) {
+    for (const [attribute, field] of Object.entries(QUALITIES)) {
         if (bool(definition, attribute)) {
-            flags.push(flag);
+            ast[field] = true;
         }
     }
 
     const persistence = str(definition, "persistence");
     if (persistence !== undefined) {
-        const flag = PERSISTENCE[persistence];
-        if (flag === undefined) {
+        const field = PERSISTENCE[persistence];
+        if (field === undefined) {
             throw new DataModelSyntaxError(`Unsupported quality persistence "${persistence}"`);
         }
-        flags.push(flag);
+        ast[field] = true;
     }
 
-    return new Quality(flags.join(" "));
+    return new Quality(ast);
 }
 
 function privilegeOf(node: XmlElement, attribute: string) {

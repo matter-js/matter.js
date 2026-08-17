@@ -204,6 +204,30 @@ describe("translation of CHIP data model XML", () => {
             expect(access('<command><access invokePrivilege="admin" timed="true"/></command>')).equal("A T");
         });
 
+        it("keeps each privilege on the side CHIP states it", () => {
+            const both = translateAccess(
+                element(
+                    '<attribute><access read="true" write="true" readPrivilege="manage" writePrivilege="operate"/></attribute>',
+                ),
+            );
+            expect(both?.readPriv).equal("M");
+            expect(both?.writePriv).equal("O");
+
+            const same = translateAccess(
+                element(
+                    '<attribute><access read="true" write="true" readPrivilege="view" writePrivilege="view"/></attribute>',
+                ),
+            );
+            expect(same?.readPriv).equal("V");
+            expect(same?.writePriv).equal("V");
+
+            const writeOnly = translateAccess(
+                element('<attribute><access write="true" writePrivilege="manage"/></attribute>'),
+            );
+            expect(writeOnly?.readPriv).equal(undefined);
+            expect(writeOnly?.writePriv).equal("M");
+        });
+
         it("reads fabric access", () => {
             expect(access('<field><access fabricSensitive="true"/></field>')).equal("S");
         });
