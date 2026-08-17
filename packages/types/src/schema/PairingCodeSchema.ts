@@ -189,8 +189,11 @@ const UNSPECIFIED_ID = 0;
 
 /**
  * An onboarding payload's vendor or product identifier as a caller should see it: absent where the
- * payload states nothing. § 2.5.2 and § 2.5.3 write "unspecified" as 0, and a reader comparing that
+ * payload states nothing. The specification writes "unspecified" as 0, and a reader comparing that
  * against a real identifier would reject devices the payload never spoke about.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 2.5.2
+ * @see {@link MatterSpecification.v16.Core} § 2.5.3
  */
 export function statedIdentifier<T extends number>(id: T | undefined): T | undefined {
     return id === undefined || id === UNSPECIFIED_ID ? undefined : id;
@@ -207,6 +210,9 @@ const PRODUCT_ID_MAX = 0xffff;
  *
  * Takes the pair as the payload carries it, so 0 and `undefined` mean the same thing here and no
  * caller has to normalise first. Mirrors CHIP's `PayloadContents::CheckPayloadCommonConstraints`.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 2.5.2
+ * @see {@link MatterSpecification.v16.Core} § 2.5.3
  */
 export function assertValidPayloadIdentity(rawVendorId?: number, rawProductId?: number): void {
     const vendorId = statedIdentifier(rawVendorId);

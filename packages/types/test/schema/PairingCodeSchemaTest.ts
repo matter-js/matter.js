@@ -6,6 +6,7 @@
 
 import { VendorId } from "#datatype/VendorId.js";
 import {
+    assertValidPayloadIdentity,
     CommissioningFlowType,
     DiscoveryCapabilitiesSchema,
     INVALID_PASSCODES,
@@ -351,6 +352,28 @@ describe("QrPairingCodeCodec", () => {
     });
 });
 
+describe("assertValidPayloadIdentity", () => {
+    it("reads a wire 0 the same as an absent identifier", () => {
+        // What a caller encoding a payload passes, before any decode has normalised it
+        expect(() => assertValidPayloadIdentity(0xfff1, 0)).throw(
+            "An onboarding payload naming vendor ID 65521 must name a product too",
+        );
+        expect(() => assertValidPayloadIdentity(0xfff1, undefined)).throw(
+            "An onboarding payload naming vendor ID 65521 must name a product too",
+        );
+    });
+
+    it("accepts a payload that names neither, however it spells them", () => {
+        expect(() => assertValidPayloadIdentity(0, 0)).not.throw();
+        expect(() => assertValidPayloadIdentity(undefined, undefined)).not.throw();
+        expect(() => assertValidPayloadIdentity(0, undefined)).not.throw();
+    });
+
+    it("rejects a vendor past the last test vendor whichever form it arrives in", () => {
+        expect(() => assertValidPayloadIdentity(0xfff5, 0x8001)).throw("Invalid vendor ID 65525");
+    });
+});
+
 describe("ManualPairingCodeCodec", () => {
     describe("encode", () => {
         it("encodes the data", () => {
@@ -454,12 +477,6 @@ describe("ManualPairingCodeCodec", () => {
 
         it("decodes it when validation is disabled", () => {
             expect(ManualPairingCodeCodec.decode("749701123365521000006", false).productId).equal(undefined);
-        });
-
-        it("says what is wrong when a code names a vendor but no product", () => {
-            expect(() => ManualPairingCodeCodec.decode("749701123365521000006")).throw(
-                "An onboarding payload naming vendor ID 65521 must name a product too",
-            );
         });
 
         it("rejects a product ID the field cannot hold", () => {
