@@ -293,6 +293,53 @@ describe("ChipToolControllerAdapter", function () {
         expect(fake.commands).deep.equal([`pairing code ${FIRST_NODE} MT:034J042C00KA0648G00`]);
     });
 
+    it("reads a 21-digit manual pairing code through chip-tool's own parser", async () => {
+        const started = await start();
+
+        fake.reply = () => ({
+            logs: [
+                "Version:             0",
+                "VendorID:            65521",
+                "ProductID:           32769",
+                "Custom flow:         2    (CUSTOM)",
+                "Discovery Bitmask:   UNKNOWN",
+                "Short discriminator: 15   (0xf)",
+                "Passcode:            20202021",
+            ],
+        });
+
+        expect(await started.parseManualPairingCode("749701123365521327694")).deep.equal({
+            shortDiscriminator: 15,
+            passcode: 20202021,
+            vendorId: 65521,
+            productId: 32769,
+        });
+        expect(fake.commands).deep.equal(["payload parse-setup-payload 749701123365521327694"]);
+    });
+
+    it("reports no identity for an 11-digit code, which chip-tool prints as zeroes", async () => {
+        const started = await start();
+
+        fake.reply = () => ({
+            logs: [
+                "Version:             0",
+                "VendorID:            0",
+                "ProductID:           0",
+                "Custom flow:         0    (STANDARD)",
+                "Discovery Bitmask:   UNKNOWN",
+                "Short discriminator: 15   (0xf)",
+                "Passcode:            20202021",
+            ],
+        });
+
+        expect(await started.parseManualPairingCode("34970112332")).deep.equal({
+            shortDiscriminator: 15,
+            passcode: 20202021,
+            vendorId: undefined,
+            productId: undefined,
+        });
+    });
+
     it("separates chip-tool refusing the payload from chip-tool failing later", async () => {
         const started = await start();
 

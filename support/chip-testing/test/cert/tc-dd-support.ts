@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Duration, InternalError, Millis, Time } from "@matter/main";
+import { Bytes, Duration, InternalError, Millis, Time, Verhoeff } from "@matter/main";
 import { Base38, DiscoveryCapabilitiesBitmap, DiscoveryCapabilitiesSchema } from "@matter/main/types";
-import type { CertNodeRef, CertStepContext } from "@matter/testing";
+import type { CertNodeRef, CertStepContext, CommissioningTarget } from "@matter/testing";
 import type { CertDevice } from "@matter/testing";
 import { expectMdns } from "../../src/cert/mdns-check.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
@@ -232,8 +232,8 @@ export class CommissioningRefusals {
      * rejection would let the step pass on a controller that died, timed out or was never asked —
      * outcomes that say nothing about what the DUT made of the code.
      */
-    async requireRefusal(cx: CertStepContext, payload: string, what: string): Promise<void> {
-        const attempt = cx.controllers.dut.commission({ qrPairingCode: payload });
+    async requireRefusal(cx: CertStepContext, target: CommissioningTarget, what: string): Promise<void> {
+        const attempt = cx.controllers.dut.commission(target);
         // Kept as a settled outcome so an attempt nobody awaits again cannot surface as an unhandled
         // rejection, and so settle() can collect the ref of one that succeeded after its budget
         this.#attempts.push(
@@ -245,7 +245,45 @@ export class CommissioningRefusals {
 
         record(
             cx,
-            await expectRejection(`commissioning from ${payload}`, attempt, this.#refusalTimeoutMs, isPayloadRefusal),
+            await expectRejection(
+                `commissioning from ${describeTarget(target)}`,
+                attempt,
+                this.#refusalTimeoutMs,
+                isPayloadRefusal,
+            ),
+            what,
+        );
+    }
+
+    /**
+     * Records that the DUT does not commission from `target`, without claiming why. The plans use
+     * this where the code is well-formed but names a device that is not there: any failure satisfies
+     * "the DUT terminated commissioning", where a success does not.
+     */
+    async requireNoCommissioning(
+        cx: CertStepContext,
+        target: CommissioningTarget,
+        what: string,
+        timeoutMs: number,
+    ): Promise<void> {
+        const attempt = cx.controllers.dut.commission(target);
+        this.#attempts.push(
+            attempt.then(
+                ref => ref,
+                () => undefined,
+            ),
+        );
+
+        record(
+            cx,
+            await expectRejection(
+                `commissioning from ${describeTarget(target)}`,
+                attempt,
+                timeoutMs,
+                // A payload refusal would mean the code never reached discovery, so the step proved
+                // nothing about a commissionee that is not there
+                error => !isPayloadRefusal(error),
+            ),
             what,
         );
     }
@@ -296,6 +334,10 @@ export class CommissioningRefusals {
     }
 }
 
+function describeTarget(target: CommissioningTarget): string {
+    return target.qrPairingCode ?? target.manualPairingCode ?? JSON.stringify(target);
+}
+
 /**
  * Whether `error` is a controller refusing the onboarding payload rather than failing for some other
  * reason. Both adapters mark that refusal where it happens, because neither controller's own error
@@ -309,6 +351,73 @@ function isPayloadRefusal(error: unknown): boolean {
 }
 
 /**
+ * The TH's own setup code rendered as a 21-digit manual pairing code.
+ *
+ * No subject publishes one: a device on the standard commissioning flow prints the 11-digit form,
+ * and § 5.1.4.1 Table 64's longer form is what the manual-code plans test. It names the same device
+ * — the same discriminator and passcode — in the form the plan's preconditions describe.
+ */
+export async function thManualPairingCode(
+    cx: CertStepContext,
+    overrides: Partial<ManualPairingCodeParts> = {},
+): Promise<string> {
+    return manualPairingCode({ ...(await thCodeParts(cx)), ...overrides });
+}
+
+/**
+ * What the TH's own setup code puts into a 21-digit manual code. Read once by a step that builds
+ * several, so a dozen substitutions do not become a dozen concurrent requests to the DUT.
+ */
+export async function thCodeParts(cx: CertStepContext): Promise<ManualPairingCodeParts> {
+    const th = cx.devices.th;
+    const { vendorId, productId } = await cx.controllers.dut.parseQrPayload(await thQrPayload(th));
+
+    return {
+        vidPidPresent: true,
+        discriminator: th.commissioning.discriminator,
+        passcode: th.commissioning.passcode,
+        vendorId,
+        productId,
+    };
+}
+
+/**
+ * Records what the DUT read out of `code` and whether it names the TH. As {@link recordParse}, the
+ * parse is the DUT's: a step that decoded the code itself would pass against a controller that
+ * cannot read one.
+ */
+export async function recordManualParse(cx: CertStepContext, code: string): Promise<void> {
+    const th = cx.devices.th;
+
+    let parsed;
+    try {
+        parsed = await cx.controllers.dut.parseManualPairingCode(code);
+    } catch (e) {
+        cx.recorder.check({ type: "response", verdict: "fail", detail: `DUT could not parse ${code}: ${e}` });
+        throw e;
+    }
+
+    const shortDiscriminator = th.commissioning.discriminator >> SHORT_DISCRIMINATOR_SHIFT;
+    const matches = parsed.shortDiscriminator === shortDiscriminator && parsed.passcode === th.commissioning.passcode;
+
+    record(
+        cx,
+        {
+            type: "response",
+            verdict: matches ? "pass" : "fail",
+            detail:
+                `DUT read the ${code.length}-digit code as shortDiscriminator=${parsed.shortDiscriminator} ` +
+                `passcode=${parsed.passcode} vendorId=${parsed.vendorId} productId=${parsed.productId}; the TH's own ` +
+                `setup code is shortDiscriminator=${shortDiscriminator} passcode=${th.commissioning.passcode}`,
+        },
+        "Manual pairing code parse",
+    );
+}
+
+/** § 5.1.4.1 Table 62 carries only the discriminator's 4 most significant bits. */
+const SHORT_DISCRIMINATOR_SHIFT = 8;
+
+/**
  * Records that the TH is discoverable as a commissionable device, which every commissioning-flow plan
  * states as its own step or precondition.
  */
@@ -317,6 +426,80 @@ export async function recordCommissionable(
     what = "TH advertising as commissionable",
 ): Promise<void> {
     record(cx, await expectMdns(cx.devices.th, { commissionable: true }, { timeoutMs: MDNS_TIMEOUT_MS }), what);
+}
+
+/**
+ * Records what the DUT made of a code naming a given vendor, where the plan accepts either outcome:
+ * terminating commissioning, or onboarding anyway with the user aware of the risk.
+ *
+ * The two controllers genuinely differ. chip-tool matches a code's vendor and product id against the
+ * device it discovered (`SetUpCodePairer::NodeMatchesCurrentFilter`) and finds nothing; matter.js
+ * discovers on the discriminator alone and onboards. A fabric that results is handed to
+ * `commissioned`, whose next {@link commissionByManualCode} takes it off the TH the only way a chip
+ * TH survives — opening a window before the fabric that opens it is gone.
+ */
+export async function recordVendorOutcome(
+    cx: CertStepContext,
+    manualPairingCode: string,
+    commissioned: CommissionedRefs,
+    what: string,
+    timeoutMs: number,
+): Promise<void> {
+    await restoreCommissioningMode(cx, commissioned);
+
+    const dut = cx.controllers.dut;
+    const attempt = dut.commission({ manualPairingCode, giveUpAfterMs: timeoutMs });
+
+    const outcome = await expectRejection(`commissioning from ${manualPairingCode}`, attempt, timeoutMs + 30_000);
+    if (outcome.verdict === "pass") {
+        record(cx, { ...outcome, detail: `DUT terminated commissioning: ${outcome.detail}` }, what);
+        return;
+    }
+
+    const ref = await attempt;
+    commissioned.set("dut", ref);
+    record(
+        cx,
+        {
+            type: "response",
+            verdict: "pass",
+            detail: `DUT onboarded the TH as node ${ref}, which the plan allows where the user accepts the risk`,
+        },
+        what,
+    );
+}
+
+/**
+ * Puts the TH back into commissioning mode if a fabric from an earlier onboarding is still on it.
+ *
+ * A chip TH does not return there when its last fabric goes, so the window is opened while the fabric
+ * that can open it is still present. It is a basic one: that is the window whose PASE verifier is the
+ * device's own setup code, which is what an onboarding code carries.
+ */
+async function restoreCommissioningMode(cx: CertStepContext, commissioned: CommissionedRefs): Promise<void> {
+    const previous = commissioned.get("dut");
+    if (previous === undefined) {
+        return;
+    }
+
+    const dut = cx.controllers.dut;
+    await dut.node(previous).openCommissioningWindow({ timeout: WINDOW_TIMEOUT_SECONDS, enhanced: false });
+    await dut.node(previous).decommission();
+    commissioned.clear("dut");
+
+    // Removing the fabric returns as soon as the TH answers; the TH advertises itself commissionable
+    // again on its own schedule, and a discovery started before that finds only the devices this run
+    // is not looking for.
+    await recordCommissionable(cx, "TH back in commissioning mode");
+}
+
+/** {@link commissionByQr} for a manual pairing code, which discovers by the short discriminator. */
+export async function commissionByManualCode(
+    cx: CertStepContext,
+    manualPairingCode: string,
+    commissioned: CommissionedRefs,
+): Promise<void> {
+    await commissionByTarget(cx, { manualPairingCode }, commissioned);
 }
 
 /**
@@ -331,27 +514,29 @@ export async function commissionByQr(
     payload: string,
     commissioned: CommissionedRefs,
 ): Promise<void> {
+    await commissionByTarget(cx, { qrPairingCode: payload }, commissioned);
+}
+
+async function commissionByTarget(
+    cx: CertStepContext,
+    target: CommissioningTarget,
+    commissioned: CommissionedRefs,
+): Promise<void> {
     const dut = cx.controllers.dut;
     const th = cx.devices.th;
 
-    const previous = commissioned.get("dut");
-    if (previous !== undefined) {
-        await dut.node(previous).openCommissioningWindow({ timeout: WINDOW_TIMEOUT_SECONDS, enhanced: false });
-        await dut.node(previous).decommission();
-        commissioned.clear("dut");
-
-        // Removing the fabric returns as soon as the TH answers; the TH advertises itself
-        // commissionable again on its own schedule, and a discovery started before that finds only
-        // the devices this run is not looking for.
-        await recordCommissionable(cx, "TH back in commissioning mode");
-    }
+    await restoreCommissioningMode(cx, commissioned);
 
     const from = th.log.mark();
     let ref;
     try {
-        ref = await dut.commission({ qrPairingCode: payload });
+        ref = await dut.commission(target);
     } catch (e) {
-        cx.recorder.check({ type: "response", verdict: "fail", detail: `commissioning by payload failed: ${e}` });
+        cx.recorder.check({
+            type: "response",
+            verdict: "fail",
+            detail: `commissioning from ${describeTarget(target)} failed: ${e}`,
+        });
         throw e;
     }
     commissioned.set("dut", ref);
@@ -369,4 +554,79 @@ export async function commissionByQr(
         ),
         "TH commissioning",
     );
+}
+
+/**
+ * A part that does not fit its field would be written as extra digits or roll into its neighbour,
+ * putting a code nobody asked for into the evidence — the same trap `writeBits` guards for a QR
+ * payload.
+ */
+function assertFits(value: number, max: number, what: string): void {
+    if (!Number.isInteger(value) || value < 0 || value > max) {
+        throw new InternalError(`${what} ${value} does not fit a manual pairing code`);
+    }
+}
+
+/** First digit CHIP and matter.js both read as "a format this implementation does not know". */
+const FUTURE_FORMAT_DIGIT = 8;
+
+/**
+ * The parts § 5.1.4.1 Table 62 packs into a manual pairing code, as {@link manualPairingCode} writes
+ * them.
+ */
+export interface ManualPairingCodeParts {
+    /**
+     * Marks a format after v1 (§ 5.1.4.1.2), which sets the first digit to 8. The fields v1 packs
+     * into that digit are not representable alongside the marker, since a decimal digit holds 0-9.
+     */
+    futureFormat?: boolean;
+
+    /**
+     * The `VID_PID_PRESENT` bit. Set independently of whether the ids themselves follow, because a
+     * code where the two disagree is exactly what one of the negative plans asks for.
+     */
+    vidPidPresent: boolean;
+
+    /** The full 12-bit form; only its 4 most significant bits reach the code. */
+    discriminator: number;
+
+    passcode: number;
+    vendorId?: number;
+    productId?: number;
+
+    /** Replaces the Verhoeff digit the parts produce, for a step asking for a wrong one. */
+    checkDigit?: number;
+}
+
+/**
+ * A manual pairing code carrying `parts`, whatever the specification makes of them.
+ *
+ * The negative plans substitute values `ManualPairingCodeCodec` refuses to write — a reserved
+ * version, a forbidden passcode, a product id of 0 — so the digits are laid out here rather than
+ * encoded. The layout is § 5.1.4.1 Table 62's, and every code the plan prints for its own example
+ * device is asserted against this in `tc-dd-support.test.ts`.
+ */
+export function manualPairingCode(parts: ManualPairingCodeParts): string {
+    const { futureFormat = false, vidPidPresent, discriminator, passcode, vendorId, productId, checkDigit } = parts;
+
+    const chunk1 = futureFormat ? FUTURE_FORMAT_DIGIT : (vidPidPresent ? 1 << 2 : 0) | (discriminator >> 10);
+    const chunk2 = (((discriminator & 0x300) << 6) | (passcode & 0x3fff)).toString().padStart(5, "0");
+    const chunk3 = (passcode >>> 14).toString().padStart(4, "0");
+
+    assertFits(discriminator, 0xfff, "discriminator");
+    assertFits(passcode, 0x7ffffff, "passcode");
+    assertFits(vendorId ?? 0, 0xffff, "vendorId");
+    assertFits(productId ?? 0, 0xffff, "productId");
+    assertFits(checkDigit ?? 0, 9, "checkDigit");
+
+    if ((vendorId === undefined) !== (productId === undefined)) {
+        throw new InternalError("A manual pairing code carries a vendor and a product id together or not at all");
+    }
+
+    let digits = `${chunk1}${chunk2}${chunk3}`;
+    if (vendorId !== undefined && productId !== undefined) {
+        digits += vendorId.toString().padStart(5, "0") + productId.toString().padStart(5, "0");
+    }
+
+    return digits + (checkDigit ?? new Verhoeff().computeChecksum(digits));
 }

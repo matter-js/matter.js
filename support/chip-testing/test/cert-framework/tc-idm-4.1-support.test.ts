@@ -138,6 +138,9 @@ class Fixture {
             async parseQrPayload() {
                 throw new InternalError("not used in this test");
             },
+            async parseManualPairingCode(): Promise<never> {
+                throw new InternalError("not used in this test");
+            },
             node: () => node,
         };
 

@@ -31,6 +31,7 @@ import type {
     ControllerAdapter,
     EventPathSpec,
     EventReadEntry,
+    ManualPairingCodeFields,
     OnboardingPayloadFields,
     ReadAttributeOptions,
     ReadEventOptions,
@@ -85,6 +86,9 @@ const WILDCARD_ENDPOINT = 0xffff;
  * costing a CASE session first.
  */
 const MAX_PATHS_PER_COMMAND = 64;
+
+/** Digit count of the manual code form that carries a vendor and product id (§ 5.1.4.1 Table 64). */
+const MANUAL_CODE_LONG_LENGTH = 21;
 
 /** § 2.5.2 / § 2.5.3 write "unspecified" as 0; callers see an absent identifier instead. */
 function stated(id: number) {
@@ -1184,6 +1188,23 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
         };
     }
 
+    async parseManualPairingCode(code: string): Promise<ManualPairingCodeFields> {
+        const { reply, logs } = await this.executeWithLogs(`payload parse-setup-payload ${quoteArg(code)}`);
+        assertCommandSucceeded(reply, `parse of manual pairing code ${code}`);
+
+        const digits = code.replace(/\D/g, "");
+        // Print() reports a vendor and product of 0 for a code that carries neither, which only the
+        // 21-digit form does (§ 5.1.4.1 Table 64)
+        const carriesIdentity = digits.length === MANUAL_CODE_LONG_LENGTH;
+
+        return {
+            shortDiscriminator: payloadField(logs, code, /Short discriminator:\s+(\d+)/),
+            passcode: payloadField(logs, code, /Passcode:\s+(\d+)/),
+            vendorId: carriesIdentity ? payloadField(logs, code, /VendorID:\s+(\d+)/) : undefined,
+            productId: carriesIdentity ? payloadField(logs, code, /ProductID:\s+(\d+)/) : undefined,
+        };
+    }
+
     async commission(target: CommissioningTarget): Promise<CertNodeRef> {
         const nodeId = NodeId(this.#nextNodeId++);
         const node = nodeId.toString();
@@ -1195,6 +1216,14 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
             console.warn(
                 `chip-tool cannot bound commissioning of node ${node} to a single handshake attempt; its own retry ` +
                     "policy decides the outcome",
+            );
+        }
+
+        if (target.giveUpAfterMs !== undefined) {
+            // Said out loud for the same reason singleHandshakeAttempt is: a step asking for this is
+            // asserting an outcome, and chip-tool's own give-up is what decides it.
+            console.warn(
+                `chip-tool cannot bound discovery for node ${node}; its own policy decides when it stops looking`,
             );
         }
 

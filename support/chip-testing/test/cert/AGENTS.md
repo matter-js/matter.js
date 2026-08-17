@@ -1362,6 +1362,71 @@ something false about its TH. And note `notApplicable` is evaluated *before* bot
 the PICS gate in `cert-test.ts`, so a step carrying both never evaluates its PICS on any flavor —
 combining them documents nothing and hides the gate that would otherwise fire.
 
+## The manual-code block (`TC-DD-3.17`)
+
+**No subject publishes a 21-digit manual code.** A device on the standard commissioning flow prints
+the 11-digit form, and §5.1.4.1 Table 64's longer form is what these plans test. `thManualPairingCode`
+renders the TH's own identity — the same discriminator and passcode — in the longer form, which is
+what the plan's own preconditions describe. On the harness devices that produces *exactly* the codes
+the plan prints, because they share its example identity (discriminator 0xF00, passcode 20202021,
+vendor 0xFFF1, product 0x8001). `manualPairingCode` lays the digits out against Table 62 rather than
+encoding, since every negative case substitutes a value `ManualPairingCodeCodec` refuses to write, and
+`tc-dd-support.test.ts` asserts all 22 codes the plan prints against it.
+
+Two of those printed codes corrected the first implementation, and both are easy to get wrong again:
+
+- **A reserved version is a first digit of 8**, not a bit set beside the other fields. A decimal digit
+  holds 0-9, so the marker displaces the discriminator bits and `VID_PID_PRESENT`; CHIP only ever
+  checks `chunk1 == 8 || chunk1 == 9`. Hence `futureFormat`, not a numeric version.
+- **`VID_PID_PRESENT` and the identity digits must be settable independently.** A code where they
+  disagree is precisely what step 3 tests, so a builder that drops the tail when the bit is clear
+  cannot express it.
+
+**"Terminates commissioning" is two different claims, and they need two different checks.** Steps 2,
+3, 5, 7 and 8 are payload refusals — `requireRefusal`, accepting only `OnboardingPayloadRefusedError`.
+Step 4 hands over a well-formed code naming a device that is not there, so the DUT fails for lack of a
+commissionee; `requireNoCommissioning` accepts any failure there and only a *success* fails the step.
+The evidence keeps them apart: on chip-tool, steps 3/7/8 record `Run command failure:
+src/setup_payload/…` while step 4 records a bare command failure.
+
+**Step 4 needs a discovery bound, not a longer wait.** matter.js looks for a commissionable device for
+the specification's 3-minute minimum commissioning window (`CommissioningDiscovery` defaults
+`timeout` to `Minutes(3)`), so a step budget under that reports "neither resolved nor rejected" — as
+it did until `CommissioningTarget.giveUpAfterMs` was added. matter.js maps it to that discovery
+timeout; chip-tool cannot be bounded and says so, stopping on its own after ~30s, so the step's own
+budget has to outlast chip-tool rather than matter.js.
+
+**Step 6 records a real disagreement between the two controllers, and this one cost a review round.**
+The obvious reading — "a manual code's vendor id is informational, no commissioner matches it against
+the device it found" — is **false for chip-tool**:
+`SetUpCodePairer::NodeMatchesCurrentFilter` (`src/controller/SetUpCodePairer.cpp`) skips a discovered
+device whose advertised vendor or product id disagrees with the code's, so a code naming another
+vendor finds nothing and chip-tool gives up after its 30s discovery budget. matter.js discovers on
+the discriminator alone (`resolveCommissioningTarget` passes only `shortDiscriminator`/`passcode`)
+and onboards. **The plan's expected outcome admits both** — terminate, "unless the user is made fully
+aware of the security risks" — so the step records which happened instead of asserting one. Both
+outcomes appear in the evidence, one per controller.
+
+**All four codes go to the DUT, which needs the TH restored between them.** The plan says "provide
+each", and an attempt that onboards leaves the TH out of commissioning mode for the next one — so
+`recordVendorOutcome` runs the same open-window-then-remove dance `commissionByTarget` does, hoisted
+into `restoreCommissioningMode`. A first version handed over only two of the four codes; a reviewer
+caught it.
+
+Two traps behind that, both of which a green run hid at first:
+
+- **Substituting the TH's own vendor id substitutes nothing.** `thCodeParts` reads VID/PID back from
+  the TH, so `0xFFF1` on a harness device reproduces step 1's code byte for byte and the step
+  commissions from an unmodified code while claiming to test a substitution. A reviewer caught that.
+- **Fixing it turned the chip legs red**, which is what exposed the vendor-matching behaviour above.
+  Do not "fix" a failure there by reverting to the matching id — that restores a step that proves
+  nothing.
+
+**`requireNoCommissioning` must refuse a payload refusal.** Without the complementary predicate every
+outcome that satisfies `requireRefusal` also satisfies it, so a malformed generated code would make
+step 4 pass at ~1ms having never reached discovery. The two checks are only a partition because the
+predicate says so.
+
 ## chip-tool delivers one result per async report and discards the rest
 
 `step 4: write 1/3 … produced no subscription report carrying "tc-idm-4-1-a" within 30s`,
