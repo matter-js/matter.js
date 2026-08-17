@@ -50,6 +50,9 @@
             "path": "packages/nodejs-ws"
         },
         {
+            "path": "packages/ws-ble"
+        },
+        {
             "path": "examples/control-onoff"
         },
         {

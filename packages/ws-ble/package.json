@@ -1,0 +1,89 @@
+{
+    "name": "@matter/ws-ble",
+    "version": "0.0.0-git",
+    "description": "BLE-over-WebSocket proxy for matter.js",
+    "keywords": [
+        "iot",
+        "home automation",
+        "matter",
+        "smart device",
+        "ble",
+        "websocket"
+    ],
+    "license": "Apache-2.0",
+    "author": "matter.js authors",
+    "bugs": {
+        "url": "https://github.com/matter-js/matter.js/issues"
+    },
+    "homepage": "https://github.com/matter-js/matter.js",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/matter-js/matter.js.git"
+    },
+    "scripts": {
+        "clean": "nacho-build clean",
+        "build": "nacho-build",
+        "test": "matter-test",
+        "build-clean": "nacho-build --clean"
+    },
+    "bin": {
+        "matter-ble-proxy": "dist/cjs/noble-client/cli.js"
+    },
+    "dependencies": {
+        "@matter/general": "*",
+        "@matter/protocol": "*"
+    },
+    "optionalDependencies": {
+        "@matter/nodejs-ws": "*",
+        "@stoprocent/noble": "^2.7.1"
+    },
+    "devDependencies": {
+        "@matter/node": "*",
+        "@matter/nodejs": "*",
+        "@matter/testing": "*"
+    },
+    "engines": {
+        "node": ">=20.19.0 <21.0.0 || >=22.13.0"
+    },
+    "type": "module",
+    "main": "dist/cjs/index.js",
+    "types": "dist/cjs/index.d.ts",
+    "exports": {
+        ".": {
+            "import": {
+                "types": "./dist/esm/index.d.ts",
+                "default": "./dist/esm/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/index.d.ts",
+                "default": "./dist/cjs/index.js"
+            }
+        },
+        "./noble-client": {
+            "import": {
+                "types": "./dist/esm/noble-client/index.d.ts",
+                "default": "./dist/esm/noble-client/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/noble-client/index.d.ts",
+                "default": "./dist/cjs/noble-client/index.js"
+            }
+        }
+    },
+    "typesVersions": {
+        "*": {
+            ".": [
+                "/dist/cjs/index.d.ts"
+            ]
+        }
+    },
+    "publishConfig": {
+        "access": "public"
+    },
+    "files": [
+        "dist/**/*",
+        "src/**/*",
+        "LICENSE",
+        "README.md"
+    ]
+}

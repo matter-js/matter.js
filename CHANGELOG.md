@@ -12,6 +12,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/general
+    - Feature: Added generic WebSocket proxy framing (`net/ws-proxy`: hello handshake, JSON command/event envelope, binary frame codec) shared by WS-based proxy protocols
     - Enhancement: New `MatterAggregateError.settleSeries()` runs tasks in order, continuing past a failure, and reports the accumulated errors
     - Enhancement: A storage driver states how long a consumer may buffer dirty values via `StorageDriver.writeCoalescingInterval`, defaulting to 20 minutes; `MemoryStorageDriver` reports `Instant`
     - Fix: Opening a namespace whose `driver.json` names an unregistered storage driver now throws `NoProviderError` instead of silently opening the existing data with a mismatched driver
@@ -138,6 +139,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A cert test's own PICS expression now gates the test, which previously only tinted its label in the report; a controller declares the client capabilities the device's PICS file cannot, and those overlay it
     - Enhancement: `certTest()` accepts test-level `flavors`, skipping a test whose device cannot exist on the run's flavor before the device starts
     - Enhancement: A cert test's controller commissions from a QR onboarding payload via `CommissioningTarget.qrPairingCode`, on both the matter.js and the chip-tool controller
+
+- @matter/ws-ble
+    - Feature: Added as new package — BLE-over-WebSocket proxy (hub, `Ble` consumer stack, noble reference client and `matter-ble-proxy` CLI)
 
 - @project-chip/matter.js
     - Deprecation: Every class, type, and function of the legacy controller API is now marked deprecated and scheduled for removal in 0.19; use the `ServerNode.peers` / `ClientNode` API of `@matter/node` instead
