@@ -43,7 +43,7 @@ export class DnssdNames {
     readonly #names = new Map<string, DnssdName>();
     readonly #expiration: Scheduler<DnssdName.Record>;
     readonly #discovered = new Observable<[name: DnssdName]>();
-    readonly #goodbyeDelay: Duration;
+    readonly #evictionDelay: Duration;
     readonly #minTtl: Duration;
     readonly #ttlGraceFactor: number;
 
@@ -63,7 +63,7 @@ export class DnssdNames {
         entropy,
         filter,
         filterNames,
-        goodbyeDelay,
+        evictionDelay,
         minTtl,
         ttlGraceFactor,
     }: DnssdNames.Context) {
@@ -74,7 +74,7 @@ export class DnssdNames {
             this.#addFilter(filter, filterNames);
         }
         this.#solicitor = new QueryMulticaster(this);
-        this.#goodbyeDelay = goodbyeDelay ?? DnssdNames.defaults.goodbyeDelay;
+        this.#evictionDelay = evictionDelay ?? DnssdNames.defaults.evictionDelay;
         this.#minTtl = minTtl ?? DnssdNames.defaults.minTtl;
         const effectiveGraceFactor = ttlGraceFactor ?? DEFAULT_TTL_GRACE_FACTOR;
         if (!(effectiveGraceFactor >= 1)) {
@@ -199,7 +199,7 @@ export class DnssdNames {
                 packetRelevant = true;
                 // A goodbye takes effect a second out so a host that reboots and re-announces immediately keeps its
                 // records (RFC 6762 §10.1)
-                name.expireRecord(record, this.#goodbyeDelay);
+                name.expireRecord(record, this.#evictionDelay);
             }
         };
 
@@ -495,9 +495,9 @@ export namespace DnssdNames {
         filterNames?: Iterable<string> | "all";
 
         /**
-         * How long a record survives a goodbye (RFC 6762 §10.1).
+         * How long a record survives once something supersedes it rather than replaces it (RFC 6762 §10.1).
          */
-        goodbyeDelay?: Duration;
+        evictionDelay?: Duration;
 
         /**
          * Minimum TTL for PTR records.
@@ -532,7 +532,7 @@ export namespace DnssdNames {
     }
 
     export const defaults = {
-        goodbyeDelay: Seconds(1),
+        evictionDelay: Seconds(1),
         minTtl: Seconds(15), // This is the value that Apple uses
     };
 }
