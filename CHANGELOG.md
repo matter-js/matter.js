@@ -70,9 +70,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `network.profiles` accepts `bdxAdditionalMrpDelay`
     - Enhancement: Discovery reports at notice level, naming an installed BLE scanner it was not asked to use, and reports a discovery that asks for BLE where BLE is not enabled
     - Enhancement: Discovery warns where no scanner takes part in it at all
-    - Adjustment: A device commissioning passes over because its advertised vendor or product contradicts the onboarding payload is reported at notice level
     - Enhancement: `Discovery.Options` accepts `discoveryCapabilities` to select the transports to discover on, so a caller no longer builds a `scannerFilter` for it
     - Adjustment: A node with commissioning disabled (e.g. a controller) now binds an ephemeral operational port instead of the standard Matter port (5540) when `NetworkServer.port` is unset; commissionable nodes still default to 5540 and an explicit port is always honored
+    - Adjustment: A device commissioning passes over because its advertised vendor or product contradicts the onboarding payload is reported at notice level
     - Adjustment: A commissioned peer's fabric label is new reconciled to the controller's once after its subscription is first established on start by `ClientNode`
     - Adjustment: `NetworkServer.State.clientCacheFlushInterval` defaults to the storage driver's `writeCoalescingInterval` instead of a fixed 20 minutes; set it to `Instant` to persist every change immediately
     - Adjustment: A `SoftwareUpdateManager.State.announcementInterval` of `Instant` disables OTA provider announcements
