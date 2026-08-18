@@ -21,7 +21,7 @@ export const GroupKeyManagement = Cluster(
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
         Field({ name: "CS", conformance: "P", constraint: "0", title: "CacheAndSync" }),
-        Field({ name: "GCAST", conformance: "P, O", constraint: "1", title: "Groupcast" })
+        Field({ name: "GCAST", conformance: "O", constraint: "1", title: "Groupcast" })
     ),
 
     Attribute(

@@ -52,7 +52,8 @@ Resource.add({
             details: "If the GCAST feature bit is set in the FeatureMap attribute, the following rules apply to the " +
                 "accessing Fabric:" +
                 "\n" +
-                "  - When Groupcast is adopted (the GroupcastAdoption entry has GroupcastAdopted set to true):" +
+                "  - When Groupcast is adopted (the GroupcastAdoption attribute present and has an entry where " +
+                "GroupcastAdopted set to true):" +
                 "\n" +
                 "  - This attribute shall be empty." +
                 "\n" +
