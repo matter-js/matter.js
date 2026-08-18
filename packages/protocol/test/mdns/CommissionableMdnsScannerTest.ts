@@ -249,7 +249,7 @@ describe("CommissionableMdnsScanner", () => {
         }
     });
 
-    it("removes a device whose goodbye follows a re-announcement", async () => {
+    it("removes a device whose goodbye follows a re-announcement, and finds it again when it returns", async () => {
         const simulator = new NetworkSimulator();
         const serverNetwork = new MockNetwork(simulator, SERVER_MAC, [SERVER_IPv4, SERVER_IPv6]);
         const clientNetwork = new MockNetwork(simulator, CLIENT_MAC, [CLIENT_IPv4, CLIENT_IPv6]);
@@ -321,6 +321,11 @@ describe("CommissionableMdnsScanner", () => {
             await MockTime.advance(10);
 
             expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 3840 }).length).equals(0);
+
+            await serverSocket.send(announcement);
+            await MockTime.advance(10);
+
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 3840 }).length).equals(1);
         } finally {
             await scanner.close();
             await clientNames.close();
