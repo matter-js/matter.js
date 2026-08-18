@@ -43,7 +43,7 @@ export class DnssdNames {
     readonly #names = new Map<string, DnssdName>();
     readonly #expiration: Scheduler<DnssdName.Record>;
     readonly #discovered = new Observable<[name: DnssdName]>();
-    readonly #goodbyeProtectionWindow: Duration;
+    readonly #goodbyeDelay: Duration;
     readonly #minTtl: Duration;
     readonly #ttlGraceFactor: number;
 
@@ -63,7 +63,7 @@ export class DnssdNames {
         entropy,
         filter,
         filterNames,
-        goodbyeProtectionWindow,
+        goodbyeDelay,
         minTtl,
         ttlGraceFactor,
     }: DnssdNames.Context) {
@@ -74,7 +74,7 @@ export class DnssdNames {
             this.#addFilter(filter, filterNames);
         }
         this.#solicitor = new QueryMulticaster(this);
-        this.#goodbyeProtectionWindow = goodbyeProtectionWindow ?? DnssdNames.defaults.goodbyeProtectionWindow;
+        this.#goodbyeDelay = goodbyeDelay ?? DnssdNames.defaults.goodbyeDelay;
         this.#minTtl = minTtl ?? DnssdNames.defaults.minTtl;
         const effectiveGraceFactor = ttlGraceFactor ?? DEFAULT_TTL_GRACE_FACTOR;
         if (!(effectiveGraceFactor >= 1)) {
@@ -156,7 +156,6 @@ export class DnssdNames {
             this.#currentBatch = undefined;
         }
 
-        // Same-message goodbyes may have reverted discovery
         for (const name of newlyDiscovered ?? []) {
             if (name.isDiscovered) {
                 this.#discovered.emit(name);
@@ -168,7 +167,6 @@ export class DnssdNames {
         const records = [...message.answers, ...message.additionalRecords];
         const filtered = new Set(records);
         const sourceIntf = message.sourceIntf;
-        let goodbyesBefore: undefined | Timestamp;
 
         // Collect newly discovered names so we can emit after all records in the message are processed.  This ensures
         // that observers see the complete record set (e.g. both SRV and TXT) rather than partial state mid-message.
@@ -199,10 +197,9 @@ export class DnssdNames {
                 }
             } else {
                 packetRelevant = true;
-                if (goodbyesBefore === undefined) {
-                    goodbyesBefore = Timestamp(Time.nowMs - this.#goodbyeProtectionWindow);
-                }
-                name.deleteRecord(record, goodbyesBefore);
+                // A goodbye takes effect a second out so a host that reboots and re-announces immediately keeps its
+                // records (RFC 6762 §10.1)
+                name.expireRecord(record, this.#goodbyeDelay);
             }
         };
 
@@ -327,8 +324,8 @@ export class DnssdNames {
                 this.#stagedIpRecords.delete(key);
                 const now = Time.nowMs;
                 for (const { record, receivedAt, sourceIntf } of staged) {
-                    // Preserve original TTL and receivedAt so expiry math and goodbye-protection recovery both
-                    // reference the real discovery time rather than the replay moment
+                    // Preserve original TTL and receivedAt so expiry references the real discovery time rather
+                    // than the replay moment
                     if (now - receivedAt < record.ttl * this.#ttlGraceFactor) {
                         name.installRecord(record, { sourceIntf, installedAt: receivedAt });
                     }
@@ -498,12 +495,9 @@ export namespace DnssdNames {
         filterNames?: Iterable<string> | "all";
 
         /**
-         * The interval after discovering a record for which we ignore goodbyes.
-         *
-         * This serves as protection for out-of-order messages when a device expires then broadcasts the same record
-         * in a very short amount of time.
+         * How long a record survives a goodbye (RFC 6762 §10.1).
          */
-        goodbyeProtectionWindow?: Duration;
+        goodbyeDelay?: Duration;
 
         /**
          * Minimum TTL for PTR records.
@@ -538,7 +532,7 @@ export namespace DnssdNames {
     }
 
     export const defaults = {
-        goodbyeProtectionWindow: Seconds(1),
+        goodbyeDelay: Seconds(1),
         minTtl: Seconds(15), // This is the value that Apple uses
     };
 }
