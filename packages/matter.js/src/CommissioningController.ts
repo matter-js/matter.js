@@ -6,7 +6,6 @@
 
 import { InteractionClient, NodeDiscoveryType } from "#cluster/client/InteractionClient.js";
 import {
-    ChannelType,
     ClassExtends,
     Crypto,
     Duration,
@@ -92,9 +91,7 @@ export async function runDiscoverCommissionableDevices(
     const discovery = new ContinuousDiscovery(node, {
         ...identifierData,
         timeout,
-        scannerFilter: discoveryCapabilities
-            ? (s): boolean => s.type === ChannelType.UDP || (!!discoveryCapabilities.ble && s.type === ChannelType.BLE)
-            : undefined,
+        discoveryCapabilities,
     });
     const results = Array<CommissionableDevice>();
     const seen = new Set<string>();

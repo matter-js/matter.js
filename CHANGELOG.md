@@ -66,6 +66,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding how long it waits for the operational CASE connection that follows it
     - Enhancement: `SoftwareUpdateManager` caps the BDX block size for OTA transfers via `maxBdxBlockSize` and overrides their MRP retransmission margin via `bdxAdditionalMrpDelay`, either generally in its state or per update when giving consent
     - Enhancement: `network.profiles` accepts `bdxAdditionalMrpDelay`
+    - Enhancement: Discovery notes an installed BLE scanner it was not asked to use, reports a discovery asking for BLE where BLE is not installed, and warns where no scanner participates at all
+    - Enhancement: `Discovery.Options` accepts `discoveryCapabilities` to select the transports to discover on, so a caller no longer builds a `scannerFilter` for it
     - Adjustment: A node with commissioning disabled (e.g. a controller) now binds an ephemeral operational port instead of the standard Matter port (5540) when `NetworkServer.port` is unset; commissionable nodes still default to 5540 and an explicit port is always honored
     - Adjustment: A commissioned peer's fabric label is new reconciled to the controller's once after its subscription is first established on start by `ClientNode`
     - Adjustment: `NetworkServer.State.clientCacheFlushInterval` defaults to the storage driver's `writeCoalescingInterval` instead of a fixed 20 minutes; set it to `Instant` to persist every change immediately
@@ -90,6 +92,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensure that `--storage-clear`/`MATTER_STORAGE_CLEAR` is honored again and clears the storage on start
 
 - @matter/nodejs-ble
+    - Enhancement: Waiting for the Bluetooth adapter to power on before scanning or advertising is reported at notice level, naming what to check, and its start is reported once the adapter is up
     - Fix: A connection attempt that BLE reports as failed is retried instead of failing commissioning on the first try
     - Fix: A peripheral whose connection attempt failed is no longer rejected as unusable for the lifetime of the process
     - Fix: Giving up on a peripheral reports the last connection failure as cause

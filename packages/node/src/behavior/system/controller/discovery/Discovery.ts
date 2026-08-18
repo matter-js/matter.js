@@ -7,8 +7,17 @@
 import { ClientNodeFactory } from "#node/client/ClientNodeFactory.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { CancelablePromise, Diagnostic, Duration, Logger, MaybePromise, withTimeout } from "@matter/general";
-import { CommissionableDeviceIdentifiers, Scanner, ScannerSet } from "@matter/protocol";
+import {
+    CancelablePromise,
+    ChannelType,
+    Diagnostic,
+    Duration,
+    Logger,
+    MaybePromise,
+    withTimeout,
+} from "@matter/general";
+import { Ble, CommissionableDeviceIdentifiers, Scanner, ScannerSet } from "@matter/protocol";
+import { DiscoveryCapabilitiesBitmap, TypeFromPartialBitSchema } from "@matter/types";
 import { ControllerBehavior } from "../ControllerBehavior.js";
 import { ActiveDiscoveries } from "./ActiveDiscoveries.js";
 import { DiscoveryAggregateError } from "./DiscoveryError.js";
@@ -181,21 +190,52 @@ export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
             return;
         }
 
-        const description = this.#description;
-        if (description === undefined) {
-            logger.info("Initiating", Diagnostic.strong("node discovery"));
-        } else {
-            logger.info("Initiating discovery of", Diagnostic.strong(description));
+        const {
+            timeout: _,
+            scannerFilter,
+            discoveryCapabilities,
+            id,
+            ...identifier
+        } = this.#options as Discovery.InstanceOptions;
+
+        const available = this.#owner.env.get(ScannerSet);
+        const scanners = scannerFilter
+            ? available.filter(scannerFilter)
+            : discoveryCapabilities
+              ? available.select(discoveryCapabilities)
+              : [...available];
+
+        const bleAvailable = available.hasScannerFor(ChannelType.BLE);
+        const bleUsed = scanners.some(scanner => scanner.type === ChannelType.BLE);
+
+        const note = new Array<string>();
+        if (bleAvailable && !bleUsed) {
+            note.push("(BLE not requested)");
         }
 
-        const scanners = this.#owner.env.get(ScannerSet);
-        const { timeout: _, scannerFilter, id, ...identifier } = this.#options as Discovery.InstanceOptions;
+        const description = this.#description;
+        if (description === undefined) {
+            logger.info("Initiating", Diagnostic.strong("node discovery"), ...note);
+        } else {
+            logger.info("Initiating discovery of", Diagnostic.strong(description), ...note);
+        }
+
+        if (discoveryCapabilities?.ble && !bleAvailable) {
+            if (this.#owner.env.has(Ble)) {
+                logger.info("BLE and IP network discovery requested but BLE scanning is off; using IP network only");
+            } else {
+                logger.notice("BLE and IP network discovery requested but BLE is not installed; using IP network only");
+            }
+        }
+
+        if (!scanners.length) {
+            logger.warn("No scanner is available so discovery cannot find any device");
+        }
 
         const factory = this.#owner.env.get(ClientNodeFactory);
         const promises = new Array<PromiseLike<unknown>>();
         const cancelSignal = new Promise<void>(resolve => (this.#stopDiscovery = resolve));
         for (const scanner of scanners) {
-            if (scannerFilter && !scannerFilter(scanner)) continue;
             promises.push(
                 scanner.findCommissionableDevicesContinuously(
                     identifier,
@@ -293,8 +333,18 @@ export namespace Discovery {
         /**
          * Optional filter to restrict which scanners participate in discovery.  When omitted all available scanners
          * are used.  Use this to limit discovery to a specific transport (e.g. only UDP/mDNS or only BLE).
+         *
+         * Takes precedence over {@link discoveryCapabilities}.
          */
         scannerFilter?: (scanner: Scanner) => boolean;
+
+        /**
+         * The transports the device is expected to be discoverable on, as an onboarding payload states them.  IP
+         * network discovery always participates; BLE only when the payload names it.
+         *
+         * Omitting this and {@link scannerFilter} discovers on every installed transport, BLE included.
+         */
+        discoveryCapabilities?: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap>;
     };
 
     export type InstanceOptions = Options & {

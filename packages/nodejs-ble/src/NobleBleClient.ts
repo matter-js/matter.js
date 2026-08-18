@@ -46,6 +46,7 @@ export class NobleBleClient {
     private shouldScan = false;
     private isScanning = false;
     private nobleState = "unknown";
+    #scanDeferred = false;
     private deviceDiscoveredCallback: ((peripheral: Peripheral, manufacturerData: Bytes) => void) | undefined;
     #closing = false;
 
@@ -68,6 +69,9 @@ export class NobleBleClient {
             logger.debug(`Noble state changed to ${state}`);
             if (state === "poweredOn") {
                 if (this.shouldScan) {
+                    if (this.#scanDeferred) {
+                        logger.notice("Bluetooth adapter is powered on, starting the deferred BLE discovery");
+                    }
                     void this.startScanning();
                 }
             } else {
@@ -100,16 +104,21 @@ export class NobleBleClient {
 
         this.shouldScan = true;
         if (this.nobleState === "poweredOn") {
+            this.#scanDeferred = false;
             logger.debug("Start BLE scanning for Matter Services ...");
             await noble.startScanningAsync([MatterBle.SERVICE_UUID_SHORT], true);
-        } else {
-            logger.debug("noble state is not poweredOn ... delay scanning till poweredOn");
+        } else if (!this.#scanDeferred) {
+            this.#scanDeferred = true;
+            logger.notice(
+                `BLE discovery deferred until the Bluetooth adapter reports "poweredOn" (it reports "${this.nobleState}"). Check that Bluetooth is enabled and that this process may use it.`,
+            );
         }
     }
 
     public async stopScanning() {
         if (this.#closing) return;
         this.shouldScan = false;
+        this.#scanDeferred = false;
         if (this.isScanning) {
             logger.debug("Stop BLE scanning for Matter Services ...");
             await noble.stopScanningAsync();
