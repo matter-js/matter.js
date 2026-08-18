@@ -19,6 +19,7 @@ import {
     ValueModel,
 } from "#model";
 import { ModelBounds } from "@matter/types";
+import { documentationOf } from "../util/documentation.js";
 import { ScopeFile } from "../util/ScopeFile.js";
 import { asObjectKey, camelize, serialize } from "../util/string.js";
 import { Block, Entry } from "../util/TsFile.js";
@@ -286,7 +287,7 @@ export class TlvGenerator {
                     // Typescript doesn't allow numeric enum keys
                     name = `E${name}`;
                 }
-                enumBlock.atom(`${asObjectKey(name)} = ${child.id}`).document(child);
+                enumBlock.atom(`${asObjectKey(name)} = ${child.id}`).document(documentationOf(child));
             });
         });
 
@@ -356,7 +357,7 @@ export class TlvGenerator {
                 this.importTlv("tlv/TlvObject", tlv);
                 struct
                     .atom(field.propertyName, `${tlv}(${field.effectiveId}, ${this.reference(field)})`)
-                    .document(field);
+                    .document(documentationOf(field));
             });
         });
 
@@ -411,7 +412,7 @@ export class TlvGenerator {
                 continue;
             }
 
-            bitmap.atom(child.propertyName, type).document(child);
+            bitmap.atom(child.propertyName, type).document(documentationOf(child));
         }
 
         return bitmap;

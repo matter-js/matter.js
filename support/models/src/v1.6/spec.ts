@@ -428,7 +428,10 @@ export const SpecMatter = Matter(
 
         Datatype(
             { name: "NameSupportBitmap", type: "map8", xref: "cluster§1.3.5.1" },
-            Field({ name: "GroupNames", constraint: "7", description: "The ability to store a name for a group." })
+            Field({
+                name: "GroupNames", conformance: "M", constraint: "7",
+                description: "The ability to store a name for a group."
+            })
         )
     ),
 
@@ -868,7 +871,10 @@ export const SpecMatter = Matter(
 
         Datatype(
             { name: "CopyModeBitmap", type: "map8", xref: "cluster§1.4.7.1" },
-            Field({ name: "CopyAllScenes", constraint: "0", description: "Copy all scenes in the scene table" })
+            Field({
+                name: "CopyAllScenes", conformance: "M", constraint: "0",
+                description: "Copy all scenes in the scene table"
+            })
         ),
 
         Datatype(
@@ -1259,7 +1265,7 @@ export const SpecMatter = Matter(
         Datatype(
             { name: "OnOffControlBitmap", type: "map8", xref: "cluster§1.5.5.1" },
             Field({
-                name: "AcceptOnlyWhenOn", constraint: "0",
+                name: "AcceptOnlyWhenOn", conformance: "M", constraint: "0",
                 description: "Indicates a command is only accepted when in On state."
             })
         ),
@@ -1630,13 +1636,13 @@ export const SpecMatter = Matter(
         Datatype(
             { name: "OptionsBitmap", type: "map8", xref: "cluster§1.6.5.1" },
             Field({
-                name: "ExecuteIfOff", constraint: "0", description: "Dependency on On/Off cluster",
-                xref: "cluster§1.6.5.1.1",
+                name: "ExecuteIfOff", conformance: "LT | OO", constraint: "0",
+                description: "Dependency on On/Off cluster", xref: "cluster§1.6.5.1.1",
                 details: "This bit indicates if this cluster has a dependency with the On/Off cluster."
             }),
             Field({
-                name: "CoupleColorTempToLevel", constraint: "1", description: "Dependency on Color Control cluster",
-                xref: "cluster§1.6.5.1.2",
+                name: "CoupleColorTempToLevel", conformance: "LT", constraint: "1",
+                description: "Dependency on Color Control cluster", xref: "cluster§1.6.5.1.2",
                 details: "This bit indicates if this cluster has a dependency with the Color Control cluster."
             })
         ),
@@ -1919,12 +1925,12 @@ export const SpecMatter = Matter(
 
         Datatype(
             { name: "AlarmModeBitmap", type: "map8", xref: "cluster§1.8.5.1" },
-            Field({ name: "Visual", constraint: "0", description: "Visual alarming" }),
-            Field({ name: "Audible", constraint: "1", description: "Audible alarming" })
+            Field({ name: "Visual", conformance: "VIS", constraint: "0", description: "Visual alarming" }),
+            Field({ name: "Audible", conformance: "AUD", constraint: "1", description: "Audible alarming" })
         ),
         Datatype(
             { name: "SensorFaultBitmap", type: "map16", xref: "cluster§1.8.5.2" },
-            Field({ name: "GeneralFault", constraint: "0", description: "Unspecified fault detected" })
+            Field({ name: "GeneralFault", conformance: "M", constraint: "0", description: "Unspecified fault detected" })
         )
     ),
 
@@ -3645,7 +3651,7 @@ export const SpecMatter = Matter(
             },
 
             Field({
-                name: "ConfirmationRequired", constraint: "0",
+                name: "ConfirmationRequired", conformance: "CONF", constraint: "0",
                 description: "Message requires confirmation from user", xref: "cluster§1.16.5.2.1",
                 details: "This bit shall indicate that the message originator requests a confirmation of receipt by the user. " +
                     "If confirmation is required, the device SHOULD present the message until it is either confirmed by " +
@@ -3653,29 +3659,29 @@ export const SpecMatter = Matter(
             }),
 
             Field({
-                name: "ResponseRequired", constraint: "1", description: "Message requires response from user",
-                xref: "cluster§1.16.5.2.2",
+                name: "ResponseRequired", conformance: "RESP", constraint: "1",
+                description: "Message requires response from user", xref: "cluster§1.16.5.2.2",
                 details: "This bit shall indicate that a MessagePresented event SHOULD be generated based on the response of " +
                     "the user to the message."
             }),
 
             Field({
-                name: "ReplyMessage", constraint: "2", description: "Message supports reply message from user",
-                xref: "cluster§1.16.5.2.3",
+                name: "ReplyMessage", conformance: "RPLY", constraint: "2",
+                description: "Message supports reply message from user", xref: "cluster§1.16.5.2.3",
                 details: "This bit shall indicate that a free-form user reply is to be included in the confirmation of " +
                     "receipt."
             }),
 
             Field({
-                name: "MessageConfirmed", constraint: "3", description: "Message has already been confirmed",
-                xref: "cluster§1.16.5.2.4",
+                name: "MessageConfirmed", conformance: "CONF", constraint: "3",
+                description: "Message has already been confirmed", xref: "cluster§1.16.5.2.4",
                 details: "This bit shall indicate the current confirmation state of a message, which is useful in the event " +
                     "that there are multiple Messages cluster client devices on a network."
             }),
 
             Field({
-                name: "MessageProtected", constraint: "4", description: "Message required PIN/password protection",
-                xref: "cluster§1.16.5.2.5",
+                name: "MessageProtected", conformance: "PROT", constraint: "4",
+                description: "Message required PIN/password protection", xref: "cluster§1.16.5.2.5",
                 details: "This bit shall indicate that user authentication (e.g. by password or PIN) is required before " +
                     "viewing a message."
             })
@@ -5134,8 +5140,8 @@ export const SpecMatter = Matter(
             { name: "OccupancyBitmap", type: "map8", xref: "cluster§2.7.5.1" },
 
             Field({
-                name: "Occupied", constraint: "0", description: "Indicates the sensed occupancy state",
-                xref: "cluster§2.7.5.1.1",
+                name: "Occupied", conformance: "M", constraint: "0",
+                description: "Indicates the sensed occupancy state", xref: "cluster§2.7.5.1.1",
                 details: "If this bit is set, it shall indicate the occupied state else if the bit if not set, it shall " +
                     "indicate the unoccupied state."
             })
@@ -5151,9 +5157,12 @@ export const SpecMatter = Matter(
                     "Backward Compatibility section."
             },
 
-            Field({ name: "Pir", constraint: "0", description: "Indicates a passive infrared sensor." }),
-            Field({ name: "Ultrasonic", constraint: "1", description: "Indicates a ultrasonic sensor." }),
-            Field({ name: "PhysicalContact", constraint: "2", description: "Indicates a physical contact sensor." })
+            Field({ name: "Pir", conformance: "M", constraint: "0", description: "Indicates a passive infrared sensor." }),
+            Field({ name: "Ultrasonic", conformance: "M", constraint: "1", description: "Indicates a ultrasonic sensor." }),
+            Field({
+                name: "PhysicalContact", conformance: "M", constraint: "2",
+                description: "Indicates a physical contact sensor."
+            })
         ),
 
         Datatype(
@@ -8114,27 +8123,27 @@ export const SpecMatter = Matter(
         Datatype(
             { name: "AlarmBitmap", type: "map32", xref: "cluster§2.17.5.1" },
             Field({
-                name: "CriticalOverTemperatureAlarm", constraint: "0",
+                name: "CriticalOverTemperatureAlarm", conformance: "M", constraint: "0",
                 description: "The measured temperature is above the critical threshold."
             }),
             Field({
-                name: "MajorOverTemperatureAlarm", constraint: "1",
+                name: "MajorOverTemperatureAlarm", conformance: "M", constraint: "1",
                 description: "The measured temperature is above the major threshold."
             }),
             Field({
-                name: "MinorOverTemperatureAlarm", constraint: "2",
+                name: "MinorOverTemperatureAlarm", conformance: "M", constraint: "2",
                 description: "The measured temperature is above the minor threshold."
             }),
             Field({
-                name: "MinorUnderTemperatureAlarm", constraint: "3",
+                name: "MinorUnderTemperatureAlarm", conformance: "M", constraint: "3",
                 description: "The measured temperature is below the minor threshold."
             }),
             Field({
-                name: "MajorUnderTemperatureAlarm", constraint: "4",
+                name: "MajorUnderTemperatureAlarm", conformance: "M", constraint: "4",
                 description: "The measured temperature is below the major threshold."
             }),
             Field({
-                name: "CriticalUnderTemperatureAlarm", constraint: "5",
+                name: "CriticalUnderTemperatureAlarm", conformance: "M", constraint: "5",
                 description: "The measured temperature is below the critical threshold."
             })
         )
@@ -9151,12 +9160,15 @@ export const SpecMatter = Matter(
 
         Datatype(
             { name: "ColorCapabilitiesBitmap", type: "map16", xref: "cluster§3.2.6.1" },
-            Field({ name: "HueSaturation", constraint: "0", description: "Supports color specification via hue/saturation." }),
-            Field({ name: "EnhancedHue", constraint: "1", description: "Enhanced hue is supported." }),
-            Field({ name: "ColorLoop", constraint: "2", description: "Color loop is supported." }),
-            Field({ name: "Xy", constraint: "3", description: "Supports color specification via XY." }),
             Field({
-                name: "ColorTemperature", constraint: "4",
+                name: "HueSaturation", conformance: "HS", constraint: "0",
+                description: "Supports color specification via hue/saturation."
+            }),
+            Field({ name: "EnhancedHue", conformance: "EHUE", constraint: "1", description: "Enhanced hue is supported." }),
+            Field({ name: "ColorLoop", conformance: "CL", constraint: "2", description: "Color loop is supported." }),
+            Field({ name: "Xy", conformance: "XY", constraint: "3", description: "Supports color specification via XY." }),
+            Field({
+                name: "ColorTemperature", conformance: "CT", constraint: "4",
                 description: "Supports color specification via color temperature."
             })
         ),
@@ -9164,8 +9176,8 @@ export const SpecMatter = Matter(
         Datatype(
             { name: "OptionsBitmap", type: "map8", xref: "cluster§3.2.6.2" },
             Field({
-                name: "ExecuteIfOff", constraint: "0", description: "Dependency on On/Off cluster",
-                xref: "cluster§3.2.6.2.1",
+                name: "ExecuteIfOff", conformance: "M", constraint: "0",
+                description: "Dependency on On/Off cluster", xref: "cluster§3.2.6.2.1",
                 details: "This bit shall indicate if this cluster server instance has a dependency with the On/Off cluster."
             })
         ),
@@ -9178,7 +9190,7 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "UpdateAction", constraint: "0",
+                    name: "UpdateAction", conformance: "M", constraint: "0",
                     description: "Device adheres to the associated action field.", xref: "cluster§3.2.6.3.1",
 
                     details: "This bit shall indicate whether the server adheres to the Action field in order to process the " +
@@ -9192,7 +9204,7 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "UpdateDirection", constraint: "1",
+                    name: "UpdateDirection", conformance: "M", constraint: "1",
                     description: "Device updates the associated direction attribute.", xref: "cluster§3.2.6.3.2",
 
                     details: "This bit shall indicate whether the device updates the ColorLoopDirection attribute with the " +
@@ -9206,8 +9218,8 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "UpdateTime", constraint: "2", description: "Device updates the associated time attribute.",
-                    xref: "cluster§3.2.6.3.3",
+                    name: "UpdateTime", conformance: "M", constraint: "2",
+                    description: "Device updates the associated time attribute.", xref: "cluster§3.2.6.3.3",
 
                     details: "This bit shall indicate whether the device updates the ColorLoopTime attribute with the Time field." +
                         "\n" +
@@ -9220,7 +9232,7 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "UpdateStartHue", constraint: "3",
+                    name: "UpdateStartHue", conformance: "M", constraint: "3",
                     description: "Device updates the associated start hue attribute.", xref: "cluster§3.2.6.3.4",
 
                     details: "This bit shall indicate whether the device updates the ColorLoopStartEnhancedHue attribute with the " +
@@ -9699,20 +9711,20 @@ export const SpecMatter = Matter(
         Datatype(
             { name: "PumpStatusBitmap", type: "map16", xref: "cluster§4.2.6.1" },
             Field({
-                name: "DeviceFault", constraint: "0",
+                name: "DeviceFault", conformance: "M", constraint: "0",
                 description: "A fault related to the system or pump device is detected.", xref: "cluster§4.2.6.1.1",
                 details: "If this bit is set, it may correspond to an event in the range 2-16, see Events."
             }),
             Field({
-                name: "SupplyFault", constraint: "1",
+                name: "SupplyFault", conformance: "M", constraint: "1",
                 description: "A fault related to the supply to the pump is detected.", xref: "cluster§4.2.6.1.2",
                 details: "If this bit is set, it may correspond to an event in the range 0-1 or 13, see Events."
             }),
-            Field({ name: "SpeedLow", constraint: "2", description: "Setpoint is too low to achieve." }),
-            Field({ name: "SpeedHigh", constraint: "3", description: "Setpoint is too high to achieve." }),
+            Field({ name: "SpeedLow", conformance: "M", constraint: "2", description: "Setpoint is too low to achieve." }),
+            Field({ name: "SpeedHigh", conformance: "M", constraint: "3", description: "Setpoint is too high to achieve." }),
 
             Field({
-                name: "LocalOverride", constraint: "4",
+                name: "LocalOverride", conformance: "M", constraint: "4",
                 description: "Device control is overridden by hardware, such as an external STOP button or via a local HMI.",
                 xref: "cluster§4.2.6.1.3",
                 details: "While this bit is set, the EffectiveOperationMode is adjusted to Local. Any request changing " +
@@ -9721,10 +9733,10 @@ export const SpecMatter = Matter(
                     "OperationMode."
             }),
 
-            Field({ name: "Running", constraint: "5", description: "Pump is currently running" }),
+            Field({ name: "Running", conformance: "M", constraint: "5", description: "Pump is currently running" }),
 
             Field({
-                name: "RemotePressure", constraint: "6",
+                name: "RemotePressure", conformance: "M", constraint: "6",
                 description: "A remote pressure sensor is used as the sensor for the regulation of the pump.",
                 xref: "cluster§4.2.6.1.4",
                 details: "If this bit is set, EffectiveControlMode is ConstantPressure and the setpoint for the pump is " +
@@ -9733,7 +9745,7 @@ export const SpecMatter = Matter(
             }),
 
             Field({
-                name: "RemoteFlow", constraint: "7",
+                name: "RemoteFlow", conformance: "M", constraint: "7",
                 description: "A remote flow sensor is used as the sensor for the regulation of the pump.",
                 xref: "cluster§4.2.6.1.5",
                 details: "If this bit is set, EffectiveControlMode is ConstantFlow, and the setpoint for the pump is " +
@@ -9742,7 +9754,7 @@ export const SpecMatter = Matter(
             }),
 
             Field({
-                name: "RemoteTemperature", constraint: "8",
+                name: "RemoteTemperature", conformance: "M", constraint: "8",
                 description: "A remote temperature sensor is used as the sensor for the regulation of the pump.",
                 xref: "cluster§4.2.6.1.6",
                 details: "If this bit is set, EffectiveControlMode is ConstantTemperature, and the setpoint for the pump is " +
@@ -10303,7 +10315,8 @@ export const SpecMatter = Matter(
         Attribute(
             {
                 name: "EmergencyHeatDelta", id: 0x3a, type: "UnsignedTemperature", access: "RW VM",
-                conformance: "O", default: { type: "celsius", value: 25 }, quality: "N", xref: "cluster§4.3.11.33",
+                conformance: "O", default: { type: "celsius", value: 25.5 }, quality: "N",
+                xref: "cluster§4.3.11.33",
 
                 details: "Indicates the delta between the Calculated Local Temperature and the OccupiedHeatingSetpoint or " +
                     "UnoccupiedHeatingSetpoint attributes at which the Thermostat server will operate in emergency heat " +
@@ -11052,18 +11065,30 @@ export const SpecMatter = Matter(
 
         Datatype(
             { name: "ACErrorCodeBitmap", type: "map32", xref: "cluster§4.3.10.1" },
-            Field({ name: "CompressorFail", constraint: "0", description: "Compressor Failure or Refrigerant Leakage" }),
-            Field({ name: "RoomSensorFail", constraint: "1", description: "Room Temperature Sensor Failure" }),
-            Field({ name: "OutdoorSensorFail", constraint: "2", description: "Outdoor Temperature Sensor Failure" }),
-            Field({ name: "CoilSensorFail", constraint: "3", description: "Indoor Coil Temperature Sensor Failure" }),
-            Field({ name: "FanFail", constraint: "4", description: "Fan Failure" })
+            Field({
+                name: "CompressorFail", conformance: "M", constraint: "0",
+                description: "Compressor Failure or Refrigerant Leakage"
+            }),
+            Field({
+                name: "RoomSensorFail", conformance: "M", constraint: "1",
+                description: "Room Temperature Sensor Failure"
+            }),
+            Field({
+                name: "OutdoorSensorFail", conformance: "M", constraint: "2",
+                description: "Outdoor Temperature Sensor Failure"
+            }),
+            Field({
+                name: "CoilSensorFail", conformance: "M", constraint: "3",
+                description: "Indoor Coil Temperature Sensor Failure"
+            }),
+            Field({ name: "FanFail", conformance: "M", constraint: "4", description: "Fan Failure" })
         ),
 
         Datatype(
             { name: "OccupancyBitmap", type: "map8", xref: "cluster§4.3.10.2" },
 
             Field({
-                name: "Occupied", constraint: "0", description: "Indicates the occupancy state",
+                name: "Occupied", conformance: "M", constraint: "0", description: "Indicates the occupancy state",
                 xref: "cluster§4.3.10.2.1",
                 details: "If this bit is set, it shall indicate the occupied state else if the bit if not set, it shall " +
                     "indicate the unoccupied state."
@@ -11073,41 +11098,47 @@ export const SpecMatter = Matter(
         Datatype(
             { name: "PresetTypeFeaturesBitmap", type: "map16", xref: "cluster§4.3.10.3" },
             Field({
-                name: "Automatic", constraint: "0",
+                name: "Automatic", conformance: "M", constraint: "0",
                 description: "Preset may be automatically activated by the thermostat"
             }),
-            Field({ name: "SupportsNames", constraint: "1", description: "Preset supports user-provided names" })
+            Field({
+                name: "SupportsNames", conformance: "M", constraint: "1",
+                description: "Preset supports user-provided names"
+            })
         ),
 
         Datatype(
             { name: "RelayStateBitmap", type: "map16", xref: "cluster§4.3.10.4" },
-            Field({ name: "Heat", constraint: "0", description: "Heat Stage On" }),
-            Field({ name: "Cool", constraint: "1", description: "Cool Stage On" }),
-            Field({ name: "Fan", constraint: "2", description: "Fan Stage On" }),
-            Field({ name: "HeatStage2", constraint: "3", description: "Heat 2^nd Stage On" }),
-            Field({ name: "CoolStage2", constraint: "4", description: "Cool 2^nd Stage On" }),
-            Field({ name: "FanStage2", constraint: "5", description: "Fan 2^nd Stage On" }),
-            Field({ name: "FanStage3", constraint: "6", description: "Fan 3^rd Stage On" })
+            Field({ name: "Heat", conformance: "M", constraint: "0", description: "Heat Stage On" }),
+            Field({ name: "Cool", conformance: "M", constraint: "1", description: "Cool Stage On" }),
+            Field({ name: "Fan", conformance: "M", constraint: "2", description: "Fan Stage On" }),
+            Field({ name: "HeatStage2", conformance: "M", constraint: "3", description: "Heat 2^nd Stage On" }),
+            Field({ name: "CoolStage2", conformance: "M", constraint: "4", description: "Cool 2^nd Stage On" }),
+            Field({ name: "FanStage2", conformance: "M", constraint: "5", description: "Fan 2^nd Stage On" }),
+            Field({ name: "FanStage3", conformance: "M", constraint: "6", description: "Fan 3^rd Stage On" })
         ),
 
         Datatype(
             { name: "RemoteSensingBitmap", type: "map8", xref: "cluster§4.3.10.5" },
             Field({
-                name: "LocalTemperature", constraint: "0",
+                name: "LocalTemperature", conformance: "M", constraint: "0",
                 description: "Calculated Local Temperature is derived from a remote node"
             }),
             Field({
-                name: "OutdoorTemperature", constraint: "1",
+                name: "OutdoorTemperature", conformance: "OutdoorTemperature", constraint: "1",
                 description: "OutdoorTemperature is derived from a remote node"
             }),
-            Field({ name: "Occupancy", constraint: "2", description: "Occupancy is derived from a remote node" })
+            Field({
+                name: "Occupancy", conformance: "OCC", constraint: "2",
+                description: "Occupancy is derived from a remote node"
+            })
         ),
 
         Datatype(
             { name: "ScheduleTypeFeaturesBitmap", type: "map16", xref: "cluster§4.3.10.6" },
 
             Field({
-                name: "SupportsPresets", constraint: "0", description: "Supports presets",
+                name: "SupportsPresets", conformance: "[PRES].b+", constraint: "0", description: "Supports presets",
                 xref: "cluster§4.3.10.6.1",
                 details: "This bit shall indicate that any ScheduleStruct with a SystemMode field whose value matches the " +
                     "SystemMode field on the encompassing ScheduleTypeStruct supports specifying presets on " +
@@ -11115,7 +11146,7 @@ export const SpecMatter = Matter(
             }),
 
             Field({
-                name: "SupportsSetpoints", constraint: "1", description: "Supports setpoints",
+                name: "SupportsSetpoints", conformance: "O.b+", constraint: "1", description: "Supports setpoints",
                 xref: "cluster§4.3.10.6.2",
                 details: "This bit shall indicate that any ScheduleStruct with a SystemMode field whose value matches the " +
                     "SystemMode field on the encompassing ScheduleTypeStruct supports specifying setpoints on " +
@@ -11123,16 +11154,16 @@ export const SpecMatter = Matter(
             }),
 
             Field({
-                name: "SupportsNames", constraint: "2", description: "Supports user-provided names",
-                xref: "cluster§4.3.10.6.3",
+                name: "SupportsNames", conformance: "O", constraint: "2",
+                description: "Supports user-provided names", xref: "cluster§4.3.10.6.3",
                 details: "This bit shall indicate that any ScheduleStruct with a SystemMode field whose value matches the " +
                     "SystemMode field on the encompassing ScheduleTypeStruct supports setting the value of the Name " +
                     "field."
             }),
 
             Field({
-                name: "SupportsOff", constraint: "3", description: "Supports transitioning to SystemModeOff",
-                xref: "cluster§4.3.10.6.4",
+                name: "SupportsOff", conformance: "O", constraint: "3",
+                description: "Supports transitioning to SystemModeOff", xref: "cluster§4.3.10.6.4",
                 details: "This bit shall indicate that any ScheduleStruct with a SystemMode field whose value matches the " +
                     "SystemMode field on the encompassing ScheduleTypeStruct supports setting its SystemMode field to " +
                     "Off."
@@ -11141,42 +11172,51 @@ export const SpecMatter = Matter(
 
         Datatype(
             { name: "ScheduleDayOfWeekBitmap", type: "map8", xref: "cluster§4.3.10.7" },
-            Field({ name: "Sunday", constraint: "0", description: "Sunday" }),
-            Field({ name: "Monday", constraint: "1", description: "Monday" }),
-            Field({ name: "Tuesday", constraint: "2", description: "Tuesday" }),
-            Field({ name: "Wednesday", constraint: "3", description: "Wednesday" }),
-            Field({ name: "Thursday", constraint: "4", description: "Thursday" }),
-            Field({ name: "Friday", constraint: "5", description: "Friday" }),
-            Field({ name: "Saturday", constraint: "6", description: "Saturday" }),
-            Field({ name: "Away", constraint: "7", description: "Away or Vacation" })
+            Field({ name: "Sunday", conformance: "M", constraint: "0", description: "Sunday" }),
+            Field({ name: "Monday", conformance: "M", constraint: "1", description: "Monday" }),
+            Field({ name: "Tuesday", conformance: "M", constraint: "2", description: "Tuesday" }),
+            Field({ name: "Wednesday", conformance: "M", constraint: "3", description: "Wednesday" }),
+            Field({ name: "Thursday", conformance: "M", constraint: "4", description: "Thursday" }),
+            Field({ name: "Friday", conformance: "M", constraint: "5", description: "Friday" }),
+            Field({ name: "Saturday", conformance: "M", constraint: "6", description: "Saturday" }),
+            Field({ name: "Away", conformance: "M", constraint: "7", description: "Away or Vacation" })
         ),
 
         Datatype(
             { name: "ScheduleModeBitmap", type: "map8", xref: "cluster§4.3.10.8" },
-            Field({ name: "HeatSetpointPresent", constraint: "0", description: "Adjust Heat Setpoint" }),
-            Field({ name: "CoolSetpointPresent", constraint: "1", description: "Adjust Cool Setpoint" })
+            Field({ name: "HeatSetpointPresent", conformance: "M", constraint: "0", description: "Adjust Heat Setpoint" }),
+            Field({ name: "CoolSetpointPresent", conformance: "M", constraint: "1", description: "Adjust Cool Setpoint" })
         ),
 
         Datatype(
             { name: "ThermostatSuggestionNotFollowingReasonBitmap", type: "map16", xref: "cluster§4.3.10.9" },
             Field({
-                name: "DemandResponseEvent", constraint: "0",
+                name: "DemandResponseEvent", conformance: "M", constraint: "0",
                 description: "Thermostat is responding to a Demand Response event"
             }),
-            Field({ name: "OngoingHold", constraint: "1", description: "Thermostat has an ongoing setpoint hold" }),
-            Field({ name: "Schedule", constraint: "2", description: "Thermostat is following a schedule" }),
-            Field({ name: "Occupancy", constraint: "3", description: "Thermostat is following the occupancy signal" }),
-            Field({ name: "VacationMode", constraint: "4", description: "Thermostat is set to Vacation mode" }),
             Field({
-                name: "TimeOfUseCostSavings", constraint: "5",
+                name: "OngoingHold", conformance: "M", constraint: "1",
+                description: "Thermostat has an ongoing setpoint hold"
+            }),
+            Field({ name: "Schedule", conformance: "M", constraint: "2", description: "Thermostat is following a schedule" }),
+            Field({
+                name: "Occupancy", conformance: "M", constraint: "3",
+                description: "Thermostat is following the occupancy signal"
+            }),
+            Field({
+                name: "VacationMode", conformance: "M", constraint: "4",
+                description: "Thermostat is set to Vacation mode"
+            }),
+            Field({
+                name: "TimeOfUseCostSavings", conformance: "M", constraint: "5",
                 description: "Thermostat is following a Time Of Use based cost savings plan"
             }),
             Field({
-                name: "PreCoolingOrPreHeating", constraint: "6",
+                name: "PreCoolingOrPreHeating", conformance: "M", constraint: "6",
                 description: "Thermostat is precooling or preheating based on an energy forecast signal"
             }),
             Field({
-                name: "ConflictingSuggestions", constraint: "7",
+                name: "ConflictingSuggestions", conformance: "M", constraint: "7",
                 description: "Thermostat has conflicting suggestions and is unable to choose one"
             })
         ),
@@ -12032,21 +12072,23 @@ export const SpecMatter = Matter(
 
         Datatype(
             { name: "RockBitmap", type: "map8", xref: "cluster§4.4.5.1" },
-            Field({ name: "RockLeftRight", constraint: "0", description: "Indicate rock left to right" }),
-            Field({ name: "RockUpDown", constraint: "1", description: "Indicate rock up and down" }),
-            Field({ name: "RockRound", constraint: "2", description: "Indicate rock around" })
+            Field({ name: "RockLeftRight", conformance: "M", constraint: "0", description: "Indicate rock left to right" }),
+            Field({ name: "RockUpDown", conformance: "M", constraint: "1", description: "Indicate rock up and down" }),
+            Field({ name: "RockRound", conformance: "M", constraint: "2", description: "Indicate rock around" })
         ),
 
         Datatype(
             { name: "WindBitmap", type: "map8", xref: "cluster§4.4.5.2" },
+
             Field({
-                name: "SleepWind", constraint: "0", description: "Indicate sleep wind", xref: "cluster§4.4.5.2.1",
+                name: "SleepWind", conformance: "M", constraint: "0", description: "Indicate sleep wind",
+                xref: "cluster§4.4.5.2.1",
                 details: "The fan speed, based on current settings, shall gradually slow down to a final minimum speed. For " +
                     "this process, the sequence, speeds and duration are MS."
             }),
 
             Field({
-                name: "NaturalWind", constraint: "1", description: "Indicate natural wind",
+                name: "NaturalWind", conformance: "M", constraint: "1", description: "Indicate natural wind",
                 xref: "cluster§4.4.5.2.2",
                 details: "The fan speed shall vary to emulate natural wind. For this setting, the sequence, speeds and " +
                     "duration are MS."
@@ -12412,12 +12454,18 @@ export const SpecMatter = Matter(
 
         Datatype(
             { name: "ValveFaultBitmap", type: "map16", xref: "cluster§4.6.5.1" },
-            Field({ name: "GeneralFault", constraint: "0", description: "Unspecified fault detected" }),
-            Field({ name: "Blocked", constraint: "1", description: "Valve is blocked" }),
-            Field({ name: "Leaking", constraint: "2", description: "Valve has detected a leak" }),
-            Field({ name: "NotConnected", constraint: "3", description: "No valve is connected to controller" }),
-            Field({ name: "ShortCircuit", constraint: "4", description: "Short circuit is detected" }),
-            Field({ name: "CurrentExceeded", constraint: "5", description: "The available current has been exceeded" })
+            Field({ name: "GeneralFault", conformance: "M", constraint: "0", description: "Unspecified fault detected" }),
+            Field({ name: "Blocked", conformance: "M", constraint: "1", description: "Valve is blocked" }),
+            Field({ name: "Leaking", conformance: "M", constraint: "2", description: "Valve has detected a leak" }),
+            Field({
+                name: "NotConnected", conformance: "M", constraint: "3",
+                description: "No valve is connected to controller"
+            }),
+            Field({ name: "ShortCircuit", conformance: "M", constraint: "4", description: "Short circuit is detected" }),
+            Field({
+                name: "CurrentExceeded", conformance: "M", constraint: "5",
+                description: "The available current has been exceeded"
+            })
         ),
 
         Datatype(
@@ -12808,21 +12856,21 @@ export const SpecMatter = Matter(
 
         Attribute({
             name: "EnableOneTouchLocking", id: 0x29, type: "bool", access: "RW VM", conformance: "O",
-            default: true, xref: "cluster§5.2.9.28",
+            default: false, xref: "cluster§5.2.9.28",
             details: "This attribute shall enable/disable the ability to lock the door lock with a single touch on the " +
                 "door lock."
         }),
 
         Attribute({
             name: "EnableInsideStatusLed", id: 0x2a, type: "bool", access: "RW VM", conformance: "O",
-            default: true, xref: "cluster§5.2.9.29",
+            default: false, xref: "cluster§5.2.9.29",
             details: "This attribute shall enable/disable an inside LED that allows the user to see at a glance if the " +
                 "door is locked."
         }),
 
         Attribute({
             name: "EnablePrivacyModeButton", id: 0x2b, type: "bool", access: "RW VM", conformance: "O",
-            default: true, xref: "cluster§5.2.9.30",
+            default: false, xref: "cluster§5.2.9.30",
             details: "This attribute shall enable/disable a button inside the door that is used to put the lock into " +
                 "privacy mode. When the lock is in privacy mode it cannot be manipulated from the outside."
         }),
@@ -12868,7 +12916,7 @@ export const SpecMatter = Matter(
 
         Attribute({
             name: "SendPinOverTheAir", id: 0x32, type: "bool", access: "R[W] VA", conformance: "[!USR & PIN]",
-            default: true, xref: "cluster§5.2.9.34",
+            default: false, xref: "cluster§5.2.9.34",
 
             details: "Indicates the door locks ability to send PINs over the air. If the attribute is True it is ok for " +
                 "the door lock server to send PINs over the air. This attribute determines the behavior of the " +
@@ -14248,20 +14296,29 @@ export const SpecMatter = Matter(
                 name: "DaysMaskBitmap", type: "map8", xref: "cluster§5.2.6.1",
                 details: "This bitmap shall indicate the days of the week the Week Day schedule applies for."
             },
-            Field({ name: "Sunday", constraint: "0", description: "Schedule is applied on Sunday" }),
-            Field({ name: "Monday", constraint: "1", description: "Schedule is applied on Monday" }),
-            Field({ name: "Tuesday", constraint: "2", description: "Schedule is applied on Tuesday" }),
-            Field({ name: "Wednesday", constraint: "3", description: "Schedule is applied on Wednesday" }),
-            Field({ name: "Thursday", constraint: "4", description: "Schedule is applied on Thursday" }),
-            Field({ name: "Friday", constraint: "5", description: "Schedule is applied on Friday" }),
-            Field({ name: "Saturday", constraint: "6", description: "Schedule is applied on Saturday" })
+            Field({ name: "Sunday", conformance: "M", constraint: "0", description: "Schedule is applied on Sunday" }),
+            Field({ name: "Monday", conformance: "M", constraint: "1", description: "Schedule is applied on Monday" }),
+            Field({ name: "Tuesday", conformance: "M", constraint: "2", description: "Schedule is applied on Tuesday" }),
+            Field({ name: "Wednesday", conformance: "M", constraint: "3", description: "Schedule is applied on Wednesday" }),
+            Field({ name: "Thursday", conformance: "M", constraint: "4", description: "Schedule is applied on Thursday" }),
+            Field({ name: "Friday", conformance: "M", constraint: "5", description: "Schedule is applied on Friday" }),
+            Field({ name: "Saturday", conformance: "M", constraint: "6", description: "Schedule is applied on Saturday" })
         ),
 
         Datatype(
             { name: "CredentialRulesBitmap", type: "map8", xref: "cluster§5.2.6.2" },
-            Field({ name: "Single", constraint: "0", description: "Only one credential is required for lock operation" }),
-            Field({ name: "Dual", constraint: "1", description: "Any two credentials are required for lock operation" }),
-            Field({ name: "Tri", constraint: "2", description: "Any three credentials are required for lock operation" })
+            Field({
+                name: "Single", conformance: "M", constraint: "0",
+                description: "Only one credential is required for lock operation"
+            }),
+            Field({
+                name: "Dual", conformance: "M", constraint: "1",
+                description: "Any two credentials are required for lock operation"
+            }),
+            Field({
+                name: "Tri", conformance: "M", constraint: "2",
+                description: "Any three credentials are required for lock operation"
+            })
         ),
 
         Datatype(
@@ -14276,11 +14333,14 @@ export const SpecMatter = Matter(
                     "  consideration. See SupportedOperatingModes."
             },
 
-            Field({ name: "Normal", constraint: "0", description: "Normal operation mode" }),
-            Field({ name: "Vacation", constraint: "1", description: "Vacation operation mode" }),
-            Field({ name: "Privacy", constraint: "2", description: "Privacy operation mode" }),
-            Field({ name: "NoRemoteLockUnlock", constraint: "3", description: "No remote lock and unlock operation mode" }),
-            Field({ name: "Passage", constraint: "4", description: "Passage operation mode" })
+            Field({ name: "Normal", conformance: "M", constraint: "0", description: "Normal operation mode" }),
+            Field({ name: "Vacation", conformance: "O", constraint: "1", description: "Vacation operation mode" }),
+            Field({ name: "Privacy", conformance: "O", constraint: "2", description: "Privacy operation mode" }),
+            Field({
+                name: "NoRemoteLockUnlock", conformance: "M", constraint: "3",
+                description: "No remote lock and unlock operation mode"
+            }),
+            Field({ name: "Passage", conformance: "O", constraint: "4", description: "Passage operation mode" })
         ),
 
         Datatype(
@@ -14288,7 +14348,7 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "LocalProgramming", constraint: "0",
+                    name: "LocalProgramming", conformance: "M", constraint: "0",
                     description: "The state of local programming functionality", xref: "cluster§5.2.6.4.1",
                     details: "This bit shall indicate the state related to local programming:" +
                         "\n" +
@@ -14300,8 +14360,8 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "KeypadInterface", constraint: "1", description: "The state of the keypad interface",
-                    xref: "cluster§5.2.6.4.2",
+                    name: "KeypadInterface", conformance: "M", constraint: "1",
+                    description: "The state of the keypad interface", xref: "cluster§5.2.6.4.2",
                     details: "This bit shall indicate the state related to keypad interface:" +
                         "\n" +
                         "  - 0 = Keypad interface is disabled" +
@@ -14312,8 +14372,8 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "RemoteInterface", constraint: "2", description: "The state of the remote interface",
-                    xref: "cluster§5.2.6.4.3",
+                    name: "RemoteInterface", conformance: "M", constraint: "2",
+                    description: "The state of the remote interface", xref: "cluster§5.2.6.4.3",
                     details: "This bit shall indicate the state related to remote interface:" +
                         "\n" +
                         "  - 0 = Remote interface is disabled" +
@@ -14324,8 +14384,8 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "SoundVolume", constraint: "5", description: "Sound volume is set to Silent value",
-                    xref: "cluster§5.2.6.4.4",
+                    name: "SoundVolume", conformance: "M", constraint: "5",
+                    description: "Sound volume is set to Silent value", xref: "cluster§5.2.6.4.4",
                     details: "This bit shall indicate the state related to sound volume:" +
                         "\n" +
                         "  - 0 = Sound volume value is 0 (Silent)" +
@@ -14336,8 +14396,8 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "AutoRelockTime", constraint: "6", description: "Auto relock time it set to 0",
-                    xref: "cluster§5.2.6.4.5",
+                    name: "AutoRelockTime", conformance: "M", constraint: "6",
+                    description: "Auto relock time it set to 0", xref: "cluster§5.2.6.4.5",
                     details: "This bit shall indicate the state related to auto relock time:" +
                         "\n" +
                         "  - 0 = Auto relock time value is 0" +
@@ -14348,7 +14408,8 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "LedSettings", constraint: "7", description: "LEDs is disabled", xref: "cluster§5.2.6.4.6",
+                    name: "LedSettings", conformance: "M", constraint: "7", description: "LEDs is disabled",
+                    xref: "cluster§5.2.6.4.6",
                     details: "This bit shall indicate the state related to LED settings:" +
                         "\n" +
                         "  - 0 = LED settings value is 0 (NoLEDSignal)" +
@@ -14363,7 +14424,7 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "AddUsersCredentialsSchedules", constraint: "0",
+                    name: "AddUsersCredentialsSchedules", conformance: "M", constraint: "0",
                     description: "The state of the ability to add users, credentials or schedules on the device",
                     xref: "cluster§5.2.6.5.1",
                     details: "This bit shall indicate whether the door lock is able to add Users/Credentials/Schedules locally:" +
@@ -14376,7 +14437,7 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "ModifyUsersCredentialsSchedules", constraint: "1",
+                    name: "ModifyUsersCredentialsSchedules", conformance: "M", constraint: "1",
                     description: "The state of the ability to modify users, credentials or schedules on the device",
                     xref: "cluster§5.2.6.5.2",
                     details: "This bit shall indicate whether the door lock is able to modify Users/Credentials/Schedules locally:" +
@@ -14389,7 +14450,7 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "ClearUsersCredentialsSchedules", constraint: "2",
+                    name: "ClearUsersCredentialsSchedules", conformance: "M", constraint: "2",
                     description: "The state of the ability to clear users, credentials or schedules on the device",
                     xref: "cluster§5.2.6.5.3",
                     details: "This bit shall indicate whether the door lock is able to clear Users/Credentials/Schedules locally:" +
@@ -14402,7 +14463,7 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "AdjustSettings", constraint: "3",
+                    name: "AdjustSettings", conformance: "M", constraint: "3",
                     description: "The state of the ability to adjust settings on the device", xref: "cluster§5.2.6.5.4",
                     details: "This bit shall indicate whether the door lock is able to adjust lock settings locally:" +
                         "\n" +
@@ -14415,15 +14476,24 @@ export const SpecMatter = Matter(
 
         Datatype(
             { name: "AlarmMaskBitmap", type: "map16", xref: "cluster§5.2.6.6" },
-            Field({ name: "LockJammed", constraint: "0", description: "Locking Mechanism Jammed" }),
-            Field({ name: "LockFactoryReset", constraint: "1", description: "Lock Reset to Factory Defaults" }),
-            Field({ name: "LockRadioPowerCycled", constraint: "3", description: "RF Module Power Cycled" }),
-            Field({ name: "WrongCodeEntryLimit", constraint: "4", description: "Tamper Alarm - wrong code entry limit" }),
+            Field({ name: "LockJammed", conformance: "M", constraint: "0", description: "Locking Mechanism Jammed" }),
             Field({
-                name: "FrontEscutcheonRemoved", constraint: "5",
+                name: "LockFactoryReset", conformance: "O", constraint: "1",
+                description: "Lock Reset to Factory Defaults"
+            }),
+            Field({ name: "LockRadioPowerCycled", conformance: "O", constraint: "3", description: "RF Module Power Cycled" }),
+            Field({
+                name: "WrongCodeEntryLimit", conformance: "PIN | RID", constraint: "4",
+                description: "Tamper Alarm - wrong code entry limit"
+            }),
+            Field({
+                name: "FrontEscutcheonRemoved", conformance: "O", constraint: "5",
                 description: "Tamper Alarm - front escutcheon removed from main"
             }),
-            Field({ name: "DoorForcedOpen", constraint: "6", description: "Forced Door Open under Door Locked Condition" })
+            Field({
+                name: "DoorForcedOpen", conformance: "O", constraint: "6",
+                description: "Forced Door Open under Door Locked Condition"
+            })
         ),
 
         Datatype(
@@ -15292,7 +15362,7 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "Operational", constraint: "0", description: "Device is operational.",
+                    name: "Operational", conformance: "M", constraint: "0", description: "Device is operational.",
                     xref: "cluster§5.3.5.1.1",
                     details: "This bit shall indicate whether the window covering is operational for regular use:" +
                         "\n" +
@@ -15302,12 +15372,12 @@ export const SpecMatter = Matter(
                 }
             ),
 
-            Field({ name: "OnlineReserved", constraint: "1" }),
+            Field({ name: "OnlineReserved", conformance: "D", constraint: "1" }),
 
             Field(
                 {
-                    name: "LiftMovementReversed", constraint: "2", description: "The lift movement is reversed.",
-                    xref: "cluster§5.3.5.1.2",
+                    name: "LiftMovementReversed", conformance: "LF", constraint: "2",
+                    description: "The lift movement is reversed.", xref: "cluster§5.3.5.1.2",
                     details: "This bit shall indicate whether the lift movement is reversed:" +
                         "\n" +
                         "  - 0 = Lift movement is normal" +
@@ -15318,7 +15388,7 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "LiftPositionAware", constraint: "3",
+                    name: "LiftPositionAware", conformance: "PA_LF", constraint: "3",
                     description: "Supports the PositionAwareLift feature (PA_LF).", xref: "cluster§5.3.5.1.3",
                     details: "This bit shall indicate whether the window covering supports the PositionAwareLift feature:" +
                         "\n" +
@@ -15330,7 +15400,7 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "TiltPositionAware", constraint: "4",
+                    name: "TiltPositionAware", conformance: "PA_TL", constraint: "4",
                     description: "Supports the PositionAwareTilt feature (PA_TL).", xref: "cluster§5.3.5.1.4",
                     details: "This bit shall indicate whether the window covering supports the PositionAwareTilt feature:" +
                         "\n" +
@@ -15342,8 +15412,8 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "LiftEncoderControlled", constraint: "5", description: "Uses an encoder for lift.",
-                    xref: "cluster§5.3.5.1.5",
+                    name: "LiftEncoderControlled", conformance: "PA_LF", constraint: "5",
+                    description: "Uses an encoder for lift.", xref: "cluster§5.3.5.1.5",
 
                     details: "This bit shall indicate whether a position aware controlled window covering is employing an encoder " +
                         "for positioning the height of the window covering:" +
@@ -15356,8 +15426,8 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "TiltEncoderControlled", constraint: "6", description: "Uses an encoder for tilt.",
-                    xref: "cluster§5.3.5.1.6",
+                    name: "TiltEncoderControlled", conformance: "PA_TL", constraint: "6",
+                    description: "Uses an encoder for tilt.", xref: "cluster§5.3.5.1.6",
 
                     details: "This bit shall indicate whether a position aware controlled window covering is employing an encoder " +
                         "for tilting the window covering:" +
@@ -15374,8 +15444,8 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "MotorDirectionReversed", constraint: "0", description: "Reverse the lift direction.",
-                    xref: "cluster§5.3.5.2.1",
+                    name: "MotorDirectionReversed", conformance: "M", constraint: "0",
+                    description: "Reverse the lift direction.", xref: "cluster§5.3.5.2.1",
                     details: "This bit shall control the motor direction:" +
                         "\n" +
                         "  - 0 = Lift movement is normal" +
@@ -15386,7 +15456,7 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "CalibrationMode", constraint: "1", description: "Perform a calibration.",
+                    name: "CalibrationMode", conformance: "M", constraint: "1", description: "Perform a calibration.",
                     xref: "cluster§5.3.5.2.2",
                     details: "This bit shall set the window covering into calibration mode:" +
                         "\n" +
@@ -15398,8 +15468,8 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "MaintenanceMode", constraint: "2", description: "Freeze all motions for maintenance.",
-                    xref: "cluster§5.3.5.2.3",
+                    name: "MaintenanceMode", conformance: "M", constraint: "2",
+                    description: "Freeze all motions for maintenance.", xref: "cluster§5.3.5.2.3",
                     details: "This bit shall set the window covering into maintenance mode:" +
                         "\n" +
                         "  - 0 = Normal mode" +
@@ -15410,7 +15480,7 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "LedFeedback", constraint: "3", description: "Control the LEDs feedback.",
+                    name: "LedFeedback", conformance: "M", constraint: "3", description: "Control the LEDs feedback.",
                     xref: "cluster§5.3.5.2.4",
                     details: "This bit shall control feedback LEDs:" +
                         "\n" +
@@ -15438,21 +15508,21 @@ export const SpecMatter = Matter(
             },
 
             Field({
-                name: "Global", constraint: "0 to 1", description: "Global operational state.",
+                name: "Global", conformance: "M", constraint: "0 to 1", description: "Global operational state.",
                 xref: "cluster§5.3.5.3.1",
                 details: "These bits shall indicate in which direction the covering is currently moving or if it has stopped. " +
                     "Global operational state shall always reflect the overall motion of the device."
             }),
 
             Field({
-                name: "Lift", constraint: "2 to 3", description: "Lift operational state.",
+                name: "Lift", conformance: "LF", constraint: "2 to 3", description: "Lift operational state.",
                 xref: "cluster§5.3.5.3.2",
                 details: "These bits shall indicate in which direction the covering's lift is currently moving or if it has " +
                     "stopped."
             }),
 
             Field({
-                name: "Tilt", constraint: "4 to 5", description: "Tilt operational state.",
+                name: "Tilt", conformance: "TL", constraint: "4 to 5", description: "Tilt operational state.",
                 xref: "cluster§5.3.5.3.3",
                 details: "These bits shall indicate in which direction the covering's tilt is currently moving or if it has " +
                     "stopped."
@@ -15462,44 +15532,50 @@ export const SpecMatter = Matter(
         Datatype(
             { name: "SafetyStatusBitmap", type: "map16", xref: "cluster§5.3.5.4" },
             Field({
-                name: "RemoteLockout", constraint: "0",
+                name: "RemoteLockout", conformance: "M", constraint: "0",
                 description: "Movement commands are ignored (locked out). e.g. not granted authorization, outside some time/date range."
             }),
             Field({
-                name: "TamperDetection", constraint: "1",
+                name: "TamperDetection", conformance: "M", constraint: "1",
                 description: "Tampering detected on sensors or any other safety equipment. Ex: a device has been forcedly moved without its actuator(s)."
             }),
             Field({
-                name: "FailedCommunication", constraint: "2",
+                name: "FailedCommunication", conformance: "M", constraint: "2",
                 description: "Communication failure to sensors or other safety equipment."
             }),
             Field({
-                name: "PositionFailure", constraint: "3",
+                name: "PositionFailure", conformance: "M", constraint: "3",
                 description: "Device has failed to reach the desired position. e.g. with position aware device, time expired before TargetPosition is reached."
             }),
             Field({
-                name: "ThermalProtection", constraint: "4",
+                name: "ThermalProtection", conformance: "M", constraint: "4",
                 description: "Motor(s) and/or electric circuit thermal protection activated."
             }),
-            Field({ name: "ObstacleDetected", constraint: "5", description: "An obstacle is preventing actuator movement." }),
             Field({
-                name: "Power", constraint: "6",
+                name: "ObstacleDetected", conformance: "M", constraint: "5",
+                description: "An obstacle is preventing actuator movement."
+            }),
+            Field({
+                name: "Power", conformance: "M", constraint: "6",
                 description: "Device has power related issue or limitation e.g. device is running w/ the help of a backup battery or power might not be fully available at the moment."
             }),
             Field({
-                name: "StopInput", constraint: "7",
+                name: "StopInput", conformance: "M", constraint: "7",
                 description: "Local safety sensor (not a direct obstacle) is preventing movements (e.g. Safety EU Standard EN60335)."
             }),
             Field({
-                name: "MotorJammed", constraint: "8",
+                name: "MotorJammed", conformance: "M", constraint: "8",
                 description: "Mechanical problem related to the motor(s) detected."
             }),
-            Field({ name: "HardwareFailure", constraint: "9", description: "PCB, fuse and other electrics problems." }),
             Field({
-                name: "ManualOperation", constraint: "10",
+                name: "HardwareFailure", conformance: "M", constraint: "9",
+                description: "PCB, fuse and other electrics problems."
+            }),
+            Field({
+                name: "ManualOperation", conformance: "M", constraint: "10",
                 description: "Actuator is manually operated and is preventing actuator movement (e.g. actuator is disengaged/decoupled)."
             }),
-            Field({ name: "Protection", constraint: "11", description: "Protection is activated." })
+            Field({ name: "Protection", conformance: "M", constraint: "11", description: "Protection is activated." })
         ),
 
         Datatype(
@@ -16123,8 +16199,8 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "RemoteLatching", constraint: "0", description: "Remote latching capability",
-                    xref: "cluster§5.4.6.7.1",
+                    name: "RemoteLatching", conformance: "LT", constraint: "0",
+                    description: "Remote latching capability", xref: "cluster§5.4.6.7.1",
                     details: "This bit shall indicate whether the latch supports remote latching or not:" +
                         "\n" +
                         "  - 0 = the latch can only be latched through manual, physical operation." +
@@ -16135,8 +16211,8 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "RemoteUnlatching", constraint: "1", description: "Remote unlatching capability",
-                    xref: "cluster§5.4.6.7.2",
+                    name: "RemoteUnlatching", conformance: "LT", constraint: "1",
+                    description: "Remote unlatching capability", xref: "cluster§5.4.6.7.2",
                     details: "This bit shall indicate whether the latch supports remote unlatching or not:" +
                         "\n" +
                         "  - 0 = the latch can only be unlatched through manual, physical operation." +
@@ -16305,7 +16381,7 @@ export const SpecMatter = Matter(
         Attribute(
             {
                 name: "Resolution", id: 0x2, type: "percent100ths", access: "R V", conformance: "PS",
-                constraint: "min 0.01%", default: { type: "percent", value: 0 }, quality: "F",
+                constraint: "min 0.01%", default: { type: "percent", value: 0.01 }, quality: "F",
                 xref: "cluster§5.5.7.3",
 
                 details: "Indicates the minimal acceptable change to the Position field of the TargetState and CurrentState " +
@@ -16325,7 +16401,7 @@ export const SpecMatter = Matter(
 
         Attribute({
             name: "StepValue", id: 0x3, type: "percent100ths", access: "R V", conformance: "PS",
-            constraint: "min 0.01%", default: { type: "percent", value: 0 }, quality: "F",
+            constraint: "min 0.01%", default: { type: "percent", value: 0.01 }, quality: "F",
             xref: "cluster§5.5.7.4",
 
             details: "Indicates the size of a single step, expressed in percent100ths. When the Step command is used, each " +
@@ -16648,12 +16724,12 @@ export const SpecMatter = Matter(
         Datatype(
             { name: "RangePercent100thsStruct", type: "struct", xref: "cluster§5.5.6.7" },
             Field({ name: "Min", id: 0x0, type: "percent100ths", conformance: "M" }),
-            Field({ name: "Max", id: 0x1, type: "percent100ths", conformance: "M", constraint: "min to 100%" })
+            Field({ name: "Max", id: 0x1, type: "percent100ths", conformance: "M", constraint: "Min to 100%" })
         ),
         Datatype(
             { name: "UnitRangeStruct", type: "struct", xref: "cluster§5.5.6.8" },
             Field({ name: "Min", id: 0x0, type: "int16", conformance: "M" }),
-            Field({ name: "Max", id: 0x1, type: "int16", conformance: "M", constraint: "min to 32767" })
+            Field({ name: "Max", id: 0x1, type: "int16", conformance: "M", constraint: "Min to 32767" })
         ),
 
         Datatype(
@@ -16692,8 +16768,8 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "RemoteLatching", constraint: "0", description: "Remote latching capability",
-                    xref: "cluster§5.5.6.10.1",
+                    name: "RemoteLatching", conformance: "LT", constraint: "0",
+                    description: "Remote latching capability", xref: "cluster§5.5.6.10.1",
                     details: "This bit shall indicate whether the latch supports remote latching or not:" +
                         "\n" +
                         "  - 0 = the latch can only be latched through manual, physical operation." +
@@ -16704,8 +16780,8 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "RemoteUnlatching", constraint: "1", description: "Remote unlatching capability",
-                    xref: "cluster§5.5.6.10.2",
+                    name: "RemoteUnlatching", conformance: "LT", constraint: "1",
+                    description: "Remote unlatching capability", xref: "cluster§5.5.6.10.2",
                     details: "This bit shall indicate whether the latch supports remote unlatching or not:" +
                         "\n" +
                         "  - 0 = the latch can only be unlatched through manual, physical operation." +
@@ -17665,9 +17741,18 @@ export const SpecMatter = Matter(
 
         Datatype(
             { name: "RecordingFlagBitmap", type: "map8", xref: "cluster§6.6.5.1" },
-            Field({ name: "Scheduled", constraint: "0", description: "The program is scheduled for recording." }),
-            Field({ name: "RecordSeries", constraint: "1", description: "The program series is scheduled for recording." }),
-            Field({ name: "Recorded", constraint: "2", description: "The program is recorded and available to be played." })
+            Field({
+                name: "Scheduled", conformance: "M", constraint: "0",
+                description: "The program is scheduled for recording."
+            }),
+            Field({
+                name: "RecordSeries", conformance: "M", constraint: "1",
+                description: "The program series is scheduled for recording."
+            }),
+            Field({
+                name: "Recorded", conformance: "M", constraint: "2",
+                description: "The program is recorded and available to be played."
+            })
         ),
 
         Datatype(
@@ -18252,10 +18337,13 @@ export const SpecMatter = Matter(
         Datatype(
             { name: "SupportedProtocolsBitmap", type: "map32", xref: "cluster§6.7.5.1" },
             Field({
-                name: "Dash", constraint: "0",
+                name: "Dash", conformance: "M", constraint: "0",
                 description: "Device supports Dynamic Adaptive Streaming over HTTP (DASH)"
             }),
-            Field({ name: "Hls", constraint: "1", description: "Device supports HTTP Live Streaming (HLS)" })
+            Field({
+                name: "Hls", conformance: "M", constraint: "1",
+                description: "Device supports HTTP Live Streaming (HLS)"
+            })
         ),
 
         Datatype(
@@ -20621,11 +20709,17 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, xref: "cluster§7.2.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§7.2.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§7.2.6" }),
-        Datatype({
-            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§7.2.5.1",
-            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                "ModeOptionStruct type. A blank field indicates no change."
-        }),
+
+        Datatype(
+            {
+                name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§7.2.5.1",
+                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                    "ModeOptionStruct type. A blank field indicates no change."
+            },
+            Field({ name: "Label", id: 0x0, conformance: "M" }),
+            Field({ name: "Mode", id: 0x1, conformance: "M" }),
+            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
+        ),
 
         Datatype(
             { name: "ModeChangeStatus", type: "enum8" },
@@ -20719,11 +20813,18 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, xref: "cluster§7.3.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§7.3.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§7.3.6" }),
-        Datatype({
-            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§7.3.5.1",
-            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                "ModeOptionStruct type. A blank field indicates no change."
-        }),
+
+        Datatype(
+            {
+                name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§7.3.5.1",
+                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                    "ModeOptionStruct type. A blank field indicates no change."
+            },
+            Field({ name: "Label", id: 0x0, conformance: "M" }),
+            Field({ name: "Mode", id: 0x1, conformance: "M" }),
+            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
+        ),
+
         Datatype(
             { name: "ModeChangeStatus", type: "enum8" },
             Field({ name: "CleaningInProgress", id: 0x40, xref: "cluster§7.3.7.1" })
@@ -21088,11 +21189,17 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, conformance: "M", xref: "cluster§8.3.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§8.3.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§8.3.6" }),
-        Datatype({
-            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§8.3.5.1",
-            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                "ModeOptionStruct type. A blank field indicates no change."
-        }),
+
+        Datatype(
+            {
+                name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§8.3.5.1",
+                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                    "ModeOptionStruct type. A blank field indicates no change."
+            },
+            Field({ name: "Label", id: 0x0, conformance: "M" }),
+            Field({ name: "Mode", id: 0x1, conformance: "M" }),
+            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
+        ),
 
         Datatype(
             { name: "ModeTag", type: "enum16" },
@@ -21127,12 +21234,18 @@ export const SpecMatter = Matter(
 
         Datatype(
             { name: "AlarmBitmap", type: "map32", xref: "cluster§8.4.4.1" },
-            Field({ name: "InflowError", constraint: "0", description: "Water inflow is abnormal" }),
-            Field({ name: "DrainError", constraint: "1", description: "Water draining is abnormal" }),
-            Field({ name: "DoorError", constraint: "2", description: "Door or door lock is abnormal" }),
-            Field({ name: "TempTooLow", constraint: "3", description: "Unable to reach normal temperature" }),
-            Field({ name: "TempTooHigh", constraint: "4", description: "Temperature is too high" }),
-            Field({ name: "WaterLevelError", constraint: "5", description: "Water level is abnormal" })
+            Field({ name: "InflowError", conformance: "P, O.a+", constraint: "0", description: "Water inflow is abnormal" }),
+            Field({ name: "DrainError", conformance: "P, O.a+", constraint: "1", description: "Water draining is abnormal" }),
+            Field({ name: "DoorError", conformance: "O.a+", constraint: "2", description: "Door or door lock is abnormal" }),
+            Field({
+                name: "TempTooLow", conformance: "P, O.a+", constraint: "3",
+                description: "Unable to reach normal temperature"
+            }),
+            Field({ name: "TempTooHigh", conformance: "P, O.a+", constraint: "4", description: "Temperature is too high" }),
+            Field({
+                name: "WaterLevelError", conformance: "P, O.a+", constraint: "5",
+                description: "Water level is abnormal"
+            })
         )
     ),
 
@@ -21162,11 +21275,17 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, conformance: "M", xref: "cluster§8.5.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§8.5.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§8.5.6" }),
-        Datatype({
-            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§8.5.5.1",
-            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                "ModeOptionStruct type. A blank field indicates no change."
-        }),
+
+        Datatype(
+            {
+                name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§8.5.5.1",
+                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                    "ModeOptionStruct type. A blank field indicates no change."
+            },
+            Field({ name: "Label", id: 0x0, conformance: "M" }),
+            Field({ name: "Mode", id: 0x1, conformance: "M" }),
+            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
+        ),
 
         Datatype(
             { name: "ModeTag", type: "enum16" },
@@ -21321,11 +21440,17 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, conformance: "M", xref: "cluster§8.7.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§8.7.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§8.7.6" }),
-        Datatype({
-            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§8.7.5.1",
-            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                "ModeOptionStruct type. A blank field indicates no change."
-        }),
+
+        Datatype(
+            {
+                name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§8.7.5.1",
+                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                    "ModeOptionStruct type. A blank field indicates no change."
+            },
+            Field({ name: "Label", id: 0x0, conformance: "M" }),
+            Field({ name: "Mode", id: 0x1, conformance: "M" }),
+            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
+        ),
 
         Datatype(
             { name: "ModeTag", type: "enum16" },
@@ -21373,7 +21498,7 @@ export const SpecMatter = Matter(
         Datatype(
             { name: "AlarmBitmap", type: "map32", xref: "cluster§8.8.5.1" },
             Field({
-                name: "DoorOpen", constraint: "0",
+                name: "DoorOpen", conformance: "M", constraint: "0",
                 description: "The cabinet's door has been open for a vendor defined amount of time."
             })
         )
@@ -21487,11 +21612,17 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, xref: "cluster§8.11.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§8.11.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§8.11.6" }),
-        Datatype({
-            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§8.11.5.1",
-            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                "ModeOptionStruct type. A blank field indicates no change."
-        }),
+
+        Datatype(
+            {
+                name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§8.11.5.1",
+                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                    "ModeOptionStruct type. A blank field indicates no change."
+            },
+            Field({ name: "Label", id: 0x0, conformance: "M" }),
+            Field({ name: "Mode", id: 0x1, conformance: "M" }),
+            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
+        ),
 
         Datatype(
             { name: "ModeTag", type: "enum16" },
@@ -23896,13 +24027,13 @@ export const SpecMatter = Matter(
 
         Datatype(
             { name: "TargetDayOfWeekBitmap", type: "map8", xref: "cluster§9.3.7.1" },
-            Field({ name: "Sunday", constraint: "0", description: "Sunday" }),
-            Field({ name: "Monday", constraint: "1", description: "Monday" }),
-            Field({ name: "Tuesday", constraint: "2", description: "Tuesday" }),
-            Field({ name: "Wednesday", constraint: "3", description: "Wednesday" }),
-            Field({ name: "Thursday", constraint: "4", description: "Thursday" }),
-            Field({ name: "Friday", constraint: "5", description: "Friday" }),
-            Field({ name: "Saturday", constraint: "6", description: "Saturday" })
+            Field({ name: "Sunday", conformance: "M", constraint: "0", description: "Sunday" }),
+            Field({ name: "Monday", conformance: "M", constraint: "1", description: "Monday" }),
+            Field({ name: "Tuesday", conformance: "M", constraint: "2", description: "Tuesday" }),
+            Field({ name: "Wednesday", conformance: "M", constraint: "3", description: "Wednesday" }),
+            Field({ name: "Thursday", conformance: "M", constraint: "4", description: "Thursday" }),
+            Field({ name: "Friday", conformance: "M", constraint: "5", description: "Friday" }),
+            Field({ name: "Saturday", conformance: "M", constraint: "6", description: "Saturday" })
         ),
 
         Datatype(
@@ -24190,11 +24321,17 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, xref: "cluster§9.4.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§9.4.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§9.4.6" }),
-        Datatype({
-            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§9.4.5.1",
-            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                "ModeOptionStruct type. A blank field indicates no change."
-        }),
+
+        Datatype(
+            {
+                name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§9.4.5.1",
+                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                    "ModeOptionStruct type. A blank field indicates no change."
+            },
+            Field({ name: "Label", id: 0x0, conformance: "M" }),
+            Field({ name: "Mode", id: 0x1, conformance: "M" }),
+            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
+        ),
 
         Datatype(
             { name: "ModeTag", type: "enum16" },
@@ -24402,11 +24539,17 @@ export const SpecMatter = Matter(
 
         Datatype(
             { name: "WaterHeaterHeatSourceBitmap", type: "map8", xref: "cluster§9.5.6.1" },
-            Field({ name: "ImmersionElement1", constraint: "0", description: "Immersion Heating Element 1" }),
-            Field({ name: "ImmersionElement2", constraint: "1", description: "Immersion Heating Element 2" }),
-            Field({ name: "HeatPump", constraint: "2", description: "Heat pump Heating" }),
-            Field({ name: "Boiler", constraint: "3", description: "Boiler Heating (e.g. Gas or Oil)" }),
-            Field({ name: "Other", constraint: "4", description: "Other Heating" })
+            Field({
+                name: "ImmersionElement1", conformance: "M", constraint: "0",
+                description: "Immersion Heating Element 1"
+            }),
+            Field({
+                name: "ImmersionElement2", conformance: "M", constraint: "1",
+                description: "Immersion Heating Element 2"
+            }),
+            Field({ name: "HeatPump", conformance: "M", constraint: "2", description: "Heat pump Heating" }),
+            Field({ name: "Boiler", conformance: "M", constraint: "3", description: "Boiler Heating (e.g. Gas or Oil)" }),
+            Field({ name: "Other", conformance: "M", constraint: "4", description: "Other Heating" })
         ),
 
         Datatype(
@@ -24519,11 +24662,17 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, xref: "cluster§9.6.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§9.6.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§9.6.6" }),
-        Datatype({
-            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§9.6.5.1",
-            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                "ModeOptionStruct type. A blank field indicates no change."
-        }),
+
+        Datatype(
+            {
+                name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§9.6.5.1",
+                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                    "ModeOptionStruct type. A blank field indicates no change."
+            },
+            Field({ name: "Label", id: 0x0, conformance: "M" }),
+            Field({ name: "Mode", id: 0x1, conformance: "M" }),
+            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
+        ),
 
         Datatype(
             { name: "ModeTag", type: "enum16" },
@@ -24758,11 +24907,17 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, xref: "cluster§9.8.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§9.8.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§9.8.6" }),
-        Datatype({
-            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§9.8.5.1",
-            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                "ModeOptionStruct type. A blank field indicates no change."
-        }),
+
+        Datatype(
+            {
+                name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§9.8.5.1",
+                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                    "ModeOptionStruct type. A blank field indicates no change."
+            },
+            Field({ name: "Label", id: 0x0, conformance: "M" }),
+            Field({ name: "Mode", id: 0x1, conformance: "M" }),
+            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
+        ),
 
         Datatype(
             { name: "ModeTag", type: "enum16" },
@@ -24949,11 +25104,11 @@ export const SpecMatter = Matter(
         Datatype(
             { name: "CommodityPriceDetailBitmap", type: "map16", xref: "cluster§9.9.5.1" },
             Field({
-                name: "Description", constraint: "0",
+                name: "Description", conformance: "M", constraint: "0",
                 description: "A textual description of a price; e.g. the name of a rate plan."
             }),
             Field({
-                name: "Components", constraint: "1",
+                name: "Components", conformance: "M", constraint: "1",
                 description: "A breakdown of the component parts of a price; e.g. generation, delivery, etc."
             })
         ),
@@ -25475,13 +25630,13 @@ export const SpecMatter = Matter(
 
         Datatype(
             { name: "DayPatternDayOfWeekBitmap", type: "map8", xref: "cluster§9.12.5.1" },
-            Field({ name: "Sunday", constraint: "0", description: "Sunday" }),
-            Field({ name: "Monday", constraint: "1", description: "Monday" }),
-            Field({ name: "Tuesday", constraint: "2", description: "Tuesday" }),
-            Field({ name: "Wednesday", constraint: "3", description: "Wednesday" }),
-            Field({ name: "Thursday", constraint: "4", description: "Thursday" }),
-            Field({ name: "Friday", constraint: "5", description: "Friday" }),
-            Field({ name: "Saturday", constraint: "6", description: "Saturday" })
+            Field({ name: "Sunday", conformance: "M", constraint: "0", description: "Sunday" }),
+            Field({ name: "Monday", conformance: "M", constraint: "1", description: "Monday" }),
+            Field({ name: "Tuesday", conformance: "M", constraint: "2", description: "Tuesday" }),
+            Field({ name: "Wednesday", conformance: "M", constraint: "3", description: "Wednesday" }),
+            Field({ name: "Thursday", conformance: "M", constraint: "4", description: "Thursday" }),
+            Field({ name: "Friday", conformance: "M", constraint: "5", description: "Friday" }),
+            Field({ name: "Saturday", conformance: "M", constraint: "6", description: "Saturday" })
         ),
 
         Datatype(
@@ -26942,7 +27097,7 @@ export const SpecMatter = Matter(
         }),
 
         Attribute({
-            name: "HardPrivacyModeOn", id: 0x15, type: "bool", access: "R V", conformance: "O", default: true,
+            name: "HardPrivacyModeOn", id: 0x15, type: "bool", access: "R V", conformance: "O", default: false,
             xref: "cluster§11.2.7.22",
             details: "This attribute indicates the current value of the hard privacy mode for all streams. This is " +
                 "controlled via a physical button or switch, potentially. A value of TRUE indicates that all streams " +
@@ -27060,14 +27215,14 @@ export const SpecMatter = Matter(
 
         Attribute({
             name: "ImageFlipHorizontal", id: 0x23, type: "bool", access: "RW M", conformance: "[ICTL].b+",
-            default: true, quality: "N", xref: "cluster§11.2.7.36",
+            default: false, quality: "N", xref: "cluster§11.2.7.36",
             details: "This attribute indicates whether the image has been flipped horizontally or not. A value of TRUE " +
                 "indicates that the image has been flipped horizontally."
         }),
 
         Attribute({
             name: "ImageFlipVertical", id: 0x24, type: "bool", access: "RW M", conformance: "[ICTL].b+",
-            default: true, quality: "N", xref: "cluster§11.2.7.37",
+            default: false, quality: "N", xref: "cluster§11.2.7.37",
             details: "This attribute indicates whether the image has been flipped vertically or not. A value of TRUE " +
                 "indicates that the image has been flipped vertically."
         }),
@@ -27845,14 +28000,14 @@ export const SpecMatter = Matter(
             }),
 
             Field({
-                name: "WatermarkEnabled", id: 0xa, type: "bool", conformance: "WMARK", default: true,
+                name: "WatermarkEnabled", id: 0xa, type: "bool", conformance: "WMARK", default: false,
                 xref: "cluster§11.2.6.11.11",
                 details: "This field indicates the status of an applied watermark for the specific video stream. An Enabled " +
                     "value of TRUE means that watermarking has been enabled for that stream."
             }),
 
             Field({
-                name: "OsdEnabled", id: 0xb, type: "bool", conformance: "OSD", default: true,
+                name: "OsdEnabled", id: 0xb, type: "bool", conformance: "OSD", default: false,
                 xref: "cluster§11.2.6.11.12",
                 details: "This field indicates the status of the OSD (On-Screen Display) for the specific video stream. An " +
                     "Enabled value of TRUE means that OSD has been enabled for that stream."
@@ -32591,7 +32746,7 @@ export const SpecMatter = Matter(
 
         Event(
             {
-                name: "Leave", id: 0x2, conformance: "O", priority: "critical", xref: "core§9.13.7.1",
+                name: "Leave", id: 0x2, conformance: "O", priority: "info", xref: "core§9.13.7.1",
 
                 details: "The Leave event SHOULD be generated by the bridge when it detects that the associated device has " +
                     "left the non-Matter network." +
@@ -32607,7 +32762,7 @@ export const SpecMatter = Matter(
         ),
 
         Event({
-            name: "ReachableChanged", id: 0x3, conformance: "M", priority: "critical", xref: "core§9.13.7.2",
+            name: "ReachableChanged", id: 0x3, conformance: "M", priority: "info", xref: "core§9.13.7.2",
             details: "This event shall be generated when there is a change in the Reachable attribute. Its purpose is to " +
                 "provide an indication towards interested parties that the reachability of a bridged device has " +
                 "changed over its native connectivity technology, so they may take appropriate action. After " +
@@ -33644,69 +33799,72 @@ export const SpecMatter = Matter(
                 name: "UserActiveModeTriggerBitmap", type: "map32", xref: "core§9.16.5.1",
                 details: "See the UserActiveModeTriggerHint table for requirements associated to each bit."
             },
-            Field({ name: "PowerCycle", constraint: "0", description: "Power Cycle to transition the device to ActiveMode" }),
             Field({
-                name: "SettingsMenu", constraint: "1",
+                name: "PowerCycle", conformance: "M", constraint: "0",
+                description: "Power Cycle to transition the device to ActiveMode"
+            }),
+            Field({
+                name: "SettingsMenu", conformance: "M", constraint: "1",
                 description: "Settings menu on the device informs how to transition the device to ActiveMode"
             }),
             Field({
-                name: "CustomInstruction", constraint: "2",
+                name: "CustomInstruction", conformance: "M", constraint: "2",
                 description: "Custom Instruction on how to transition the device to ActiveMode"
             }),
             Field({
-                name: "DeviceManual", constraint: "3",
+                name: "DeviceManual", conformance: "M", constraint: "3",
                 description: "Device Manual informs how to transition the device to ActiveMode"
             }),
             Field({
-                name: "ActuateSensor", constraint: "4",
+                name: "ActuateSensor", conformance: "M", constraint: "4",
                 description: "Actuate Sensor to transition the device to ActiveMode"
             }),
             Field({
-                name: "ActuateSensorSeconds", constraint: "5",
+                name: "ActuateSensorSeconds", conformance: "M", constraint: "5",
                 description: "Actuate Sensor for N seconds to transition the device to ActiveMode"
             }),
             Field({
-                name: "ActuateSensorTimes", constraint: "6",
+                name: "ActuateSensorTimes", conformance: "M", constraint: "6",
                 description: "Actuate Sensor N times to transition the device to ActiveMode"
             }),
             Field({
-                name: "ActuateSensorLightsBlink", constraint: "7",
+                name: "ActuateSensorLightsBlink", conformance: "M", constraint: "7",
                 description: "Actuate Sensor until light blinks to transition the device to ActiveMode"
             }),
             Field({
-                name: "ResetButton", constraint: "8",
+                name: "ResetButton", conformance: "M", constraint: "8",
                 description: "Press Reset Button to transition the device to ActiveMode"
             }),
             Field({
-                name: "ResetButtonLightsBlink", constraint: "9",
+                name: "ResetButtonLightsBlink", conformance: "M", constraint: "9",
                 description: "Press Reset Button until light blinks to transition the device to ActiveMode"
             }),
             Field({
-                name: "ResetButtonSeconds", constraint: "10",
+                name: "ResetButtonSeconds", conformance: "M", constraint: "10",
                 description: "Press Reset Button for N seconds to transition the device to ActiveMode"
             }),
             Field({
-                name: "ResetButtonTimes", constraint: "11",
+                name: "ResetButtonTimes", conformance: "M", constraint: "11",
                 description: "Press Reset Button N times to transition the device to ActiveMode"
             }),
             Field({
-                name: "SetupButton", constraint: "12",
+                name: "SetupButton", conformance: "M", constraint: "12",
                 description: "Press Setup Button to transition the device to ActiveMode"
             }),
             Field({
-                name: "SetupButtonSeconds", constraint: "13",
+                name: "SetupButtonSeconds", conformance: "M", constraint: "13",
                 description: "Press Setup Button for N seconds to transition the device to ActiveMode"
             }),
             Field({
-                name: "SetupButtonLightsBlink", constraint: "14",
+                name: "SetupButtonLightsBlink", conformance: "M", constraint: "14",
                 description: "Press Setup Button until light blinks to transition the device to ActiveMode"
             }),
             Field({
-                name: "SetupButtonTimes", constraint: "15",
+                name: "SetupButtonTimes", conformance: "M", constraint: "15",
                 description: "Press Setup Button N times to transition the device to ActiveMode"
             }),
             Field({
-                name: "AppDefinedButton", constraint: "16",
+                name: "AppDefinedButton", conformance: "M", constraint: "16",
                 description: "Press the N Button to transition the device to ActiveMode"
             })
         ),
@@ -36639,11 +36797,20 @@ export const SpecMatter = Matter(
                 details: "WiFiSecurityBitmap encodes the supported Wi-Fi security types present in the Security field of the " +
                     "WiFiInterfaceScanResultStruct."
             },
-            Field({ name: "Unencrypted", constraint: "0", description: "Supports unencrypted Wi-Fi" }),
-            Field({ name: "Wep", constraint: "1", description: "Supports Wi-Fi using WEP security" }),
-            Field({ name: "WpaPersonal", constraint: "2", description: "Supports Wi-Fi using WPA-Personal security" }),
-            Field({ name: "Wpa2Personal", constraint: "3", description: "Supports Wi-Fi using WPA2-Personal security" }),
-            Field({ name: "Wpa3Personal", constraint: "4", description: "Supports Wi-Fi using WPA3-Personal security" })
+            Field({ name: "Unencrypted", conformance: "M", constraint: "0", description: "Supports unencrypted Wi-Fi" }),
+            Field({ name: "Wep", conformance: "M", constraint: "1", description: "Supports Wi-Fi using WEP security" }),
+            Field({
+                name: "WpaPersonal", conformance: "M", constraint: "2",
+                description: "Supports Wi-Fi using WPA-Personal security"
+            }),
+            Field({
+                name: "Wpa2Personal", conformance: "M", constraint: "3",
+                description: "Supports Wi-Fi using WPA2-Personal security"
+            }),
+            Field({
+                name: "Wpa3Personal", conformance: "M", constraint: "4",
+                description: "Supports Wi-Fi using WPA3-Personal security"
+            })
         ),
 
         Datatype(
@@ -36659,20 +36826,23 @@ export const SpecMatter = Matter(
             },
 
             Field({
-                name: "IsBorderRouterCapable", constraint: "0",
+                name: "IsBorderRouterCapable", conformance: "O", constraint: "0",
                 description: "Thread Border Router functionality is present"
             }),
             Field({
-                name: "IsRouterCapable", constraint: "1",
+                name: "IsRouterCapable", conformance: "O", constraint: "1",
                 description: "Router mode is supported (interface could be in router or REED mode)"
             }),
-            Field({ name: "IsSleepyEndDeviceCapable", constraint: "2", description: "Sleepy end-device mode is supported" }),
             Field({
-                name: "IsFullThreadDevice", constraint: "3",
+                name: "IsSleepyEndDeviceCapable", conformance: "O", constraint: "2",
+                description: "Sleepy end-device mode is supported"
+            }),
+            Field({
+                name: "IsFullThreadDevice", conformance: "O", constraint: "3",
                 description: "Device is a full Thread device (opposite of Minimal Thread Device)"
             }),
             Field({
-                name: "IsSynchronizedSleepyEndDeviceCapable", constraint: "4",
+                name: "IsSynchronizedSleepyEndDeviceCapable", conformance: "O", constraint: "4",
                 description: "Synchronized sleepy end-device mode is supported"
             })
         ),
@@ -43933,7 +44103,7 @@ export const SpecMatter = Matter(
             { name: "SupportedDeviceCategoryBitmap", type: "map32", xref: "core§11.26.4.1" },
 
             Field({
-                name: "FabricSynchronization", constraint: "0",
+                name: "FabricSynchronization", conformance: "O", constraint: "0",
                 description: "Aggregators which support Fabric Synchronization may be commissioned.",
                 xref: "core§11.26.4.1.1",
                 details: "The FabricSynchronization bit shall be set to 1 if and only if the server supports commissioning " +

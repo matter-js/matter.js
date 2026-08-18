@@ -426,6 +426,15 @@ namespace Serializer {
             return FieldValue.serialize(value);
         }
 
+        // A field named like a keyword, such as the Min of a range struct, only parses back as a reference while it
+        // keeps the capital of its definition
+        if (FieldValue.is(value, FieldValue.reference)) {
+            const { name } = value as FieldValue.Reference;
+            if (Constraint.keywords.has(name)) {
+                return `${name[0].toUpperCase()}${name.slice(1)}`;
+            }
+        }
+
         switch (value.type) {
             case "+":
             case "-":

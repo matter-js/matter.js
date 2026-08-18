@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/main";
-import { Status, StatusResponseError } from "@matter/main/types";
+import { ImplementationError, InternalError } from "@matter/main";
+import { QrPairingCodeCodec, Status, StatusResponseError } from "@matter/main/types";
 import { Matter } from "@matter/model";
 import {
     controllerPicsOverridesFor,
@@ -21,6 +21,8 @@ import { env } from "node:process";
 import { AllClustersTestInstance } from "../../src/AllClustersTestInstance.js";
 import { CHIP_TOOL_CONTROLLER_PICS, ChipToolControllerAdapter } from "../../src/cert/ChipToolControllerAdapter.js";
 import { InProcessControllerAdapter, MATTERJS_CONTROLLER_PICS } from "../../src/cert/InProcessControllerAdapter.js";
+import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
+import { manualPairingCode } from "../cert/tc-dd-support.js";
 
 function fakeControllerAdapter(id: string): ControllerAdapter {
     return {
@@ -29,6 +31,12 @@ function fakeControllerAdapter(id: string): ControllerAdapter {
         async start() {},
         async close() {},
         async commission() {
+            throw new InternalError("not used in this test");
+        },
+        async parseQrPayload() {
+            throw new InternalError("not used in this test");
+        },
+        async parseManualPairingCode(): Promise<never> {
             throw new InternalError("not used in this test");
         },
         node() {
@@ -123,6 +131,65 @@ describe("InProcessControllerAdapter", () => {
         });
 
         await adapter.node(ref).decommission();
+    });
+
+    it("commissions from the device's own QR onboarding payload", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ qrPairingCode: device.commissioning.qrPairingCode });
+
+        await adapter.node(ref).decommission();
+    });
+
+    it("reports the fields it reads out of a manual pairing code", async () => {
+        const code = manualPairingCode({
+            vidPidPresent: true,
+            discriminator: device.commissioning.discriminator,
+            passcode: device.commissioning.passcode,
+            vendorId: 0xfff1,
+            productId: 0x8001,
+        });
+
+        expect(await adapter.parseManualPairingCode(code)).deep.equal({
+            shortDiscriminator: device.commissioning.discriminator >> 8,
+            passcode: device.commissioning.passcode,
+            vendorId: 0xfff1,
+            productId: 0x8001,
+        });
+    });
+
+    it("marks its own refusal of an onboarding payload, so a later failure cannot pass for one", async () => {
+        // Version 2, which QrPairingCodeCodec rejects. matter.js raises UnexpectedDataError from the
+        // commissioning flow too, so the refusal has to carry its own marker.
+        const refusal = await rejectionOf(adapter.commission({ qrPairingCode: "MT:034J042C00KA0648G00" }));
+
+        expect(refusal).instanceOf(OnboardingPayloadRefusedError);
+        expect(await rejectionOf(adapter.parseQrPayload("MT:034J042C00KA0648G00"))).instanceOf(
+            OnboardingPayloadRefusedError,
+        );
+    });
+
+    it("reports the fields it reads out of an onboarding payload", async function () {
+        const parsed = await adapter.parseQrPayload(device.commissioning.qrPairingCode);
+
+        expect(parsed).deep.equal({
+            version: 0,
+            vendorId: 0xfff1,
+            productId: 0x8001,
+            flowType: 0,
+            discoveryCapabilities: 0b100,
+            discriminator: 3840,
+            passcode: 20202021,
+        });
+    });
+
+    it("refuses a concatenated onboarding payload, which names more than one device", async function () {
+        const [payload] = QrPairingCodeCodec.decode(device.commissioning.qrPairingCode);
+
+        await expect(adapter.commission({ qrPairingCode: QrPairingCodeCodec.encode([payload, payload]) })).rejectedWith(
+            ImplementationError,
+            /carries 2 payloads/,
+        );
     });
 
     it("commissions, reads an attribute, invokes a command, and decommissions", async function () {
@@ -497,6 +564,14 @@ describe("ControllerAdapter registry", () => {
         expect(controllerPicsOverridesFor("chip-tool")).deep.equal(CHIP_TOOL_CONTROLLER_PICS);
         expect(MATTERJS_CONTROLLER_PICS["MCORE.IDM.C.InvokeRequest.BatchCommands"]).equal(1);
         expect(CHIP_TOOL_CONTROLLER_PICS["MCORE.IDM.C.InvokeRequest.BatchCommands"]).equal(0);
+
+        for (const pics of [MATTERJS_CONTROLLER_PICS, CHIP_TOOL_CONTROLLER_PICS]) {
+            expect(pics["MCORE.ROLE.COMMISSIONER"]).equal(1);
+            expect(pics["MCORE.DD.QR_COMMISSIONING"]).equal(1);
+            expect(pics["MCORE.DD.MANUAL_PC_COMMISSIONING"]).equal(1);
+            expect(pics["MCORE.DD.SCAN_QR_CODE"]).equal(1);
+            expect(pics["MCORE.DD.CTRL_CONCATENATED_QR_CODE_1"]).equal(0);
+        }
     });
 
     it("reports no declarations for an implementation registered without them", () => {

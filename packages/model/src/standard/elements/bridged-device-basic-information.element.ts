@@ -49,10 +49,10 @@ export const BridgedDeviceBasicInformation = Cluster(
     Event({ name: "StartUp", id: 0x0, conformance: "O", priority: "critical" }),
     Event({ name: "ShutDown", id: 0x1, conformance: "O", priority: "critical" }),
     Event(
-        { name: "Leave", id: 0x2, conformance: "O", priority: "critical" },
+        { name: "Leave", id: 0x2, conformance: "O", priority: "info" },
         Field({ name: "FabricIndex", id: 0x0, conformance: "X" })
     ),
-    Event({ name: "ReachableChanged", id: 0x3, conformance: "M", priority: "critical" }),
+    Event({ name: "ReachableChanged", id: 0x3, conformance: "M", priority: "info" }),
     Event(
         { name: "ActiveChanged", id: 0x80, access: "V", conformance: "BIS", priority: "info" },
         Field({ name: "PromisedActiveDuration", id: 0x0, type: "uint32", conformance: "M", constraint: "desc" })

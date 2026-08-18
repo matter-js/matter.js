@@ -385,21 +385,24 @@ export const ColorControl = Cluster(
 
     Datatype(
         { name: "ColorCapabilitiesBitmap", type: "map16" },
-        Field({ name: "HueSaturation", constraint: "0" }),
-        Field({ name: "EnhancedHue", constraint: "1" }),
-        Field({ name: "ColorLoop", constraint: "2" }),
-        Field({ name: "Xy", constraint: "3" }),
-        Field({ name: "ColorTemperature", constraint: "4" })
+        Field({ name: "HueSaturation", conformance: "HS", constraint: "0" }),
+        Field({ name: "EnhancedHue", conformance: "EHUE", constraint: "1" }),
+        Field({ name: "ColorLoop", conformance: "CL", constraint: "2" }),
+        Field({ name: "Xy", conformance: "XY", constraint: "3" }),
+        Field({ name: "ColorTemperature", conformance: "CT", constraint: "4" })
     ),
 
-    Datatype({ name: "OptionsBitmap", type: "map8" }, Field({ name: "ExecuteIfOff", constraint: "0" })),
+    Datatype(
+        { name: "OptionsBitmap", type: "map8" },
+        Field({ name: "ExecuteIfOff", conformance: "M", constraint: "0" })
+    ),
 
     Datatype(
         { name: "UpdateFlagsBitmap", type: "map8" },
-        Field({ name: "UpdateAction", constraint: "0" }),
-        Field({ name: "UpdateDirection", constraint: "1" }),
-        Field({ name: "UpdateTime", constraint: "2" }),
-        Field({ name: "UpdateStartHue", constraint: "3" })
+        Field({ name: "UpdateAction", conformance: "M", constraint: "0" }),
+        Field({ name: "UpdateDirection", conformance: "M", constraint: "1" }),
+        Field({ name: "UpdateTime", conformance: "M", constraint: "2" }),
+        Field({ name: "UpdateStartHue", conformance: "M", constraint: "3" })
     ),
 
     Datatype(

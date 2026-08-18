@@ -6,7 +6,7 @@
 
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { InternalError } from "@matter/general";
-import { Constraint, FieldValue, Metatype, ValueModel } from "@matter/model";
+import { Constraint, EncodedValue, FieldValue, Metatype, ValueModel } from "@matter/model";
 import { ConstraintError, Val } from "@matter/protocol";
 import { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
 import { NameResolver } from "../managed/NameResolver.js";
@@ -43,7 +43,7 @@ export function createConstraintValidator(
         };
     };
 
-    const inner = create(constraint, schema, nameResolverFactory);
+    const inner = create(inEncodingUnits(constraint, schema), schema, nameResolverFactory);
     if (!inner) {
         return undefined;
     }
@@ -55,6 +55,59 @@ export function createConstraintValidator(
         }
         inner(value, session, location);
     };
+}
+
+/**
+ * Restate the bounds of a constraint in the units the value is encoded in.
+ *
+ * The specification writes a bound of a temperature or percentage with its unit, such as the "Min to 100.00%" of a
+ * percent100ths field.  Values arrive encoded, so a bound that keeps its unit never constrains anything.
+ *
+ * The entry constraint of a list bounds the entries, so it converts with the type of the entry rather than of the
+ * list.
+ */
+function inEncodingUnits(constraint: Constraint, schema: ValueModel): Constraint {
+    return new Constraint(convertAst(constraint, schema));
+}
+
+function convertAst(ast: Constraint.Ast, schema: ValueModel): Constraint.Ast {
+    return {
+        ...ast,
+        value: convertExpression(ast.value, schema),
+        min: convertExpression(ast.min, schema),
+        max: convertExpression(ast.max, schema),
+        in: convertValue(ast.in, schema),
+        entry: ast.entry === undefined ? undefined : convertAst(ast.entry, schema.listEntry ?? schema),
+        parts: ast.parts?.map(part => convertAst(part, schema)),
+    };
+}
+
+function convertExpression(expression: Constraint.Expression | undefined, schema: ValueModel): Constraint.Expression {
+    if (expression === undefined || typeof expression !== "object" || expression === null) {
+        return expression as Constraint.Expression;
+    }
+
+    if ("args" in expression) {
+        return { ...expression, args: expression.args.map(arg => convertExpression(arg, schema)) };
+    }
+
+    if ("lhs" in expression) {
+        return {
+            ...expression,
+            lhs: convertExpression(expression.lhs, schema),
+            rhs: convertExpression(expression.rhs, schema),
+        };
+    }
+
+    return convertValue(expression, schema) as Constraint.Expression;
+}
+
+function convertValue<T extends FieldValue | undefined>(value: T, schema: ValueModel): T {
+    if (!(FieldValue.is(value, FieldValue.percent) || FieldValue.is(value, FieldValue.celsius))) {
+        return value;
+    }
+
+    return (EncodedValue(schema, value) ?? value) as T;
 }
 
 function create(

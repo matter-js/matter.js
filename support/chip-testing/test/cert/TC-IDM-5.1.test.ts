@@ -5,16 +5,10 @@
  */
 
 import { Matter } from "@matter/model";
-import type { CheckRecord, CertStepContext } from "@matter/testing";
+import type { CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import { expectTimedFollowUp, expectTimedRequest, expectUnicastReceipt } from "./tc-idm-5.1-support.js";
-import {
-    CertCheckFailedError,
-    CommissionedRefs,
-    INVOKE_REQUEST_MESSAGE,
-    requireId,
-    WRITE_REQUEST_MESSAGE,
-} from "./tc-support.js";
+import { CommissionedRefs, INVOKE_REQUEST_MESSAGE, record, requireId, WRITE_REQUEST_MESSAGE } from "./tc-support.js";
 
 const ON_OFF = Matter.clusters.require("OnOff");
 const ON_OFF_ID = requireId(ON_OFF.id, "OnOff cluster");
@@ -47,13 +41,6 @@ async function recordTimedInteraction(cx: CertStepContext, message: RegExp, from
         LOG_TIMEOUT_MS,
     );
     record(cx, followUp, "Timed follow-up");
-}
-
-function record(cx: CertStepContext, check: CheckRecord, what: string) {
-    cx.recorder.check(check);
-    if (check.verdict === "fail") {
-        throw new CertCheckFailedError(`${what} check failed: ${JSON.stringify(check)}`);
-    }
 }
 
 certTest("TC-IDM-5.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C"], app: "all-clusters" })

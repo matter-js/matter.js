@@ -183,6 +183,9 @@ export namespace FieldValue {
         if (is(value, percent)) {
             return `${(value as Percent).value}%`;
         }
+        if (is(value, bytes)) {
+            return (value as Bytes).value;
+        }
         if (is(value, properties)) {
             return stringSerialize((value as Properties).properties) ?? "?";
         }
@@ -314,9 +317,19 @@ export namespace FieldValue {
 
             case "boolean":
                 if (typeof value === "string") {
-                    value = value.trim().toLowerCase();
+                    switch (value.trim().toLowerCase()) {
+                        case "":
+                        case "0":
+                        case "no":
+                        case "off":
+                        case "false":
+                            return false;
+
+                        default:
+                            return true;
+                    }
                 }
-                return value !== "false" && value !== "no" && !!value;
+                return !!value;
 
             case "bitmap":
             case "enum":
@@ -346,7 +359,10 @@ export namespace FieldValue {
                         type = FieldValue.percent;
                     }
                     if (type) {
-                        value = Number.parseInt(value);
+                        // Both units are fractional in the specification's notation ("25.5°C", "0.01%") and scale to
+                        // an integer only once the field's own unit is known
+                        const radix = value.match(/^\s*([+-]?0[xb][\da-f]+)/i);
+                        value = radix === null ? Number.parseFloat(value) : Number(radix[1]);
                         if (!Number.isFinite(value)) {
                             return FieldValue.Invalid;
                         }

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Millis, Time } from "@matter/main";
+import { Millis, Time } from "@matter/main";
 import type { AttributePathSpec, CertNodeRef, CertStepContext } from "@matter/testing";
 import {
     ACK_WAIT_TIMEOUT_MS,
@@ -83,15 +83,15 @@ export interface SubscribeAndModifyTimeouts {
  * bare mark taken after subscribe() — subscribe() resolving only means the client has sent the priming
  * ack, not that this log has decoded it yet.
  *
- * `onUpdate` asserts values rather than arrival counts: `values` must come back as an in-order
- * subsequence of what it delivers, so a duplicate or keepalive report is an extra element of that
- * sequence and never the next write's confirmation, while a value this step never wrote is a mismatch.
- * A flavor whose log carries no subscription id (matterjs) has nothing to correlate on, so there that
- * subsequence is also what confirms each write.
+ * `onUpdate` is secondary evidence, and asserts values rather than arrival counts: a value this step
+ * never wrote fails it, while `values` failing to come back as an in-order subsequence is recorded
+ * `"unverified"` — chip-tool's interactive server hands over only the first result of a batch and
+ * discards the rest (see this directory's AGENTS.md), so a report a TH coalesced with another
+ * attribute reaches no callback however well the interaction went.
  *
  * What the log confirmation does not prove: that the report it matched carried this write's data
- * rather than being a keepalive on the same subscription. Conversely a report the controller drops
- * before `onUpdate` fails the value assertion even though the interaction itself succeeded.
+ * rather than another change on the same subscription. A report carrying no data at all — the
+ * keepalive an idle subscription sends — is excluded on both flavors.
  */
 export async function subscribeAndModify<Value>(
     cx: CertStepContext,
@@ -160,6 +160,16 @@ export async function subscribeAndModify<Value>(
         );
     }
 
+    // Every flavor names its subscriptions in its own log. One that does not cannot show the TH's own
+    // side of what this step claims, and the controller's callbacks are no substitute for it — chip-tool
+    // drops reports its device coalesced (see AGENTS.md) — so the step says so rather than proving less.
+    if (idLookup.subscriptionId === undefined) {
+        throw new CertCheckFailedError(
+            `Step ${step} cannot read a subscription id from a ${th.flavor} TH's log, so the reports this step ` +
+                "writes for cannot be attributed to its own subscription",
+        );
+    }
+
     const primingAckCheck = await expectReportAck(th.log, th.flavor, idLookup.subscriptionId, established, establishMs);
     cx.recorder.check(primingAckCheck);
     if (primingAckCheck.verdict === "fail") {
@@ -169,7 +179,6 @@ export async function subscribeAndModify<Value>(
     }
 
     let ackCursor = primingAckCheck.logLine !== undefined ? primingAckCheck.logLine + 1 : th.log.mark();
-    let logConfirmed = 0;
     for (let i = 0; i < values.length; i++) {
         // A report already in the log when the write was issued cannot be this write's — a further
         // chunk of the priming report, or a keepalive on this same subscription, would otherwise
@@ -190,29 +199,13 @@ export async function subscribeAndModify<Value>(
             reportMs,
         );
         cx.recorder.check(ackCheck);
-        if (ackCheck.verdict === "fail") {
+        if (ackCheck.verdict !== "pass") {
             throw new CertCheckFailedError(
                 `StatusResponse ack check failed for step ${step}, write ${i + 1}/${values.length}: ${JSON.stringify(ackCheck)}`,
             );
         }
-        if (ackCheck.verdict === "pass") {
-            logConfirmed++;
-            if (ackCheck.logLine !== undefined) {
-                ackCursor = ackCheck.logLine + 1;
-            }
-        } else {
-            const arrived = await waitForReport(
-                () => matched > i,
-                fn => (notify = fn),
-                reportMs,
-            );
-            if (!arrived) {
-                failResponse(
-                    `step ${step}: write ${i + 1}/${values.length} to ${JSON.stringify(path)} produced no ` +
-                        `subscription report carrying ${JSON.stringify(values[i])} within ` +
-                        Duration.format(Millis(reportMs)),
-                );
-            }
+        if (ackCheck.logLine !== undefined) {
+            ackCursor = ackCheck.logLine + 1;
         }
 
         if (mismatch !== undefined) {
@@ -231,11 +224,20 @@ export async function subscribeAndModify<Value>(
         failResponse(`step ${step}: ${mismatch}`);
     }
     if (!allReported) {
-        failResponse(
-            `step ${step}: onUpdate delivered ${JSON.stringify(reported)}, which does not carry the written values ` +
-                `${JSON.stringify(values)} in order (matched ${matched}/${values.length}) within ` +
-                Duration.format(Millis(reportMs)),
-        );
+        // What the plan asks to verify is the TH's own view: it reported, and the DUT acked Success,
+        // which the loop above took from the TH's log for every write. A value missing from the
+        // controller's own callbacks is a gap in that controller's delivery rather than in the
+        // behaviour under test — chip-tool's interactive server hands over only the first result of a
+        // batch and discards the rest, so a report the TH coalesced with another attribute reaches no
+        // callback at all.
+        cx.recorder.check({
+            type: "response",
+            verdict: "unverified",
+            detail:
+                `step ${step}: onUpdate delivered ${JSON.stringify(reported)} of the written values ` +
+                `${JSON.stringify(values)} (matched ${matched}/${values.length}); every write is confirmed by the ` +
+                "TH's own report and its Success ack instead",
+        });
     }
 
     const idText = idLookup.subscriptionId === undefined ? "(none)" : `0x${idLookup.subscriptionId.toString(16)}`;
@@ -243,8 +245,8 @@ export async function subscribeAndModify<Value>(
         type: "response",
         verdict: "pass",
         detail:
-            `step ${step}: ${values.length} distinct writes to ${JSON.stringify(path)} — ${logConfirmed} confirmed ` +
-            `by their own report on subscription ${idText} in the TH's log, ${values.length - logConfirmed} by ` +
-            `onUpdate; onUpdate delivered ${reported.length} reports carrying the written values in order`,
+            `step ${step}: ${values.length} distinct writes to ${JSON.stringify(path)}, each confirmed by its own ` +
+            `report on subscription ${idText} in the TH's log and the DUT's Success ack for it; onUpdate ` +
+            `delivered ${reported.length} reports, ${matched}/${values.length} of the written values in order`,
     });
 }

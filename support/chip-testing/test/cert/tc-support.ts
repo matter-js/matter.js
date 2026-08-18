@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError, MatterError, Time } from "@matter/main";
+import { Duration, InternalError, MatterError, Millis, Time } from "@matter/main";
 import type {
     AttributePathSpec,
     CertNodeRef,
@@ -22,6 +22,19 @@ export class CertCleanupError extends MatterError {}
 
 /** A check inside a step failed; the evidence record carrying the detail is already recorded. */
 export class CertCheckFailedError extends MatterError {}
+
+/**
+ * Records `check` and fails the step on a `"fail"` verdict — `recorder.check()` only records, so a
+ * step whose evidence must gate it has to throw for itself, which is the single easiest thing to
+ * forget. `"unverified"` passes through: that is what a log check reports on a flavor nobody wrote a
+ * pattern for, and it is not a failure (see the flavor-pattern policy in this directory's AGENTS.md).
+ */
+export function record(cx: CertStepContext, check: CheckRecord, what: string) {
+    cx.recorder.check(check);
+    if (check.verdict === "fail") {
+        throw new CertCheckFailedError(`${what} check failed: ${JSON.stringify(check)}`);
+    }
+}
 
 /**
  * Tracks commissioned node refs by role for one cert-test run. Each controller's own
@@ -158,6 +171,35 @@ const STATUS_RESPONSE_RECEIVED = /Msg RX from.*\(IM:StatusResponse\)/;
 // several are live at once.
 export const SUBSCRIBE_RESPONSE_MESSAGE = /\[DMG\] SubscribeResponseMessage =\s*$/;
 export const SUBSCRIPTION_ID_LINE = /SubscriptionId = 0x([0-9a-f]+),\s*$/;
+
+/** matter.js names the subscription it just minted on the response that carries it. */
+const MATTERJS_SUBSCRIBE_RESPONSE = /Message » for: I\/SubscribeResponse sub#: ([0-9a-f]+)/;
+
+/**
+ * matter.js's own outgoing report, tagged with the subscription it belongs to and the message counter
+ * its ack will name. A report says how much it carries — `attr:` for attributes, `ev:` for events —
+ * where the keepalive an idle subscription sends at its maximum interval is marked `empty`, and a
+ * keepalive's ack must not stand in for a report's.
+ */
+function matterjsReportPattern(subscriptionId: number): RegExp {
+    return new RegExp(
+        `Message » for: I/ReportData sub#: ${matterjsSubscriptionIdOf(subscriptionId)} (?:attr|ev): \\d+.*?✉([0-9a-f]+)`,
+    );
+}
+
+/** As `Subscription.idStrOf` renders it (`hex.fixed(id, 8)`); an unpadded id matches no line at all. */
+function matterjsSubscriptionIdOf(subscriptionId: number): string {
+    return subscriptionId.toString(16).padStart(8, "0");
+}
+
+/**
+ * The DUT's answer to the report `counter` identifies, whose payload is a `StatusResponseMessage`:
+ * an anonymous structure whose context tag 0 holds the status, so `152400` opens it and the byte after
+ * is the status itself (Matter Core § 8.9.2.3, § A.7.3).
+ */
+function matterjsReportAckPattern(counter: string): RegExp {
+    return new RegExp(`Message « for: I/StatusResponse .*acked: ${counter} .*?payload: 152400([0-9a-f]{2})`);
+}
 
 export function subscriptionIdPattern(subscriptionId: number): RegExp {
     return new RegExp(`SubscriptionId = 0x${subscriptionId.toString(16)},\\s*$`);
@@ -577,16 +619,61 @@ export const ACK_WAIT_TIMEOUT_MS = 15_000;
 /** What the TH's own SubscribeResponse says about the subscription a step just established. */
 export interface SubscriptionIdLookup {
     check: CheckRecord;
-    /** Absent when the lookup failed, and for the matterjs flavor. */
+    /** Absent when the lookup failed, or for a flavor whose log names no subscription. */
     subscriptionId?: number;
+}
+
+async function matterjsSubscriptionId(
+    log: LogFollower,
+    flavor: string,
+    from: number,
+    timeoutMs: number,
+): Promise<SubscriptionIdLookup> {
+    const pattern = String(MATTERJS_SUBSCRIBE_RESPONSE);
+    let response: LogExpectResult;
+    try {
+        response = await log.expect({ matterjs: MATTERJS_SUBSCRIBE_RESPONSE }, { flavor, timeoutMs, from });
+    } catch (e) {
+        if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
+            return { check: { type: "device-log", verdict: "fail", pattern, detail: e.message, logLine: from } };
+        }
+        throw e;
+    }
+    if (response.verdict === "unverified") {
+        return { check: { type: "device-log", verdict: "unverified" } };
+    }
+
+    const id = MATTERJS_SUBSCRIBE_RESPONSE.exec(response.matched.text)?.[1];
+    if (id === undefined) {
+        return {
+            check: {
+                type: "device-log",
+                verdict: "fail",
+                pattern,
+                detail: `SubscribeResponse carries no readable subscription id: ${response.matched.text}`,
+                logLine: response.matched.index,
+            },
+        };
+    }
+
+    return {
+        subscriptionId: parseInt(id, 16),
+        check: {
+            type: "device-log",
+            verdict: "pass",
+            pattern,
+            matched: response.matched.text,
+            logLine: response.matched.index,
+        },
+    };
 }
 
 /**
  * Reads back the id the TH minted for the subscription whose SubscribeResponse it sends at or after
  * `from`. Every step here keeps its subscriptions (`keepSubscriptions: true`) and their max interval
  * is shorter than the whole run, so several subscriptions report concurrently from step 3 onward —
- * the id is what tells one step's reports from another's. `"unverified"` for the matterjs flavor,
- * whose logger emits no decode dump to read an id out of.
+ * the id is what tells one step's reports from another's. Both flavors name it: chip in its decode
+ * dump, matter.js on the response itself.
  */
 export async function expectSubscriptionId(
     log: LogFollower,
@@ -594,6 +681,10 @@ export async function expectSubscriptionId(
     from: number,
     timeoutMs: number,
 ): Promise<SubscriptionIdLookup> {
+    if (flavor === "matterjs") {
+        return matterjsSubscriptionId(log, flavor, from, timeoutMs);
+    }
+
     const sequence = [SUBSCRIBE_RESPONSE_MESSAGE, /\{\s*$/, SUBSCRIPTION_ID_LINE];
     try {
         const result = await expectAdjacentLines(log, flavor, sequence, from, timeoutMs);
@@ -693,6 +784,75 @@ function exchangeIdBefore(log: LogFollower, beforeIndex: number): string | undef
 }
 
 /**
+ * As {@link expectReportAck} against a matter.js TH, which names both the subscription a report
+ * belongs to and the message counter its ack carries — so the ack is matched to this very report
+ * rather than to whatever answered on the same exchange next.
+ */
+async function matterjsReportAck(
+    log: LogFollower,
+    flavor: string,
+    subscriptionId: number,
+    from: number,
+    timeoutMs: number,
+): Promise<CheckRecord> {
+    const deadline = Time.nowMs + timeoutMs;
+    const remaining = () => Math.max(1, deadline - Time.nowMs);
+    const reportPattern = matterjsReportPattern(subscriptionId);
+    const pattern = `${reportPattern} then its own Success StatusResponse`;
+
+    try {
+        const report = await log.expect({ matterjs: reportPattern }, { flavor, timeoutMs: remaining(), from });
+        if (report.verdict === "unverified") {
+            return { type: "device-log", verdict: "unverified" };
+        }
+
+        const counter = reportPattern.exec(report.matched.text)?.[1];
+        if (counter === undefined) {
+            return {
+                type: "device-log",
+                verdict: "fail",
+                pattern,
+                detail: `Report carries no readable message counter: ${report.matched.text}`,
+                logLine: report.matched.index,
+            };
+        }
+
+        const ackPattern = matterjsReportAckPattern(counter);
+        const ack = await log.expect(
+            { matterjs: ackPattern },
+            { flavor, timeoutMs: remaining(), from: report.matched.index + 1 },
+        );
+        if (ack.verdict === "unverified") {
+            return { type: "device-log", verdict: "unverified" };
+        }
+
+        const status = ackPattern.exec(ack.matched.text)?.[1];
+        if (status !== "00") {
+            return {
+                type: "device-log",
+                verdict: "fail",
+                pattern,
+                detail: `The DUT acked our report with status 0x${status}`,
+                logLine: ack.matched.index,
+            };
+        }
+
+        return {
+            type: "device-log",
+            verdict: "pass",
+            pattern,
+            matched: ack.matched.text,
+            logLine: ack.matched.index,
+        };
+    } catch (e) {
+        if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
+            return { type: "device-log", verdict: "fail", pattern, detail: e.message, logLine: from };
+        }
+        throw e;
+    }
+}
+
+/**
  * Confirms the TH sent a report on subscription `subscriptionId` at or after `from` and that the DUT
  * answered *that specific report* with a Success StatusResponse. The subscription id alone only
  * proves the report is ours; several subscriptions' report/ack cycles can be in flight over the
@@ -701,8 +861,11 @@ function exchangeIdBefore(log: LogFollower, beforeIndex: number): string | undef
  * This closes that gap by reading the CHIP Exchange id our report was sent on (see
  * {@link REPORT_SENT_LINE}) and requiring the ack to arrive on that same exchange — a different
  * subscription's own report/ack pair carries its own, different exchange id, so it can no longer
- * stand in for ours. `"unverified"` for the matterjs flavor (no `subscriptionId`, no chip decode
- * dump to match).
+ * stand in for ours.
+ *
+ * Against a matter.js TH the correlation is tighter still: it names the message counter each ack
+ * carries, so the ack is matched to this very report rather than to whatever answered on the same
+ * exchange next.
  */
 export async function expectReportAck(
     log: LogFollower,
@@ -713,6 +876,10 @@ export async function expectReportAck(
 ): Promise<CheckRecord> {
     if (subscriptionId === undefined) {
         return { type: "device-log", verdict: "unverified" };
+    }
+
+    if (flavor === "matterjs") {
+        return matterjsReportAck(log, flavor, subscriptionId, from, timeoutMs);
     }
 
     const deadline = Time.nowMs + timeoutMs;
@@ -811,6 +978,68 @@ export async function expectReportAck(
             return { type: "device-log", verdict: "fail", pattern, detail: e.message, logLine: from };
         }
         throw e;
+    }
+}
+
+type SettleOutcome = { kind: "resolved" } | { kind: "rejected"; error: unknown } | { kind: "timeout" };
+
+function settled(promise: Promise<unknown>): Promise<SettleOutcome> {
+    return promise.then(
+        (): SettleOutcome => ({ kind: "resolved" }),
+        (error: unknown): SettleOutcome => ({ kind: "rejected", error }),
+    );
+}
+
+/**
+ * Asserts `op` rejects rather than resolves, bounded by `timeoutMs` so an implementation that
+ * neither errors nor gives up cannot hang the step for the whole mocha timeout — which is useless as
+ * either evidence or a fast local failure. A timeout is reported `"fail"`, same as an unexpected
+ * success, and the elapsed time reaches the evidence either way.
+ *
+ * `accept` narrows *which* rejection counts. Without it any error passes, including one that says
+ * nothing about the behaviour under test — a controller that crashed, timed out or was never asked.
+ * A step whose evidence is "it failed" rather than "it failed for this reason" should pass one.
+ */
+export async function expectRejection(
+    label: string,
+    op: Promise<unknown>,
+    timeoutMs: number,
+    accept?: (error: unknown) => boolean,
+): Promise<CheckRecord> {
+    // nowUs is the monotonic clock despite the name; nowMs tracks UTC and a step of it would put a
+    // negative elapsed into the evidence
+    const start = Time.nowUs;
+    const timeout = Time.sleep(`${label} rejection timeout`, Millis(timeoutMs));
+    let outcome: SettleOutcome;
+    try {
+        outcome = await Promise.race([settled(op), timeout.then((): SettleOutcome => ({ kind: "timeout" }))]);
+    } finally {
+        // A lost race leaves the sleep armed for its full duration, keeping the process alive past teardown
+        timeout.cancel();
+    }
+    const elapsed = Duration.format(Millis(Time.nowUs - start));
+
+    switch (outcome.kind) {
+        case "resolved":
+            return { type: "response", verdict: "fail", detail: `${label} unexpectedly succeeded after ${elapsed}` };
+        case "timeout":
+            return {
+                type: "response",
+                verdict: "fail",
+                detail: `${label} neither resolved nor rejected within ${Duration.format(Millis(timeoutMs))}`,
+            };
+        case "rejected": {
+            const { error } = outcome;
+            const message = error instanceof Error ? `${error.constructor.name}: ${error.message}` : String(error);
+            if (accept !== undefined && !accept(error)) {
+                return {
+                    type: "response",
+                    verdict: "fail",
+                    detail: `${label} failed after ${elapsed} for an unrelated reason: ${message}`,
+                };
+            }
+            return { type: "response", verdict: "pass", detail: `${label} rejected after ${elapsed}: ${message}` };
+        }
     }
 }
 

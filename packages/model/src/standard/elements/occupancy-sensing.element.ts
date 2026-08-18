@@ -97,13 +97,13 @@ export const OccupancySensing = Cluster(
         { name: "OccupancyChanged", id: 0x0, access: "V", conformance: "OCCEVENT, O", priority: "info" },
         Field({ name: "Occupancy", id: 0x0, type: "OccupancyBitmap", conformance: "M" })
     ),
-    Datatype({ name: "OccupancyBitmap", type: "map8" }, Field({ name: "Occupied", constraint: "0" })),
+    Datatype({ name: "OccupancyBitmap", type: "map8" }, Field({ name: "Occupied", conformance: "M", constraint: "0" })),
 
     Datatype(
         { name: "OccupancySensorTypeBitmap", type: "map8" },
-        Field({ name: "Pir", constraint: "0" }),
-        Field({ name: "Ultrasonic", constraint: "1" }),
-        Field({ name: "PhysicalContact", constraint: "2" })
+        Field({ name: "Pir", conformance: "M", constraint: "0" }),
+        Field({ name: "Ultrasonic", conformance: "M", constraint: "1" }),
+        Field({ name: "PhysicalContact", conformance: "M", constraint: "2" })
     ),
 
     Datatype(

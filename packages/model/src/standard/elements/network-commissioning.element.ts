@@ -170,20 +170,20 @@ export const NetworkCommissioning = Cluster(
 
     Datatype(
         { name: "WiFiSecurityBitmap", type: "map8" },
-        Field({ name: "Unencrypted", constraint: "0" }),
-        Field({ name: "Wep", constraint: "1" }),
-        Field({ name: "WpaPersonal", constraint: "2" }),
-        Field({ name: "Wpa2Personal", constraint: "3" }),
-        Field({ name: "Wpa3Personal", constraint: "4" })
+        Field({ name: "Unencrypted", conformance: "M", constraint: "0" }),
+        Field({ name: "Wep", conformance: "M", constraint: "1" }),
+        Field({ name: "WpaPersonal", conformance: "M", constraint: "2" }),
+        Field({ name: "Wpa2Personal", conformance: "M", constraint: "3" }),
+        Field({ name: "Wpa3Personal", conformance: "M", constraint: "4" })
     ),
 
     Datatype(
         { name: "ThreadCapabilitiesBitmap", type: "map16" },
-        Field({ name: "IsBorderRouterCapable", constraint: "0" }),
-        Field({ name: "IsRouterCapable", constraint: "1" }),
-        Field({ name: "IsSleepyEndDeviceCapable", constraint: "2" }),
-        Field({ name: "IsFullThreadDevice", constraint: "3" }),
-        Field({ name: "IsSynchronizedSleepyEndDeviceCapable", constraint: "4" })
+        Field({ name: "IsBorderRouterCapable", conformance: "O", constraint: "0" }),
+        Field({ name: "IsRouterCapable", conformance: "O", constraint: "1" }),
+        Field({ name: "IsSleepyEndDeviceCapable", conformance: "O", constraint: "2" }),
+        Field({ name: "IsFullThreadDevice", conformance: "O", constraint: "3" }),
+        Field({ name: "IsSynchronizedSleepyEndDeviceCapable", conformance: "O", constraint: "4" })
     ),
 
     Datatype(

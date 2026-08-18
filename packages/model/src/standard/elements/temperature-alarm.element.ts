@@ -97,12 +97,12 @@ export const TemperatureAlarm = Cluster(
 
     Datatype(
         { name: "AlarmBitmap", type: "map32" },
-        Field({ name: "CriticalOverTemperatureAlarm", constraint: "0" }),
-        Field({ name: "MajorOverTemperatureAlarm", constraint: "1" }),
-        Field({ name: "MinorOverTemperatureAlarm", constraint: "2" }),
-        Field({ name: "MinorUnderTemperatureAlarm", constraint: "3" }),
-        Field({ name: "MajorUnderTemperatureAlarm", constraint: "4" }),
-        Field({ name: "CriticalUnderTemperatureAlarm", constraint: "5" })
+        Field({ name: "CriticalOverTemperatureAlarm", conformance: "M", constraint: "0" }),
+        Field({ name: "MajorOverTemperatureAlarm", conformance: "M", constraint: "1" }),
+        Field({ name: "MinorOverTemperatureAlarm", conformance: "M", constraint: "2" }),
+        Field({ name: "MinorUnderTemperatureAlarm", conformance: "M", constraint: "3" }),
+        Field({ name: "MajorUnderTemperatureAlarm", conformance: "M", constraint: "4" }),
+        Field({ name: "CriticalUnderTemperatureAlarm", conformance: "M", constraint: "5" })
     )
 );
 

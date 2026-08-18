@@ -691,6 +691,9 @@ export declare namespace WindowCovering {
          */
         operational?: boolean;
 
+        /**
+         * @deprecated
+         */
         onlineReserved?: boolean;
 
         /**

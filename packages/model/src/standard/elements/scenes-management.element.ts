@@ -170,7 +170,10 @@ export const ScenesManagement = Cluster(
         Field({ name: "SceneIdentifierFrom", id: 0x2, type: "uint8", conformance: "M", constraint: "max 254" })
     ),
 
-    Datatype({ name: "CopyModeBitmap", type: "map8" }, Field({ name: "CopyAllScenes", constraint: "0" })),
+    Datatype(
+        { name: "CopyModeBitmap", type: "map8" },
+        Field({ name: "CopyAllScenes", conformance: "M", constraint: "0" })
+    ),
 
     Datatype(
         { name: "SceneInfoStruct", type: "struct" },

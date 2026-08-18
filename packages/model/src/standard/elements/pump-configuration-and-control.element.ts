@@ -129,15 +129,15 @@ export const PumpConfigurationAndControl = Cluster(
 
     Datatype(
         { name: "PumpStatusBitmap", type: "map16" },
-        Field({ name: "DeviceFault", constraint: "0" }),
-        Field({ name: "SupplyFault", constraint: "1" }),
-        Field({ name: "SpeedLow", constraint: "2" }),
-        Field({ name: "SpeedHigh", constraint: "3" }),
-        Field({ name: "LocalOverride", constraint: "4" }),
-        Field({ name: "Running", constraint: "5" }),
-        Field({ name: "RemotePressure", constraint: "6" }),
-        Field({ name: "RemoteFlow", constraint: "7" }),
-        Field({ name: "RemoteTemperature", constraint: "8" })
+        Field({ name: "DeviceFault", conformance: "M", constraint: "0" }),
+        Field({ name: "SupplyFault", conformance: "M", constraint: "1" }),
+        Field({ name: "SpeedLow", conformance: "M", constraint: "2" }),
+        Field({ name: "SpeedHigh", conformance: "M", constraint: "3" }),
+        Field({ name: "LocalOverride", conformance: "M", constraint: "4" }),
+        Field({ name: "Running", conformance: "M", constraint: "5" }),
+        Field({ name: "RemotePressure", conformance: "M", constraint: "6" }),
+        Field({ name: "RemoteFlow", conformance: "M", constraint: "7" }),
+        Field({ name: "RemoteTemperature", conformance: "M", constraint: "8" })
     ),
 
     Datatype(

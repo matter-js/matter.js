@@ -150,5 +150,11 @@ LocalMatter.children.push({
                 },
             ],
         },
+
+        // The specification describes the priority of these events in prose: CRITICAL for the states that matter,
+        // INFO permitted for the rest.  A model states one priority, so it states the one the specification requires
+        { tag: "event", id: 0x1, name: "DoorStateChange", priority: "critical" },
+        { tag: "event", id: 0x2, name: "LockOperation", priority: "critical" },
+        { tag: "event", id: 0x3, name: "LockOperationError", priority: "critical" },
     ],
 });

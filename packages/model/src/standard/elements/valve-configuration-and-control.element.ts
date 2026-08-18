@@ -65,12 +65,12 @@ export const ValveConfigurationAndControl = Cluster(
 
     Datatype(
         { name: "ValveFaultBitmap", type: "map16" },
-        Field({ name: "GeneralFault", constraint: "0" }),
-        Field({ name: "Blocked", constraint: "1" }),
-        Field({ name: "Leaking", constraint: "2" }),
-        Field({ name: "NotConnected", constraint: "3" }),
-        Field({ name: "ShortCircuit", constraint: "4" }),
-        Field({ name: "CurrentExceeded", constraint: "5" })
+        Field({ name: "GeneralFault", conformance: "M", constraint: "0" }),
+        Field({ name: "Blocked", conformance: "M", constraint: "1" }),
+        Field({ name: "Leaking", conformance: "M", constraint: "2" }),
+        Field({ name: "NotConnected", conformance: "M", constraint: "3" }),
+        Field({ name: "ShortCircuit", conformance: "M", constraint: "4" }),
+        Field({ name: "CurrentExceeded", conformance: "M", constraint: "5" })
     ),
 
     Datatype(

@@ -16,7 +16,7 @@ import {
 } from "@matter/main";
 import { OperationalCredentials } from "@matter/main/clusters";
 import { getOperationalDeviceQname } from "@matter/main/protocol";
-import { FabricId, GlobalFabricId, NodeId, Status, StatusResponseError } from "@matter/main/types";
+import { FabricId, GlobalFabricId, NodeId, statedIdentifier, Status, StatusResponseError } from "@matter/main/types";
 import { ClusterModel, CommandModel, ValueModel } from "@matter/model";
 import type {
     AttributePathSpec,
@@ -31,6 +31,8 @@ import type {
     ControllerAdapter,
     EventPathSpec,
     EventReadEntry,
+    ManualPairingCodeFields,
+    OnboardingPayloadFields,
     ReadAttributeOptions,
     ReadEventOptions,
     SubscribeEventOptions,
@@ -47,6 +49,7 @@ import type { ChipToolCommissionerName } from "../chip-tool/chip-tool-client.js"
 import { ChipToolClient, resolveChipToolBinary } from "../chip-tool/chip-tool-client.js";
 import { chipJsonToMatter, matterToChipJson, stringifyChipJson } from "../chip-tool/json-codec.js";
 import { certClusterModelFor, findCertCluster } from "./custom-clusters.js";
+import { assertSingleQrPayload, OnboardingPayloadRefusedError } from "./onboarding-payload.js";
 import { timedInteractionTimeoutOf } from "./timed-interaction.js";
 
 /** Name {@link UnsupportedByControllerError} reports for this adapter. */
@@ -59,6 +62,16 @@ const CONTROLLER = "chip-tool";
 export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     // command-by-id sends one command path per invoke and no CommandRef.
     "MCORE.IDM.C.InvokeRequest.BatchCommands": 0,
+
+    "MCORE.ROLE.COMMISSIONER": 1,
+
+    // `pairing code` takes either onboarding payload, the scanned `MT:…` form included.
+    "MCORE.DD.QR_COMMISSIONING": 1,
+    "MCORE.DD.MANUAL_PC_COMMISSIONING": 1,
+    "MCORE.DD.SCAN_QR_CODE": 1,
+
+    // A concatenated payload names several commissionees and is refused; the caller is told to split it.
+    "MCORE.DD.CTRL_CONCATENATED_QR_CODE_1": 0,
 };
 
 const WILDCARD_CLUSTER = 0xffffffff;
@@ -73,6 +86,9 @@ const WILDCARD_ENDPOINT = 0xffff;
  * costing a CASE session first.
  */
 const MAX_PATHS_PER_COMMAND = 64;
+
+/** Digit count of the manual code form that carries a vendor and product id (§ 5.1.4.1 Table 64). */
+const MANUAL_CODE_LONG_LENGTH = 21;
 
 /** `chip::Crypto::kSpake2p_Min_PBKDF_Iterations`, the cheapest verifier chip-tool accepts. */
 const PBKDF_ITERATIONS = 1000;
@@ -593,6 +609,17 @@ function eventStatusFor(statuses: ChipPathStatus[], paths: EventPathSpec[]) {
 export class ChipToolCommandError extends MatterError {}
 
 /**
+ * chip-tool's own marker for a failure raised inside its setup-payload layer, as `CHIP_ERROR`'s
+ * formatter renders it: `Run command failure: src/setup_payload/<file>:<line>: …`.
+ *
+ * `SetupPayload::FromStringRepresentation` is where chip-tool applies § 5.1's payload rules, and this
+ * location is the only thing separating "the commissioner would not use this code" from every later
+ * way a commissioning fails: discovery, PASE, attestation and a command timeout all reach
+ * {@link ChipToolCommandError} alike.
+ */
+const PAYLOAD_FAILURE = /Run command failure: src\/setup_payload\//;
+
+/**
  * For read/write/invoke. A pathless status is one chip-tool derived from a raw `CHIP_ERROR`
  * (`RemoteDataModelLogger::LogErrorAsJSON(const CHIP_ERROR &)`, called from `ReportCommand::OnError`
  * and its write and invoke siblings), and `ClusterStatusCode(CHIP_ERROR)` maps only the error's IM
@@ -1006,6 +1033,22 @@ class ChipToolCertNodeApi implements CertNodeApi {
     }
 }
 
+/**
+ * One field of chip-tool's own `payload parse-setup-payload` output. Absent means chip-tool parsed the
+ * payload into something other than what a QR code carries — a manual code's short discriminator, say —
+ * which no caller can act on, so it is an error rather than a hole in the returned fields.
+ */
+function payloadField(logs: string[], code: string, pattern: RegExp, radix = 10): number {
+    const value = matchLog(logs, pattern);
+    if (value === undefined) {
+        throw new InternalError(
+            `chip-tool parsed onboarding payload ${code} without logging ${pattern}. Reply logs: ` +
+                JSON.stringify(logs),
+        );
+    }
+    return Number.parseInt(value, radix);
+}
+
 function matchLog(logs: string[], pattern: RegExp) {
     for (const line of logs) {
         const match = pattern.exec(line);
@@ -1124,6 +1167,39 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
         }
     }
 
+    async parseQrPayload(code: string): Promise<OnboardingPayloadFields> {
+        const { reply, logs } = await this.executeWithLogs(`payload parse-setup-payload ${quoteArg(code)}`);
+        assertCommandSucceeded(reply, `parse of onboarding payload ${code}`);
+
+        return {
+            version: payloadField(logs, code, /Version:\s+(\d+)/),
+            // chip-tool prints 0 for an identifier the payload states nothing about
+            vendorId: statedIdentifier(payloadField(logs, code, /VendorID:\s+(\d+)/)),
+            productId: statedIdentifier(payloadField(logs, code, /ProductID:\s+(\d+)/)),
+            flowType: payloadField(logs, code, /Custom flow:\s+(\d+)/),
+            discoveryCapabilities: payloadField(logs, code, /Discovery Bitmask:\s+0x([0-9A-Fa-f]{2})/, 16),
+            discriminator: payloadField(logs, code, /Long discriminator:\s+(\d+)/),
+            passcode: payloadField(logs, code, /Passcode:\s+(\d+)/),
+        };
+    }
+
+    async parseManualPairingCode(code: string): Promise<ManualPairingCodeFields> {
+        const { reply, logs } = await this.executeWithLogs(`payload parse-setup-payload ${quoteArg(code)}`);
+        assertCommandSucceeded(reply, `parse of manual pairing code ${code}`);
+
+        const digits = code.replace(/\D/g, "");
+        // Print() reports a vendor and product of 0 for a code that carries neither, which only the
+        // 21-digit form does (§ 5.1.4.1 Table 64)
+        const carriesIdentity = digits.length === MANUAL_CODE_LONG_LENGTH;
+
+        return {
+            shortDiscriminator: payloadField(logs, code, /Short discriminator:\s+(\d+)/),
+            passcode: payloadField(logs, code, /Passcode:\s+(\d+)/),
+            vendorId: carriesIdentity ? payloadField(logs, code, /VendorID:\s+(\d+)/) : undefined,
+            productId: carriesIdentity ? payloadField(logs, code, /ProductID:\s+(\d+)/) : undefined,
+        };
+    }
+
     async commission(target: CommissioningTarget): Promise<CertNodeRef> {
         const nodeId = NodeId(this.#nextNodeId++);
         const node = nodeId.toString();
@@ -1138,18 +1214,39 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
             );
         }
 
+        if (target.giveUpAfterMs !== undefined) {
+            // Said out loud for the same reason singleHandshakeAttempt is: a step asking for this is
+            // asserting an outcome, and chip-tool's own give-up is what decides it.
+            console.warn(
+                `chip-tool cannot bound discovery for node ${node}; its own policy decides when it stops looking`,
+            );
+        }
+
         let command: string;
-        if (target.manualPairingCode !== undefined) {
+        if (target.qrPairingCode) {
+            // `pairing code` reads either payload format, a concatenated one included — and would pair
+            // with whichever commissionee that names first, which is what this refuses. Everything else
+            // the payload can get wrong is chip-tool's own to refuse.
+            assertSingleQrPayload(target.qrPairingCode);
+            command = `pairing code ${node} ${quoteArg(target.qrPairingCode)}`;
+        } else if (target.manualPairingCode !== undefined) {
             command = `pairing code ${node} ${quoteArg(target.manualPairingCode)}`;
         } else if (target.passcode !== undefined && target.discriminator !== undefined) {
             command = `pairing onnetwork-long ${node} ${target.passcode} ${target.discriminator}`;
         } else {
             throw new ImplementationError(
-                "commission() requires either target.manualPairingCode or both target.passcode and target.discriminator",
+                "commission() requires a target.qrPairingCode, a target.manualPairingCode, or both target.passcode " +
+                    "and target.discriminator",
             );
         }
 
-        const reply = await this.execute(command);
+        const { reply, logs } = await this.executeWithLogs(command);
+        if (reply.commandFailed && logs.some(line => PAYLOAD_FAILURE.test(line))) {
+            const detail = logs.find(line => PAYLOAD_FAILURE.test(line))?.trim();
+            throw new OnboardingPayloadRefusedError(
+                `chip-tool refused the onboarding payload for node ${node}: ${detail}`,
+            );
+        }
         assertCommandSucceeded(reply, `commissioning of node ${node}`);
 
         return node;

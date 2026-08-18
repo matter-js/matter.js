@@ -8,7 +8,14 @@ import { Diagnostic, ImplementationError, Logger, Seconds } from "@matter/genera
 import { ClientNode, CommissioningClient } from "@matter/node";
 import { BasicInformationClient } from "@matter/node/behaviors/basic-information";
 import { DescriptorClient } from "@matter/node/behaviors/descriptor";
-import { DiscoveryCapabilitiesSchema, ManualPairingCodeCodec, NodeId, QrCode, QrPairingCodeCodec } from "@matter/types";
+import {
+    DiscoveryCapabilitiesSchema,
+    ManualPairingCodeCodec,
+    NodeId,
+    QrCode,
+    QrPairingCodeCodec,
+    VendorId,
+} from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
@@ -100,6 +107,8 @@ export default function commands(theNode: MatterNode) {
                                 async argv => {
                                     const { pairingCode, qrCode, nodeId: nodeIdStr, port, ip, ble, instanceId } = argv;
                                     let { setupPinCode, discriminator, shortDiscriminator, qrCodeIndex } = argv;
+                                    let vendorId: VendorId | undefined;
+                                    let productId: number | undefined;
 
                                     if ((ip === undefined) !== (port === undefined)) {
                                         console.log(
@@ -109,11 +118,17 @@ export default function commands(theNode: MatterNode) {
                                     }
 
                                     if (typeof pairingCode === "string" && pairingCode.length > 0) {
-                                        const { shortDiscriminator: pairingCodeShortDiscriminator, passcode } =
-                                            ManualPairingCodeCodec.decode(pairingCode);
+                                        const {
+                                            shortDiscriminator: pairingCodeShortDiscriminator,
+                                            passcode,
+                                            vendorId: codeVendorId,
+                                            productId: codeProductId,
+                                        } = ManualPairingCodeCodec.decode(pairingCode);
                                         shortDiscriminator = pairingCodeShortDiscriminator;
                                         setupPinCode = passcode;
                                         discriminator = undefined;
+                                        vendorId = codeVendorId;
+                                        productId = codeProductId;
                                     } else if (typeof qrCode === "string" && qrCode.length > 0) {
                                         const pairingCodeCodec = QrPairingCodeCodec.decode(qrCode);
                                         if (typeof qrCodeIndex !== "number") {
@@ -141,6 +156,11 @@ export default function commands(theNode: MatterNode) {
                                         discriminator = qrResult.discriminator;
                                         shortDiscriminator = undefined;
                                         setupPinCode = qrResult.passcode;
+                                        vendorId =
+                                            qrResult.vendorId === undefined
+                                                ? undefined
+                                                : VendorId(qrResult.vendorId, false);
+                                        productId = qrResult.productId;
                                         if (
                                             DiscoveryCapabilitiesSchema.decode(qrResult.discoveryCapabilities).ble &&
                                             !ble
@@ -165,6 +185,9 @@ export default function commands(theNode: MatterNode) {
                                     const commissioningOptions: CommissioningClient.CommissioningOptions = {
                                         passcode: setupPinCode,
                                         discriminator,
+                                        // Carried from the code so a device advertising another identity is passed over
+                                        vendorId,
+                                        productId,
                                         nodeId,
                                         // The shell subscribes on demand via the `subscribe` command, not at commission.
                                         autoSubscribe: false,

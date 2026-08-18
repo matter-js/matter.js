@@ -75,15 +75,15 @@ export const FanControl = Cluster(
 
     Datatype(
         { name: "RockBitmap", type: "map8" },
-        Field({ name: "RockLeftRight", constraint: "0" }),
-        Field({ name: "RockUpDown", constraint: "1" }),
-        Field({ name: "RockRound", constraint: "2" })
+        Field({ name: "RockLeftRight", conformance: "M", constraint: "0" }),
+        Field({ name: "RockUpDown", conformance: "M", constraint: "1" }),
+        Field({ name: "RockRound", conformance: "M", constraint: "2" })
     ),
 
     Datatype(
         { name: "WindBitmap", type: "map8" },
-        Field({ name: "SleepWind", constraint: "0" }),
-        Field({ name: "NaturalWind", constraint: "1" })
+        Field({ name: "SleepWind", conformance: "M", constraint: "0" }),
+        Field({ name: "NaturalWind", conformance: "M", constraint: "1" })
     ),
     Datatype(
         { name: "StepDirectionEnum", type: "enum8" },

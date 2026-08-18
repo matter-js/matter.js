@@ -96,10 +96,10 @@ export const DoorLock = Cluster(
     Attribute(
         { name: "EnableLocalProgramming", id: 0x28, type: "bool", access: "R[W] VA", conformance: "O", default: true }
     ),
-    Attribute({ name: "EnableOneTouchLocking", id: 0x29, type: "bool", access: "RW VM", conformance: "O", default: true }),
-    Attribute({ name: "EnableInsideStatusLed", id: 0x2a, type: "bool", access: "RW VM", conformance: "O", default: true }),
+    Attribute({ name: "EnableOneTouchLocking", id: 0x29, type: "bool", access: "RW VM", conformance: "O", default: false }),
+    Attribute({ name: "EnableInsideStatusLed", id: 0x2a, type: "bool", access: "RW VM", conformance: "O", default: false }),
     Attribute(
-        { name: "EnablePrivacyModeButton", id: 0x2b, type: "bool", access: "RW VM", conformance: "O", default: true }
+        { name: "EnablePrivacyModeButton", id: 0x2b, type: "bool", access: "RW VM", conformance: "O", default: false }
     ),
     Attribute({
         name: "LocalProgrammingFeatures", id: 0x2c, type: "LocalProgrammingFeaturesBitmap",
@@ -115,7 +115,7 @@ export const DoorLock = Cluster(
     }),
     Attribute({
         name: "SendPinOverTheAir", id: 0x32, type: "bool", access: "R[W] VA", conformance: "[!USR & PIN]",
-        default: true
+        default: false
     }),
     Attribute(
         { name: "RequirePinForRemoteOperation", id: 0x33, type: "bool", access: "R[W] VA", conformance: "COTA & PIN" }
@@ -579,58 +579,58 @@ export const DoorLock = Cluster(
 
     Datatype(
         { name: "DaysMaskBitmap", type: "map8" },
-        Field({ name: "Sunday", constraint: "0" }),
-        Field({ name: "Monday", constraint: "1" }),
-        Field({ name: "Tuesday", constraint: "2" }),
-        Field({ name: "Wednesday", constraint: "3" }),
-        Field({ name: "Thursday", constraint: "4" }),
-        Field({ name: "Friday", constraint: "5" }),
-        Field({ name: "Saturday", constraint: "6" })
+        Field({ name: "Sunday", conformance: "M", constraint: "0" }),
+        Field({ name: "Monday", conformance: "M", constraint: "1" }),
+        Field({ name: "Tuesday", conformance: "M", constraint: "2" }),
+        Field({ name: "Wednesday", conformance: "M", constraint: "3" }),
+        Field({ name: "Thursday", conformance: "M", constraint: "4" }),
+        Field({ name: "Friday", conformance: "M", constraint: "5" }),
+        Field({ name: "Saturday", conformance: "M", constraint: "6" })
     ),
 
     Datatype(
         { name: "CredentialRulesBitmap", type: "map8" },
-        Field({ name: "Single", constraint: "0" }),
-        Field({ name: "Dual", constraint: "1" }),
-        Field({ name: "Tri", constraint: "2" })
+        Field({ name: "Single", conformance: "M", constraint: "0" }),
+        Field({ name: "Dual", conformance: "M", constraint: "1" }),
+        Field({ name: "Tri", conformance: "M", constraint: "2" })
     ),
 
     Datatype(
         { name: "OperatingModesBitmap", type: "map16" },
-        Field({ name: "Normal", constraint: "0" }),
-        Field({ name: "Vacation", constraint: "1" }),
-        Field({ name: "Privacy", constraint: "2" }),
-        Field({ name: "NoRemoteLockUnlock", constraint: "3" }),
-        Field({ name: "Passage", constraint: "4" }),
+        Field({ name: "Normal", conformance: "M", constraint: "0" }),
+        Field({ name: "Vacation", conformance: "O", constraint: "1" }),
+        Field({ name: "Privacy", conformance: "O", constraint: "2" }),
+        Field({ name: "NoRemoteLockUnlock", conformance: "M", constraint: "3" }),
+        Field({ name: "Passage", conformance: "O", constraint: "4" }),
         Field({ name: "AlwaysSet", conformance: "M", constraint: "5 to 15" })
     ),
 
     Datatype(
         { name: "ConfigurationRegisterBitmap", type: "map16" },
-        Field({ name: "LocalProgramming", constraint: "0" }),
-        Field({ name: "KeypadInterface", constraint: "1" }),
-        Field({ name: "RemoteInterface", constraint: "2" }),
-        Field({ name: "SoundVolume", constraint: "5" }),
-        Field({ name: "AutoRelockTime", constraint: "6" }),
-        Field({ name: "LedSettings", constraint: "7" })
+        Field({ name: "LocalProgramming", conformance: "M", constraint: "0" }),
+        Field({ name: "KeypadInterface", conformance: "M", constraint: "1" }),
+        Field({ name: "RemoteInterface", conformance: "M", constraint: "2" }),
+        Field({ name: "SoundVolume", conformance: "M", constraint: "5" }),
+        Field({ name: "AutoRelockTime", conformance: "M", constraint: "6" }),
+        Field({ name: "LedSettings", conformance: "M", constraint: "7" })
     ),
 
     Datatype(
         { name: "LocalProgrammingFeaturesBitmap", type: "map8" },
-        Field({ name: "AddUsersCredentialsSchedules", constraint: "0" }),
-        Field({ name: "ModifyUsersCredentialsSchedules", constraint: "1" }),
-        Field({ name: "ClearUsersCredentialsSchedules", constraint: "2" }),
-        Field({ name: "AdjustSettings", constraint: "3" })
+        Field({ name: "AddUsersCredentialsSchedules", conformance: "M", constraint: "0" }),
+        Field({ name: "ModifyUsersCredentialsSchedules", conformance: "M", constraint: "1" }),
+        Field({ name: "ClearUsersCredentialsSchedules", conformance: "M", constraint: "2" }),
+        Field({ name: "AdjustSettings", conformance: "M", constraint: "3" })
     ),
 
     Datatype(
         { name: "AlarmMaskBitmap", type: "map16" },
-        Field({ name: "LockJammed", constraint: "0" }),
-        Field({ name: "LockFactoryReset", constraint: "1" }),
-        Field({ name: "LockRadioPowerCycled", constraint: "3" }),
-        Field({ name: "WrongCodeEntryLimit", constraint: "4" }),
-        Field({ name: "FrontEscutcheonRemoved", constraint: "5" }),
-        Field({ name: "DoorForcedOpen", constraint: "6" })
+        Field({ name: "LockJammed", conformance: "M", constraint: "0" }),
+        Field({ name: "LockFactoryReset", conformance: "O", constraint: "1" }),
+        Field({ name: "LockRadioPowerCycled", conformance: "O", constraint: "3" }),
+        Field({ name: "WrongCodeEntryLimit", conformance: "PIN | RID", constraint: "4" }),
+        Field({ name: "FrontEscutcheonRemoved", conformance: "O", constraint: "5" }),
+        Field({ name: "DoorForcedOpen", conformance: "O", constraint: "6" })
     ),
 
     Datatype(

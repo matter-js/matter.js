@@ -687,8 +687,9 @@ export class ChipToolClient {
     }
 
     #send(frame: string) {
+        // ws reports success as `null` rather than by omitting the argument
         this.#socket?.send(frame, cause => {
-            if (cause !== undefined) {
+            if (cause !== undefined && cause !== null) {
                 this.#options.onLog(`chip-tool frame ${JSON.stringify(frame)} failed to send: ${cause}`);
             }
         });

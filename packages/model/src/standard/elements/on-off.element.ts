@@ -54,7 +54,10 @@ export const OnOff = Cluster(
         Field({ name: "OffWaitTime", id: 0x2, type: "uint16", conformance: "M", constraint: "max 65534" })
     ),
 
-    Datatype({ name: "OnOffControlBitmap", type: "map8" }, Field({ name: "AcceptOnlyWhenOn", constraint: "0" })),
+    Datatype(
+        { name: "OnOffControlBitmap", type: "map8" },
+        Field({ name: "AcceptOnlyWhenOn", conformance: "M", constraint: "0" })
+    ),
 
     Datatype(
         { name: "StartUpOnOffEnum", type: "enum8" },

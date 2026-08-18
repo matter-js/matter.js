@@ -179,13 +179,13 @@ export const EnergyEvse = Cluster(
 
     Datatype(
         { name: "TargetDayOfWeekBitmap", type: "map8" },
-        Field({ name: "Sunday", constraint: "0" }),
-        Field({ name: "Monday", constraint: "1" }),
-        Field({ name: "Tuesday", constraint: "2" }),
-        Field({ name: "Wednesday", constraint: "3" }),
-        Field({ name: "Thursday", constraint: "4" }),
-        Field({ name: "Friday", constraint: "5" }),
-        Field({ name: "Saturday", constraint: "6" })
+        Field({ name: "Sunday", conformance: "M", constraint: "0" }),
+        Field({ name: "Monday", conformance: "M", constraint: "1" }),
+        Field({ name: "Tuesday", conformance: "M", constraint: "2" }),
+        Field({ name: "Wednesday", conformance: "M", constraint: "3" }),
+        Field({ name: "Thursday", conformance: "M", constraint: "4" }),
+        Field({ name: "Friday", conformance: "M", constraint: "5" }),
+        Field({ name: "Saturday", conformance: "M", constraint: "6" })
     ),
 
     Datatype(

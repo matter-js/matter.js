@@ -22,7 +22,7 @@ import {
     UINT64_MAX,
     UINT8_MAX,
 } from "@matter/general";
-import { Constraint, FieldValue, ValueModel } from "@matter/model";
+import { Constraint, EncodedValue, FieldValue, ValueModel } from "@matter/model";
 
 /**
  * Helpers for generation of TLV schema from models.
@@ -33,23 +33,23 @@ export namespace ModelBounds {
     export function createLengthBounds(model: ValueModel) {
         const constraint = extractApplicableConstraint(model);
 
-        const value = FieldValue.numericValue(constraint.value, model.type);
+        const value = EncodedValue(model, constraint.value);
         if (value !== undefined) {
             return { length: value };
         }
 
-        return createRangeBounds(constraint, "minLength", "maxLength");
+        return createRangeBounds(model, constraint, "minLength", "maxLength");
     }
 
     export function createNumberBounds(model: ValueModel) {
         const constraint = model.effectiveConstraint;
 
-        const value = FieldValue.numericValue(constraint.value, model.type);
+        const value = EncodedValue(model, constraint.value);
         if (value !== undefined) {
             return { min: value, max: value };
         }
 
-        return createRangeBounds(constraint, "min", "max", model.type);
+        return createRangeBounds(model, constraint, "min", "max", model.effectiveType);
     }
 
     /**
@@ -71,9 +71,9 @@ export namespace ModelBounds {
     };
 }
 
-function createRangeBounds(constraint: Constraint, minKey: string, maxKey: string, type?: string) {
-    let min = FieldValue.numericValue(constraint.min, type);
-    let max = FieldValue.numericValue(constraint.max, type);
+function createRangeBounds(model: ValueModel, constraint: Constraint, minKey: string, maxKey: string, type?: string) {
+    let min = EncodedValue(model, constraint.min);
+    let max = EncodedValue(model, constraint.max);
 
     if (min === (ModelBounds.NumericRanges as any)[type as any]?.min) {
         min = undefined;

@@ -431,4 +431,20 @@ describe("Constraint", () => {
             }
         });
     });
+
+    describe("reference to a field named like a keyword", () => {
+        it("survives serialization", () => {
+            const constraint = new Constraint("Min to 100.00%");
+            expect(`${constraint}`).equal("Min to 100%");
+            expect(constraint.errors).equal(undefined);
+
+            const reparsed = new Constraint(`${constraint}`);
+            expect(`${reparsed}`).equal("Min to 100%");
+            expect(reparsed.errors).equal(undefined);
+        });
+
+        it("remains distinct from the keyword", () => {
+            expect(`${new Constraint("min 1")}`).equal("min 1");
+        });
+    });
 });
