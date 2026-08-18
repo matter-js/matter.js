@@ -106,6 +106,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Attribute, event and connection-state log lines are recognized by the web UI again, so node tiles and device values update; event lines name the peer and render their timestamp according to the wire variant the device sent
 
 - @matter/protocol
+    - Fix: mDNS advertisements set the cache-flush bit on the SRV, TXT and address records unique to the node
+    - Fix: mDNS known-answer suppression compares what identifies a record rather than its wire framing, and honors RFC 6762 §7.1's remaining-lifetime rule
     - Deprecation: The legacy `DecodedDataReport` / `Decoded{Attribute,Event}Report*` types and the `normalize*` / `normalizeAndDecode*` helpers now announce removal in 0.19 instead of 0.18
     - Deprecation: The legacy `ClusterType` command request surface (`Invoke.LegacyCommandRequest`, `Specifier.ClusterTypeCommand`) and `SessionManager.owner` are scheduled for removal in 0.19
     - Enhancement: Network profiles accept a separate `bdxAdditionalMrpDelay` for bulk transfer, defaulting to the profile's messaging margin

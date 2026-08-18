@@ -16,6 +16,7 @@ import {
     DnsRecord,
     Duration,
     Logger,
+    isUniqueRecordType,
     NetworkInterfaceDetails,
     ServerAddress,
     SrvRecord,
@@ -177,7 +178,11 @@ export abstract class MdnsAdvertisement<T extends ServiceDescription = ServiceDe
             records.push(ip.includes(":") ? AAAARecord(hostname, ip) : ARecord(hostname, ip));
         }
 
-        return records;
+        // Records this node owns outright carry the cache-flush bit so peers replace their copies rather than hold
+        // both until the old one expires (RFC 6762 §10.2)
+        return records.map(record =>
+            isUniqueRecordType(record.recordType) ? { ...record, flushCache: true } : record,
+        );
     }
 
     get #txtValues() {

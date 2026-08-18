@@ -283,6 +283,76 @@ describe("MdnsServer", () => {
         });
     });
 
+    describe("Cache-flush bit", () => {
+        const DUMMY_SRV = SrvRecord(DUMMY_QNAME, { priority: 0, weight: 0, port: 1234, target: "abcd.local" });
+        const flushed = (record: DnsRecord<any>) => ({ ...record, flushCache: true });
+
+        function collectResponses() {
+            const responses = new Array<DnsMessage | undefined>();
+            onResponse = async (message: Bytes) => {
+                responses.push(DnsCodec.decode(message));
+            };
+            return responses;
+        }
+
+        it("suppresses a record the querier knows even though we flag it cache-flush", async () => {
+            await mdnsServer.setRecordsGenerator("foo", () => [PtrRecord(DUMMY_QNAME, "abcd"), flushed(DUMMY_SRV)]);
+            const responses = collectResponses();
+
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query,
+                    queries: [{ name: DUMMY_QNAME, recordClass: DnsRecordClass.IN, recordType: DnsRecordType.ANY }],
+                    answers: [DUMMY_SRV],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+            await MockTime.yield3();
+
+            expect(responses.flatMap(message => message?.answers ?? [])).deep.equals([PtrRecord(DUMMY_QNAME, "abcd")]);
+        });
+
+        it("drops the bit when a known answer leaves the record set incomplete", async () => {
+            const first = ARecord("abcd.local", DUMMY_IP);
+            const second = ARecord("abcd.local", "5.6.7.8");
+            await mdnsServer.setRecordsGenerator("foo", () => [flushed(first), flushed(second)]);
+            const responses = collectResponses();
+
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query,
+                    queries: [{ name: "abcd.local", recordClass: DnsRecordClass.IN, recordType: DnsRecordType.A }],
+                    answers: [first],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+            await MockTime.yield3();
+
+            expect(responses.flatMap(message => message?.answers ?? [])).deep.equals([second]);
+        });
+
+        it("keeps the bit when the whole record set is sent", async () => {
+            const first = ARecord("abcd.local", DUMMY_IP);
+            const second = ARecord("abcd.local", "5.6.7.8");
+            await mdnsServer.setRecordsGenerator("foo", () => [flushed(first), flushed(second)]);
+            const responses = collectResponses();
+
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query,
+                    queries: [{ name: "abcd.local", recordClass: DnsRecordClass.IN, recordType: DnsRecordType.A }],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+            await MockTime.yield3();
+
+            expect(responses.flatMap(message => message?.answers ?? [])).deep.equals([flushed(first), flushed(second)]);
+        });
+    });
+
     describe("Answer suppression", () => {
         it("suppress one answers in an ANY query", async () => {
             const responses = new Array<{ message?: DnsMessage; netInterface?: string; uniCastTarget?: string }>();

@@ -143,6 +143,11 @@ export class MdnsServer {
                         );
                     }
                 }
+
+                // The cache-flush bit tells the receiver to drop everything else it holds for the name and type, so a
+                // set we have pruned must not carry it (RFC 6762 §10.2)
+                answers = withoutPartialFlush(answers, portRecords);
+                additionalRecords = withoutPartialFlush(additionalRecords, portRecords);
             }
 
             const now = Time.nowMs;
@@ -306,10 +311,21 @@ export class MdnsServer {
         return netInterface === undefined ? this.network.getNetInterfaces() : [{ name: netInterface }];
     }
 
+    /**
+     * Whether a querier's known answer already carries {@link record}.
+     *
+     * Compares what identifies the record, not how it was framed: the cache-flush bit is meaningful only in a
+     * response, so a querier's copy never carries it and comparing it would suppress nothing.  Per RFC 6762 §7.1 a
+     * known answer only suppresses while more than half its lifetime remains.
+     */
     #suppressedByKnownAnswer(record: DnsRecord<any>, knownAnswer: DnsRecord<any>): boolean {
-        const lcName = knownAnswer.name.toLowerCase();
-        if (record.name.toLowerCase() !== lcName) return false;
-        return isDeepEqual({ ...record, name: lcName }, { ...knownAnswer, name: lcName }, true);
+        return (
+            record.recordType === knownAnswer.recordType &&
+            record.recordClass === knownAnswer.recordClass &&
+            record.name.toLowerCase() === knownAnswer.name.toLowerCase() &&
+            isDeepEqual(record.value, knownAnswer.value) &&
+            knownAnswer.ttl >= record.ttl / 2
+        );
     }
 
     #queryRecords({ name, recordType }: { name: string; recordType: DnsRecordType }, records: DnsRecord<any>[]) {
@@ -452,4 +468,23 @@ export namespace MdnsServer {
         /** Lower-cased names of records we own on this interface - used to fast-reject unrelated LAN queries. */
         ownedNames: Set<string>;
     }
+}
+
+/**
+ * Clears the cache-flush bit on records whose name and type are no longer completely represented in {@link sent}.
+ */
+function withoutPartialFlush(sent: DnsRecord<any>[], complete: DnsRecord<any>[]) {
+    const countOf = (records: DnsRecord<any>[], of: DnsRecord<any>) =>
+        records.filter(
+            record =>
+                record.recordType === of.recordType &&
+                record.recordClass === of.recordClass &&
+                record.name.toLowerCase() === of.name.toLowerCase(),
+        ).length;
+
+    return sent.map(record =>
+        record.flushCache && countOf(sent, record) !== countOf(complete, record)
+            ? { ...record, flushCache: false }
+            : record,
+    );
 }
