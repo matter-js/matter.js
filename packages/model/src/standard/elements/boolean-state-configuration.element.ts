@@ -76,10 +76,13 @@ export const BooleanStateConfiguration = Cluster(
 
     Datatype(
         { name: "AlarmModeBitmap", type: "map8" },
-        Field({ name: "Visual", constraint: "0" }),
-        Field({ name: "Audible", constraint: "1" })
+        Field({ name: "Visual", conformance: "VIS", constraint: "0" }),
+        Field({ name: "Audible", conformance: "AUD", constraint: "1" })
     ),
-    Datatype({ name: "SensorFaultBitmap", type: "map16" }, Field({ name: "GeneralFault", constraint: "0" }))
+    Datatype(
+        { name: "SensorFaultBitmap", type: "map16" },
+        Field({ name: "GeneralFault", conformance: "M", constraint: "0" })
+    )
 );
 
 MatterDefinition.children.push(BooleanStateConfiguration);

@@ -66,7 +66,7 @@ export const CommissionerControl = Cluster(
 
     Datatype(
         { name: "SupportedDeviceCategoryBitmap", type: "map32" },
-        Field({ name: "FabricSynchronization", constraint: "0" })
+        Field({ name: "FabricSynchronization", conformance: "O", constraint: "0" })
     )
 );
 

@@ -120,6 +120,7 @@ function addExtensionFields(schema: Schema, defaultState: Val.Struct) {
             type: "any",
 
             access: new Access({
+                rw: Access.Rw.ReadWrite,
                 readPriv: Access.Privilege.View,
                 writePriv: Access.Privilege.Operate,
             }),

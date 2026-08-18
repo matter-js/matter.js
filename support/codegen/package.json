@@ -6,6 +6,7 @@
     "type": "module",
     "scripts": {
         "clean": "nacho-build clean",
+        "test": "matter-test",
         "build": "nacho-build",
         "build-clean": "nacho-build --clean",
         "generate-spec": "nacho-run --max-old-space-size=6144 bin/generate-spec.js",
@@ -15,6 +16,7 @@
         "generate-endpoints": "nacho-run bin/generate-endpoints.js",
         "generate-forwards": "nacho-run bin/generate-forwards.js",
         "generate-vscode": "nacho-run bin/generate-vscode.js",
+        "validate-chipdm-model": "nacho-run bin/validate-chipdm-model.js",
         "generate": "npm run generate-model && npm run generate-clusters && npm run generate-endpoints && npm run generate-forwards"
     },
     "repository": {
@@ -38,7 +40,9 @@
         "@matter/types": "*"
     },
     "devDependencies": {
+        "@matter/testing": "*",
         "@types/jsdom": "^30.0.0",
+        "@xmldom/xmldom": "^0.9.11",
         "jsdom": "^30.0.1",
         "word-list": "^4.1.0",
         "yargs": "^18.1.0"
