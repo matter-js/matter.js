@@ -105,6 +105,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Giving up on a peripheral reports the last connection failure as cause
     - Fix: A disconnect that never completes no longer leaves the channel request pending forever
     - Fix: Aborting a BLE connection attempt now stops its retries and releases a link the attempt already established
+    - Fix: Stopping an advertisement that was still waiting for the Bluetooth adapter retracts it, so the adapter powering on no longer starts an advertisement that was already given up on
 
 - @matter/nodejs-shell
     - Feature: Added `--cleanup-legacy-storage` to irreversibly remove the leftover pre-0.16 storage artifacts once they have been migrated to the current format

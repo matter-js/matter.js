@@ -352,17 +352,18 @@ export class BlenoBleServer extends BleChannel<Bytes> {
     async advertise(advertiseData: Bytes, additionalAdvertisementData?: Bytes, interval = Millis(100)) {
         process.env["BLENO_ADVERTISING_INTERVAL"] = interval.toString();
 
+        // Stopping retracts the previous advertisement's data, so the new data is installed after it
+        if (this.isAdvertising) {
+            await this.stopAdvertising();
+            this.isAdvertising = false;
+        }
+
         this.advertisingData = Buffer.from(Bytes.of(advertiseData));
 
         if (additionalAdvertisementData) {
             this.additionalAdvertisingData = Buffer.from(Bytes.of(additionalAdvertisementData));
         } else {
             this.additionalAdvertisingData = Buffer.alloc(0);
-        }
-
-        if (this.isAdvertising) {
-            await this.stopAdvertising();
-            this.isAdvertising = false;
         }
 
         if (this.state !== "poweredOn") {
@@ -386,6 +387,11 @@ export class BlenoBleServer extends BleChannel<Bytes> {
     }
 
     async stopAdvertising() {
+        // Also retracts an advertisement that never started: the data outlives a deferred advertisement, and the
+        // power-on handler would otherwise broadcast what the advertiser has already given up on
+        this.#advertisementDeferred = false;
+        this.advertisingData = undefined;
+
         if (this.isAdvertising) {
             return new Promise<void>(resolve => {
                 Bleno.stopAdvertising();
