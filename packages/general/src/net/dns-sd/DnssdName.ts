@@ -144,9 +144,11 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
         const at = options?.installedAt ?? Time.nowMs;
 
         // Retire what this record supersedes only once we know we are keeping it, and only what predates it, so a
-        // responder announcing a whole record set at once does not leave us holding just the last of it
+        // responder announcing a whole record set at once does not leave us holding just the last of it.  The record
+        // being installed is excluded by key as well as by time: the copy it replaces is still in #records here, and
+        // retiring that copy would leave a scheduled deletion that later resolves to this key.
         if (record.flushCache && isUniqueRecordType(record.recordType)) {
-            this.#expireOthersBefore(record.recordType, at);
+            this.#expireOthersBefore(record.recordType, at, key);
         }
 
         const isHostRecord = record.recordType === DnsRecordType.A || record.recordType === DnsRecordType.AAAA;
@@ -208,9 +210,9 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
         this.#retire(...installed);
     }
 
-    #expireOthersBefore(recordType: DnsRecordType, before: Timestamp) {
+    #expireOthersBefore(recordType: DnsRecordType, before: Timestamp, exceptKey: string) {
         for (const [key, record] of this.#records) {
-            if (record.recordType === recordType && record.installedAt < before) {
+            if (key !== exceptKey && record.recordType === recordType && record.installedAt < before) {
                 this.#retire(key, record);
             }
         }

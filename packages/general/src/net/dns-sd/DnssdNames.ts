@@ -286,11 +286,11 @@ export class DnssdNames {
                     continue;
                 }
 
-                if (record.ttl < this.#minTtl) {
-                    record = { ...record, ttl: this.#minTtl };
+                if (record.ttl < this.#minTtl || (record.flushCache && !isResponse)) {
+                    record = { ...record, ttl: Duration.max(record.ttl, this.#minTtl), flushCache: false };
                 }
                 let staged = this.#stagedIpRecords.get(key) ?? [];
-                if (record.flushCache) {
+                if (record.flushCache && isResponse) {
                     staged = staged.filter(s => s.record.recordType !== record.recordType || s.receivedAt >= packetAt);
                 }
                 const existing = staged.findIndex(

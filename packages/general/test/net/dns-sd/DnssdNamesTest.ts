@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DnsMessageType, type DnsRecord, DnsRecordClass, DnsRecordType, type SrvRecordValue } from "#codec/DnsCodec.js";
+import { DnsMessageType, type DnsRecord, DnsRecordClass, DnsRecordType } from "#codec/DnsCodec.js";
 import { Hours, Millis, Minutes, Seconds } from "#index.js";
 import { Time } from "#time/Time.js";
 import { Abort } from "#util/Abort.js";
@@ -1208,6 +1208,20 @@ describe("DnssdNames", () => {
             expect([...client.names.get(qname).parameters]).deep.equals([["b", "2"]]);
         });
 
+        it("keeps a record a responder re-announces unchanged", async () => {
+            await using site = new MockSite();
+            const { client, server } = await discoverName(site);
+
+            const qname = qnameOf(1);
+
+            await MockTime.advance(Minutes(1));
+            await server.mdns.send(txtPacket(qname, ["a=1"], true));
+            await MockTime.advance(Seconds(1));
+            await MockTime.advance(10);
+
+            expect([...client.names.get(qname).parameters]).deep.equals([["a", "1"]]);
+        });
+
         it("keeps the superseded record when the bit is absent", async () => {
             await using site = new MockSite();
             const { client, server } = await discoverName(site);
@@ -1273,10 +1287,15 @@ describe("DnssdNames", () => {
             await server.broadcast(1, Hours(1));
             await MockTime.resolve(discovered);
 
-            const srvPorts = () =>
-                [...client.names.get(qname).records]
-                    .filter(record => record.recordType === DnsRecordType.SRV)
-                    .map(record => (record.value as SrvRecordValue).port);
+            const srvPorts = () => {
+                const ports = new Array<number>();
+                for (const record of client.names.get(qname).records) {
+                    if (record.recordType === DnsRecordType.SRV) {
+                        ports.push(record.value.port);
+                    }
+                }
+                return ports;
+            };
             expect(srvPorts()).deep.equals([1234]);
 
             // Port 0 designates no service, so the record is refused — and must not take the good one with it
@@ -1353,6 +1372,38 @@ describe("DnssdNames", () => {
             await MockTime.advance(10);
 
             expect(addresses()).deep.equals(["fe80::2"]);
+        });
+
+        it("strips the bit from the known answers it sends with a query", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+            const discovered = new Promise<void>(resolve => {
+                client.names.discovered.once(() => resolve());
+            });
+            await server.mdns.send(txtPacket(qname, ["a=1"], true));
+            await MockTime.resolve(discovered);
+
+            const knownAnswers = new Array<DnsRecord>();
+            server.mdns.receipt.on(message => {
+                if (message.queries.length > 0) {
+                    knownAnswers.push(...message.answers);
+                }
+            });
+
+            const abort = new Abort();
+            const discovery = client.names.solicitor.discover({
+                name: client.names.get(qname),
+                recordTypes: [DnsRecordType.TXT],
+                abort,
+            });
+            await MockTime.resolve(Time.sleep("wait for query", Seconds(1)));
+            abort();
+            await MockTime.resolve(discovery).catch(() => {});
+
+            expect(knownAnswers.length).greaterThan(0);
+            expect(knownAnswers.some(record => record.flushCache)).false;
         });
 
         it("ignores the bit on a shared PTR record", async () => {
