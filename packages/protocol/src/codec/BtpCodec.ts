@@ -65,7 +65,23 @@ export enum BtpOpcode {
 
 const HANDSHAKE_HEADER = 0b01100101;
 
+/** Header, opcode, version, 16-bit ATT_MTU and window size. */
+const HANDSHAKE_RESPONSE_LENGTH = 6;
+
 export class BtpCodec {
+    /**
+     * Whether the payload is a BTP handshake response, so a client can tell it apart from data arriving on C2 before it
+     * has a session to decode against.
+     */
+    static isHandshakeResponse(data: Bytes) {
+        const bytes = Bytes.of(data);
+        return (
+            bytes.length === HANDSHAKE_RESPONSE_LENGTH &&
+            bytes[0] === HANDSHAKE_HEADER &&
+            bytes[1] === BtpOpcode.HandshakeManagementOpcode
+        );
+    }
+
     static decodeBtpHandshakeRequest(data: Bytes): BtpHandshakeRequest {
         const reader = new DataReader(data, Endian.Little);
         return this.decodeHandshakeRequestPayload(reader);

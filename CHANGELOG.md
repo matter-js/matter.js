@@ -90,11 +90,14 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensure that `--storage-clear`/`MATTER_STORAGE_CLEAR` is honored again and clears the storage on start
 
 - @matter/nodejs-ble
+    - Info: Only this transport recovers from a peripheral that stops responding after the BTP handshake; `@matter/react-native` gets the segment-size bound but not the renegotiation
     - Fix: A connection attempt that BLE reports as failed is retried instead of failing commissioning on the first try
     - Fix: A peripheral whose connection attempt failed is no longer rejected as unusable for the lifetime of the process
     - Fix: Giving up on a peripheral reports the last connection failure as cause
     - Fix: A disconnect that never completes no longer leaves the channel request pending forever
     - Fix: Aborting a BLE connection attempt now stops its retries and releases a link the attempt already established
+    - Fix: A peripheral that completes the BTP handshake but then never responds to data is retried once with the minimum BTP segment size instead of failing commissioning
+    - Fix: A pending ATT_MTU exchange is awaited briefly, so a late MTU no longer pins the BTP segment size to the minimum
 
 - @matter/nodejs-shell
     - Feature: Added `--cleanup-legacy-storage` to irreversibly remove the leftover pre-0.16 storage artifacts once they have been migrated to the current format
@@ -107,6 +110,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Network profiles accept a separate `bdxAdditionalMrpDelay` for bulk transfer, defaulting to the profile's messaging margin
     - Enhancement: New `CertificateAuthority.erase()` discards the authority's key material, persisted and in memory
     - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding how long it waits for the operational CASE connection that follows it; defaults to the previous fixed 4m15s
+    - Enhancement: `BtpSessionHandler.stalledAfterHandshake` reports a peer that answers the handshake and then nothing else, carrying the messages it never acknowledged
+    - Enhancement: New `BtpCodec.isHandshakeResponse()` identifies a BTP handshake response without a session to decode against
+    - Fix: A central BTP session no longer accepts a segment size larger than the one it offered; `createAsCentral` requires the offered size
     - Fix: Cancelling BLE commissioning aborts the in-flight channel open
     - Fix: A subscription's `maxIntervalCeiling` is transmitted exactly as requested; jitter now applies only when we derive the ceiling ourselves
 
