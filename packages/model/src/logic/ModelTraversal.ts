@@ -460,7 +460,7 @@ export class ModelTraversal {
         }
 
         return this.operation(() => {
-            const access = this.findAspect(model, "access", Access);
+            const access = readOnlyIfPrivileged(this.findAspect(model, "access", Access));
 
             if (!access) {
                 return this.findAccess(this.findOwner(VM, model), VM);
@@ -895,4 +895,29 @@ interface Memos {
     bases: Map<Model, Model | undefined>;
     shadows: Map<Model, Model | undefined>;
     types: Map<Model, Record<string, Model | undefined>>;
+}
+
+/**
+ * Constrain an access definition that names a privilege but no read or write.
+ *
+ * The specification grants write access only where the access column states "W", so such an element is read-only.
+ * Without this the definition is incomplete and inheritance supplies the read/write of {@link Access.Default}, which
+ * would make the element writable.
+ */
+function readOnlyIfPrivileged(access: Access | undefined) {
+    if (access === undefined || access.rw !== undefined) {
+        return access;
+    }
+
+    if (access.readPriv === undefined && access.writePriv === undefined) {
+        return access;
+    }
+
+    return new Access({
+        rw: Access.Rw.Read,
+        readPriv: access.readPriv,
+        writePriv: access.writePriv,
+        fabric: access.fabric,
+        timed: access.timed,
+    });
 }

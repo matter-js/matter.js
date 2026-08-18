@@ -368,7 +368,7 @@ function translateInvokable(definition: ClusterReference, children: Array<Cluste
         });
 
         const events = translateRecordsToMatter("event", records, r => {
-            let priority: EventElement.Priority;
+            let priority: EventElement.Priority | undefined;
             switch (r.priority?.toLowerCase()) {
                 case "debug":
                     priority = EventElement.Priority.Debug;
@@ -383,8 +383,8 @@ function translateInvokable(definition: ClusterReference, children: Array<Cluste
                     break;
 
                 case undefined:
-                    logger.warn("no priority defined, assuming CRITICAL");
-                    priority = EventElement.Priority.Critical;
+                    // A derived cluster leaves the column empty for an event it inherits unchanged; finalization
+                    // installs the priority of the event we derive from
                     break;
 
                 default:

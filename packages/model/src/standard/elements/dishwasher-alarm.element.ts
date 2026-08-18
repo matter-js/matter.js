@@ -20,12 +20,12 @@ export const DishwasherAlarm = Cluster(
 
     Datatype(
         { name: "AlarmBitmap", type: "map32" },
-        Field({ name: "InflowError", constraint: "0" }),
-        Field({ name: "DrainError", constraint: "1" }),
-        Field({ name: "DoorError", constraint: "2" }),
-        Field({ name: "TempTooLow", constraint: "3" }),
-        Field({ name: "TempTooHigh", constraint: "4" }),
-        Field({ name: "WaterLevelError", constraint: "5" })
+        Field({ name: "InflowError", conformance: "P, O.a+", constraint: "0" }),
+        Field({ name: "DrainError", conformance: "P, O.a+", constraint: "1" }),
+        Field({ name: "DoorError", conformance: "O.a+", constraint: "2" }),
+        Field({ name: "TempTooLow", conformance: "P, O.a+", constraint: "3" }),
+        Field({ name: "TempTooHigh", conformance: "P, O.a+", constraint: "4" }),
+        Field({ name: "WaterLevelError", conformance: "P, O.a+", constraint: "5" })
     )
 );
 

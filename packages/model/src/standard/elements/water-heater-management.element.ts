@@ -49,11 +49,11 @@ export const WaterHeaterManagement = Cluster(
 
     Datatype(
         { name: "WaterHeaterHeatSourceBitmap", type: "map8" },
-        Field({ name: "ImmersionElement1", constraint: "0" }),
-        Field({ name: "ImmersionElement2", constraint: "1" }),
-        Field({ name: "HeatPump", constraint: "2" }),
-        Field({ name: "Boiler", constraint: "3" }),
-        Field({ name: "Other", constraint: "4" })
+        Field({ name: "ImmersionElement1", conformance: "M", constraint: "0" }),
+        Field({ name: "ImmersionElement2", conformance: "M", constraint: "1" }),
+        Field({ name: "HeatPump", conformance: "M", constraint: "2" }),
+        Field({ name: "Boiler", conformance: "M", constraint: "3" }),
+        Field({ name: "Other", conformance: "M", constraint: "4" })
     ),
 
     Datatype(

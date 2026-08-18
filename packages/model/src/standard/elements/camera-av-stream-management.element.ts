@@ -104,7 +104,7 @@ export const CameraAvStreamManagement = Cluster(
         name: "SoftLivestreamPrivacyModeEnabled", id: 0x14, type: "bool", access: "RW VO",
         conformance: "PRIV", quality: "N"
     }),
-    Attribute({ name: "HardPrivacyModeOn", id: 0x15, type: "bool", access: "R V", conformance: "O", default: true }),
+    Attribute({ name: "HardPrivacyModeOn", id: 0x15, type: "bool", access: "R V", conformance: "O", default: false }),
     Attribute({ name: "NightVision", id: 0x16, type: "TriStateAutoEnum", access: "RW M", conformance: "NV", quality: "N" }),
     Attribute({ name: "NightVisionIllum", id: 0x17, type: "TriStateAutoEnum", access: "RW M", conformance: "[NV]", quality: "N" }),
     Attribute({ name: "Viewport", id: 0x18, type: "ViewportStruct", access: "RW M", conformance: "VDO", quality: "N" }),
@@ -144,11 +144,11 @@ export const CameraAvStreamManagement = Cluster(
     }),
     Attribute({
         name: "ImageFlipHorizontal", id: 0x23, type: "bool", access: "RW M", conformance: "[ICTL].b+",
-        default: true, quality: "N"
+        default: false, quality: "N"
     }),
     Attribute({
         name: "ImageFlipVertical", id: 0x24, type: "bool", access: "RW M", conformance: "[ICTL].b+",
-        default: true, quality: "N"
+        default: false, quality: "N"
     }),
     Attribute({
         name: "LocalVideoRecordingEnabled", id: 0x25, type: "bool", access: "RW M",
@@ -401,8 +401,8 @@ export const CameraAvStreamManagement = Cluster(
         Field({ name: "MinBitRate", id: 0x7, type: "uint32", conformance: "M", constraint: "1 to maxBitRate" }),
         Field({ name: "MaxBitRate", id: 0x8, type: "uint32", conformance: "M", constraint: "min 1" }),
         Field({ name: "KeyFrameInterval", id: 0x9, type: "uint16", conformance: "M", constraint: "0 to 65500" }),
-        Field({ name: "WatermarkEnabled", id: 0xa, type: "bool", conformance: "WMARK", default: true }),
-        Field({ name: "OsdEnabled", id: 0xb, type: "bool", conformance: "OSD", default: true }),
+        Field({ name: "WatermarkEnabled", id: 0xa, type: "bool", conformance: "WMARK", default: false }),
+        Field({ name: "OsdEnabled", id: 0xb, type: "bool", conformance: "OSD", default: false }),
         Field({ name: "ReferenceCount", id: 0xc, type: "uint8", conformance: "M", default: 0 })
     ),
 

@@ -107,7 +107,10 @@ export const Groups = Cluster(
         Field({ name: "Status", id: 0x0, type: "status", conformance: "M", constraint: "desc" }),
         Field({ name: "GroupId", id: 0x1, type: "group-id", conformance: "M", constraint: "min 1" })
     ),
-    Datatype({ name: "NameSupportBitmap", type: "map8" }, Field({ name: "GroupNames", constraint: "7" }))
+    Datatype(
+        { name: "NameSupportBitmap", type: "map8" },
+        Field({ name: "GroupNames", conformance: "M", constraint: "7" })
+    )
 );
 
 MatterDefinition.children.push(Groups);

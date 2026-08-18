@@ -71,8 +71,8 @@ export const CommodityPrice = Cluster(
 
     Datatype(
         { name: "CommodityPriceDetailBitmap", type: "map16" },
-        Field({ name: "Description", constraint: "0" }),
-        Field({ name: "Components", constraint: "1" })
+        Field({ name: "Description", conformance: "M", constraint: "0" }),
+        Field({ name: "Components", conformance: "M", constraint: "1" })
     ),
 
     Datatype(
