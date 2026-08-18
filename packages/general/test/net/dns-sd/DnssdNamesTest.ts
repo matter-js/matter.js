@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DnsMessageType, type DnsRecord, DnsRecordClass, DnsRecordType } from "#codec/DnsCodec.js";
+import { DnsMessageType, type DnsRecord, DnsRecordClass, DnsRecordType, type SrvRecordValue } from "#codec/DnsCodec.js";
 import { Hours, Millis, Minutes, Seconds } from "#index.js";
 import { Time } from "#time/Time.js";
 import { Abort } from "#util/Abort.js";
@@ -1165,6 +1165,233 @@ describe("DnssdNames", () => {
             await MockTime.advance(10);
 
             expect(client.names.has(qname)).true;
+        });
+    });
+
+    describe("cache-flush records", () => {
+        function txtPacket(qname: string, entries: string[], flushCache: boolean) {
+            const answers: DnsRecord[] = [
+                {
+                    name: qname,
+                    recordType: DnsRecordType.TXT,
+                    recordClass: DnsRecordClass.IN,
+                    ttl: Hours(1),
+                    value: entries,
+                    flushCache,
+                },
+            ];
+            return { messageType: DnsMessageType.Response, answers, additionalRecords: [] };
+        }
+
+        async function discoverName(site: MockSite) {
+            const { client, server } = await site.addPair();
+            const discovered = new Promise<void>(resolve => {
+                client.names.discovered.once(() => resolve());
+            });
+            await server.broadcast(1, Hours(1), undefined, ["a=1"]);
+            await MockTime.resolve(discovered);
+            return { client, server };
+        }
+
+        it("retires the superseded TXT record", async () => {
+            await using site = new MockSite();
+            const { client, server } = await discoverName(site);
+
+            const qname = qnameOf(1);
+            expect([...client.names.get(qname).parameters]).deep.equals([["a", "1"]]);
+
+            await MockTime.advance(Minutes(1));
+            await server.mdns.send(txtPacket(qname, ["b=2"], true));
+            await MockTime.advance(Seconds(1));
+            await MockTime.advance(10);
+
+            expect([...client.names.get(qname).parameters]).deep.equals([["b", "2"]]);
+        });
+
+        it("keeps the superseded record when the bit is absent", async () => {
+            await using site = new MockSite();
+            const { client, server } = await discoverName(site);
+
+            const qname = qnameOf(1);
+
+            await MockTime.advance(Minutes(1));
+            await server.mdns.send(txtPacket(qname, ["b=2"], false));
+            await MockTime.advance(Seconds(1));
+            await MockTime.advance(10);
+
+            expect([...client.names.get(qname).parameters]).deep.equals([
+                ["b", "2"],
+                ["a", "1"],
+            ]);
+        });
+
+        it("keeps every record of a type that arrives in the flushing packet", async () => {
+            await using site = new MockSite();
+            const { client, server } = await discoverName(site);
+
+            const qname = qnameOf(1);
+
+            await MockTime.advance(Minutes(1));
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [txtPacket(qname, ["b=2"], true).answers[0], txtPacket(qname, ["c=3"], true).answers[0]],
+                additionalRecords: [],
+            });
+            await MockTime.advance(Seconds(1));
+            await MockTime.advance(10);
+
+            expect([...client.names.get(qname).parameters].map(([key]) => key).sort()).deep.equals(["b", "c"]);
+        });
+
+        it("ignores the bit in a query's known-answer list", async () => {
+            await using site = new MockSite();
+            const { client, server } = await discoverName(site);
+
+            const qname = qnameOf(1);
+
+            await MockTime.advance(Minutes(1));
+            await server.mdns.send({
+                messageType: DnsMessageType.Query,
+                queries: [{ name: qname, recordType: DnsRecordType.TXT, recordClass: DnsRecordClass.IN }],
+                answers: txtPacket(qname, ["b=2"], true).answers,
+                additionalRecords: [],
+            });
+            await MockTime.advance(Seconds(1));
+            await MockTime.advance(10);
+
+            expect(client.names.get(qname).parameters.get("a")).equals("1");
+        });
+
+        it("keeps the record a rejected replacement would have superseded", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+            const discovered = new Promise<void>(resolve => {
+                client.names.discovered.once(() => resolve());
+            });
+            await server.broadcast(1, Hours(1));
+            await MockTime.resolve(discovered);
+
+            const srvPorts = () =>
+                [...client.names.get(qname).records]
+                    .filter(record => record.recordType === DnsRecordType.SRV)
+                    .map(record => (record.value as SrvRecordValue).port);
+            expect(srvPorts()).deep.equals([1234]);
+
+            // Port 0 designates no service, so the record is refused — and must not take the good one with it
+            await MockTime.advance(Minutes(1));
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: { port: 0, priority: 10, weight: 1, target: server.hostname },
+                        flushCache: true,
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(Seconds(1));
+            await MockTime.advance(10);
+
+            expect(srvPorts()).deep.equals([1234]);
+        });
+
+        it("retires only the type the flushing record carries", async () => {
+            await using site = new MockSite();
+            const { client, server } = await discoverName(site);
+
+            const qname = qnameOf(1);
+            const typesHeld = () => new Set([...client.names.get(qname).records].map(record => record.recordType));
+            expect(typesHeld().has(DnsRecordType.SRV)).true;
+
+            await MockTime.advance(Minutes(1));
+            await server.mdns.send(txtPacket(qname, ["b=2"], true));
+            await MockTime.advance(Seconds(1));
+            await MockTime.advance(10);
+
+            expect(typesHeld().has(DnsRecordType.SRV)).true;
+            expect([...client.names.get(qname).parameters]).deep.equals([["b", "2"]]);
+        });
+
+        it("retires a superseded address record", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const discovered = new Promise<void>(resolve => {
+                client.names.discovered.once(() => resolve());
+            });
+            await server.broadcast(1, Hours(1), ["fe80::1"]);
+            await MockTime.resolve(discovered);
+
+            const addresses = () =>
+                [...client.names.get(server.hostname).records]
+                    .filter(record => record.recordType === DnsRecordType.AAAA)
+                    .map(record => record.value as string);
+            expect(addresses()).deep.equals(["fe80::1"]);
+
+            await MockTime.advance(Minutes(1));
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: server.hostname,
+                        recordType: DnsRecordType.AAAA,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: "fe80::2",
+                        flushCache: true,
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(Seconds(1));
+            await MockTime.advance(10);
+
+            expect(addresses()).deep.equals(["fe80::2"]);
+        });
+
+        it("ignores the bit on a shared PTR record", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+            const names = client.names;
+
+            function ptr(target: string, flushCache: boolean): DnsRecord {
+                return {
+                    name: MOCK_SERVICE_DOMAIN,
+                    recordType: DnsRecordType.PTR,
+                    recordClass: DnsRecordClass.IN,
+                    ttl: Hours(1),
+                    value: target,
+                    flushCache,
+                };
+            }
+
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [ptr(qnameOf(1), false), ptr(qnameOf(2), false)],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            const ptrCount = () => [...names.get(MOCK_SERVICE_DOMAIN).records].length;
+            expect(ptrCount()).equals(2);
+
+            // One instance re-announcing must not evict the others sharing the service type
+            await MockTime.advance(Minutes(1));
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [ptr(qnameOf(1), true)],
+                additionalRecords: [],
+            });
+            await MockTime.advance(Seconds(1));
+            await MockTime.advance(10);
+
+            expect(ptrCount()).equals(2);
         });
     });
 

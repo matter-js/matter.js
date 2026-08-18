@@ -142,6 +142,13 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
         }
 
         const at = options?.installedAt ?? Time.nowMs;
+
+        // Retire what this record supersedes only once we know we are keeping it, and only what predates it, so a
+        // responder announcing a whole record set at once does not leave us holding just the last of it
+        if (record.flushCache && isUniqueRecordType(record.recordType)) {
+            this.#expireOthersBefore(record.recordType, at);
+        }
+
         const isHostRecord = record.recordType === DnsRecordType.A || record.recordType === DnsRecordType.AAAA;
         const recordWithExpire = {
             ...record,
@@ -190,15 +197,27 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
     }
 
     /**
-     * Shorten a record's remaining lifetime to {@link delay}.  Never extends it.
+     * Shorten a record's remaining lifetime to the context's eviction delay.  Never extends it.
      */
-    expireRecord(record: DnsRecord, delay: Duration) {
+    expireRecord(record: DnsRecord) {
         const installed = this.#installedFor(record);
         if (installed === undefined) {
             return;
         }
 
-        const [key, current] = installed;
+        this.#retire(...installed);
+    }
+
+    #expireOthersBefore(recordType: DnsRecordType, before: Timestamp) {
+        for (const [key, record] of this.#records) {
+            if (record.recordType === recordType && record.installedAt < before) {
+                this.#retire(key, record);
+            }
+        }
+    }
+
+    #retire(key: string, current: DnssdName.Record) {
+        const delay = this.#context.evictionDelay;
         const expiresAt = Timestamp(Time.nowMs + delay);
         if (current.expiresAt <= expiresAt) {
             return;
@@ -324,6 +343,25 @@ function isAvailableService({ target, port }: SrvRecordValue) {
     return Number.isInteger(port) && port > 0 && port <= MAX_PORT;
 }
 
+/**
+ * Whether a single responder owns every record of {@link recordType} for a given name, which is what lets a
+ * cache-flush record retire the others.  A DNS-SD service-type PTR enumerates every instance offering that service,
+ * so it is shared and never qualifies.
+ *
+ * @see {@link https://www.rfc-editor.org/rfc/rfc6762#section-10.2} RFC 6762 §10.2
+ * @see {@link https://www.rfc-editor.org/rfc/rfc6763#section-4.1} RFC 6763 §4.1
+ */
+export function isUniqueRecordType(recordType: DnsRecordType) {
+    return UNIQUE_RECORD_TYPES.has(recordType);
+}
+
+const UNIQUE_RECORD_TYPES: ReadonlySet<DnsRecordType> = new Set([
+    DnsRecordType.SRV,
+    DnsRecordType.TXT,
+    DnsRecordType.A,
+    DnsRecordType.AAAA,
+]);
+
 function keyOf(record: DnsRecord): string | undefined {
     switch (record.recordType) {
         case DnsRecordType.A:
@@ -362,6 +400,11 @@ export namespace DnssdName {
          * Multiplier applied to TTL when computing record expiry.  Always provided by {@link DnssdNames}.
          */
         ttlGraceFactor: number;
+
+        /**
+         * How long a record survives once something supersedes it.  Always provided by {@link DnssdNames}.
+         */
+        evictionDelay: Duration;
     }
 
     export interface Expiration {

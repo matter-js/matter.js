@@ -237,11 +237,13 @@ export class QueryMulticaster implements DnssdSolicitor {
                     queries.push({ name: name.qname, recordClass: DnsRecordClass.IN, recordType });
                 }
 
-                answers.push(...name.records);
+                // The bit a responder set on these records means cache-flush only in a response; leaving it on a
+                // known answer would tell peers to retire their own copies (RFC 6762 §18.12)
+                answers.push(...knownAnswersOf(name));
 
                 for (const iterable of associatedNames) {
                     for (const assocName of iterable) {
-                        answers.push(...assocName.records);
+                        answers.push(...knownAnswersOf(assocName));
                     }
                 }
             }
@@ -264,4 +266,8 @@ export class QueryMulticaster implements DnssdSolicitor {
             }
         }
     }
+}
+
+function knownAnswersOf(name: DnssdName) {
+    return [...name.records].map(record => (record.flushCache ? { ...record, flushCache: false } : record));
 }
