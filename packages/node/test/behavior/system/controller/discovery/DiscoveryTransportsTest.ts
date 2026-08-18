@@ -8,6 +8,7 @@ import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavi
 import { Discovery } from "#behavior/system/controller/discovery/Discovery.js";
 import { ChannelType, Diagnostic, LogDestination, Logger, LogLevel, Seconds } from "@matter/general";
 import { CommissionableDevice, CommissionableDeviceIdentifiers, Scanner, ScannerSet } from "@matter/protocol";
+import { VendorId } from "@matter/types";
 import { MockServerNode } from "../../../../node/mock-server-node.js";
 
 const DISCRIMINATOR = 1234;
@@ -108,16 +109,6 @@ describe("discovery transport selection", () => {
         expect(scanned).deep.equals([ChannelType.UDP, ChannelType.BLE]);
     });
 
-    it("obeys an explicit scanner filter over the payload's capabilities", async () => {
-        const { scanned } = await discover([ChannelType.UDP, ChannelType.BLE], {
-            longDiscriminator: DISCRIMINATOR,
-            discoveryCapabilities: { onIpNetwork: true },
-            scannerFilter: scanner => scanner.type === ChannelType.BLE,
-        });
-
-        expect(scanned).deep.equals([ChannelType.BLE]);
-    });
-
     it("names the device to a scanner without the options that steer discovery itself", async () => {
         const { requests } = await discover([ChannelType.UDP], {
             longDiscriminator: DISCRIMINATOR,
@@ -125,6 +116,16 @@ describe("discovery transport selection", () => {
         });
 
         expect(requests).deep.equals([{ longDiscriminator: DISCRIMINATOR }]);
+    });
+
+    it("names every identifier the caller states", async () => {
+        const { requests } = await discover([ChannelType.UDP], {
+            vendorId: VendorId(0xfff1),
+            productId: 0x8001,
+            discoveryCapabilities: { onIpNetwork: true },
+        });
+
+        expect(requests).deep.equals([{ vendorId: VendorId(0xfff1), productId: 0x8001 }]);
     });
 });
 
@@ -135,7 +136,8 @@ describe("discovery transport reporting", () => {
             discoveryCapabilities: { onIpNetwork: true },
         });
 
-        expect(messages.some(({ text }) => text.includes("(BLE not requested)"))).equals(true);
+        const note = messages.find(({ text }) => text.includes("(BLE not requested)"));
+        expect(note?.level).equals(LogLevel.NOTICE);
     });
 
     it("stays silent about BLE where BLE is not installed at all", async () => {
@@ -145,26 +147,27 @@ describe("discovery transport reporting", () => {
         });
 
         expect(messages.some(({ text }) => text.includes("(BLE not requested)"))).equals(false);
-        expect(messages.some(({ text }) => text.includes("BLE is not installed"))).equals(false);
+        expect(messages.some(({ text }) => text.includes("BLE is not enabled"))).equals(false);
     });
 
-    it("reports BLE requested against an installation without BLE", async () => {
+    it("reports BLE requested where BLE is not enabled", async () => {
         const { messages } = await discover([ChannelType.UDP], {
             longDiscriminator: DISCRIMINATOR,
             discoveryCapabilities: { onIpNetwork: true, ble: true },
         });
 
-        const notice = messages.find(({ level }) => level === LogLevel.NOTICE);
-        expect(notice?.text).includes("BLE is not installed");
+        const notice = messages.find(({ text }) => text.includes("BLE is not enabled"));
+        expect(notice?.level).equals(LogLevel.NOTICE);
     });
 
     it("warns where no scanner participates", async () => {
         const { messages } = await discover([], {
             longDiscriminator: DISCRIMINATOR,
-            discoveryCapabilities: { onIpNetwork: true },
+            discoveryCapabilities: { onIpNetwork: true, ble: true },
         });
 
         const warning = messages.find(({ level }) => level === LogLevel.WARN);
         expect(warning?.text).includes("No scanner is available");
+        expect(messages.some(({ text }) => text.includes("using IP network only"))).equals(false);
     });
 });

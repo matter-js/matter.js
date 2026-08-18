@@ -434,10 +434,6 @@ export class CommissioningController {
             clientCacheFlushInterval,
         });
 
-        if (!controller.ble) {
-            logger.warn("BLE is not enabled on this platform");
-        }
-
         // Sync state for all peers before start
         for (const peer of controller.node.peers) {
             if (!peer.lifecycle.isCommissioned) {

@@ -85,7 +85,7 @@ export class CommissioningDiscovery extends ParallelPaseDiscovery<ClientNode> {
         const mismatch = CommissioningDiscovery.identityMismatch(this.#identity, node.state.commissioning);
 
         if (mismatch !== undefined) {
-            logger.info(
+            logger.notice(
                 `Passing over ${node}: it advertises ${mismatch.facet} ${mismatch.advertised} where the onboarding payload names ${mismatch.payload}`,
             );
             return false;

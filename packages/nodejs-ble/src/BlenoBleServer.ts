@@ -365,18 +365,24 @@ export class BlenoBleServer extends BleChannel<Bytes> {
             this.isAdvertising = false;
         }
 
-        if (this.state === "poweredOn") {
-            Bleno.startAdvertisingWithEIRData(this.advertisingData);
-            this.isAdvertising = true;
-        } else if (!this.#advertisementDeferred) {
-            this.#advertisementDeferred = true;
-            logger.notice(
-                `BLE advertisement deferred until the Bluetooth adapter reports "poweredOn" (it reports "${this.state}"). Check that Bluetooth is enabled and that this process may use it.`,
-            );
+        if (this.state !== "poweredOn") {
+            // Awaiting a start that cannot arrive strands the advertisement; the state change handler resumes it
+            if (!this.#advertisementDeferred) {
+                this.#advertisementDeferred = true;
+                logger.notice(
+                    `BLE advertisement deferred until the Bluetooth adapter reports "poweredOn" (it reports "${this.state}"). Check that Bluetooth is enabled and that this process has the permissions needed to use it.`,
+                );
+            }
+            return;
         }
-        return new Promise<void>(resolve => {
+
+        this.#advertisementDeferred = false;
+        const started = new Promise<void>(resolve => {
             Bleno.once("advertisingStart", () => resolve());
         });
+        Bleno.startAdvertisingWithEIRData(this.advertisingData);
+        this.isAdvertising = true;
+        return started;
     }
 
     async stopAdvertising() {

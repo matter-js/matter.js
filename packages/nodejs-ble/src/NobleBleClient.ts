@@ -69,13 +69,18 @@ export class NobleBleClient {
             logger.debug(`Noble state changed to ${state}`);
             if (state === "poweredOn") {
                 if (this.shouldScan) {
-                    if (this.#scanDeferred) {
-                        logger.notice("Bluetooth adapter is powered on, starting the deferred BLE discovery");
-                    }
-                    void this.startScanning();
+                    const deferred = this.#scanDeferred;
+                    this.startScanning().then(
+                        () => {
+                            if (deferred) {
+                                logger.notice("Bluetooth adapter is powered on, BLE discovery started");
+                            }
+                        },
+                        error => logger.error("Cannot start BLE discovery after the adapter powered on:", error),
+                    );
                 }
             } else {
-                void this.stopScanning();
+                this.stopScanning().catch(error => logger.error("Cannot stop BLE discovery:", error));
             }
         });
         noble.on("discover", peripheral => this.handleDiscoveredDevice(peripheral));
@@ -99,6 +104,7 @@ export class NobleBleClient {
 
     public async startScanning() {
         if (this.isScanning) {
+            this.#scanDeferred = false;
             return;
         }
 
@@ -110,7 +116,7 @@ export class NobleBleClient {
         } else if (!this.#scanDeferred) {
             this.#scanDeferred = true;
             logger.notice(
-                `BLE discovery deferred until the Bluetooth adapter reports "poweredOn" (it reports "${this.nobleState}"). Check that Bluetooth is enabled and that this process may use it.`,
+                `BLE discovery deferred until the Bluetooth adapter reports "poweredOn" (it reports "${this.nobleState}"). Check that Bluetooth is enabled and that this process has the permissions needed to use it.`,
             );
         }
     }
