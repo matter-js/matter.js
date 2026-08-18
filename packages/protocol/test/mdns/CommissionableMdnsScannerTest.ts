@@ -249,7 +249,7 @@ describe("CommissionableMdnsScanner", () => {
         }
     });
 
-    it("accepts TTL=0 goodbye after protection window", async () => {
+    it("removes a device whose goodbye follows a re-announcement, and finds it again when it returns", async () => {
         const simulator = new NetworkSimulator();
         const serverNetwork = new MockNetwork(simulator, SERVER_MAC, [SERVER_IPv4, SERVER_IPv6]);
         const clientNetwork = new MockNetwork(simulator, CLIENT_MAC, [CLIENT_IPv4, CLIENT_IPv6]);
@@ -261,7 +261,7 @@ describe("CommissionableMdnsScanner", () => {
 
         try {
             const instanceQname = `${INSTANCE_ID}._matterc._udp.local`;
-            await serverSocket.send({
+            const announcement = {
                 messageType: DnsMessageType.Response,
                 answers: [
                     {
@@ -287,15 +287,16 @@ describe("CommissionableMdnsScanner", () => {
                     },
                 ],
                 additionalRecords: [],
-            });
+            };
+            await serverSocket.send(announcement);
 
             await MockTime.advance(10);
             expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 3840 }).length).equals(1);
 
-            // Advance past the 1-second goodbye protection window
-            await MockTime.advance(Millis(1100));
+            await MockTime.advance(Minutes(1));
+            await serverSocket.send(announcement);
+            await MockTime.advance(10);
 
-            // Send TTL=0 (goodbye) — now outside the protection window
             await serverSocket.send({
                 messageType: DnsMessageType.Response,
                 answers: [
@@ -316,10 +317,15 @@ describe("CommissionableMdnsScanner", () => {
                 ],
                 additionalRecords: [],
             });
+            await MockTime.advance(Seconds(1));
             await MockTime.advance(10);
 
-            // Device should be removed — goodbye was accepted
             expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 3840 }).length).equals(0);
+
+            await serverSocket.send(announcement);
+            await MockTime.advance(10);
+
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 3840 }).length).equals(1);
         } finally {
             await scanner.close();
             await clientNames.close();

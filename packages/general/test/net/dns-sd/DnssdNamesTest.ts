@@ -806,9 +806,6 @@ describe("DnssdNames", () => {
                 ["b", "2"],
             ]);
 
-            // Past goodbye-protection window so the deleteRecord is honoured
-            await MockTime.advance(Seconds(2));
-
             await server.mdns.send({
                 messageType: DnsMessageType.Response,
                 answers: [
@@ -822,7 +819,7 @@ describe("DnssdNames", () => {
                 ],
                 additionalRecords: [],
             });
-            await MockTime.advance(10);
+            await MockTime.advance(Seconds(2));
 
             expect([...client.names.get(qname).parameters]).deep.equals([]);
         });
@@ -870,9 +867,6 @@ describe("DnssdNames", () => {
                 ["b", "2"],
             ]);
 
-            // Past goodbye-protection window
-            await MockTime.advance(Seconds(2));
-
             // Goodbye the original TXT, then send a new TXT that omits key "a"
             await server.mdns.send({
                 messageType: DnsMessageType.Response,
@@ -894,7 +888,7 @@ describe("DnssdNames", () => {
                 ],
                 additionalRecords: [],
             });
-            await MockTime.advance(10);
+            await MockTime.advance(Seconds(2));
 
             expect([...client.names.get(qname).parameters]).deep.equals([["b", "3"]]);
         });
@@ -1120,6 +1114,57 @@ describe("DnssdNames", () => {
             expect(parameters.get("yy")).equal("");
             expect(parameters.has("flag")).true;
             expect(parameters.get("flag")).equal("");
+        });
+    });
+
+    describe("goodbyes", () => {
+        it("removes a record whose goodbye follows a re-announcement", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+
+            const discovered = new Promise<void>(resolve => {
+                client.names.discovered.once(() => resolve());
+            });
+            await server.broadcast(1, Hours(1));
+            await MockTime.resolve(discovered);
+
+            // An advertisement re-announces on its own schedule, then the host departs
+            await MockTime.advance(Minutes(1));
+            await server.broadcast(1, Hours(1));
+            await MockTime.advance(Millis(100));
+
+            await server.broadcast(1, 0);
+            await MockTime.advance(Seconds(1));
+            await MockTime.advance(10);
+
+            expect(client.names.has(qname)).false;
+        });
+
+        it("keeps a record re-announced within the goodbye delay", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+
+            const discovered = new Promise<void>(resolve => {
+                client.names.discovered.once(() => resolve());
+            });
+            await server.broadcast(1, Hours(1));
+            await MockTime.resolve(discovered);
+
+            await MockTime.advance(Minutes(1));
+            await server.broadcast(1, 0);
+            await MockTime.advance(Millis(100));
+
+            expect(client.names.has(qname)).true;
+
+            await server.broadcast(1, Hours(1));
+            await MockTime.advance(Seconds(1));
+            await MockTime.advance(10);
+
+            expect(client.names.has(qname)).true;
         });
     });
 
