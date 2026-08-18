@@ -125,8 +125,8 @@ export const LevelControl = Cluster(
 
     Datatype(
         { name: "OptionsBitmap", type: "map8" },
-        Field({ name: "ExecuteIfOff", constraint: "0" }),
-        Field({ name: "CoupleColorTempToLevel", constraint: "1" })
+        Field({ name: "ExecuteIfOff", conformance: "LT | OO", constraint: "0" }),
+        Field({ name: "CoupleColorTempToLevel", conformance: "LT", constraint: "1" })
     ),
     Datatype(
         { name: "MoveModeEnum", type: "enum8" },

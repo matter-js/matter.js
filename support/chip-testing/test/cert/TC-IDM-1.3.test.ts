@@ -7,7 +7,7 @@
 import { InternalError } from "@matter/main";
 import { Status } from "@matter/main/types";
 import { Matter } from "@matter/model";
-import type { BatchCommandResult, BatchCommandSpec, CertStepContext, CheckRecord, DeviceFlavor } from "@matter/testing";
+import type { BatchCommandResult, BatchCommandSpec, CertStepContext, DeviceFlavor } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import { registerCertCustomCluster } from "../../src/cert/custom-clusters.js";
 import { ChipFault, FAULT_TYPE_CHIP, FaultInjectionCluster } from "./fault-injection.js";
@@ -18,7 +18,7 @@ import {
     expectInvokeCount,
     expectNoInjectedFault,
 } from "./tc-idm-1.3-support.js";
-import { CertCheckFailedError, CommissionedRefs, requireId } from "./tc-support.js";
+import { CommissionedRefs, record, requireId } from "./tc-support.js";
 
 const ON_OFF = Matter.clusters.require("OnOff");
 const ON_OFF_ID = requireId(ON_OFF.id, "OnOff cluster");
@@ -59,13 +59,6 @@ const LOG_TIMEOUT_MS = 15_000;
 const CW_TIMEOUT_SECONDS = 180;
 
 const commissioned = new CommissionedRefs<"dut" | "th_client">();
-
-function record(cx: CertStepContext, check: CheckRecord, what: string) {
-    cx.recorder.check(check);
-    if (check.verdict === "fail") {
-        throw new CertCheckFailedError(`${what} check failed: ${JSON.stringify(check)}`);
-    }
-}
 
 /**
  * Records the device's answers to a batch as the step's response evidence. Arrival order is part of the

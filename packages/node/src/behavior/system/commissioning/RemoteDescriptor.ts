@@ -185,8 +185,10 @@ export namespace RemoteDescriptor {
         if (VP !== undefined) {
             const [vendor, product] = VP.split("+").map(part => Number.parseInt(part, 10));
 
-            long.vendorId = Number.isFinite(vendor) ? VendorId(vendor, false) : undefined;
-            long.productId = Number.isFinite(product) ? product : undefined;
+            // § 2.5.2 / § 2.5.3 write "unspecified" as 0, which is an identity the device declines to
+            // state rather than one a caller can match against
+            long.vendorId = Number.isFinite(vendor) && vendor !== 0 ? VendorId(vendor, false) : undefined;
+            long.productId = Number.isFinite(product) && product !== 0 ? product : undefined;
         }
 
         // DNS-SD caps SII/SAI at 1 hour, so a value at the cap may be a clamped advertisement of a larger

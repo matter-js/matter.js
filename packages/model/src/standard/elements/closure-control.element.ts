@@ -146,8 +146,8 @@ export const ClosureControl = Cluster(
 
     Datatype(
         { name: "LatchControlModesBitmap", type: "map8" },
-        Field({ name: "RemoteLatching", constraint: "0" }),
-        Field({ name: "RemoteUnlatching", constraint: "1" })
+        Field({ name: "RemoteLatching", conformance: "LT", constraint: "0" }),
+        Field({ name: "RemoteUnlatching", conformance: "LT", constraint: "1" })
     )
 );
 
