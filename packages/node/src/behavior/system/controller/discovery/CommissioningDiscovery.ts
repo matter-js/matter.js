@@ -8,6 +8,7 @@ import { CommissioningClient } from "#behavior/system/commissioning/Commissionin
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import { ChannelType, Logger, Minutes } from "@matter/general";
+import { VendorId } from "@matter/types";
 import { Discovery } from "./Discovery.js";
 import { ParallelPaseDiscovery } from "./ParallelPaseDiscovery.js";
 
@@ -21,6 +22,12 @@ const logger = Logger.get("CommissioningDiscovery");
  */
 export class CommissioningDiscovery extends ParallelPaseDiscovery<ClientNode> {
     #options: CommissioningDiscovery.Options;
+
+    /**
+     * Resolved once: {@link CommissioningClient.PasscodeOptions} decodes a pairing code and validates
+     * its check digit, which is not work to repeat for every candidate discovery turns up.
+     */
+    #identity: CommissioningDiscovery.Identity;
 
     constructor(owner: ServerNode, options: CommissioningDiscovery.Options) {
         const opts = CommissioningClient.PasscodeOptions(options);
@@ -51,6 +58,7 @@ export class CommissioningDiscovery extends ParallelPaseDiscovery<ClientNode> {
         super(owner, options);
 
         this.#options = options;
+        this.#identity = { vendorId: opts.vendorId, productId: opts.productId };
     }
 
     protected override get cleanupLabel() {
@@ -85,11 +93,12 @@ export class CommissioningDiscovery extends ParallelPaseDiscovery<ClientNode> {
     }
 
     #namesThisDevice(node: ClientNode) {
-        const { vendorId, productId } = CommissioningClient.PasscodeOptions(this.#options);
-        const mismatch = CommissioningDiscovery.identityMismatch({ vendorId, productId }, node.state.commissioning);
+        const mismatch = CommissioningDiscovery.identityMismatch(this.#identity, node.state.commissioning);
 
         if (mismatch !== undefined) {
-            logger.info(`Passing over ${node}: ${mismatch}`);
+            logger.info(
+                `Passing over ${node}: it advertises ${mismatch.facet} ${mismatch.advertised} where the onboarding payload names ${mismatch.payload}`,
+            );
             return false;
         }
 
@@ -102,8 +111,15 @@ export namespace CommissioningDiscovery {
 
     /** What an onboarding payload and a commissionable advertisement each say about a device's identity. */
     export interface Identity {
-        vendorId?: number;
+        vendorId?: VendorId;
         productId?: number;
+    }
+
+    /** The one identifier on which an advertisement contradicts the payload. */
+    export interface IdentityMismatch {
+        facet: "vendor" | "product";
+        payload: number;
+        advertised: number;
     }
 
     /**
@@ -119,13 +135,13 @@ export namespace CommissioningDiscovery {
      * § 2.5.3's "unspecified" as an absent identifier, so nothing here has to know that it is 0 on the
      * wire.
      */
-    export function identityMismatch(payload: Identity, advertised: Identity) {
+    export function identityMismatch(payload: Identity, advertised: Identity): IdentityMismatch | undefined {
         if (
             payload.vendorId !== undefined &&
             advertised.vendorId !== undefined &&
             payload.vendorId !== advertised.vendorId
         ) {
-            return `it advertises vendor ${advertised.vendorId} where the onboarding payload names ${payload.vendorId}`;
+            return { facet: "vendor", payload: payload.vendorId, advertised: advertised.vendorId };
         }
 
         if (
@@ -133,7 +149,7 @@ export namespace CommissioningDiscovery {
             advertised.productId !== undefined &&
             payload.productId !== advertised.productId
         ) {
-            return `it advertises product ${advertised.productId} where the onboarding payload names ${payload.productId}`;
+            return { facet: "product", payload: payload.productId, advertised: advertised.productId };
         }
 
         return undefined;

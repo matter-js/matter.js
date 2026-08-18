@@ -6,6 +6,7 @@
 
 import { VendorId } from "#datatype/VendorId.js";
 import {
+    assertValidPayloadIdentity,
     CommissioningFlowType,
     DiscoveryCapabilitiesSchema,
     INVALID_PASSCODES,
@@ -198,7 +199,7 @@ describe("QrPairingCodeCodec", () => {
     describe("vendor and product identifier validation", () => {
         it("rejects decoding a product ID of 0 beside a real vendor ID", () => {
             expect(() => QrPairingCodeCodec.decode("MT:Y.K904KP00KA0648G00")).throw(
-                "Product ID 0 is reserved and cannot accompany vendor ID 65521",
+                "An onboarding payload naming vendor ID 65521 must name a product too",
             );
         });
 
@@ -351,6 +352,28 @@ describe("QrPairingCodeCodec", () => {
     });
 });
 
+describe("assertValidPayloadIdentity", () => {
+    it("reads a wire 0 the same as an absent identifier", () => {
+        // What a caller encoding a payload passes, before any decode has normalised it
+        expect(() => assertValidPayloadIdentity(0xfff1, 0)).throw(
+            "An onboarding payload naming vendor ID 65521 must name a product too",
+        );
+        expect(() => assertValidPayloadIdentity(0xfff1, undefined)).throw(
+            "An onboarding payload naming vendor ID 65521 must name a product too",
+        );
+    });
+
+    it("accepts a payload that names neither, however it spells them", () => {
+        expect(() => assertValidPayloadIdentity(0, 0)).not.throw();
+        expect(() => assertValidPayloadIdentity(undefined, undefined)).not.throw();
+        expect(() => assertValidPayloadIdentity(0, undefined)).not.throw();
+    });
+
+    it("rejects a vendor past the last test vendor whichever form it arrives in", () => {
+        expect(() => assertValidPayloadIdentity(0xfff5, 0x8001)).throw("Invalid vendor ID 65525");
+    });
+});
+
 describe("ManualPairingCodeCodec", () => {
     describe("encode", () => {
         it("encodes the data", () => {
@@ -448,7 +471,7 @@ describe("ManualPairingCodeCodec", () => {
         it("rejects a product ID of 0 beside a real vendor ID", () => {
             // devicediscovery.adoc TC-DD-3.17 step 7.a's own example payload
             expect(() => ManualPairingCodeCodec.decode("749701123365521000006")).throw(
-                "Product ID 0 is reserved and cannot accompany vendor ID 65521",
+                "An onboarding payload naming vendor ID 65521 must name a product too",
             );
         });
 
