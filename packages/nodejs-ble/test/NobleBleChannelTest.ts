@@ -750,6 +750,35 @@ describe("NobleBleCentralInterface", () => {
             await central.close();
         });
 
+        it("abandons a renegotiation when the peripheral disconnects while it waits for the handshake", async () => {
+            MockTime.init();
+            const peripheral = new FakePeripheral(p => p.completeConnect());
+
+            let parked: Promise<unknown> | undefined;
+            const peer = handshakeOnlyMatterService();
+            peer.withholdHandshakeResponseAfter(1, () => {
+                parked ??= channel.send(Bytes.fromHex("aabb")).then(
+                    () => undefined,
+                    (error: unknown) => error,
+                );
+                peripheral.dropConnection(undefined);
+            });
+            peripheral.services = [peer.service];
+            const central = centralInterfaceFor(peripheral);
+
+            const channel = await central.openChannel(ADDRESS);
+            await channel.send(Bytes.fromHex("00112233445566778899"));
+
+            await MockTime.resolve(peer.whenHandshake(2), { stepMs: 1000 });
+
+            // No further time passes: the disconnect must settle this, not the handshake's own timeout
+            await MockTime.yield3();
+            expect(MockTime.timerCountFor("BLE handshake timeout")).equal(0);
+            expect(await parked).instanceOf(BleDisconnectedError);
+
+            await central.close();
+        });
+
         it("holds a send issued while the BTP session is being renegotiated", async () => {
             MockTime.init();
             const peripheral = new FakePeripheral(p => p.completeConnect());

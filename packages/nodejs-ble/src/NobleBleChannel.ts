@@ -726,6 +726,9 @@ export class NobleBleChannel extends BleChannel<Bytes> {
                 `Disconnected from peripheral ${peripheral.address} (reason ${nobleDisconnectReason(reason)}). Closing BTP session`,
             );
             this.#connected = false;
+            // Same reason as in close(): a renegotiation parked on the handshake would otherwise hold its timer, and
+            // any send waiting on it, until the handshake times out
+            this.#lifetime.abort();
             this.#detachDataHandler();
             this.#terminateIterator();
             for (const listener of this.#closeListeners) {

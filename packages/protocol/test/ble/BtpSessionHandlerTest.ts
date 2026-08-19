@@ -1189,6 +1189,22 @@ describe("BtpSessionHandler", () => {
             expect(replayed).deep.equal([first, second]);
         });
 
+        it("closes when nobody observes the stall", async () => {
+            const written = new Array<Bytes>();
+            const disconnected = { value: false };
+            const central = await centralFor(244, written, disconnected);
+
+            const { promise: closedPromise, resolver: closedResolver } = createPromise<void>();
+            central.closed.on(() => closedResolver());
+
+            await central.sendMatterMessage(Bytes.fromHex("0102030405"));
+            await MockTime.advance(15000);
+            await closedPromise;
+
+            // A transport that cannot renegotiate must still see the session close
+            expect(disconnected.value).equal(true);
+        });
+
         it("closes when a session already at the minimum segment size is not answered", async () => {
             const written = new Array<Bytes>();
             const disconnected = { value: false };

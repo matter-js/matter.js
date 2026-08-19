@@ -63,7 +63,8 @@ export class BtpSessionHandler {
      * nor forbids.
      *
      * The session is suspended when this fires: it no longer touches the transport, and the transport owns what happens
-     * next.
+     * next. A session nobody observes closes on the acknowledgement timeout as it always did, so a transport that
+     * cannot renegotiate needs no changes.
      */
     get stalledAfterHandshake() {
         return this.#stalledAfterHandshake;
@@ -612,7 +613,11 @@ export class BtpSessionHandler {
         if (!this.isActive || this.prevIncomingAckNumber === this.sequenceNumber) {
             return;
         }
-        if (this.#messagesPendingFirstAck !== undefined && this.#isStalledAfterHandshake()) {
+        if (
+            this.#messagesPendingFirstAck !== undefined &&
+            this.#stalledAfterHandshake.isObserved &&
+            this.#isStalledAfterHandshake()
+        ) {
             logger.warn(
                 `No BTP response at all since the handshake with a segment size of ${this.fragmentSize} bytes ... renegotiate`,
             );
