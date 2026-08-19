@@ -1447,35 +1447,70 @@ describe("DnssdNames", () => {
             expect(addresses()).deep.equals(["fe80::1", "fe80::2"]);
         });
 
-        it("reports remaining lifetime in the known answers it sends", async () => {
+        it("keeps a staged address set a responder had to split across packets", async () => {
             await using site = new MockSite();
-            const { client, server } = await discoverName(site);
+            const { client, server } = await site.addPair();
 
-            const qname = qnameOf(1);
-
-            const knownAnswers = new Array<DnsRecord>();
-            server.mdns.receipt.on(message => {
-                if (message.queries.length > 0) {
-                    knownAnswers.push(...message.answers);
-                }
+            // Only the service is of interest, so addresses for a hostname no SRV has named yet are staged rather
+            // than installed
+            const hostname = server.hostname;
+            const names = client.configureNames({
+                filter: (record: DnsRecord) => record.name === MOCK_SERVICE_DOMAIN || record.name === qnameOf(1),
+                filterNames: [MOCK_SERVICE_DOMAIN, qnameOf(1)],
             });
+            function packet(value: string): DnsRecord[] {
+                return [
+                    {
+                        name: MOCK_SERVICE_DOMAIN,
+                        recordType: DnsRecordType.PTR,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: qnameOf(1),
+                    },
+                    {
+                        name: hostname,
+                        recordType: DnsRecordType.AAAA,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value,
+                        flushCache: true,
+                    },
+                ];
+            }
 
-            await MockTime.advance(Minutes(10));
-
-            const abort = new Abort();
-            const discovery = client.names.solicitor.discover({
-                name: client.names.get(qname),
-                recordTypes: [DnsRecordType.TXT],
-                abort,
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: packet("fe80::1"),
+                additionalRecords: [],
             });
-            await MockTime.resolve(Time.sleep("wait for query", Seconds(1)));
-            abort();
-            await MockTime.resolve(discovery).catch(() => {});
+            await MockTime.advance(10);
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: packet("fe80::2"),
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
 
-            const txt = knownAnswers.find(record => record.recordType === DnsRecordType.TXT);
-            expect(txt).not.undefined;
-            expect(txt!.ttl).lessThan(Hours(1));
-            expect(txt!.ttl).greaterThan(0);
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: qnameOf(1),
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: { port: 1234, priority: 10, weight: 1, target: hostname },
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            const addresses = [...names.get(hostname).records]
+                .filter(record => record.recordType === DnsRecordType.AAAA)
+                .map(record => record.value)
+                .sort();
+            expect(addresses).deep.equals(["fe80::1", "fe80::2"]);
         });
 
         it("ignores the bit on a shared PTR record", async () => {

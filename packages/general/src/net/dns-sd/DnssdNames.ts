@@ -286,20 +286,27 @@ export class DnssdNames {
                     continue;
                 }
 
-                if (record.ttl < this.#minTtl || (record.flushCache && !isResponse)) {
-                    record = { ...record, ttl: Duration.max(record.ttl, this.#minTtl), flushCache: false };
+                if (record.ttl < this.#minTtl) {
+                    record = { ...record, ttl: this.#minTtl };
+                }
+                if (!isResponse && record.flushCache) {
+                    record = { ...record, flushCache: false };
                 }
                 let staged = this.#stagedIpRecords.get(key) ?? [];
-                if (record.flushCache && isResponse) {
-                    staged = staged.filter(s => s.record.recordType !== record.recordType || s.receivedAt >= packetAt);
+                if (record.flushCache) {
+                    // Same window the installed records use, so a set split across packets survives here too
+                    const supersededBefore = packetAt - this.#evictionDelay;
+                    staged = staged.filter(
+                        s => s.record.recordType !== record.recordType || s.receivedAt >= supersededBefore,
+                    );
                 }
                 const existing = staged.findIndex(
                     s => s.record.recordType === record.recordType && s.record.value === record.value,
                 );
                 if (existing === -1) {
-                    staged.push({ record, receivedAt: Time.nowMs, sourceIntf });
+                    staged.push({ record, receivedAt: packetAt, sourceIntf });
                 } else {
-                    staged[existing] = { record, receivedAt: Time.nowMs, sourceIntf };
+                    staged[existing] = { record, receivedAt: packetAt, sourceIntf };
                 }
                 // Delete + set moves the key to the tail of the Map so prune evicts least-recently-touched first
                 this.#stagedIpRecords.delete(key);
