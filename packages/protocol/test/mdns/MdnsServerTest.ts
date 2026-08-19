@@ -20,6 +20,7 @@ import {
     Network,
     NetworkSimulator,
     PtrRecord,
+    Seconds,
     SrvRecord,
     TxtRecord,
     UdpMulticastServer,
@@ -311,6 +312,103 @@ describe("MdnsServer", () => {
             await MockTime.yield3();
 
             expect(responses.flatMap(message => message?.answers ?? [])).deep.equals([PtrRecord(DUMMY_QNAME, "abcd")]);
+        });
+
+        it("suppresses only while more than half the known answer's lifetime remains", async () => {
+            for (const [remaining, expectSuppressed] of [
+                [Seconds(61), true],
+                [Seconds(59), false],
+            ] as const) {
+                await mdnsServer.setRecordsGenerator("foo", () => [PtrRecord(DUMMY_QNAME, "abcd"), flushed(DUMMY_SRV)]);
+                const responses = collectResponses();
+
+                send(
+                    DnsCodec.encode({
+                        messageType: DnsMessageType.Query,
+                        queries: [{ name: DUMMY_QNAME, recordClass: DnsRecordClass.IN, recordType: DnsRecordType.ANY }],
+                        answers: [
+                            SrvRecord(
+                                DUMMY_QNAME,
+                                { priority: 0, weight: 0, port: 1234, target: "abcd.local" },
+                                remaining,
+                            ),
+                        ],
+                    }),
+                    DUMMY_IP,
+                    INTERFACE_NAME,
+                );
+                await MockTime.yield3();
+
+                const sentSrv = responses
+                    .flatMap(message => message?.answers ?? [])
+                    .some(record => record.recordType === DnsRecordType.SRV);
+                expect(sentSrv).equals(!expectSuppressed);
+                await MockTime.advance(130_000);
+            }
+        });
+
+        it("drops the bit on an additional record whose set a known answer pruned", async () => {
+            const first = ARecord("abcd.local", DUMMY_IP);
+            const second = ARecord("abcd.local", "5.6.7.8");
+            await mdnsServer.setRecordsGenerator("foo", () => [
+                PtrRecord(DUMMY_QNAME, "abcd"),
+                flushed(first),
+                flushed(second),
+            ]);
+            const responses = collectResponses();
+
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query,
+                    queries: [{ name: DUMMY_QNAME, recordClass: DnsRecordClass.IN, recordType: DnsRecordType.ANY }],
+                    answers: [first],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+            await MockTime.yield3();
+
+            expect(responses.flatMap(message => message?.additionalRecords ?? [])).deep.equals([second]);
+        });
+
+        it("omits the bit from a unicast response", async () => {
+            await mdnsServer.setRecordsGenerator("foo", () => [PtrRecord(DUMMY_QNAME, "abcd"), flushed(DUMMY_SRV)]);
+
+            // A unicast request is answered by multicast unless the records went out as multicast recently, so
+            // establish that first
+            onResponse = async () => {};
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query,
+                    queries: [{ name: DUMMY_QNAME, recordClass: DnsRecordClass.IN, recordType: DnsRecordType.ANY }],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+            await MockTime.yield3();
+            await MockTime.advance(1000);
+
+            const responses = collectResponses();
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query,
+                    queries: [
+                        {
+                            name: DUMMY_QNAME,
+                            recordClass: DnsRecordClass.IN,
+                            recordType: DnsRecordType.ANY,
+                            uniCastResponse: true,
+                        },
+                    ],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+            await MockTime.yield3();
+
+            const sent = responses.flatMap(message => message?.answers ?? []);
+            expect(sent.length).greaterThan(0);
+            expect(sent.some(record => record.flushCache)).false;
         });
 
         it("drops the bit when a known answer leaves the record set incomplete", async () => {
