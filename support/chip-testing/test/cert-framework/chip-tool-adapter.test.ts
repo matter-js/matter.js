@@ -40,6 +40,9 @@ const ON_LEVEL = LEVEL_CONTROL.attributes.require("onLevel");
 const ON_OFF_ATTRIBUTE = ON_OFF.attributes.require("onOff");
 const IDENTIFY_TIME = IDENTIFY.attributes.require("identifyTime");
 const ARM_FAIL_SAFE = GENERAL_COMMISSIONING.commands.require("armFailSafe");
+const START_UP = BASIC_INFORMATION.events.require("startUp");
+const BOOLEAN_STATE = Matter.clusters.require("BooleanState");
+const STATE_CHANGE = BOOLEAN_STATE.events.require("stateChange");
 
 /** The node id the first {@link ChipToolControllerAdapter.commission} of an adapter mints. */
 const FIRST_NODE = "4097";
@@ -882,6 +885,241 @@ describe("ChipToolControllerAdapter", function () {
         fake.reply = () =>
             fabricsReply([{ [fabricField("rootPublicKey")]: `base64:${Bytes.toBase64(rootPublicKey)}` }]);
         expect(await rejectionOf(node.operationalMdnsInstanceName())).instanceOf(UnexpectedDataError);
+    });
+
+    describe("events", () => {
+        const EVENT_PATH = { endpoint: 0, cluster: BASIC_INFORMATION.id, event: START_UP.id };
+        const INTERVALS = { minIntervalFloorSeconds: 1, maxIntervalCeilingSeconds: 10 };
+
+        /** An event of the shape `RemoteDataModelLogger::LogEventAsJSON` emits. */
+        function event(eventNumber: number, softwareVersion: number) {
+            return {
+                clusterId: BASIC_INFORMATION.id,
+                endpointId: 0,
+                eventId: requireId(START_UP.id, "startUp"),
+                eventNumber,
+                value: { softwareVersion },
+            };
+        }
+
+        it("reads events through read-event-by-id and decodes them through the model", async () => {
+            const { ref, node } = await commissioned();
+
+            fake.reply = () => ({ results: [event(4, 1)] });
+
+            expect(await node.readEvents([EVENT_PATH])).deep.equal([
+                {
+                    endpoint: 0,
+                    cluster: BASIC_INFORMATION.id,
+                    event: START_UP.id,
+                    eventNumber: 4n,
+                    value: { softwareVersion: 1 },
+                },
+            ]);
+            expect(fake.commands).deep.equal([`any read-event-by-id 0x28 0x0 ${ref} 0`]);
+        });
+
+        it("wildcards every path segment the caller left out", async () => {
+            const { ref, node } = await commissioned();
+
+            fake.reply = () => ({ results: [] });
+
+            expect(await node.readEvents([{ cluster: BASIC_INFORMATION.id }])).deep.equal([]);
+            expect(fake.commands).deep.equal([`any read-event-by-id 0x28 0xffffffff ${ref} 0xffff`]);
+        });
+
+        it("passes a non-default fabric filter and an event-number filter through", async () => {
+            const { ref, node } = await commissioned();
+
+            fake.reply = () => ({ results: [] });
+
+            await node.readEvents([EVENT_PATH], { fabricFiltered: false, minEventNumber: 7n });
+            expect(fake.commands).deep.equal([
+                `any read-event-by-id 0x28 0x0 ${ref} 0 --fabric-filtered false --event-min 7`,
+            ]);
+        });
+
+        it("rejects a concrete event read the device answered with a status", async () => {
+            const { node } = await commissioned();
+
+            fake.reply = () => ({
+                results: [
+                    {
+                        clusterId: BASIC_INFORMATION.id,
+                        endpointId: 0,
+                        eventId: requireId(START_UP.id, "startUp"),
+                        error: "UNSUPPORTED_ACCESS",
+                    },
+                ],
+            });
+
+            const rejection = await rejectionOf(node.readEvents([EVENT_PATH]));
+            expect(rejection).instanceOf(StatusResponseError);
+            expect((rejection as StatusResponseError).code).equal(Status.UnsupportedAccess);
+        });
+
+        it("fails a read whose event chip-tool reported without an event number", async () => {
+            const { node } = await commissioned();
+
+            fake.reply = () => ({
+                results: [
+                    {
+                        clusterId: BASIC_INFORMATION.id,
+                        endpointId: 0,
+                        eventId: requireId(START_UP.id, "startUp"),
+                        value: { softwareVersion: 1 },
+                    },
+                ],
+            });
+
+            expect(await rejectionOf(node.readEvents([EVENT_PATH]))).instanceOf(UnexpectedDataError);
+        });
+
+        it("returns the establishing report's events and hands later ones to onUpdate", async () => {
+            const { ref, node } = await commissioned();
+            const updates = new Array<unknown>();
+
+            fake.reply = () => ({ results: [event(4, 1)] });
+            const priming = await node.subscribeEvents([EVENT_PATH], {
+                ...INTERVALS,
+                onUpdate: report => updates.push(report),
+            });
+
+            expect(priming).deep.equal([
+                {
+                    endpoint: 0,
+                    cluster: BASIC_INFORMATION.id,
+                    event: START_UP.id,
+                    eventNumber: 4n,
+                    value: { softwareVersion: 1 },
+                },
+            ]);
+            expect(updates).deep.equal([]);
+            expect(fake.commands).deep.equal([
+                `any subscribe-event-by-id 0x28 0x0 1 10 ${ref} 0 --keepSubscriptions true`,
+            ]);
+
+            await waitFor(() => fake.armings.length === 1, "the adapter to park a report frame");
+            expect(fake.pushReport(event(5, 2))).equal("sent");
+            await waitFor(() => updates.length === 1, "the event report to reach onUpdate");
+
+            expect(updates).deep.equal([
+                {
+                    endpoint: 0,
+                    cluster: BASIC_INFORMATION.id,
+                    event: START_UP.id,
+                    eventNumber: 5n,
+                    value: { softwareVersion: 2 },
+                },
+            ]);
+        });
+
+        it("rejects a subscribe whose own event path the device rejected, and registers nothing", async () => {
+            const { node } = await commissioned();
+            const abandoned = new Array<unknown>();
+
+            function rejectedPath(status: number) {
+                return {
+                    results: [
+                        {
+                            clusterId: BASIC_INFORMATION.id,
+                            endpointId: 0,
+                            eventId: requireId(START_UP.id, "startUp"),
+                            error: "UNSUPPORTED_ACCESS",
+                        },
+                    ],
+                    status,
+                };
+            }
+
+            // As for attributes: `SubscribeCommand::OnSubscriptionEstablished` sets a zero exit status,
+            // so a device that answers the subscribed path with a status and establishes anyway leaves
+            // the path status as the reply's only account of itself
+            for (const status of [1, 0]) {
+                fake.reply = () => rejectedPath(status);
+
+                const failure = await rejectionOf(
+                    node.subscribeEvents([EVENT_PATH], { ...INTERVALS, onUpdate: report => abandoned.push(report) }),
+                );
+                expect(failure, `exit status ${status}`).instanceOf(StatusResponseError);
+                expect(StatusResponseError.of(failure)?.code, `exit status ${status}`).equal(Status.UnsupportedAccess);
+            }
+
+            await delay(50);
+            expect(fake.armings).deep.equal([]);
+            expect(fake.pushReport(event(6, 3))).equal("dropped");
+            expect(abandoned).deep.equal([]);
+
+            // A later subscription parks a frame, so a report on the refused path now reaches whoever
+            // claims it — nobody, unless the failed subscribe registered itself anyway
+            const claimed = new Array<unknown>();
+            fake.reply = () => ({ results: [] });
+            await node.subscribeEvents([{ endpoint: 1, cluster: BOOLEAN_STATE.id, event: STATE_CHANGE.id }], {
+                ...INTERVALS,
+                onUpdate: report => claimed.push(report),
+            });
+            await waitFor(() => fake.armings.length === 1, "the adapter to park a report frame");
+
+            expect(fake.pushReport(event(7, 4))).equal("sent");
+            await delay(50);
+            expect(abandoned).deep.equal([]);
+            expect(claimed).deep.equal([]);
+        });
+
+        it("does not hand an event of another path to a live subscription", async () => {
+            const { node } = await commissioned();
+            const updates = new Array<unknown>();
+
+            fake.reply = () => ({ results: [] });
+            await node.subscribeEvents([EVENT_PATH], { ...INTERVALS, onUpdate: report => updates.push(report) });
+            await waitFor(() => fake.armings.length === 1, "the adapter to park a report frame");
+
+            expect(fake.pushReport({ ...event(6, 3), endpointId: 1 })).equal("sent");
+            await delay(50);
+
+            expect(updates).deep.equal([]);
+        });
+    });
+
+    describe("timed interactions", () => {
+        it("asks chip-tool for a timed invoke and a timed write", async () => {
+            const { ref, node } = await commissioned();
+
+            fake.reply = () => ({ results: [] });
+            await node.invoke(requireId(ON_OFF.id, "OnOff"), "on", undefined, 1, { timedInteractionTimeoutMs: 200 });
+            await node.writeAttribute({ endpoint: 1, cluster: LEVEL_CONTROL.id, attribute: ON_LEVEL.id }, 5, {
+                timedInteractionTimeoutMs: 200,
+            });
+
+            expect(fake.commands).deep.equal([
+                `any command-by-id 0x6 0x1 {} ${ref} 1 --timedInteractionTimeoutMs 200`,
+                `any write-by-id 0x8 0x11 5 ${ref} 1 --timedInteractionTimeoutMs 200`,
+            ]);
+        });
+
+        it("sends nothing about timing for an interaction that asked for none", async () => {
+            const { ref, node } = await commissioned();
+
+            fake.reply = () => ({ results: [] });
+            await node.invoke(requireId(ON_OFF.id, "OnOff"), "on", undefined, 1);
+
+            expect(fake.commands).deep.equal([`any command-by-id 0x6 0x1 {} ${ref} 1`]);
+        });
+
+        it("refuses a timeout the wire cannot carry, before issuing anything", async () => {
+            const { node } = await commissioned();
+
+            for (const timedInteractionTimeoutMs of [200.5, -1, 0x10000]) {
+                expect(
+                    await rejectionOf(
+                        node.invoke(requireId(ON_OFF.id, "OnOff"), "on", undefined, 1, { timedInteractionTimeoutMs }),
+                    ),
+                    `timeout ${timedInteractionTimeoutMs}`,
+                ).instanceOf(ImplementationError);
+            }
+
+            expect(fake.commands).deep.equal([]);
+        });
     });
 
     describe("subscribe", () => {

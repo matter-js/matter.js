@@ -12,9 +12,14 @@ import {
     CommissionedRefs,
     commandPathIBSequence,
     countMatches,
+    EVENT_PATH_IBS_SEQUENCE,
+    eventPathIBSequence,
     expectChunkedTransfer,
     expectCommandInvoke,
     expectMessageWithPath,
+    expectSequence,
+    fabricFilteredPattern,
+    READ_REQUEST_MESSAGE,
     requireId,
     STATUS_RESPONSE_SUCCESS,
     WRITE_REQUEST_MESSAGE,
@@ -170,6 +175,99 @@ describe("attributePathIBSequence", () => {
         expect(sequence).to.have.lengthOf(5);
         expect(sequence[2].test("[DMG] Endpoint = 0x1,")).equal(true);
         expect(sequence[3].test("[DMG] Attribute = 0x0000_0010,")).equal(true);
+    });
+});
+
+describe("eventPathIBSequence", () => {
+    it("has no field line for a fully wildcarded path", () => {
+        const sequence = eventPathIBSequence({});
+
+        expect(sequence).to.have.lengthOf(3);
+        expect(sequence[0].test("[DMG] EventPath =")).equal(true);
+        expect(sequence[1].test("[DMG] {")).equal(true);
+        expect(sequence[2].test("[DMG] },")).equal(true);
+    });
+
+    it("emits one bare-hex line per concrete field, in Endpoint/Cluster/Event order", () => {
+        const sequence = eventPathIBSequence({ endpoint: 1, cluster: 0x28, event: 0x10 });
+
+        expect(sequence).to.have.lengthOf(6);
+        expect(sequence[2].test("[DMG] Endpoint = 0x1,")).equal(true);
+        expect(sequence[3].test("[DMG] Cluster = 0x28,")).equal(true);
+        expect(sequence[4].test("[DMG] Event = 0x10,")).equal(true);
+    });
+
+    it("does not match an AttributePathIB's own closing line", () => {
+        const sequence = eventPathIBSequence({});
+
+        expect(sequence[0].test("[DMG] AttributePathIB =")).equal(false);
+        expect(sequence[2].test("[DMG] }")).equal(false);
+    });
+});
+
+describe("expectSequence", () => {
+    // One chip ReadRequestMessage carrying a single concrete event path, as EventPathIBs::Parser and
+    // EventPathIB::Parser print it: the whole run below is consecutive, and isFabricFiltered is not.
+    const READ_EVENT_LINES = [
+        "[DMG] ReadRequestMessage =",
+        "[DMG] {",
+        "[DMG] EventPathIBs =",
+        "[DMG] [",
+        "[DMG] EventPath =",
+        "[DMG] {",
+        "[DMG] Endpoint = 0x0,",
+        "[DMG] Cluster = 0x28,",
+        "[DMG] Event = 0x0,",
+        "[DMG] },",
+        "[DMG] ",
+        "[DMG] ],",
+        "[DMG] ",
+        "[DMG] isFabricFiltered = true, ",
+    ];
+    const PATH = { endpoint: 0, cluster: 0x28, event: 0 };
+    const SEQUENCE = [READ_REQUEST_MESSAGE, /\{\s*$/, ...EVENT_PATH_IBS_SEQUENCE, ...eventPathIBSequence(PATH)];
+
+    it("passes on the consecutive read-request-with-event-path run", async () => {
+        const record = await withFollower(READ_EVENT_LINES, follower =>
+            expectSequence(follower, "chip-local", "read event path", SEQUENCE, 0, 1_000),
+        );
+
+        expect(record.verdict).equal("pass");
+        expect(record.matched).equal("[DMG] },");
+    });
+
+    it("finds isFabricFiltered after the path block, which is not adjacent to it", async () => {
+        const record = await withFollower(READ_EVENT_LINES, async follower => {
+            const block = await expectSequence(follower, "chip-local", "read event path", SEQUENCE, 0, 1_000);
+            expect(block.logLine).equal(9);
+            return expectSequence(
+                follower,
+                "chip-local",
+                "isFabricFiltered",
+                [fabricFilteredPattern(true)],
+                block.logLine! + 1,
+                1_000,
+            );
+        });
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("fails, rather than throwing, when the sequence never arrives", async () => {
+        const record = await withFollower(["[DMG] ReadRequestMessage ="], follower =>
+            expectSequence(follower, "chip-local", "read event path", SEQUENCE, 0, 200),
+        );
+
+        expect(record.verdict).equal("fail");
+        expect(record.pattern).equal("read event path");
+    });
+
+    it("reports unverified for a flavor with no pattern for the sequence", async () => {
+        const record = await withFollower(READ_EVENT_LINES, follower =>
+            expectSequence(follower, "matterjs", "read event path", SEQUENCE, 0, 1_000),
+        );
+
+        expect(record.verdict).equal("unverified");
     });
 });
 
@@ -370,6 +468,8 @@ describe("CommissionedRefs", () => {
                 writeAttribute: unused,
                 writeAttributes: unused,
                 subscribe: unused,
+                readEvents: unused,
+                subscribeEvents: unused,
                 openCommissioningWindow: unused,
                 operationalMdnsInstanceName: unused,
                 decommission: () => decommission(role),

@@ -248,13 +248,22 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
             this.#dirtyKeys.delete(key);
         }
 
+        // The datasource holds attribute values only; our own metadata is written below, so a report that carried
+        // nothing but a new version leaves no attribute to look up and still has something to persist
+        const attributeKeys = new Set<string>();
+        for (const key of flushing) {
+            if (!key.startsWith("__")) {
+                attributeKeys.add(key);
+            }
+        }
+
         // Prefer live values from the Datasource.  After reclaimValues() the Datasource's values are empty,
         // so fall back to initialValues which holds the reclaimed data.
-        let values = this.consumer?.readValues(flushing);
+        let values = this.consumer?.readValues(attributeKeys);
         if (values === undefined || !Object.keys(values).length) {
             if (this.initialValues !== undefined) {
                 values = {};
-                for (const key of flushing) {
+                for (const key of attributeKeys) {
                     if (key in this.initialValues) {
                         values[key] = this.initialValues[key];
                     }
@@ -262,7 +271,7 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
             }
         }
 
-        if (values === undefined || !Object.keys(values).length) {
+        if (attributeKeys.size && (values === undefined || !Object.keys(values).length)) {
             // Values vanished between marking dirty and flushing; restore keys and re-mark so the buffer
             // retries on the next cycle
             for (const key of flushing) {
@@ -272,6 +281,7 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
             return;
         }
 
+        values ??= {};
         values[DatasourceCache.VERSION_KEY] = this.#version;
 
         try {

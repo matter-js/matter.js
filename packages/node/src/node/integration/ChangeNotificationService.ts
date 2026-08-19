@@ -131,11 +131,12 @@ export namespace ChangeNotificationService {
     }
 
     /**
-     * The wire clock {@link OccurrenceProperties.timestamp} is measured against. Matter Core §10.7 timestamps an event
-     * against either the Posix epoch or device system (uptime) time; a consumer forwarding the occurrence must not
-     * guess which.
+     * The wire timestamp variant {@link OccurrenceProperties.timestamp} carries. Matter Core §10.7 defines exactly
+     * four and an event sets exactly one: an absolute time against the Posix epoch or against device system (uptime)
+     * time, or, on either clock, a delta from the preceding event of the same priority. A consumer forwarding the
+     * occurrence must not guess which, as neither the clock nor absolute-vs-delta is recoverable from the value.
      */
-    export type TimestampKind = "epoch" | "system";
+    export type TimestampKind = "epoch" | "system" | "epoch-delta" | "system-delta";
 
     export interface OccurrenceProperties {
         number: EventNumber;

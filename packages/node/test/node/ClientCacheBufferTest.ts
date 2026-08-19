@@ -6,9 +6,60 @@
 
 import { OnOffClient } from "#behaviors/on-off";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
-import { Crypto, deepCopy, MockCrypto, Seconds } from "@matter/general";
+import {
+    Crypto,
+    deepCopy,
+    Duration,
+    Instant,
+    MemoryStorageDriver,
+    Minutes,
+    MockCrypto,
+    Seconds,
+} from "@matter/general";
 import { MockSite } from "./mock-site.js";
 import { subscribedPeer } from "./node-helpers.js";
+
+/** Memory storage does not benefit from buffering, so tests that exercise the buffer need a driver that asks for it */
+class BufferingStorageDriver extends MemoryStorageDriver {
+    override get writeCoalescingInterval(): Duration {
+        return Minutes(20);
+    }
+}
+
+function bufferingSite() {
+    return new MockSite({ createStorageDriver: store => new BufferingStorageDriver(store) });
+}
+
+async function expectUnbuffered(site: MockSite, options?: MockSite.PairOptions) {
+    const { controller, device } = await site.addUncommissionedPair(options);
+
+    const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+    const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+    controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+    await controller.start();
+
+    const { passcode, discriminator } = device.state.commissioning;
+    await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
+        macrotasks: true,
+    });
+
+    controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+    const peer = await subscribedPeer(controller, "peer1");
+
+    expect(controller.env.has(ClientCacheBuffer)).false;
+
+    const storage = site.storageFor("controller1");
+    const storageSnapshot = deepCopy(storage);
+
+    const ep1 = peer.endpoints.require(1);
+    const update = new Promise<boolean>(resolve => ep1.eventsOf(OnOffClient).onOff$Changed.on(resolve));
+    await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle());
+    await MockTime.resolve(update);
+
+    expect(deepCopy(storage)).not.deep.equals(storageSnapshot);
+}
 
 describe("ClientCacheBuffer", () => {
     before(() => {
@@ -16,7 +67,7 @@ describe("ClientCacheBuffer", () => {
     });
 
     it("buffers writes until flush", async () => {
-        await using site = new MockSite();
+        await using site = bufferingSite();
         const { controller } = await site.addCommissionedPair();
         const peer = await subscribedPeer(controller, "peer1");
 
@@ -42,7 +93,7 @@ describe("ClientCacheBuffer", () => {
     });
 
     it("flushes on shutdown", async () => {
-        await using site = new MockSite();
+        await using site = bufferingSite();
         const { controller } = await site.addCommissionedPair();
         const peer = await subscribedPeer(controller, "peer1");
 
@@ -66,7 +117,7 @@ describe("ClientCacheBuffer", () => {
     });
 
     it("persists buffered data across restart", async () => {
-        await using site = new MockSite();
+        await using site = bufferingSite();
         let { controller } = await site.addCommissionedPair();
         const peer = await subscribedPeer(controller, "peer1");
 
@@ -87,45 +138,18 @@ describe("ClientCacheBuffer", () => {
         expect(ep1b.stateOf(OnOffClient).onOff).true;
     });
 
-    it("does not buffer when disabled", async () => {
+    it("does not buffer when the storage driver writes immediately", async () => {
         await using site = new MockSite();
-        const { controller, device } = await site.addUncommissionedPair({
-            controller: { network: { clientCacheFlushInterval: undefined } } as any,
-        });
+        await expectUnbuffered(site);
+    });
 
-        const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
-        const deviceCrypto = device.env.get(Crypto) as MockCrypto;
-        controllerCrypto.entropic = deviceCrypto.entropic = true;
-
-        await controller.start();
-
-        const { passcode, discriminator } = device.state.commissioning;
-        await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
-            macrotasks: true,
-        });
-
-        controllerCrypto.entropic = deviceCrypto.entropic = false;
-
-        const peer = await subscribedPeer(controller, "peer1");
-
-        // Should not have a buffer
-        expect(controller.env.has(ClientCacheBuffer)).false;
-
-        const storage = site.storageFor("controller1");
-        const storageSnapshot = deepCopy(storage);
-
-        // Toggle onOff
-        const ep1 = peer.endpoints.require(1);
-        const update = new Promise<boolean>(resolve => ep1.eventsOf(OnOffClient).onOff$Changed.on(resolve));
-        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle());
-        await MockTime.resolve(update);
-
-        // Without buffering, storage should be updated immediately
-        expect(deepCopy(storage)).not.deep.equals(storageSnapshot);
+    it("does not buffer when the configured interval is zero", async () => {
+        await using site = bufferingSite();
+        await expectUnbuffered(site, { controller: { network: { clientCacheFlushInterval: Instant } } as any });
     });
 
     it("flushes on subscription established", async () => {
-        await using site = new MockSite();
+        await using site = bufferingSite();
         const { controller } = await site.addCommissionedPair();
         await subscribedPeer(controller, "peer1");
 
