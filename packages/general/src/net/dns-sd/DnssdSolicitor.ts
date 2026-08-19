@@ -8,7 +8,7 @@ import { DnsMessageType, DnsQuery, DnsRecord, DnsRecordClass, DnsRecordType } fr
 import { Logger } from "#log/Logger.js";
 import { RetrySchedule } from "#net/RetrySchedule.js";
 import { Time } from "#time/Time.js";
-import { Hours, Seconds } from "#time/TimeUnit.js";
+import { Hours, Millis, Seconds } from "#time/TimeUnit.js";
 import { Abort } from "#util/Abort.js";
 import { BasicMultiplex } from "#util/Multiplex.js";
 import { ObservableValue } from "#util/Observable.js";
@@ -268,6 +268,24 @@ export class QueryMulticaster implements DnssdSolicitor {
     }
 }
 
+/**
+ * A name's records as a query's known answers: the remaining lifetime rather than the lifetime the responder first
+ * stated, since that is what decides whether a responder may suppress its answer, and without the cache-flush bit,
+ * which means nothing outside a response.
+ *
+ * @see {@link https://www.rfc-editor.org/rfc/rfc6762#section-7.1} RFC 6762 §7.1
+ * @see {@link https://www.rfc-editor.org/rfc/rfc6762#section-18.12} RFC 6762 §18.12
+ */
 function knownAnswersOf(name: DnssdName) {
-    return [...name.records].map(record => (record.flushCache ? { ...record, flushCache: false } : record));
+    const now = Time.nowMs;
+    const answers = new Array<DnsRecord>();
+
+    for (const record of name.records) {
+        const remaining = record.installedAt + record.ttl - now;
+        if (remaining > 0) {
+            answers.push({ ...record, ttl: Millis(remaining), flushCache: false });
+        }
+    }
+
+    return answers;
 }

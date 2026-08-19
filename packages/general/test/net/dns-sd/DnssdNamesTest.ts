@@ -1406,6 +1406,78 @@ describe("DnssdNames", () => {
             expect(knownAnswers.some(record => record.flushCache)).false;
         });
 
+        it("keeps a record set a responder had to split across packets", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+            const names = client.names;
+
+            function address(value: string): DnsRecord {
+                return {
+                    name: server.hostname,
+                    recordType: DnsRecordType.AAAA,
+                    recordClass: DnsRecordClass.IN,
+                    ttl: Hours(1),
+                    value,
+                    flushCache: true,
+                };
+            }
+
+            const addresses = () =>
+                [...names.get(server.hostname).records]
+                    .filter(record => record.recordType === DnsRecordType.AAAA)
+                    .map(record => record.value)
+                    .sort();
+
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [address("fe80::1")],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            // A set too large for one packet arrives as several; the later ones must not retire the earlier
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [address("fe80::2")],
+                additionalRecords: [],
+            });
+            await MockTime.advance(Seconds(1));
+            await MockTime.advance(10);
+
+            expect(addresses()).deep.equals(["fe80::1", "fe80::2"]);
+        });
+
+        it("reports remaining lifetime in the known answers it sends", async () => {
+            await using site = new MockSite();
+            const { client, server } = await discoverName(site);
+
+            const qname = qnameOf(1);
+
+            const knownAnswers = new Array<DnsRecord>();
+            server.mdns.receipt.on(message => {
+                if (message.queries.length > 0) {
+                    knownAnswers.push(...message.answers);
+                }
+            });
+
+            await MockTime.advance(Minutes(10));
+
+            const abort = new Abort();
+            const discovery = client.names.solicitor.discover({
+                name: client.names.get(qname),
+                recordTypes: [DnsRecordType.TXT],
+                abort,
+            });
+            await MockTime.resolve(Time.sleep("wait for query", Seconds(1)));
+            abort();
+            await MockTime.resolve(discovery).catch(() => {});
+
+            const txt = knownAnswers.find(record => record.recordType === DnsRecordType.TXT);
+            expect(txt).not.undefined;
+            expect(txt!.ttl).lessThan(Hours(1));
+            expect(txt!.ttl).greaterThan(0);
+        });
+
         it("ignores the bit on a shared PTR record", async () => {
             await using site = new MockSite();
             const { client, server } = await site.addPair();

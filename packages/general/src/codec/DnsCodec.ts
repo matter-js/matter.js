@@ -186,6 +186,27 @@ export enum DnsRecordType {
     ANY = 0xff,
 }
 
+export namespace DnsRecordType {
+    /**
+     * Whether a single responder owns every record of this type for a given name, which is what lets a cache-flush
+     * record retire the others.  A DNS-SD service-type PTR enumerates every instance offering that service, so it is
+     * shared and never qualifies.
+     *
+     * @see {@link https://www.rfc-editor.org/rfc/rfc6762#section-10.2} RFC 6762 §10.2
+     * @see {@link https://www.rfc-editor.org/rfc/rfc6763#section-4.1} RFC 6763 §4.1
+     */
+    export function isUnique(recordType: DnsRecordType) {
+        return UNIQUE_RECORD_TYPES.has(recordType);
+    }
+
+    const UNIQUE_RECORD_TYPES: ReadonlySet<DnsRecordType> = new Set([
+        DnsRecordType.SRV,
+        DnsRecordType.TXT,
+        DnsRecordType.A,
+        DnsRecordType.AAAA,
+    ]);
+}
+
 export enum DnsRecordClass {
     IN = 0x01,
     ANY = 0xff,

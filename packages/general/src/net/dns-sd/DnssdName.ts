@@ -143,12 +143,10 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
 
         const at = options?.installedAt ?? Time.nowMs;
 
-        // Retire what this record supersedes only once we know we are keeping it, and only what predates it, so a
-        // responder announcing a whole record set at once does not leave us holding just the last of it.  The record
-        // being installed is excluded by key as well as by time: the copy it replaces is still in #records here, and
-        // retiring that copy would leave a scheduled deletion that later resolves to this key.
-        if (record.flushCache && isUniqueRecordType(record.recordType)) {
-            this.#expireOthersBefore(record.recordType, at, key);
+        // Retire only once we know we are keeping this record.  The copy it replaces is still in #records here, so it
+        // is excluded by key too: retiring it would leave a scheduled deletion that later resolves to this key.
+        if (record.flushCache && DnsRecordType.isUnique(record.recordType)) {
+            this.#expireOthersSupersededBy(record, at, key);
         }
 
         const isHostRecord = record.recordType === DnsRecordType.A || record.recordType === DnsRecordType.AAAA;
@@ -210,10 +208,16 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
         this.#retire(...installed);
     }
 
-    #expireOthersBefore(recordType: DnsRecordType, before: Timestamp, exceptKey: string) {
-        for (const [key, record] of this.#records) {
-            if (key !== exceptKey && record.recordType === recordType && record.installedAt < before) {
-                this.#retire(key, record);
+    /**
+     * Retires the records {@link record} supersedes, identified by having arrived before the window in which a
+     * responder announces one record set.  A set too large for one packet arrives as several, so grouping by packet
+     * would let the later packets retire the earlier ones.
+     */
+    #expireOthersSupersededBy(record: DnsRecord, at: Timestamp, exceptKey: string) {
+        const before = at - this.#context.evictionDelay;
+        for (const [key, installed] of this.#records) {
+            if (key !== exceptKey && installed.recordType === record.recordType && installed.installedAt < before) {
+                this.#retire(key, installed);
             }
         }
     }
@@ -344,25 +348,6 @@ function isAvailableService({ target, port }: SrvRecordValue) {
 
     return Number.isInteger(port) && port > 0 && port <= MAX_PORT;
 }
-
-/**
- * Whether a single responder owns every record of {@link recordType} for a given name, which is what lets a
- * cache-flush record retire the others.  A DNS-SD service-type PTR enumerates every instance offering that service,
- * so it is shared and never qualifies.
- *
- * @see {@link https://www.rfc-editor.org/rfc/rfc6762#section-10.2} RFC 6762 §10.2
- * @see {@link https://www.rfc-editor.org/rfc/rfc6763#section-4.1} RFC 6763 §4.1
- */
-export function isUniqueRecordType(recordType: DnsRecordType) {
-    return UNIQUE_RECORD_TYPES.has(recordType);
-}
-
-const UNIQUE_RECORD_TYPES: ReadonlySet<DnsRecordType> = new Set([
-    DnsRecordType.SRV,
-    DnsRecordType.TXT,
-    DnsRecordType.A,
-    DnsRecordType.AAAA,
-]);
 
 function keyOf(record: DnsRecord): string | undefined {
     switch (record.recordType) {

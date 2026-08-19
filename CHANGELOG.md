@@ -19,6 +19,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: DNS-SD ignores SRV records with port 0, an empty target or an out-of-range port
     - Fix: DNS-SD honors a goodbye that arrives shortly after the same record was re-announced
     - Fix: DNS-SD honors the mDNS cache-flush bit
+    - Fix: DNS-SD reports the remaining lifetime of the known answers it sends with a query
     - Fix: DNS-SD resolution queries A/AAAA for the SRV target host instead of the service instance name
     - Fix: The `Symbol.metadata` polyfill no longer conflicts with `lib.esnext.decorators` in the published declarations
 
