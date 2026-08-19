@@ -7,7 +7,7 @@
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { ChannelType, Logger, Minutes } from "@matter/general";
+import { Logger, Minutes } from "@matter/general";
 import { VendorId } from "@matter/types";
 import { Discovery } from "./Discovery.js";
 import { ParallelPaseDiscovery } from "./ParallelPaseDiscovery.js";
@@ -42,17 +42,6 @@ export class CommissioningDiscovery extends ParallelPaseDiscovery<ClientNode> {
         // before they start mDNS advertising.
         if (options.timeout === undefined) {
             options = { ...options, timeout: Minutes(3) };
-        }
-
-        // Map discoveryCapabilities to a scannerFilter so BLE scanners are included when requested.
-        // This ensures callers that pass discoveryCapabilities (e.g. MatterController) get the correct
-        // scanner selection without having to construct the filter themselves.
-        if (options.discoveryCapabilities !== undefined && options.scannerFilter === undefined) {
-            const caps = options.discoveryCapabilities;
-            options = {
-                ...options,
-                scannerFilter: s => s.type === ChannelType.UDP || (!!caps.ble && s.type === ChannelType.BLE),
-            };
         }
 
         super(owner, options);
@@ -96,7 +85,7 @@ export class CommissioningDiscovery extends ParallelPaseDiscovery<ClientNode> {
         const mismatch = CommissioningDiscovery.identityMismatch(this.#identity, node.state.commissioning);
 
         if (mismatch !== undefined) {
-            logger.info(
+            logger.notice(
                 `Passing over ${node}: it advertises ${mismatch.facet} ${mismatch.advertised} where the onboarding payload names ${mismatch.payload}`,
             );
             return false;
