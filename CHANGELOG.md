@@ -106,11 +106,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Attribute, event and connection-state log lines are recognized by the web UI again, so node tiles and device values update; event lines name the peer and render their timestamp according to the wire variant the device sent
 
 - @matter/protocol
-    - Fix: mDNS advertisements set the cache-flush bit on the SRV, TXT and address records unique to the node
-    - Fix: mDNS known-answer suppression compares what identifies a record
-    - Fix: mDNS known-answer suppression only applies while more than half the known answer's lifetime remains
-    - Fix: an mDNS response drops the cache-flush bit where it no longer carries the whole record set
-    - Fix: a unicast mDNS response does not carry the cache-flush bit
     - Deprecation: The legacy `DecodedDataReport` / `Decoded{Attribute,Event}Report*` types and the `normalize*` / `normalizeAndDecode*` helpers now announce removal in 0.19 instead of 0.18
     - Deprecation: The legacy `ClusterType` command request surface (`Invoke.LegacyCommandRequest`, `Specifier.ClusterTypeCommand`) and `SessionManager.owner` are scheduled for removal in 0.19
     - Enhancement: Network profiles accept a separate `bdxAdditionalMrpDelay` for bulk transfer, defaulting to the profile's messaging margin
@@ -118,6 +113,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding how long it waits for the operational CASE connection that follows it; defaults to the previous fixed 4m15s
     - Fix: Cancelling BLE commissioning aborts the in-flight channel open
     - Fix: A subscription's `maxIntervalCeiling` is transmitted exactly as requested; jitter now applies only when we derive the ceiling ourselves
+    - Fix: mDNS advertisements set the cache-flush bit on the SRV, TXT and address records unique to the node
+    - Fix: mDNS known-answer suppression compares what identifies a record
+    - Fix: mDNS known-answer suppression only applies while more than half the known answer's lifetime remains
+    - Fix: an mDNS response drops the cache-flush bit where it no longer carries the whole record set
+    - Fix: a unicast mDNS response does not carry the cache-flush bit
 
 - @matter/react-native
     - Fix: The `storage.clear` variable now clears the storage on start as it does on Node.js
