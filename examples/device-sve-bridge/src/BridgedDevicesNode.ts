@@ -84,7 +84,9 @@ const RootEndpointType = {
             events: { auxiliaryAccessUpdated: true },
         }),
         GroupcastServer.with("Listener", "Sender", "PerGroup"),
-        GroupKeyManagementServer.with("Groupcast"),
+        // The GroupKeyManagement Groupcast feature is provisional; the default server rejects it, and Groupcast does
+        // not need it.
+        GroupKeyManagementServer,
         NetworkCommissioningServer.with("EthernetNetworkInterface"),
     ),
     deviceRevision: 5,
