@@ -5,5 +5,5 @@
  */
 
 describe("LWM", () => {
-    chip("LWM/*");
+    chip("LWM/**");
 });
