@@ -107,8 +107,10 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/protocol
     - Fix: mDNS advertisements set the cache-flush bit on the SRV, TXT and address records unique to the node
-    - Fix: mDNS known-answer suppression compares what identifies a record, and honors RFC 6762 §7.1's remaining-lifetime rule
-    - Fix: an mDNS response drops the cache-flush bit where it no longer carries the whole record set, and where it is sent by unicast
+    - Fix: mDNS known-answer suppression compares what identifies a record
+    - Fix: mDNS known-answer suppression only applies while more than half the known answer's lifetime remains
+    - Fix: an mDNS response drops the cache-flush bit where it no longer carries the whole record set
+    - Fix: a unicast mDNS response does not carry the cache-flush bit
     - Deprecation: The legacy `DecodedDataReport` / `Decoded{Attribute,Event}Report*` types and the `normalize*` / `normalizeAndDecode*` helpers now announce removal in 0.19 instead of 0.18
     - Deprecation: The legacy `ClusterType` command request surface (`Invoke.LegacyCommandRequest`, `Specifier.ClusterTypeCommand`) and `SessionManager.owner` are scheduled for removal in 0.19
     - Enhancement: Network profiles accept a separate `bdxAdditionalMrpDelay` for bulk transfer, defaulting to the profile's messaging margin

@@ -319,7 +319,7 @@ export class MdnsServer {
         return (
             record.recordType === knownAnswer.recordType &&
             record.recordClass === knownAnswer.recordClass &&
-            knownAnswer.ttl >= record.ttl / 2 &&
+            knownAnswer.ttl > record.ttl / 2 &&
             sameName(record.name, knownAnswer.name) &&
             isDeepEqual(record.value, knownAnswer.value)
         );

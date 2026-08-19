@@ -317,6 +317,7 @@ describe("MdnsServer", () => {
         it("suppresses only while more than half the known answer's lifetime remains", async () => {
             for (const [remaining, expectSuppressed] of [
                 [Seconds(61), true],
+                [Seconds(60), false],
                 [Seconds(59), false],
             ] as const) {
                 await mdnsServer.setRecordsGenerator("foo", () => [PtrRecord(DUMMY_QNAME, "abcd"), flushed(DUMMY_SRV)]);
