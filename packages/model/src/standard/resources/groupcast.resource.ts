@@ -415,10 +415,13 @@ Resource.add(
 
             {
                 tag: "command", name: "GroupcastTesting", xref: "core§11.27.7.6",
+
                 details: "This command shall allow an Administrator to configure test modes that allow validation of Groupcast " +
                     "communication." +
                     "\n" +
-                    "This command shall have the following data fields subject to the listed conformance.",
+                    "This command shall have the following data fields subject to the listed conformance." +
+                    "\n" +
+                    "Note: The behavior of the command when the TestOperation is EnableSenderTesting is provisional.",
 
                 children: [
                     {

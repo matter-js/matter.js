@@ -294,6 +294,8 @@ export declare namespace Groupcast {
          *
          * This command shall have the following data fields subject to the listed conformance.
          *
+         * Note: The behavior of the command when the TestOperation is EnableSenderTesting is provisional.
+         *
          * @see {@link MatterSpecification.v16.Core} § 11.27.7.6
          */
         groupcastTesting(request: GroupcastTestingRequest): MaybePromise;
@@ -683,6 +685,8 @@ export declare namespace Groupcast {
      * communication.
      *
      * This command shall have the following data fields subject to the listed conformance.
+     *
+     * Note: The behavior of the command when the TestOperation is EnableSenderTesting is provisional.
      *
      * @see {@link MatterSpecification.v16.Core} § 11.27.7.6
      */

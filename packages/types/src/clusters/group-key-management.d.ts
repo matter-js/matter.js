@@ -60,8 +60,7 @@ export declare namespace GroupKeyManagement {
          * If the GCAST feature bit is set in the FeatureMap attribute, the following rules apply to the accessing
          * Fabric:
          *
-         *   - When Groupcast is adopted (the GroupcastAdoption attribute present and has an entry where
-         *     GroupcastAdopted set to true):
+         *   - When Groupcast is adopted (the GroupcastAdoption entry has GroupcastAdopted set to true):
          *
          *   - This attribute shall be empty.
          *
@@ -164,8 +163,7 @@ export declare namespace GroupKeyManagement {
          * If the GCAST feature bit is set in the FeatureMap attribute, the following rules apply to the accessing
          * Fabric:
          *
-         *   - When Groupcast is adopted (the GroupcastAdoption attribute present and has an entry where
-         *     GroupcastAdopted set to true):
+         *   - When Groupcast is adopted (the GroupcastAdoption entry has GroupcastAdopted set to true):
          *
          *   - This attribute shall be empty.
          *

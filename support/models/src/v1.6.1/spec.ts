@@ -34677,7 +34677,7 @@ export const SpecMatter = Matter(
             }),
 
             Field({
-                name: "GCAST", conformance: "O", constraint: "1", title: "Groupcast", xref: "core§11.2.4.2",
+                name: "GCAST", conformance: "P, O", constraint: "1", title: "Groupcast", xref: "core§11.2.4.2",
 
                 details: "When set, group management and group key mapping is done using the Section 11.27, \"Groupcast " +
                     "Cluster\"." +
@@ -34697,8 +34697,7 @@ export const SpecMatter = Matter(
                 details: "If the GCAST feature bit is set in the FeatureMap attribute, the following rules apply to the " +
                     "accessing Fabric:" +
                     "\n" +
-                    "  - When Groupcast is adopted (the GroupcastAdoption attribute present and has an entry where " +
-                    "GroupcastAdopted set to true):" +
+                    "  - When Groupcast is adopted (the GroupcastAdoption entry has GroupcastAdopted set to true):" +
                     "\n" +
                     "  - This attribute shall be empty." +
                     "\n" +
@@ -44614,10 +44613,13 @@ export const SpecMatter = Matter(
             {
                 name: "GroupcastTesting", id: 0x5, access: "F A", conformance: "M", direction: "request",
                 response: "status", xref: "core§11.27.7.6",
+
                 details: "This command shall allow an Administrator to configure test modes that allow validation of Groupcast " +
                     "communication." +
                     "\n" +
-                    "This command shall have the following data fields subject to the listed conformance."
+                    "This command shall have the following data fields subject to the listed conformance." +
+                    "\n" +
+                    "Note: The behavior of the command when the TestOperation is EnableSenderTesting is provisional."
             },
 
             Field({
