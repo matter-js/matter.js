@@ -18,6 +18,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Opening a namespace whose `driver.json` names an unregistered storage driver now throws `NoProviderError` instead of silently opening the existing data with a mismatched driver
     - Fix: DNS-SD ignores SRV records with port 0, an empty target or an out-of-range port
     - Fix: DNS-SD honors a goodbye that arrives shortly after the same record was re-announced
+    - Fix: DNS-SD honors the mDNS cache-flush bit
     - Fix: DNS-SD resolution queries A/AAAA for the SRV target host instead of the service instance name
     - Fix: The `Symbol.metadata` polyfill no longer conflicts with `lib.esnext.decorators` in the published declarations
 
@@ -123,6 +124,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding how long it waits for the operational CASE connection that follows it; defaults to the previous fixed 4m15s
     - Fix: Cancelling BLE commissioning aborts the in-flight channel open
     - Fix: A subscription's `maxIntervalCeiling` is transmitted exactly as requested; jitter now applies only when we derive the ceiling ourselves
+    - Fix: mDNS advertisements set the cache-flush bit on the SRV, TXT and address records unique to the node
+    - Fix: mDNS known-answer suppression compares what identifies a record
+    - Fix: mDNS known-answer suppression only applies while more than half the known answer's lifetime remains
+    - Fix: an mDNS response drops the cache-flush bit where it no longer carries the whole record set
+    - Fix: a unicast mDNS response does not carry the cache-flush bit
 
 - @matter/react-native
     - Fix: The `storage.clear` variable now clears the storage on start as it does on Node.js
