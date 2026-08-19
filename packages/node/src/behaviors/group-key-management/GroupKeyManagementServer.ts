@@ -70,6 +70,13 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             throw new ImplementationError("The CacheAndSync feature is provisional. Do not use it.");
         }
 
+        // TODO: remove this guard once the Groupcast feature leaves provisional state in the Matter specification
+        if (this.features.groupcast) {
+            throw new ImplementationError(
+                "The Groupcast feature of GroupKeyManagement is provisional in Matter 1.6. Do not enable it.",
+            );
+        }
+
         // Validate the state
         this.reactTo(this.events.groupKeyMap$Changing, this.#validateGroupKeyMap);
         this.reactTo(this.events.groupTable$Changing, this.#validateGroupTable);

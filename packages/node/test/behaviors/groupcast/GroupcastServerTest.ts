@@ -31,14 +31,14 @@ import { MockSite } from "../../node/mock-site.js";
 /** Root endpoint type with GroupcastServer (Listener+Sender+PerGroup), GKM (GCAST feature) and auxiliary ACLs. */
 const GroupcastRootEndpoint = MockServerNode.RootEndpoint.with(
     GroupcastServer.with("Listener", "Sender", "PerGroup"),
-    GroupKeyManagementServer.with("Groupcast"),
+    GroupKeyManagementServer,
     AccessControlServer.with("Extension", "Auxiliary"),
 );
 
 /** Root endpoint without the PerGroupAddr feature: every group defaults to the shared IanaAddr policy. */
 const IanaOnlyRootEndpoint = MockServerNode.RootEndpoint.with(
     GroupcastServer.with("Listener", "Sender"),
-    GroupKeyManagementServer.with("Groupcast"),
+    GroupKeyManagementServer,
     AccessControlServer.with("Extension", "Auxiliary"),
 );
 
@@ -552,7 +552,7 @@ describe("GroupcastServer", () => {
         it("rejects the Listener feature when AccessControl lacks the Auxiliary feature", async () => {
             const endpointType = MockServerNode.RootEndpoint.with(
                 GroupcastServer.with("Listener", "Sender", "PerGroup"),
-                GroupKeyManagementServer.with("Groupcast"),
+                GroupKeyManagementServer,
             );
             await expect(MockServerNode.createOnline(endpointType, { device: undefined })).rejectedWith(
                 "requires the AccessControl Auxiliary feature",
@@ -1685,7 +1685,7 @@ describe("GroupcastServer", () => {
         it("names the administering node when legacy RemoveAllGroups empties a listener group", async () => {
             const GroupcastRoot = ServerNode.RootEndpoint.with(
                 GroupcastServer.with("Listener", "Sender", "PerGroup"),
-                GroupKeyManagementServer.with("Groupcast"),
+                GroupKeyManagementServer,
                 AccessControlServer.with("Extension", "Auxiliary").enable({
                     attributes: { auxiliaryAcl: true },
                     events: { auxiliaryAccessUpdated: true },
