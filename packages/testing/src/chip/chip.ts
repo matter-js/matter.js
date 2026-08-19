@@ -298,33 +298,49 @@ function createBuilder(initial: {
         const test = chip.testFor(descriptor);
 
         const myIt = only ? it.only : it;
+
+        // The builder's args follow the run's so they win, and both are read at invocation because builder methods may
+        // append after the test is defined
+        let runArgs = new Array<string>();
+
         const mochaTest = myIt(descriptor.name, function () {
             this.timeout(descriptor.timeoutMs ?? chip.defaultTimeoutMs);
-            return State.run(test, args, (subject, test) => runBeforeHooks(beforeTestHooks, subject, test));
+            return State.run(test, [...runArgs, ...args], (subject, test) =>
+                runBeforeHooks(beforeTestHooks, subject, test),
+            );
         });
 
         // We do this separately from the test itself because we don't want activation to appear as part of the test if
         // it fails
         beforeOne(mochaTest, async function (this: Mocha.Context) {
             // Resolution order: explicit .subject() override on the builder, then descriptor.app
-            // (chip-test-header app for multi-run suite members), then chip.defaultSubject. A
-            // multi-run member that names an unregistered app is skipped (other runs of the same
-            // test continue) — chip CI lists more apps than we mimic, and ignoring those runs is
-            // the whitelist behavior we want.
+            // (chip-test-header app for multi-run suite members), then descriptor.preferredApp (the
+            // app chip names for a single-run test), then chip.defaultSubject. A multi-run member
+            // that names an unregistered app is skipped (other runs of the same test continue) —
+            // chip CI lists more apps than we mimic, and ignoring those runs is the whitelist
+            // behavior we want. A single-run test has no alternate run to fall back on, so an
+            // unregistered app leaves it on the default subject instead of dropping it.
             let factory = subject;
             let appArgs: string[] | undefined;
+            runArgs = [];
             if (factory !== undefined) {
-                // An explicit .subject() targets a specific app, so still forward the descriptor's per-run app-args.
+                // An explicit .subject() targets a specific app, so still forward the descriptor's per-run args.
                 appArgs = parseAppArgs(descriptor);
+                runArgs = parseTestArgs(descriptor);
             } else if (descriptor.app !== undefined) {
                 factory = State.subjectForApp(descriptor.app);
                 if (factory === undefined) {
                     this.skip();
                 }
-                // app-args are scoped to the named app; forwarding them to the defaultSubject would
-                // pollute the subject cache with per-test variants (e.g. --trace-to paths) and
-                // thrash setup on tests that don't need per-run dispatch.
+                // The run's args describe the app it names, so they apply only where we honor that app
                 appArgs = parseAppArgs(descriptor);
+                runArgs = parseTestArgs(descriptor);
+            } else if (descriptor.preferredApp !== undefined) {
+                factory = State.subjectForApp(descriptor.preferredApp);
+                if (factory !== undefined) {
+                    appArgs = parseAppArgs(descriptor);
+                    runArgs = parseTestArgs(descriptor);
+                }
             }
             if (factory === undefined) {
                 factory = State.subject;
@@ -347,7 +363,18 @@ function createBuilder(initial: {
 }
 
 function parseAppArgs(descriptor: TestDescriptor): string[] | undefined {
-    const raw = descriptor.config?.["app-args"];
+    return parseArgs(descriptor.config?.["app-args"]);
+}
+
+/**
+ * Arguments chip passes to the test runner for the descriptor's run, such as the endpoint a device exposes the cluster
+ * under test on.
+ */
+function parseTestArgs(descriptor: TestDescriptor): string[] {
+    return parseArgs(descriptor.config?.["test-args"]) ?? [];
+}
+
+function parseArgs(raw: unknown): string[] | undefined {
     if (raw === undefined) return undefined;
     if (Array.isArray(raw)) return raw.map(String);
     if (typeof raw === "string") {
