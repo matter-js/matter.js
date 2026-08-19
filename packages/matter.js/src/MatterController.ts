@@ -281,7 +281,6 @@ export class MatterController {
                     "Ble must be initialized to create a Sub Commissioner without an IP network!",
                 );
             }
-            logger.info("BLE is not enabled. Using only IP network for commissioning.");
         }
 
         return controller;
@@ -492,13 +491,7 @@ export class MatterController {
         discoveryCapabilities: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap> = { onIpNetwork: true },
     ) {
         this.#construction.assert();
-        // Note we always scan via MDNS if available
-        return this.node.env
-            .get(ScannerSet)
-            .filter(
-                scanner =>
-                    scanner.type === ChannelType.UDP || (discoveryCapabilities.ble && scanner.type === ChannelType.BLE),
-            );
+        return this.node.env.get(ScannerSet).select(discoveryCapabilities);
     }
 
     /**
