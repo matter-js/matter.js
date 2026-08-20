@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, InternalError, Millis, Time } from "@matter/main";
+import { Duration, InternalError, Millis } from "@matter/main";
 import type { CertStepContext, CertStepDefinition, PromptHandler, StepVerdict, Subject } from "@matter/testing";
 import {
     chip,
@@ -15,6 +15,7 @@ import {
 } from "@matter/testing";
 import { join } from "node:path";
 import { env } from "node:process";
+import { settleWithin } from "./tc-support.js";
 
 // setup_class's th_server_discriminator — fixed for every OpenCommissioningWindow call in the script.
 // The passcode is NOT fixed the same way: only the initial precondition commission (TH_CLIENT pairing
@@ -62,15 +63,6 @@ function extractPasscode(promptText: string): number {
 // DUT that hangs instead of rejecting must not stall this step for the full mocha timeout.
 const COMMISSION_TIMEOUT_MS = 60_000;
 
-type SettleOutcome = { kind: "resolved"; ref: string } | { kind: "rejected"; error: unknown } | { kind: "timeout" };
-
-function settled(promise: Promise<string>): Promise<SettleOutcome> {
-    return promise.then(
-        (ref): SettleOutcome => ({ kind: "resolved", ref }),
-        (error: unknown): SettleOutcome => ({ kind: "rejected", error }),
-    );
-}
-
 /**
  * Handles every "Manual Pairing Code" prompt `TC_SC_3_5.py` prints — steps 1b, 2c, 3c, 4c, 5c (4c is
  * skipped, and never prompts, if DUT has no ICAC in its NOC chain; see the script's `setup_class`/
@@ -101,26 +93,18 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
             };
             cx.recorder.beginStep(stepDef);
 
-            const timeout = Time.sleep("TC-SC-3.5 commission timeout", Millis(COMMISSION_TIMEOUT_MS));
-            let outcome: SettleOutcome;
-            try {
-                outcome = await Promise.race([
-                    settled(
-                        dut.commission({
-                            passcode,
-                            discriminator: TH_SERVER_DISCRIMINATOR,
-                            // The script arms each fault for one handshake only, so a commissioner that retries gets a
-                            // clean one and commissions successfully. Step 1b injects no fault and must be free to
-                            // recover like any healthy commissioning.
-                            singleHandshakeAttempt: !expectSuccess,
-                        }),
-                    ),
-                    timeout.then((): SettleOutcome => ({ kind: "timeout" })),
-                ]);
-            } finally {
-                // A lost race leaves the sleep armed for its full duration, keeping the process alive past teardown
-                timeout.cancel();
-            }
+            const outcome = await settleWithin(
+                `TC-SC-3.5 commissioning attempt ${attempt}`,
+                dut.commission({
+                    passcode,
+                    discriminator: TH_SERVER_DISCRIMINATOR,
+                    // The script arms each fault for one handshake only, so a commissioner that retries gets a
+                    // clean one and commissions successfully. Step 1b injects no fault and must be free to
+                    // recover like any healthy commissioning.
+                    singleHandshakeAttempt: !expectSuccess,
+                }),
+                COMMISSION_TIMEOUT_MS,
+            );
 
             let verdict: StepVerdict;
             let failure: Error | undefined;
@@ -131,11 +115,11 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
                     cx.recorder.check({
                         type: "response",
                         verdict,
-                        detail: `commission() resolved on attempt ${attempt} (ref ${outcome.ref})`,
+                        detail: `commission() resolved on attempt ${attempt} (ref ${outcome.value})`,
                     });
                     if (!expectSuccess) {
                         await dut
-                            .node(outcome.ref)
+                            .node(outcome.value)
                             .decommission()
                             .catch(e =>
                                 console.warn(`Failed to decommission unexpectedly-successful attempt ${attempt}:`, e),
