@@ -254,6 +254,7 @@ certTest("TC-DD-3.17", {
                     cx,
                     manualPairingCode({ ...parts, vendorId }),
                     commissioned,
+                    refusals,
                     `Code naming vendor 0x${vendorId.toString(16)}`,
                     VENDOR_OUTCOME_TIMEOUT_MS,
                 );

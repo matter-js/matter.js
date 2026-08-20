@@ -8,6 +8,7 @@ import {
     Boot,
     ClientNode,
     ControllerBehavior,
+    Diagnostic,
     Duration,
     Environment,
     ImplementationError,
@@ -21,7 +22,9 @@ import {
     Seconds,
     ServerNode,
     Time,
+    UnexpectedDataError,
 } from "@matter/main";
+import { OperationalCredentialsClient } from "@matter/main/behaviors/operational-credentials";
 import { GeneralCommissioning, OperationalCredentials } from "@matter/main/clusters";
 import {
     ClientRead,
@@ -383,12 +386,14 @@ class InProcessCertNodeApi implements CertNodeApi {
             // the whole point of this call is the one request, and a step proving how a device answers
             // a batch would silently prove nothing. This reads the same value the interaction's own
             // exchange provider does.
-            const maxPathsPerInvoke = this.#protocolPeer?.sessionParameters.maxPathsPerInvoke ?? 1;
-            if (commands.length > maxPathsPerInvoke) {
+            const advertised = this.#protocolPeer?.sessionParameters.maxPathsPerInvoke;
+            if (commands.length > (advertised ?? 1)) {
                 throw new ImplementationError(
-                    `invokeBatch of ${commands.length} commands, but node ${this.#nodeId} accepts ` +
-                        `${maxPathsPerInvoke} path(s) per invoke; the request would be split into separate ` +
-                        "interactions",
+                    `invokeBatch of ${commands.length} commands, but ` +
+                        (advertised === undefined
+                            ? `node ${this.#nodeId} has no protocol peer yet, so its limit is unknown and taken as 1`
+                            : `node ${this.#nodeId} accepts ${advertised} path(s) per invoke`) +
+                        "; the request would be split into separate interactions",
                 );
             }
 
@@ -404,9 +409,10 @@ class InProcessCertNodeApi implements CertNodeApi {
                 for (const entry of chunk) {
                     const index = entry.commandRef === undefined ? undefined : entry.commandRef - 1;
                     if (index === undefined || index < 0 || index >= commands.length) {
-                        throw new InternalError(
+                        throw new UnexpectedDataError(
                             `Invoke response carries commandRef ${entry.commandRef}, which belongs to no command of ` +
-                                `this ${commands.length}-command request`,
+                                `this ${commands.length}-command request; ${results.length} result(s) had arrived ` +
+                                `first: ${Diagnostic.json(results)}`,
                         );
                     }
 
@@ -644,18 +650,16 @@ class InProcessCertNodeApi implements CertNodeApi {
     decommission(): Promise<void> {
         return runTagged(this.#adapterId, async () => {
             const peer = this.#peer;
-            try {
-                await peer.decommission();
-                return;
-            } catch (e) {
-                // Decommissioning acts through the peer's OperationalCredentials behavior, which exists only once a
-                // report has carried that cluster. A peer whose structure read aborted holds no such behavior.
-                if (!peer.lifecycle.isCommissioned) {
-                    throw e;
-                }
-                logger.info(`Decommissioning ${peer.id} failed, reading its credentials and retrying:`, e);
+
+            // Decommissioning acts through the peer's OperationalCredentials behavior, which the first
+            // report carrying that cluster installs; a peer whose structure read aborted has none, and
+            // reading it here is what installs it. Only that condition may be pre-empted: any other
+            // failure is the step's outcome, including a refusal a step means to assert.
+            if (peer.lifecycle.isCommissioned && !peer.behaviors.has(OperationalCredentialsClient)) {
+                logger.info(`Reading ${peer.id}'s credentials, which decommissioning it needs`);
+                await this.readAttribute({ endpoint: 0, cluster: OperationalCredentials.id });
             }
-            await this.readAttribute({ endpoint: 0, cluster: OperationalCredentials.id });
+
             await peer.decommission();
         });
     }
@@ -842,7 +846,16 @@ export class InProcessControllerAdapter implements ControllerAdapter {
                 timeout: target.giveUpAfterMs === undefined ? undefined : Millis(target.giveUpAfterMs),
                 regulatoryLocation: GeneralCommissioning.RegulatoryLocationType.IndoorOutdoor,
                 regulatoryCountryCode: "XX",
-                onAttestationFailure: () => true,
+                onAttestationFailure: findings => {
+                    // Accepting is what lets a test device commission at all; the evidence still has
+                    // to say what was accepted, or a step asserting a clean attestation proves nothing
+                    logger.notice(
+                        `Accepting device attestation findings: ${findings
+                            .map(({ level, type, message }) => `${level} ${type}: ${message}`)
+                            .join("; ")}`,
+                    );
+                    return true;
+                },
             });
             const address = peer.peerAddress;
             if (address === undefined) {

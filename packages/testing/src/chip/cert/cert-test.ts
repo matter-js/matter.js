@@ -66,17 +66,37 @@ export class CertTest extends BaseTest {
     ): Promise<void> {
         const cx = this.contextFor(subject);
         const { recorder, devices } = cx;
-        const picsFile = resolvePicsFile(subject)?.with(controllerPicsOverridesFor(resolveControllerImplementation()));
         const deviceExitWatch = watchDeviceExits(devices, recorder);
-        const flavor = currentFlavor(devices);
+        const flavor = this.flavorFor(devices);
         const tc = this.#definition.tc;
 
         let aborted = false;
         let failure: unknown;
         let failed = false;
         let controllerUnsupportedSkips = 0;
+        let reportingFailure: unknown;
+
+        // Ends a step and announces its outcome. A throw here must not become the step's outcome —
+        // the step's own error takes precedence — but a run whose evidence could not be written must
+        // not report success either, so the first such failure is kept and applied below.
+        const report = (stepDef: CertStepDefinition, verdict: StepVerdict, skipReason?: string) => {
+            try {
+                announceStepEnd(cx, tc, stepDef, verdict, recorder.endStep(stepDef, verdict, skipReason));
+            } catch (e) {
+                if (reportingFailure === undefined) {
+                    reportingFailure = e;
+                }
+                console.warn(`Cert test ${tc} step ${stepDef.number}: reporting the ${verdict} outcome failed:`, e);
+            }
+        };
 
         try {
+            // Inside the try: reading the subject's PICS, and resolving what the controller declares,
+            // can both throw, and everything this run opened is closed by the teardown below.
+            const picsFile = resolvePicsFile(subject)?.with(
+                controllerPicsOverridesFor(resolveControllerImplementation()),
+            );
+
             // Provenance reporting must never be why a run that would otherwise pass its steps
             // aborts before running any of them.
             try {
@@ -88,41 +108,32 @@ export class CertTest extends BaseTest {
             for (const stepDef of this.#definition.steps) {
                 // A step that can never execute keeps its declared reason; "aborted by step N" loses it.
                 if (stepDef.notApplicable !== undefined) {
-                    announceStepEnd(
-                        cx,
-                        tc,
-                        stepDef,
-                        "skipped",
-                        recorder.endStep(stepDef, "skipped", stepDef.notApplicable),
-                    );
+                    report(stepDef, "skipped", stepDef.notApplicable);
                     continue;
                 }
 
                 if (aborted) {
-                    announceStepEnd(cx, tc, stepDef, "aborted", recorder.endStep(stepDef, "aborted"));
+                    report(stepDef, "aborted");
                     continue;
                 }
 
                 try {
-                    if (stepDef.flavors && flavor !== undefined && !stepDef.flavors.includes(flavor)) {
-                        announceStepEnd(
-                            cx,
-                            tc,
+                    // A step that declares flavors never runs on an unknown one: taking silence for
+                    // consent would run it wherever the flavor could not be determined, which is the
+                    // one case its declaration cannot speak for.
+                    if (stepDef.flavors !== undefined && (flavor === undefined || !stepDef.flavors.includes(flavor))) {
+                        report(
                             stepDef,
                             "skipped",
-                            recorder.endStep(stepDef, "skipped", `unsupported on device flavor "${flavor}"`),
+                            flavor === undefined
+                                ? `device flavor unknown, and this step declares ${stepDef.flavors.join("/")}`
+                                : `unsupported on device flavor "${flavor}"`,
                         );
                         continue;
                     }
 
                     if (!stepPicsMet(stepDef, picsFile)) {
-                        announceStepEnd(
-                            cx,
-                            tc,
-                            stepDef,
-                            "skipped",
-                            recorder.endStep(stepDef, "skipped", `PICS "${stepDef.pics}" not met`),
-                        );
+                        report(stepDef, "skipped", `PICS "${stepDef.pics}" not met`);
                         continue;
                     }
 
@@ -134,18 +145,24 @@ export class CertTest extends BaseTest {
                 } catch (e) {
                     if (e instanceof UnsupportedByControllerError) {
                         controllerUnsupportedSkips++;
-                        announceStepEnd(cx, tc, stepDef, "skipped", recorder.endStep(stepDef, "skipped", e.message));
+                        report(stepDef, "skipped", e.message);
                         continue;
                     }
 
-                    announceStepEnd(cx, tc, stepDef, "fail", recorder.endStep(stepDef, "fail"));
                     aborted = true;
                     failed = true;
                     failure = e;
+
+                    report(stepDef, "fail");
                     continue;
                 }
 
-                announceStepEnd(cx, tc, stepDef, "pass", recorder.endStep(stepDef, "pass"));
+                report(stepDef, "pass");
+            }
+
+            if (!failed && reportingFailure !== undefined) {
+                failed = true;
+                failure = reportingFailure;
             }
 
             // Every remaining step in a run can skip as controller-unsupported without ever failing
@@ -195,19 +212,53 @@ export class CertTest extends BaseTest {
                 }
             }
 
+            // After the flush, so a bundle exists even for a teardown that hangs against an
+            // unreachable TH: it is the run's outcome, not the bundle, that carries a close failure.
+            const teardownErrors = await this.teardown();
+
+            const exited = deviceExitWatch.observed;
             deviceExitWatch.disarm();
+
+            // In order: what the run itself hit, then a device that died under it — an exit settling
+            // too late for any step's race is still the run's own outcome — and only then cleanup.
+            if (!failed) {
+                if (exited !== undefined) {
+                    failed = true;
+                    failure = new Error(
+                        `A cert-test device exited unexpectedly (code ${exited.code}, signal ${exited.signal}) ` +
+                            "during the run",
+                    );
+                } else if (teardownErrors.length > 0) {
+                    failed = true;
+                    failure = new AggregateError(
+                        teardownErrors,
+                        `Cert test ${tc}: ${teardownErrors.length} controller/device(s) failed to close, leaving ` +
+                            "state behind for whatever runs next",
+                    );
+                }
+            }
         }
 
         if (failed) {
             throw failure;
         }
+    }
 
-        const exited = deviceExitWatch.observed;
-        if (exited !== undefined) {
-            throw new Error(
-                `A cert-test device exited unexpectedly (code ${exited.code}, signal ${exited.signal}) during the run`,
-            );
-        }
+    /**
+     * Closes whatever this run opened, returning what refused to close. A close failure means state is
+     * left on the TH for the next run in this process, so {@link invoke} fails the run over it — unless
+     * the run failed on its own account, which keeps precedence.
+     */
+    protected async teardown(): Promise<unknown[]> {
+        return [];
+    }
+
+    /**
+     * The flavor this run's steps gate on. Derived from the devices by default; a run that knows its
+     * own flavor overrides this, since the devices are only as authoritative as whatever built them.
+     */
+    protected flavorFor(devices: Record<string, CertDevice>): DeviceFlavor | undefined {
+        return currentFlavor(devices);
     }
 
     /**
@@ -374,12 +425,23 @@ function announceFinalizationFailure(cx: CertStepContext, tc: string, e: unknown
     announceStep(cx, [STEP_BANNER_RULE, `${tc} — Finalization: FAIL`, errorText(e), STEP_BANNER_RULE]);
 }
 
-/** One evidence line for `check`: a device-log check names its pattern/match, others their own detail. */
+/**
+ * One evidence line for `check`. The verdict leads, since a reader of the log excerpt has nothing
+ * else to tell a failed check from a passing one; a device-log check names its pattern and match, and
+ * every check that carries a detail says it — that is where a failed log check puts its reason.
+ */
 function formatCheckLine(check: CheckRecord): string {
+    const parts = new Array<string>();
+
     if (check.type === "device-log") {
-        return `pattern=${check.pattern ?? "(none)"} matched=${check.matched ?? "(none)"}`;
+        parts.push(`pattern=${check.pattern ?? "(none)"}`, `matched=${check.matched ?? "(none)"}`);
     }
-    return check.detail ?? "(no detail)";
+
+    if (check.detail !== undefined) {
+        parts.push(check.detail);
+    }
+
+    return `${check.verdict}: ${parts.length === 0 ? "(no detail)" : parts.join(" ")}`;
 }
 
 function announceStepEnd(
@@ -424,9 +486,8 @@ interface DeviceExitWatch {
 
 /**
  * Races every device's {@link CertDevice.exit} against the run and reports the first one that
- * settles to `recorder`. A device's own controlled `stop()`/`close()` (normal test teardown) always
- * runs after {@link CertTest.invoke} has already returned, so a resolution here during the run means
- * the device crashed independently of anything the test asked it to do.
+ * settles to `recorder`. {@link CertDevice.exit} settles only for an exit the harness did not ask
+ * for, so a resolution here means the device died independently of anything the test asked it to do.
  */
 function watchDeviceExits(devices: Record<string, CertDevice>, recorder: StepRecorder): DeviceExitWatch {
     let observed: DeviceExitInfo | undefined;

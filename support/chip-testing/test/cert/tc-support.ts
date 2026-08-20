@@ -163,7 +163,6 @@ export async function expectAdjacentLines(
 // pairs). matter.js has no equivalent log line, so this is chip-only; see AGENTS.md's flavor-pattern
 // policy for the matterjs "unverified" fallback.
 export const REPORT_DATA_MESSAGE = /\[DMG\] ReportDataMessage =\s*$/;
-const STATUS_RESPONSE_RECEIVED = /Msg RX from.*\(IM:StatusResponse\)/;
 
 // A subscription's own reports and its SubscribeResponse both carry the id the TH minted for it,
 // printed as the block's first field in chip's own unpadded lowercase hex — captured verbatim in
@@ -461,13 +460,18 @@ export async function expectCommandInvoke(
     let cursor = from;
     let last: { index: number; text: string } | undefined;
 
+    // One deadline for the whole check, not one per wait: a per-wait budget makes the worst case
+    // timeoutMs × (1 + fields.length), where the caller asked for timeoutMs
+    const deadline = Time.nowMs + timeoutMs;
+    const remaining = () => Math.max(1, deadline - Time.nowMs);
+
     try {
         const block = await expectAdjacentLines(
             log,
             flavor,
             commandPathIBSequence(endpoint, cluster, command),
             from,
-            timeoutMs,
+            remaining(),
         );
         if (block.verdict === "unverified") {
             return { type: "device-log", verdict: "unverified" };
@@ -480,7 +484,7 @@ export async function expectCommandInvoke(
             // chip's decode dump appends the TLV type name after the value (verified against a real
             // chip-bridge-app capture).
             const pattern = new RegExp(`0x${id.toString(16)} = ${value} \\(unsigned\\),\\s*$`);
-            const result = await log.expect({ chip: pattern }, { flavor, timeoutMs, from: cursor });
+            const result = await log.expect({ chip: pattern }, { flavor, timeoutMs: remaining(), from: cursor });
             if (result.verdict === "unverified") {
                 return { type: "device-log", verdict: "unverified" };
             }
@@ -583,19 +587,52 @@ export async function expectChunkedTransfer(
         };
     }
 
+    // One transfer stays on one exchange, so this is what makes the chunks *one* read's rather than
+    // several reads' — and, like expectReportAck, what tells this read's acks from those of the node's
+    // own subscription, which stays live during these runs.
+    const exchange = exchangeIdBefore(log, chunks[0].index);
+    if (exchange === undefined) {
+        return {
+            type: "device-log",
+            verdict: "fail",
+            pattern: String(REPORT_SENT_LINE),
+            detail:
+                "No outbound Report Data trace line (carrying an Exchange id) found before the report " +
+                `chunk at log line ${chunks[0].index}`,
+            logLine: chunks[0].index,
+        };
+    }
+
+    for (const [i, chunk] of chunks.entries()) {
+        const chunkExchange = exchangeIdBefore(log, chunk.index);
+        if (chunkExchange !== exchange) {
+            return {
+                type: "device-log",
+                verdict: "fail",
+                pattern: String(REPORT_SENT_LINE),
+                detail:
+                    `The report chunk at log line ${chunk.index} went out on Exchange ` +
+                    `${chunkExchange ?? "(none)"}, not ${exchange}, so chunk ${i + 1} of ${chunks.length} ` +
+                    "belongs to another read",
+                logLine: chunk.index,
+            };
+        }
+    }
+
+    const ackPattern = reportAckedOnExchange(exchange);
     const lines = log.lines;
     for (let i = 1; i < chunks.length; i++) {
         const acked = lines
             .slice(chunks[i - 1].index + 1, chunks[i].index)
-            .some(line => !line.synthetic && STATUS_RESPONSE_RECEIVED.test(line.text));
+            .some(line => !line.synthetic && ackPattern.test(line.text));
         if (!acked) {
             return {
                 type: "device-log",
                 verdict: "fail",
-                pattern: String(STATUS_RESPONSE_RECEIVED),
+                pattern: String(ackPattern),
                 detail:
-                    `No StatusResponse between the report chunks at log lines ${chunks[i - 1].index} and ` +
-                    `${chunks[i].index} (chunk ${i} of ${chunks.length} went unacked)`,
+                    `No StatusResponse on Exchange ${exchange} between the report chunks at log lines ` +
+                    `${chunks[i - 1].index} and ${chunks[i].index} (chunk ${i} of ${chunks.length} went unacked)`,
                 logLine: chunks[i].index,
             };
         }
@@ -604,7 +641,7 @@ export async function expectChunkedTransfer(
     return {
         type: "device-log",
         verdict: "pass",
-        pattern: "ReportDataMessage, StatusResponse between every adjacent pair",
+        pattern: "ReportDataMessage, StatusResponse on the same Exchange between every adjacent pair",
         detail: `${chunks.length} report chunks, each but the last followed by a StatusResponse`,
         matched: chunks[chunks.length - 1].text,
         logLine: chunks[chunks.length - 1].index,
@@ -981,13 +1018,44 @@ export async function expectReportAck(
     }
 }
 
-type SettleOutcome = { kind: "resolved" } | { kind: "rejected"; error: unknown } | { kind: "timeout" };
+/**
+ * How an operation a step was waiting for ended, and how long it took, formatted for the evidence.
+ * A `"timeout"` says only that the wait ended: the operation itself is still running.
+ */
+export type SettleReport<T = unknown> = { elapsed: string } & (
+    | { kind: "resolved"; value: T }
+    | { kind: "rejected"; error: unknown }
+    | { kind: "timeout" }
+);
 
-function settled(promise: Promise<unknown>): Promise<SettleOutcome> {
-    return promise.then(
-        (): SettleOutcome => ({ kind: "resolved" }),
-        (error: unknown): SettleOutcome => ({ kind: "rejected", error }),
-    );
+/**
+ * Waits for `op` to settle, bounded by `timeoutMs` so an implementation that neither answers nor
+ * gives up cannot hang the step for the whole mocha timeout. Reports which way it went, for a step
+ * that has something to record either way; {@link expectRejection} is the form for a step that
+ * demands a refusal.
+ *
+ * A step that stops waiting is still responsible for what the operation does afterwards — a
+ * commissioning that succeeds late leaves a fabric on the device.
+ */
+export async function settleWithin<T>(label: string, op: Promise<T>, timeoutMs: number): Promise<SettleReport<T>> {
+    // nowUs is the monotonic clock despite the name; nowMs tracks UTC and a step of it would put a
+    // negative elapsed into the evidence
+    const start = Time.nowUs;
+    const elapsed = () => Duration.format(Millis(Time.nowUs - start));
+    const timeout = Time.sleep(`${label} settle timeout`, Millis(timeoutMs));
+
+    try {
+        return await Promise.race([
+            op.then(
+                (value): SettleReport<T> => ({ kind: "resolved", value, elapsed: elapsed() }),
+                (error: unknown): SettleReport<T> => ({ kind: "rejected", error, elapsed: elapsed() }),
+            ),
+            timeout.then((): SettleReport<T> => ({ kind: "timeout", elapsed: elapsed() })),
+        ]);
+    } finally {
+        // A lost race leaves the sleep armed for its full duration, keeping the process alive past teardown
+        timeout.cancel();
+    }
 }
 
 /**
@@ -1006,18 +1074,8 @@ export async function expectRejection(
     timeoutMs: number,
     accept?: (error: unknown) => boolean,
 ): Promise<CheckRecord> {
-    // nowUs is the monotonic clock despite the name; nowMs tracks UTC and a step of it would put a
-    // negative elapsed into the evidence
-    const start = Time.nowUs;
-    const timeout = Time.sleep(`${label} rejection timeout`, Millis(timeoutMs));
-    let outcome: SettleOutcome;
-    try {
-        outcome = await Promise.race([settled(op), timeout.then((): SettleOutcome => ({ kind: "timeout" }))]);
-    } finally {
-        // A lost race leaves the sleep armed for its full duration, keeping the process alive past teardown
-        timeout.cancel();
-    }
-    const elapsed = Duration.format(Millis(Time.nowUs - start));
+    const outcome = await settleWithin(label, op, timeoutMs);
+    const { elapsed } = outcome;
 
     switch (outcome.kind) {
         case "resolved":

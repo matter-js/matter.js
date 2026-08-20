@@ -163,8 +163,9 @@ export const State = {
 
             const image = await State.container.image;
             const info = await image.inspect();
-            const chipCommit = formatSha(info.Config.Labels["org.opencontainers.image.revision"] ?? "(unknown)");
-            const imageVersion = info.Config.Labels["org.opencontainers.image.version"] ?? "(unknown)";
+            const labels = info.Config?.Labels;
+            const chipCommit = formatSha(labels?.["org.opencontainers.image.revision"] ?? "(unknown)");
+            const imageVersion = labels?.["org.opencontainers.image.version"] ?? "(unknown)";
             const arch = info.Architecture;
 
             progress.success(

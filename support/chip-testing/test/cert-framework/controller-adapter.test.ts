@@ -484,6 +484,27 @@ describe("InProcessControllerAdapter", () => {
         await node.decommission();
     });
 
+    // Characterization: § 8.9.2.8.1 is enforced by matter.js's own write action, not by this adapter, so
+    // a guard added here would be dead code.
+    it("refuses a data version on a wildcard endpoint path, which the specification forbids", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        const node = adapter.node(ref);
+
+        await expect(
+            node.writeAttributes([
+                {
+                    path: { cluster: BASIC_INFORMATION.id, attribute: NODE_LABEL_ATTRIBUTE.id },
+                    value: "wildcard",
+                    dataVersion: 1,
+                },
+            ]),
+        ).rejectedWith(/must target a concrete endpoint/);
+
+        await node.decommission();
+    });
+
     it("throws when constructing a second adapter with an id already registered", () => {
         expect(() => new InProcessControllerAdapter("dut")).to.throw(InternalError, /already registered/);
     });

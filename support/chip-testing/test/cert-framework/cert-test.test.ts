@@ -177,6 +177,7 @@ function stubSubjectWithoutPics(): Subject {
 class TestCertTest extends CertTest {
     #cx: CertStepContext;
     #finalizationTimeoutMs?: number;
+    #teardownErrors: unknown[];
 
     constructor(
         definition: CertTestDefinition,
@@ -184,10 +185,19 @@ class TestCertTest extends CertTest {
         container: Container,
         cx: CertStepContext,
         finalizationTimeoutMs?: number,
+        teardownErrors: unknown[] = [],
     ) {
         super(definition, descriptor, container);
         this.#cx = cx;
         this.#finalizationTimeoutMs = finalizationTimeoutMs;
+        this.#teardownErrors = teardownErrors;
+    }
+
+    teardownCalls = 0;
+
+    protected override async teardown(): Promise<unknown[]> {
+        this.teardownCalls++;
+        return this.#teardownErrors;
     }
 
     protected override contextFor(_subject: Subject): CertStepContext {
@@ -617,6 +627,52 @@ describe("CertTest", () => {
         expect(endStepCalls).deep.equal([
             { number: 1, verdict: "skipped", skipReason: 'unsupported on device flavor "matterjs"' },
             { number: 2, verdict: "pass", skipReason: undefined },
+        ]);
+    });
+
+    it("skips a flavor-restricted step when the run's flavor cannot be determined", async () => {
+        let ran = false;
+
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step restricted to chip flavors",
+                    flavors: ["chip-docker", "chip-local"],
+                    run: async () => {
+                        ran = true;
+                    },
+                },
+            ],
+        };
+
+        const endStepCalls = new Array<{ number: number | string; verdict: StepVerdict; skipReason?: string }>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                endStep(step, verdict, skipReason) {
+                    endStepCalls.push({ number: step.number, verdict, skipReason });
+                    return [];
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await test.invoke(stubSubject(new PicsFile([])), () => {}, [], false);
+
+        expect(ran).equal(false);
+        expect(endStepCalls).deep.equal([
+            {
+                number: 1,
+                verdict: "skipped",
+                skipReason: "device flavor unknown, and this step declares chip-docker/chip-local",
+            },
         ]);
     });
 
@@ -1225,6 +1281,61 @@ describe("CertTest", () => {
         expect(flushed).equal(true);
     });
 
+    it("closes what the run opened even when reading the subject's PICS throws", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [{ number: 1, text: "A step that never runs", run: async () => {} }],
+        };
+
+        const cx: CertStepContext = { controllers: {}, devices: {}, recorder: stubRecorder() };
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(
+            test.invoke(stubSubjectWithThrowingPics(new Error("PICS accessor exploded")), () => {}, [], false),
+        ).rejectedWith("PICS accessor exploded");
+
+        expect(test.teardownCalls).equal(1);
+    });
+
+    it("reports a device that died rather than a controller that would not close", async () => {
+        let exitDevice!: (info: DeviceExitInfo) => void;
+        const exitPromise = new Promise<DeviceExitInfo>(resolve => {
+            exitDevice = resolve;
+        });
+
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [{ number: 1, text: "A step that passes", run: async () => {} }],
+        };
+
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: { th: stubCertDevice(exitPromise) },
+            recorder: stubRecorder({
+                async flush() {
+                    // The device dies while the evidence is being written, too late for any step race
+                    exitDevice({ code: 1, signal: null });
+                    await new Promise(resolve => setTimeout(resolve, 20));
+                    return "";
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, undefined, [
+            new Error("controller would not close"),
+        ]);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            "exited unexpectedly (code 1, signal null) during the run",
+        );
+    });
+
     it("disarms the device-exit watch once invoke() finishes, so a later exit isn't reported to a finished run's recorder", async () => {
         let exitDevice!: (info: DeviceExitInfo) => void;
         const exitPromise = new Promise<DeviceExitInfo>(resolve => {
@@ -1346,7 +1457,7 @@ describe("CertTest", () => {
             "-".repeat(70),
             "-".repeat(70),
             "TC-CADMIN-1.17 — Test Step 1: PASS",
-            "single check detail",
+            "pass: single check detail",
             "-".repeat(70),
         ]);
     });
@@ -1394,10 +1505,161 @@ describe("CertTest", () => {
             "-".repeat(70),
             "-".repeat(70),
             "TC-CADMIN-1.17 — Test Step 1: PASS",
-            "0: pattern=AttributePathIB {} matched=raw log line",
-            "1: second check detail",
+            "0: pass: pattern=AttributePathIB {} matched=raw log line",
+            "1: pass: second check detail",
             "-".repeat(70),
         ]);
+    });
+
+    it("names the verdict and the reason of a failing device-log check in the banner", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-IDM-1.3",
+            plan: "interactiondatamodel.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step one text",
+                    run: async cx => {
+                        cx.recorder.check({
+                            type: "device-log",
+                            verdict: "fail",
+                            pattern: "two commands",
+                            detail: "Timed out waiting for two commands",
+                            logLine: 7,
+                        });
+                        throw new Error("step failed on its log check");
+                    },
+                },
+            ],
+        };
+
+        const deviceLog = new LogFollower(noLines(), "device");
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
+            recorder: recordingRecorder(),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            "step failed on its log check",
+        );
+
+        const banners = deviceLog.lines.filter(line => line.synthetic).map(line => line.text);
+        expect(banners).includes("fail: pattern=two commands matched=(none) Timed out waiting for two commands");
+    });
+
+    it("keeps the step's own error when reporting its failure throws", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-IDM-1.3",
+            plan: "interactiondatamodel.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step one text",
+                    run: async () => {
+                        throw new Error("the step's own failure");
+                    },
+                },
+            ],
+        };
+
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                endStep() {
+                    throw new Error("reporting exploded");
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            "the step's own failure",
+        );
+    });
+
+    it("fails a run whose controller would not close", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [{ number: 1, text: "A step that passes", run: async () => {} }],
+        };
+
+        const cx: CertStepContext = { controllers: {}, devices: {}, recorder: stubRecorder() };
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, undefined, [
+            new Error("controller would not close"),
+        ]);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(/failed to close/);
+    });
+
+    it("keeps a step's failure ahead of a controller that would not close", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "A step that fails",
+                    run: async () => {
+                        throw new Error("the step's own failure");
+                    },
+                },
+            ],
+        };
+
+        const cx: CertStepContext = { controllers: {}, devices: {}, recorder: stubRecorder() };
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, undefined, [
+            new Error("controller would not close"),
+        ]);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            "the step's own failure",
+        );
+    });
+
+    it("fails the run when reporting a passing step's outcome throws", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-IDM-1.3",
+            plan: "interactiondatamodel.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step one text",
+                    run: async () => {},
+                },
+            ],
+        };
+
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                endStep() {
+                    throw new Error("reporting exploded");
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            "reporting exploded",
+        );
     });
 
     it("records a step that throws UnsupportedByControllerError as skipped with a reason naming the operation and controller, and still runs later steps", async () => {
@@ -1587,7 +1849,7 @@ describe("CertTest", () => {
             "-".repeat(70),
             "-".repeat(70),
             "TC-CADMIN-1.17 — Test Step 1: SKIPPED",
-            "read the data version",
+            "pass: read the data version",
             "-".repeat(70),
             "-".repeat(70),
             "TC-CADMIN-1.17 — 1 step skipped as unsupported by the controller",
