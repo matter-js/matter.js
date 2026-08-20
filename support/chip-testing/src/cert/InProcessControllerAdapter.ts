@@ -8,6 +8,7 @@ import {
     Boot,
     ClientNode,
     ControllerBehavior,
+    Diagnostic,
     Duration,
     Environment,
     ImplementationError,
@@ -411,7 +412,7 @@ class InProcessCertNodeApi implements CertNodeApi {
                         throw new UnexpectedDataError(
                             `Invoke response carries commandRef ${entry.commandRef}, which belongs to no command of ` +
                                 `this ${commands.length}-command request; ${results.length} result(s) had arrived ` +
-                                `first: ${JSON.stringify(results)}`,
+                                `first: ${Diagnostic.json(results)}`,
                         );
                     }
 
@@ -650,10 +651,10 @@ class InProcessCertNodeApi implements CertNodeApi {
         return runTagged(this.#adapterId, async () => {
             const peer = this.#peer;
 
-            // Decommissioning acts through the peer's OperationalCredentials behavior, which exists only
-            // once a report has carried that cluster; a peer whose structure read aborted holds none. The
-            // read is what installs it — so it happens before the attempt rather than as a retry, which
-            // would answer every other failure the same way, including a refusal a step means to assert.
+            // Decommissioning acts through the peer's OperationalCredentials behavior, which the first
+            // report carrying that cluster installs; a peer whose structure read aborted has none, and
+            // reading it here is what installs it. Only that condition may be pre-empted: any other
+            // failure is the step's outcome, including a refusal a step means to assert.
             if (peer.lifecycle.isCommissioned && !peer.behaviors.has(OperationalCredentialsClient)) {
                 logger.info(`Reading ${peer.id}'s credentials, which decommissioning it needs`);
                 await this.readAttribute({ endpoint: 0, cluster: OperationalCredentials.id });
