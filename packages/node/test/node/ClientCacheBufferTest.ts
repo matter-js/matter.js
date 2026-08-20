@@ -16,8 +16,7 @@ import {
     MockCrypto,
     Seconds,
 } from "@matter/general";
-import { MockSite } from "./mock-site.js";
-import { subscribedPeer } from "./node-helpers.js";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 
 /** Memory storage does not benefit from buffering, so tests that exercise the buffer need a driver that asks for it */
 class BufferingStorageDriver extends MemoryStorageDriver {

@@ -6,8 +6,7 @@
 
 import { BridgedDeviceBasicInformationClient } from "#behaviors/bridged-device-basic-information";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
-import { MockSite } from "../mock-site.js";
-import { subscribedPeer } from "../node-helpers.js";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 
 describe("Peers#instrumentBridgedConfigurationVersion", () => {
     before(() => {

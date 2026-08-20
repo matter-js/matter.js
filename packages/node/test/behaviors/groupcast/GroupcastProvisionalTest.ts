@@ -7,7 +7,7 @@
 import { AccessControlServer } from "#behaviors/access-control";
 import { GroupKeyManagementServer } from "#behaviors/group-key-management";
 import { GroupcastServer } from "#behaviors/groupcast";
-import { MockServerNode } from "../../node/mock-server-node.js";
+import { MockServerNode } from "@matter/node/testing";
 
 /** Collects the messages of an error and all of its (possibly aggregated) causes. */
 function messagesOf(error: unknown): string {

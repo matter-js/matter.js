@@ -41,6 +41,13 @@ import {
 } from "@matter/general";
 import { AccessLevel, BasicInformation, ElementTag, FeatureMap } from "@matter/model";
 import {
+    CommissioningHelper,
+    FAILSAFE_LENGTH_S,
+    MockServerNode,
+    MockSite,
+    testFactoryReset,
+} from "@matter/node/testing";
+import {
     AttestationCertificateManager,
     CertificateAuthority,
     CertificationDeclaration,
@@ -53,9 +60,6 @@ import {
 import { FabricId, FabricIndex, NodeId, VendorId } from "@matter/types";
 import { BasicInformation as BasicInformationCluster } from "@matter/types/clusters/basic-information";
 import { PumpConfigurationAndControl } from "@matter/types/clusters/pump-configuration-and-control";
-import { MockServerNode } from "./mock-server-node.js";
-import { MockSite } from "./mock-site.js";
-import { CommissioningHelper, FAILSAFE_LENGTH_S, testFactoryReset } from "./node-helpers.js";
 
 const commissioning = CommissioningHelper();
 

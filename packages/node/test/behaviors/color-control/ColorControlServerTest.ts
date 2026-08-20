@@ -7,8 +7,8 @@
 import { ColorControlServer } from "#behaviors/color-control";
 import { ExtendedColorLightDevice } from "#devices/extended-color-light";
 import { Duration, Time, Timespan } from "@matter/general";
+import { MockServerNode } from "@matter/node/testing";
 import { ColorControl } from "@matter/types/clusters/color-control";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 describe("ColorControlServer", () => {
     it("transitions cyclic hue downwards with correct events", async () => {

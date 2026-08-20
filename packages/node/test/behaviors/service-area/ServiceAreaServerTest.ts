@@ -8,9 +8,9 @@ import { ServiceAreaServer } from "#behaviors/service-area";
 import { RoboticVacuumCleanerDevice } from "#devices/robotic-vacuum-cleaner";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { CommonAreaNamespaceTag } from "#tags/index.js";
+import { MockServerNode } from "@matter/node/testing";
 import { RvcOperationalState } from "@matter/types/clusters/rvc-operational-state";
 import { RvcRunMode } from "@matter/types/clusters/rvc-run-mode";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 const DeviceType = RoboticVacuumCleanerDevice.with(ServiceAreaServer.with("Maps", "SelectWhileRunning"));
 

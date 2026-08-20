@@ -6,10 +6,10 @@
 
 import { WindowCoveringServer } from "#behaviors/window-covering";
 import { WindowCoveringDevice } from "#devices/window-covering";
+import { MockServerNode } from "@matter/node/testing";
 import { AttributeWriteResponse, Write } from "@matter/protocol";
 import { AttributeId, ClusterId, EndpointNumber, Status, TlvUInt8, WriteRequest } from "@matter/types";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
-import { MockServerNode } from "./mock-server-node.js";
 
 const TestWindowCoveringDevice = WindowCoveringDevice.with(
     WindowCoveringServer.with("Lift", "Tilt", "PositionAwareLift", "PositionAwareTilt").set({

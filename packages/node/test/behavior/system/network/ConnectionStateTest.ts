@@ -11,9 +11,8 @@ import { ClientNode } from "#node/ClientNode.js";
 import { NodeConnectionState } from "#node/ClientNodeLifecycle.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { Crypto, MockCrypto } from "@matter/general";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 import { Peer, SustainedSubscription } from "@matter/protocol";
-import { MockSite } from "../../../node/mock-site.js";
-import { subscribedPeer } from "../../../node/node-helpers.js";
 
 const RootWithIcd = ServerNode.RootEndpoint.with(IcdManagementServer);
 

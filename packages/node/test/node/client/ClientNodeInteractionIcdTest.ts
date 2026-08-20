@@ -10,14 +10,13 @@ import { IcdManagementServer } from "#behaviors/icd-management";
 import { ClientNode } from "#node/ClientNode.js";
 import { ServerNode } from "#node/index.js";
 import { Seconds } from "@matter/general";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 import type { Peer } from "@matter/protocol";
 import { NetworkProfiles, Read } from "@matter/protocol";
 import { EndpointNumber, NodeId, SubjectId } from "@matter/types";
 import { Descriptor } from "@matter/types/clusters/descriptor";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { commission, LIT_CONFIG, wakeDevice, wakefulnessOf } from "../icd-helpers.js";
-import { MockSite } from "../mock-site.js";
-import { subscribedPeer } from "../node-helpers.js";
 
 const DslsIcdServer = IcdManagementServer.with(
     IcdManagement.Feature.CheckInProtocolSupport,

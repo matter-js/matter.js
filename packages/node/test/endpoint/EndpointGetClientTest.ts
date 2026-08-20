@@ -9,8 +9,7 @@ import { OperationalCredentialsClient } from "#behaviors/operational-credentials
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointBehaviorNotPresentError } from "#endpoint/errors.js";
 import type { EndpointType } from "#endpoint/type/EndpointType.js";
-import { MockSite } from "../node/mock-site.js";
-import { subscribedPeer } from "../node/node-helpers.js";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 
 // The peer's static type (ClientNode.RootEndpoint) does not include device behaviors such as basicInformation,
 // which are added dynamically by ClientStructure after commissioning.

@@ -5,9 +5,8 @@
  */
 
 import { Crypto, Minutes, MockCrypto, Seconds, Time, Timestamp } from "@matter/general";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 import { commission } from "../icd-helpers.js";
-import { MockSite } from "../mock-site.js";
-import { subscribedPeer } from "../node-helpers.js";
 
 describe("Peers auto-start on owner online", () => {
     before(() => MockTime.init());
