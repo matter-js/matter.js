@@ -17,8 +17,9 @@ import {
     ON_NETWORK_ONLY,
     qrPayloadWith,
     qrPayloadWithPrefix,
+    recordVendorOutcome,
 } from "../cert/tc-dd-support.js";
-import { CertCheckFailedError, CertCleanupError } from "../cert/tc-support.js";
+import { CertCheckFailedError, CertCleanupError, CommissionedRefs } from "../cert/tc-support.js";
 
 /**
  * `devicediscovery.adoc`'s own example payload for TC-DD-3.14: vendor id 0xFFF1, product id 0x8001,
@@ -97,58 +98,59 @@ describe("qrPayloadWithPrefix", () => {
     });
 });
 
+/** A step context whose DUT controller answers commissioning as the test says, and nothing else. */
+function contextWith(
+    commission: () => Promise<CertNodeRef>,
+    decommission: (ref: CertNodeRef) => Promise<void> = async () => {},
+): CertStepContext {
+    const unused = () => Promise.reject(new InternalError("not used by these tests"));
+    const noLines = async function* (): AsyncGenerator<string> {};
+
+    const nodeFor = (ref: CertNodeRef) =>
+        ({
+            invoke: unused,
+            invokeBatch: unused,
+            readAttribute: unused,
+            readAttributes: unused,
+            writeAttribute: unused,
+            writeAttributes: unused,
+            subscribe: unused,
+            readEvents: unused,
+            subscribeEvents: unused,
+            openCommissioningWindow: unused,
+            operationalMdnsInstanceName: unused,
+            decommission: () => decommission(ref),
+        }) satisfies CertNodeApi;
+
+    const dut = {
+        id: "dut",
+        log: new LogFollower(noLines(), "dut"),
+        async start() {},
+        async close() {},
+        commission,
+        parseQrPayload: unused,
+        parseManualPairingCode: unused,
+        node: nodeFor,
+    } satisfies ControllerAdapter;
+
+    return {
+        controllers: { dut },
+        devices: {},
+        recorder: {
+            beginStep() {},
+            check() {},
+            endStep() {
+                return [];
+            },
+            async flush() {
+                return "";
+            },
+        },
+    };
+}
+
 describe("CommissioningRefusals", () => {
     const BUDGETS = { refusalTimeoutMs: 100, settleTimeoutMs: 100 };
-
-    function contextWith(
-        commission: () => Promise<CertNodeRef>,
-        decommission: (ref: CertNodeRef) => Promise<void> = async () => {},
-    ): CertStepContext {
-        const unused = () => Promise.reject(new InternalError("not used by these tests"));
-        const noLines = async function* (): AsyncGenerator<string> {};
-
-        const nodeFor = (ref: CertNodeRef) =>
-            ({
-                invoke: unused,
-                invokeBatch: unused,
-                readAttribute: unused,
-                readAttributes: unused,
-                writeAttribute: unused,
-                writeAttributes: unused,
-                subscribe: unused,
-                readEvents: unused,
-                subscribeEvents: unused,
-                openCommissioningWindow: unused,
-                operationalMdnsInstanceName: unused,
-                decommission: () => decommission(ref),
-            }) satisfies CertNodeApi;
-
-        const dut = {
-            id: "dut",
-            log: new LogFollower(noLines(), "dut"),
-            async start() {},
-            async close() {},
-            commission,
-            parseQrPayload: unused,
-            parseManualPairingCode: unused,
-            node: nodeFor,
-        } satisfies ControllerAdapter;
-
-        return {
-            controllers: { dut },
-            devices: {},
-            recorder: {
-                beginStep() {},
-                check() {},
-                endStep() {
-                    return [];
-                },
-                async flush() {
-                    return "";
-                },
-            },
-        };
-    }
 
     it("does not accept a bare UnexpectedDataError, which commissioning raises after taking the payload", async () => {
         const cx = contextWith(() => Promise.reject(new UnexpectedDataError("Invalid response from device")));
@@ -273,6 +275,52 @@ describe("CommissioningRefusals", () => {
         await expect(refusals.requireRefusal(cx, { qrPairingCode: "MT:whatever" }, "must be refused")).rejected;
 
         await expect(refusals.settle(cx)).rejectedWith(CertCleanupError, /still running/);
+    });
+});
+
+describe("recordVendorOutcome", () => {
+    const CODE = "34970112332";
+
+    it("fails, and leaves cleanup owning the attempt, when the DUT neither onboards nor gives up", async () => {
+        const refusals = new CommissioningRefusals({ refusalTimeoutMs: 50, settleTimeoutMs: 50 });
+        const cx = contextWith(() => new Promise<CertNodeRef>(() => {}));
+
+        await expect(
+            recordVendorOutcome(cx, CODE, new CommissionedRefs(), refusals, "vendor outcome", 50),
+        ).rejectedWith(/neither onboarded the TH nor gave up/);
+
+        await expect(refusals.settle(cx)).rejectedWith(/still running/);
+    });
+
+    it("records the DUT onboarding the TH, which the plan also allows", async () => {
+        const refusals = new CommissioningRefusals({ refusalTimeoutMs: 50, settleTimeoutMs: 50 });
+        const decommissioned = new Array<CertNodeRef>();
+        const cx = contextWith(
+            async () => "peer1" as CertNodeRef,
+            async ref => {
+                decommissioned.push(ref);
+            },
+        );
+        const commissioned = new CommissionedRefs();
+
+        await recordVendorOutcome(cx, CODE, commissioned, refusals, "vendor outcome", 50);
+
+        expect(commissioned.get("dut")).equal("peer1");
+        await refusals.settle(cx);
+        expect(decommissioned).deep.equal(["peer1"]);
+    });
+
+    it("records the DUT terminating commissioning", async () => {
+        const refusals = new CommissioningRefusals({ refusalTimeoutMs: 50, settleTimeoutMs: 50 });
+        const cx = contextWith(async () => {
+            throw new InternalError("code names a vendor this network does not carry");
+        });
+        const commissioned = new CommissionedRefs();
+
+        await recordVendorOutcome(cx, CODE, commissioned, refusals, "vendor outcome", 50);
+
+        expect(commissioned.get("dut")).equal(undefined);
+        await refusals.settle(cx);
     });
 });
 
