@@ -484,9 +484,8 @@ describe("InProcessControllerAdapter", () => {
         await node.decommission();
     });
 
-    // Characterization: matter.js's own Write action enforces § 8.9.2.8.1, so the adapter needs no guard
-    // of its own. Pinned because a review proposed adding one, on the premise that nothing below the
-    // adapter validated it.
+    // Characterization: § 8.9.2.8.1 is enforced by matter.js's own write action, not by this adapter, so
+    // a guard added here would be dead code.
     it("refuses a data version on a wildcard endpoint path, which the specification forbids", async function () {
         this.timeout(30_000);
 
