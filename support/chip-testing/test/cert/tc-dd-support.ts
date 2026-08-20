@@ -238,17 +238,11 @@ export class CommissioningRefusals {
     }
 
     /**
-     * Records that the DUT refuses to commission from `payload`, which is how the negative plans
-     * phrase "the DUT terminates the commissioning process in a DUT-specific manner".
-     *
-     * Only a refusal of the payload itself counts (see {@link isPayloadRefusal}). Accepting any
-     * rejection would let the step pass on a controller that died, timed out or was never asked —
-     * outcomes that say nothing about what the DUT made of the code.
-     */
-    /**
-     * Hands `attempt` to {@link settle}, which is what a step that may stop waiting for a
-     * commissioning owes the run: one that succeeds late leaves a fabric on the TH. Kept as a settled
-     * outcome so an attempt nobody awaits again cannot surface as an unhandled rejection.
+     * Hands `attempt` to {@link settle}, which is what a step that stops waiting for a commissioning
+     * owes the run: one that succeeds afterwards leaves a fabric on the TH that nothing else will
+     * remove. An attempt whose outcome the step *did* see is owned by the step, and handing that one
+     * over as well would have its fabric removed twice. Kept as a settled outcome so an attempt nobody
+     * awaits again cannot surface as an unhandled rejection.
      */
     track(attempt: Promise<CertNodeRef>): void {
         this.#attempts.push(
@@ -259,6 +253,14 @@ export class CommissioningRefusals {
         );
     }
 
+    /**
+     * Records that the DUT refuses to commission from `payload`, which is how the negative plans
+     * phrase "the DUT terminates the commissioning process in a DUT-specific manner".
+     *
+     * Only a refusal of the payload itself counts (see {@link isPayloadRefusal}). Accepting any
+     * rejection would let the step pass on a controller that died, timed out or was never asked —
+     * outcomes that say nothing about what the DUT made of the code.
+     */
     async requireRefusal(cx: CertStepContext, target: CommissioningTarget, what: string): Promise<void> {
         const attempt = cx.controllers.dut.commission(target);
         this.track(attempt);
@@ -342,8 +344,8 @@ export class CommissioningRefusals {
         }
         if (failures.length) {
             throw new CertCleanupError(
-                `The DUT commissioned the TH from a payload it was asked to refuse and the fabric could not be ` +
-                    `removed: ${failures.join("; ")}`,
+                `A commissioning attempt this run stopped waiting for onboarded the TH after all, and the fabric ` +
+                    `could not be removed: ${failures.join("; ")}`,
             );
         }
     }
@@ -464,12 +466,6 @@ export async function recordVendorOutcome(
 
     const label = `commissioning from ${manualPairingCode}`;
     const attempt = cx.controllers.dut.commission({ manualPairingCode, giveUpAfterMs: timeoutMs });
-
-    // The plan accepts either outcome, so the attempt is tracked rather than required to fail: one
-    // that neither onboards nor gives up inside the budget is the step's failure, and cleanup — not
-    // another unbounded wait here — is what owns it afterwards.
-    refusals.track(attempt);
-
     const outcome = await settleWithin(label, attempt, timeoutMs + refusals.settleBudgetMs);
 
     switch (outcome.kind) {
@@ -504,6 +500,10 @@ export async function recordVendorOutcome(
         }
 
         case "timeout":
+            // Only now does cleanup own the attempt: an outcome this step saw is already owned, by
+            // `commissioned` for one that onboarded, and handing it over as well would have the fabric
+            // removed twice.
+            refusals.track(attempt);
             record(
                 cx,
                 {
