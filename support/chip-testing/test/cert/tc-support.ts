@@ -163,7 +163,6 @@ export async function expectAdjacentLines(
 // pairs). matter.js has no equivalent log line, so this is chip-only; see AGENTS.md's flavor-pattern
 // policy for the matterjs "unverified" fallback.
 export const REPORT_DATA_MESSAGE = /\[DMG\] ReportDataMessage =\s*$/;
-const STATUS_RESPONSE_RECEIVED = /Msg RX from.*\(IM:StatusResponse\)/;
 
 // A subscription's own reports and its SubscribeResponse both carry the id the TH minted for it,
 // printed as the block's first field in chip's own unpadded lowercase hex — captured verbatim in
@@ -461,13 +460,18 @@ export async function expectCommandInvoke(
     let cursor = from;
     let last: { index: number; text: string } | undefined;
 
+    // One deadline for the whole check, not one per wait: a per-wait budget makes the worst case
+    // timeoutMs × (1 + fields.length), where the caller asked for timeoutMs
+    const deadline = Time.nowMs + timeoutMs;
+    const remaining = () => Math.max(1, deadline - Time.nowMs);
+
     try {
         const block = await expectAdjacentLines(
             log,
             flavor,
             commandPathIBSequence(endpoint, cluster, command),
             from,
-            timeoutMs,
+            remaining(),
         );
         if (block.verdict === "unverified") {
             return { type: "device-log", verdict: "unverified" };
@@ -480,7 +484,7 @@ export async function expectCommandInvoke(
             // chip's decode dump appends the TLV type name after the value (verified against a real
             // chip-bridge-app capture).
             const pattern = new RegExp(`0x${id.toString(16)} = ${value} \\(unsigned\\),\\s*$`);
-            const result = await log.expect({ chip: pattern }, { flavor, timeoutMs, from: cursor });
+            const result = await log.expect({ chip: pattern }, { flavor, timeoutMs: remaining(), from: cursor });
             if (result.verdict === "unverified") {
                 return { type: "device-log", verdict: "unverified" };
             }
@@ -585,17 +589,33 @@ export async function expectChunkedTransfer(
 
     const lines = log.lines;
     for (let i = 1; i < chunks.length; i++) {
+        // Matched by Exchange id, like expectReportAck: the node's own subscription stays live during
+        // these runs, so an unrelated report's ack can land between two chunks of this read.
+        const exchange = exchangeIdBefore(log, chunks[i - 1].index);
+        if (exchange === undefined) {
+            return {
+                type: "device-log",
+                verdict: "fail",
+                pattern: String(REPORT_SENT_LINE),
+                detail:
+                    "No outbound Report Data trace line (carrying an Exchange id) found before the report " +
+                    `chunk at log line ${chunks[i - 1].index}`,
+                logLine: chunks[i - 1].index,
+            };
+        }
+
+        const ackPattern = reportAckedOnExchange(exchange);
         const acked = lines
             .slice(chunks[i - 1].index + 1, chunks[i].index)
-            .some(line => !line.synthetic && STATUS_RESPONSE_RECEIVED.test(line.text));
+            .some(line => !line.synthetic && ackPattern.test(line.text));
         if (!acked) {
             return {
                 type: "device-log",
                 verdict: "fail",
-                pattern: String(STATUS_RESPONSE_RECEIVED),
+                pattern: String(ackPattern),
                 detail:
-                    `No StatusResponse between the report chunks at log lines ${chunks[i - 1].index} and ` +
-                    `${chunks[i].index} (chunk ${i} of ${chunks.length} went unacked)`,
+                    `No StatusResponse on Exchange ${exchange} between the report chunks at log lines ` +
+                    `${chunks[i - 1].index} and ${chunks[i].index} (chunk ${i} of ${chunks.length} went unacked)`,
                 logLine: chunks[i].index,
             };
         }
@@ -604,7 +624,7 @@ export async function expectChunkedTransfer(
     return {
         type: "device-log",
         verdict: "pass",
-        pattern: "ReportDataMessage, StatusResponse between every adjacent pair",
+        pattern: "ReportDataMessage, StatusResponse on the same Exchange between every adjacent pair",
         detail: `${chunks.length} report chunks, each but the last followed by a StatusResponse`,
         matched: chunks[chunks.length - 1].text,
         logLine: chunks[chunks.length - 1].index,

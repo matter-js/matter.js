@@ -29,9 +29,19 @@ import {
     WRITE_REQUEST_MESSAGE,
 } from "../cert/tc-support.js";
 
+const EXCHANGE = 26481;
 const CHUNK = "[DMG] ReportDataMessage =";
-const ACK = "[EM] <<< [E:1r S:2 M:3] (S) Msg RX from 1:0000000000000001 [1234] --- Type 0001:01 (IM:StatusResponse)";
 const NOISE = "[DMG] AttributeReportIBs =";
+
+// chip prints the outbound trace line, then the chunk's decode dump; the DUT's ack arrives on the
+// same Exchange, on a different Session. Shapes verified against a real chip-all-clusters-app log.
+const sentLine = (exchange = EXCHANGE) =>
+    `[DMG] >> to UDP:[fe80::1%eth0]:58253 | 92720281 | [Interaction Model  (1) / Report Data (0x05) / Session = 56179 / Exchange = ${exchange}]`;
+const ackLine = (exchange = EXCHANGE) =>
+    `[DMG] << from UDP:[fe80::1%eth0]:58253 | 208635799 | [Interaction Model  (1) / Status Response (0x01) / Session = 13606 / Exchange = ${exchange}]`;
+
+/** One chunk as chip logs it: its own trace line, then the decode dump the check matches. */
+const chunkLines = (exchange = EXCHANGE) => [sentLine(exchange), CHUNK];
 
 /**
  * A log source the test feeds by hand and never ends — a source that finishes closes the follower,
@@ -106,35 +116,69 @@ async function check(lines: string[], flavor = "chip-docker", endSource = false)
 
 describe("expectChunkedTransfer", () => {
     it("passes when every chunk but the last is acked", async () => {
-        const record = await check([CHUNK, NOISE, ACK, CHUNK, ACK, CHUNK, NOISE]);
+        const record = await check([
+            ...chunkLines(),
+            NOISE,
+            ackLine(),
+            ...chunkLines(),
+            ackLine(),
+            ...chunkLines(),
+            NOISE,
+        ]);
 
         expect(record.verdict).equal("pass");
         expect(record.detail).equal("3 report chunks, each but the last followed by a StatusResponse");
     });
 
     it("fails when a later chunk pair has no StatusResponse between it", async () => {
-        const record = await check([CHUNK, ACK, CHUNK, NOISE, CHUNK, ACK]);
+        const record = await check([...chunkLines(), ackLine(), ...chunkLines(), NOISE, ...chunkLines(), ackLine()]);
 
         expect(record.verdict).equal("fail");
         expect(record.detail).match(/chunk 2 of 3 went unacked/);
     });
 
     it("fails when the first chunk pair has no StatusResponse between it", async () => {
-        const record = await check([CHUNK, CHUNK, ACK, CHUNK, ACK]);
+        const record = await check([...chunkLines(), ...chunkLines(), ackLine(), ...chunkLines(), ackLine()]);
 
         expect(record.verdict).equal("fail");
         expect(record.detail).match(/chunk 1 of 3 went unacked/);
     });
 
+    it("fails when the only StatusResponse between two chunks answered another exchange", async () => {
+        const record = await check([
+            ...chunkLines(),
+            ackLine(EXCHANGE + 1),
+            ...chunkLines(),
+            ackLine(),
+            ...chunkLines(),
+            NOISE,
+        ]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).match(/chunk 1 of 3 went unacked/);
+        expect(record.detail).contains(`Exchange ${EXCHANGE}`);
+    });
+
+    it("fails when a chunk has no outbound trace line to take an exchange from", async () => {
+        const record = await check([CHUNK, ackLine(), ...chunkLines(), ackLine(), ...chunkLines(), NOISE]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).match(/No outbound Report Data trace line/);
+    });
+
     it("fails when the read never chunked", async () => {
-        const record = await check([CHUNK, ACK]);
+        const record = await check([...chunkLines(), ackLine()]);
 
         expect(record.verdict).equal("fail");
         expect(record.detail).match(/did not chunk/);
     });
 
     it("treats a log source that ends mid-transfer as the end of the transfer", async () => {
-        const record = await check([CHUNK, ACK, CHUNK, ACK, CHUNK], "chip-docker", true);
+        const record = await check(
+            [...chunkLines(), ackLine(), ...chunkLines(), ackLine(), ...chunkLines()],
+            "chip-docker",
+            true,
+        );
 
         expect(record.verdict).equal("pass");
         expect(record.detail).equal("3 report chunks, each but the last followed by a StatusResponse");
