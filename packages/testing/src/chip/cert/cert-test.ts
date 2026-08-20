@@ -68,7 +68,7 @@ export class CertTest extends BaseTest {
         const { recorder, devices } = cx;
         const picsFile = resolvePicsFile(subject)?.with(controllerPicsOverridesFor(resolveControllerImplementation()));
         const deviceExitWatch = watchDeviceExits(devices, recorder);
-        const flavor = currentFlavor(devices);
+        const flavor = this.flavorFor(devices);
         const tc = this.#definition.tc;
 
         let aborted = false;
@@ -113,8 +113,17 @@ export class CertTest extends BaseTest {
                 }
 
                 try {
-                    if (stepDef.flavors && flavor !== undefined && !stepDef.flavors.includes(flavor)) {
-                        report(stepDef, "skipped", `unsupported on device flavor "${flavor}"`);
+                    // A step that declares flavors never runs on an unknown one: taking silence for
+                    // consent would run it wherever the flavor could not be determined, which is the
+                    // one case its declaration cannot speak for.
+                    if (stepDef.flavors !== undefined && (flavor === undefined || !stepDef.flavors.includes(flavor))) {
+                        report(
+                            stepDef,
+                            "skipped",
+                            flavor === undefined
+                                ? `device flavor unknown, and this step declares ${stepDef.flavors.join("/")}`
+                                : `unsupported on device flavor "${flavor}"`,
+                        );
                         continue;
                     }
 
@@ -211,6 +220,14 @@ export class CertTest extends BaseTest {
                 `A cert-test device exited unexpectedly (code ${exited.code}, signal ${exited.signal}) during the run`,
             );
         }
+    }
+
+    /**
+     * The flavor this run's steps gate on. Derived from the devices by default; a run that knows its
+     * own flavor overrides this, since the devices are only as authoritative as whatever built them.
+     */
+    protected flavorFor(devices: Record<string, CertDevice>): DeviceFlavor | undefined {
+        return currentFlavor(devices);
     }
 
     /**

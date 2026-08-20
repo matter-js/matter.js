@@ -350,11 +350,20 @@ let matterJsCommitPromise: Promise<string> | undefined;
 function matterJsCommit(): Promise<string> {
     matterJsCommitPromise ??= execFileAsync("git", ["rev-parse", "HEAD"])
         .then(({ stdout }) => stdout.trim())
-        .catch(() => "(unknown)");
+        .catch(e => {
+            // Degraded provenance is not a failed run, but silence here is how a bundle comes to say
+            // "(unknown)" for a reason nobody can reconstruct afterwards
+            console.warn("Cert test cannot determine the matter.js commit:", e);
+            return "(unknown)";
+        });
     return matterJsCommitPromise;
 }
 
-/** Best-effort: a missing image/marker/label means no chip ref is available, not a test failure. */
+/**
+ * A missing image, marker or label means no chip ref is available, not a test failure — but anything
+ * else that stops us reading one is reported, or a bundle silently loses the provenance that is half
+ * its purpose.
+ */
 async function chipRefFor(flavor: DeviceFlavor, app: string): Promise<string | undefined> {
     try {
         switch (flavor) {
@@ -365,7 +374,8 @@ async function chipRefFor(flavor: DeviceFlavor, app: string): Promise<string | u
             case "matterjs":
                 return undefined;
         }
-    } catch {
+    } catch (e) {
+        console.warn(`Cert test cannot determine the chip ref for ${flavor} app "${app}":`, e);
         return undefined;
     }
 }
@@ -374,12 +384,23 @@ async function chipDockerImageRevision(app: string): Promise<string | undefined>
     const docker = new Docker();
     const image = Image(docker, `${chipImageBase()}-${app}:latest`);
     const info = await image.inspect();
-    return info.Config.Labels?.["org.opencontainers.image.revision"];
+    return info.Config?.Labels?.["org.opencontainers.image.revision"];
 }
 
 async function chipLocalMarkerRevision(): Promise<string | undefined> {
     const dir = await resolveChipLocalAppDir();
-    const text = await readFile(join(dir, "CHIP_REF"), "utf-8");
+
+    let text: string;
+    try {
+        text = await readFile(join(dir, "CHIP_REF"), "utf-8");
+    } catch (e) {
+        // A tree that did not come from an extraction carries no marker, which is not a fault
+        if (e instanceof Error && "code" in e && e.code === "ENOENT") {
+            return undefined;
+        }
+        throw e;
+    }
+
     const trimmed = text.trim();
     return trimmed === "" ? undefined : trimmed;
 }
@@ -399,7 +420,8 @@ async function chipToolRefFor(implementation: ControllerImplementation): Promise
     }
     try {
         return await chipLocalMarkerRevision();
-    } catch {
+    } catch (e) {
+        console.warn("Cert test cannot determine the chip-tool ref:", e);
         return undefined;
     }
 }
@@ -461,12 +483,39 @@ class WiredCertTest extends CertTest {
     ): Promise<void> {
         const cx = await this.#buildContext(subject);
         this.#cx = cx;
+
+        let failure: unknown;
+        let failed = false;
         try {
             await super.invoke(subject, step, args, uncommissioned);
+        } catch (e) {
+            failed = true;
+            failure = e;
         } finally {
             this.#cx = undefined;
-            await this.#teardown(cx.controllers);
+            const teardownErrors = await this.#teardown(cx.controllers);
+
+            // A controller that would not close has left a fabric, a session or a live subscription on
+            // the TH for the next test in this process to inherit, so the run cannot report success.
+            // The run's own failure keeps precedence. The evidence bundle is written before this, on
+            // purpose (see the finalization bound in cert-test.ts), so it is the run's outcome rather
+            // than the bundle that carries this.
+            if (teardownErrors.length > 0 && !failed) {
+                failed = true;
+                failure = new AggregateError(
+                    teardownErrors,
+                    `Cert test ${this.definition.tc}: ${teardownErrors.length} controller/device(s) failed to close`,
+                );
+            }
         }
+
+        if (failed) {
+            throw failure;
+        }
+    }
+
+    protected override flavorFor(): DeviceFlavor {
+        return this.#flavor;
     }
 
     protected override contextFor(_subject: Subject): CertStepContext {
@@ -567,7 +616,8 @@ class WiredCertTest extends CertTest {
         }
     }
 
-    async #teardown(controllers: Record<string, ControllerAdapter>): Promise<void> {
+    /** Closes everything this run opened, returning what refused to close rather than deciding for the caller. */
+    async #teardown(controllers: Record<string, ControllerAdapter>): Promise<unknown[]> {
         const errors = new Array<unknown>();
 
         for (const controller of Object.values(controllers)) {
@@ -591,5 +641,7 @@ class WiredCertTest extends CertTest {
         for (const error of errors) {
             console.warn("Error tearing down cert-test controller/device:", error);
         }
+
+        return errors;
     }
 }
