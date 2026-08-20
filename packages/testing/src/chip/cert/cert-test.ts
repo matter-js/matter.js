@@ -208,6 +208,18 @@ export class CertTest extends BaseTest {
             }
 
             deviceExitWatch.disarm();
+
+            // After the flush, so a bundle exists even for a teardown that hangs against an
+            // unreachable TH: it is the run's outcome, not the bundle, that carries a close failure.
+            const teardownErrors = await this.teardown();
+            if (teardownErrors.length > 0 && !failed) {
+                failed = true;
+                failure = new AggregateError(
+                    teardownErrors,
+                    `Cert test ${tc}: ${teardownErrors.length} controller/device(s) failed to close, leaving state ` +
+                        "behind for whatever runs next",
+                );
+            }
         }
 
         if (failed) {
@@ -220,6 +232,15 @@ export class CertTest extends BaseTest {
                 `A cert-test device exited unexpectedly (code ${exited.code}, signal ${exited.signal}) during the run`,
             );
         }
+    }
+
+    /**
+     * Closes whatever this run opened, returning what refused to close. A close failure means state is
+     * left on the TH for the next run in this process, so {@link invoke} fails the run over it — unless
+     * the run failed on its own account, which keeps precedence.
+     */
+    protected async teardown(): Promise<unknown[]> {
+        return [];
     }
 
     /**
