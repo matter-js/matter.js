@@ -528,6 +528,49 @@ describe("ChipDockerSubject", () => {
         expect(closed).equal(1);
     });
 
+    it("starts for real after a launch that failed, rather than reporting the failed one as up", async function () {
+        this.timeout(5_000);
+
+        let closed = 0;
+        const added = new Array<string>();
+        const composition: CompositionHandle = {
+            async add(config) {
+                added.push(config.name);
+                if (added.length === 1) {
+                    throw new Error("add exploded");
+                }
+                return fakeContainer();
+            },
+            async close() {
+                closed++;
+            },
+        };
+
+        const docker: DockerHandle = {
+            async ensureVolume() {},
+            compose() {
+                return composition;
+            },
+            async containerStatus() {
+                return { isRunning: true };
+            },
+        };
+
+        const device = new ChipDockerDevice("test", "cert", undefined, docker);
+
+        await expect(device.start()).rejectedWith("add exploded");
+
+        // Without replacing the failed generation this resolves having started nothing
+        await device.start();
+        expect(added).deep.equal(["app", "app"]);
+
+        // The composition of the failed attempt is reaped before the second one runs
+        expect(closed).equal(1);
+
+        await device.close();
+        expect(closed).equal(2);
+    });
+
     it("kills a container whose exit the daemon never confirmed", async function () {
         this.timeout(5_000);
 

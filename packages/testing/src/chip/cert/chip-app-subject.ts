@@ -97,6 +97,8 @@ interface DockerGeneration extends Generation {
     composition: CompositionHandle;
     /** Absent until the app container has been added, which `start()` may fail before. */
     container?: Container;
+    /** Set when this generation never came up, so a later `start()` replaces it rather than joining it. */
+    startFailed?: boolean;
 }
 
 function newGeneration(pumps: Promise<void>[]): Generation {
@@ -531,11 +533,12 @@ export class ChipDockerDevice implements CertDevice {
     async #launch(): Promise<void> {
         const previous = this.#generation;
         if (previous !== undefined) {
-            if (!previous.exited) {
+            // A generation that is up is joined; one that ended, or never came up at all, is replaced —
+            // reaping whatever it did manage to create, since a container it left behind is ours
+            if (!previous.exited && previous.startFailed !== true) {
                 return;
             }
-            this.#generation = undefined;
-            await this.#drain(previous);
+            await this.stop();
         }
 
         this.#assertNoVariant();
@@ -577,26 +580,33 @@ export class ChipDockerDevice implements CertDevice {
             ...this.#appArgs,
         ];
 
-        const container = await composition.add({
-            name: "app",
-            image: appImage,
-            recreate: true,
-            binds: { [volumeName]: "/run/dbus" },
-            command: args,
-        });
+        try {
+            const container = await composition.add({
+                name: "app",
+                image: appImage,
+                recreate: true,
+                binds: { [volumeName]: "/run/dbus" },
+                command: args,
+            });
 
-        generation.container = container;
+            generation.container = container;
 
-        // Deliberately not awaited — it runs for the container's whole lifetime and only settles this
-        // generation's latches, which stop() awaits separately. Its own try/catch means nothing is
-        // swallowed. Must stay ahead of anything that can throw below, so a start() that fails later
-        // still leaves stop() a latch that settles.
-        void this.#trackExit(generation, container);
+            // Deliberately not awaited — it runs for the container's whole lifetime and only settles
+            // this generation's latches, which stop() awaits separately. Its own try/catch means
+            // nothing is swallowed. Must stay ahead of anything that can throw below, so a start()
+            // that fails later still leaves stop() a latch that settles.
+            void this.#trackExit(generation, container);
 
-        // Attaching immediately after the container starts still risks losing whatever it printed in
-        // that gap — Docker doesn't let us attach before start.
-        const terminal = await container.attach(Terminal.Line);
-        generation.pumps.push(this.#hub.pump(terminal));
+            // Attaching immediately after the container starts still risks losing whatever it printed
+            // in that gap — Docker doesn't let us attach before start.
+            const terminal = await container.attach(Terminal.Line);
+            generation.pumps.push(this.#hub.pump(terminal));
+        } catch (e) {
+            // Marked rather than dropped: stop() still has to reap what this attempt created, and a
+            // later start() must not take this generation for a device that came up.
+            generation.startFailed = true;
+            throw e;
+        }
     }
 
     async #trackExit(generation: DockerGeneration, container: Container): Promise<void> {
