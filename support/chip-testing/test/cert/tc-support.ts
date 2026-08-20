@@ -1018,13 +1018,44 @@ export async function expectReportAck(
     }
 }
 
-type SettleOutcome = { kind: "resolved" } | { kind: "rejected"; error: unknown } | { kind: "timeout" };
+/**
+ * How an operation a step was waiting for ended, and how long it took, formatted for the evidence.
+ * A `"timeout"` says only that the wait ended: the operation itself is still running.
+ */
+export type SettleReport<T = unknown> = { elapsed: string } & (
+    | { kind: "resolved"; value: T }
+    | { kind: "rejected"; error: unknown }
+    | { kind: "timeout" }
+);
 
-function settled(promise: Promise<unknown>): Promise<SettleOutcome> {
-    return promise.then(
-        (): SettleOutcome => ({ kind: "resolved" }),
-        (error: unknown): SettleOutcome => ({ kind: "rejected", error }),
-    );
+/**
+ * Waits for `op` to settle, bounded by `timeoutMs` so an implementation that neither answers nor
+ * gives up cannot hang the step for the whole mocha timeout. Reports which way it went, for a step
+ * that has something to record either way; {@link expectRejection} is the form for a step that
+ * demands a refusal.
+ *
+ * A step that stops waiting is still responsible for what the operation does afterwards — a
+ * commissioning that succeeds late leaves a fabric on the device.
+ */
+export async function settleWithin<T>(label: string, op: Promise<T>, timeoutMs: number): Promise<SettleReport<T>> {
+    // nowUs is the monotonic clock despite the name; nowMs tracks UTC and a step of it would put a
+    // negative elapsed into the evidence
+    const start = Time.nowUs;
+    const elapsed = () => Duration.format(Millis(Time.nowUs - start));
+    const timeout = Time.sleep(`${label} settle timeout`, Millis(timeoutMs));
+
+    try {
+        return await Promise.race([
+            op.then(
+                (value): SettleReport<T> => ({ kind: "resolved", value, elapsed: elapsed() }),
+                (error: unknown): SettleReport<T> => ({ kind: "rejected", error, elapsed: elapsed() }),
+            ),
+            timeout.then((): SettleReport<T> => ({ kind: "timeout", elapsed: elapsed() })),
+        ]);
+    } finally {
+        // A lost race leaves the sleep armed for its full duration, keeping the process alive past teardown
+        timeout.cancel();
+    }
 }
 
 /**
@@ -1043,18 +1074,8 @@ export async function expectRejection(
     timeoutMs: number,
     accept?: (error: unknown) => boolean,
 ): Promise<CheckRecord> {
-    // nowUs is the monotonic clock despite the name; nowMs tracks UTC and a step of it would put a
-    // negative elapsed into the evidence
-    const start = Time.nowUs;
-    const timeout = Time.sleep(`${label} rejection timeout`, Millis(timeoutMs));
-    let outcome: SettleOutcome;
-    try {
-        outcome = await Promise.race([settled(op), timeout.then((): SettleOutcome => ({ kind: "timeout" }))]);
-    } finally {
-        // A lost race leaves the sleep armed for its full duration, keeping the process alive past teardown
-        timeout.cancel();
-    }
-    const elapsed = Duration.format(Millis(Time.nowUs - start));
+    const outcome = await settleWithin(label, op, timeoutMs);
+    const { elapsed } = outcome;
 
     switch (outcome.kind) {
         case "resolved":
