@@ -66,7 +66,6 @@ export class CertTest extends BaseTest {
     ): Promise<void> {
         const cx = this.contextFor(subject);
         const { recorder, devices } = cx;
-        const picsFile = resolvePicsFile(subject)?.with(controllerPicsOverridesFor(resolveControllerImplementation()));
         const deviceExitWatch = watchDeviceExits(devices, recorder);
         const flavor = this.flavorFor(devices);
         const tc = this.#definition.tc;
@@ -92,6 +91,12 @@ export class CertTest extends BaseTest {
         };
 
         try {
+            // Inside the try: reading the subject's PICS, and resolving what the controller declares,
+            // can both throw, and everything this run opened is closed by the teardown below.
+            const picsFile = resolvePicsFile(subject)?.with(
+                controllerPicsOverridesFor(resolveControllerImplementation()),
+            );
+
             // Provenance reporting must never be why a run that would otherwise pass its steps
             // aborts before running any of them.
             try {

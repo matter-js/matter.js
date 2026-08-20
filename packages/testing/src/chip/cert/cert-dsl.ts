@@ -489,11 +489,19 @@ class WiredCertTest extends CertTest {
             await super.invoke(subject, step, args, uncommissioned);
         } finally {
             this.#cx = undefined;
+
+            // The base tears down inside its own run, and does so for every path it can reach. This
+            // is the backstop for the ones it cannot — a throw before that run begins would otherwise
+            // leave this run's controllers open for the next test in the process. Idempotent, so the
+            // ordinary path closes nothing twice.
+            await this.teardown();
         }
     }
 
     protected override async teardown(): Promise<unknown[]> {
-        return this.#teardown(this.#openControllers);
+        const controllers = this.#openControllers;
+        this.#openControllers = {};
+        return this.#teardown(controllers);
     }
 
     protected override flavorFor(): DeviceFlavor {
@@ -601,7 +609,6 @@ class WiredCertTest extends CertTest {
 
     /** Closes everything this run opened, returning what refused to close rather than deciding for the caller. */
     async #teardown(controllers: Record<string, ControllerAdapter>): Promise<unknown[]> {
-        this.#openControllers = {};
         const errors = new Array<unknown>();
 
         for (const controller of Object.values(controllers)) {

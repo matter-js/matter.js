@@ -193,7 +193,10 @@ class TestCertTest extends CertTest {
         this.#teardownErrors = teardownErrors;
     }
 
+    teardownCalls = 0;
+
     protected override async teardown(): Promise<unknown[]> {
+        this.teardownCalls++;
         return this.#teardownErrors;
     }
 
@@ -1276,6 +1279,25 @@ describe("CertTest", () => {
         expect(endStepVerdicts).deep.equal([{ number: 1, verdict: "pass" }]);
         expect(deviceExitedCalls).deep.equal([{ code: 1, signal: null }]);
         expect(flushed).equal(true);
+    });
+
+    it("closes what the run opened even when reading the subject's PICS throws", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [{ number: 1, text: "A step that never runs", run: async () => {} }],
+        };
+
+        const cx: CertStepContext = { controllers: {}, devices: {}, recorder: stubRecorder() };
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(
+            test.invoke(stubSubjectWithThrowingPics(new Error("PICS accessor exploded")), () => {}, [], false),
+        ).rejectedWith("PICS accessor exploded");
+
+        expect(test.teardownCalls).equal(1);
     });
 
     it("reports a device that died rather than a controller that would not close", async () => {
