@@ -620,6 +620,52 @@ describe("CertTest", () => {
         ]);
     });
 
+    it("skips a flavor-restricted step when the run's flavor cannot be determined", async () => {
+        let ran = false;
+
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step restricted to chip flavors",
+                    flavors: ["chip-docker", "chip-local"],
+                    run: async () => {
+                        ran = true;
+                    },
+                },
+            ],
+        };
+
+        const endStepCalls = new Array<{ number: number | string; verdict: StepVerdict; skipReason?: string }>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                endStep(step, verdict, skipReason) {
+                    endStepCalls.push({ number: step.number, verdict, skipReason });
+                    return [];
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await test.invoke(stubSubject(new PicsFile([])), () => {}, [], false);
+
+        expect(ran).equal(false);
+        expect(endStepCalls).deep.equal([
+            {
+                number: 1,
+                verdict: "skipped",
+                skipReason: "device flavor unknown, and this step declares chip-docker/chip-local",
+            },
+        ]);
+    });
+
     it("never runs a step declared not applicable, and records the reason ahead of any flavor or PICS gate", async () => {
         let step1Ran = false;
         let step2Ran = false;
