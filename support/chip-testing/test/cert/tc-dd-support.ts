@@ -10,7 +10,14 @@ import type { CertNodeRef, CertStepContext, CommissioningTarget } from "@matter/
 import type { CertDevice } from "@matter/testing";
 import { expectMdns } from "../../src/cert/mdns-check.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
-import { CertCleanupError, CommissionedRefs, expectRejection, expectSequence, record } from "./tc-support.js";
+import {
+    CertCleanupError,
+    CommissionedRefs,
+    expectRejection,
+    expectSequence,
+    record,
+    settleWithin,
+} from "./tc-support.js";
 
 export const LOG_TIMEOUT_MS = 30_000;
 export const MDNS_TIMEOUT_MS = 30_000;
@@ -225,6 +232,11 @@ export class CommissioningRefusals {
         this.#settleTimeoutMs = budgets?.settleTimeoutMs ?? REFUSAL_SETTLE_TIMEOUT_MS;
     }
 
+    /** How long {@link settle} waits, for a step that needs the same slack for its own wait. */
+    get settleBudgetMs(): number {
+        return this.#settleTimeoutMs;
+    }
+
     /**
      * Records that the DUT refuses to commission from `payload`, which is how the negative plans
      * phrase "the DUT terminates the commissioning process in a DUT-specific manner".
@@ -233,16 +245,23 @@ export class CommissioningRefusals {
      * rejection would let the step pass on a controller that died, timed out or was never asked —
      * outcomes that say nothing about what the DUT made of the code.
      */
-    async requireRefusal(cx: CertStepContext, target: CommissioningTarget, what: string): Promise<void> {
-        const attempt = cx.controllers.dut.commission(target);
-        // Kept as a settled outcome so an attempt nobody awaits again cannot surface as an unhandled
-        // rejection, and so settle() can collect the ref of one that succeeded after its budget
+    /**
+     * Hands `attempt` to {@link settle}, which is what a step that may stop waiting for a
+     * commissioning owes the run: one that succeeds late leaves a fabric on the TH. Kept as a settled
+     * outcome so an attempt nobody awaits again cannot surface as an unhandled rejection.
+     */
+    track(attempt: Promise<CertNodeRef>): void {
         this.#attempts.push(
             attempt.then(
                 ref => ref,
                 () => undefined,
             ),
         );
+    }
+
+    async requireRefusal(cx: CertStepContext, target: CommissioningTarget, what: string): Promise<void> {
+        const attempt = cx.controllers.dut.commission(target);
+        this.track(attempt);
 
         record(
             cx,
@@ -268,12 +287,7 @@ export class CommissioningRefusals {
         timeoutMs: number,
     ): Promise<void> {
         const attempt = cx.controllers.dut.commission(target);
-        this.#attempts.push(
-            attempt.then(
-                ref => ref,
-                () => undefined,
-            ),
-        );
+        this.track(attempt);
 
         record(
             cx,
@@ -442,31 +456,64 @@ export async function recordVendorOutcome(
     cx: CertStepContext,
     manualPairingCode: string,
     commissioned: CommissionedRefs,
+    refusals: CommissioningRefusals,
     what: string,
     timeoutMs: number,
 ): Promise<void> {
     await restoreCommissioningMode(cx, commissioned);
 
-    const dut = cx.controllers.dut;
-    const attempt = dut.commission({ manualPairingCode, giveUpAfterMs: timeoutMs });
+    const label = `commissioning from ${manualPairingCode}`;
+    const attempt = cx.controllers.dut.commission({ manualPairingCode, giveUpAfterMs: timeoutMs });
 
-    const outcome = await expectRejection(`commissioning from ${manualPairingCode}`, attempt, timeoutMs + 30_000);
-    if (outcome.verdict === "pass") {
-        record(cx, { ...outcome, detail: `DUT terminated commissioning: ${outcome.detail}` }, what);
-        return;
+    // The plan accepts either outcome, so the attempt is tracked rather than required to fail: one
+    // that neither onboards nor gives up inside the budget is the step's failure, and cleanup — not
+    // another unbounded wait here — is what owns it afterwards.
+    refusals.track(attempt);
+
+    const outcome = await settleWithin(label, attempt, timeoutMs + refusals.settleBudgetMs);
+
+    switch (outcome.kind) {
+        case "rejected": {
+            const { error } = outcome;
+            const message = error instanceof Error ? `${error.constructor.name}: ${error.message}` : String(error);
+            record(
+                cx,
+                {
+                    type: "response",
+                    verdict: "pass",
+                    detail: `DUT terminated commissioning after ${outcome.elapsed}: ${message}`,
+                },
+                what,
+            );
+            return;
+        }
+
+        case "resolved": {
+            const ref = outcome.value;
+            commissioned.set("dut", ref);
+            record(
+                cx,
+                {
+                    type: "response",
+                    verdict: "pass",
+                    detail: `DUT onboarded the TH as node ${ref}, which the plan allows where the user accepts the risk`,
+                },
+                what,
+            );
+            return;
+        }
+
+        case "timeout":
+            record(
+                cx,
+                {
+                    type: "response",
+                    verdict: "fail",
+                    detail: `${label} neither onboarded the TH nor gave up within ${outcome.elapsed}`,
+                },
+                what,
+            );
     }
-
-    const ref = await attempt;
-    commissioned.set("dut", ref);
-    record(
-        cx,
-        {
-            type: "response",
-            verdict: "pass",
-            detail: `DUT onboarded the TH as node ${ref}, which the plan allows where the user accepts the risk`,
-        },
-        what,
-    );
 }
 
 /**
