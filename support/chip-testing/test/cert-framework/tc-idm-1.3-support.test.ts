@@ -270,6 +270,15 @@ describe("expectBatchRequestPaths", () => {
         expect(check.verdict).equal("pass");
     });
 
+    it("fails when two separate requests carried one command each instead of one batch", async () => {
+        const check = await withBufferedFollower(
+            [...batchRequestLines([PATHS[0]]), ...batchRequestLines([PATHS[1]])],
+            follower => expectBatchRequestPaths(follower, "chip-local", PATHS, 0, 500),
+        );
+
+        expect(check.verdict).equal("fail");
+    });
+
     it("is unverified for a matterjs device", async () => {
         const check = await withFollower(batchRequestLines(PATHS), follower =>
             expectBatchRequestPaths(follower, "matterjs", PATHS, 0, 200),

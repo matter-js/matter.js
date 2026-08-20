@@ -161,6 +161,17 @@ export async function expectBatchRequestPaths(
             return { type: "device-log", verdict: "unverified" };
         }
 
+        // The matched message's own closing line is located first, because it is what bounds
+        // everything below: a path or a command found past it belongs to a later request, which is
+        // the case this check exists to tell apart from one batch carrying them all.
+        const end = await log.expect(
+            { chip: INTERACTION_MODEL_REVISION },
+            { flavor, timeoutMs, from: envelope.last.index + 1 },
+        );
+        if (end.verdict === "unverified") {
+            return { type: "device-log", verdict: "unverified" };
+        }
+
         let last = envelope.last;
         for (const { endpoint, cluster, command } of paths) {
             const block = await expectAdjacentLines(
@@ -173,12 +184,18 @@ export async function expectBatchRequestPaths(
             if (block.verdict === "unverified") {
                 return { type: "device-log", verdict: "unverified" };
             }
+            if (block.last.index > end.matched.index) {
+                return {
+                    type: "device-log",
+                    verdict: "fail",
+                    pattern: label,
+                    detail:
+                        `endpoint ${endpoint} cluster ${cluster} command ${command} appears only after the ` +
+                        "request ended, so a later request carried it",
+                    logLine: block.last.index,
+                };
+            }
             last = block.last;
-        }
-
-        const end = await log.expect({ chip: INTERACTION_MODEL_REVISION }, { flavor, timeoutMs, from: last.index + 1 });
-        if (end.verdict === "unverified") {
-            return { type: "device-log", verdict: "unverified" };
         }
 
         const commands =
