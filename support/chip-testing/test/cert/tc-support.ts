@@ -587,24 +587,41 @@ export async function expectChunkedTransfer(
         };
     }
 
-    const lines = log.lines;
-    for (let i = 1; i < chunks.length; i++) {
-        // Matched by Exchange id, like expectReportAck: the node's own subscription stays live during
-        // these runs, so an unrelated report's ack can land between two chunks of this read.
-        const exchange = exchangeIdBefore(log, chunks[i - 1].index);
-        if (exchange === undefined) {
+    // One transfer stays on one exchange, so this is what makes the chunks *one* read's rather than
+    // several reads' — and, like expectReportAck, what tells this read's acks from those of the node's
+    // own subscription, which stays live during these runs.
+    const exchange = exchangeIdBefore(log, chunks[0].index);
+    if (exchange === undefined) {
+        return {
+            type: "device-log",
+            verdict: "fail",
+            pattern: String(REPORT_SENT_LINE),
+            detail:
+                "No outbound Report Data trace line (carrying an Exchange id) found before the report " +
+                `chunk at log line ${chunks[0].index}`,
+            logLine: chunks[0].index,
+        };
+    }
+
+    for (const [i, chunk] of chunks.entries()) {
+        const chunkExchange = exchangeIdBefore(log, chunk.index);
+        if (chunkExchange !== exchange) {
             return {
                 type: "device-log",
                 verdict: "fail",
                 pattern: String(REPORT_SENT_LINE),
                 detail:
-                    "No outbound Report Data trace line (carrying an Exchange id) found before the report " +
-                    `chunk at log line ${chunks[i - 1].index}`,
-                logLine: chunks[i - 1].index,
+                    `The report chunk at log line ${chunk.index} went out on Exchange ` +
+                    `${chunkExchange ?? "(none)"}, not ${exchange}, so chunk ${i + 1} of ${chunks.length} ` +
+                    "belongs to another read",
+                logLine: chunk.index,
             };
         }
+    }
 
-        const ackPattern = reportAckedOnExchange(exchange);
+    const ackPattern = reportAckedOnExchange(exchange);
+    const lines = log.lines;
+    for (let i = 1; i < chunks.length; i++) {
         const acked = lines
             .slice(chunks[i - 1].index + 1, chunks[i].index)
             .some(line => !line.synthetic && ackPattern.test(line.text));
