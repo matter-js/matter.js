@@ -456,6 +456,8 @@ class WiredCertTest extends CertTest {
     #controllerRoles: Record<string, "dut" | "helper">;
     #deviceRoles: Record<string, string>;
     #cx?: CertStepContext;
+    /** Held apart from {@link #cx} so teardown does not depend on how long the context lives. */
+    #openControllers: Record<string, ControllerAdapter> = {};
     #extraDevices = new Array<CertDevice>();
     #recorder?: EvidenceRecorder;
 
@@ -483,35 +485,15 @@ class WiredCertTest extends CertTest {
     ): Promise<void> {
         const cx = await this.#buildContext(subject);
         this.#cx = cx;
-
-        let failure: unknown;
-        let failed = false;
         try {
             await super.invoke(subject, step, args, uncommissioned);
-        } catch (e) {
-            failed = true;
-            failure = e;
         } finally {
             this.#cx = undefined;
-            const teardownErrors = await this.#teardown(cx.controllers);
-
-            // A controller that would not close has left a fabric, a session or a live subscription on
-            // the TH for the next test in this process to inherit, so the run cannot report success.
-            // The run's own failure keeps precedence. The evidence bundle is written before this, on
-            // purpose (see the finalization bound in cert-test.ts), so it is the run's outcome rather
-            // than the bundle that carries this.
-            if (teardownErrors.length > 0 && !failed) {
-                failed = true;
-                failure = new AggregateError(
-                    teardownErrors,
-                    `Cert test ${this.definition.tc}: ${teardownErrors.length} controller/device(s) failed to close`,
-                );
-            }
         }
+    }
 
-        if (failed) {
-            throw failure;
-        }
+    protected override async teardown(): Promise<unknown[]> {
+        return this.#teardown(this.#openControllers);
     }
 
     protected override flavorFor(): DeviceFlavor {
@@ -563,6 +545,7 @@ class WiredCertTest extends CertTest {
             for (const name of Object.keys(this.#controllerRoles)) {
                 const controller = createControllerAdapter(name);
                 controllers[name] = controller;
+                this.#openControllers = controllers;
                 await controller.start();
             }
 
@@ -618,6 +601,7 @@ class WiredCertTest extends CertTest {
 
     /** Closes everything this run opened, returning what refused to close rather than deciding for the caller. */
     async #teardown(controllers: Record<string, ControllerAdapter>): Promise<unknown[]> {
+        this.#openControllers = {};
         const errors = new Array<unknown>();
 
         for (const controller of Object.values(controllers)) {

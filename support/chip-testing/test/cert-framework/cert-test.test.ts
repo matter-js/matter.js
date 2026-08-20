@@ -177,6 +177,7 @@ function stubSubjectWithoutPics(): Subject {
 class TestCertTest extends CertTest {
     #cx: CertStepContext;
     #finalizationTimeoutMs?: number;
+    #teardownErrors: unknown[];
 
     constructor(
         definition: CertTestDefinition,
@@ -184,10 +185,16 @@ class TestCertTest extends CertTest {
         container: Container,
         cx: CertStepContext,
         finalizationTimeoutMs?: number,
+        teardownErrors: unknown[] = [],
     ) {
         super(definition, descriptor, container);
         this.#cx = cx;
         this.#finalizationTimeoutMs = finalizationTimeoutMs;
+        this.#teardownErrors = teardownErrors;
+    }
+
+    protected override async teardown(): Promise<unknown[]> {
+        return this.#teardownErrors;
     }
 
     protected override contextFor(_subject: Subject): CertStepContext {
@@ -1515,6 +1522,50 @@ describe("CertTest", () => {
         };
 
         const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            "the step's own failure",
+        );
+    });
+
+    it("fails a run whose controller would not close", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [{ number: 1, text: "A step that passes", run: async () => {} }],
+        };
+
+        const cx: CertStepContext = { controllers: {}, devices: {}, recorder: stubRecorder() };
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, undefined, [
+            new Error("controller would not close"),
+        ]);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(/failed to close/);
+    });
+
+    it("keeps a step's failure ahead of a controller that would not close", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "A step that fails",
+                    run: async () => {
+                        throw new Error("the step's own failure");
+                    },
+                },
+            ],
+        };
+
+        const cx: CertStepContext = { controllers: {}, devices: {}, recorder: stubRecorder() };
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, undefined, [
+            new Error("controller would not close"),
+        ]);
 
         await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
             "the step's own failure",
