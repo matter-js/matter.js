@@ -142,6 +142,13 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
         }
 
         const at = options?.installedAt ?? Time.nowMs;
+
+        // Retire only once we know we are keeping this record.  The copy it replaces is still in #records here, so it
+        // is excluded by key too: retiring it would leave a scheduled deletion that later resolves to this key.
+        if (record.flushCache && DnsRecordType.isUnique(record.recordType)) {
+            this.#expireOthersSupersededBy(record, at, key);
+        }
+
         const isHostRecord = record.recordType === DnsRecordType.A || record.recordType === DnsRecordType.AAAA;
         const recordWithExpire = {
             ...record,
@@ -190,15 +197,33 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
     }
 
     /**
-     * Shorten a record's remaining lifetime to {@link delay}.  Never extends it.
+     * Shorten a record's remaining lifetime to the context's eviction delay.  Never extends it.
      */
-    expireRecord(record: DnsRecord, delay: Duration) {
+    expireRecord(record: DnsRecord) {
         const installed = this.#installedFor(record);
         if (installed === undefined) {
             return;
         }
 
-        const [key, current] = installed;
+        this.#retire(...installed);
+    }
+
+    /**
+     * Retires the records {@link record} supersedes, identified by having arrived before the window in which a
+     * responder announces one record set.  A set too large for one packet arrives as several, so grouping by packet
+     * would let the later packets retire the earlier ones.
+     */
+    #expireOthersSupersededBy(record: DnsRecord, at: Timestamp, exceptKey: string) {
+        const before = at - this.#context.evictionDelay;
+        for (const [key, installed] of this.#records) {
+            if (key !== exceptKey && installed.recordType === record.recordType && installed.installedAt < before) {
+                this.#retire(key, installed);
+            }
+        }
+    }
+
+    #retire(key: string, current: DnssdName.Record) {
+        const delay = this.#context.evictionDelay;
         const expiresAt = Timestamp(Time.nowMs + delay);
         if (current.expiresAt <= expiresAt) {
             return;
@@ -362,6 +387,11 @@ export namespace DnssdName {
          * Multiplier applied to TTL when computing record expiry.  Always provided by {@link DnssdNames}.
          */
         ttlGraceFactor: number;
+
+        /**
+         * How long a record survives once something supersedes it.  Always provided by {@link DnssdNames}.
+         */
+        evictionDelay: Duration;
     }
 
     export interface Expiration {

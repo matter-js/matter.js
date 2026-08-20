@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type DnsRecord, DnsRecordType } from "#codec/DnsCodec.js";
+import { type DnsRecord, DnsMessageType, DnsRecordType } from "#codec/DnsCodec.js";
 import { ImplementationError } from "#MatterError.js";
 import { Duration } from "#time/Duration.js";
 import { Time, Timer } from "#time/Time.js";
@@ -105,6 +105,7 @@ export class DnssdNames {
             unregisterForExpiration: record => this.#expiration.delete(record),
             get: qname => this.get(qname),
             ttlGraceFactor: this.#ttlGraceFactor,
+            evictionDelay: this.#evictionDelay,
         };
         this.#observers.on(this.#socket.receipt, this.#handleMessage.bind(this));
 
@@ -167,6 +168,11 @@ export class DnssdNames {
         const records = [...message.answers, ...message.additionalRecords];
         const filtered = new Set(records);
         const sourceIntf = message.sourceIntf;
+        const packetAt = Time.nowMs;
+
+        // The top rrclass bit is the cache-flush bit only in a response; in a query's known-answer list it is
+        // reserved and must be ignored (RFC 6762 §18.12)
+        const isResponse = DnsMessageType.isResponse(message.messageType);
 
         // Collect newly discovered names so we can emit after all records in the message are processed.  This ensures
         // that observers see the complete record set (e.g. both SRV and TXT) rather than partial state mid-message.
@@ -188,8 +194,11 @@ export class DnssdNames {
                 if (record.ttl < this.#minTtl) {
                     record = { ...record, ttl: this.#minTtl };
                 }
+                if (!isResponse) {
+                    record = { ...record, flushCache: false };
+                }
                 const wasDiscovered = name.isDiscovered;
-                if (name.installRecord(record, { sourceIntf })) {
+                if (name.installRecord(record, { sourceIntf, installedAt: packetAt })) {
                     packetRelevant = true;
                 }
                 if (!wasDiscovered && name.isDiscovered) {
@@ -199,7 +208,7 @@ export class DnssdNames {
                 packetRelevant = true;
                 // A goodbye takes effect a second out so a host that reboots and re-announces immediately keeps its
                 // records (RFC 6762 §10.1)
-                name.expireRecord(record, this.#evictionDelay);
+                name.expireRecord(record);
             }
         };
 
@@ -280,14 +289,24 @@ export class DnssdNames {
                 if (record.ttl < this.#minTtl) {
                     record = { ...record, ttl: this.#minTtl };
                 }
-                const staged = this.#stagedIpRecords.get(key) ?? [];
+                if (!isResponse && record.flushCache) {
+                    record = { ...record, flushCache: false };
+                }
+                let staged = this.#stagedIpRecords.get(key) ?? [];
+                if (record.flushCache) {
+                    // Same window the installed records use, so a set split across packets survives here too
+                    const supersededBefore = packetAt - this.#evictionDelay;
+                    staged = staged.filter(
+                        s => s.record.recordType !== record.recordType || s.receivedAt >= supersededBefore,
+                    );
+                }
                 const existing = staged.findIndex(
                     s => s.record.recordType === record.recordType && s.record.value === record.value,
                 );
                 if (existing === -1) {
-                    staged.push({ record, receivedAt: Time.nowMs, sourceIntf });
+                    staged.push({ record, receivedAt: packetAt, sourceIntf });
                 } else {
-                    staged[existing] = { record, receivedAt: Time.nowMs, sourceIntf };
+                    staged[existing] = { record, receivedAt: packetAt, sourceIntf };
                 }
                 // Delete + set moves the key to the tail of the Map so prune evicts least-recently-touched first
                 this.#stagedIpRecords.delete(key);

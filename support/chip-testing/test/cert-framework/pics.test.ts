@@ -30,16 +30,15 @@ describe("PicsFile", () => {
             expect(base.values).deep.equal({ PICS_A: 1 });
         });
 
-        // Characterization of a known defect, not desired behaviour: only the first occurrence of a repeated key is
-        // overridden, and since the last occurrence is what `values` resolves to, such an override has no effect.
-        // Changing this shifts how every composed PICS file resolves, so it needs the affected suites run.
-        it("overrides only the first occurrence of a key the base file repeats", () => {
+        // Chip's files repeat keys and `values` resolves to the last one, so an override that stops at the first
+        // occurrence has no effect at all
+        it("overrides every occurrence of a key the base file repeats", () => {
             const base = new PicsFile(["PICS_A=1", "PICS_B=1", "PICS_A=1"]);
 
             const patched = base.with({ PICS_A: 0 });
 
-            expect(patched.lines).deep.equal(["PICS_A=0", "PICS_B=1", "PICS_A=1"]);
-            expect(patched.values.PICS_A).equal(1);
+            expect(patched.lines).deep.equal(["PICS_A=0", "PICS_B=1", "PICS_A=0"]);
+            expect(patched.values.PICS_A).equal(0);
         });
 
         it("keeps the base file's comments", () => {
