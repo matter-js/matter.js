@@ -159,6 +159,13 @@ describe("expectChunkedTransfer", () => {
         expect(record.detail).contains(`Exchange ${EXCHANGE}`);
     });
 
+    it("fails when two one-chunk reads, each acked on its own exchange, look like a chunked one", async () => {
+        const record = await check([...chunkLines(), ackLine(), ...chunkLines(EXCHANGE + 1), ackLine(EXCHANGE + 1)]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).match(/belongs to another read/);
+    });
+
     it("fails when a chunk has no outbound trace line to take an exchange from", async () => {
         const record = await check([CHUNK, ackLine(), ...chunkLines(), ackLine(), ...chunkLines(), NOISE]);
 
