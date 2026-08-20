@@ -30,9 +30,6 @@ export const REFUSAL_TIMEOUT_MS = 15_000;
  */
 export const REFUSAL_SETTLE_TIMEOUT_MS = 30_000;
 
-/** Outlives the rest of a run, so a later step never pairs against a window that closed on its own. */
-const WINDOW_TIMEOUT_SECONDS = 300;
-
 /** Both device flavors print the payload they publish on this line; chip prints one per commissioning flow. */
 const SETUP_QR_CODE = /SetupQRCode: \[(MT:[^\]]+)\]/;
 
@@ -156,6 +153,10 @@ function writeBits(data: Uint8Array, { offset, length }: { offset: number; lengt
         // The bitwise operators below coerce a fraction and NaN silently, which would put a payload
         // nobody asked for into the evidence
         throw new InternalError(`${value} does not fit the ${length} bits at offset ${offset}`);
+    }
+    if (data.length * 8 < offset + length) {
+        // Writing past the end of a Uint8Array is silently dropped, for the same result
+        throw new InternalError(`The ${length} bits at offset ${offset} do not fit a payload of ${data.length} bytes`);
     }
     for (let i = 0; i < length; i++) {
         const bit = offset + i;
@@ -435,8 +436,7 @@ export async function recordCommissionable(
  * The two controllers genuinely differ. chip-tool matches a code's vendor and product id against the
  * device it discovered (`SetUpCodePairer::NodeMatchesCurrentFilter`) and finds nothing; matter.js
  * discovers on the discriminator alone and onboards. A fabric that results is handed to
- * `commissioned`, whose next {@link commissionByManualCode} takes it off the TH the only way a chip
- * TH survives — opening a window before the fabric that opens it is gone.
+ * `commissioned`, whose next {@link commissionByManualCode} takes it off the TH again.
  */
 export async function recordVendorOutcome(
     cx: CertStepContext,
@@ -470,11 +470,13 @@ export async function recordVendorOutcome(
 }
 
 /**
- * Puts the TH back into commissioning mode if a fabric from an earlier onboarding is still on it.
+ * Returns the TH to a factory-new state if a fabric from an earlier onboarding is still on it, which
+ * is what a plan means by commissioning the same device again.
  *
- * A chip TH does not return there when its last fabric goes, so the window is opened while the fabric
- * that can open it is still present. It is a basic one: that is the window whose PASE verifier is the
- * device's own setup code, which is what an onboarding code carries.
+ * The fabric comes off first, so the controller never holds a peer for a fabric the device has
+ * forgotten. A chip TH then needs a factory reset, which is what actually puts it back into
+ * commissioning mode — removing its last fabric does not. A matter.js device is already there, and
+ * erasing it would restart a TH that needs nothing.
  */
 async function restoreCommissioningMode(cx: CertStepContext, commissioned: CommissionedRefs): Promise<void> {
     const previous = commissioned.get("dut");
@@ -482,14 +484,26 @@ async function restoreCommissioningMode(cx: CertStepContext, commissioned: Commi
         return;
     }
 
-    const dut = cx.controllers.dut;
-    await dut.node(previous).openCommissioningWindow({ timeout: WINDOW_TIMEOUT_SECONDS, enhanced: false });
-    await dut.node(previous).decommission();
+    const th = cx.devices.th;
+    await cx.controllers.dut.node(previous).decommission();
     commissioned.clear("dut");
 
-    // Removing the fabric returns as soon as the TH answers; the TH advertises itself commissionable
-    // again on its own schedule, and a discovery started before that finds only the devices this run
-    // is not looking for.
+    if (th.flavor !== "matterjs") {
+        const from = th.log.mark();
+        await th.backchannel({ name: "factoryReset" });
+
+        // A chip app's start() returns when the process is up, not when the app is; without waiting
+        // for the new generation to reach its own onboarding print, the check below can be answered
+        // by a cached advertisement from the generation that just went down.
+        record(
+            cx,
+            await expectSequence(th.log, th.flavor, "TH restarted", [SETUP_QR_CODE], from, LOG_TIMEOUT_MS),
+            "TH factory reset",
+        );
+    }
+
+    // The TH advertises itself commissionable on its own schedule, and a discovery started before
+    // that finds only the devices this run is not looking for.
     await recordCommissionable(cx, "TH back in commissioning mode");
 }
 
@@ -503,11 +517,8 @@ export async function commissionByManualCode(
 }
 
 /**
- * Onboards the TH from `payload`, first taking off a fabric an earlier step commissioned.
- *
- * A chip TH does not return to commissioning mode when its last fabric goes, so the window is opened
- * while the fabric is still there. It is a basic one: that is the window whose PASE verifier is the
- * device's own setup code, which is what an onboarding payload carries.
+ * Onboards the TH from `payload`, first returning it to a factory-new state if an earlier step
+ * commissioned it (see {@link restoreCommissioningMode}).
  */
 export async function commissionByQr(
     cx: CertStepContext,

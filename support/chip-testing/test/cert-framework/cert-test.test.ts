@@ -1346,7 +1346,7 @@ describe("CertTest", () => {
             "-".repeat(70),
             "-".repeat(70),
             "TC-CADMIN-1.17 — Test Step 1: PASS",
-            "single check detail",
+            "pass: single check detail",
             "-".repeat(70),
         ]);
     });
@@ -1394,10 +1394,85 @@ describe("CertTest", () => {
             "-".repeat(70),
             "-".repeat(70),
             "TC-CADMIN-1.17 — Test Step 1: PASS",
-            "0: pattern=AttributePathIB {} matched=raw log line",
-            "1: second check detail",
+            "0: pass: pattern=AttributePathIB {} matched=raw log line",
+            "1: pass: second check detail",
             "-".repeat(70),
         ]);
+    });
+
+    it("names the verdict and the reason of a failing device-log check in the banner", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-IDM-1.3",
+            plan: "interactiondatamodel.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step one text",
+                    run: async cx => {
+                        cx.recorder.check({
+                            type: "device-log",
+                            verdict: "fail",
+                            pattern: "two commands",
+                            detail: "Timed out waiting for two commands",
+                            logLine: 7,
+                        });
+                        throw new Error("step failed on its log check");
+                    },
+                },
+            ],
+        };
+
+        const deviceLog = new LogFollower(noLines(), "device");
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
+            recorder: recordingRecorder(),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            "step failed on its log check",
+        );
+
+        const banners = deviceLog.lines.filter(line => line.synthetic).map(line => line.text);
+        expect(banners).includes("fail: pattern=two commands matched=(none) Timed out waiting for two commands");
+    });
+
+    it("keeps the step's own error when reporting its failure throws", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-IDM-1.3",
+            plan: "interactiondatamodel.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step one text",
+                    run: async () => {
+                        throw new Error("the step's own failure");
+                    },
+                },
+            ],
+        };
+
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                endStep() {
+                    throw new Error("reporting exploded");
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            "the step's own failure",
+        );
     });
 
     it("records a step that throws UnsupportedByControllerError as skipped with a reason naming the operation and controller, and still runs later steps", async () => {
@@ -1587,7 +1662,7 @@ describe("CertTest", () => {
             "-".repeat(70),
             "-".repeat(70),
             "TC-CADMIN-1.17 — Test Step 1: SKIPPED",
-            "read the data version",
+            "pass: read the data version",
             "-".repeat(70),
             "-".repeat(70),
             "TC-CADMIN-1.17 — 1 step skipped as unsupported by the controller",

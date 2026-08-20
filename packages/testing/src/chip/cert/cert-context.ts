@@ -35,6 +35,13 @@ export interface DeviceExitInfo {
 export interface CertDevice extends Subject {
     readonly log: LogFollower;
     readonly flavor: DeviceFlavor;
+
+    /**
+     * Settles when the device's backing process or container ends without the harness having asked
+     * it to — and only then, so a `stop()` or a restart a step drives itself is not an exit in this
+     * sense. One latch therefore covers the device's whole life, and a run that restarts a device
+     * keeps the crash detection it armed before the first step.
+     */
     readonly exit: Promise<DeviceExitInfo>;
 
     /** The app variant this device actually runs, absent for a device whose flavor has no binary to vary. */

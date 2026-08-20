@@ -1232,26 +1232,49 @@ all, which is what lets `Test_TC_DD_1_8.yaml`'s own (older, larger) 1000-byte TL
 The TC asserts the length it built rather than trusting the arithmetic, since a filler byte count that
 misses lands on a payload the plan did not ask for.
 
-**Onboarding the same TH twice: open a basic window before removing the fabric.** A chip TH does not
-return to commissioning mode when its last fabric goes — after `RemoveFabric succeeds` its log stops
-there, and the next commissioning fails as `No device could be commissioned (1 of 1 started attempt(s)
-failed, 1 discovered)` against a stale advertisement. Spec-wise the plans cover this with a
-precondition ("place the TH back into commissioning mode using the TH manufacturer's means"), which for
-a TC that drives everything itself means opening the window before the fabric it needs to open it is
-gone. It must be a **basic** window (`openCommissioningWindow({ enhanced: false })`): its PASE verifier
-is the device's own setup code, so the TH's own onboarding payload still pairs, where an enhanced
-window would mint a fresh discriminator and passcode instead (see "Pairing-code commissioning" above).
+**Onboarding the same TH twice: factory reset it between attempts.** A chip TH does not return to
+commissioning mode when its last fabric goes — after `RemoveFabric succeeds` its log stops there, and
+the next commissioning fails as `No device could be commissioned (1 of 1 started attempt(s) failed, 1
+discovered)` against a stale advertisement. The plans cover this with a precondition ("place the TH
+back into commissioning mode using the TH manufacturer's means"), and for a TC that drives everything
+itself that means asking the device for a factory reset:
 
-A restart would satisfy the same precondition, and TC-DD-3.20 asks for one explicitly — but a step
-cannot stop a device today: `raceAgainstDeviceExit` (`cert-test.ts`) treats any device exit during a
-step as the run's failure. Deliberate-restart support is the framework piece that block still needs.
+```ts
+await cx.controllers.dut.node(ref).decommission();
+if (th.flavor !== "matterjs") {
+    const from = th.log.mark();
+    await th.backchannel({ name: "factoryReset" });
+    // wait for the restarted app's own SetupQRCode line before any mDNS check
+}
+```
 
-**A factory reset is not the same operation on both flavors.** Removing the last fabric leaves a chip
-app's KVS in place; the storage has to be deleted and the app restarted for it to come up factory-new,
-which is also why it stays out of commissioning mode above. matter.js returns to commissioning mode on
-its own instead. The specification allows either, so a TC whose precondition is a factory-reset TH must
-ask the device for one — per flavor, `ChipLocalDevice`'s own storage directory versus a matterjs
-subject's storage — rather than assume `RemoveFabric` delivered it.
+Three things about that shape are load-bearing. The fabric comes off first, so the controller never
+holds a peer for a fabric the device has forgotten — a later `decommissionAll` against a wiped device
+fails. The matterjs leg is excluded because it is already back in commissioning mode, and erasing it
+would restart a TH that needs nothing. And the wait for the restarted app matters because
+`ChipLocalDevice.start()` returns when the *process* is up, not when the app is, while
+`checkCommissionable` primes from the DNS-SD names already cached — so without it the check can be
+answered by an advertisement the generation that just died had published.
+
+Earlier revisions instead opened a *basic* commissioning window and then removed the fabric, which
+works on paper but publishes `_matterc._udp` twice inside about 15 ms; avahi calls that a name
+collision and withdraws the service, so the TH ends up advertising nothing. That was an intermittent
+failure of this helper on the own-built leg, root-caused from the TH's own log in the evidence bundle
+and filed upstream.
+
+**A factory reset is not the same operation on every flavor**, which is why it is the *device* that
+implements it, behind one `BackchannelCommand`:
+
+| Flavor | `factoryReset` | `reboot` |
+| --- | --- | --- |
+| `chip-local` | stop, drop the storage directory holding `chip_kvs`, start | stop, start (store kept) |
+| `chip-docker` | stop, start — the store lives in the container's own filesystem, which the composition discards | refused: it cannot keep the store, so a caller wanting one must use `chip-local` |
+| `matterjs` | `Node.erase()`, which goes offline, resets storage and comes back | close, reinitialize, start |
+
+**A stop the harness asked for is not a crash.** `CertDevice.exit` settles only for an exit nobody
+asked for, so `cert-test.ts`'s exit watch survives a step restarting a device and still fails the run
+if the device does not come back. This is what makes a restart from inside a step possible at all;
+TC-DD-3.20's "manufacturer's means" precondition needs nothing further.
 
 **On a developer host, limit mDNS to one interface.** With VPN tunnels up (`utun*`), a local run of the
 whole cert suite floods `UDP send timeout`/`EMSGSIZE` on every extra interface, stretches a 1m 40s run to

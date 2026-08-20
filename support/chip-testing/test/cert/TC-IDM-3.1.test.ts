@@ -8,7 +8,7 @@ import { Status } from "@matter/main/types";
 import { Matter } from "@matter/model";
 import type { AttributePathSpec, CertNodeApi, CertNodeRef, CertStepContext, DeviceFlavor } from "@matter/testing";
 import { certTest } from "@matter/testing";
-import { CommissionedRefs, expectMessageWithPath, requireId, WRITE_REQUEST_MESSAGE } from "./tc-support.js";
+import { CommissionedRefs, expectMessageWithPath, record, requireId, WRITE_REQUEST_MESSAGE } from "./tc-support.js";
 
 const LEVEL_CONTROL = Matter.clusters.require("LevelControl");
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
@@ -157,12 +157,16 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 const value = await dut
                     .node(ref)
                     .readAttribute({ endpoint, cluster: IDENTIFY_ID, attribute: IDENTIFY_TIME.id });
-                cx.recorder.check({
-                    type: "response",
-                    // identifyTime counts down from the written value, so the device may already report less
-                    verdict: typeof value === "number" ? "pass" : "fail",
-                    detail: `endpoint ${endpoint} reports identifyTime=${JSON.stringify(value)}`,
-                });
+                record(
+                    cx,
+                    {
+                        type: "response",
+                        // identifyTime counts down from the written value, so the device may already report less
+                        verdict: typeof value === "number" ? "pass" : "fail",
+                        detail: `endpoint ${endpoint} reports identifyTime=${JSON.stringify(value)}`,
+                    },
+                    `endpoint ${endpoint} identifyTime`,
+                );
             }
         }),
         {
