@@ -528,13 +528,65 @@ describe("ChipDockerSubject", () => {
         expect(closed).equal(1);
     });
 
-    it("still reaps the container when attach() fails, so a later close() completes", async function () {
+    it("kills a container whose exit the daemon never confirmed", async function () {
         this.timeout(5_000);
 
+        let killed = false;
+        let closed = 0;
+        const container = fakeContainer({
+            kill: async () => {
+                killed = true;
+            },
+            wait: async () => {
+                throw new Error("daemon went away");
+            },
+        });
+
+        const composition: CompositionHandle = {
+            async add() {
+                return container;
+            },
+            async close() {
+                closed++;
+            },
+        };
+
+        const docker: DockerHandle = {
+            async ensureVolume() {},
+            compose() {
+                return composition;
+            },
+            async containerStatus() {
+                return { isRunning: true };
+            },
+        };
+
+        const device = new ChipDockerDevice("test", "cert", undefined, docker);
+
+        await device.start();
+        await device.close();
+
+        expect(killed).equal(true);
+        expect(closed).equal(1);
+    });
+
+    it("still kills and reaps a running container when attach() fails", async function () {
+        this.timeout(5_000);
+
+        let killed = false;
+        let ended!: () => void;
         const container = fakeContainer({
             attach: async () => {
                 throw new Error("attach exploded");
             },
+            kill: async () => {
+                killed = true;
+                ended();
+            },
+            wait: () =>
+                new Promise<void>(resolve => {
+                    ended = resolve;
+                }),
         });
 
         let closed = 0;
@@ -563,6 +615,7 @@ describe("ChipDockerSubject", () => {
 
         await device.close();
 
+        expect(killed).equal(true);
         expect(closed).equal(1);
     });
 });

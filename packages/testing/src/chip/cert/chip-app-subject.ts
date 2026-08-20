@@ -600,20 +600,27 @@ export class ChipDockerDevice implements CertDevice {
     }
 
     async #trackExit(generation: DockerGeneration, container: Container): Promise<void> {
-        let info: DeviceExitInfo;
         try {
             await container.wait();
-            info = { code: 0, signal: null };
+            this.#ended(generation, { code: 0, signal: null });
         } catch (e) {
             if (e instanceof NonZeroExitError) {
-                info = { code: e.code, signal: null };
-            } else {
-                console.warn(`Error waiting for cert device container ${this.id}:`, e);
-                info = { code: null, signal: null };
+                this.#ended(generation, { code: e.code, signal: null });
+                return;
             }
-        }
 
-        this.#ended(generation, info);
+            // The daemon did not tell us the container stopped, so we do not know that it did: the
+            // run can no longer trust the device, but the container stays a candidate for stop()'s
+            // kill, which composition.close() does not perform.
+            console.warn(`Error waiting for cert device container ${this.id}:`, e);
+            this.#report(generation, { code: null, signal: null });
+        }
+    }
+
+    /** {@link #report}s an end the daemon confirmed, which stop() then has nothing left to kill for. */
+    #ended(generation: DockerGeneration, info: DeviceExitInfo): void {
+        generation.exited = true;
+        this.#report(generation, info);
     }
 
     /**
@@ -621,8 +628,7 @@ export class ChipDockerDevice implements CertDevice {
      * for. The crash latch spans the device's whole life, so a run that restarts a device keeps the
      * detection it armed before its first step.
      */
-    #ended(generation: DockerGeneration, info: DeviceExitInfo): void {
-        generation.exited = true;
+    #report(generation: DockerGeneration, info: DeviceExitInfo): void {
         generation.terminated.resolve(info);
 
         if (!generation.stopping) {

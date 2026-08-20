@@ -1475,6 +1475,38 @@ describe("CertTest", () => {
         );
     });
 
+    it("fails the run when reporting a passing step's outcome throws", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-IDM-1.3",
+            plan: "interactiondatamodel.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step one text",
+                    run: async () => {},
+                },
+            ],
+        };
+
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                endStep() {
+                    throw new Error("reporting exploded");
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            "reporting exploded",
+        );
+    });
+
     it("records a step that throws UnsupportedByControllerError as skipped with a reason naming the operation and controller, and still runs later steps", async () => {
         let step2Ran = false;
 
