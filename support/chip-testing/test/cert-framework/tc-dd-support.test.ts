@@ -292,7 +292,7 @@ describe("recordVendorOutcome", () => {
         await expect(refusals.settle(cx)).rejectedWith(/still running/);
     });
 
-    it("records the DUT onboarding the TH, which the plan also allows", async () => {
+    it("records the DUT onboarding the TH, leaving the fabric to the step that owns it", async () => {
         const refusals = new CommissioningRefusals({ refusalTimeoutMs: 50, settleTimeoutMs: 50 });
         const decommissioned = new Array<CertNodeRef>();
         const cx = contextWith(
@@ -306,8 +306,11 @@ describe("recordVendorOutcome", () => {
         await recordVendorOutcome(cx, CODE, commissioned, refusals, "vendor outcome", 50);
 
         expect(commissioned.get("dut")).equal("peer1");
+
+        // Cleanup must not remove it as well: the ref above is what removes it, and a second removal
+        // of the same fabric fails
         await refusals.settle(cx);
-        expect(decommissioned).deep.equal(["peer1"]);
+        expect(decommissioned).deep.equal([]);
     });
 
     it("records the DUT terminating commissioning", async () => {
