@@ -207,30 +207,35 @@ export class CertTest extends BaseTest {
                 }
             }
 
-            deviceExitWatch.disarm();
-
             // After the flush, so a bundle exists even for a teardown that hangs against an
             // unreachable TH: it is the run's outcome, not the bundle, that carries a close failure.
             const teardownErrors = await this.teardown();
-            if (teardownErrors.length > 0 && !failed) {
-                failed = true;
-                failure = new AggregateError(
-                    teardownErrors,
-                    `Cert test ${tc}: ${teardownErrors.length} controller/device(s) failed to close, leaving state ` +
-                        "behind for whatever runs next",
-                );
+
+            const exited = deviceExitWatch.observed;
+            deviceExitWatch.disarm();
+
+            // In order: what the run itself hit, then a device that died under it — an exit settling
+            // too late for any step's race is still the run's own outcome — and only then cleanup.
+            if (!failed) {
+                if (exited !== undefined) {
+                    failed = true;
+                    failure = new Error(
+                        `A cert-test device exited unexpectedly (code ${exited.code}, signal ${exited.signal}) ` +
+                            "during the run",
+                    );
+                } else if (teardownErrors.length > 0) {
+                    failed = true;
+                    failure = new AggregateError(
+                        teardownErrors,
+                        `Cert test ${tc}: ${teardownErrors.length} controller/device(s) failed to close, leaving ` +
+                            "state behind for whatever runs next",
+                    );
+                }
             }
         }
 
         if (failed) {
             throw failure;
-        }
-
-        const exited = deviceExitWatch.observed;
-        if (exited !== undefined) {
-            throw new Error(
-                `A cert-test device exited unexpectedly (code ${exited.code}, signal ${exited.signal}) during the run`,
-            );
         }
     }
 

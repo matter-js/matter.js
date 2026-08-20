@@ -1278,6 +1278,42 @@ describe("CertTest", () => {
         expect(flushed).equal(true);
     });
 
+    it("reports a device that died rather than a controller that would not close", async () => {
+        let exitDevice!: (info: DeviceExitInfo) => void;
+        const exitPromise = new Promise<DeviceExitInfo>(resolve => {
+            exitDevice = resolve;
+        });
+
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [{ number: 1, text: "A step that passes", run: async () => {} }],
+        };
+
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: { th: stubCertDevice(exitPromise) },
+            recorder: stubRecorder({
+                async flush() {
+                    // The device dies while the evidence is being written, too late for any step race
+                    exitDevice({ code: 1, signal: null });
+                    await new Promise(resolve => setTimeout(resolve, 20));
+                    return "";
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, undefined, [
+            new Error("controller would not close"),
+        ]);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            "exited unexpectedly (code 1, signal null) during the run",
+        );
+    });
+
     it("disarms the device-exit watch once invoke() finishes, so a later exit isn't reported to a finished run's recorder", async () => {
         let exitDevice!: (info: DeviceExitInfo) => void;
         const exitPromise = new Promise<DeviceExitInfo>(resolve => {
