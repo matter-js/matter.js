@@ -138,7 +138,8 @@ them. A cert change therefore needs its own command:
 npm --prefix support/chip-testing run test-cert-framework -- --no-pull
 
 # one leg, for iteration
-npx matter-test esm -p support/chip-testing --spec "./test/cert-framework/*.test.ts"
+MATTER_TEST_SHUTDOWN_TIMEOUT_MS=15000 npx matter-test esm -p support/chip-testing \
+    --spec "./test/cert-framework/*.test.ts"
 ```
 
 `--prefix` rather than a `cd`, so a second command still resolves against the repository root.
@@ -148,6 +149,10 @@ flag.
 Docker is required either way, and no flag avoids it: the specs themselves use fakes, but
 `test/test.config.ts` awaits `chip.initialize()` at module scope, so every leg starts the harness
 containers before any spec runs.
+
+The second form sets `MATTER_TEST_SHUTDOWN_TIMEOUT_MS` by hand because it bypasses the npm script
+that would have set it — without it a run can end in exit 101 during normal cleanup (see
+"Resolved: exit-101 flake after decommission-of-self" below).
 
 What not to reach for: `npm test -- -p support/chip-testing` looks like the same thing and is not. The
 root script is `matter-test -w`, so `-w` arrives with it and queues web tests for a package that has
