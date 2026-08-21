@@ -353,6 +353,78 @@ describe("EvidenceRecorder", () => {
         expect("controllerUnsupportedSkips" in resultJson).equal(false);
     });
 
+    it("records a teardown failure that arrives after the flush, and fails the run over it", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-IDM-2.1",
+            plan: "interactiondatamodel.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "chip-tool",
+            device: "chip-local:all-clusters",
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.endStep(step1, "pass");
+        recorder.attachLog("controller", [logLine(0, "a line")]);
+
+        const dir = await recorder.flush();
+        expect(JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8")).verdict).equal("pass");
+
+        recorder.teardownFailed("chip-tool would not close");
+        await recorder.flushRunRecord();
+
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+        expect(resultJson.verdict).equal("fail");
+        expect(resultJson.teardownError).equal("chip-tool would not close");
+
+        expect(await fsp.readFile(pathMod.join(dir, "controller.log"), "utf8")).equal("a line");
+    });
+
+    it("persists the unverified-check count, so a bare result.json says how much of a passing run rests on nothing observed", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-IDM-5.1",
+            plan: "interactiondatamodel.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "matterjs",
+            device: "matterjs:all-clusters",
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.check({ type: "device-log", verdict: "unverified" });
+        recorder.endStep(step1, "pass");
+        recorder.recordUnverifiedChecks(3);
+
+        const dir = await recorder.flush();
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+
+        // An unverified check is a gap in what was observed, not a defect — the verdict stays a pass.
+        expect(resultJson.verdict).equal("pass");
+        expect(resultJson.unverifiedChecks).equal(3);
+    });
+
+    it("omits the unverified-check count when every check was evaluated", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-IDM-5.1",
+            plan: "interactiondatamodel.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "matterjs",
+            device: "matterjs:all-clusters",
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.endStep(step1, "pass");
+
+        const dir = await recorder.flush();
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+
+        expect("unverifiedChecks" in resultJson).equal(false);
+    });
+
     it("omits chipToolRef from the persisted metadata when the run has none", async () => {
         const recorder = new EvidenceRecorder(outDir, {
             tc: "TC-CADMIN-1.17",

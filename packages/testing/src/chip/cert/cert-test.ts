@@ -71,6 +71,7 @@ export class CertTest extends BaseTest {
         // a response check on essentially every step. Counting them is what lets a controller refusal
         // discovered *after* the step acted be told apart from one discovered before it acted.
         let observedThisStep = 0;
+        let unverifiedChecks = 0;
         const recorded = cx.recorder;
 
         // A StepRecorder may be a class instance, whose members live on its prototype — so each is
@@ -83,6 +84,9 @@ export class CertTest extends BaseTest {
             check: record => {
                 observedThisStep++;
                 recorded.check(record);
+                if (record.verdict === "unverified") {
+                    unverifiedChecks++;
+                }
             },
             endStep: (step, verdict, skipReason) => recorded.endStep(step, verdict, skipReason),
             deviceExited: recorded.deviceExited === undefined ? undefined : info => recorded.deviceExited?.(info),
@@ -93,7 +97,19 @@ export class CertTest extends BaseTest {
                 recorded.recordControllerUnsupportedSkips === undefined
                     ? undefined
                     : count => recorded.recordControllerUnsupportedSkips?.(count),
+            recordUnverifiedChecks:
+                recorded.recordUnverifiedChecks === undefined
+                    ? undefined
+                    : count => recorded.recordUnverifiedChecks?.(count),
+            teardownFailed:
+                recorded.teardownFailed === undefined ? undefined : detail => recorded.teardownFailed?.(detail),
             flush: () => recorded.flush(),
+            flushRunRecord:
+                recorded.flushRunRecord === undefined
+                    ? undefined
+                    : async () => {
+                          await recorded.flushRunRecord?.();
+                      },
         };
         cx.recorder = recorder;
         const deviceExitWatch = watchDeviceExits(devices, recorder);
@@ -217,8 +233,21 @@ export class CertTest extends BaseTest {
             // recorded count are what would tell a reader the run proved less than its verdict
             // suggests; a raw result.json with no attached logs must say it too.
             if (controllerUnsupportedSkips > 0) {
-                announceControllerSkipSummary(cx, tc, controllerUnsupportedSkips);
-                recorder.recordControllerUnsupportedSkips?.(controllerUnsupportedSkips);
+                try {
+                    announceControllerSkipSummary(cx, tc, controllerUnsupportedSkips);
+                    recorder.recordControllerUnsupportedSkips?.(controllerUnsupportedSkips);
+                } catch (e) {
+                    console.warn("Cert test controller-skip summary reporting failed:", e);
+                }
+            }
+
+            if (unverifiedChecks > 0) {
+                try {
+                    announceUnverifiedSummary(cx, tc, unverifiedChecks);
+                    recorder.recordUnverifiedChecks?.(unverifiedChecks);
+                } catch (e) {
+                    console.warn("Cert test unverified-check summary reporting failed:", e);
+                }
             }
         } finally {
             const finalize = this.#definition.finalize;
@@ -244,7 +273,14 @@ export class CertTest extends BaseTest {
             try {
                 await this.beforeFlush(cx);
             } catch (e) {
-                console.warn("Cert test beforeFlush hook failed:", e);
+                // The hook attaches the logs every `device-log` check's `logLine` indexes into, so a
+                // bundle written without them cannot support the checks it carries.
+                if (failed) {
+                    console.warn("Cert test beforeFlush hook failed after a step failure:", e);
+                } else {
+                    failed = true;
+                    failure = e;
+                }
             }
 
             try {
@@ -265,6 +301,19 @@ export class CertTest extends BaseTest {
 
             const exited = deviceExitWatch.observed;
             deviceExitWatch.disarm();
+
+            // Teardown and the exit it can provoke both land after the flush, so without this the
+            // bundle would keep saying "pass" for a run this method is about to reject.
+            if (teardownErrors.length > 0 || exited !== undefined) {
+                try {
+                    if (teardownErrors.length > 0) {
+                        recorder.teardownFailed?.(teardownErrors.map(errorText).join("; "));
+                    }
+                    await recorder.flushRunRecord?.();
+                } catch (e) {
+                    console.warn("Cert test post-teardown reporting failed:", e);
+                }
+            }
 
             // In order: what the run itself hit, then a device that died under it — an exit settling
             // too late for any step's race is still the run's own outcome — and only then cleanup.
@@ -411,6 +460,14 @@ function announceControllerSkipSummary(cx: CertStepContext, tc: string, count: n
     announceStep(cx, [
         STEP_BANNER_RULE,
         `${tc} — ${count} step${count === 1 ? "" : "s"} skipped as unsupported by the controller`,
+        STEP_BANNER_RULE,
+    ]);
+}
+
+function announceUnverifiedSummary(cx: CertStepContext, tc: string, count: number): void {
+    announceStep(cx, [
+        STEP_BANNER_RULE,
+        `${tc} — ${count} check${count === 1 ? "" : "s"} could not be verified`,
         STEP_BANNER_RULE,
     ]);
 }

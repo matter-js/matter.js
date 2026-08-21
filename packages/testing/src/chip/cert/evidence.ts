@@ -45,12 +45,20 @@ export interface RunRecord {
     deviceExit?: { code: number | null; signal?: string };
     /** Why the run's own cleanup failed, if it did (see {@link EvidenceRecorder.finalizationFailed}). */
     finalizationError?: string;
+    /** Why closing the run's controllers or devices failed, if it did (see {@link EvidenceRecorder.teardownFailed}). */
+    teardownError?: string;
     /**
      * How many steps the controller under test could not express, absent if none. A run can reach a
      * "pass" verdict with most of its steps skipped this way, so a reader of this record alone needs
      * the count to know how much the run actually proved.
      */
     controllerUnsupportedSkips?: number;
+    /**
+     * How many checks reported `"unverified"`, absent if none. Such a check neither proves nor
+     * disproves what its step claims — a step made only of them still passes — so this is what tells a
+     * reader of this record alone how much of the run's claims rest on nothing observed.
+     */
+    unverifiedChecks?: number;
 }
 
 // Colons aren't valid in a Windows path segment; CI here targets macOS/Linux, but a dash-for-colon
@@ -76,7 +84,9 @@ export class EvidenceRecorder implements StepRecorder {
     #current?: { def: CertStepDefinition; checks: CheckRecord[] };
     #deviceExit?: { code: number | null; signal?: string };
     #finalizationError?: string;
+    #teardownError?: string;
     #controllerUnsupportedSkips?: number;
+    #unverifiedChecks?: number;
 
     constructor(outDir: string, meta: RunRecord["run"] & { tc: string; plan: string }) {
         this.#meta = meta;
@@ -146,6 +156,24 @@ export class EvidenceRecorder implements StepRecorder {
     }
 
     /**
+     * Records that closing the run's controllers or devices failed, which makes the run's verdict a
+     * failure: state left on the TH outlasts this run and can break the next one (see
+     * {@link RunRecord.teardownError}).
+     */
+    teardownFailed(detail: string): void {
+        this.#teardownError = detail;
+    }
+
+    /**
+     * Records how many checks could not be evaluated (see {@link RunRecord.unverifiedChecks}). Unlike a
+     * failed step this never changes the verdict — such a check is a gap in what the run observed, not
+     * a defect in the device.
+     */
+    recordUnverifiedChecks(count: number): void {
+        this.#unverifiedChecks = count;
+    }
+
+    /**
      * Attaches a raw log dump under `<name>.log`, e.g. `attachLog("controller", ...)` or
      * `attachLog("device-app1", ...)`.
      */
@@ -154,6 +182,16 @@ export class EvidenceRecorder implements StepRecorder {
     }
 
     async flush(): Promise<string> {
+        await this.flushRunRecord();
+
+        for (const [name, lines] of this.#logs) {
+            await writeFile(join(this.#dir, `${name}.log`), lines.map(line => line.text).join("\n"));
+        }
+
+        return this.#dir;
+    }
+
+    async flushRunRecord(): Promise<void> {
         await mkdir(this.#dir, { recursive: true });
 
         const record: RunRecord = {
@@ -172,16 +210,12 @@ export class EvidenceRecorder implements StepRecorder {
             verdict: this.#verdict(),
             deviceExit: this.#deviceExit,
             finalizationError: this.#finalizationError,
+            teardownError: this.#teardownError,
             controllerUnsupportedSkips: this.#controllerUnsupportedSkips,
+            unverifiedChecks: this.#unverifiedChecks,
         };
 
         await writeFile(join(this.#dir, "result.json"), JSON.stringify(record, null, 4));
-
-        for (const [name, lines] of this.#logs) {
-            await writeFile(join(this.#dir, `${name}.log`), lines.map(line => line.text).join("\n"));
-        }
-
-        return this.#dir;
     }
 
     /**
@@ -215,7 +249,7 @@ export class EvidenceRecorder implements StepRecorder {
      * what the run proved. Only a run with at least one non-skipped step can pass.
      */
     #verdict(): "pass" | "fail" | "skipped" {
-        if (this.#deviceExit || this.#finalizationError !== undefined) {
+        if (this.#deviceExit || this.#finalizationError !== undefined || this.#teardownError !== undefined) {
             return "fail";
         }
         if (this.#steps.some(step => step.verdict === "fail" || step.verdict === "aborted")) {

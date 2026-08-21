@@ -114,11 +114,30 @@ export interface StepRecorder {
      */
     recordControllerUnsupportedSkips?(count: number): void;
     /**
+     * Records how many of the run's checks reported `"unverified"` — a check whose claim could not be
+     * evaluated at all, which the step engine treats as neither proof nor failure. A step made
+     * entirely of unverified checks still ends with a "pass" verdict, so without this the persisted
+     * record alone would not say how much of what the steps claim was actually observed.
+     */
+    recordUnverifiedChecks?(count: number): void;
+    /**
+     * Records that closing the run's controllers or devices failed, leaving state behind for whatever
+     * runs next. {@link CertTest} calls this and then fails the run itself unless something already
+     * failed; a recorder need only persist the information (see {@link EvidenceRecorder.teardownFailed}).
+     */
+    teardownFailed?(detail: string): void;
+    /**
      * Persists whatever evidence was recorded. Returns an implementation-defined locator for it
      * (e.g. {@link EvidenceRecorder} returns the directory it wrote to); a recorder with nothing to
      * persist returns an empty string.
      */
     flush(): Promise<string>;
+    /**
+     * Re-persists the run's own record, without the attached logs, for information that only becomes
+     * known after {@link flush} — teardown runs after the flush so that a bundle exists even for a
+     * teardown that hangs, which leaves this as the only way its outcome can reach the bundle.
+     */
+    flushRunRecord?(): Promise<void>;
 }
 
 /**

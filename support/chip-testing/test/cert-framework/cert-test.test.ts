@@ -178,6 +178,7 @@ class TestCertTest extends CertTest {
     #cx: CertStepContext;
     #finalizationTimeoutMs?: number;
     #teardownErrors: unknown[];
+    #beforeFlushError?: unknown;
 
     constructor(
         definition: CertTestDefinition,
@@ -186,11 +187,20 @@ class TestCertTest extends CertTest {
         cx: CertStepContext,
         finalizationTimeoutMs?: number,
         teardownErrors: unknown[] = [],
+        options: { beforeFlushError?: unknown } = {},
     ) {
         super(definition, descriptor, container);
         this.#cx = cx;
         this.#finalizationTimeoutMs = finalizationTimeoutMs;
         this.#teardownErrors = teardownErrors;
+        this.#beforeFlushError = options.beforeFlushError;
+    }
+
+    protected override async beforeFlush(cx: CertStepContext): Promise<void> {
+        if (this.#beforeFlushError !== undefined) {
+            throw this.#beforeFlushError;
+        }
+        return super.beforeFlush(cx);
     }
 
     teardownCalls = 0;
@@ -2075,6 +2085,249 @@ describe("CertTest", () => {
 
         const banners = deviceLog.lines.filter(line => line.synthetic).map(line => line.text);
         expect(banners).to.include("TC-CADMIN-1.17 — 2 steps skipped as unsupported by the controller");
+    });
+
+    it("records a teardown failure in the run's own record, which is written after the flush", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [{ number: 1, text: "Passing step", run: async () => {} }],
+        };
+
+        const calls = new Array<string>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                teardownFailed(detail) {
+                    calls.push(`teardownFailed: ${detail}`);
+                },
+                async flush() {
+                    calls.push("flush");
+                    return "";
+                },
+                async flushRunRecord() {
+                    calls.push("flushRunRecord");
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, undefined, [
+            new Error("controller would not close"),
+        ]);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith("failed to close");
+
+        expect(calls).deep.equal(["flush", "teardownFailed: controller would not close", "flushRunRecord"]);
+    });
+
+    it("re-writes the run record when a device exits after the flush, so the bundle is not left saying pass", async () => {
+        let exitDevice!: (info: DeviceExitInfo) => void;
+        const exitPromise = new Promise<DeviceExitInfo>(resolve => {
+            exitDevice = resolve;
+        });
+
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step that completes before the device dies",
+                    run: async () => {
+                        setTimeout(() => exitDevice({ code: 1, signal: null }), 0);
+                    },
+                },
+            ],
+        };
+
+        const calls = new Array<string>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: { th: stubCertDevice(exitPromise) },
+            recorder: stubRecorder({
+                deviceExited() {
+                    calls.push("deviceExited");
+                },
+                async flush() {
+                    calls.push("flush");
+                    await new Promise(resolve => setTimeout(resolve, 20));
+                    return "";
+                },
+                async flushRunRecord() {
+                    calls.push("flushRunRecord");
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            "exited unexpectedly",
+        );
+
+        // The exit is recorded while the flush is still in flight, so only a second write of the
+        // record can carry it.
+        expect(calls).deep.equal(["flush", "deviceExited", "flushRunRecord"]);
+    });
+
+    it("does not re-write the run record for a run that ended cleanly", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [{ number: 1, text: "Passing step", run: async () => {} }],
+        };
+
+        let rewrites = 0;
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                async flushRunRecord() {
+                    rewrites++;
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+        await test.invoke(stubSubject(new PicsFile([])), () => {}, [], false);
+
+        expect(rewrites).equal(0);
+    });
+
+    it("fails a run whose logs could not be attached, so no bundle claims checks it cannot support", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [{ number: 1, text: "Passing step", run: async () => {} }],
+        };
+
+        const cx: CertStepContext = { controllers: {}, devices: {}, recorder: stubRecorder() };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, undefined, [], {
+            beforeFlushError: new Error("log attach blew up"),
+        });
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            "log attach blew up",
+        );
+    });
+
+    it("keeps a step failure ahead of logs that could not be attached", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Failing step",
+                    run: async () => {
+                        throw new Error("boom");
+                    },
+                },
+            ],
+        };
+
+        const cx: CertStepContext = { controllers: {}, devices: {}, recorder: stubRecorder() };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, undefined, [], {
+            beforeFlushError: new Error("log attach blew up"),
+        });
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith("boom");
+    });
+
+    it("counts the checks that could not be verified, and reports them at run level", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step whose log checks name no pattern for this flavor",
+                    run: async cx => {
+                        cx.recorder.check({ type: "device-log", verdict: "unverified" });
+                        cx.recorder.check({ type: "response", verdict: "pass", detail: "invoke succeeded" });
+                    },
+                },
+                {
+                    number: 2,
+                    text: "Another such step",
+                    run: async cx => {
+                        cx.recorder.check({ type: "device-log", verdict: "unverified" });
+                    },
+                },
+            ],
+        };
+
+        const deviceLog = new LogFollower(noLines(), "device");
+        const unverified = new Array<number>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
+            recorder: stubRecorder({
+                recordUnverifiedChecks(count) {
+                    unverified.push(count);
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+        await test.invoke(stubSubject(new PicsFile([])), () => {}, [], false);
+
+        expect(unverified).deep.equal([2]);
+
+        const banners = deviceLog.lines.filter(line => line.synthetic).map(line => line.text);
+        expect(banners).to.include("TC-CADMIN-1.17 — 2 checks could not be verified");
+    });
+
+    it("reports no unverified-check count for a run where every check was evaluated", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Passing step",
+                    run: async cx => {
+                        cx.recorder.check({ type: "response", verdict: "pass", detail: "invoke succeeded" });
+                    },
+                },
+            ],
+        };
+
+        const deviceLog = new LogFollower(noLines(), "device");
+        let recorded = false;
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
+            recorder: stubRecorder({
+                recordUnverifiedChecks() {
+                    recorded = true;
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+        await test.invoke(stubSubject(new PicsFile([])), () => {}, [], false);
+
+        expect(recorded).equal(false);
+        const banners = deviceLog.lines.filter(line => line.synthetic).map(line => line.text);
+        expect(banners.some(line => line.includes("could not be verified"))).equal(false);
     });
 
     it("reports no controller-unsupported-skip summary line for a run that had none", async () => {
