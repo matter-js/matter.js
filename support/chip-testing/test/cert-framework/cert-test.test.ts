@@ -1812,7 +1812,7 @@ describe("CertTest", () => {
         ]);
     });
 
-    it("keeps a step's already-recorded checks, and the step's start banner, when it then throws UnsupportedByControllerError", async () => {
+    it("fails the run when a controller refusal arrives after the step already recorded evidence", async () => {
         const definition: CertTestDefinition = {
             tc: "TC-CADMIN-1.17",
             plan: "multiplefabrics.adoc",
@@ -1840,7 +1840,11 @@ describe("CertTest", () => {
         const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
         const subject = stubSubject(new PicsFile([]));
 
-        await test.invoke(subject, () => {}, [], false);
+        // The step did act, so "not evaluated" would misstate this run's coverage and leave every
+        // later step resting on a device state the bundle cannot describe
+        await expect(test.invoke(subject, () => {}, [], false)).rejectedWith(
+            /refused "writeAttributes" after the step had already recorded 1 check\(s\)/,
+        );
 
         const banners = deviceLog.lines.filter(line => line.synthetic).map(line => line.text);
         expect(banners).deep.equal([
@@ -1848,13 +1852,92 @@ describe("CertTest", () => {
             "TC-CADMIN-1.17 — Test Step 1: Step that records a check before hitting an unsupported operation",
             "-".repeat(70),
             "-".repeat(70),
-            "TC-CADMIN-1.17 — Test Step 1: SKIPPED",
+            "TC-CADMIN-1.17 — Test Step 1: FAIL",
             "pass: read the data version",
             "-".repeat(70),
-            "-".repeat(70),
-            "TC-CADMIN-1.17 — 1 step skipped as unsupported by the controller",
-            "-".repeat(70),
         ]);
+    });
+
+    it("judges each step on its own evidence, so an earlier step's checks cannot fail a later clean skip", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step that records evidence and passes",
+                    run: async cx => {
+                        cx.recorder.check({ type: "response", verdict: "pass", detail: "read the data version" });
+                    },
+                },
+                {
+                    number: 2,
+                    text: "Step whose first interaction is unsupported",
+                    run: async () => {
+                        throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
+                    },
+                },
+            ],
+        };
+
+        const deviceLog = new LogFollower(noLines(), "device");
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
+            recorder: recordingRecorder(),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await test.invoke(stubSubject(new PicsFile([])), () => {}, [], false);
+
+        const banners = deviceLog.lines.filter(line => line.synthetic).map(line => line.text);
+        expect(banners).contain("TC-CADMIN-1.17 — Test Step 2: SKIPPED");
+    });
+
+    it("still skips, and keeps the run going, when the refusal arrives before the step recorded anything", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step whose first interaction is unsupported",
+                    run: async () => {
+                        throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
+                    },
+                },
+                {
+                    number: 2,
+                    text: "Step that still runs",
+                    run: async cx => {
+                        cx.recorder.check({ type: "response", verdict: "pass", detail: "ran anyway" });
+                    },
+                },
+            ],
+        };
+
+        const deviceLog = new LogFollower(noLines(), "device");
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
+            recorder: recordingRecorder(),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await test.invoke(stubSubject(new PicsFile([])), () => {}, [], false);
+
+        const banners = deviceLog.lines.filter(line => line.synthetic).map(line => line.text);
+        expect(banners).contain("TC-CADMIN-1.17 — Test Step 1: SKIPPED");
+        expect(banners, "the coverage gap is still summarised").contain(
+            "TC-CADMIN-1.17 — 1 step skipped as unsupported by the controller",
+        );
+        expect(banners, "and the run continued").contain("TC-CADMIN-1.17 — Test Step 2: PASS");
     });
 
     it("injects only an end banner (SKIPPED) for a step the flavor gate skips before it starts", async () => {

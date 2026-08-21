@@ -25,7 +25,6 @@ import { registerCertCustomCluster } from "../../src/cert/custom-clusters.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
 import { ChipToolExitError } from "../../src/chip-tool/chip-tool-client.js";
 import { FaultInjectionCluster } from "../cert/fault-injection.js";
-import { countMatches } from "../cert/tc-support.js";
 import { delay, FakeChipTool, waitFor, writeStandInBinary } from "./fake-chip-tool.js";
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
@@ -212,7 +211,7 @@ describe("ChipToolControllerAdapter", function () {
         await started.commission({ passcode: 20202021, discriminator: 3840 });
 
         await new Promise(resolve => setImmediate(resolve));
-        expect(countMatches(started.log, "chip-tool", /failed to send/, 0)).equal(0);
+        expect(started.log.count(/failed to send/, 0)).equal(0);
     });
 
     it("pairs from a QR onboarding payload, which chip-tool reads with the same command", async () => {

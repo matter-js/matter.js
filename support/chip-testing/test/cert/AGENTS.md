@@ -126,6 +126,42 @@ Two independent PICS mechanisms exist, and only one of them is live against toda
   actually does something, rather than assuming it's decorative everywhere just because it is on
   chip.
 
+## Running these tests locally
+
+The root `npm test` does **not** cover this package: `support/chip-testing/package.json` sets
+`nacho.test: false`, because the app legs need Docker and chip binaries, and the opt-out is per
+package rather than per spec. The hermetic tests under `test/cert-framework/**` are dropped with
+them. A cert change therefore needs its own command:
+
+```bash
+# what CI runs; needs a Docker that can start the harness container
+npm --prefix support/chip-testing run test-cert-framework -- --no-pull
+
+# the same specs on one leg, when that container will not start locally
+npx matter-test esm -p support/chip-testing --spec "./test/cert-framework/*.test.ts"
+```
+
+`--prefix` rather than a `cd`, so a second command still resolves against the repository root.
+`--no-pull` because `pull` defaults to true, and CI pulls the image once itself and passes the same
+flag.
+
+Neither flag makes the run independent of Docker. The specs themselves use fakes, but
+`test/test.config.ts` initializes chip state — which creates a container — before any of them run, so
+a machine whose Docker refuses that container cannot use the script form at all. The second command
+is the fallback, and is what a cert change should at minimum be gated on.
+
+What not to reach for: `npm test -- -p support/chip-testing` looks like the same thing and is not. The
+root script is `matter-test -w`, so `-w` arrives with it and queues web tests for a package that has
+none.
+
+CI runs these as the `test-cert-framework` gate that `test-cert` depends on
+(`.github/workflows/chip-cert-tests.yml`). Note what triggers that workflow: a daily schedule,
+`workflow_dispatch`, a release, and a **push** whose changed paths match its `prepare` filter (or
+whose head commit message carries `[execute-certtests]`) — there is no `pull_request` trigger, and
+`prepare` is gated on `github.repository == 'matter-js/matter.js'`. So an in-repo branch push runs
+it; a fork PR does not, and the paths filter diffs against `main` rather than the PR base. A
+root-level "suite green" says nothing about this directory either way.
+
 ## Evidence expectations
 
 Every run writes one `result.json` (`EvidenceRecorder.flush`, shape: `RunRecord` in `evidence.ts`)
@@ -884,7 +920,7 @@ design decision for the maintainer, not something to improvise from inside a ste
 
 ## Deterministic per-write report/ack evidence, not a snapshot count (`TC-IDM-4.1`)
 
-An early draft of `subscribeAndModify` took one `countMatches(STATUS_RESPONSE_SUCCESS, from)`
+An early draft of `subscribeAndModify` took one `log.count(STATUS_RESPONSE_SUCCESS, from)`
 snapshot after all of a step's writes had completed and asserted `>= values.length`. An
 independent review caught that this count is genuinely nondeterministic across otherwise-identical
 runs (it can read 2, 3, or 4 for three correct writes): whether the priming report's own ack falls
