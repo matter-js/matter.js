@@ -126,6 +126,46 @@ Two independent PICS mechanisms exist, and only one of them is live against toda
   actually does something, rather than assuming it's decorative everywhere just because it is on
   chip.
 
+## Running these tests locally
+
+The root `npm test` does **not** cover this package: `support/chip-testing/package.json` sets
+`nacho.test: false`, because the app legs need Docker and chip binaries, and the opt-out is per
+package rather than per spec. The hermetic tests under `test/cert-framework/**` are dropped with
+them. A cert change therefore needs its own command:
+
+```bash
+# what CI runs (esm and cjs legs)
+npm --prefix support/chip-testing run test-cert-framework -- --no-pull
+
+# one leg, for iteration
+MATTER_TEST_SHUTDOWN_TIMEOUT_MS=15000 npx matter-test esm -p support/chip-testing \
+    --spec "./test/cert-framework/*.test.ts"
+```
+
+`--prefix` rather than a `cd`, so a second command still resolves against the repository root.
+`--no-pull` because `pull` defaults to true, and CI pulls the image once itself and passes the same
+flag.
+
+Docker is required either way, and no flag avoids it: the specs themselves use fakes, but
+`test/test.config.ts` awaits `chip.initialize()` at module scope, so every leg starts the harness
+containers before any spec runs.
+
+The second form sets `MATTER_TEST_SHUTDOWN_TIMEOUT_MS` by hand because it bypasses the npm script
+that would have set it — without it a run can end in exit 101 during normal cleanup (see
+"Resolved: exit-101 flake after decommission-of-self" below).
+
+What not to reach for: `npm test -- -p support/chip-testing` looks like the same thing and is not. The
+root script is `matter-test -w`, so `-w` arrives with it and queues web tests for a package that has
+none.
+
+CI runs these as the `test-cert-framework` gate that `test-cert` depends on
+(`.github/workflows/chip-cert-tests.yml`). Note what triggers that workflow: a daily schedule,
+`workflow_dispatch`, a release, and a **push** whose changed paths match its `prepare` filter (or
+whose head commit message carries `[execute-certtests]`) — there is no `pull_request` trigger, and
+`prepare` is gated on `github.repository == 'matter-js/matter.js'`. So an in-repo branch push runs
+it; a fork PR does not, and the paths filter diffs against `main` rather than the PR base. A
+root-level "suite green" says nothing about this directory either way.
+
 ## Evidence expectations
 
 Every run writes one `result.json` (`EvidenceRecorder.flush`, shape: `RunRecord` in `evidence.ts`)
@@ -187,6 +227,24 @@ certTest("TC-XXX-0.0", { plan: "n/a" | "<plan doc id>", pics: [], app: "all-clus
   unconditional "this is what the DUT answered" line beside an `await` that would have thrown.
 - Never throw a plain `Error` from a step: `CertCheckFailedError` is the step-assertion type, and
   `InternalError` is for a harness invariant that cannot hold.
+- A budget in this directory is a `Duration` (`Seconds(15)`, not `15_000`). The framework underneath
+  takes plain numbers, since `@matter/testing` carries no dependency on the library; a `Duration` is
+  milliseconds, so it crosses that boundary as a value — `{ flavor, timeoutMs: timeout, from }`.
+- Two log budgets, and they are not interchangeable. `LOG_TIMEOUT` (`tc-support.ts`, 15 s) bounds a
+  wait for a line the step has already caused — the device writes it while answering the interaction
+  the step drove, so the budget only covers the write and the follower's pump. It absorbed
+  TC-IDM-4.1's old ack budget, which had the same value and the same argument.
+  `COMMISSIONING_LOG_TIMEOUT` (`tc-dd-support.ts`, 30 s) bounds a line a device prints as it comes
+  up or is commissioned, with discovery, PASE, CASE and the commissioning exchanges in between.
+- A step whose only job is to produce something the next step consumes — a substituted QR payload, a
+  manual pairing code — still has a checkable claim: that the artifact carries the substitution the
+  plan asked for. Read it back (`checkGeneratedPayload`/`checkGeneratedManualCode` in
+  `tc-dd-support.ts`) instead of recording a hard-coded `"pass"` whose `detail` asserts a property
+  nobody looked at. Know what this is worth: the artifact is produced and read back in-process, so
+  the check catches a wiring or generator bug in the step, **not** anything the DUT or the TH did —
+  it is not interop evidence, and the `.b` step that feeds the artifact to the DUT is what carries
+  that. A step generating several artifacts records them through `recordAll` (`tc-support.ts`), which
+  puts every one in the evidence before failing; `record` in a loop stops at the first bad one.
 - `certTest` registers the mocha `it()` immediately; `.step()` calls append to it and may continue
   after `certTest()` returns (see `cert-dsl.ts`'s `certTest`/`defineCertTest`).
 - Role names: `cx.controllers.dut` / `cx.devices.th` are the defaults (`controllers: { dut: "dut" }`,
@@ -866,7 +924,7 @@ design decision for the maintainer, not something to improvise from inside a ste
 
 ## Deterministic per-write report/ack evidence, not a snapshot count (`TC-IDM-4.1`)
 
-An early draft of `subscribeAndModify` took one `countMatches(STATUS_RESPONSE_SUCCESS, from)`
+An early draft of `subscribeAndModify` took one `log.count(STATUS_RESPONSE_SUCCESS, from)`
 snapshot after all of a step's writes had completed and asserted `>= values.length`. An
 independent review caught that this count is genuinely nondeterministic across otherwise-identical
 runs (it can read 2, 3, or 4 for three correct writes): whether the priming report's own ack falls
@@ -1017,8 +1075,8 @@ the YAML captures (whose event blocks date from 2022):
 
 ## Promoting the subscription-id and report-ack checks (`TC-IDM-6.4`)
 
-`expectSubscriptionId`/`expectReportAck` (with `ACK_WAIT_TIMEOUT_MS` and their private exchange-id
-helpers) were TC-IDM-4.1-local until TC-IDM-6.4 needed the same "did the DUT ack *this* subscription's
+`expectSubscriptionId`/`expectReportAck` (with their private exchange-id helpers, and with an ack
+budget of their own that is now the shared `LOG_TIMEOUT`) were TC-IDM-4.1-local until TC-IDM-6.4 needed the same "did the DUT ack *this* subscription's
 report" evidence for an event subscription, so they moved to `tc-support.ts` unchanged — same trigger
 as `attributePathIBSequence`'s and `commandPathIBSequence`'s own promotions. `expectSequence` (record
 an `expectAdjacentLines` result as a `CheckRecord`, turning a timeout into a recorded `"fail"`) came

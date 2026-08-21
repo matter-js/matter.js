@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, InternalError, MatterError, Millis, Time } from "@matter/main";
+import { Duration, InternalError, MatterError, Millis, Seconds, Time } from "@matter/main";
 import type {
     AttributePathSpec,
     CertNodeRef,
@@ -16,6 +16,12 @@ import type {
     LogLine,
 } from "@matter/testing";
 import { CertLogClosedError, CertLogTimeoutError } from "@matter/testing";
+
+/**
+ * Bounds a device-log check's wait for a line the step has already caused — one the device writes
+ * while answering the interaction the step drove, not one it writes after work of its own.
+ */
+export const LOG_TIMEOUT = Seconds(15);
 
 /** A cert run left a fabric (and whatever it carries) behind on the TH. */
 export class CertCleanupError extends MatterError {}
@@ -33,6 +39,28 @@ export function record(cx: CertStepContext, check: CheckRecord, what: string) {
     cx.recorder.check(check);
     if (check.verdict === "fail") {
         throw new CertCheckFailedError(`${what} check failed: ${JSON.stringify(check)}`);
+    }
+}
+
+/**
+ * Records every check and fails the step once at the end, so a step asserting several artifacts puts
+ * all of them in the evidence — {@link record} in a loop stops at the first failure and leaves the
+ * rest of the step's own claim unrecorded.
+ *
+ * Each check is built on demand rather than taken as a list, so a builder that throws on the fifth
+ * artifact leaves the first four recorded; its error carries the step, as {@link record}'s does.
+ */
+export function recordAll(cx: CertStepContext, checks: readonly { check: () => CheckRecord; what: string }[]): void {
+    const failed = new Array<string>();
+    for (const { check, what } of checks) {
+        const record = check();
+        cx.recorder.check(record);
+        if (record.verdict === "fail") {
+            failed.push(`${what}: ${JSON.stringify(record)}`);
+        }
+    }
+    if (failed.length) {
+        throw new CertCheckFailedError(`${failed.length} of ${checks.length} checks failed: ${failed.join("; ")}`);
     }
 }
 
@@ -114,17 +142,17 @@ export class CommissionedRefs<Role extends string = "dut"> {
  * earlier step — the follower pumps the device stream asynchronously, so a previous step's response
  * can surface after this step's `mark()`). Such a candidate is skipped and the search resumes at
  * the next one; genuine absence of the block surfaces as `log.expect`'s own timeout error. The
- * whole search shares one `timeoutMs` budget.
+ * whole search shares one `timeout` budget.
  */
 export async function expectAdjacentLines(
     log: LogFollower,
     flavor: string,
     sequence: RegExp[],
     from: number,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<{ verdict: "unverified" } | { verdict: "pass"; last: LogLine }> {
-    const deadline = Time.nowMs + timeoutMs;
-    const remaining = () => Math.max(1, deadline - Time.nowMs);
+    const deadline = Time.nowMs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowMs));
 
     let cursor = from;
     for (;;) {
@@ -299,10 +327,10 @@ export async function expectSequence(
     label: string,
     sequence: RegExp[],
     from: number,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<CheckRecord> {
     try {
-        const result = await expectAdjacentLines(log, flavor, sequence, from, timeoutMs);
+        const result = await expectAdjacentLines(log, flavor, sequence, from, timeout);
         if (result.verdict === "unverified") {
             return { type: "device-log", verdict: "unverified" };
         }
@@ -333,9 +361,9 @@ export async function expectAttributePathIB(
     flavor: string,
     fields: AttributePathSpec,
     from: number,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<CheckRecord> {
-    const result = await expectAdjacentLines(log, flavor, attributePathIBSequence(fields), from, timeoutMs);
+    const result = await expectAdjacentLines(log, flavor, attributePathIBSequence(fields), from, timeout);
     if (result.verdict === "unverified") {
         return { type: "device-log", verdict: "unverified" };
     }
@@ -356,7 +384,7 @@ export async function expectAttributePathIB(
  * `AttributePathIB` block for `fields` follows it at or after that point (see
  * {@link expectAttributePathIB}). Anchoring on the request-message name first, not just the path
  * block on its own, rules out a differently-typed request landing at the same log position. Both
- * waits share `timeoutMs`'s deadline; a timeout or closed source from either stage is recorded as a
+ * waits share `timeout`'s deadline; a timeout or closed source from either stage is recorded as a
  * `"fail"` rather than propagating uncaught.
  */
 export async function expectMessageWithPath(
@@ -365,10 +393,10 @@ export async function expectMessageWithPath(
     message: RegExp,
     fields: AttributePathSpec,
     from: number,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<CheckRecord> {
-    const deadline = Time.nowMs + timeoutMs;
-    const remaining = () => Math.max(1, deadline - Time.nowMs);
+    const deadline = Time.nowMs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowMs));
 
     let anchor: LogExpectResult;
     try {
@@ -455,15 +483,15 @@ export async function expectCommandInvoke(
     command: number,
     fields: CommandFieldValue[],
     from: number,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<CheckRecord> {
     let cursor = from;
     let last: { index: number; text: string } | undefined;
 
     // One deadline for the whole check, not one per wait: a per-wait budget makes the worst case
-    // timeoutMs × (1 + fields.length), where the caller asked for timeoutMs
-    const deadline = Time.nowMs + timeoutMs;
-    const remaining = () => Math.max(1, deadline - Time.nowMs);
+    // timeout × (1 + fields.length), where the caller asked for timeout
+    const deadline = Time.nowMs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowMs));
 
     try {
         const block = await expectAdjacentLines(
@@ -514,27 +542,9 @@ export async function expectCommandInvoke(
     };
 }
 
-// A caller-supplied /g or /y pattern keeps lastIndex between calls; reused as-is across the repeated
-// test() calls below, that state silently skips matches. Stripping once yields a pattern countMatches
-// can test() against every line safely (mirrors LogFollower.expect's own private copy of this fix).
-function matchableCopy(pattern: RegExp): RegExp {
-    return new RegExp(pattern.source, pattern.flags.replace(/[gy]/g, ""));
-}
-
-/**
- * Synchronous count of lines at or after `from` matching `pattern`, skipping
- * {@link LogLine.synthetic} lines the same way {@link LogFollower.expect} does — for a "repeat N
- * times, expect N successes" check. `flavor` is currently unused; every pattern this module exports
- * is chip-only.
- */
-export function countMatches(log: LogFollower, _flavor: string, pattern: RegExp, from: number): number {
-    const matchable = matchableCopy(pattern);
-    return log.lines.slice(from).filter(line => !line.synthetic && matchable.test(line.text)).length;
-}
-
 // How long a further report chunk may take to surface before the transfer counts as finished. The
 // read has already returned by the time a step checks, so this covers the follower's pump lag only.
-const CHUNK_QUIET_MS = 2_000;
+const CHUNK_QUIET = Seconds(2);
 
 /**
  * Confirms a chunked read actually chunked and that the DUT acked every chunk but the last: at least
@@ -547,16 +557,16 @@ export async function expectChunkedTransfer(
     log: LogFollower,
     flavor: string,
     from: number,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<CheckRecord> {
-    const deadline = Time.nowMs + timeoutMs;
-    const remaining = () => Math.max(1, deadline - Time.nowMs);
+    const deadline = Time.nowMs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowMs));
 
     const chunks = new Array<LogLine>();
     for (;;) {
         // The second chunk is what proves the read chunked at all, so it gets the whole remaining
         // budget; every later one only has to outlast pump lag, and its absence ends the transfer.
-        const timeout = chunks.length > 1 ? Math.min(CHUNK_QUIET_MS, remaining()) : remaining();
+        const timeout = chunks.length > 1 ? Duration.min(CHUNK_QUIET, remaining()) : remaining();
         let next: LogExpectResult;
         try {
             next = await log.expect(
@@ -648,41 +658,50 @@ export async function expectChunkedTransfer(
     };
 }
 
-// Bounds waiting for a StatusResponseMessage that should already have been sent by the time this
-// wait starts (the controller's own report-processing acks a report as part of handling it) — this
-// only needs to cover the log follower's own pump lag, not any protocol-level delay.
-export const ACK_WAIT_TIMEOUT_MS = 15_000;
-
-/** What the TH's own SubscribeResponse says about the subscription a step just established. */
-export interface SubscriptionIdLookup {
-    check: CheckRecord;
-    /** Absent when the lookup failed, or for a flavor whose log names no subscription. */
-    subscriptionId?: number;
-}
+/**
+ * What reading a subscription id off a TH's log produced, as three outcomes rather than one optional
+ * field. Every caller gates on `check` before using the result, so a failed lookup already fails the
+ * step before any consumer sees it; the union is what keeps that true if one ever forgets, since a
+ * consumer cannot then treat a failure as a flavor that had nothing to say.
+ */
+export type SubscriptionIdLookup =
+    /** The TH named it. */
+    | { outcome: "found"; subscriptionId: number; check: CheckRecord }
+    /**
+     * No pattern for this flavor. Unreachable while the flavors are chip and matterjs — both name
+     * their subscriptions — and the handling exists for a flavor added without a pattern.
+     */
+    | { outcome: "unnamed"; check: CheckRecord }
+    /** The lookup itself failed; `check` carries why. */
+    | { outcome: "failed"; check: CheckRecord };
 
 async function matterjsSubscriptionId(
     log: LogFollower,
     flavor: string,
     from: number,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<SubscriptionIdLookup> {
     const pattern = String(MATTERJS_SUBSCRIBE_RESPONSE);
     let response: LogExpectResult;
     try {
-        response = await log.expect({ matterjs: MATTERJS_SUBSCRIBE_RESPONSE }, { flavor, timeoutMs, from });
+        response = await log.expect({ matterjs: MATTERJS_SUBSCRIBE_RESPONSE }, { flavor, timeoutMs: timeout, from });
     } catch (e) {
         if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
-            return { check: { type: "device-log", verdict: "fail", pattern, detail: e.message, logLine: from } };
+            return {
+                outcome: "failed",
+                check: { type: "device-log", verdict: "fail", pattern, detail: e.message, logLine: from },
+            };
         }
         throw e;
     }
     if (response.verdict === "unverified") {
-        return { check: { type: "device-log", verdict: "unverified" } };
+        return { outcome: "unnamed", check: { type: "device-log", verdict: "unverified" } };
     }
 
     const id = MATTERJS_SUBSCRIBE_RESPONSE.exec(response.matched.text)?.[1];
     if (id === undefined) {
         return {
+            outcome: "failed",
             check: {
                 type: "device-log",
                 verdict: "fail",
@@ -694,6 +713,7 @@ async function matterjsSubscriptionId(
     }
 
     return {
+        outcome: "found",
         subscriptionId: parseInt(id, 16),
         check: {
             type: "device-log",
@@ -716,22 +736,23 @@ export async function expectSubscriptionId(
     log: LogFollower,
     flavor: string,
     from: number,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<SubscriptionIdLookup> {
     if (flavor === "matterjs") {
-        return matterjsSubscriptionId(log, flavor, from, timeoutMs);
+        return matterjsSubscriptionId(log, flavor, from, timeout);
     }
 
     const sequence = [SUBSCRIBE_RESPONSE_MESSAGE, /\{\s*$/, SUBSCRIPTION_ID_LINE];
     try {
-        const result = await expectAdjacentLines(log, flavor, sequence, from, timeoutMs);
+        const result = await expectAdjacentLines(log, flavor, sequence, from, timeout);
         if (result.verdict === "unverified") {
-            return { check: { type: "device-log", verdict: "unverified" } };
+            return { outcome: "unnamed", check: { type: "device-log", verdict: "unverified" } };
         }
 
         const id = SUBSCRIPTION_ID_LINE.exec(result.last.text)?.[1];
         if (id === undefined) {
             return {
+                outcome: "failed",
                 check: {
                     type: "device-log",
                     verdict: "fail",
@@ -743,6 +764,7 @@ export async function expectSubscriptionId(
         }
 
         return {
+            outcome: "found",
             subscriptionId: parseInt(id, 16),
             check: {
                 type: "device-log",
@@ -755,6 +777,7 @@ export async function expectSubscriptionId(
     } catch (e) {
         if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
             return {
+                outcome: "failed",
                 check: {
                     type: "device-log",
                     verdict: "fail",
@@ -809,15 +832,7 @@ const EXCHANGE_LOOKBACK_LINES = 1000;
  * message's payload size.
  */
 function exchangeIdBefore(log: LogFollower, beforeIndex: number): string | undefined {
-    const floor = Math.max(0, beforeIndex - EXCHANGE_LOOKBACK_LINES);
-    const lines = log.lines;
-    for (let i = beforeIndex - 1; i >= floor; i--) {
-        const match = REPORT_SENT_LINE.exec(lines[i].text);
-        if (match) {
-            return match[1];
-        }
-    }
-    return undefined;
+    return log.lastMatchBefore(REPORT_SENT_LINE, beforeIndex, EXCHANGE_LOOKBACK_LINES)?.match[1];
 }
 
 /**
@@ -830,10 +845,10 @@ async function matterjsReportAck(
     flavor: string,
     subscriptionId: number,
     from: number,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<CheckRecord> {
-    const deadline = Time.nowMs + timeoutMs;
-    const remaining = () => Math.max(1, deadline - Time.nowMs);
+    const deadline = Time.nowMs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowMs));
     const reportPattern = matterjsReportPattern(subscriptionId);
     const pattern = `${reportPattern} then its own Success StatusResponse`;
 
@@ -907,20 +922,23 @@ async function matterjsReportAck(
 export async function expectReportAck(
     log: LogFollower,
     flavor: string,
-    subscriptionId: number | undefined,
+    subscription: SubscriptionIdLookup,
     from: number,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<CheckRecord> {
-    if (subscriptionId === undefined) {
-        return { type: "device-log", verdict: "unverified" };
+    // Takes the lookup rather than its id so a failure cannot arrive here as an unverified nobody can
+    // explain. Callers gate on `check` first, so this is the second line of defence, not the first.
+    if (subscription.outcome !== "found") {
+        return subscription.check;
     }
+    const { subscriptionId } = subscription;
 
     if (flavor === "matterjs") {
-        return matterjsReportAck(log, flavor, subscriptionId, from, timeoutMs);
+        return matterjsReportAck(log, flavor, subscriptionId, from, timeout);
     }
 
-    const deadline = Time.nowMs + timeoutMs;
-    const remaining = () => Math.max(1, deadline - Time.nowMs);
+    const deadline = Time.nowMs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowMs));
     const pattern = `ReportDataMessage(SubscriptionId = 0x${subscriptionId.toString(16)}) then its own ${STATUS_RESPONSE_SUCCESS} (matched by Exchange id)`;
 
     try {
@@ -1029,7 +1047,7 @@ export type SettleReport<T = unknown> = { elapsed: string } & (
 );
 
 /**
- * Waits for `op` to settle, bounded by `timeoutMs` so an implementation that neither answers nor
+ * Waits for `op` to settle, bounded by `timeout` so an implementation that neither answers nor
  * gives up cannot hang the step for the whole mocha timeout. Reports which way it went, for a step
  * that has something to record either way; {@link expectRejection} is the form for a step that
  * demands a refusal.
@@ -1037,12 +1055,12 @@ export type SettleReport<T = unknown> = { elapsed: string } & (
  * A step that stops waiting is still responsible for what the operation does afterwards — a
  * commissioning that succeeds late leaves a fabric on the device.
  */
-export async function settleWithin<T>(label: string, op: Promise<T>, timeoutMs: number): Promise<SettleReport<T>> {
+export async function settleWithin<T>(label: string, op: Promise<T>, timeout: Duration): Promise<SettleReport<T>> {
     // nowUs is the monotonic clock despite the name; nowMs tracks UTC and a step of it would put a
     // negative elapsed into the evidence
     const start = Time.nowUs;
     const elapsed = () => Duration.format(Millis(Time.nowUs - start));
-    const timeout = Time.sleep(`${label} settle timeout`, Millis(timeoutMs));
+    const timer = Time.sleep(`${label} settle timeout`, timeout);
 
     try {
         return await Promise.race([
@@ -1050,16 +1068,16 @@ export async function settleWithin<T>(label: string, op: Promise<T>, timeoutMs: 
                 (value): SettleReport<T> => ({ kind: "resolved", value, elapsed: elapsed() }),
                 (error: unknown): SettleReport<T> => ({ kind: "rejected", error, elapsed: elapsed() }),
             ),
-            timeout.then((): SettleReport<T> => ({ kind: "timeout", elapsed: elapsed() })),
+            timer.then((): SettleReport<T> => ({ kind: "timeout", elapsed: elapsed() })),
         ]);
     } finally {
         // A lost race leaves the sleep armed for its full duration, keeping the process alive past teardown
-        timeout.cancel();
+        timer.cancel();
     }
 }
 
 /**
- * Asserts `op` rejects rather than resolves, bounded by `timeoutMs` so an implementation that
+ * Asserts `op` rejects rather than resolves, bounded by `timeout` so an implementation that
  * neither errors nor gives up cannot hang the step for the whole mocha timeout — which is useless as
  * either evidence or a fast local failure. A timeout is reported `"fail"`, same as an unexpected
  * success, and the elapsed time reaches the evidence either way.
@@ -1071,10 +1089,10 @@ export async function settleWithin<T>(label: string, op: Promise<T>, timeoutMs: 
 export async function expectRejection(
     label: string,
     op: Promise<unknown>,
-    timeoutMs: number,
+    timeout: Duration,
     accept?: (error: unknown) => boolean,
 ): Promise<CheckRecord> {
-    const outcome = await settleWithin(label, op, timeoutMs);
+    const outcome = await settleWithin(label, op, timeout);
     const { elapsed } = outcome;
 
     switch (outcome.kind) {
@@ -1084,7 +1102,7 @@ export async function expectRejection(
             return {
                 type: "response",
                 verdict: "fail",
-                detail: `${label} neither resolved nor rejected within ${Duration.format(Millis(timeoutMs))}`,
+                detail: `${label} neither resolved nor rejected within ${Duration.format(timeout)}`,
             };
         case "rejected": {
             const { error } = outcome;

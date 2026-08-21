@@ -9,12 +9,12 @@ import type { AttributePathSpec } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import { MAX_INTERVAL_CEILING_SECONDS, MIN_INTERVAL_FLOOR_SECONDS, subscribeAndModify } from "./tc-idm-4.1-support.js";
 import {
-    ACK_WAIT_TIMEOUT_MS,
     CommissionedRefs,
     expectMessageWithPath,
     expectReportAck,
     expectSequence,
     expectSubscriptionId,
+    LOG_TIMEOUT,
     record,
     requireId,
     SUBSCRIBE_REQUEST_MESSAGE,
@@ -103,7 +103,7 @@ certTest("TC-IDM-4.1", {
                 SUBSCRIBE_REQUEST_MESSAGE,
                 path,
                 from,
-                15_000,
+                LOG_TIMEOUT,
             );
             record(cx, pathCheck, "SubscribeRequestMessage log");
 
@@ -113,7 +113,7 @@ certTest("TC-IDM-4.1", {
                 SUBSCRIBE_ENVELOPE_LABEL,
                 SUBSCRIBE_ENVELOPE_SEQUENCE,
                 from,
-                15_000,
+                LOG_TIMEOUT,
             );
             record(cx, envelopeCheck, "SubscribeRequestMessage envelope");
         },
@@ -149,7 +149,7 @@ certTest("TC-IDM-4.1", {
                 SUBSCRIBE_REQUEST_MESSAGE,
                 path,
                 from,
-                15_000,
+                LOG_TIMEOUT,
             );
             record(cx, requestCheck, "SubscribeRequestMessage log");
 
@@ -157,16 +157,10 @@ certTest("TC-IDM-4.1", {
             // SubscribeResponses apart (see subscribeAndModify).
             const established = requestCheck.logLine !== undefined ? requestCheck.logLine + 1 : from;
 
-            const idLookup = await expectSubscriptionId(th.log, th.flavor, established, ACK_WAIT_TIMEOUT_MS);
+            const idLookup = await expectSubscriptionId(th.log, th.flavor, established, LOG_TIMEOUT);
             record(cx, idLookup.check, "Subscription-id lookup");
 
-            const logCheck = await expectReportAck(
-                th.log,
-                th.flavor,
-                idLookup.subscriptionId,
-                established,
-                ACK_WAIT_TIMEOUT_MS,
-            );
+            const logCheck = await expectReportAck(th.log, th.flavor, idLookup, established, LOG_TIMEOUT);
             record(cx, logCheck, "Priming-report status");
         }),
         {

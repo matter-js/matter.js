@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/main";
+import { Duration, InternalError, Seconds } from "@matter/main";
 import { Matter } from "@matter/model";
 import type {
     CertNodeApi,
@@ -17,7 +17,14 @@ import type {
 } from "@matter/testing";
 import { CertLogClosedError, CertLogTimeoutError, certTest } from "@matter/testing";
 import { expectMdns } from "../../src/cert/mdns-check.js";
-import { CertCheckFailedError, CommissionedRefs, expectRejection, PendingPairingCode, record } from "./tc-support.js";
+import {
+    CertCheckFailedError,
+    CommissionedRefs,
+    expectRejection,
+    LOG_TIMEOUT,
+    PendingPairingCode,
+    record,
+} from "./tc-support.js";
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
 const VENDOR_ID = BASIC_INFORMATION.attributes.require("vendorId");
@@ -33,7 +40,7 @@ const EXPECTED_CR2_FABRIC_INDEX = 2;
 // failing the command, which is longer than its 20s ModelCommand wait because the wait starts after
 // resolution. A budget under that reports "neither resolved nor rejected" for a controller that was
 // about to reject.
-const POST_REMOVAL_TIMEOUT_MS = 60_000;
+const POST_REMOVAL_TIMEOUT = Seconds(60);
 
 const WINDOW_OPEN_PATTERN = /Commissioning window is now open/;
 const COMMISSIONING_COMPLETE_PATTERN = /Commissioning completed successfully/;
@@ -126,10 +133,10 @@ async function expectDeviceLog(
     flavor: string,
     patterns: LogExpectPatterns,
     from: number,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<DeviceLogCheck> {
     try {
-        const result = await log.expect(patterns, { flavor, timeoutMs, from });
+        const result = await log.expect(patterns, { flavor, timeoutMs: timeout, from });
         if (result.verdict === "unverified") {
             return { check: { type: "device-log", verdict: "unverified" }, from };
         }
@@ -184,7 +191,7 @@ async function checkCommissioned(
         th.flavor,
         { chip: COMMISSIONING_COMPLETE_PATTERN },
         logFrom,
-        15_000,
+        LOG_TIMEOUT,
     );
     record(cx, check, `Commissioning-complete log for ${who}`);
 }
@@ -209,7 +216,7 @@ async function openWindowAndCheck(cx: CertStepContext): Promise<void> {
         detail: `manualPairingCode length=${manualPairingCode.length}`,
     });
 
-    const { check } = await expectDeviceLog(th.log, th.flavor, { chip: WINDOW_OPEN_PATTERN }, from, 15_000);
+    const { check } = await expectDeviceLog(th.log, th.flavor, { chip: WINDOW_OPEN_PATTERN }, from, LOG_TIMEOUT);
     record(cx, check, "Commissioning-window-open log");
 }
 
@@ -338,12 +345,18 @@ certTest("TC-CADMIN-1.17", {
                 th.flavor,
                 { chip: REMOVE_FABRIC_SUCCESS_PATTERN },
                 from,
-                15_000,
+                LOG_TIMEOUT,
             );
             record(cx, removed.check, "RemoveFabric-successful log");
 
             const expiringPattern = new RegExp(`Expiring all sessions for fabric 0x${fabricIndex.toString(16)}!!`);
-            const expiring = await expectDeviceLog(th.log, th.flavor, { chip: expiringPattern }, removed.from, 15_000);
+            const expiring = await expectDeviceLog(
+                th.log,
+                th.flavor,
+                { chip: expiringPattern },
+                removed.from,
+                LOG_TIMEOUT,
+            );
             record(cx, expiring.check, '"Expiring all sessions" log');
 
             // Only surrender th_cr2 to step 8 once both checks above confirm TH_CE actually removed
@@ -372,14 +385,14 @@ certTest("TC-CADMIN-1.17", {
             const writeCheck = await expectRejection(
                 "writeAttribute(NodeLabel)",
                 node.writeAttribute(path, "post-removal"),
-                POST_REMOVAL_TIMEOUT_MS,
+                POST_REMOVAL_TIMEOUT,
             );
             cx.recorder.check(writeCheck);
 
             const readCheck = await expectRejection(
                 "readAttribute(NodeLabel)",
                 node.readAttribute(path),
-                POST_REMOVAL_TIMEOUT_MS,
+                POST_REMOVAL_TIMEOUT,
             );
             cx.recorder.check(readCheck);
 
@@ -403,19 +416,23 @@ certTest("TC-CADMIN-1.17", {
             const dut = cx.controllers.dut;
             const dutRef = commissioned.require("dut");
 
+            if (cr2FabricIndex === undefined) {
+                throw new InternalError("Step ran before TH_CR2's own fabric index was read");
+            }
+            const removedIndex = cr2FabricIndex;
+
             const fabrics = await readFabrics(dut.node(dutRef));
-            const stillHasCr2 = fabrics.some(entry => entry.fabricIndex === cr2FabricIndex);
-            const pass = fabrics.length === 2 && !stillHasCr2;
+            const pass = fabrics.length === 2 && !fabrics.some(entry => entry.fabricIndex === removedIndex);
             cx.recorder.check({
                 type: "response",
                 verdict: pass ? "pass" : "fail",
                 detail:
-                    `${fabrics.length} fabrics after removing index ${cr2FabricIndex}: ` +
+                    `${fabrics.length} fabrics after removing index ${removedIndex}: ` +
                     fabrics.map(entry => entry.fabricIndex).join(", "),
             });
             if (!pass) {
                 throw new CertCheckFailedError(
-                    `Expected 2 fabrics with index ${cr2FabricIndex} (TH_CR2) removed, got ` + describeFabrics(fabrics),
+                    `Expected 2 fabrics with index ${removedIndex} (TH_CR2) removed, got ` + describeFabrics(fabrics),
                 );
             }
         },

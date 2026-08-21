@@ -7,7 +7,7 @@
 import { Matter } from "@matter/model";
 import type { CertNodeRef, CertStepContext, CheckRecord } from "@matter/testing";
 import { certTest } from "@matter/testing";
-import { CommissionedRefs, expectCommandInvoke, record, requireId } from "./tc-support.js";
+import { CommissionedRefs, expectCommandInvoke, LOG_TIMEOUT, record, requireId } from "./tc-support.js";
 
 const ON_OFF = Matter.clusters.require("OnOff");
 const ON_OFF_ID = requireId(ON_OFF.id, "OnOff cluster");
@@ -34,7 +34,16 @@ async function invokeOnOffAndCheck(
     }
     cx.recorder.check({ type: "response", verdict: "pass", detail: "status=Success" });
 
-    const logCheck = await expectCommandInvoke(th.log, th.flavor, ENDPOINT, ON_OFF_ID, commandId, [], from, 15_000);
+    const logCheck = await expectCommandInvoke(
+        th.log,
+        th.flavor,
+        ENDPOINT,
+        ON_OFF_ID,
+        commandId,
+        [],
+        from,
+        LOG_TIMEOUT,
+    );
     record(cx, logCheck, `CommandDataIB log for OnOff.${commandName}`);
     return logCheck;
 }

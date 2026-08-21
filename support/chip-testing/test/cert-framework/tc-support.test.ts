@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError, Time } from "@matter/main";
-import type { CertNodeApi, CertStepContext, ControllerAdapter } from "@matter/testing";
+import { InternalError, Millis, Time, Seconds } from "@matter/main";
+import type { CertNodeApi, CertStepContext, CheckRecord, ControllerAdapter } from "@matter/testing";
 import { LogFollower } from "@matter/testing";
 import {
     attributePathIBSequence,
+    CertCheckFailedError,
     CertCleanupError,
     CommissionedRefs,
     commandPathIBSequence,
-    countMatches,
     EVENT_PATH_IBS_SEQUENCE,
     eventPathIBSequence,
     expectChunkedTransfer,
@@ -24,8 +24,8 @@ import {
     expectSubscriptionId,
     fabricFilteredPattern,
     READ_REQUEST_MESSAGE,
+    recordAll,
     requireId,
-    STATUS_RESPONSE_SUCCESS,
     WRITE_REQUEST_MESSAGE,
 } from "../cert/tc-support.js";
 
@@ -98,7 +98,7 @@ async function withFollower<T>(
     }
     if (drain) {
         // The follower buffers pushed lines through its own async pump; a caller that reads
-        // `.lines` synchronously (e.g. countMatches) instead of waiting via `.expect()` needs the
+        // the buffer synchronously (e.g. `count`) instead of waiting via `.expect()` needs the
         // pump to have drained them first. The pump chain is all microtasks, which the event loop
         // fully drains before running a macrotask callback, so one `setImmediate` tick suffices.
         await new Promise(resolve => setImmediate(resolve));
@@ -111,7 +111,7 @@ async function withFollower<T>(
 }
 
 async function check(lines: string[], flavor = "chip-docker", endSource = false) {
-    return withFollower(lines, follower => expectChunkedTransfer(follower, flavor, 0, 1_000), { endSource });
+    return withFollower(lines, follower => expectChunkedTransfer(follower, flavor, 0, Seconds(1)), { endSource });
 }
 
 describe("expectChunkedTransfer", () => {
@@ -284,7 +284,7 @@ describe("expectSequence", () => {
 
     it("passes on the consecutive read-request-with-event-path run", async () => {
         const record = await withFollower(READ_EVENT_LINES, follower =>
-            expectSequence(follower, "chip-local", "read event path", SEQUENCE, 0, 1_000),
+            expectSequence(follower, "chip-local", "read event path", SEQUENCE, 0, Seconds(1)),
         );
 
         expect(record.verdict).equal("pass");
@@ -293,7 +293,7 @@ describe("expectSequence", () => {
 
     it("finds isFabricFiltered after the path block, which is not adjacent to it", async () => {
         const record = await withFollower(READ_EVENT_LINES, async follower => {
-            const block = await expectSequence(follower, "chip-local", "read event path", SEQUENCE, 0, 1_000);
+            const block = await expectSequence(follower, "chip-local", "read event path", SEQUENCE, 0, Seconds(1));
             expect(block.logLine).equal(9);
             return expectSequence(
                 follower,
@@ -301,7 +301,7 @@ describe("expectSequence", () => {
                 "isFabricFiltered",
                 [fabricFilteredPattern(true)],
                 block.logLine! + 1,
-                1_000,
+                Seconds(1),
             );
         });
 
@@ -310,7 +310,7 @@ describe("expectSequence", () => {
 
     it("fails, rather than throwing, when the sequence never arrives", async () => {
         const record = await withFollower(["[DMG] ReadRequestMessage ="], follower =>
-            expectSequence(follower, "chip-local", "read event path", SEQUENCE, 0, 200),
+            expectSequence(follower, "chip-local", "read event path", SEQUENCE, 0, Millis(200)),
         );
 
         expect(record.verdict).equal("fail");
@@ -319,7 +319,7 @@ describe("expectSequence", () => {
 
     it("reports unverified for a flavor with no pattern for the sequence", async () => {
         const record = await withFollower(READ_EVENT_LINES, follower =>
-            expectSequence(follower, "matterjs", "read event path", SEQUENCE, 0, 1_000),
+            expectSequence(follower, "matterjs", "read event path", SEQUENCE, 0, Seconds(1)),
         );
 
         expect(record.verdict).equal("unverified");
@@ -340,7 +340,7 @@ describe("expectMessageWithPath", () => {
 
     it("passes when the path block follows the message", async () => {
         const record = await withFollower([WRITE, ...PATH], follower =>
-            expectMessageWithPath(follower, "chip-local", WRITE_REQUEST_MESSAGE, FIELDS, 0, 1_000),
+            expectMessageWithPath(follower, "chip-local", WRITE_REQUEST_MESSAGE, FIELDS, 0, Seconds(1)),
         );
 
         expect(record.verdict).equal("pass");
@@ -348,7 +348,7 @@ describe("expectMessageWithPath", () => {
 
     it("fails at the message stage when the path block appears without the message", async () => {
         const record = await withFollower([...PATH], follower =>
-            expectMessageWithPath(follower, "chip-local", WRITE_REQUEST_MESSAGE, FIELDS, 0, 1_000),
+            expectMessageWithPath(follower, "chip-local", WRITE_REQUEST_MESSAGE, FIELDS, 0, Seconds(1)),
         );
 
         expect(record.verdict).equal("fail");
@@ -357,7 +357,7 @@ describe("expectMessageWithPath", () => {
 
     it("fails at the path stage when a path block appears before the message but not after", async () => {
         const record = await withFollower([...PATH, WRITE], follower =>
-            expectMessageWithPath(follower, "chip-local", WRITE_REQUEST_MESSAGE, FIELDS, 0, 1_000),
+            expectMessageWithPath(follower, "chip-local", WRITE_REQUEST_MESSAGE, FIELDS, 0, Seconds(1)),
         );
 
         expect(record.verdict).equal("fail");
@@ -366,28 +366,28 @@ describe("expectMessageWithPath", () => {
 
     it("reports unverified for a flavor with no pattern for the message", async () => {
         const record = await withFollower([WRITE, ...PATH], follower =>
-            expectMessageWithPath(follower, "matterjs", WRITE_REQUEST_MESSAGE, FIELDS, 0, 1_000),
+            expectMessageWithPath(follower, "matterjs", WRITE_REQUEST_MESSAGE, FIELDS, 0, Seconds(1)),
         );
 
         expect(record.verdict).equal("unverified");
     });
 
-    it("gives up within roughly one timeoutMs budget when the path block never arrives, not two", async () => {
+    it("gives up within roughly one timeout budget when the path block never arrives, not two", async () => {
         // The message must arrive partway through the budget, not be already buffered — otherwise
-        // stage 1 costs ~0ms and remaining() is indistinguishable from a fresh timeoutMs, hiding a
+        // stage 1 costs ~0ms and remaining() is indistinguishable from a fresh timeout, hiding a
         // shared-vs-fresh-budget regression in stage 2 instead of catching it.
-        const timeoutMs = 600;
+        const timeout = Millis(600);
         const source = new OpenSource();
         const follower = new LogFollower(source, "th");
         setTimeout(() => source.push(WRITE), 300);
 
         const start = Date.now();
-        const record = await expectMessageWithPath(follower, "chip-local", WRITE_REQUEST_MESSAGE, FIELDS, 0, timeoutMs);
+        const record = await expectMessageWithPath(follower, "chip-local", WRITE_REQUEST_MESSAGE, FIELDS, 0, timeout);
         const elapsed = Date.now() - start;
         await follower.close();
 
         expect(record.verdict).equal("fail");
-        expect(elapsed).lessThan(timeoutMs * 1.25);
+        expect(elapsed).lessThan(timeout * 1.25);
     });
 });
 
@@ -406,18 +406,67 @@ describe("expectSubscriptionId and expectReportAck against a matter.js TH", () =
         "acked: 05ab904b reqAck size: 8 payload: 1524000024ff0c18";
 
     async function ack(lines: string[], subscriptionId = 0x54c99e7e) {
-        return withFollower(lines, follower => expectReportAck(follower, "matterjs", subscriptionId, 0, 200), {
-            endSource: true,
-        });
+        return withFollower(
+            lines,
+            follower =>
+                expectReportAck(
+                    follower,
+                    "matterjs",
+                    { outcome: "found", subscriptionId, check: { type: "device-log", verdict: "pass" } },
+                    0,
+                    Millis(200),
+                ),
+            { endSource: true },
+        );
     }
 
     it("reads the id the TH minted", async () => {
         const lookup = await withFollower([SUBSCRIBE_RESPONSE], follower =>
-            expectSubscriptionId(follower, "matterjs", 0, 200),
+            expectSubscriptionId(follower, "matterjs", 0, Millis(200)),
         );
 
-        expect(lookup.subscriptionId).equal(0x54c99e7e);
+        expect(lookup.outcome).equal("found");
+        expect(lookup.outcome === "found" && lookup.subscriptionId).equal(0x54c99e7e);
         expect(lookup.check.verdict).equal("pass");
+    });
+
+    it("hands a failed lookup's own reason to the ack check, not a bare unverified", async () => {
+        // Callers gate on `check` before getting here, so this is the guard for one that forgets
+        const record = await withFollower(
+            [],
+            follower =>
+                expectReportAck(
+                    follower,
+                    "matterjs",
+                    {
+                        outcome: "failed",
+                        check: { type: "device-log", verdict: "fail", detail: "no SubscribeResponse arrived" },
+                    },
+                    0,
+                    Millis(200),
+                ),
+            { endSource: true },
+        );
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).equal("no SubscribeResponse arrived");
+    });
+
+    it("reports unverified for a flavor whose log names no subscription", async () => {
+        const record = await withFollower(
+            [],
+            follower =>
+                expectReportAck(
+                    follower,
+                    "matterjs",
+                    { outcome: "unnamed", check: { type: "device-log", verdict: "unverified" } },
+                    0,
+                    Millis(200),
+                ),
+            { endSource: true },
+        );
+
+        expect(record.verdict).equal("unverified");
     });
 
     it("passes when the DUT acked this report with Success", async () => {
@@ -512,7 +561,7 @@ describe("expectCommandInvoke", () => {
 
     it("passes when the path block matches and every field line follows in order", async () => {
         const record = await withFollower([...PATH, FIELD], follower =>
-            expectCommandInvoke(follower, "chip-local", 1, 0x6, 0x1, [{ id: 0, value: 4097 }], 0, 1_000),
+            expectCommandInvoke(follower, "chip-local", 1, 0x6, 0x1, [{ id: 0, value: 4097 }], 0, Seconds(1)),
         );
 
         expect(record.verdict).equal("pass");
@@ -520,7 +569,7 @@ describe("expectCommandInvoke", () => {
 
     it("fails when a field line never appears", async () => {
         const record = await withFollower([...PATH], follower =>
-            expectCommandInvoke(follower, "chip-local", 1, 0x6, 0x1, [{ id: 0, value: 4097 }], 0, 1_000),
+            expectCommandInvoke(follower, "chip-local", 1, 0x6, 0x1, [{ id: 0, value: 4097 }], 0, Seconds(1)),
         );
 
         expect(record.verdict).equal("fail");
@@ -528,7 +577,7 @@ describe("expectCommandInvoke", () => {
 
     it("passes with no field checks when fields is empty", async () => {
         const record = await withFollower([...PATH], follower =>
-            expectCommandInvoke(follower, "chip-local", 1, 0x6, 0x1, [], 0, 1_000),
+            expectCommandInvoke(follower, "chip-local", 1, 0x6, 0x1, [], 0, Seconds(1)),
         );
 
         expect(record.verdict).equal("pass");
@@ -536,62 +585,10 @@ describe("expectCommandInvoke", () => {
 
     it("reports unverified for a flavor with no pattern", async () => {
         const record = await withFollower([...PATH], follower =>
-            expectCommandInvoke(follower, "matterjs", 1, 0x6, 0x1, [], 0, 1_000),
+            expectCommandInvoke(follower, "matterjs", 1, 0x6, 0x1, [], 0, Seconds(1)),
         );
 
         expect(record.verdict).equal("unverified");
-    });
-});
-
-describe("countMatches", () => {
-    const SUCCESS = "[DMG] Status = 0x00 (SUCCESS),";
-
-    it("counts only lines at or after the cursor", async () => {
-        await withFollower(
-            [SUCCESS, "noise", SUCCESS],
-            follower => {
-                expect(countMatches(follower, "chip-local", STATUS_RESPONSE_SUCCESS, 0)).equal(2);
-                expect(countMatches(follower, "chip-local", STATUS_RESPONSE_SUCCESS, 1)).equal(1);
-                return Promise.resolve();
-            },
-            { drain: true },
-        );
-    });
-
-    it("returns 0 when nothing matches", async () => {
-        await withFollower(
-            ["noise", "more noise"],
-            follower => {
-                expect(countMatches(follower, "chip-local", STATUS_RESPONSE_SUCCESS, 0)).equal(0);
-                return Promise.resolve();
-            },
-            { drain: true },
-        );
-    });
-
-    it("skips synthetic lines the same way LogFollower.expect does", async () => {
-        await withFollower(
-            [SUCCESS],
-            follower => {
-                follower.annotate(SUCCESS);
-                expect(countMatches(follower, "chip-local", STATUS_RESPONSE_SUCCESS, 0)).equal(1);
-                return Promise.resolve();
-            },
-            { drain: true },
-        );
-    });
-
-    it("does not let a stateful /g pattern skip matches across repeated calls", async () => {
-        await withFollower(
-            [SUCCESS, SUCCESS, SUCCESS, SUCCESS],
-            follower => {
-                const stateful = new RegExp(STATUS_RESPONSE_SUCCESS.source, "g");
-                expect(countMatches(follower, "chip-local", stateful, 0)).equal(4);
-                expect(countMatches(follower, "chip-local", stateful, 0)).equal(4);
-                return Promise.resolve();
-            },
-            { drain: true },
-        );
     });
 });
 
@@ -696,24 +693,24 @@ describe("CommissionedRefs", () => {
 });
 
 describe("expectRejection", () => {
-    const BUDGET_MS = 200;
+    const BUDGET = Millis(200);
 
     it("passes on a rejection and reports what it rejected with", async () => {
-        const check = await expectRejection("op", Promise.reject(new Error("refused")), BUDGET_MS);
+        const check = await expectRejection("op", Promise.reject(new Error("refused")), BUDGET);
 
         expect(check.verdict).equal("pass");
         expect(check.detail).match(/^op rejected after .*: refused$/);
     });
 
     it("fails on an unexpected success", async () => {
-        const check = await expectRejection("op", Promise.resolve("commissioned"), BUDGET_MS);
+        const check = await expectRejection("op", Promise.resolve("commissioned"), BUDGET);
 
         expect(check.verdict).equal("fail");
         expect(check.detail).match(/^op unexpectedly succeeded after /);
     });
 
     it("fails once the budget expires rather than waiting for the call", async () => {
-        const check = await expectRejection("op", new Promise(() => {}), BUDGET_MS);
+        const check = await expectRejection("op", new Promise(() => {}), BUDGET);
 
         expect(check.verdict).equal("fail");
         expect(check.detail).match(/^op neither resolved nor rejected within /);
@@ -723,7 +720,7 @@ describe("expectRejection", () => {
         const check = await expectRejection(
             "op",
             Promise.reject(new InternalError("the process died")),
-            BUDGET_MS,
+            BUDGET,
             error => error instanceof TypeError,
         );
 
@@ -735,7 +732,7 @@ describe("expectRejection", () => {
         const check = await expectRejection(
             "op",
             Promise.reject(new InternalError("refused")),
-            BUDGET_MS,
+            BUDGET,
             error => error instanceof InternalError,
         );
 
@@ -746,8 +743,99 @@ describe("expectRejection", () => {
         // A budget nothing waits out would otherwise hold the process open past teardown
         const before = Time.timers.size;
 
-        await expectRejection("op", Promise.reject(new Error("refused")), 60_000);
+        await expectRejection("op", Promise.reject(new Error("refused")), Seconds(60));
 
         expect(Time.timers.size).equal(before);
+    });
+});
+
+describe("recordAll", () => {
+    function recordingContext() {
+        const checks = new Array<CheckRecord>();
+        const cx = {
+            controllers: {},
+            devices: {},
+            recorder: {
+                beginStep() {},
+                check(check: CheckRecord) {
+                    checks.push(check);
+                },
+                endStep() {
+                    return [];
+                },
+                async flush() {
+                    return "";
+                },
+            },
+        } satisfies CertStepContext;
+
+        return { checks, cx };
+    }
+
+    const pass = (detail: string): CheckRecord => ({ type: "response", verdict: "pass", detail });
+    const fail = (detail: string): CheckRecord => ({ type: "response", verdict: "fail", detail });
+
+    it("records every check when they all pass", () => {
+        const { checks, cx } = recordingContext();
+
+        recordAll(cx, [
+            { check: () => pass("first"), what: "one" },
+            { check: () => pass("second"), what: "two" },
+        ]);
+
+        expect(checks.map(check => check.detail)).deep.equal(["first", "second"]);
+    });
+
+    it("records the checks after a failing one rather than stopping at it", () => {
+        const { checks, cx } = recordingContext();
+
+        expect(() =>
+            recordAll(cx, [
+                { check: () => fail("first"), what: "one" },
+                { check: () => pass("second"), what: "two" },
+                { check: () => fail("third"), what: "three" },
+            ]),
+        ).throw(CertCheckFailedError, /2 of 3 checks failed/);
+
+        expect(checks.map(check => check.detail)).deep.equal(["first", "second", "third"]);
+    });
+
+    it("names every failure in the error it throws", () => {
+        const { cx } = recordingContext();
+
+        expect(() =>
+            recordAll(cx, [
+                { check: () => fail("first"), what: "one" },
+                { check: () => fail("third"), what: "three" },
+            ]),
+        ).throw(CertCheckFailedError, /one:.*three:/);
+    });
+
+    it("keeps the checks recorded before a builder threw", () => {
+        const { checks, cx } = recordingContext();
+
+        expect(() =>
+            recordAll(cx, [
+                { check: () => pass("first"), what: "one" },
+                {
+                    check: (): CheckRecord => {
+                        throw new InternalError("generator produced no artifact");
+                    },
+                    what: "two",
+                },
+            ]),
+        ).throw(InternalError);
+
+        expect(checks.map(check => check.detail)).deep.equal(["first"]);
+    });
+
+    it("passes an unverified check through, as record does", () => {
+        const { checks, cx } = recordingContext();
+
+        recordAll(cx, [
+            { check: () => ({ type: "device-log", verdict: "unverified" }), what: "matterjs has no pattern" },
+        ]);
+
+        expect(checks).length(1);
     });
 });

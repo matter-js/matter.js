@@ -13,6 +13,7 @@ import {
     CommissionedRefs,
     expectAttributePathIB,
     expectChunkedTransfer,
+    LOG_TIMEOUT,
     record,
 } from "./tc-support.js";
 
@@ -96,12 +97,55 @@ async function readAndCheckLog(
     const dut = cx.controllers.dut;
     const from = th.log.mark();
     const value = await dut.node(ref).readAttribute(spec);
-    const logCheck = await expectAttributePathIB(th.log, th.flavor, spec, from, 15_000);
+    const logCheck = await expectAttributePathIB(th.log, th.flavor, spec, from, LOG_TIMEOUT);
     return { value, logCheck };
 }
 
 function recordLogCheck(cx: CertStepContext, logCheck: CheckRecord): void {
     record(cx, logCheck, "AttributePathIB log");
+}
+
+const INT16_MIN = -32768;
+const INT16_MAX = 32767;
+
+/**
+ * Records a numeric read against the data type its step names.
+ *
+ * A step repointed at another attribute fails here rather than testing a data type nobody asked for:
+ * `declaredType` is checked against the model's `effectiveType`, which resolves the inheritance a raw
+ * `type` leaves undefined on a derived element. Where `carries` is absent the value itself narrows
+ * nothing, and the detail says so rather than implying the type was read off the value.
+ */
+function recordNumericRead(
+    cx: CertStepContext,
+    attribute: { effectiveType?: string },
+    declaredType: string,
+    value: unknown,
+    what: string,
+    carries?: (value: number) => boolean,
+): void {
+    const wrong = new Array<string>();
+    if (attribute.effectiveType !== declaredType) {
+        wrong.push(`the model declares the attribute as ${attribute.effectiveType}, not ${declaredType}`);
+    }
+    if (value !== null && typeof value !== "number") {
+        wrong.push("the value is not a number");
+    } else if (carries !== undefined && value !== null && !carries(value)) {
+        wrong.push(`the value is outside what a ${declaredType} carries`);
+    }
+
+    record(
+        cx,
+        {
+            type: "response",
+            verdict: wrong.length ? "fail" : "pass",
+            detail:
+                `${what} = ${JSON.stringify(value)}; the model declares ${declaredType}` +
+                (carries === undefined ? ", which the value itself cannot narrow further here" : "") +
+                (wrong.length ? `; ${wrong.join("; ")}` : ""),
+        },
+        `${declaredType} read`,
+    );
 }
 
 const commissioned = new CommissionedRefs();
@@ -412,15 +456,14 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
             const { value, logCheck } = await readAndCheckLog(cx, ref, spec);
             recordLogCheck(cx, logCheck);
 
-            const pass = value === null || typeof value === "number";
-            cx.recorder.check({
-                type: "response",
-                verdict: pass ? "pass" : "fail",
-                detail: `PressureMeasurement.MeasuredValue = ${JSON.stringify(value)}`,
-            });
-            if (!pass) {
-                throw new CertCheckFailedError(`Expected an int16 value, got ${JSON.stringify(value)}`);
-            }
+            recordNumericRead(
+                cx,
+                PRESSURE_MEASURED_VALUE,
+                "int16",
+                value,
+                "PressureMeasurement.MeasuredValue",
+                value => Number.isInteger(value) && value >= INT16_MIN && value <= INT16_MAX,
+            );
         }),
         {
             pics: "MCORE.IDM.C.ReadRequest.Attribute.DataType_SignedInteger",
@@ -439,15 +482,16 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
             const { value, logCheck } = await readAndCheckLog(cx, ref, spec);
             recordLogCheck(cx, logCheck);
 
-            const pass = value === null || typeof value === "number";
-            cx.recorder.check({
-                type: "response",
-                verdict: pass ? "pass" : "fail",
-                detail: `CarbonDioxideConcentrationMeasurement.MeasuredValue = ${JSON.stringify(value)}`,
-            });
-            if (!pass) {
-                throw new CertCheckFailedError(`Expected a floating-point value, got ${JSON.stringify(value)}`);
-            }
+            // Both adapters hand the value over as a JSON number, which a single and a double reach
+            // identically, so no value predicate can tell them apart; the type claim rests on the
+            // model's declaration and on the AttributePathIB the TH logged
+            recordNumericRead(
+                cx,
+                CO2_MEASURED_VALUE,
+                "single",
+                value,
+                "CarbonDioxideConcentrationMeasurement.MeasuredValue",
+            );
         }),
         {
             pics: "MCORE.IDM.C.ReadRequest.Attribute.DataType_FloatingPoint",
@@ -649,7 +693,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 );
             }
 
-            const chunkCheck = await expectChunkedTransfer(th.log, th.flavor, from, 15_000);
+            const chunkCheck = await expectChunkedTransfer(th.log, th.flavor, from, LOG_TIMEOUT);
             record(cx, chunkCheck, "Chunked-transfer log");
         }),
         {

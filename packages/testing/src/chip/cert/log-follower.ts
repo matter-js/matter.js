@@ -141,10 +141,82 @@ export class LogFollower implements LogSource {
 
     /**
      * Every line seen so far, in arrival order. A fresh copy on each access — callers cannot
-     * mutate the follower's own buffer through it.
+     * mutate the follower's own buffer through it. Prefer {@link count} and {@link lastMatchBefore}
+     * for scanning: they read the buffer directly, where this copies all of it per access.
      */
     get lines(): LogLine[] {
         return [...this.#lines];
+    }
+
+    /** The line at `index`, or `undefined` past the end. */
+    at(index: number): LogLine | undefined {
+        return this.#lines[index];
+    }
+
+    /**
+     * `count` lines starting at `from`, clamped to the buffer. Not named `slice`, whose second
+     * argument is an end index.
+     *
+     * Reads the buffer directly, where {@link lines} copies all of it: a caller scanning a fixed
+     * window inside a wait loop otherwise copies the whole log once per iteration.
+     */
+    window(from: number, count: number): LogLine[] {
+        const start = Math.max(0, from);
+        return this.#lines.slice(start, start + Math.max(0, count));
+    }
+
+    /**
+     * How many lines at or after `from` match `pattern` — for a "repeat N times, expect N
+     * successes" check. Skips synthetic lines, as {@link expect} does.
+     *
+     * `from` is required deliberately: {@link expect} defaults its cursor to the last {@link mark},
+     * and a count defaulting to the whole buffer instead would silently include every earlier step's
+     * lines.
+     */
+    count(pattern: RegExp, from: number): number {
+        const matchable = matchableCopy(pattern);
+        let matches = 0;
+        for (let i = Math.max(0, from); i < this.#lines.length; i++) {
+            const line = this.#lines[i];
+            if (!line.synthetic && matchable.test(line.text)) {
+                matches++;
+            }
+        }
+        return matches;
+    }
+
+    /**
+     * The nearest line before `before` matching `pattern`, searching back at most `within` lines,
+     * with the match it produced. Skips synthetic lines, as {@link expect} does.
+     *
+     * chip logs one message at a time, so the nearest preceding trace line belongs to the message
+     * whose decode dump starts at `before` — which is what makes scanning backward correct however
+     * many raw-frame lines that message's payload produced. `within` bounds it: unbounded, a search
+     * that finds nothing nearby keeps going and attributes a line from minutes earlier.
+     *
+     * The match comes back with the line so a caller reading capture groups does not re-`exec` the
+     * pattern it passed: this scans with a `g`/`y`-stripped copy, and a second `exec` of the
+     * caller's own pattern would not have that protection.
+     */
+    lastMatchBefore(
+        pattern: RegExp,
+        before: number,
+        within: number,
+    ): { line: LogLine; match: RegExpExecArray } | undefined {
+        const matchable = matchableCopy(pattern);
+        const end = Math.min(before, this.#lines.length);
+        const floor = Math.max(0, end - within);
+        for (let i = end - 1; i >= floor; i--) {
+            const line = this.#lines[i];
+            if (line.synthetic) {
+                continue;
+            }
+            const match = matchable.exec(line.text);
+            if (match !== null) {
+                return { line, match };
+            }
+        }
+        return undefined;
     }
 
     /**

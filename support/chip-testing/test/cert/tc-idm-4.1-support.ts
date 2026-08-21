@@ -4,14 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Millis, Time } from "@matter/main";
+import { Duration, Millis, Seconds, Time } from "@matter/main";
 import type { AttributePathSpec, CertNodeRef, CertStepContext } from "@matter/testing";
 import {
-    ACK_WAIT_TIMEOUT_MS,
     CertCheckFailedError,
     expectMessageWithPath,
     expectReportAck,
     expectSubscriptionId,
+    LOG_TIMEOUT,
+    record,
     SUBSCRIBE_REQUEST_MESSAGE,
 } from "./tc-support.js";
 
@@ -30,19 +31,19 @@ export const MAX_INTERVAL_CEILING_SECONDS = 80;
 // elapsed since the last report is coalesced into the next one, not reported on its own. Each write
 // in subscribeAndModify waits for its own report before the next write is issued, so this bounds
 // that wait (floor plus slack for scheduling/CI jitter), not the write itself.
-const REPORT_WAIT_TIMEOUT_MS = (MIN_INTERVAL_FLOOR_SECONDS + 20) * 1000;
+const REPORT_WAIT_TIMEOUT = Seconds(MIN_INTERVAL_FLOOR_SECONDS + 20);
 
 /**
- * Waits until `satisfied()` holds or `timeoutMs` elapses, woken by `setNotify`'s callback rather than
+ * Waits until `satisfied()` holds or `timeout` elapses, woken by `setNotify`'s callback rather than
  * polling. A wake that leaves `satisfied()` false waits again on the remaining budget, so a report
  * that isn't the awaited one can wake this without ending it, and no timer outlives the wait.
  */
 async function waitForReport(
     satisfied: () => boolean,
     setNotify: (fn: (() => void) | undefined) => void,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<boolean> {
-    const deadline = Time.nowMs + timeoutMs;
+    const deadline = Time.nowMs + timeout;
     while (!satisfied()) {
         const remaining = deadline - Time.nowMs;
         if (remaining <= 0) {
@@ -63,9 +64,9 @@ async function waitForReport(
 /** Per-wait budgets {@link subscribeAndModify} uses; a test supplies shorter ones than a real run needs. */
 export interface SubscribeAndModifyTimeouts {
     /** Bounds each establishment check (SubscribeRequest shape, subscription id, priming-report ack). */
-    establishMs?: number;
+    establish?: Duration;
     /** Bounds the wait for one write's own report; must cover MinIntervalFloor's debounce. */
-    reportMs?: number;
+    report?: Duration;
 }
 
 /**
@@ -103,8 +104,8 @@ export async function subscribeAndModify<Value>(
 ): Promise<void> {
     const th = cx.devices.th;
     const node = cx.controllers.dut.node(ref);
-    const establishMs = timeouts.establishMs ?? ACK_WAIT_TIMEOUT_MS;
-    const reportMs = timeouts.reportMs ?? REPORT_WAIT_TIMEOUT_MS;
+    const establish = timeouts.establish ?? LOG_TIMEOUT;
+    const report = timeouts.report ?? REPORT_WAIT_TIMEOUT;
     const from = th.log.mark();
 
     const failResponse = (detail: string): never => {
@@ -138,45 +139,30 @@ export async function subscribeAndModify<Value>(
         SUBSCRIBE_REQUEST_MESSAGE,
         path,
         from,
-        establishMs,
+        establish,
     );
-    cx.recorder.check(subscribeCheck);
-    if (subscribeCheck.verdict === "fail") {
-        throw new CertCheckFailedError(
-            `SubscribeRequestMessage log check failed for step ${step}: ${JSON.stringify(subscribeCheck)}`,
-        );
-    }
+    record(cx, subscribeCheck, `SubscribeRequestMessage log for step ${step}`);
 
     // The follower pumps the device stream asynchronously, so a previous step's SubscribeResponse
     // can surface after this step marked — reading the id out of that one pins every later check to
     // the wrong subscription.
     const established = subscribeCheck.logLine !== undefined ? subscribeCheck.logLine + 1 : from;
 
-    const idLookup = await expectSubscriptionId(th.log, th.flavor, established, establishMs);
-    cx.recorder.check(idLookup.check);
-    if (idLookup.check.verdict === "fail") {
-        throw new CertCheckFailedError(
-            `Subscription-id lookup failed for step ${step}: ${JSON.stringify(idLookup.check)}`,
-        );
-    }
+    const idLookup = await expectSubscriptionId(th.log, th.flavor, established, establish);
+    record(cx, idLookup.check, `Subscription-id lookup for step ${step}`);
 
     // Every flavor names its subscriptions in its own log. One that does not cannot show the TH's own
     // side of what this step claims, and the controller's callbacks are no substitute for it — chip-tool
     // drops reports its device coalesced (see AGENTS.md) — so the step says so rather than proving less.
-    if (idLookup.subscriptionId === undefined) {
+    if (idLookup.outcome !== "found") {
         throw new CertCheckFailedError(
             `Step ${step} cannot read a subscription id from a ${th.flavor} TH's log, so the reports this step ` +
-                "writes for cannot be attributed to its own subscription",
+                `writes for cannot be attributed to its own subscription: ${JSON.stringify(idLookup.check)}`,
         );
     }
 
-    const primingAckCheck = await expectReportAck(th.log, th.flavor, idLookup.subscriptionId, established, establishMs);
-    cx.recorder.check(primingAckCheck);
-    if (primingAckCheck.verdict === "fail") {
-        throw new CertCheckFailedError(
-            `Priming-report status check failed for step ${step}: ${JSON.stringify(primingAckCheck)}`,
-        );
-    }
+    const primingAckCheck = await expectReportAck(th.log, th.flavor, idLookup, established, establish);
+    record(cx, primingAckCheck, `Priming-report status for step ${step}`);
 
     let ackCursor = primingAckCheck.logLine !== undefined ? primingAckCheck.logLine + 1 : th.log.mark();
     for (let i = 0; i < values.length; i++) {
@@ -191,13 +177,9 @@ export async function subscribeAndModify<Value>(
             throw e;
         }
 
-        const ackCheck = await expectReportAck(
-            th.log,
-            th.flavor,
-            idLookup.subscriptionId,
-            Math.max(ackCursor, writeFrom),
-            reportMs,
-        );
+        const ackCheck = await expectReportAck(th.log, th.flavor, idLookup, Math.max(ackCursor, writeFrom), report);
+        // Not `record()`: this demands a pass, where that lets "unverified" through. A flavor whose log
+        // cannot show the ack cannot show what this step claims, so it fails rather than proving less.
         cx.recorder.check(ackCheck);
         if (ackCheck.verdict !== "pass") {
             throw new CertCheckFailedError(
@@ -218,7 +200,7 @@ export async function subscribeAndModify<Value>(
     const allReported = await waitForReport(
         () => matched >= values.length,
         fn => (notify = fn),
-        reportMs,
+        report,
     );
     if (mismatch !== undefined) {
         failResponse(`step ${step}: ${mismatch}`);
@@ -240,7 +222,7 @@ export async function subscribeAndModify<Value>(
         });
     }
 
-    const idText = idLookup.subscriptionId === undefined ? "(none)" : `0x${idLookup.subscriptionId.toString(16)}`;
+    const idText = `0x${idLookup.subscriptionId.toString(16)}`;
     cx.recorder.check({
         type: "response",
         verdict: "pass",

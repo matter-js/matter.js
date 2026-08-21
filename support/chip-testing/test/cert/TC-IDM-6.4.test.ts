@@ -8,7 +8,6 @@ import { Matter } from "@matter/model";
 import type { EventPathSpec } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import {
-    ACK_WAIT_TIMEOUT_MS,
     CommissionedRefs,
     EVENT_PATH_IBS_SEQUENCE,
     eventPathIBSequence,
@@ -16,6 +15,7 @@ import {
     expectSequence,
     expectSubscriptionId,
     fabricFilteredPattern,
+    LOG_TIMEOUT,
     record,
     requireId,
     SUBSCRIBE_REQUEST_MESSAGE,
@@ -26,7 +26,6 @@ const BASIC_INFORMATION_ID = requireId(BASIC_INFORMATION.id, "BasicInformation c
 const START_UP_EVENT = requireId(BASIC_INFORMATION.events.require("startUp").id, "BasicInformation.startUp");
 
 const ENDPOINT_0 = 0;
-const LOG_TIMEOUT_MS = 15_000;
 
 const EVENT_PATH: EventPathSpec = { endpoint: ENDPOINT_0, cluster: BASIC_INFORMATION_ID, event: START_UP_EVENT };
 
@@ -88,7 +87,7 @@ certTest("TC-IDM-6.4", {
                     `MaxIntervalCeilingSeconds, EventPathIBs ${JSON.stringify(EVENT_PATH)})`,
                 subscribeEnvelopeSequence(STEP_1_MIN_INTERVAL, STEP_1_MAX_INTERVAL),
                 from,
-                LOG_TIMEOUT_MS,
+                LOG_TIMEOUT,
             );
             record(cx, envelopeCheck, "SubscribeRequestMessage envelope");
 
@@ -98,7 +97,7 @@ certTest("TC-IDM-6.4", {
                 "SubscribeRequestMessage isFabricFiltered",
                 [fabricFilteredPattern(true)],
                 envelopeCheck.logLine === undefined ? from : envelopeCheck.logLine + 1,
-                LOG_TIMEOUT_MS,
+                LOG_TIMEOUT,
             );
             record(cx, fabricFilteredCheck, "SubscribeRequestMessage isFabricFiltered");
         },
@@ -133,16 +132,10 @@ certTest("TC-IDM-6.4", {
             // Several subscriptions of this run report concurrently (step 1's is still live, as is the
             // controller's own node-level one), so the ack this step needs is identified by the
             // subscription the TH just minted, not by position in the log.
-            const idLookup = await expectSubscriptionId(th.log, th.flavor, from, ACK_WAIT_TIMEOUT_MS);
+            const idLookup = await expectSubscriptionId(th.log, th.flavor, from, LOG_TIMEOUT);
             record(cx, idLookup.check, "SubscribeResponseMessage");
 
-            const ackCheck = await expectReportAck(
-                th.log,
-                th.flavor,
-                idLookup.subscriptionId,
-                from,
-                ACK_WAIT_TIMEOUT_MS,
-            );
+            const ackCheck = await expectReportAck(th.log, th.flavor, idLookup, from, LOG_TIMEOUT);
             record(cx, ackCheck, "Report ack");
         }),
         { expected: "Verify that the DUT sends Status Response Action with a success Status Code." },
