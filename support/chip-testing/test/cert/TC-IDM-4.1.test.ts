@@ -160,13 +160,7 @@ certTest("TC-IDM-4.1", {
             const idLookup = await expectSubscriptionId(th.log, th.flavor, established, LOG_TIMEOUT);
             record(cx, idLookup.check, "Subscription-id lookup");
 
-            const logCheck = await expectReportAck(
-                th.log,
-                th.flavor,
-                idLookup.subscriptionId,
-                established,
-                LOG_TIMEOUT,
-            );
+            const logCheck = await expectReportAck(th.log, th.flavor, idLookup, established, LOG_TIMEOUT);
             record(cx, logCheck, "Priming-report status");
         }),
         {

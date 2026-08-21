@@ -406,9 +406,18 @@ describe("expectSubscriptionId and expectReportAck against a matter.js TH", () =
         "acked: 05ab904b reqAck size: 8 payload: 1524000024ff0c18";
 
     async function ack(lines: string[], subscriptionId = 0x54c99e7e) {
-        return withFollower(lines, follower => expectReportAck(follower, "matterjs", subscriptionId, 0, Millis(200)), {
-            endSource: true,
-        });
+        return withFollower(
+            lines,
+            follower =>
+                expectReportAck(
+                    follower,
+                    "matterjs",
+                    { outcome: "found", subscriptionId, check: { type: "device-log", verdict: "pass" } },
+                    0,
+                    Millis(200),
+                ),
+            { endSource: true },
+        );
     }
 
     it("reads the id the TH minted", async () => {
@@ -416,8 +425,48 @@ describe("expectSubscriptionId and expectReportAck against a matter.js TH", () =
             expectSubscriptionId(follower, "matterjs", 0, Millis(200)),
         );
 
-        expect(lookup.subscriptionId).equal(0x54c99e7e);
+        expect(lookup.outcome).equal("found");
+        expect(lookup.outcome === "found" && lookup.subscriptionId).equal(0x54c99e7e);
         expect(lookup.check.verdict).equal("pass");
+    });
+
+    it("hands a failed lookup's own reason to the ack check, not a bare unverified", async () => {
+        // Callers gate on `check` before getting here, so this is the guard for one that forgets
+        const record = await withFollower(
+            [],
+            follower =>
+                expectReportAck(
+                    follower,
+                    "matterjs",
+                    {
+                        outcome: "failed",
+                        check: { type: "device-log", verdict: "fail", detail: "no SubscribeResponse arrived" },
+                    },
+                    0,
+                    Millis(200),
+                ),
+            { endSource: true },
+        );
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).equal("no SubscribeResponse arrived");
+    });
+
+    it("reports unverified for a flavor whose log names no subscription", async () => {
+        const record = await withFollower(
+            [],
+            follower =>
+                expectReportAck(
+                    follower,
+                    "matterjs",
+                    { outcome: "unnamed", check: { type: "device-log", verdict: "unverified" } },
+                    0,
+                    Millis(200),
+                ),
+            { endSource: true },
+        );
+
+        expect(record.verdict).equal("unverified");
     });
 
     it("passes when the DUT acked this report with Success", async () => {
