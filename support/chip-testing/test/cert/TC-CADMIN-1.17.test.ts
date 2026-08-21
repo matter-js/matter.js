@@ -17,7 +17,7 @@ import type {
 } from "@matter/testing";
 import { CertLogClosedError, CertLogTimeoutError, certTest } from "@matter/testing";
 import { expectMdns } from "../../src/cert/mdns-check.js";
-import { CommissionedRefs, expectRejection, PendingPairingCode } from "./tc-support.js";
+import { CertCheckFailedError, CommissionedRefs, expectRejection, PendingPairingCode, record } from "./tc-support.js";
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
 const VENDOR_ID = BASIC_INFORMATION.attributes.require("vendorId");
@@ -174,7 +174,9 @@ async function checkCommissioned(
         detail: `${who} read VendorID = ${vendorId}`,
     });
     if (!pass) {
-        throw new Error(`${who}: expected VendorID 0xfff1 after commissioning, got ${JSON.stringify(vendorId)}`);
+        throw new CertCheckFailedError(
+            `${who}: expected VendorID 0xfff1 after commissioning, got ${JSON.stringify(vendorId)}`,
+        );
     }
 
     const { check } = await expectDeviceLog(
@@ -184,10 +186,7 @@ async function checkCommissioned(
         logFrom,
         15_000,
     );
-    cx.recorder.check(check);
-    if (check.verdict === "fail") {
-        throw new Error(`Commissioning-complete log check failed for ${who}: ${JSON.stringify(check)}`);
-    }
+    record(cx, check, `Commissioning-complete log for ${who}`);
 }
 
 /** DUT_CR1 opens an enhanced commissioning window and stashes the manual pairing code for the next step. */
@@ -211,10 +210,7 @@ async function openWindowAndCheck(cx: CertStepContext): Promise<void> {
     });
 
     const { check } = await expectDeviceLog(th.log, th.flavor, { chip: WINDOW_OPEN_PATTERN }, from, 15_000);
-    cx.recorder.check(check);
-    if (check.verdict === "fail") {
-        throw new Error(`Commissioning-window-open log check failed: ${JSON.stringify(check)}`);
-    }
+    record(cx, check, "Commissioning-window-open log");
 }
 
 certTest("TC-CADMIN-1.17", {
@@ -292,7 +288,7 @@ certTest("TC-CADMIN-1.17", {
             const fabrics = await readFabrics(dut.node(dutRef));
             cr2FabricIndex = await readOwnFabricIndex(cx.controllers.th_cr2.node(commissioned.require("th_cr2")));
             if (!fabrics.some(entry => entry.fabricIndex === cr2FabricIndex)) {
-                throw new Error(
+                throw new CertCheckFailedError(
                     `TH_CR2 reports fabric index ${cr2FabricIndex}, absent from DUT_CR1's own read: ` +
                         describeFabrics(fabrics),
                 );
@@ -305,7 +301,7 @@ certTest("TC-CADMIN-1.17", {
                 detail: `${fabrics.length} fabrics; th_cr2 fabricIndex=${cr2FabricIndex}`,
             });
             if (!pass) {
-                throw new Error(`Expected 3 fabrics (dut, th_cr2, th_cr3), got ${fabrics.length}`);
+                throw new CertCheckFailedError(`Expected 3 fabrics (dut, th_cr2, th_cr3), got ${fabrics.length}`);
             }
         },
         { pics: "OPCREDS.C.A0001", expected: "Verify TH_CE receives and processes the command successfully" },
@@ -329,7 +325,7 @@ certTest("TC-CADMIN-1.17", {
                 detail: `th_cr2 fabricIndex=${fabricIndex} (plan assumes ${EXPECTED_CR2_FABRIC_INDEX} for a dut→th_cr2→th_cr3 commissioning order)`,
             });
             if (fabricIndex !== EXPECTED_CR2_FABRIC_INDEX) {
-                throw new Error(
+                throw new CertCheckFailedError(
                     `th_cr2's fabricIndex was ${fabricIndex}, not the plan's assumed ${EXPECTED_CR2_FABRIC_INDEX}`,
                 );
             }
@@ -344,17 +340,11 @@ certTest("TC-CADMIN-1.17", {
                 from,
                 15_000,
             );
-            cx.recorder.check(removed.check);
-            if (removed.check.verdict === "fail") {
-                throw new Error(`RemoveFabric-successful log check failed: ${JSON.stringify(removed.check)}`);
-            }
+            record(cx, removed.check, "RemoveFabric-successful log");
 
             const expiringPattern = new RegExp(`Expiring all sessions for fabric 0x${fabricIndex.toString(16)}!!`);
             const expiring = await expectDeviceLog(th.log, th.flavor, { chip: expiringPattern }, removed.from, 15_000);
-            cx.recorder.check(expiring.check);
-            if (expiring.check.verdict === "fail") {
-                throw new Error(`"Expiring all sessions" log check failed: ${JSON.stringify(expiring.check)}`);
-            }
+            record(cx, expiring.check, '"Expiring all sessions" log');
 
             // Only surrender th_cr2 to step 8 once both checks above confirm TH_CE actually removed
             // it — invoke() resolving only means the peer accepted the interaction, not that
@@ -396,7 +386,7 @@ certTest("TC-CADMIN-1.17", {
             if (writeCheck.verdict !== "pass" || readCheck.verdict !== "pass") {
                 // A call that succeeded proves the fabric outlived RemoveFabric, so cleanup owns it again.
                 commissioned.set("th_cr2", removedCr2Ref);
-                throw new Error(
+                throw new CertCheckFailedError(
                     `Expected both write and read to fail post-removal: ${JSON.stringify({ writeCheck, readCheck })}`,
                 );
             }
@@ -424,7 +414,7 @@ certTest("TC-CADMIN-1.17", {
                     fabrics.map(entry => entry.fabricIndex).join(", "),
             });
             if (!pass) {
-                throw new Error(
+                throw new CertCheckFailedError(
                     `Expected 2 fabrics with index ${cr2FabricIndex} (TH_CR2) removed, got ` + describeFabrics(fabrics),
                 );
             }
@@ -451,12 +441,7 @@ certTest("TC-CADMIN-1.17", {
                 { operationalRecords: 2 },
                 { timeoutMs: 20_000, operationalInstanceName: [dutInstanceName, cr3InstanceName] },
             );
-            cx.recorder.check(result);
-            if (result.verdict !== "pass") {
-                throw new Error(
-                    `Expected exactly 2 operational mDNS records (dut + th_cr3), got ${JSON.stringify(result)}`,
-                );
-            }
+            record(cx, result, "Exactly 2 operational mDNS records (dut + th_cr3)");
         },
         {
             expected:
@@ -503,7 +488,9 @@ certTest("TC-CADMIN-1.17", {
                 detail: `${fabrics.length} fabrics: ${fabrics.map(entry => `${entry.label}#${entry.fabricIndex}`).join(", ")}`,
             });
             if (!pass) {
-                throw new Error(`Expected 3 fabrics after th_cr2 re-commissioned, got ${fabrics.length}`);
+                throw new CertCheckFailedError(
+                    `Expected 3 fabrics after th_cr2 re-commissioned, got ${fabrics.length}`,
+                );
             }
         },
         { pics: "OPCREDS.C.A0001", expected: "Verify TH_CE receives and processes the command successfully" },

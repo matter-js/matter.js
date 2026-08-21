@@ -8,7 +8,13 @@ import { InternalError } from "@matter/main";
 import { Matter } from "@matter/model";
 import type { AttributePathSpec, CertStepContext, CheckRecord } from "@matter/testing";
 import { certTest } from "@matter/testing";
-import { CommissionedRefs, expectAttributePathIB, expectChunkedTransfer } from "./tc-support.js";
+import {
+    CertCheckFailedError,
+    CommissionedRefs,
+    expectAttributePathIB,
+    expectChunkedTransfer,
+    record,
+} from "./tc-support.js";
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
 const ON_OFF = Matter.clusters.require("OnOff");
@@ -95,10 +101,7 @@ async function readAndCheckLog(
 }
 
 function recordLogCheck(cx: CertStepContext, logCheck: CheckRecord): void {
-    cx.recorder.check(logCheck);
-    if (logCheck.verdict === "fail") {
-        throw new Error(`AttributePathIB log check failed: ${JSON.stringify(logCheck)}`);
-    }
+    record(cx, logCheck, "AttributePathIB log");
 }
 
 const commissioned = new CommissionedRefs();
@@ -128,7 +131,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
             const pass = value === 0xfff1;
             cx.recorder.check({ type: "response", verdict: pass ? "pass" : "fail", detail: `VendorID = ${value}` });
             if (!pass) {
-                throw new Error(`Expected VendorID 0xfff1, got ${JSON.stringify(value)}`);
+                throw new CertCheckFailedError(`Expected VendorID 0xfff1, got ${JSON.stringify(value)}`);
             }
         },
         { expected: "Verify that the TH receives the right Read Request Message." },
@@ -153,7 +156,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 detail: `${entries.length} attributes, all BasicInformation@0: ${allBasicInformationAt0}, vendorId=${vendorIdEntry?.value}`,
             });
             if (!pass) {
-                throw new Error(`Unexpected cluster-wildcard read result: ${JSON.stringify(entries)}`);
+                throw new CertCheckFailedError(`Unexpected cluster-wildcard read result: ${JSON.stringify(entries)}`);
             }
         }),
         { expected: "Verify that the TH receives the right Read Request Message." },
@@ -180,7 +183,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 detail: `${entries.length} attributes total, vendorId marker=${marker?.value}`,
             });
             if (!pass) {
-                throw new Error(`Unexpected full-wildcard read result: ${entries.length} entries`);
+                throw new CertCheckFailedError(`Unexpected full-wildcard read result: ${entries.length} entries`);
             }
         }),
         { expected: "Verify that the TH receives the right Read Request Message." },
@@ -204,7 +207,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 detail: `${entries.length} entries across ${distinctClusters.length} clusters, ${distinctEndpoints.length} endpoints`,
             });
             if (!pass) {
-                throw new Error(
+                throw new CertCheckFailedError(
                     `Unexpected attribute-wildcard read result: ${JSON.stringify({ distinctClusters, distinctEndpoints })}`,
                 );
             }
@@ -229,7 +232,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 detail: `${entries.length} Descriptor attributes across endpoints ${distinctEndpoints.join(",")}`,
             });
             if (!pass) {
-                throw new Error(
+                throw new CertCheckFailedError(
                     `Unexpected cluster-wildcard-across-endpoints result: ${JSON.stringify(distinctEndpoints)}`,
                 );
             }
@@ -257,7 +260,9 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 detail: `ServerList read at endpoints ${distinctEndpoints.join(",")}`,
             });
             if (!pass) {
-                throw new Error(`Unexpected cluster+attribute-wildcard result: ${JSON.stringify(entries)}`);
+                throw new CertCheckFailedError(
+                    `Unexpected cluster+attribute-wildcard result: ${JSON.stringify(entries)}`,
+                );
             }
         }),
         { expected: "Verify that the TH receives the right Read Request Message." },
@@ -280,7 +285,9 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 detail: `${entries.length} attributes across ${distinctClusters.length} clusters at endpoint 1`,
             });
             if (!pass) {
-                throw new Error(`Unexpected endpoint-wildcard result: ${distinctClusters.length} clusters`);
+                throw new CertCheckFailedError(
+                    `Unexpected endpoint-wildcard result: ${distinctClusters.length} clusters`,
+                );
             }
         }),
         { expected: "Verify that the TH receives the right Read Request Message." },
@@ -305,7 +312,9 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 detail: `ClusterRevision read from ${distinctClusters.length} clusters at endpoint 1`,
             });
             if (!pass) {
-                throw new Error(`Unexpected endpoint+attribute-wildcard result: ${distinctClusters.length} clusters`);
+                throw new CertCheckFailedError(
+                    `Unexpected endpoint+attribute-wildcard result: ${distinctClusters.length} clusters`,
+                );
             }
         }),
         { expected: "Verify that the TH receives the right Read Request Message." },
@@ -329,7 +338,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 detail: `OnOff = ${JSON.stringify(value)}`,
             });
             if (!pass) {
-                throw new Error(`Expected a bool value, got ${JSON.stringify(value)}`);
+                throw new CertCheckFailedError(`Expected a bool value, got ${JSON.stringify(value)}`);
             }
         }),
         {
@@ -356,7 +365,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 detail: `ModeSelect.Description = ${JSON.stringify(value)}`,
             });
             if (!pass) {
-                throw new Error(`Expected a string value, got ${JSON.stringify(value)}`);
+                throw new CertCheckFailedError(`Expected a string value, got ${JSON.stringify(value)}`);
             }
         }),
         {
@@ -383,7 +392,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 detail: `LevelControl.CurrentLevel = ${JSON.stringify(value)}`,
             });
             if (!pass) {
-                throw new Error(`Expected a uint8 value, got ${JSON.stringify(value)}`);
+                throw new CertCheckFailedError(`Expected a uint8 value, got ${JSON.stringify(value)}`);
             }
         }),
         {
@@ -410,7 +419,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 detail: `PressureMeasurement.MeasuredValue = ${JSON.stringify(value)}`,
             });
             if (!pass) {
-                throw new Error(`Expected an int16 value, got ${JSON.stringify(value)}`);
+                throw new CertCheckFailedError(`Expected an int16 value, got ${JSON.stringify(value)}`);
             }
         }),
         {
@@ -437,7 +446,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 detail: `CarbonDioxideConcentrationMeasurement.MeasuredValue = ${JSON.stringify(value)}`,
             });
             if (!pass) {
-                throw new Error(`Expected a floating-point value, got ${JSON.stringify(value)}`);
+                throw new CertCheckFailedError(`Expected a floating-point value, got ${JSON.stringify(value)}`);
             }
         }),
         {
@@ -464,7 +473,9 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 detail: `TrustedRootCertificates: ${Array.isArray(value) ? `${value.length} entries` : JSON.stringify(value)}`,
             });
             if (!pass) {
-                throw new Error(`Expected a non-empty list of octet strings, got ${JSON.stringify(value)}`);
+                throw new CertCheckFailedError(
+                    `Expected a non-empty list of octet strings, got ${JSON.stringify(value)}`,
+                );
             }
         }),
         {
@@ -495,7 +506,9 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 detail: `BasicCommissioningInfo = ${JSON.stringify(value)}`,
             });
             if (!pass) {
-                throw new Error(`Expected a BasicCommissioningInfo struct, got ${JSON.stringify(value)}`);
+                throw new CertCheckFailedError(
+                    `Expected a BasicCommissioningInfo struct, got ${JSON.stringify(value)}`,
+                );
             }
         }),
         {
@@ -522,7 +535,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 detail: `ModeSelect.SupportedModes: ${Array.isArray(value) ? `${value.length} entries` : JSON.stringify(value)}`,
             });
             if (!pass) {
-                throw new Error(`Expected a non-empty list, got ${JSON.stringify(value)}`);
+                throw new CertCheckFailedError(`Expected a non-empty list, got ${JSON.stringify(value)}`);
             }
         }),
         {
@@ -549,7 +562,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 detail: `OccupancySensing.OccupancySensorType = ${JSON.stringify(value)}`,
             });
             if (!pass) {
-                throw new Error(`Expected an enum (number) value, got ${JSON.stringify(value)}`);
+                throw new CertCheckFailedError(`Expected an enum (number) value, got ${JSON.stringify(value)}`);
             }
         }),
         {
@@ -572,7 +585,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 detail: `LevelControl.Options = ${JSON.stringify(value)}`,
             });
             if (!pass) {
-                throw new Error(`Expected a bitmap value, got ${JSON.stringify(value)}`);
+                throw new CertCheckFailedError(`Expected a bitmap value, got ${JSON.stringify(value)}`);
             }
         }),
         {
@@ -605,7 +618,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 detail: `3 reads: ${JSON.stringify(values)}`,
             });
             if (!pass) {
-                throw new Error(`Expected 3 identical bool reads, got ${JSON.stringify(values)}`);
+                throw new CertCheckFailedError(`Expected 3 identical bool reads, got ${JSON.stringify(values)}`);
             }
         }),
         { expected: "On the TH verify the received Read Request message is same for all the 3 times." },
@@ -631,14 +644,13 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                     `high-level readAttribute does not expose per-chunk StatusResponse acking)`,
             });
             if (!pass) {
-                throw new Error(`Expected a large wildcard read (>100 attributes), got ${entries.length}`);
+                throw new CertCheckFailedError(
+                    `Expected a large wildcard read (>100 attributes), got ${entries.length}`,
+                );
             }
 
             const chunkCheck = await expectChunkedTransfer(th.log, th.flavor, from, 15_000);
-            cx.recorder.check(chunkCheck);
-            if (chunkCheck.verdict === "fail") {
-                throw new Error(`Chunked-transfer log check failed: ${JSON.stringify(chunkCheck)}`);
-            }
+            record(cx, chunkCheck, "Chunked-transfer log");
         }),
         {
             expected:
@@ -679,7 +691,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                         : "No manufacturer-specific cluster (>=0x10000) found in the wildcard read",
                 });
                 if (!sizePass || !msPass) {
-                    throw new Error(
+                    throw new CertCheckFailedError(
                         `Unexpected full-wildcard read result: ${entries.length} entries, MS clusters [${foundIds}]`,
                     );
                 }
@@ -690,7 +702,9 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                     detail: "matter.js all-clusters app defines no manufacturer-specific cluster",
                 });
                 if (!sizePass) {
-                    throw new Error(`Expected a large wildcard read (>100 attributes), got ${entries.length}`);
+                    throw new CertCheckFailedError(
+                        `Expected a large wildcard read (>100 attributes), got ${entries.length}`,
+                    );
                 }
             }
         }),
