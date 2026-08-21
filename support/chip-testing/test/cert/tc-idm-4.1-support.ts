@@ -12,6 +12,7 @@ import {
     expectReportAck,
     expectSubscriptionId,
     LOG_TIMEOUT,
+    record,
     SUBSCRIBE_REQUEST_MESSAGE,
 } from "./tc-support.js";
 
@@ -140,12 +141,7 @@ export async function subscribeAndModify<Value>(
         from,
         establish,
     );
-    cx.recorder.check(subscribeCheck);
-    if (subscribeCheck.verdict === "fail") {
-        throw new CertCheckFailedError(
-            `SubscribeRequestMessage log check failed for step ${step}: ${JSON.stringify(subscribeCheck)}`,
-        );
-    }
+    record(cx, subscribeCheck, `SubscribeRequestMessage log for step ${step}`);
 
     // The follower pumps the device stream asynchronously, so a previous step's SubscribeResponse
     // can surface after this step marked — reading the id out of that one pins every later check to
@@ -153,12 +149,7 @@ export async function subscribeAndModify<Value>(
     const established = subscribeCheck.logLine !== undefined ? subscribeCheck.logLine + 1 : from;
 
     const idLookup = await expectSubscriptionId(th.log, th.flavor, established, establish);
-    cx.recorder.check(idLookup.check);
-    if (idLookup.check.verdict === "fail") {
-        throw new CertCheckFailedError(
-            `Subscription-id lookup failed for step ${step}: ${JSON.stringify(idLookup.check)}`,
-        );
-    }
+    record(cx, idLookup.check, `Subscription-id lookup for step ${step}`);
 
     // Every flavor names its subscriptions in its own log. One that does not cannot show the TH's own
     // side of what this step claims, and the controller's callbacks are no substitute for it — chip-tool
@@ -171,12 +162,7 @@ export async function subscribeAndModify<Value>(
     }
 
     const primingAckCheck = await expectReportAck(th.log, th.flavor, idLookup, established, establish);
-    cx.recorder.check(primingAckCheck);
-    if (primingAckCheck.verdict === "fail") {
-        throw new CertCheckFailedError(
-            `Priming-report status check failed for step ${step}: ${JSON.stringify(primingAckCheck)}`,
-        );
-    }
+    record(cx, primingAckCheck, `Priming-report status for step ${step}`);
 
     let ackCursor = primingAckCheck.logLine !== undefined ? primingAckCheck.logLine + 1 : th.log.mark();
     for (let i = 0; i < values.length; i++) {
@@ -192,6 +178,8 @@ export async function subscribeAndModify<Value>(
         }
 
         const ackCheck = await expectReportAck(th.log, th.flavor, idLookup, Math.max(ackCursor, writeFrom), report);
+        // Not `record()`: this demands a pass, where that lets "unverified" through. A flavor whose log
+        // cannot show the ack cannot show what this step claims, so it fails rather than proving less.
         cx.recorder.check(ackCheck);
         if (ackCheck.verdict !== "pass") {
             throw new CertCheckFailedError(

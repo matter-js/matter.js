@@ -660,7 +660,7 @@ export async function expectChunkedTransfer(
 
 /**
  * What reading a subscription id off a TH's log produced, as three outcomes rather than one optional
- * field. Every caller today records `check` through {@link record} first, so a failed lookup fails the
+ * field. Every caller gates on `check` before using the result, so a failed lookup already fails the
  * step before any consumer sees it; the union is what keeps that true if one ever forgets, since a
  * consumer cannot then treat a failure as a flavor that had nothing to say.
  */
