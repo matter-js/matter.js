@@ -542,24 +542,6 @@ export async function expectCommandInvoke(
     };
 }
 
-// A caller-supplied /g or /y pattern keeps lastIndex between calls; reused as-is across the repeated
-// test() calls below, that state silently skips matches. Stripping once yields a pattern countMatches
-// can test() against every line safely (mirrors LogFollower.expect's own private copy of this fix).
-function matchableCopy(pattern: RegExp): RegExp {
-    return new RegExp(pattern.source, pattern.flags.replace(/[gy]/g, ""));
-}
-
-/**
- * Synchronous count of lines at or after `from` matching `pattern`, skipping
- * {@link LogLine.synthetic} lines the same way {@link LogFollower.expect} does — for a "repeat N
- * times, expect N successes" check. `flavor` is currently unused; every pattern this module exports
- * is chip-only.
- */
-export function countMatches(log: LogFollower, _flavor: string, pattern: RegExp, from: number): number {
-    const matchable = matchableCopy(pattern);
-    return log.lines.slice(from).filter(line => !line.synthetic && matchable.test(line.text)).length;
-}
-
 // How long a further report chunk may take to surface before the transfer counts as finished. The
 // read has already returned by the time a step checks, so this covers the follower's pump lag only.
 const CHUNK_QUIET = Seconds(2);
@@ -832,15 +814,7 @@ const EXCHANGE_LOOKBACK_LINES = 1000;
  * message's payload size.
  */
 function exchangeIdBefore(log: LogFollower, beforeIndex: number): string | undefined {
-    const floor = Math.max(0, beforeIndex - EXCHANGE_LOOKBACK_LINES);
-    const lines = log.lines;
-    for (let i = beforeIndex - 1; i >= floor; i--) {
-        const match = REPORT_SENT_LINE.exec(lines[i].text);
-        if (match) {
-            return match[1];
-        }
-    }
-    return undefined;
+    return log.lastMatchBefore(REPORT_SENT_LINE, beforeIndex, EXCHANGE_LOOKBACK_LINES)?.match[1];
 }
 
 /**

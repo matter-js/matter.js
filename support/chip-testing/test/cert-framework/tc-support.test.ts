@@ -13,7 +13,6 @@ import {
     CertCleanupError,
     CommissionedRefs,
     commandPathIBSequence,
-    countMatches,
     EVENT_PATH_IBS_SEQUENCE,
     eventPathIBSequence,
     expectChunkedTransfer,
@@ -27,7 +26,6 @@ import {
     READ_REQUEST_MESSAGE,
     recordAll,
     requireId,
-    STATUS_RESPONSE_SUCCESS,
     WRITE_REQUEST_MESSAGE,
 } from "../cert/tc-support.js";
 
@@ -100,7 +98,7 @@ async function withFollower<T>(
     }
     if (drain) {
         // The follower buffers pushed lines through its own async pump; a caller that reads
-        // `.lines` synchronously (e.g. countMatches) instead of waiting via `.expect()` needs the
+        // the buffer synchronously (e.g. `count`) instead of waiting via `.expect()` needs the
         // pump to have drained them first. The pump chain is all microtasks, which the event loop
         // fully drains before running a macrotask callback, so one `setImmediate` tick suffices.
         await new Promise(resolve => setImmediate(resolve));
@@ -542,58 +540,6 @@ describe("expectCommandInvoke", () => {
         );
 
         expect(record.verdict).equal("unverified");
-    });
-});
-
-describe("countMatches", () => {
-    const SUCCESS = "[DMG] Status = 0x00 (SUCCESS),";
-
-    it("counts only lines at or after the cursor", async () => {
-        await withFollower(
-            [SUCCESS, "noise", SUCCESS],
-            follower => {
-                expect(countMatches(follower, "chip-local", STATUS_RESPONSE_SUCCESS, 0)).equal(2);
-                expect(countMatches(follower, "chip-local", STATUS_RESPONSE_SUCCESS, 1)).equal(1);
-                return Promise.resolve();
-            },
-            { drain: true },
-        );
-    });
-
-    it("returns 0 when nothing matches", async () => {
-        await withFollower(
-            ["noise", "more noise"],
-            follower => {
-                expect(countMatches(follower, "chip-local", STATUS_RESPONSE_SUCCESS, 0)).equal(0);
-                return Promise.resolve();
-            },
-            { drain: true },
-        );
-    });
-
-    it("skips synthetic lines the same way LogFollower.expect does", async () => {
-        await withFollower(
-            [SUCCESS],
-            follower => {
-                follower.annotate(SUCCESS);
-                expect(countMatches(follower, "chip-local", STATUS_RESPONSE_SUCCESS, 0)).equal(1);
-                return Promise.resolve();
-            },
-            { drain: true },
-        );
-    });
-
-    it("does not let a stateful /g pattern skip matches across repeated calls", async () => {
-        await withFollower(
-            [SUCCESS, SUCCESS, SUCCESS, SUCCESS],
-            follower => {
-                const stateful = new RegExp(STATUS_RESPONSE_SUCCESS.source, "g");
-                expect(countMatches(follower, "chip-local", stateful, 0)).equal(4);
-                expect(countMatches(follower, "chip-local", stateful, 0)).equal(4);
-                return Promise.resolve();
-            },
-            { drain: true },
-        );
     });
 });
 

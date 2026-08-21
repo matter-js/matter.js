@@ -65,7 +65,37 @@ export class CertTest extends BaseTest {
         _uncommissioned: boolean,
     ): Promise<void> {
         const cx = this.contextFor(subject);
-        const { recorder, devices } = cx;
+        const { devices } = cx;
+
+        // A step's own checks are how the suite defines "something was observed" — AGENTS.md requires
+        // a response check on essentially every step. Counting them is what lets a controller refusal
+        // discovered *after* the step acted be told apart from one discovered before it acted.
+        let observedThisStep = 0;
+        const recorded = cx.recorder;
+
+        // A StepRecorder may be a class instance, whose members live on its prototype — so each is
+        // forwarded by name.
+        const recorder: StepRecorder = {
+            beginStep: step => {
+                observedThisStep = 0;
+                recorded.beginStep(step);
+            },
+            check: record => {
+                observedThisStep++;
+                recorded.check(record);
+            },
+            endStep: (step, verdict, skipReason) => recorded.endStep(step, verdict, skipReason),
+            deviceExited: recorded.deviceExited === undefined ? undefined : info => recorded.deviceExited?.(info),
+            finalizationFailed:
+                recorded.finalizationFailed === undefined ? undefined : detail => recorded.finalizationFailed?.(detail),
+            runHeaderLines: recorded.runHeaderLines === undefined ? undefined : () => recorded.runHeaderLines?.() ?? [],
+            recordControllerUnsupportedSkips:
+                recorded.recordControllerUnsupportedSkips === undefined
+                    ? undefined
+                    : count => recorded.recordControllerUnsupportedSkips?.(count),
+            flush: () => recorded.flush(),
+        };
+        cx.recorder = recorder;
         const deviceExitWatch = watchDeviceExits(devices, recorder);
         const flavor = this.flavorFor(devices);
         const tc = this.#definition.tc;
@@ -144,8 +174,25 @@ export class CertTest extends BaseTest {
                     await raceAgainstDeviceExit(stepDef.run(cx), deviceExitWatch.exit, tc, stepDef.number);
                 } catch (e) {
                     if (e instanceof UnsupportedByControllerError) {
-                        controllerUnsupportedSkips++;
-                        report(stepDef, "skipped", e.message);
+                        // "skipped" claims nothing was evaluated. A step that already recorded
+                        // evidence did act, so every later step would rest on a device state nobody
+                        // declared — that is the run's outcome, not a skip.
+                        if (observedThisStep === 0) {
+                            controllerUnsupportedSkips++;
+                            report(stepDef, "skipped", e.message);
+                            continue;
+                        }
+
+                        aborted = true;
+                        failed = true;
+                        failure = new Error(
+                            `Cert test ${tc} step ${stepDef.number}: the controller refused "${e.operation}" after ` +
+                                `the step had already recorded ${observedThisStep} check(s), so the device is in a ` +
+                                `state this run cannot describe. Declare the limitation in the controller's own ` +
+                                `PICS so the step is skipped before it acts. Refusal: ${e.message}`,
+                        );
+
+                        report(stepDef, "fail");
                         continue;
                     }
 

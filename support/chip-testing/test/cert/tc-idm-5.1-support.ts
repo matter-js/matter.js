@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Millis, Seconds, Time } from "@matter/main";
+import { Duration, InternalError, Millis, Seconds, Time } from "@matter/main";
 import type { CheckRecord, LogFollower, LogLine } from "@matter/testing";
 import { CertLogClosedError, CertLogTimeoutError } from "@matter/testing";
 import { expectAdjacentLines } from "./tc-support.js";
@@ -28,6 +28,11 @@ const TIMED_REQUEST_FLAG = /timedRequest = true,\s*$/;
  * (`src/messaging/README.md`).
  */
 const RECEIPT_LINE = /\[E:(\d+[ir])[^\]]*\] \((S|U|G)\) Msg RX from/;
+
+// How far back from a message's decode dump its own receive line may sit. chip prints the two a
+// handful of lines apart; the bound is what stops a search that finds nothing nearby from
+// attributing a receipt logged minutes earlier to this message.
+const RECEIPT_LOOKBACK_LINES = 1000;
 
 /**
  * How many lines after a request message's opening brace its `timedRequest` flag may appear. chip
@@ -67,22 +72,14 @@ export interface Receipt {
     category: "S" | "U" | "G";
 }
 
-/**
- * The receive line for the message whose decode dump starts at `index`: the nearest one preceding it,
- * since chip logs one message at a time, so no other message's own receive line can land in between.
- */
-function receiptBefore(lines: readonly LogLine[], index: number): Receipt | undefined {
-    for (let i = index - 1; i >= 0; i--) {
-        const { text, synthetic } = lines[i];
-        if (synthetic) {
-            continue;
-        }
-        const match = RECEIPT_LINE.exec(text);
-        if (match !== null) {
-            return { index: i, text, exchange: match[1], category: match[2] as Receipt["category"] };
-        }
+/** The receive line for the message whose decode dump starts at `index`, as {@link LogFollower.lastMatchBefore} finds it. */
+function receiptBefore(log: LogFollower, index: number): Receipt | undefined {
+    const found = log.lastMatchBefore(RECEIPT_LINE, index, RECEIPT_LOOKBACK_LINES);
+    if (found === undefined) {
+        return undefined;
     }
-    return undefined;
+    const { line, match } = found;
+    return { index: line.index, text: line.text, exchange: match[1], category: match[2] as Receipt["category"] };
 }
 
 export interface TimedRequestLookup {
@@ -112,7 +109,7 @@ export async function expectTimedRequest(
         }
         return {
             line: result.last,
-            receipt: receiptBefore(log.lines, result.last.index),
+            receipt: receiptBefore(log, result.last.index),
             check: {
                 type: "device-log",
                 verdict: "pass",
@@ -208,15 +205,18 @@ export async function expectTimedFollowUp(
             }
             cursor = block.last.index + 1;
 
-            const lines = log.lines;
-            if (receiptBefore(lines, block.last.index)?.exchange !== receipt.exchange) {
+            if (receiptBefore(log, block.last.index)?.exchange !== receipt.exchange) {
                 continue;
             }
 
-            const messageLine = lines[block.last.index - 1];
+            // The matched block is [message, "{"], so the line before its last is the message's own
+            const messageLine = log.at(block.last.index - 1);
+            if (messageLine === undefined) {
+                throw new InternalError(`Matched a message block at line ${block.last.index} with no line before it`);
+            }
             const flagged =
-                lines
-                    .slice(block.last.index + 1, block.last.index + 1 + FLAG_WITHIN_LINES)
+                log
+                    .window(block.last.index + 1, FLAG_WITHIN_LINES)
                     .some(({ synthetic, text }) => !synthetic && TIMED_REQUEST_FLAG.test(text)) ||
                 (await waitForLaggingFlag(log, flavor, block.last.index, remaining()));
             if (flagged === "unverified") {

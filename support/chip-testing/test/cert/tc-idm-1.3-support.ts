@@ -8,13 +8,7 @@ import { Duration, ImplementationError } from "@matter/main";
 import type { CheckRecord, LogFollower } from "@matter/testing";
 import { CertLogClosedError, CertLogTimeoutError } from "@matter/testing";
 import { ChipFault } from "./fault-injection.js";
-import {
-    commandPathIBSequence,
-    countMatches,
-    expectAdjacentLines,
-    expectSequence,
-    INVOKE_REQUEST_MESSAGE,
-} from "./tc-support.js";
+import { commandPathIBSequence, expectAdjacentLines, expectSequence, INVOKE_REQUEST_MESSAGE } from "./tc-support.js";
 
 /** A concrete command path of a batched invoke. */
 export interface BatchPath {
@@ -97,7 +91,7 @@ export function expectNoInjectedFault(log: LogFollower, flavor: string, from: nu
         return { type: "device-log", verdict: "unverified" };
     }
 
-    const count = countMatches(log, flavor, FAULT_INJECTED_LINE, from);
+    const count = log.count(FAULT_INJECTED_LINE, from);
     return {
         type: "device-log",
         verdict: count === 0 ? "pass" : "fail",
@@ -120,7 +114,7 @@ export function expectInvokeCount(log: LogFollower, flavor: string, from: number
         return { type: "device-log", verdict: "unverified" };
     }
 
-    const count = countMatches(log, flavor, INVOKE_REQUEST_MESSAGE, from);
+    const count = log.count(INVOKE_REQUEST_MESSAGE, from);
     return {
         type: "device-log",
         verdict: count === expected ? "pass" : "fail",
@@ -199,8 +193,7 @@ export async function expectBatchRequestPaths(
         }
 
         const commands =
-            countMatches(log, flavor, COMMAND_DATA_IB, envelope.last.index) -
-            countMatches(log, flavor, COMMAND_DATA_IB, end.matched.index);
+            log.count(COMMAND_DATA_IB, envelope.last.index) - log.count(COMMAND_DATA_IB, end.matched.index);
         if (commands !== paths.length) {
             return {
                 type: "device-log",
