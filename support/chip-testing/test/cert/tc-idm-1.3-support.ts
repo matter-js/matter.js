@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError } from "@matter/main";
+import { Duration, ImplementationError } from "@matter/main";
 import type { CheckRecord, LogFollower } from "@matter/testing";
 import { CertLogClosedError, CertLogTimeoutError } from "@matter/testing";
 import { ChipFault } from "./fault-injection.js";
@@ -80,9 +80,9 @@ export function expectInjectedFault(
     flavor: string,
     fault: number,
     from: number,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<CheckRecord> {
-    return expectSequence(log, flavor, `fault ${fault} injected`, injectedFaultSequence(fault), from, timeoutMs);
+    return expectSequence(log, flavor, `fault ${fault} injected`, injectedFaultSequence(fault), from, timeout);
 }
 
 /**
@@ -151,12 +151,12 @@ export async function expectBatchRequestPaths(
     flavor: string,
     paths: BatchPath[],
     from: number,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<CheckRecord> {
     const label = `InvokeRequestMessage with paths ${JSON.stringify(paths)}`;
 
     try {
-        const envelope = await expectAdjacentLines(log, flavor, [INVOKE_REQUEST_MESSAGE], from, timeoutMs);
+        const envelope = await expectAdjacentLines(log, flavor, [INVOKE_REQUEST_MESSAGE], from, timeout);
         if (envelope.verdict === "unverified") {
             return { type: "device-log", verdict: "unverified" };
         }
@@ -166,7 +166,7 @@ export async function expectBatchRequestPaths(
         // the case this check exists to tell apart from one batch carrying them all.
         const end = await log.expect(
             { chip: INTERACTION_MODEL_REVISION },
-            { flavor, timeoutMs, from: envelope.last.index + 1 },
+            { flavor, timeoutMs: timeout, from: envelope.last.index + 1 },
         );
         if (end.verdict === "unverified") {
             return { type: "device-log", verdict: "unverified" };
@@ -179,7 +179,7 @@ export async function expectBatchRequestPaths(
                 flavor,
                 commandPathIBSequence(endpoint, cluster, command),
                 last.index + 1,
-                timeoutMs,
+                timeout,
             );
             if (block.verdict === "unverified") {
                 return { type: "device-log", verdict: "unverified" };

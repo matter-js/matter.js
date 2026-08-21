@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Millis, Time } from "@matter/main";
+import { Duration, Millis, Seconds, Time } from "@matter/main";
 import type { AttributePathSpec, CertNodeRef, CertStepContext } from "@matter/testing";
 import {
-    ACK_WAIT_TIMEOUT_MS,
     CertCheckFailedError,
     expectMessageWithPath,
     expectReportAck,
     expectSubscriptionId,
+    LOG_TIMEOUT,
     SUBSCRIBE_REQUEST_MESSAGE,
 } from "./tc-support.js";
 
@@ -30,19 +30,19 @@ export const MAX_INTERVAL_CEILING_SECONDS = 80;
 // elapsed since the last report is coalesced into the next one, not reported on its own. Each write
 // in subscribeAndModify waits for its own report before the next write is issued, so this bounds
 // that wait (floor plus slack for scheduling/CI jitter), not the write itself.
-const REPORT_WAIT_TIMEOUT_MS = (MIN_INTERVAL_FLOOR_SECONDS + 20) * 1000;
+const REPORT_WAIT_TIMEOUT = Seconds(MIN_INTERVAL_FLOOR_SECONDS + 20);
 
 /**
- * Waits until `satisfied()` holds or `timeoutMs` elapses, woken by `setNotify`'s callback rather than
+ * Waits until `satisfied()` holds or `timeout` elapses, woken by `setNotify`'s callback rather than
  * polling. A wake that leaves `satisfied()` false waits again on the remaining budget, so a report
  * that isn't the awaited one can wake this without ending it, and no timer outlives the wait.
  */
 async function waitForReport(
     satisfied: () => boolean,
     setNotify: (fn: (() => void) | undefined) => void,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<boolean> {
-    const deadline = Time.nowMs + timeoutMs;
+    const deadline = Time.nowMs + timeout;
     while (!satisfied()) {
         const remaining = deadline - Time.nowMs;
         if (remaining <= 0) {
@@ -63,9 +63,9 @@ async function waitForReport(
 /** Per-wait budgets {@link subscribeAndModify} uses; a test supplies shorter ones than a real run needs. */
 export interface SubscribeAndModifyTimeouts {
     /** Bounds each establishment check (SubscribeRequest shape, subscription id, priming-report ack). */
-    establishMs?: number;
+    establish?: Duration;
     /** Bounds the wait for one write's own report; must cover MinIntervalFloor's debounce. */
-    reportMs?: number;
+    report?: Duration;
 }
 
 /**
@@ -103,8 +103,8 @@ export async function subscribeAndModify<Value>(
 ): Promise<void> {
     const th = cx.devices.th;
     const node = cx.controllers.dut.node(ref);
-    const establishMs = timeouts.establishMs ?? ACK_WAIT_TIMEOUT_MS;
-    const reportMs = timeouts.reportMs ?? REPORT_WAIT_TIMEOUT_MS;
+    const establish = timeouts.establish ?? LOG_TIMEOUT;
+    const report = timeouts.report ?? REPORT_WAIT_TIMEOUT;
     const from = th.log.mark();
 
     const failResponse = (detail: string): never => {
@@ -138,7 +138,7 @@ export async function subscribeAndModify<Value>(
         SUBSCRIBE_REQUEST_MESSAGE,
         path,
         from,
-        establishMs,
+        establish,
     );
     cx.recorder.check(subscribeCheck);
     if (subscribeCheck.verdict === "fail") {
@@ -152,7 +152,7 @@ export async function subscribeAndModify<Value>(
     // the wrong subscription.
     const established = subscribeCheck.logLine !== undefined ? subscribeCheck.logLine + 1 : from;
 
-    const idLookup = await expectSubscriptionId(th.log, th.flavor, established, establishMs);
+    const idLookup = await expectSubscriptionId(th.log, th.flavor, established, establish);
     cx.recorder.check(idLookup.check);
     if (idLookup.check.verdict === "fail") {
         throw new CertCheckFailedError(
@@ -170,7 +170,7 @@ export async function subscribeAndModify<Value>(
         );
     }
 
-    const primingAckCheck = await expectReportAck(th.log, th.flavor, idLookup.subscriptionId, established, establishMs);
+    const primingAckCheck = await expectReportAck(th.log, th.flavor, idLookup.subscriptionId, established, establish);
     cx.recorder.check(primingAckCheck);
     if (primingAckCheck.verdict === "fail") {
         throw new CertCheckFailedError(
@@ -196,7 +196,7 @@ export async function subscribeAndModify<Value>(
             th.flavor,
             idLookup.subscriptionId,
             Math.max(ackCursor, writeFrom),
-            reportMs,
+            report,
         );
         cx.recorder.check(ackCheck);
         if (ackCheck.verdict !== "pass") {
@@ -218,7 +218,7 @@ export async function subscribeAndModify<Value>(
     const allReported = await waitForReport(
         () => matched >= values.length,
         fn => (notify = fn),
-        reportMs,
+        report,
     );
     if (mismatch !== undefined) {
         failResponse(`step ${step}: ${mismatch}`);

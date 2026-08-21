@@ -12,6 +12,7 @@ import {
     CertCheckFailedError,
     CommissionedRefs,
     expectMessageWithPath,
+    LOG_TIMEOUT,
     record,
     requireId,
     WRITE_REQUEST_MESSAGE,
@@ -78,7 +79,7 @@ async function writeAndCheck(
         detail: `wrote ${JSON.stringify(value)} to ${JSON.stringify(path)}`,
     });
 
-    const logCheck = await expectMessageWithPath(th.log, th.flavor, WRITE_REQUEST_MESSAGE, path, from, 15_000);
+    const logCheck = await expectMessageWithPath(th.log, th.flavor, WRITE_REQUEST_MESSAGE, path, from, LOG_TIMEOUT);
     record(cx, logCheck, `WriteRequestMessage log for step ${label}`);
 }
 
@@ -155,7 +156,14 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 );
             }
 
-            const logCheck = await expectMessageWithPath(th.log, th.flavor, WRITE_REQUEST_MESSAGE, path, from, 15_000);
+            const logCheck = await expectMessageWithPath(
+                th.log,
+                th.flavor,
+                WRITE_REQUEST_MESSAGE,
+                path,
+                from,
+                LOG_TIMEOUT,
+            );
             record(cx, logCheck, "WriteRequestMessage log for step 2");
 
             for (const { endpoint } of written) {
@@ -365,7 +373,7 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 WRITE_REQUEST_MESSAGE,
                 labelPath,
                 from,
-                15_000,
+                LOG_TIMEOUT,
             );
             record(cx, logCheck, "WriteRequestMessage log for step 15");
 

@@ -4,11 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Millis } from "@matter/main";
 import { Matter } from "@matter/model";
 import type { CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import { expectTimedFollowUp, expectTimedRequest, expectUnicastReceipt } from "./tc-idm-5.1-support.js";
-import { CommissionedRefs, INVOKE_REQUEST_MESSAGE, record, requireId, WRITE_REQUEST_MESSAGE } from "./tc-support.js";
+import {
+    CommissionedRefs,
+    INVOKE_REQUEST_MESSAGE,
+    LOG_TIMEOUT,
+    record,
+    requireId,
+    WRITE_REQUEST_MESSAGE,
+} from "./tc-support.js";
 
 const ON_OFF = Matter.clusters.require("OnOff");
 const ON_OFF_ID = requireId(ON_OFF.id, "OnOff cluster");
@@ -18,16 +26,14 @@ const ENDPOINT_1 = 1;
 
 // The timeout Test_TC_IDM_5_1.yaml's own captures ask for, which the plan quotes as its example. The
 // device enforces it, so a late follow-up fails on the device's own answer as well as on the check below.
-const TIMED_INTERACTION_TIMEOUT_MS = 200;
-
-const LOG_TIMEOUT_MS = 15_000;
+const TIMED_INTERACTION_TIMEOUT = Millis(200);
 
 const commissioned = new CommissionedRefs();
 
 async function recordTimedInteraction(cx: CertStepContext, message: RegExp, from: number): Promise<void> {
     const th = cx.devices.th;
 
-    const timed = await expectTimedRequest(th.log, th.flavor, TIMED_INTERACTION_TIMEOUT_MS, from, LOG_TIMEOUT_MS);
+    const timed = await expectTimedRequest(th.log, th.flavor, TIMED_INTERACTION_TIMEOUT, from, LOG_TIMEOUT);
     record(cx, timed.check, "TimedRequestMessage");
 
     record(cx, expectUnicastReceipt(timed), "Timed request session");
@@ -37,8 +43,8 @@ async function recordTimedInteraction(cx: CertStepContext, message: RegExp, from
         th.flavor,
         message,
         timed,
-        TIMED_INTERACTION_TIMEOUT_MS,
-        LOG_TIMEOUT_MS,
+        TIMED_INTERACTION_TIMEOUT,
+        LOG_TIMEOUT,
     );
     record(cx, followUp, "Timed follow-up");
 }
@@ -61,7 +67,7 @@ certTest("TC-IDM-5.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C"
 
             const from = th.log.mark();
             await dut.node(ref).invoke(ON_OFF_ID, "on", undefined, ENDPOINT_1, {
-                timedInteractionTimeoutMs: TIMED_INTERACTION_TIMEOUT_MS,
+                timedInteractionTimeoutMs: TIMED_INTERACTION_TIMEOUT,
             });
             cx.recorder.check({
                 type: "response",
@@ -91,7 +97,7 @@ certTest("TC-IDM-5.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C"
             await cx.controllers.dut
                 .node(ref)
                 .writeAttribute({ endpoint: ENDPOINT_1, cluster: ON_OFF_ID, attribute: ON_TIME }, 2, {
-                    timedInteractionTimeoutMs: TIMED_INTERACTION_TIMEOUT_MS,
+                    timedInteractionTimeoutMs: TIMED_INTERACTION_TIMEOUT,
                 });
             cx.recorder.check({
                 type: "response",

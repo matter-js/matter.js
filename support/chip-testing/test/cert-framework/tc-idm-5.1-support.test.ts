@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Millis } from "@matter/main";
 import { LineQueue, LogFollower } from "@matter/testing";
 import {
     expectTimedFollowUp,
@@ -14,7 +15,7 @@ import {
 } from "../cert/tc-idm-5.1-support.js";
 import { INVOKE_REQUEST_MESSAGE, WRITE_REQUEST_MESSAGE } from "../cert/tc-support.js";
 
-const TIMEOUT_MS = 200;
+const TIMEOUT = Millis(200);
 
 /** One chip log line: its own timestamp prefix, then the module tag the matchers anchor on. */
 function line(atMs: number, text: string) {
@@ -37,7 +38,7 @@ function timedRequestLines(atMs: number, category: "S" | "U" | "G" = "S") {
         receipt(atMs, category, "0a (IM:TimedRequest)"),
         line(atMs, "[DMG] TimedRequestMessage ="),
         line(atMs, "[DMG] {"),
-        line(atMs, `[DMG] \tTimeoutMs = 0x${TIMEOUT_MS.toString(16)},`),
+        line(atMs, `[DMG] \tTimeoutMs = 0x${TIMEOUT.toString(16)},`),
         line(atMs, "[DMG] }"),
     ];
 }
@@ -84,7 +85,7 @@ describe("timestampMsOf", () => {
 
 describe("timedRequestSequence", () => {
     it("asks for the timeout in chip's own bare lowercase hex", () => {
-        const sequence = timedRequestSequence(200);
+        const sequence = timedRequestSequence(Millis(200));
 
         expect(sequence).to.have.lengthOf(3);
         expect(sequence[2].test("[DMG] \tTimeoutMs = 0xc8,")).equal(true);
@@ -95,7 +96,7 @@ describe("timedRequestSequence", () => {
 describe("expectTimedRequest", () => {
     it("matches the block and returns the line it matched", async () => {
         const result = await withFollower(timedRequestLines(T0), follower =>
-            expectTimedRequest(follower, "chip-local", TIMEOUT_MS, 0, 500),
+            expectTimedRequest(follower, "chip-local", TIMEOUT, 0, Millis(500)),
         );
 
         expect(result.check.verdict).equal("pass");
@@ -104,7 +105,7 @@ describe("expectTimedRequest", () => {
 
     it("fails when the device was asked for a different timeout", async () => {
         const result = await withFollower(timedRequestLines(T0), follower =>
-            expectTimedRequest(follower, "chip-local", 300, 0, 200),
+            expectTimedRequest(follower, "chip-local", Millis(300), 0, Millis(200)),
         );
 
         expect(result.check.verdict).equal("fail");
@@ -113,7 +114,7 @@ describe("expectTimedRequest", () => {
 
     it("reports unverified for a flavor with no pattern for the message", async () => {
         const result = await withFollower(timedRequestLines(T0), follower =>
-            expectTimedRequest(follower, "matterjs", TIMEOUT_MS, 0, 500),
+            expectTimedRequest(follower, "matterjs", TIMEOUT, 0, Millis(500)),
         );
 
         expect(result.check.verdict).equal("unverified");
@@ -123,7 +124,7 @@ describe("expectTimedRequest", () => {
 describe("expectUnicastReceipt", () => {
     async function categoryVerdict(category: "S" | "U" | "G") {
         return withFollower(timedRequestLines(T0, category), async follower => {
-            const timed = await expectTimedRequest(follower, "chip-local", TIMEOUT_MS, 0, 500);
+            const timed = await expectTimedRequest(follower, "chip-local", TIMEOUT, 0, Millis(500));
             return expectUnicastReceipt(timed);
         });
     }
@@ -145,7 +146,7 @@ describe("expectUnicastReceipt", () => {
 
     it("fails when no receive line precedes the message", async () => {
         const check = await withFollower(timedRequestLines(T0).slice(1), async follower => {
-            const timed = await expectTimedRequest(follower, "chip-local", TIMEOUT_MS, 0, 500);
+            const timed = await expectTimedRequest(follower, "chip-local", TIMEOUT, 0, Millis(500));
             return expectUnicastReceipt(timed);
         });
 
@@ -163,8 +164,8 @@ describe("expectUnicastReceipt", () => {
 describe("expectTimedFollowUp", () => {
     async function followUp(lines: string[], message = INVOKE_REQUEST_MESSAGE) {
         return withFollower(lines, async follower => {
-            const timed = await expectTimedRequest(follower, "chip-local", TIMEOUT_MS, 0, 500);
-            return expectTimedFollowUp(follower, "chip-local", message, timed, TIMEOUT_MS, 500);
+            const timed = await expectTimedRequest(follower, "chip-local", TIMEOUT, 0, Millis(500));
+            return expectTimedFollowUp(follower, "chip-local", message, timed, TIMEOUT, Millis(500));
         });
     }
 
@@ -188,7 +189,7 @@ describe("expectTimedFollowUp", () => {
     });
 
     it("fails when the message arrives after the window it was promised", async () => {
-        const check = await followUp([...timedRequestLines(T0), ...invokeLines(T0 + TIMEOUT_MS + 1)]);
+        const check = await followUp([...timedRequestLines(T0), ...invokeLines(T0 + TIMEOUT + 1)]);
 
         expect(check.verdict).equal("fail");
         expect(check.detail).contains("201.0ms");
@@ -212,8 +213,8 @@ describe("expectTimedFollowUp", () => {
                 "chip-local",
                 INVOKE_REQUEST_MESSAGE,
                 { check: { type: "device-log", verdict: "unverified" } },
-                TIMEOUT_MS,
-                500,
+                TIMEOUT,
+                Millis(500),
             ),
         );
 

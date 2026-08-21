@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, InternalError, Millis } from "@matter/main";
+import { Duration, InternalError, Seconds } from "@matter/main";
 import type { CertStepContext, CertStepDefinition, PromptHandler, StepVerdict, Subject } from "@matter/testing";
 import {
     chip,
@@ -61,7 +61,7 @@ function extractPasscode(promptText: string): number {
 
 // Corrupted-Sigma2 commissioning failures should surface promptly (an aborted CASE handshake), but a
 // DUT that hangs instead of rejecting must not stall this step for the full mocha timeout.
-const COMMISSION_TIMEOUT_MS = 60_000;
+const COMMISSION_TIMEOUT = Seconds(60);
 
 /**
  * Handles every "Manual Pairing Code" prompt `TC_SC_3_5.py` prints — steps 1b, 2c, 3c, 4c, 5c (4c is
@@ -103,7 +103,7 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
                     // recover like any healthy commissioning.
                     singleHandshakeAttempt: !expectSuccess,
                 }),
-                COMMISSION_TIMEOUT_MS,
+                COMMISSION_TIMEOUT,
             );
 
             let verdict: StepVerdict;
@@ -155,7 +155,7 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
                         verdict,
                         detail:
                             `commission() neither resolved nor rejected on attempt ${attempt} within ` +
-                            Duration.format(Millis(COMMISSION_TIMEOUT_MS)),
+                            Duration.format(COMMISSION_TIMEOUT),
                     });
                     failure = new Error(`DUT commissioning attempt ${attempt} timed out`);
                     break;

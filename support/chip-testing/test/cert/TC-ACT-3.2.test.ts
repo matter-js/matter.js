@@ -9,7 +9,7 @@ import { Matter } from "@matter/model";
 import type { CertStepContext, DeviceFlavor } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import type { CommandFieldValue } from "./tc-support.js";
-import { CommissionedRefs, expectCommandInvoke, record, requireId } from "./tc-support.js";
+import { CommissionedRefs, expectCommandInvoke, LOG_TIMEOUT, record, requireId } from "./tc-support.js";
 
 const ACTIONS = Matter.clusters.require("Actions");
 
@@ -103,7 +103,7 @@ async function invokeAndCheck(
         commandId,
         fieldValues,
         from,
-        15_000,
+        LOG_TIMEOUT,
     );
     record(cx, logCheck, `CommandDataIB log for step ${step} (${commandName})`);
 }
