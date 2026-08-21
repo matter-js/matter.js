@@ -174,16 +174,19 @@ certTest("TC-XXX-0.0", { plan: "n/a" | "<plan doc id>", pics: [], app: "all-clus
         const dut = cx.controllers.dut; // ControllerAdapter
         const th = cx.devices.th; // CertDevice
         // ...
-        cx.recorder.check({ type: "...", verdict: "pass" | "fail", detail: "..." });
-        if (/* not actually pass */) {
-            throw new Error("...");
-        }
+        record(cx, { type: "...", verdict: "pass" | "fail", detail: "..." }, "what this check is");
     });
 ```
 
 - `cx.recorder.check(...)` only records evidence; it does **not** fail the step. A step fails by
-  throwing from `run`. Always follow a check with an explicit `if (result.verdict !== "pass") throw
-  ...` if the check result should gate the step.
+  throwing from `run`. So a check that should gate the step goes through `record(cx, check, what)`
+  (`tc-support.ts`), which records it and throws `CertCheckFailedError` on `"fail"` — hand-rolling
+  the `if (verdict === "fail") throw` after a `check()` is how one such gate came to be missing.
+  `"unverified"` passes through: that is what a log check reports on a flavor nobody wrote a pattern
+  for. Use `cx.recorder.check` directly only for a record that is provenance rather than a gate — the
+  unconditional "this is what the DUT answered" line beside an `await` that would have thrown.
+- Never throw a plain `Error` from a step: `CertCheckFailedError` is the step-assertion type, and
+  `InternalError` is for a harness invariant that cannot hold.
 - `certTest` registers the mocha `it()` immediately; `.step()` calls append to it and may continue
   after `certTest()` returns (see `cert-dsl.ts`'s `certTest`/`defineCertTest`).
 - Role names: `cx.controllers.dut` / `cx.devices.th` are the defaults (`controllers: { dut: "dut" }`,

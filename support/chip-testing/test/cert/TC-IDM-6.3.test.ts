@@ -15,6 +15,7 @@ import {
     expectSequence,
     fabricFilteredPattern,
     READ_REQUEST_MESSAGE,
+    record,
     requireId,
 } from "./tc-support.js";
 
@@ -91,12 +92,7 @@ certTest("TC-IDM-6.3", {
                 from,
                 LOG_TIMEOUT_MS,
             );
-            cx.recorder.check(pathCheck);
-            if (pathCheck.verdict === "fail") {
-                throw new CertCheckFailedError(
-                    `ReadRequestMessage event path check failed: ${JSON.stringify(pathCheck)}`,
-                );
-            }
+            record(cx, pathCheck, "ReadRequestMessage event path");
 
             // The plan's expected outcome names FabricFiltered alongside EventRequests; it sits after
             // the path list in the same message, separated from it by the list's own closing lines.
@@ -108,12 +104,7 @@ certTest("TC-IDM-6.3", {
                 pathCheck.logLine === undefined ? from : pathCheck.logLine + 1,
                 LOG_TIMEOUT_MS,
             );
-            cx.recorder.check(fabricFilteredCheck);
-            if (fabricFilteredCheck.verdict === "fail") {
-                throw new CertCheckFailedError(
-                    `ReadRequestMessage isFabricFiltered check failed: ${JSON.stringify(fabricFilteredCheck)}`,
-                );
-            }
+            record(cx, fabricFilteredCheck, "ReadRequestMessage isFabricFiltered");
         },
         {
             expected:

@@ -9,7 +9,7 @@ import { Matter } from "@matter/model";
 import type { CertStepContext, DeviceFlavor } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import type { CommandFieldValue } from "./tc-support.js";
-import { CommissionedRefs, expectCommandInvoke, requireId } from "./tc-support.js";
+import { CommissionedRefs, expectCommandInvoke, record, requireId } from "./tc-support.js";
 
 const ACTIONS = Matter.clusters.require("Actions");
 
@@ -105,12 +105,7 @@ async function invokeAndCheck(
         from,
         15_000,
     );
-    cx.recorder.check(logCheck);
-    if (logCheck.verdict === "fail") {
-        throw new Error(
-            `CommandDataIB log check failed for step ${step} (${commandName}): ${JSON.stringify(logCheck)}`,
-        );
-    }
+    record(cx, logCheck, `CommandDataIB log for step ${step} (${commandName})`);
 }
 
 const EXPECTED_ACTION_ID_AND_INVOKE_ID =

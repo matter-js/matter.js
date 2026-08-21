@@ -15,6 +15,7 @@ import {
     expectReportAck,
     expectSequence,
     expectSubscriptionId,
+    record,
     requireId,
     SUBSCRIBE_REQUEST_MESSAGE,
 } from "./tc-support.js";
@@ -104,10 +105,7 @@ certTest("TC-IDM-4.1", {
                 from,
                 15_000,
             );
-            cx.recorder.check(pathCheck);
-            if (pathCheck.verdict === "fail") {
-                throw new Error(`SubscribeRequestMessage log check failed: ${JSON.stringify(pathCheck)}`);
-            }
+            record(cx, pathCheck, "SubscribeRequestMessage log");
 
             const envelopeCheck = await expectSequence(
                 th.log,
@@ -117,10 +115,7 @@ certTest("TC-IDM-4.1", {
                 from,
                 15_000,
             );
-            cx.recorder.check(envelopeCheck);
-            if (envelopeCheck.verdict === "fail") {
-                throw new Error(`SubscribeRequestMessage envelope check failed: ${JSON.stringify(envelopeCheck)}`);
-            }
+            record(cx, envelopeCheck, "SubscribeRequestMessage envelope");
         },
         {
             pics: "MCORE.IDM.C.SubscribeRequest",
@@ -156,20 +151,14 @@ certTest("TC-IDM-4.1", {
                 from,
                 15_000,
             );
-            cx.recorder.check(requestCheck);
-            if (requestCheck.verdict === "fail") {
-                throw new Error(`SubscribeRequestMessage log check failed: ${JSON.stringify(requestCheck)}`);
-            }
+            record(cx, requestCheck, "SubscribeRequestMessage log");
 
             // Steps 1 and 2 subscribe to the same path, so only the request line tells their
             // SubscribeResponses apart (see subscribeAndModify).
             const established = requestCheck.logLine !== undefined ? requestCheck.logLine + 1 : from;
 
             const idLookup = await expectSubscriptionId(th.log, th.flavor, established, ACK_WAIT_TIMEOUT_MS);
-            cx.recorder.check(idLookup.check);
-            if (idLookup.check.verdict === "fail") {
-                throw new Error(`Subscription-id lookup failed: ${JSON.stringify(idLookup.check)}`);
-            }
+            record(cx, idLookup.check, "Subscription-id lookup");
 
             const logCheck = await expectReportAck(
                 th.log,
@@ -178,10 +167,7 @@ certTest("TC-IDM-4.1", {
                 established,
                 ACK_WAIT_TIMEOUT_MS,
             );
-            cx.recorder.check(logCheck);
-            if (logCheck.verdict === "fail") {
-                throw new Error(`Priming-report status check failed: ${JSON.stringify(logCheck)}`);
-            }
+            record(cx, logCheck, "Priming-report status");
         }),
         {
             pics: "MCORE.IDM.C.SubscribeRequest",

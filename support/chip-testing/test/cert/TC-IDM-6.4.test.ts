@@ -9,7 +9,6 @@ import type { EventPathSpec } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import {
     ACK_WAIT_TIMEOUT_MS,
-    CertCheckFailedError,
     CommissionedRefs,
     EVENT_PATH_IBS_SEQUENCE,
     eventPathIBSequence,
@@ -17,6 +16,7 @@ import {
     expectSequence,
     expectSubscriptionId,
     fabricFilteredPattern,
+    record,
     requireId,
     SUBSCRIBE_REQUEST_MESSAGE,
 } from "./tc-support.js";
@@ -90,12 +90,7 @@ certTest("TC-IDM-6.4", {
                 from,
                 LOG_TIMEOUT_MS,
             );
-            cx.recorder.check(envelopeCheck);
-            if (envelopeCheck.verdict === "fail") {
-                throw new CertCheckFailedError(
-                    `SubscribeRequestMessage envelope check failed: ${JSON.stringify(envelopeCheck)}`,
-                );
-            }
+            record(cx, envelopeCheck, "SubscribeRequestMessage envelope");
 
             const fabricFilteredCheck = await expectSequence(
                 th.log,
@@ -105,12 +100,7 @@ certTest("TC-IDM-6.4", {
                 envelopeCheck.logLine === undefined ? from : envelopeCheck.logLine + 1,
                 LOG_TIMEOUT_MS,
             );
-            cx.recorder.check(fabricFilteredCheck);
-            if (fabricFilteredCheck.verdict === "fail") {
-                throw new CertCheckFailedError(
-                    `SubscribeRequestMessage isFabricFiltered check failed: ${JSON.stringify(fabricFilteredCheck)}`,
-                );
-            }
+            record(cx, fabricFilteredCheck, "SubscribeRequestMessage isFabricFiltered");
         },
         {
             expected:
@@ -144,12 +134,7 @@ certTest("TC-IDM-6.4", {
             // controller's own node-level one), so the ack this step needs is identified by the
             // subscription the TH just minted, not by position in the log.
             const idLookup = await expectSubscriptionId(th.log, th.flavor, from, ACK_WAIT_TIMEOUT_MS);
-            cx.recorder.check(idLookup.check);
-            if (idLookup.check.verdict === "fail") {
-                throw new CertCheckFailedError(
-                    `SubscribeResponseMessage check failed: ${JSON.stringify(idLookup.check)}`,
-                );
-            }
+            record(cx, idLookup.check, "SubscribeResponseMessage");
 
             const ackCheck = await expectReportAck(
                 th.log,
@@ -158,10 +143,7 @@ certTest("TC-IDM-6.4", {
                 from,
                 ACK_WAIT_TIMEOUT_MS,
             );
-            cx.recorder.check(ackCheck);
-            if (ackCheck.verdict === "fail") {
-                throw new CertCheckFailedError(`Report ack check failed: ${JSON.stringify(ackCheck)}`);
-            }
+            record(cx, ackCheck, "Report ack");
         }),
         { expected: "Verify that the DUT sends Status Response Action with a success Status Code." },
     )
