@@ -65,6 +65,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Added a `ClientNode` connection-state engine — `lifecycle.connectionState`/`connectionStateChanged`/`isConnected` and the `NodeConnectionState` enum
     - Feature: Added `ClientNodeLifecycle.isSeeded` and the `seeded` event, indicating a peer node's structure has been read from the device at least once
     - Feature: Added `Behaviors.forCluster(clusterId)` to resolve a cluster behavior type by numeric cluster id
+    - Feature: A behavior reports an attribute it computes on read via the new protected `Behavior.markChanged()`
     - Feature: Added `openBasicCommissioningWindow`/`openEnhancedCommissioningWindow` on `CommissioningClient`/`ClientNode` to open a commissioning window on a commissioned peer
     - Feature: Added split/delegated commissioning — `CommissioningClient.CommissioningOptions.finalizeCommissioning` plus `ServerNode.peers.completeCommissioning(nodeId, discoveryData?, options?)`
     - Feature: Added `NetworkServer.autoStartCommissionedPeers` (default true) to opt out of auto-starting commissioned peers when the node goes online
@@ -81,6 +82,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: A `SoftwareUpdateManager.State.announcementInterval` of `Instant` disables OTA provider announcements
     - Fix: A constraint whose bound carries a unit, such as the `0.01% to 100.00%` of a `percent100ths` value, is enforced in the units the value is encoded in
     - Fix: Struct validation resolves a member stored under its TLV tag number, so a constraint violation there is caught and a mandatory member present only at its id no longer raises a conformance error
+    - Fix: `Thermostat.Presets` reports to subscribers and advances the cluster's data version when the presets change
+    - Fix: A report for a quieter attribute a behavior computes on read carries an advanced cluster data version, so a subscription no longer discards it as one it already has
     - Fix: `LevelControl.RemainingTime` and `ColorControl.RemainingTime` report the time left in a transition; the attribute read 0 on any endpoint whose application did not itself pass a `remainingTime` value
     - Fix: `endpoints.size` no longer double-counts the root endpoint
     - Fix: A commissioned peer's connection state leaves `Connected` as soon as its last operational session is lost
