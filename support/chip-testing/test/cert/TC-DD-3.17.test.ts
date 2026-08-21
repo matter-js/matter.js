@@ -4,27 +4,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Seconds } from "@matter/main";
+import type { CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import {
+    checkGeneratedManualCode,
     CommissioningRefusals,
+    INVALID_PASSCODES,
     manualPairingCode,
+    recordGeneratedManualCode,
     recordManualParse,
     recordVendorOutcome,
+    SHORT_DISCRIMINATOR_SHIFT,
+    TEST_VENDOR_IDS,
     thCodeParts,
     thManualPairingCode,
 } from "./tc-dd-support.js";
-import { CommissionedRefs, record } from "./tc-support.js";
-
-/**
- * The trivial passcodes § 5.1.7.1 forbids, transcribed from the plan's step 5.a rather than taken
- * from matter.js's own list, so a divergence between the two shows up as a failing step.
- */
-const INVALID_PASSCODES = [
-    0, 11111111, 22222222, 33333333, 44444444, 55555555, 66666666, 77777777, 88888888, 99999999, 12345678, 87654321,
-];
-
-/** The test vendor identifiers the plan's step 6.a substitutes. */
-const TEST_VENDOR_IDS = [0xfff1, 0xfff2, 0xfff3, 0xfff4];
+import { CommissionedRefs, recordAll } from "./tc-support.js";
 
 /**
  * Flips a bit the plan requires to change: § 5.1.4.1 Table 62 carries only the discriminator's 4 most
@@ -37,11 +33,11 @@ const DISCRIMINATOR_MSB = 0x100;
  * the specification's 3-minute minimum commissioning window; chip-tool cannot be bounded and stops
  * on its own after roughly 45 seconds, so the step's own budget has to outlast that.
  */
-const GIVE_UP_AFTER_MS = 20_000;
+const GIVE_UP_AFTER = Seconds(20);
 
 /** Step 6's per-vendor attempt, bounded the same way step 4's absent device is. */
-const VENDOR_OUTCOME_TIMEOUT_MS = 20_000;
-const NO_COMMISSIONEE_TIMEOUT_MS = 90_000;
+const VENDOR_OUTCOME_TIMEOUT = Seconds(20);
+const NO_COMMISSIONEE_TIMEOUT = Seconds(90);
 
 /** The plan repeats this in the expected outcome of every step that generates a code. */
 const GUIDELINES =
@@ -69,10 +65,19 @@ certTest("TC-DD-3.17", {
         "VERSION: Using the manual code from Step 1, generate a new manual code but substituting out the current " +
             "VERSION with an invalid VERSION: 2",
         async cx => {
-            const code = await thManualPairingCode(cx, { futureFormat: true });
-            record(
+            // The marker occupies the whole first digit (§ 5.1.4.1.2), so VID_PID_PRESENT and the
+            // discriminator's two MSBs cannot survive alongside it; the passcode has to, or step 2.b
+            // would be refusing the code for the wrong reason
+            const parts = await thCodeParts(cx);
+            recordGeneratedManualCode(
                 cx,
-                { type: "response", verdict: "pass", detail: `Generated ${code}, which marks a format after v1` },
+                manualPairingCode({ ...parts, futureFormat: true }),
+                {
+                    futureFormat: true,
+                    vidPidPresent: false,
+                    shortDiscriminator: (parts.discriminator >> SHORT_DISCRIMINATOR_SHIFT) & 0x03,
+                    unchangedFrom: manualPairingCode(parts),
+                },
                 "Reserved-version code",
             );
         },
@@ -82,8 +87,8 @@ certTest("TC-DD-3.17", {
         "2.b",
         "Provide the Manual Pairing Code, generated in the previous step, to the DUT in any format supported by the DUT",
         async cx => {
-            const manualPairingCode = await thManualPairingCode(cx, { futureFormat: true });
-            await refusals.requireRefusal(cx, { manualPairingCode }, "Reserved-version code refused");
+            const code = await thManualPairingCode(cx, { futureFormat: true });
+            await refusals.requireRefusal(cx, { manualPairingCode: code }, "Reserved-version code refused");
         },
         {
             expected:
@@ -96,14 +101,11 @@ certTest("TC-DD-3.17", {
         "VID_PID_PRESENT: Using the manual code from Step 1, generate a new manual code but substituting out the " +
             "current VID_PID_PRESENT with an invalid VID_PID_PRESENT set to 0",
         async cx => {
-            const code = await thManualPairingCode(cx, { vidPidPresent: false });
-            record(
+            const parts = await thCodeParts(cx);
+            recordGeneratedManualCode(
                 cx,
-                {
-                    type: "response",
-                    verdict: "pass",
-                    detail: `Generated ${code}, whose header disagrees with its ${code.length} digits`,
-                },
+                manualPairingCode({ ...parts, vidPidPresent: false }),
+                { vidPidPresent: false, unchangedFrom: manualPairingCode(parts) },
                 "Header/length mismatch code",
             );
         },
@@ -113,8 +115,8 @@ certTest("TC-DD-3.17", {
         "3.b",
         "Provide the Manual Pairing Code, generated in the previous step, to the DUT in any format supported by the DUT",
         async cx => {
-            const manualPairingCode = await thManualPairingCode(cx, { vidPidPresent: false });
-            await refusals.requireRefusal(cx, { manualPairingCode }, "Header/length mismatch refused");
+            const code = await thManualPairingCode(cx, { vidPidPresent: false });
+            await refusals.requireRefusal(cx, { manualPairingCode: code }, "Header/length mismatch refused");
         },
         {
             expected:
@@ -130,15 +132,15 @@ certTest("TC-DD-3.17", {
             "most-significant bits of Step 1's 12-bit discriminator value and adheres to rules of section 5.1.1.5. " +
             '"Discriminator value")',
         async cx => {
-            const code = await thManualPairingCode(cx, {
-                discriminator: cx.devices.th.commissioning.discriminator ^ DISCRIMINATOR_MSB,
-            });
-            record(
+            const parts = await thCodeParts(cx);
+            const discriminator = parts.discriminator ^ DISCRIMINATOR_MSB;
+            recordGeneratedManualCode(
                 cx,
+                manualPairingCode({ ...parts, discriminator }),
                 {
-                    type: "response",
-                    verdict: "pass",
-                    detail: `Generated ${code}, naming a device this network does not carry`,
+                    shortDiscriminator: discriminator >> SHORT_DISCRIMINATOR_SHIFT,
+                    differsFrom: manualPairingCode(parts),
+                    unchangedFrom: manualPairingCode(parts),
                 },
                 "Wrong-discriminator code",
             );
@@ -149,14 +151,14 @@ certTest("TC-DD-3.17", {
         "4.b",
         "Provide the Manual Pairing Code, generated in the previous step, to the DUT in any format supported by the DUT",
         async cx => {
-            const manualPairingCode = await thManualPairingCode(cx, {
+            const code = await thManualPairingCode(cx, {
                 discriminator: cx.devices.th.commissioning.discriminator ^ DISCRIMINATOR_MSB,
             });
             await refusals.requireNoCommissioning(
                 cx,
-                { manualPairingCode, giveUpAfterMs: GIVE_UP_AFTER_MS },
+                { manualPairingCode: code, giveUpAfterMs: GIVE_UP_AFTER },
                 "No device commissioned from the wrong discriminator",
-                NO_COMMISSIONEE_TIMEOUT_MS,
+                NO_COMMISSIONEE_TIMEOUT,
             );
         },
         {
@@ -173,17 +175,17 @@ certTest("TC-DD-3.17", {
             "33333333, 44444444, 55555555, 66666666, 77777777, 88888888, 99999999, 12345678, 87654321",
         async cx => {
             const parts = await thCodeParts(cx);
-            const codes = INVALID_PASSCODES.map(passcode => manualPairingCode({ ...parts, passcode }));
-            record(
+            const source = manualPairingCode(parts);
+            recordAll(
                 cx,
-                {
-                    type: "response",
-                    verdict: "pass",
-                    detail: `Generated ${codes.length} codes: ${codes
-                        .map((code, i) => `${code} (${INVALID_PASSCODES[i]})`)
-                        .join(", ")}`,
-                },
-                "Invalid-passcode codes",
+                INVALID_PASSCODES.map(passcode => ({
+                    check: () =>
+                        checkGeneratedManualCode(manualPairingCode({ ...parts, passcode }), {
+                            passcode,
+                            unchangedFrom: source,
+                        }),
+                    what: `Code carrying passcode ${passcode}`,
+                })),
             );
         },
         {
@@ -219,17 +221,17 @@ certTest("TC-DD-3.17", {
             "VENDOR_ID component to one of the invalid Test VENDOR_IDs: 0xFFF1, 0xFFF2, 0xFFF3, 0xFFF4",
         async cx => {
             const parts = await thCodeParts(cx);
-            const codes = TEST_VENDOR_IDS.map(vendorId => manualPairingCode({ ...parts, vendorId }));
-            record(
+            const source = manualPairingCode(parts);
+            recordAll(
                 cx,
-                {
-                    type: "response",
-                    verdict: "pass",
-                    detail: `Generated ${codes.length} codes: ${codes
-                        .map((code, i) => `${code} (0x${TEST_VENDOR_IDS[i].toString(16)})`)
-                        .join(", ")}`,
-                },
-                "Test-vendor codes",
+                TEST_VENDOR_IDS.map(vendorId => ({
+                    check: () =>
+                        checkGeneratedManualCode(manualPairingCode({ ...parts, vendorId }), {
+                            vendorId,
+                            unchangedFrom: source,
+                        }),
+                    what: `Code naming vendor 0x${vendorId.toString(16)}`,
+                })),
             );
         },
         {
@@ -256,7 +258,7 @@ certTest("TC-DD-3.17", {
                     commissioned,
                     refusals,
                     `Code naming vendor 0x${vendorId.toString(16)}`,
-                    VENDOR_OUTCOME_TIMEOUT_MS,
+                    VENDOR_OUTCOME_TIMEOUT,
                 );
             }
         },
@@ -273,10 +275,11 @@ certTest("TC-DD-3.17", {
         "PRODUCT_ID: Using the manual code from Step 1, generate a new manual code but substituting out the " +
             "current PRODUCT_ID with an invalid PRODUCT_ID of 0x0000",
         async cx => {
-            const code = await thManualPairingCode(cx, { productId: 0 });
-            record(
+            const parts = await thCodeParts(cx);
+            recordGeneratedManualCode(
                 cx,
-                { type: "response", verdict: "pass", detail: `Generated ${code}, naming product id 0` },
+                manualPairingCode({ ...parts, productId: 0 }),
+                { productId: 0, unchangedFrom: manualPairingCode(parts) },
                 "Product-id-0 code",
             );
         },
@@ -286,8 +289,8 @@ certTest("TC-DD-3.17", {
         "7.b",
         "Provide the Manual Pairing Code, generated in the previous step, to the DUT in any format supported by the DUT",
         async cx => {
-            const manualPairingCode = await thManualPairingCode(cx, { productId: 0 });
-            await refusals.requireRefusal(cx, { manualPairingCode }, "Product-id-0 code refused");
+            const code = await thManualPairingCode(cx, { productId: 0 });
+            await refusals.requireRefusal(cx, { manualPairingCode: code }, "Product-id-0 code refused");
         },
         {
             expected:
@@ -300,10 +303,11 @@ certTest("TC-DD-3.17", {
         "Check Digit: Using the manual code from Step 1, generate a new manual code but substituting out the " +
             "current CHECK_DIGIT with an invalid CHECK_DIGIT",
         async cx => {
-            const code = await wrongCheckDigitCode(cx);
-            record(
+            const { correct, wrong } = await checkDigitCodes(cx);
+            recordGeneratedManualCode(
                 cx,
-                { type: "response", verdict: "pass", detail: `Generated ${code}, whose check digit is wrong` },
+                wrong,
+                { checkDigitCorrect: false, differsFrom: correct, unchangedFrom: correct },
                 "Wrong-check-digit code",
             );
         },
@@ -313,11 +317,8 @@ certTest("TC-DD-3.17", {
         "8.b",
         "Provide the Manual Pairing Code, generated in the previous step, to the DUT in any format supported by the DUT",
         async cx => {
-            await refusals.requireRefusal(
-                cx,
-                { manualPairingCode: await wrongCheckDigitCode(cx) },
-                "Wrong-check-digit code refused",
-            );
+            const { wrong } = await checkDigitCodes(cx);
+            await refusals.requireRefusal(cx, { manualPairingCode: wrong }, "Wrong-check-digit code refused");
         },
         {
             expected:
@@ -333,9 +334,10 @@ certTest("TC-DD-3.17", {
         }
     });
 
-/** The TH's own code with a check digit that is not the one its digits produce. */
-async function wrongCheckDigitCode(cx: Parameters<typeof thManualPairingCode>[0]) {
-    const correct = await thManualPairingCode(cx);
+async function checkDigitCodes(cx: CertStepContext): Promise<{ correct: string; wrong: string }> {
+    const parts = await thCodeParts(cx);
+    const correct = manualPairingCode(parts);
     const digit = Number(correct.slice(-1));
-    return thManualPairingCode(cx, { checkDigit: (digit + 1) % 10 });
+
+    return { correct, wrong: manualPairingCode({ ...parts, checkDigit: (digit + 1) % 10 }) };
 }

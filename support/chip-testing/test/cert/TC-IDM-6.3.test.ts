@@ -14,6 +14,7 @@ import {
     eventPathIBSequence,
     expectSequence,
     fabricFilteredPattern,
+    LOG_TIMEOUT,
     READ_REQUEST_MESSAGE,
     record,
     requireId,
@@ -24,7 +25,6 @@ const BASIC_INFORMATION_ID = requireId(BASIC_INFORMATION.id, "BasicInformation c
 const START_UP_EVENT = requireId(BASIC_INFORMATION.events.require("startUp").id, "BasicInformation.startUp");
 
 const ENDPOINT_0 = 0;
-const LOG_TIMEOUT_MS = 15_000;
 
 // Test_TC_IDM_6_3.yaml's own capture reads every event of every cluster, whose EventPathIB is empty
 // and so carries nothing to verify field by field. This is the concrete path Test_TC_IDM_6_4.yaml
@@ -90,7 +90,7 @@ certTest("TC-IDM-6.3", {
                 `ReadRequestMessage EventPathIBs ${JSON.stringify(EVENT_PATH)}`,
                 READ_EVENT_SEQUENCE,
                 from,
-                LOG_TIMEOUT_MS,
+                LOG_TIMEOUT,
             );
             record(cx, pathCheck, "ReadRequestMessage event path");
 
@@ -102,7 +102,7 @@ certTest("TC-IDM-6.3", {
                 "ReadRequestMessage isFabricFiltered",
                 [fabricFilteredPattern(true)],
                 pathCheck.logLine === undefined ? from : pathCheck.logLine + 1,
-                LOG_TIMEOUT_MS,
+                LOG_TIMEOUT,
             );
             record(cx, fabricFilteredCheck, "ReadRequestMessage isFabricFiltered");
         },

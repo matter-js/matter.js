@@ -18,7 +18,7 @@ import {
     expectInvokeCount,
     expectNoInjectedFault,
 } from "./tc-idm-1.3-support.js";
-import { CommissionedRefs, record, requireId } from "./tc-support.js";
+import { CommissionedRefs, LOG_TIMEOUT, record, requireId } from "./tc-support.js";
 
 const ON_OFF = Matter.clusters.require("OnOff");
 const ON_OFF_ID = requireId(ON_OFF.id, "OnOff cluster");
@@ -54,8 +54,6 @@ const BATCH_PATHS: BatchPath[] = [
  */
 const FLAVORS: DeviceFlavor[] = ["chip-local"];
 
-const LOG_TIMEOUT_MS = 15_000;
-
 const CW_TIMEOUT_SECONDS = 180;
 
 const commissioned = new CommissionedRefs<"dut" | "th_client">();
@@ -85,7 +83,7 @@ function recordResults(
 
 async function recordBatchRequest(cx: CertStepContext, from: number, paths: BatchPath[]) {
     const th = cx.devices.th;
-    record(cx, await expectBatchRequestPaths(th.log, th.flavor, paths, from, LOG_TIMEOUT_MS), "Invoke request paths");
+    record(cx, await expectBatchRequestPaths(th.log, th.flavor, paths, from, LOG_TIMEOUT), "Invoke request paths");
     record(cx, expectInvokeCount(th.log, th.flavor, from, 1), "Invoke request count");
 }
 
@@ -214,7 +212,7 @@ certTest("TC-IDM-1.3", {
             await recordBatchRequest(cx, from, BATCH_PATHS);
             record(
                 cx,
-                await expectInjectedFault(th.log, th.flavor, ChipFault.imInvokeSeparateResponses, from, LOG_TIMEOUT_MS),
+                await expectInjectedFault(th.log, th.flavor, ChipFault.imInvokeSeparateResponses, from, LOG_TIMEOUT),
                 "Separate response messages",
             );
         },
@@ -247,7 +245,7 @@ certTest("TC-IDM-1.3", {
                     th.flavor,
                     ChipFault.imInvokeSeparateResponsesInvertResponseOrder,
                     from,
-                    LOG_TIMEOUT_MS,
+                    LOG_TIMEOUT,
                 ),
                 "Inverted response order",
             );
@@ -275,13 +273,7 @@ certTest("TC-IDM-1.3", {
             await recordBatchRequest(cx, from, BATCH_PATHS);
             record(
                 cx,
-                await expectInjectedFault(
-                    th.log,
-                    th.flavor,
-                    ChipFault.imInvokeSkipSecondResponse,
-                    from,
-                    LOG_TIMEOUT_MS,
-                ),
+                await expectInjectedFault(th.log, th.flavor, ChipFault.imInvokeSkipSecondResponse, from, LOG_TIMEOUT),
                 "Dropped second response",
             );
         },
