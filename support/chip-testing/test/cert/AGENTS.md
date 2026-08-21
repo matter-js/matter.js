@@ -134,10 +134,10 @@ package rather than per spec. The hermetic tests under `test/cert-framework/**` 
 them. A cert change therefore needs its own command:
 
 ```bash
-# what CI runs; needs a Docker that can start the harness container
+# what CI runs (esm and cjs legs)
 npm --prefix support/chip-testing run test-cert-framework -- --no-pull
 
-# the same specs on one leg, when that container will not start locally
+# one leg, for iteration
 npx matter-test esm -p support/chip-testing --spec "./test/cert-framework/*.test.ts"
 ```
 
@@ -145,10 +145,9 @@ npx matter-test esm -p support/chip-testing --spec "./test/cert-framework/*.test
 `--no-pull` because `pull` defaults to true, and CI pulls the image once itself and passes the same
 flag.
 
-Neither flag makes the run independent of Docker. The specs themselves use fakes, but
-`test/test.config.ts` initializes chip state — which creates a container — before any of them run, so
-a machine whose Docker refuses that container cannot use the script form at all. The second command
-is the fallback, and is what a cert change should at minimum be gated on.
+Docker is required either way, and no flag avoids it: the specs themselves use fakes, but
+`test/test.config.ts` awaits `chip.initialize()` at module scope, so every leg starts the harness
+containers before any spec runs.
 
 What not to reach for: `npm test -- -p support/chip-testing` looks like the same thing and is not. The
 root script is `matter-test -w`, so `-w` arrives with it and queues web tests for a package that has
