@@ -24,6 +24,7 @@ interface DeviceSpec {
 interface RuntimeArgs {
     specs: DeviceSpec[];
     wifi: boolean;
+    groupcast: boolean;
     enableKeyHex?: string;
 }
 
@@ -49,6 +50,7 @@ function hasFlag(args: string[], name: string): boolean {
 function parseRuntimeArgs(args: string[]): RuntimeArgs {
     const tokens = collectValues(args, "device");
     const wifi = hasFlag(args, "wifi");
+    const groupcast = hasFlag(args, "groupcast");
     const enableKeyHex = collectValues(args, "enable-key")[0];
 
     // Pass 1: collect explicit-endpoint reservations so auto-allocation can skip them.
@@ -90,7 +92,7 @@ function parseRuntimeArgs(args: string[]): RuntimeArgs {
         specs.push({ type, endpoint: EndpointNumber(endpoint) });
     }
 
-    return { specs, wifi, enableKeyHex };
+    return { specs, wifi, groupcast, enableKeyHex };
 }
 
 export class AllDevicesTestInstance extends NodeTestInstance {
@@ -113,7 +115,7 @@ export class AllDevicesTestInstance extends NodeTestInstance {
         // Prefer per-run app-args injected by the chip test framework; fall back to process.argv for standalone CLI
         // invocations (chip-tool-tests CI binary, local smoke runs).
         const sourceArgs = this.#appArgs ?? process.argv.slice(2);
-        const { specs, wifi, enableKeyHex } = parseRuntimeArgs(sourceArgs);
+        const { specs, wifi, groupcast, enableKeyHex } = parseRuntimeArgs(sourceArgs);
 
         if (specs.length === 0) {
             throw new ValidationError(
@@ -129,6 +131,7 @@ export class AllDevicesTestInstance extends NodeTestInstance {
             discriminator: this.config.discriminator ?? 3840,
             passcode: this.config.passcode ?? 20202021,
             enableKeyHex,
+            groupcast,
         });
 
         for (const { type, endpoint } of specs) {

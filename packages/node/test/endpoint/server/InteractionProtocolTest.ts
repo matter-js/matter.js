@@ -16,12 +16,14 @@ import {
     BaseDataReport,
     DataReportPayload,
     DataReportPayloadIterator,
+    GroupMessageEventInfo,
     InteractionServerMessenger,
     InvokeRequest,
     InvokeResponse,
     InvokeResponseForSend,
     MessageType,
     ReadRequest,
+    SessionManager,
     SubscribeRequest,
     WriteRequest,
     WriteResponse,
@@ -2039,6 +2041,50 @@ describe("InteractionProtocol", () => {
 
             expect(timedInteractionCleared).equals(true);
             expect(onOffState).equals(false);
+        });
+
+        it("invoke command as group message completes dispatch without touching the exchange channel", async () => {
+            const fabric = await node.addFabric();
+            const exchange = await createDummyMessageExchange(node, { fabric });
+            const { messenger } = createMockInvokeMessenger();
+
+            // Inbound group sessions have no channel; group dispatch must not read exchange.channel (which throws).
+            // The dummy exchange has no channel either, so any such access fails this test.
+            await interactionProtocol.handleInvokeRequest(
+                exchange,
+                INVOKE_COMMAND_REQUEST_WITH_EMPTY_ARGS,
+                messenger,
+                interaction.BarelyMockedGroupMessage,
+            );
+
+            expect(onOffState).equals(true);
+        });
+
+        it("group invoke reports accessAllowed:true when the dispatched command returns a non-Success status", async () => {
+            // A command that passes access control but then fails (here Busy) must still report accessAllowed=true:
+            // per Groupcast spec §11.27.7.6.3 AccessAllowed reflects the access-control outcome, not command success.
+            node.eventsOf(EventedOnOffServer).onOff$Changing.on(() => {
+                throw new StatusResponseError("Sorry so swamped", Status.Busy);
+            });
+
+            const fabric = await node.addFabric();
+            const exchange = await createDummyMessageExchange(node, { fabric });
+            const { messenger } = createMockInvokeMessenger();
+
+            const emitted = new Array<GroupMessageEventInfo>();
+            node.env.get(SessionManager).onGroupMessage.on(info => {
+                emitted.push(info);
+            });
+
+            await interactionProtocol.handleInvokeRequest(
+                exchange,
+                INVOKE_COMMAND_REQUEST_WITH_EMPTY_ARGS,
+                messenger,
+                interaction.BarelyMockedGroupMessage,
+            );
+
+            expect(emitted.length).equals(1);
+            expect(emitted[0].accessAllowed).equals(true);
         });
 
         it("invoke command with with timed interaction success", async () => {
