@@ -123,6 +123,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: New `CertificateAuthority.erase()` discards the authority's key material, persisted and in memory
     - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding how long it waits for the operational CASE connection that follows it; defaults to the previous fixed 4m15s
     - Fix: Cancelling BLE commissioning aborts the in-flight channel open
+    - Fix: A concrete subscription path is reported only when that attribute changed; it was previously reported whenever any other attribute of the same cluster changed
     - Fix: A subscription's `maxIntervalCeiling` is transmitted exactly as requested; jitter now applies only when we derive the ceiling ourselves
     - Fix: mDNS advertisements set the cache-flush bit on the SRV, TXT and address records unique to the node
     - Fix: mDNS known-answer suppression compares what identifies a record
