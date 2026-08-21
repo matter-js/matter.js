@@ -82,13 +82,19 @@ function receiptBefore(log: LogFollower, index: number): Receipt | undefined {
     return { index: line.index, text: line.text, exchange: match[1], category: match[2] as Receipt["category"] };
 }
 
-export interface TimedRequestLookup {
-    check: CheckRecord;
-    /** Absent when the lookup failed, and for the matterjs flavor. */
-    line?: LogLine;
-    /** Absent when the lookup failed, and when the log carries no receive line for the message. */
-    receipt?: Receipt;
-}
+/**
+ * What looking for a `TimedRequestMessage` produced, as three outcomes rather than one optional line —
+ * `SubscriptionIdLookup` keeps its own the same way, and for the same reason. Unlike that one,
+ * `unnamed` here is reachable: this search asks for a chip pattern whatever the flavor, so a matterjs
+ * TH produces it.
+ */
+export type TimedRequestLookup =
+    /** The message was found; `receipt` is absent when no receive line precedes it, which is a failure. */
+    | { outcome: "found"; line: LogLine; receipt?: Receipt; check: CheckRecord }
+    /** This flavor's log names no timed request (see AGENTS.md's flavor-pattern policy). */
+    | { outcome: "unnamed"; check: CheckRecord }
+    /** The search itself failed; `check` carries why. */
+    | { outcome: "failed"; check: CheckRecord };
 
 /**
  * Confirms the device received a `TimedRequestMessage` asking for `timeout` at or after `from`, and
@@ -105,9 +111,10 @@ export async function expectTimedRequest(
     try {
         const result = await expectAdjacentLines(log, flavor, timedRequestSequence(timeout), from, wait);
         if (result.verdict === "unverified") {
-            return { check: { type: "device-log", verdict: "unverified" } };
+            return { outcome: "unnamed", check: { type: "device-log", verdict: "unverified" } };
         }
         return {
+            outcome: "found",
             line: result.last,
             receipt: receiptBefore(log, result.last.index),
             check: {
@@ -120,7 +127,10 @@ export async function expectTimedRequest(
         };
     } catch (e) {
         if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
-            return { check: { type: "device-log", verdict: "fail", pattern, detail: e.message, logLine: from } };
+            return {
+                outcome: "failed",
+                check: { type: "device-log", verdict: "fail", pattern, detail: e.message, logLine: from },
+            };
         }
         throw e;
     }
@@ -128,8 +138,10 @@ export async function expectTimedRequest(
 
 /** Confirms the session the timed request arrived on was unicast. */
 export function expectUnicastReceipt(timed: TimedRequestLookup): CheckRecord {
-    if (timed.line === undefined) {
-        return { type: "device-log", verdict: "unverified" };
+    // A failed search keeps its own reason rather than arriving here as an unverified. Callers gate
+    // on `check` first, so this is the second line of defence.
+    if (timed.outcome !== "found") {
+        return timed.check;
     }
 
     const { receipt } = timed;
@@ -177,10 +189,10 @@ export async function expectTimedFollowUp(
     budget: Duration,
     wait: Duration,
 ): Promise<CheckRecord> {
-    const { line: timedLine, receipt } = timed;
-    if (timedLine === undefined) {
-        return { type: "device-log", verdict: "unverified" };
+    if (timed.outcome !== "found") {
+        return timed.check;
     }
+    const { line: timedLine, receipt } = timed;
 
     const pattern = `${message.source} with ${TIMED_REQUEST_FLAG.source} within ${budget}ms`;
     if (receipt === undefined) {

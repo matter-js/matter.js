@@ -658,12 +658,22 @@ export async function expectChunkedTransfer(
     };
 }
 
-/** What the TH's own SubscribeResponse says about the subscription a step just established. */
-export interface SubscriptionIdLookup {
-    check: CheckRecord;
-    /** Absent when the lookup failed, or for a flavor whose log names no subscription. */
-    subscriptionId?: number;
-}
+/**
+ * What reading a subscription id off a TH's log produced, as three outcomes rather than one optional
+ * field. Every caller today records `check` through {@link record} first, so a failed lookup fails the
+ * step before any consumer sees it; the union is what keeps that true if one ever forgets, since a
+ * consumer cannot then treat a failure as a flavor that had nothing to say.
+ */
+export type SubscriptionIdLookup =
+    /** The TH named it. */
+    | { outcome: "found"; subscriptionId: number; check: CheckRecord }
+    /**
+     * No pattern for this flavor. Unreachable while the flavors are chip and matterjs — both name
+     * their subscriptions — and the handling exists for a flavor added without a pattern.
+     */
+    | { outcome: "unnamed"; check: CheckRecord }
+    /** The lookup itself failed; `check` carries why. */
+    | { outcome: "failed"; check: CheckRecord };
 
 async function matterjsSubscriptionId(
     log: LogFollower,
@@ -677,17 +687,21 @@ async function matterjsSubscriptionId(
         response = await log.expect({ matterjs: MATTERJS_SUBSCRIBE_RESPONSE }, { flavor, timeoutMs: timeout, from });
     } catch (e) {
         if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
-            return { check: { type: "device-log", verdict: "fail", pattern, detail: e.message, logLine: from } };
+            return {
+                outcome: "failed",
+                check: { type: "device-log", verdict: "fail", pattern, detail: e.message, logLine: from },
+            };
         }
         throw e;
     }
     if (response.verdict === "unverified") {
-        return { check: { type: "device-log", verdict: "unverified" } };
+        return { outcome: "unnamed", check: { type: "device-log", verdict: "unverified" } };
     }
 
     const id = MATTERJS_SUBSCRIBE_RESPONSE.exec(response.matched.text)?.[1];
     if (id === undefined) {
         return {
+            outcome: "failed",
             check: {
                 type: "device-log",
                 verdict: "fail",
@@ -699,6 +713,7 @@ async function matterjsSubscriptionId(
     }
 
     return {
+        outcome: "found",
         subscriptionId: parseInt(id, 16),
         check: {
             type: "device-log",
@@ -731,12 +746,13 @@ export async function expectSubscriptionId(
     try {
         const result = await expectAdjacentLines(log, flavor, sequence, from, timeout);
         if (result.verdict === "unverified") {
-            return { check: { type: "device-log", verdict: "unverified" } };
+            return { outcome: "unnamed", check: { type: "device-log", verdict: "unverified" } };
         }
 
         const id = SUBSCRIPTION_ID_LINE.exec(result.last.text)?.[1];
         if (id === undefined) {
             return {
+                outcome: "failed",
                 check: {
                     type: "device-log",
                     verdict: "fail",
@@ -748,6 +764,7 @@ export async function expectSubscriptionId(
         }
 
         return {
+            outcome: "found",
             subscriptionId: parseInt(id, 16),
             check: {
                 type: "device-log",
@@ -760,6 +777,7 @@ export async function expectSubscriptionId(
     } catch (e) {
         if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
             return {
+                outcome: "failed",
                 check: {
                     type: "device-log",
                     verdict: "fail",
@@ -904,13 +922,16 @@ async function matterjsReportAck(
 export async function expectReportAck(
     log: LogFollower,
     flavor: string,
-    subscriptionId: number | undefined,
+    subscription: SubscriptionIdLookup,
     from: number,
     timeout: Duration,
 ): Promise<CheckRecord> {
-    if (subscriptionId === undefined) {
-        return { type: "device-log", verdict: "unverified" };
+    // Takes the lookup rather than its id so a failure cannot arrive here as an unverified nobody can
+    // explain. Callers gate on `check` first, so this is the second line of defence, not the first.
+    if (subscription.outcome !== "found") {
+        return subscription.check;
     }
+    const { subscriptionId } = subscription;
 
     if (flavor === "matterjs") {
         return matterjsReportAck(log, flavor, subscriptionId, from, timeout);

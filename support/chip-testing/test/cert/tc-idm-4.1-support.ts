@@ -163,14 +163,14 @@ export async function subscribeAndModify<Value>(
     // Every flavor names its subscriptions in its own log. One that does not cannot show the TH's own
     // side of what this step claims, and the controller's callbacks are no substitute for it — chip-tool
     // drops reports its device coalesced (see AGENTS.md) — so the step says so rather than proving less.
-    if (idLookup.subscriptionId === undefined) {
+    if (idLookup.outcome !== "found") {
         throw new CertCheckFailedError(
             `Step ${step} cannot read a subscription id from a ${th.flavor} TH's log, so the reports this step ` +
-                "writes for cannot be attributed to its own subscription",
+                `writes for cannot be attributed to its own subscription: ${JSON.stringify(idLookup.check)}`,
         );
     }
 
-    const primingAckCheck = await expectReportAck(th.log, th.flavor, idLookup.subscriptionId, established, establish);
+    const primingAckCheck = await expectReportAck(th.log, th.flavor, idLookup, established, establish);
     cx.recorder.check(primingAckCheck);
     if (primingAckCheck.verdict === "fail") {
         throw new CertCheckFailedError(
@@ -191,13 +191,7 @@ export async function subscribeAndModify<Value>(
             throw e;
         }
 
-        const ackCheck = await expectReportAck(
-            th.log,
-            th.flavor,
-            idLookup.subscriptionId,
-            Math.max(ackCursor, writeFrom),
-            report,
-        );
+        const ackCheck = await expectReportAck(th.log, th.flavor, idLookup, Math.max(ackCursor, writeFrom), report);
         cx.recorder.check(ackCheck);
         if (ackCheck.verdict !== "pass") {
             throw new CertCheckFailedError(
@@ -240,7 +234,7 @@ export async function subscribeAndModify<Value>(
         });
     }
 
-    const idText = idLookup.subscriptionId === undefined ? "(none)" : `0x${idLookup.subscriptionId.toString(16)}`;
+    const idText = `0x${idLookup.subscriptionId.toString(16)}`;
     cx.recorder.check({
         type: "response",
         verdict: "pass",

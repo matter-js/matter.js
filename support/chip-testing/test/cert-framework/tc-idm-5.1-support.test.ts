@@ -100,7 +100,8 @@ describe("expectTimedRequest", () => {
         );
 
         expect(result.check.verdict).equal("pass");
-        expect(result.line?.text).contains("TimeoutMs = 0xc8,");
+        expect(result.outcome).equal("found");
+        expect(result.outcome === "found" ? result.line.text : "").contains("TimeoutMs = 0xc8,");
     });
 
     it("fails when the device was asked for a different timeout", async () => {
@@ -109,7 +110,7 @@ describe("expectTimedRequest", () => {
         );
 
         expect(result.check.verdict).equal("fail");
-        expect(result.line).equal(undefined);
+        expect(result.outcome).equal("failed");
     });
 
     it("reports unverified for a flavor with no pattern for the message", async () => {
@@ -154,10 +155,21 @@ describe("expectUnicastReceipt", () => {
         expect(check.detail).contains("No receive line");
     });
 
-    it("reports unverified when the timed request itself was not located", () => {
-        expect(expectUnicastReceipt({ check: { type: "device-log", verdict: "unverified" } }).verdict).equal(
-            "unverified",
-        );
+    it("reports unverified for a flavor whose log names no timed request", () => {
+        expect(
+            expectUnicastReceipt({ outcome: "unnamed", check: { type: "device-log", verdict: "unverified" } }).verdict,
+        ).equal("unverified");
+    });
+
+    it("hands a failed search's own reason to the consumer, not a bare unverified", () => {
+        // Callers gate on `check` before getting here, so this is the guard for one that forgets
+        const check = expectUnicastReceipt({
+            outcome: "failed",
+            check: { type: "device-log", verdict: "fail", detail: "no TimedRequestMessage arrived" },
+        });
+
+        expect(check.verdict).equal("fail");
+        expect(check.detail).equal("no TimedRequestMessage arrived");
     });
 });
 
@@ -206,19 +218,38 @@ describe("expectTimedFollowUp", () => {
         expect(check.detail).contains("carries no timedRequest flag");
     });
 
-    it("reports unverified when the timed request itself was not located", async () => {
+    it("reports unverified for a flavor whose log names no timed request", async () => {
         const check = await withFollower([], follower =>
             expectTimedFollowUp(
                 follower,
                 "chip-local",
                 INVOKE_REQUEST_MESSAGE,
-                { check: { type: "device-log", verdict: "unverified" } },
+                { outcome: "unnamed", check: { type: "device-log", verdict: "unverified" } },
                 TIMEOUT,
                 Millis(500),
             ),
         );
 
         expect(check.verdict).equal("unverified");
+    });
+
+    it("hands a failed search's own reason to the follow-up check, not a bare unverified", async () => {
+        const check = await withFollower([], follower =>
+            expectTimedFollowUp(
+                follower,
+                "chip-local",
+                INVOKE_REQUEST_MESSAGE,
+                {
+                    outcome: "failed",
+                    check: { type: "device-log", verdict: "fail", detail: "no TimedRequestMessage arrived" },
+                },
+                TIMEOUT,
+                Millis(500),
+            ),
+        );
+
+        expect(check.verdict).equal("fail");
+        expect(check.detail).equal("no TimedRequestMessage arrived");
     });
 
     it("skips an interaction on another exchange and reports the one this request opened", async () => {
