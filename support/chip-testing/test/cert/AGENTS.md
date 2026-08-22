@@ -168,8 +168,8 @@ root-level "suite green" says nothing about this directory either way.
 
 ## Evidence expectations
 
-Every run writes one `result.json` (`EvidenceRecorder.flush`, shape: `RunRecord` in `evidence.ts`)
-plus one `<name>.log` per `attachLog` call (`device-<role>.log`, `controller-<name>.log`) to
+Every run writes one `result.json` (`EvidenceRecorder.flush` writes it, `concludeRun` settles its
+verdict; shape: `RunRecord` in `evidence.ts`) plus one `<name>.log` per `attachLog` call (`device-<role>.log`, `controller-<name>.log`) to
 `${MATTER_CERT_EVIDENCE_DIR}/<timestamp>-<tc>/`. A step's own evidence lives in `RunRecord.steps[]`
 as `{ step, text, expected, checks: CheckRecord[], verdict, skipReason? }`; `CheckRecord` is
 `{ type: "response" | "device-log" | "network", verdict: "pass" | "fail" | "unverified", detail?,
@@ -192,12 +192,16 @@ What a check's `type` should be:
 A step passing means its `run` callback didn't throw — `recorder.check(...)` only records evidence,
 it never fails the step by itself (see "Shape of a cert test" above; this is worth repeating because
 it's the single easiest mistake to make writing a new step). `RunRecord.verdict` is computed by
-`EvidenceRecorder`, not hand-set: `deviceExit` or `finalizationError` set ⇒ `"fail"`; any step `"fail"`/`"aborted"` ⇒
-`"fail"`; else any step `"pass"` ⇒ `"pass"`; else (every step skipped, or zero steps ran, e.g.
-`TC-ACT-3.2` under `matterjs` or `TC-SC-3.5` when its prerequisite is missing) ⇒ `"skipped"`. A
-`"skipped"` run-level verdict is a legitimate, expected outcome for a flavor-gapped or
+`EvidenceRecorder`, not hand-set: until `concludeRun` runs ⇒ `"incomplete"`; then the run's own
+reported failure (`runError`), or `deviceExit`/`finalizationError`/`teardownError`/`evidenceError`
+set, or any step `"fail"`/`"aborted"` ⇒ `"fail"`; else any step `"pass"` ⇒ `"pass"`; else (every step
+skipped, or zero steps ran, e.g. `TC-ACT-3.2` under `matterjs` or `TC-SC-3.5` when its prerequisite is
+missing) ⇒ `"skipped"`.
+
+A `"skipped"` run-level verdict is a legitimate, expected outcome for a flavor-gapped or
 prerequisite-blocked TC — it is not the same as `"fail"`, and shouldn't be treated as a failure when
-triaging a run.
+triaging a run. `"incomplete"` is the opposite: the run never got far enough to state a verdict, so
+treat it as a failed run whose cause is outside the record.
 
 Every attached `.log` also carries a step-boundary banner (chip python/yaml style) at the point a
 step starts and again when it ends (`<tc> — Test Step <number>: <text>` / `<tc> — Test Step

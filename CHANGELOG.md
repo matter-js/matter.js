@@ -11,6 +11,10 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/testing
+    - Fix: A certification run's `result.json` no longer reports a passing verdict for a run that failed
+    - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
+
 - @matter/general
     - Breaking: `DnssdNames.Context.goodbyeProtectionWindow` and `DnssdNames.defaults.goodbyeProtectionWindow` are now `evictionDelay`, and `DnssdName.deleteRecord` no longer takes an `ifOlderThan` argument
     - Enhancement: New `MatterAggregateError.settleSeries()` runs tasks in order, continuing past a failure, and reports the accumulated errors

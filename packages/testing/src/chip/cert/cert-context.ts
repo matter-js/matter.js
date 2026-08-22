@@ -114,11 +114,40 @@ export interface StepRecorder {
      */
     recordControllerUnsupportedSkips?(count: number): void;
     /**
+     * Records how many of the run's checks reported `"unverified"` — a check whose claim could not be
+     * evaluated at all, which the step engine treats as neither proof nor failure. A step made
+     * entirely of unverified checks still ends with a "pass" verdict, so without this the persisted
+     * record alone would not say how much of what the steps claim was actually observed.
+     */
+    recordUnverifiedChecks?(count: number): void;
+    /**
+     * Records that closing the run's controllers or devices failed, leaving state behind for whatever
+     * runs next. {@link CertTest} calls this and then fails the run itself unless something already
+     * failed; a recorder need only persist the information (see {@link EvidenceRecorder.teardownFailed}).
+     */
+    teardownFailed?(detail: string): void;
+    /**
+     * Records that the evidence a step's checks cite could not be assembled — the device logs every
+     * `device-log` check's `logLine` indexes into, above all. The checks themselves say nothing about
+     * this, so without it the record would carry claims nothing in the bundle can support (see
+     * {@link EvidenceRecorder.evidenceIncomplete}).
+     */
+    evidenceIncomplete?(detail: string): void;
+    /**
      * Persists whatever evidence was recorded. Returns an implementation-defined locator for it
      * (e.g. {@link EvidenceRecorder} returns the directory it wrote to); a recorder with nothing to
      * persist returns an empty string.
      */
     flush(): Promise<string>;
+    /**
+     * Settles the run's verdict, after teardown, and persists the record carrying it. {@link flush} runs
+     * before teardown so a bundle exists even for a teardown that hangs; until this call the persisted
+     * record states no verdict, so a run that never reaches it cannot leave one behind. `outcome` is
+     * the run's own result as its runner will report it — recorded for every failed run, whatever else
+     * the record already names — so a failed run cannot settle as a pass over a cause this recorder was
+     * never told about (see {@link EvidenceRecorder.concludeRun}).
+     */
+    concludeRun?(outcome: { failed: boolean; detail?: string }): Promise<void>;
 }
 
 /**
