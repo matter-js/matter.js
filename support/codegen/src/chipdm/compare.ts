@@ -479,10 +479,23 @@ class Comparison {
         return found;
     }
 
-    /** The global data type CHIP names, under either name */
+    /**
+     * The global data type CHIP names, under either name.
+     *
+     * An alias states the canonical form of our name, which is not the form the index answers to, so a name the index
+     * cannot resolve is matched canonically against what we do define.
+     */
     #globalDatatypeOf(name: string) {
         const datatypes = this.#models.merged.datatypes;
-        return datatypes(name) ?? datatypes(matterNameFor(name) ?? name);
+        const ours = matterNameFor(name) ?? name;
+
+        const indexed = datatypes(name) ?? datatypes(ours);
+        if (indexed !== undefined) {
+            return indexed;
+        }
+
+        const wanted = canonicalizeName(ours);
+        return [...datatypes].find(datatype => canonicalizeName(datatype.name) === wanted);
     }
 
     #compareNamespaces() {
@@ -549,7 +562,7 @@ class Comparison {
 
         for (const chip of this.#dm.globals) {
             const name = matterNameFor(chip.name) ?? chip.name;
-            const datatype = merged.datatypes(name);
+            const datatype = this.#globalDatatypeOf(chip.name);
 
             if (datatype === undefined) {
                 // We scope a type to the cluster that defines it where CHIP places it in global scope
@@ -573,6 +586,18 @@ class Comparison {
             }
 
             this.#element([datatype.name], chip, datatype, unmodified.datatypes(name));
+        }
+
+        // CHIP publishes the global types the specification derives; our seed datatypes are the base types every
+        // cluster definition builds on, which CHIP states in each cluster instead of enumerating globally.  What CHIP
+        // states decides, not whether the pass above resolved it, so a name we fail to resolve is reported once
+        for (const datatype of merged.datatypes) {
+            const name = canonicalizeName(datatype.name);
+            if (datatype.isSeed || this.#globalDatatypes.has(name) || this.#globalDatatypes.has(aliasOf(name) ?? "")) {
+                continue;
+            }
+
+            this.#extra([datatype.name], "datatype", unmodified.datatypes(datatype.name) === undefined);
         }
     }
 

@@ -304,8 +304,9 @@ function matches(pattern: string, path: string) {
         return wanted.length === actual.length && wanted.every((segment, index) => segment === actual[index]);
     }
 
-    // A wildcard matches whole segments, so "*.Foo.Bar" does not match a single element named "FooBar"
-    if (wanted.length > actual.length) {
+    // A wildcard stands for at least one enclosing element, so it never explains a difference on a global of the same
+    // name.  It also matches whole segments, so "*.Foo.Bar" does not match a single element named "FooBar"
+    if (wanted.length >= actual.length) {
         return false;
     }
 

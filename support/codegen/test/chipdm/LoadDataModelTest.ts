@@ -60,6 +60,7 @@ if (typeof window === "undefined") {
                 description: "test",
                 versions: async () => [version],
                 directory: async () => dir,
+                [Symbol.asyncDispose]: async () => {},
             };
 
             return await loadDataModel(source, version);

@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Logger, Minutes } from "#general";
+import { Duration, Logger, Minutes, Mutex } from "#general";
 import { execFile } from "node:child_process";
-import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 import { absolute } from "../util/file.js";
 import { DataModelSourceError } from "./errors.js";
@@ -18,6 +18,7 @@ const logger = Logger.get("chip-data-model");
 const REPO_URL = "https://github.com/project-chip/connectedhomeip.git";
 const CACHE_PATH = "!cache/chip-data-model";
 const REF_FILE = ".ref";
+const LOCK_SUFFIX = ".lock";
 const VERSION_PATTERN = /^\d+\.\d+(\.\d+)?$/;
 const COMMIT_PATTERN = /^[\da-f]{40}$/i;
 
@@ -41,6 +42,9 @@ export interface ChipDataModel {
 
     /** Absolute path of the directory holding XML for one version */
     directory(version: string): Promise<string>;
+
+    /** Release the source, including any claim it holds on the shared download cache */
+    [Symbol.asyncDispose](): Promise<void>;
 }
 
 export namespace ChipDataModel {
@@ -169,25 +173,53 @@ class LocalCheckout implements ChipDataModel {
         }
         return path;
     }
+
+    async [Symbol.asyncDispose]() {
+        // A checkout we only read needs no cleanup
+    }
 }
 
 class CachedDownload implements ChipDataModel {
     readonly #path: string;
     readonly #commit: string;
     readonly #committed: string;
+    readonly #lock: CacheLock;
     readonly #checkout = new Set<string>();
+    readonly #mutex = new Mutex(this);
     #populated = false;
 
-    private constructor(path: string, commit: string, committed: string) {
+    private constructor(path: string, commit: string, committed: string, lock: CacheLock) {
         this.#path = path;
         this.#commit = commit;
         this.#committed = committed;
+        this.#lock = lock;
     }
 
     static async open({ ref = "master", refresh }: ChipDataModel.Options) {
         const path = absolute(CACHE_PATH);
         const marker = resolve(path, REF_FILE);
 
+        // Checking a version out mutates the cache long after it is populated, so the claim is held for as long as
+        // this source is in use rather than only while downloading
+        const lock = await CacheLock.acquire(path);
+
+        let populated = false;
+
+        try {
+            const source = await CachedDownload.#populate(path, marker, ref, refresh, lock);
+            populated = true;
+            return source;
+        } finally {
+            // The claim outlives this call only as part of the source it returns
+            if (!populated) {
+                await lock[Symbol.asyncDispose]().catch(cause =>
+                    logger.warn(`Cannot release the claim on ${path}`, cause),
+                );
+            }
+        }
+    }
+
+    static async #populate(path: string, marker: string, ref: string, refresh: boolean | undefined, lock: CacheLock) {
         if (refresh) {
             await rm(path, { force: true, recursive: true });
         } else {
@@ -232,7 +264,7 @@ class CachedDownload implements ChipDataModel {
             await writeFile(marker, markerFor(ref, commit));
         }
 
-        return new CachedDownload(path, commit, committed);
+        return new CachedDownload(path, commit, committed, lock);
     }
 
     get description() {
@@ -248,6 +280,18 @@ class CachedDownload implements ChipDataModel {
     }
 
     async directory(version: string) {
+        return await this.#mutex.produce(() => this.#checkoutOf(version));
+    }
+
+    async [Symbol.asyncDispose]() {
+        try {
+            await this.#mutex.close();
+        } finally {
+            await this.#lock[Symbol.asyncDispose]();
+        }
+    }
+
+    async #checkoutOf(version: string) {
         if (!this.#checkout.has(version)) {
             if (!(await this.versions()).includes(version)) {
                 throw new DataModelSourceError(`CHIP ${this.description} has no data model for version ${version}`);
@@ -272,6 +316,109 @@ class CachedDownload implements ChipDataModel {
 
         return path;
     }
+}
+
+/**
+ * An exclusive claim on the shared download cache.
+ *
+ * The claim is a sibling of the cache directory rather than a file inside it, so refreshing the cache cannot delete
+ * the claim that guards the refresh.
+ *
+ * A claim is never taken from a running holder and never expires, because there is no upper bound on how long a
+ * legitimate run takes.  Concurrent use therefore fails immediately rather than queueing; we accept that over a wait
+ * that ends in comparing a working tree another run is still moving.
+ */
+class CacheLock {
+    readonly #path: string;
+    #held = true;
+
+    private constructor(path: string) {
+        this.#path = path;
+    }
+
+    static async acquire(cache: string) {
+        const path = `${cache}${LOCK_SUFFIX}`;
+        await mkdir(dirname(path), { recursive: true });
+
+        // Two attempts: the second is for a claim the first found abandoned and cleared
+        for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+                await writeFile(path, `${process.pid}`, { flag: "wx" });
+                return new CacheLock(path);
+            } catch (cause) {
+                if (!isErrno(cause, "EEXIST")) {
+                    throw new DataModelSourceError(`Cannot claim CHIP data model cache ${cache}`, { cause });
+                }
+            }
+
+            const holder = await CacheLock.#holder(path);
+            if (holder === undefined || isRunning(holder)) {
+                throw new DataModelSourceError(
+                    `Another run${holder === undefined ? "" : ` (pid ${holder})`} is using the CHIP data model cache ` +
+                        `${cache}; wait for it to finish, or read a checkout of your own with --chip-dir`,
+                );
+            }
+
+            await CacheLock.#discard(path, holder);
+        }
+
+        throw new DataModelSourceError(`Cannot claim CHIP data model cache ${cache}`);
+    }
+
+    /** The process ID a claim states, or undefined for a claim we cannot read or did not write */
+    static async #holder(path: string) {
+        const stated = await readFile(path, "utf-8").catch(() => undefined);
+        const pid = stated === undefined ? NaN : Number(stated.trim());
+        return Number.isSafeInteger(pid) && pid > 0 ? pid : undefined;
+    }
+
+    /**
+     * Clear the claim of a process that no longer exists.
+     *
+     * Renaming is atomic, so of several runs that find the same abandoned claim exactly one clears it and the rest see
+     * `ENOENT`.  Deleting in place would instead let one run delete the claim another had just taken.
+     */
+    static async #discard(path: string, holder: number) {
+        logger.warn(`Discarding the claim of pid ${holder} on the CHIP data model cache; that process is gone`);
+
+        const discarded = `${path}.${process.pid}`;
+        try {
+            await rename(path, discarded);
+        } catch (cause) {
+            if (isErrno(cause, "ENOENT")) {
+                return;
+            }
+            throw new DataModelSourceError(`Cannot discard the abandoned claim ${path}`, { cause });
+        }
+
+        await rm(discarded, { force: true });
+    }
+
+    async [Symbol.asyncDispose]() {
+        if (!this.#held) {
+            return;
+        }
+        this.#held = false;
+
+        // Release only a claim that is still ours; another run may have discarded it and taken its own
+        if ((await CacheLock.#holder(this.#path)) === process.pid) {
+            await rm(this.#path, { force: true });
+        }
+    }
+}
+
+/** Whether a process exists; a signal we may not send still tells us it does */
+function isRunning(pid: number) {
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch (cause) {
+        return isErrno(cause, "EPERM");
+    }
+}
+
+function isErrno(cause: unknown, code: string) {
+    return cause instanceof Error && "code" in cause && cause.code === code;
 }
 
 function markerFor(ref: string, commit: string) {
