@@ -26,7 +26,8 @@ export interface StepRecord {
 }
 
 /**
- * The evidence bundle for one cert-test run, written to `result.json` by {@link EvidenceRecorder.flush}.
+ * The evidence bundle for one cert-test run, written to `result.json` by {@link EvidenceRecorder.flush}
+ * and rewritten there by {@link EvidenceRecorder.flushRunRecord} for whatever the run learns after it.
  */
 export interface RunRecord {
     tc: string;

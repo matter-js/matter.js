@@ -303,7 +303,8 @@ export class CertTest extends BaseTest {
             }
 
             // After the flush, so a bundle exists even for a teardown that hangs against an
-            // unreachable TH: it is the run's outcome, not the bundle, that carries a close failure.
+            // unreachable TH — which is why a teardown that does complete has to write its own outcome
+            // into the record below.
             const teardownErrors = await this.teardown();
 
             const exited = deviceExitWatch.observed;
@@ -386,6 +387,8 @@ export class CertTest extends BaseTest {
      * so wiring that built its own concrete recorder (see `WiredCertTest` in `cert-dsl.ts`) can attach
      * final device/controller logs — `contextFor`'s generic `StepRecorder` type doesn't expose that,
      * only the concrete recorder implementation does.
+     *
+     * A throw fails the run, since the bundle's checks cite what this attaches.
      */
     protected async beforeFlush(_cx: CertStepContext): Promise<void> {}
 }

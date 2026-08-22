@@ -260,9 +260,8 @@ describe("TC-SC-3.5", () => {
             recorder.attachLog("controller-dut", dut.log.lines);
             recorder.attachLog("device-python", test.logLines);
 
-            // Warned as well as kept: the throw below is unreachable when the body itself threw, and a
-            // cleanup failure is likeliest exactly then — so the console carries it in the one case the
-            // bundle cannot.
+            // Warned as well as kept: the throw below is unreachable when the body itself threw, so
+            // the console is the only place a flush failure surfaces on that path.
             try {
                 await recorder.flush();
             } catch (e) {
