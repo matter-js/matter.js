@@ -13,7 +13,7 @@ import * as pathMod from "node:path";
 /** Writes the bundle the way a completed run does: the evidence, then the verdict. */
 async function publish(recorder: EvidenceRecorder): Promise<string> {
     const dir = await recorder.flush();
-    await recorder.concludeRun();
+    await recorder.concludeRun({ failed: false });
     return dir;
 }
 
@@ -379,7 +379,7 @@ describe("EvidenceRecorder", () => {
         expect(JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8")).verdict).equal("incomplete");
 
         recorder.teardownFailed("chip-tool would not close");
-        await recorder.concludeRun();
+        await recorder.concludeRun({ failed: true, detail: "chip-tool would not close" });
 
         const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
         expect(resultJson.verdict).equal("fail");
@@ -406,13 +406,58 @@ describe("EvidenceRecorder", () => {
         recorder.attachLog("missing-dir/controller", [logLine(0, "a line")]);
 
         await expect(recorder.flush()).rejected;
-        await recorder.concludeRun();
+        await recorder.concludeRun({ failed: true, detail: "the evidence could not be written" });
 
         const dir = pathMod.join(outDir, "2026-08-07T00-00-00.000Z-TC-IDM-2.1");
         const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
         expect(resultJson.verdict).equal("fail");
         expect(resultJson.evidenceError).match(/could not be written/);
         expect(resultJson.steps[0].verdict).equal("pass");
+    });
+
+    it("cannot settle as a pass for a run its steps say nothing about failing", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-SC-3.5",
+            plan: "securechannel.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "matterjs",
+            device: "python-wrapped:TC_SC_3_5.py",
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.endStep(step1, "pass");
+
+        // Every step passed, and the run failed for a reason no step could record.
+        const dir = await recorder.flush();
+        await recorder.concludeRun({ failed: true, detail: "the script answered fewer prompts than the plan needs" });
+
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+        expect(resultJson.verdict).equal("fail");
+        expect(resultJson.runError).equal("the script answered fewer prompts than the plan needs");
+        expect(resultJson.steps[0].verdict).equal("pass");
+    });
+
+    it("names no run error for a run that concluded successfully", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-IDM-2.1",
+            plan: "interactiondatamodel.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "matterjs",
+            device: "matterjs:all-clusters",
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.endStep(step1, "pass");
+
+        const dir = await publish(recorder);
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+
+        expect(resultJson.verdict).equal("pass");
+        expect("runError" in resultJson).equal(false);
     });
 
     it("persists the unverified-check count, so a bare result.json says how much of a passing run rests on nothing observed", async () => {

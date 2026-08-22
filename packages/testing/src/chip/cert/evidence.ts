@@ -57,6 +57,13 @@ export interface RunRecord {
     /** Why the evidence this record's checks cite is incomplete, if it is (see {@link EvidenceRecorder.evidenceIncomplete}). */
     evidenceError?: string;
     /**
+     * Why the run failed, when nothing else in this record accounts for it — a bundle that could not be
+     * written, evidence reporting that threw, a cause added after this was written. The run's own
+     * outcome settles the verdict (see {@link EvidenceRecorder.concludeRun}), so no cause has to be
+     * enumerated here to keep a failed run from reading as a pass.
+     */
+    runError?: string;
+    /**
      * How many steps the controller under test could not express, absent if none. A run can reach a
      * "pass" verdict with most of its steps skipped this way, so a reader of this record alone needs
      * the count to know how much the run actually proved.
@@ -99,6 +106,7 @@ export class EvidenceRecorder implements StepRecorder {
     #finalizationError?: string;
     #teardownError?: string;
     #evidenceError?: string;
+    #runError?: string;
     #controllerUnsupportedSkips?: number;
     #unverifiedChecks?: number;
     #concluded = false;
@@ -241,9 +249,16 @@ export class EvidenceRecorder implements StepRecorder {
      * Settles the run's verdict and writes the record carrying it. Until this runs the record states no
      * verdict, so a run that never gets here — a teardown that hangs, a volume that stopped accepting
      * writes — leaves a bundle saying so rather than one claiming a pass.
+     *
+     * `outcome.failed` is the run's own outcome as its runner will report it, and a failed run cannot
+     * settle as a pass whatever the steps recorded. That is what keeps the two from diverging over a
+     * cause this recorder was never told about.
      */
-    async concludeRun(): Promise<void> {
+    async concludeRun(outcome: { failed: boolean; detail?: string }): Promise<void> {
         this.#concluded = true;
+        if (outcome.failed && this.#runError === undefined) {
+            this.#runError = outcome.detail ?? "the run failed";
+        }
         await this.#writeRecord();
     }
 
@@ -268,6 +283,7 @@ export class EvidenceRecorder implements StepRecorder {
             finalizationError: this.#finalizationError,
             teardownError: this.#teardownError,
             evidenceError: this.#evidenceError,
+            runError: this.#runError,
             controllerUnsupportedSkips: this.#controllerUnsupportedSkips,
             unverifiedChecks: this.#unverifiedChecks,
         };
@@ -318,7 +334,8 @@ export class EvidenceRecorder implements StepRecorder {
             this.#deviceExit ||
             this.#finalizationError !== undefined ||
             this.#teardownError !== undefined ||
-            this.#evidenceError !== undefined
+            this.#evidenceError !== undefined ||
+            this.#runError !== undefined
         ) {
             return "fail";
         }

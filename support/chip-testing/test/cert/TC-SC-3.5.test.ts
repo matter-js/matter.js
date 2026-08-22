@@ -226,8 +226,10 @@ describe("TC-SC-3.5", () => {
         this.timeout(10 * 60_000);
 
         const state = { attempts: 0 };
+        let bodyFailure: unknown;
         let flushFailure: unknown;
         let closeFailure: unknown;
+        let concludeFailure: unknown;
         const dut = createControllerAdapter("dut");
 
         const recorder = new EvidenceRecorder(evidenceOutDir(), {
@@ -256,6 +258,11 @@ describe("TC-SC-3.5", () => {
                         "commissioning prompts, so some of its fault-injected CASE handshakes were never attempted",
                 );
             }
+        } catch (e) {
+            // Kept so the verdict this settles below is the one mocha will report: the steps here are
+            // not the only way this test fails, and a failure outside them is invisible to the recorder.
+            bodyFailure = e;
+            throw e;
         } finally {
             recorder.attachLog("controller-dut", dut.log.lines);
             recorder.attachLog("device-python", test.logLines);
@@ -281,10 +288,15 @@ describe("TC-SC-3.5", () => {
 
             // This test writes its own bundle instead of going through `CertTest`, so its record states
             // no verdict until it settles one here.
+            const failure = bodyFailure ?? flushFailure ?? closeFailure;
             try {
-                await recorder.concludeRun();
+                await recorder.concludeRun({
+                    failed: failure !== undefined,
+                    detail: failure === undefined ? undefined : `${failure}`,
+                });
             } catch (e) {
                 console.warn("TC-SC-3.5 could not settle its evidence record:", e);
+                concludeFailure = e;
             }
         }
 
@@ -298,6 +310,9 @@ describe("TC-SC-3.5", () => {
             throw new CertCleanupError(
                 `TC-SC-3.5's dut adapter would not close, so its fabric may remain on TH_SERVER: ${closeFailure}`,
             );
+        }
+        if (concludeFailure !== undefined) {
+            throw concludeFailure;
         }
     });
 });

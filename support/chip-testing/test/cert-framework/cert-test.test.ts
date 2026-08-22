@@ -2115,8 +2115,8 @@ describe("CertTest", () => {
                     calls.push("flush");
                     return "";
                 },
-                async concludeRun() {
-                    calls.push("concludeRun");
+                async concludeRun(outcome) {
+                    calls.push(`concludeRun: failed=${outcome.failed}`);
                 },
             }),
         };
@@ -2127,7 +2127,7 @@ describe("CertTest", () => {
 
         await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith("failed to close");
 
-        expect(calls).deep.equal(["flush", "teardownFailed: controller would not close", "concludeRun"]);
+        expect(calls).deep.equal(["flush", "teardownFailed: controller would not close", "concludeRun: failed=true"]);
     });
 
     it("settles the verdict as failed when a device exits after the evidence was written", async () => {

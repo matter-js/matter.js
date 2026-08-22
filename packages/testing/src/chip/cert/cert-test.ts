@@ -109,8 +109,8 @@ export class CertTest extends BaseTest {
             concludeRun:
                 recorded.concludeRun === undefined
                     ? undefined
-                    : async () => {
-                          await recorded.concludeRun?.();
+                    : async outcome => {
+                          await recorded.concludeRun?.(outcome);
                       },
         };
         cx.recorder = recorder;
@@ -314,19 +314,6 @@ export class CertTest extends BaseTest {
                 recorder.teardownFailed?.(teardownErrors.map(errorText).join("; "));
             }
 
-            // The record states no verdict until here, so this is what makes the bundle assert anything
-            // at all — and a run that cannot get this far leaves one that says so.
-            try {
-                await recorder.concludeRun?.();
-            } catch (e) {
-                if (failed) {
-                    console.warn("Cert test could not settle its evidence record after a failure:", e);
-                } else {
-                    failed = true;
-                    failure = e;
-                }
-            }
-
             // In order: what the run itself hit, then a device that died under it — an exit settling
             // too late for any step's race is still the run's own outcome — and only then cleanup.
             if (!failed) {
@@ -343,6 +330,19 @@ export class CertTest extends BaseTest {
                         `Cert test ${tc}: ${teardownErrors.length} controller/device(s) failed to close, leaving ` +
                             "state behind for whatever runs next",
                     );
+                }
+            }
+
+            // Last, so the outcome handed over is the one this method is about to report. The record
+            // states no verdict until here, and a run that cannot get this far leaves one saying so.
+            try {
+                await recorder.concludeRun?.({ failed, detail: failed ? errorText(failure) : undefined });
+            } catch (e) {
+                if (failed) {
+                    console.warn("Cert test could not settle its evidence record after a failure:", e);
+                } else {
+                    failed = true;
+                    failure = e;
                 }
             }
         }
