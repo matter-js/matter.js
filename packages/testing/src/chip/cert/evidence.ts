@@ -69,6 +69,10 @@ function sanitizeTimestampForPath(timestamp: string): string {
     return timestamp.replace(/:/g, "-");
 }
 
+function errorText(e: unknown): string {
+    return e instanceof Error ? e.message : String(e);
+}
+
 /**
  * Collects a {@link CertTest} run's per-step evidence and writes it to disk as `result.json` plus one
  * `<name>.log` per {@link attachLog} call.
@@ -194,10 +198,30 @@ export class EvidenceRecorder implements StepRecorder {
     }
 
     async flush(): Promise<string> {
+        await mkdir(this.#dir, { recursive: true });
+
+        // The record is published only after the logs its checks cite, and a log that could not be
+        // written reaches it as an evidence gap before this call reports the failure.
+        let logFailure: unknown;
+        for (const [name, lines] of this.#logs) {
+            try {
+                await writeFile(join(this.#dir, `${name}.log`), lines.map(line => line.text).join("\n"));
+            } catch (e) {
+                if (logFailure === undefined) {
+                    logFailure = e;
+                }
+            }
+        }
+        if (logFailure !== undefined) {
+            this.evidenceIncomplete(
+                `${this.#logs.size} attached log(s) could not be written: ${errorText(logFailure)}`,
+            );
+        }
+
         await this.flushRunRecord();
 
-        for (const [name, lines] of this.#logs) {
-            await writeFile(join(this.#dir, `${name}.log`), lines.map(line => line.text).join("\n"));
+        if (logFailure !== undefined) {
+            throw logFailure;
         }
 
         return this.#dir;

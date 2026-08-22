@@ -284,6 +284,14 @@ describe("TC-SC-3.5", () => {
             throw flushFailure;
         }
         if (closeFailure !== undefined) {
+            // This test writes its own bundle rather than going through `CertTest`, so the close
+            // failure reaches the record only if it republishes it here.
+            recorder.teardownFailed(`TC-SC-3.5's dut adapter would not close: ${closeFailure}`);
+            try {
+                await recorder.flushRunRecord();
+            } catch (e) {
+                console.warn("TC-SC-3.5 could not republish its run record after a close failure:", e);
+            }
             throw new CertCleanupError(
                 `TC-SC-3.5's dut adapter would not close, so its fabric may remain on TH_SERVER: ${closeFailure}`,
             );

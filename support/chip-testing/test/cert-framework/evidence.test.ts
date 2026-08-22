@@ -381,6 +381,32 @@ describe("EvidenceRecorder", () => {
         expect(await fsp.readFile(pathMod.join(dir, "controller.log"), "utf8")).equal("a line");
     });
 
+    it("does not publish a passing record when an attached log could not be written", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-IDM-2.1",
+            plan: "interactiondatamodel.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "chip-tool",
+            device: "chip-local:all-clusters",
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.endStep(step1, "pass");
+        // A name whose parent does not exist, so writing this log fails the way a full or read-only
+        // volume would.
+        recorder.attachLog("missing-dir/controller", [logLine(0, "a line")]);
+
+        await expect(recorder.flush()).rejected;
+
+        const dir = pathMod.join(outDir, "2026-08-07T00-00-00.000Z-TC-IDM-2.1");
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+        expect(resultJson.verdict).equal("fail");
+        expect(resultJson.evidenceError).match(/could not be written/);
+        expect(resultJson.steps[0].verdict).equal("pass");
+    });
+
     it("persists the unverified-check count, so a bare result.json says how much of a passing run rests on nothing observed", async () => {
         const recorder = new EvidenceRecorder(outDir, {
             tc: "TC-IDM-5.1",
