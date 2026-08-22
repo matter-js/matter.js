@@ -88,7 +88,7 @@ certTest("TC-IDM-6.3", {
                 th.log,
                 th.flavor,
                 `ReadRequestMessage EventPathIBs ${JSON.stringify(EVENT_PATH)}`,
-                READ_EVENT_SEQUENCE,
+                { chip: READ_EVENT_SEQUENCE },
                 from,
                 LOG_TIMEOUT,
             );
@@ -100,7 +100,7 @@ certTest("TC-IDM-6.3", {
                 th.log,
                 th.flavor,
                 "ReadRequestMessage isFabricFiltered",
-                [fabricFilteredPattern(true)],
+                { chip: [fabricFilteredPattern(true)] },
                 pathCheck.logLine === undefined ? from : pathCheck.logLine + 1,
                 LOG_TIMEOUT,
             );

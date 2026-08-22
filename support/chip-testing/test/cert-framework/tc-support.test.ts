@@ -284,7 +284,7 @@ describe("expectSequence", () => {
 
     it("passes on the consecutive read-request-with-event-path run", async () => {
         const record = await withFollower(READ_EVENT_LINES, follower =>
-            expectSequence(follower, "chip-local", "read event path", SEQUENCE, 0, Seconds(1)),
+            expectSequence(follower, "chip-local", "read event path", { chip: SEQUENCE }, 0, Seconds(1)),
         );
 
         expect(record.verdict).equal("pass");
@@ -293,13 +293,20 @@ describe("expectSequence", () => {
 
     it("finds isFabricFiltered after the path block, which is not adjacent to it", async () => {
         const record = await withFollower(READ_EVENT_LINES, async follower => {
-            const block = await expectSequence(follower, "chip-local", "read event path", SEQUENCE, 0, Seconds(1));
+            const block = await expectSequence(
+                follower,
+                "chip-local",
+                "read event path",
+                { chip: SEQUENCE },
+                0,
+                Seconds(1),
+            );
             expect(block.logLine).equal(9);
             return expectSequence(
                 follower,
                 "chip-local",
                 "isFabricFiltered",
-                [fabricFilteredPattern(true)],
+                { chip: [fabricFilteredPattern(true)] },
                 block.logLine! + 1,
                 Seconds(1),
             );
@@ -310,7 +317,7 @@ describe("expectSequence", () => {
 
     it("fails, rather than throwing, when the sequence never arrives", async () => {
         const record = await withFollower(["[DMG] ReadRequestMessage ="], follower =>
-            expectSequence(follower, "chip-local", "read event path", SEQUENCE, 0, Millis(200)),
+            expectSequence(follower, "chip-local", "read event path", { chip: SEQUENCE }, 0, Millis(200)),
         );
 
         expect(record.verdict).equal("fail");
@@ -319,7 +326,7 @@ describe("expectSequence", () => {
 
     it("reports unverified for a flavor with no pattern for the sequence", async () => {
         const record = await withFollower(READ_EVENT_LINES, follower =>
-            expectSequence(follower, "matterjs", "read event path", SEQUENCE, 0, Seconds(1)),
+            expectSequence(follower, "matterjs", "read event path", { chip: SEQUENCE }, 0, Seconds(1)),
         );
 
         expect(record.verdict).equal("unverified");

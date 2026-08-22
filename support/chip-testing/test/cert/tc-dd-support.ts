@@ -715,7 +715,14 @@ async function restoreCommissioningMode(cx: CertStepContext, commissioned: Commi
         // by a cached advertisement from the generation that just went down.
         record(
             cx,
-            await expectSequence(th.log, th.flavor, "TH restarted", [SETUP_QR_CODE], from, COMMISSIONING_LOG_TIMEOUT),
+            await expectSequence(
+                th.log,
+                th.flavor,
+                "TH restarted",
+                { chip: [SETUP_QR_CODE] },
+                from,
+                COMMISSIONING_LOG_TIMEOUT,
+            ),
             "TH factory reset",
         );
     }
@@ -777,7 +784,7 @@ async function commissionByTarget(
             th.log,
             th.flavor,
             "commissioning complete",
-            [COMMISSIONING_COMPLETE],
+            { chip: [COMMISSIONING_COMPLETE] },
             from,
             COMMISSIONING_LOG_TIMEOUT,
         ),

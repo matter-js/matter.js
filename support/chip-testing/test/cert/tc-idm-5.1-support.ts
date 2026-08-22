@@ -109,7 +109,7 @@ export async function expectTimedRequest(
 ): Promise<TimedRequestLookup> {
     const pattern = `TimedRequestMessage(TimeoutMs = 0x${timeout.toString(16)})`;
     try {
-        const result = await expectAdjacentLines(log, flavor, timedRequestSequence(timeout), from, wait);
+        const result = await expectAdjacentLines(log, flavor, { chip: timedRequestSequence(timeout) }, from, wait);
         if (result.verdict === "unverified") {
             return { outcome: "unnamed", check: { type: "device-log", verdict: "unverified" } };
         }
@@ -211,7 +211,7 @@ export async function expectTimedFollowUp(
 
     try {
         for (;;) {
-            const block = await expectAdjacentLines(log, flavor, [message, /\{\s*$/], cursor, remaining());
+            const block = await expectAdjacentLines(log, flavor, { chip: [message, /\{\s*$/] }, cursor, remaining());
             if (block.verdict === "unverified") {
                 return { type: "device-log", verdict: "unverified" };
             }

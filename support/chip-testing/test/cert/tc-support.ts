@@ -4,18 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, InternalError, MatterError, Millis, Seconds, Time } from "@matter/main";
+import { camelize, Duration, InternalError, MatterError, Millis, Seconds, Time } from "@matter/main";
+import { Matter } from "@matter/model";
 import type {
     AttributePathSpec,
     CertNodeRef,
     CertStepContext,
     CheckRecord,
     EventPathSpec,
+    LogExpectPatterns,
     LogExpectResult,
+    LogExpectSequences,
     LogFollower,
     LogLine,
 } from "@matter/testing";
-import { CertLogClosedError, CertLogTimeoutError } from "@matter/testing";
+import { CertLogClosedError, CertLogTimeoutError, forFlavor } from "@matter/testing";
 
 /**
  * Bounds a device-log check's wait for a line the step has already caused — one the device writes
@@ -134,62 +137,58 @@ export class CommissionedRefs<Role extends string = "dut"> {
 }
 
 /**
- * Waits for `sequence` to match a run of CONSECUTIVE log lines anywhere at or after `from`.
+ * Waits for the sequence `sequences` holds for `flavor`'s implementation to match a run of
+ * CONSECUTIVE log lines anywhere at or after `from`. Resolves `"unverified"` where it holds none.
  *
- * A candidate that matches `sequence[0]` but whose following lines don't stay adjacent is some
- * *other* block sharing the same opening (e.g. a ReportData `AttributePathIB` carrying an extra
- * `Attribute =` line where the request's wildcard block has none, possibly still in flight from an
- * earlier step — the follower pumps the device stream asynchronously, so a previous step's response
- * can surface after this step's `mark()`). Such a candidate is skipped and the search resumes at
- * the next one; genuine absence of the block surfaces as `log.expect`'s own timeout error. The
- * whole search shares one `timeout` budget.
+ * A candidate that matches the sequence's first pattern but whose following lines don't stay
+ * adjacent is some *other* block sharing the same opening (e.g. a ReportData `AttributePathIB`
+ * carrying an extra `Attribute =` line where the request's wildcard block has none, possibly still
+ * in flight from an earlier step — the follower pumps the device stream asynchronously, so a
+ * previous step's response can surface after this step's `mark()`). Such a candidate is skipped and
+ * the search resumes at the next one; genuine absence of the block surfaces as
+ * `log.expectPattern`'s own timeout error. The whole search shares one `timeout` budget.
  */
 export async function expectAdjacentLines(
     log: LogFollower,
     flavor: string,
-    sequence: RegExp[],
+    sequences: LogExpectSequences,
     from: number,
     timeout: Duration,
 ): Promise<{ verdict: "unverified" } | { verdict: "pass"; last: LogLine }> {
+    const sequence = forFlavor(sequences, flavor);
+    if (sequence === undefined) {
+        return { verdict: "unverified" };
+    }
+
     const deadline = Time.nowMs + timeout;
     const remaining = () => Millis(Math.max(1, deadline - Time.nowMs));
 
     let cursor = from;
     for (;;) {
-        const anchor = await log.expect({ chip: sequence[0] }, { flavor, timeoutMs: remaining(), from: cursor });
-        if (anchor.verdict === "unverified") {
-            return { verdict: "unverified" };
-        }
+        const anchor = await log.expectPattern(sequence[0], { timeoutMs: remaining(), from: cursor });
 
-        let last = anchor.matched;
+        let last = anchor;
         let interleaved = false;
         for (const pattern of sequence.slice(1)) {
-            const result = await log.expect(
-                { chip: pattern },
-                { flavor, timeoutMs: remaining(), from: last.index + 1 },
-            );
-            if (result.verdict === "unverified") {
-                return { verdict: "unverified" };
-            }
-            if (result.matched.index !== last.index + 1) {
+            const matched = await log.expectPattern(pattern, { timeoutMs: remaining(), from: last.index + 1 });
+            if (matched.index !== last.index + 1) {
                 interleaved = true;
                 break;
             }
-            last = result.matched;
+            last = matched;
         }
 
         if (!interleaved) {
             return { verdict: "pass", last };
         }
-        cursor = anchor.matched.index + 1;
+        cursor = anchor.index + 1;
     }
 }
 
 // chip's DMG log dumps a ReportDataMessage every time the read handler sends one chunk, and an
 // inbound StatusResponse every time it receives the DUT's per-chunk ack — verified against a real
 // chip-all-clusters-app's log for a >1-MTU wildcard read (repeated ReportDataMessage/StatusResponse
-// pairs). matter.js has no equivalent log line, so this is chip-only; see AGENTS.md's flavor-pattern
-// policy for the matterjs "unverified" fallback.
+// pairs).
 export const REPORT_DATA_MESSAGE = /\[DMG\] ReportDataMessage =\s*$/;
 
 // A subscription's own reports and its SubscribeResponse both carry the id the TH minted for it,
@@ -316,7 +315,7 @@ function attributeHex(id: number): string {
 }
 
 /**
- * Records whether `sequence` matches consecutive log lines at or after `from` (see
+ * Records whether the running flavor's sequence matches consecutive log lines at or after `from` (see
  * {@link expectAdjacentLines}) as a check, with `label` naming what the sequence stands for in the
  * evidence. A timeout or a source closing mid-wait is recorded `"fail"` rather than propagating, so a
  * step's own evidence carries the miss.
@@ -325,12 +324,12 @@ export async function expectSequence(
     log: LogFollower,
     flavor: string,
     label: string,
-    sequence: RegExp[],
+    sequences: LogExpectSequences,
     from: number,
     timeout: Duration,
 ): Promise<CheckRecord> {
     try {
-        const result = await expectAdjacentLines(log, flavor, sequence, from, timeout);
+        const result = await expectAdjacentLines(log, flavor, sequences, from, timeout);
         if (result.verdict === "unverified") {
             return { type: "device-log", verdict: "unverified" };
         }
@@ -349,12 +348,137 @@ export async function expectSequence(
     }
 }
 
+export interface DeviceLogCheck {
+    check: CheckRecord;
+    /** Cursor a subsequent, causally-later log check should search from. */
+    from: number;
+}
+
 /**
- * Confirms chip's log carries exactly the `AttributePathIB` shape `fields` describes as a
- * consecutive block at or after `from` (see {@link expectAdjacentLines} — a wildcard sequence is a
- * strict prefix of a concrete one, so a block with extra field lines is a different block, not a
- * match). Returns `"unverified"` for the matterjs flavor (see AGENTS.md's flavor-pattern policy):
- * matter.js doesn't emit this chip-specific log shape.
+ * Runs a single-pattern {@link LogFollower.expect} and converts every outcome (match, timeout, or a
+ * closed follower) into a {@link CheckRecord} instead of letting the latter two propagate as thrown
+ * errors, so a timed-out or closed-mid-wait check still lands in the evidence bundle rather than
+ * vanishing. {@link expectSequence} is the equivalent for an expectation spanning several lines.
+ */
+export async function expectDeviceLog(
+    log: LogFollower,
+    flavor: string,
+    patterns: LogExpectPatterns,
+    from: number,
+    timeout: Duration,
+): Promise<DeviceLogCheck> {
+    try {
+        const result = await log.expect(patterns, { flavor, timeoutMs: timeout, from });
+        if (result.verdict === "unverified") {
+            return { check: { type: "device-log", verdict: "unverified" }, from };
+        }
+        return {
+            check: {
+                type: "device-log",
+                verdict: "pass",
+                pattern: result.pattern,
+                matched: result.matched.text,
+                logLine: result.matched.index,
+            },
+            from: result.matched.index + 1,
+        };
+    } catch (e) {
+        if (e instanceof CertLogTimeoutError) {
+            return { check: { type: "device-log", verdict: "fail", pattern: e.pattern, detail: e.message }, from };
+        }
+        if (e instanceof CertLogClosedError) {
+            return { check: { type: "device-log", verdict: "fail", detail: e.message }, from };
+        }
+        throw e;
+    }
+}
+
+/**
+ * matter.js's own rendering of an attribute path, as its interaction log names every path an inbound
+ * read, write or subscribe carried: `<endpoint>.<cluster>.state.<attribute>`, with no
+ * `state.<attribute>` segment at all where the path names no attribute (`resolvePathForNode` in
+ * `ProtocolService.ts`). Each element is its name where the node the log speaks for has that element,
+ * and its bare lowercase hex id where a wildcard elsewhere in the path left it unresolved — the
+ * pattern accepts either, since both are derived from the ids the step asked for.
+ */
+function matterjsPath(fields: AttributePathSpec): string {
+    // matter.js resolves a name off the addressed endpoint's own cluster, so a path wildcarding
+    // either the endpoint or the cluster names nothing at all, whatever the model knows.
+    const resolvable = fields.endpoint !== undefined && fields.cluster !== undefined;
+    const cluster = fields.cluster === undefined ? undefined : Matter.clusters(fields.cluster);
+
+    const elements = [
+        fields.endpoint === undefined ? "\\*" : `${fields.endpoint}`,
+        matterjsElement(resolvable ? cluster?.name : undefined, fields.cluster),
+    ];
+    if (fields.attribute === undefined) {
+        elements.push("\\*");
+    } else {
+        const attribute = resolvable ? cluster?.attributes(fields.attribute) : undefined;
+        elements.push("state", matterjsElement(attribute?.name, fields.attribute));
+    }
+
+    return elements.join("\\.");
+}
+
+function matterjsElement(name: string | undefined, id: number | undefined): string {
+    const hex = id === undefined ? "\\*" : `0x${id.toString(16)}`;
+    return name === undefined ? hex : `(?:${camelize(name)}|${hex})`;
+}
+
+// A path is one entry of a comma-separated list, so a match needs both ends bounded: without this,
+// the path a step asked for matches as the tail of a longer endpoint number or the head of a longer
+// element name, attributing another path's line to this check.
+const MATTERJS_PATH_START = "(?<![\\w.*])";
+const MATTERJS_PATH_END = "(?![\\w.*])";
+
+// The read's own paths, not the event paths that follow them on the same line: a wildcard event path
+// renders exactly as a wildcard attribute path does, so an unbounded search finds one for a read that
+// asked for something else entirely.
+function matterjsReadPath(fields: AttributePathSpec): RegExp {
+    return new RegExp(
+        `InteractionServer Read «.*attributes: (?:(?! events:).)*?${MATTERJS_PATH_START}${matterjsPath(fields)}${MATTERJS_PATH_END}`,
+    );
+}
+
+// A write's paths are the whole tail of the line, with no list label of their own.
+function matterjsWritePath(fields: AttributePathSpec): RegExp {
+    return new RegExp(`InteractionServer Write «.*?${MATTERJS_PATH_START}${matterjsPath(fields)}${MATTERJS_PATH_END}`);
+}
+
+// The subscribe line that names paths is the DEBUG "request details" one; the INFO line above it
+// carries path counts only. Its attribute list is bounded by the data-version filters that may follow
+// it as well as by the event paths.
+function matterjsSubscribePath(fields: AttributePathSpec): RegExp {
+    return new RegExp(
+        `InteractionServer Subscribe request details «.*attributes: (?:(?! (?:dataVersionFilters|events):).)*?${MATTERJS_PATH_START}${matterjsPath(fields)}${MATTERJS_PATH_END}`,
+    );
+}
+
+/**
+ * The kind of path-carrying request {@link expectMessageWithPath} looks for. Each names a different
+ * log line in either implementation, and the two implementations disagree on how much of it is one
+ * line — hence a discriminator rather than a caller-supplied pattern.
+ */
+export type PathInteraction = "write" | "subscribe";
+
+const PATH_INTERACTIONS = {
+    write: { chip: WRITE_REQUEST_MESSAGE, matterjs: matterjsWritePath },
+    subscribe: { chip: SUBSCRIBE_REQUEST_MESSAGE, matterjs: matterjsSubscribePath },
+} satisfies Record<PathInteraction, { chip: RegExp; matterjs: (fields: AttributePathSpec) => RegExp }>;
+
+/**
+ * Confirms the TH's log says it received a read for exactly the path `fields` describes, at or after
+ * `from`.
+ *
+ * chip prints the request's decoded `AttributePathIB` as a block of lines, one per present field, so
+ * the check walks the whole block (see {@link expectAdjacentLines}) rather than testing a single "does
+ * X appear" pattern — a wildcard sequence is a strict prefix of a concrete one, so a block with extra
+ * field lines is a different block, not a match. matter.js names every path of the read on one line
+ * instead (see {@link matterjsReadPath}).
+ *
+ * A timeout or a source closing mid-wait is recorded `"fail"` rather than propagating: a caller that
+ * records the result is the only thing putting this check in the evidence bundle at all.
  */
 export async function expectAttributePathIB(
     log: LogFollower,
@@ -497,7 +621,7 @@ export async function expectCommandInvoke(
         const block = await expectAdjacentLines(
             log,
             flavor,
-            commandPathIBSequence(endpoint, cluster, command),
+            { chip: commandPathIBSequence(endpoint, cluster, command) },
             from,
             remaining(),
         );
@@ -744,7 +868,7 @@ export async function expectSubscriptionId(
 
     const sequence = [SUBSCRIBE_RESPONSE_MESSAGE, /\{\s*$/, SUBSCRIPTION_ID_LINE];
     try {
-        const result = await expectAdjacentLines(log, flavor, sequence, from, timeout);
+        const result = await expectAdjacentLines(log, flavor, { chip: sequence }, from, timeout);
         if (result.verdict === "unverified") {
             return { outcome: "unnamed", check: { type: "device-log", verdict: "unverified" } };
         }
@@ -945,7 +1069,7 @@ export async function expectReportAck(
         const report = await expectAdjacentLines(
             log,
             flavor,
-            [REPORT_DATA_MESSAGE, /\{\s*$/, subscriptionIdPattern(subscriptionId)],
+            { chip: [REPORT_DATA_MESSAGE, /\{\s*$/, subscriptionIdPattern(subscriptionId)] },
             from,
             remaining(),
         );

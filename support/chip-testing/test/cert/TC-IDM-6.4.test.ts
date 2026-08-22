@@ -85,7 +85,7 @@ certTest("TC-IDM-6.4", {
                 th.flavor,
                 "SubscribeRequestMessage envelope (KeepSubscriptions, MinIntervalFloorSeconds, " +
                     `MaxIntervalCeilingSeconds, EventPathIBs ${JSON.stringify(EVENT_PATH)})`,
-                subscribeEnvelopeSequence(STEP_1_MIN_INTERVAL, STEP_1_MAX_INTERVAL),
+                { chip: subscribeEnvelopeSequence(STEP_1_MIN_INTERVAL, STEP_1_MAX_INTERVAL) },
                 from,
                 LOG_TIMEOUT,
             );
@@ -95,7 +95,7 @@ certTest("TC-IDM-6.4", {
                 th.log,
                 th.flavor,
                 "SubscribeRequestMessage isFabricFiltered",
-                [fabricFilteredPattern(true)],
+                { chip: [fabricFilteredPattern(true)] },
                 envelopeCheck.logLine === undefined ? from : envelopeCheck.logLine + 1,
                 LOG_TIMEOUT,
             );
