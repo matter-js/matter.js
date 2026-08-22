@@ -2308,6 +2308,26 @@ describe("CertTest", () => {
         }
     });
 
+    it("fails a run whose logs could not be attached, so no bundle claims checks it cannot support", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [{ number: 1, text: "Passing step", run: async () => {} }],
+        };
+
+        const cx: CertStepContext = { controllers: {}, devices: {}, recorder: stubRecorder() };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, undefined, [], {
+            beforeFlushError: new Error("log attach blew up"),
+        });
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            "log attach blew up",
+        );
+    });
+
     it("keeps a step failure ahead of logs that could not be attached", async () => {
         const definition: CertTestDefinition = {
             tc: "TC-CADMIN-1.17",
