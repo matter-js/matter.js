@@ -487,38 +487,57 @@ export async function expectAttributePathIB(
     from: number,
     timeout: Duration,
 ): Promise<CheckRecord> {
-    const result = await expectAdjacentLines(log, flavor, attributePathIBSequence(fields), from, timeout);
-    if (result.verdict === "unverified") {
-        return { type: "device-log", verdict: "unverified" };
-    }
+    const pattern = `AttributePathIB ${JSON.stringify(fields)}`;
+    try {
+        const result = await expectAdjacentLines(
+            log,
+            flavor,
+            { chip: attributePathIBSequence(fields), matterjs: [matterjsReadPath(fields)] },
+            from,
+            timeout,
+        );
+        if (result.verdict === "unverified") {
+            return { type: "device-log", verdict: "unverified" };
+        }
 
-    return {
-        type: "device-log",
-        verdict: "pass",
-        pattern: `AttributePathIB ${JSON.stringify(fields)}`,
-        matched: result.last.text,
-        logLine: result.last.index,
-    };
+        return {
+            type: "device-log",
+            verdict: "pass",
+            pattern,
+            matched: result.last.text,
+            logLine: result.last.index,
+        };
+    } catch (e) {
+        if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
+            return { type: "device-log", verdict: "fail", pattern, detail: e.message, logLine: from };
+        }
+        throw e;
+    }
 }
 
 /**
- * Confirms `message` (e.g. {@link WRITE_REQUEST_MESSAGE} or {@link SUBSCRIBE_REQUEST_MESSAGE} — a
- * request kind whose payload carries an `AttributePathIB`, not {@link INVOKE_REQUEST_MESSAGE}, whose
- * `CommandDataIB` needs a different matcher) appears at or after `from`, then that the
- * `AttributePathIB` block for `fields` follows it at or after that point (see
- * {@link expectAttributePathIB}). Anchoring on the request-message name first, not just the path
- * block on its own, rules out a differently-typed request landing at the same log position. Both
- * waits share `timeout`'s deadline; a timeout or closed source from either stage is recorded as a
- * `"fail"` rather than propagating uncaught.
+ * Confirms the TH's log says an `interaction` request carrying the path `fields` describes arrived at
+ * or after `from`.
+ *
+ * Against chip this takes two waits: the request-message name first, then the `AttributePathIB` block
+ * for `fields` at or after it (see {@link expectAttributePathIB}) — anchoring on the message name,
+ * not the path block alone, rules out a differently-typed request landing at the same log position.
+ * Both waits share `timeout`'s deadline. Against matter.js the request and its paths are one line.
+ * Either way a timeout or a closed source is recorded as a `"fail"` rather than propagating uncaught.
  */
 export async function expectMessageWithPath(
     log: LogFollower,
     flavor: string,
-    message: RegExp,
+    interaction: PathInteraction,
     fields: AttributePathSpec,
     from: number,
     timeout: Duration,
 ): Promise<CheckRecord> {
+    const { chip: message, matterjs } = PATH_INTERACTIONS[interaction];
+    if (!flavor.startsWith("chip")) {
+        return (await expectDeviceLog(log, flavor, { matterjs: matterjs(fields) }, from, timeout)).check;
+    }
+
     const deadline = Time.nowMs + timeout;
     const remaining = () => Millis(Math.max(1, deadline - Time.nowMs));
 
@@ -535,20 +554,7 @@ export async function expectMessageWithPath(
         return { type: "device-log", verdict: "unverified" };
     }
 
-    try {
-        return await expectAttributePathIB(log, flavor, fields, anchor.matched.index + 1, remaining());
-    } catch (e) {
-        if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
-            return {
-                type: "device-log",
-                verdict: "fail",
-                pattern: `AttributePathIB ${JSON.stringify(fields)}`,
-                detail: e.message,
-                logLine: anchor.matched.index,
-            };
-        }
-        throw e;
-    }
+    return expectAttributePathIB(log, flavor, fields, anchor.matched.index + 1, remaining());
 }
 
 /** Throws if `id` is `undefined` — narrows a model element's optional numeric id for `.toString(16)`. */
@@ -671,11 +677,34 @@ export async function expectCommandInvoke(
 const CHUNK_QUIET = Seconds(2);
 
 /**
+ * What {@link expectChunkedTransfer} needs one implementation's log to tell it: which lines are
+ * outbound report chunks, which exchange each went out on, and which line is the DUT's ack of a chunk
+ * on that exchange.
+ */
+interface ChunkedTransferDialect {
+    /** An outbound report chunk. */
+    chunk: RegExp;
+
+    /** The exchange `chunk` went out on, or `undefined` where the log does not say. */
+    exchangeOf(log: LogFollower, chunk: LogLine): string | undefined;
+
+    /** The DUT's ack of a chunk sent on `exchange`. */
+    ack(exchange: string): RegExp;
+
+    /** What the evidence names as the pattern for the two attribution failures. */
+    attribution: string;
+
+    /** How the evidence says a chunk's own exchange could not be read. */
+    unattributed: string;
+}
+
+/**
  * Confirms a chunked read actually chunked and that the DUT acked every chunk but the last: at least
- * two report chunks, with a `StatusResponse` received between every adjacent pair. Missing evidence
- * comes back as a `"fail"` record rather than a thrown timeout, so the step's own reporting carries
- * it. Returns `"unverified"` for the matterjs flavor (see AGENTS.md's flavor-pattern policy) rather
- * than a `"pass"` a log-scrape can't back up.
+ * two report chunks, all on one exchange, with a `StatusResponse` received between every adjacent
+ * pair. Missing evidence comes back as a `"fail"` record rather than a thrown timeout, so the step's
+ * own reporting carries it.
+ *
+ * Both flavors name the same three things, in different places — {@link ChunkedTransferDialect}.
  */
 export async function expectChunkedTransfer(
     log: LogFollower,
@@ -683,6 +712,11 @@ export async function expectChunkedTransfer(
     from: number,
     timeout: Duration,
 ): Promise<CheckRecord> {
+    const dialect = forFlavor(CHUNKED_TRANSFER_DIALECTS, flavor);
+    if (dialect === undefined) {
+        return { type: "device-log", verdict: "unverified" };
+    }
+
     const deadline = Time.nowMs + timeout;
     const remaining = () => Millis(Math.max(1, deadline - Time.nowMs));
 
@@ -691,12 +725,12 @@ export async function expectChunkedTransfer(
         // The second chunk is what proves the read chunked at all, so it gets the whole remaining
         // budget; every later one only has to outlast pump lag, and its absence ends the transfer.
         const timeout = chunks.length > 1 ? Duration.min(CHUNK_QUIET, remaining()) : remaining();
-        let next: LogExpectResult;
+        let next: LogLine;
         try {
-            next = await log.expect(
-                { chip: REPORT_DATA_MESSAGE },
-                { flavor, timeoutMs: timeout, from: chunks.length ? chunks[chunks.length - 1].index + 1 : from },
-            );
+            next = await log.expectPattern(dialect.chunk, {
+                timeoutMs: timeout,
+                from: chunks.length ? chunks[chunks.length - 1].index + 1 : from,
+            });
         } catch (e) {
             // A source that ends mid-wait is as much an end of the transfer as a quiet period is;
             // whether the chunks seen so far are evidence enough is decided below, not here.
@@ -705,17 +739,14 @@ export async function expectChunkedTransfer(
             }
             throw e;
         }
-        if (next.verdict === "unverified") {
-            return { type: "device-log", verdict: "unverified" };
-        }
-        chunks.push(next.matched);
+        chunks.push(next);
     }
 
     if (chunks.length < 2) {
         return {
             type: "device-log",
             verdict: "fail",
-            pattern: String(REPORT_DATA_MESSAGE),
+            pattern: String(dialect.chunk),
             detail: `${chunks.length} report chunks — the read did not chunk`,
             logLine: chunks[0]?.index,
         };
@@ -724,26 +755,24 @@ export async function expectChunkedTransfer(
     // One transfer stays on one exchange, so this is what makes the chunks *one* read's rather than
     // several reads' — and, like expectReportAck, what tells this read's acks from those of the node's
     // own subscription, which stays live during these runs.
-    const exchange = exchangeIdBefore(log, chunks[0].index);
+    const exchange = dialect.exchangeOf(log, chunks[0]);
     if (exchange === undefined) {
         return {
             type: "device-log",
             verdict: "fail",
-            pattern: String(REPORT_SENT_LINE),
-            detail:
-                "No outbound Report Data trace line (carrying an Exchange id) found before the report " +
-                `chunk at log line ${chunks[0].index}`,
+            pattern: dialect.attribution,
+            detail: `${dialect.unattributed} for the report chunk at log line ${chunks[0].index}`,
             logLine: chunks[0].index,
         };
     }
 
     for (const [i, chunk] of chunks.entries()) {
-        const chunkExchange = exchangeIdBefore(log, chunk.index);
+        const chunkExchange = dialect.exchangeOf(log, chunk);
         if (chunkExchange !== exchange) {
             return {
                 type: "device-log",
                 verdict: "fail",
-                pattern: String(REPORT_SENT_LINE),
+                pattern: dialect.attribution,
                 detail:
                     `The report chunk at log line ${chunk.index} went out on Exchange ` +
                     `${chunkExchange ?? "(none)"}, not ${exchange}, so chunk ${i + 1} of ${chunks.length} ` +
@@ -753,7 +782,7 @@ export async function expectChunkedTransfer(
         }
     }
 
-    const ackPattern = reportAckedOnExchange(exchange);
+    const ackPattern = dialect.ack(exchange);
     const lines = log.lines;
     for (let i = 1; i < chunks.length; i++) {
         const acked = lines
@@ -958,6 +987,28 @@ const EXCHANGE_LOOKBACK_LINES = 1000;
 function exchangeIdBefore(log: LogFollower, beforeIndex: number): string | undefined {
     return log.lastMatchBefore(REPORT_SENT_LINE, beforeIndex, EXCHANGE_LOOKBACK_LINES)?.match[1];
 }
+
+// matter.js names the exchange on the report line itself, so a chunk carries its own attribution;
+// chip's decode dump does not, and its exchange comes off the trace line preceding it.
+const MATTERJS_REPORT_CHUNK = /Message » for: I\/ReportData .*⇵([0-9a-f]+)✉/;
+
+const CHUNKED_TRANSFER_DIALECTS: { chip: ChunkedTransferDialect; matterjs: ChunkedTransferDialect } = {
+    chip: {
+        chunk: REPORT_DATA_MESSAGE,
+        exchangeOf: (log, chunk) => exchangeIdBefore(log, chunk.index),
+        ack: reportAckedOnExchange,
+        attribution: String(REPORT_SENT_LINE),
+        unattributed: "No outbound Report Data trace line (carrying an Exchange id) found",
+    },
+
+    matterjs: {
+        chunk: MATTERJS_REPORT_CHUNK,
+        exchangeOf: (_log, chunk) => MATTERJS_REPORT_CHUNK.exec(chunk.text)?.[1],
+        ack: exchange => new RegExp(`Message « for: I/StatusResponse .*⇵${exchange}✉`),
+        attribution: String(MATTERJS_REPORT_CHUNK),
+        unattributed: "No exchange id on the report line",
+    },
+};
 
 /**
  * As {@link expectReportAck} against a matter.js TH, which names both the subscription a report
