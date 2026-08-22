@@ -4,12 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger } from "#general";
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { Duration, Logger, Minutes } from "#general";
+import { execFile } from "node:child_process";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { promisify } from "node:util";
 import { absolute } from "../util/file.js";
 import { DataModelSourceError } from "./errors.js";
+import { compareVersions } from "./version.js";
 
 const logger = Logger.get("chip-data-model");
 
@@ -17,6 +19,12 @@ const REPO_URL = "https://github.com/project-chip/connectedhomeip.git";
 const CACHE_PATH = "!cache/chip-data-model";
 const REF_FILE = ".ref";
 const VERSION_PATTERN = /^\d+\.\d+(\.\d+)?$/;
+const COMMIT_PATTERN = /^[\da-f]{40}$/i;
+
+/** A hung git leaves the tool with nothing to report, so every invocation is bounded */
+const GIT_TIMEOUT = Minutes(5);
+
+const run = promisify(execFile);
 
 /**
  * A source of CHIP data model XML.
@@ -43,7 +51,7 @@ export namespace ChipDataModel {
          */
         dir?: string;
 
-        /** Branch, tag or commit to download */
+        /** Branch or tag to download; the download is a single commit, so a bare commit ID is not a valid ref */
         ref?: string;
 
         /** Download again even if a cached download is present */
@@ -59,7 +67,7 @@ export namespace ChipDataModel {
      */
     export async function open(options: Options = {}): Promise<ChipDataModel> {
         if (options.dir !== undefined) {
-            return new LocalCheckout(options.dir);
+            return await LocalCheckout.open(options.dir);
         }
         return await CachedDownload.open(options);
     }
@@ -81,34 +89,48 @@ export namespace ChipDataModel {
     }
 }
 
-/** Order two data model versions numerically rather than lexically */
-export function compareVersions(a: string, b: string) {
-    const left = a.split(".").map(Number);
-    const right = b.split(".").map(Number);
-
-    for (let i = 0; i < Math.max(left.length, right.length); i++) {
-        const difference = (left[i] ?? 0) - (right[i] ?? 0);
-        if (difference) {
-            return difference;
-        }
-    }
-
-    return 0;
-}
-
-function git(cwd: string, ...args: string[]) {
+async function git(cwd: string, ...args: string[]) {
+    let stdout;
     try {
-        return execFileSync("git", args, { cwd, encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+        ({ stdout } = await run("git", args, {
+            cwd,
+            encoding: "utf-8",
+            timeout: GIT_TIMEOUT,
+
+            // Without a terminal git would wait on the credential prompt until the timeout rather than failing
+            env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+        }));
     } catch (cause) {
-        throw new DataModelSourceError(`git ${args.join(" ")} failed in ${cwd}`, { cause });
+        throw new DataModelSourceError(
+            timedOut(cause)
+                ? `git ${args.join(" ")} in ${cwd} exceeded ${Duration.format(GIT_TIMEOUT)}`
+                : `git ${args.join(" ")} failed in ${cwd}`,
+            { cause },
+        );
     }
+    return stdout.trim();
 }
 
-function dataModelDir(path: string) {
-    if (existsSync(resolve(path, "data_model"))) {
+/** The child is also killed when it outstrips `maxBuffer`, which is a different failure than a hung git */
+function timedOut(cause: unknown) {
+    if (!(cause instanceof Error) || !("killed" in cause) || cause.killed !== true) {
+        return false;
+    }
+    return !("code" in cause) || cause.code !== "ERR_CHILD_PROCESS_STDIO_MAXBUFFER";
+}
+
+async function isDirectory(path: string) {
+    return (await stat(path).catch(() => undefined))?.isDirectory() === true;
+}
+
+async function dataModelDir(path: string) {
+    if (await isDirectory(resolve(path, "data_model"))) {
         return resolve(path, "data_model");
     }
-    if (existsSync(resolve(path, "clusters")) || readdirSync(path).some(entry => VERSION_PATTERN.test(entry))) {
+    if (
+        (await isDirectory(resolve(path, "clusters"))) ||
+        (await readdir(path)).some(entry => VERSION_PATTERN.test(entry))
+    ) {
         return resolve(path);
     }
     throw new DataModelSourceError(`No data model XML in ${path}; expected a connectedhomeip checkout`);
@@ -118,27 +140,31 @@ class LocalCheckout implements ChipDataModel {
     readonly #path: string;
     readonly description: string;
 
-    constructor(dir: string) {
-        this.#path = dataModelDir(dir);
+    private constructor(path: string, revision?: string) {
+        this.#path = path;
+        this.description = revision === undefined ? path : `${path} (${revision})`;
+    }
+
+    static async open(dir: string) {
+        const path = await dataModelDir(dir);
 
         let revision;
         try {
-            revision = git(this.#path, "rev-parse", "--short", "HEAD");
+            revision = await git(path, "rev-parse", "--short", "HEAD");
         } catch {
             // Not a git checkout; the path alone identifies the source
         }
-        this.description = revision === undefined ? this.#path : `${this.#path} (${revision})`;
+
+        return new LocalCheckout(path, revision);
     }
 
     async versions() {
-        return readdirSync(this.#path)
-            .filter(entry => VERSION_PATTERN.test(entry))
-            .sort(compareVersions);
+        return (await readdir(this.#path)).filter(entry => VERSION_PATTERN.test(entry)).sort(compareVersions);
     }
 
     async directory(version: string) {
         const path = resolve(this.#path, version);
-        if (!existsSync(path)) {
+        if (!(await isDirectory(path))) {
             throw new DataModelSourceError(`${this.#path} has no data model for version ${version}`);
         }
         return path;
@@ -162,24 +188,27 @@ class CachedDownload implements ChipDataModel {
         const path = absolute(CACHE_PATH);
         const marker = resolve(path, REF_FILE);
 
-        // The download is a single commit, so anything but a confirmed match of the same ref means downloading again
-        let cached: string | undefined;
-        try {
-            cached = readFileSync(marker, "utf-8");
-        } catch {
-            // No marker, so nothing we can trust
+        if (refresh) {
+            await rm(path, { force: true, recursive: true });
+        } else {
+            // The download is a single commit, so the cache is only good for the commit the ref pointed at when we
+            // populated it; a branch that has moved since must download again.  A ref we could not resolve leaves the
+            // cache in place, as there is nothing better to compare against
+            const wanted = await resolvedCommit(ref);
+            const cached = await readFile(marker, "utf-8").catch(() => undefined);
+
+            if (wanted !== undefined && cached !== markerFor(ref, wanted)) {
+                await rm(path, { force: true, recursive: true });
+            }
         }
 
-        if (refresh || cached !== ref) {
-            rmSync(path, { force: true, recursive: true });
-        }
-
-        if (existsSync(resolve(path, ".git"))) {
+        let downloaded = false;
+        if (await isDirectory(resolve(path, ".git"))) {
             logger.info(`Using cached CHIP data model download in ${path}`);
         } else {
-            mkdirSync(path, { recursive: true });
+            await mkdir(path, { recursive: true });
             logger.info(`Downloading CHIP data model ${ref} into ${path}`);
-            git(
+            await git(
                 path,
                 "clone",
                 "--depth",
@@ -192,12 +221,16 @@ class CachedDownload implements ChipDataModel {
                 REPO_URL,
                 ".",
             );
+            downloaded = true;
         }
 
-        writeFileSync(marker, ref);
+        const commit = await git(path, "rev-parse", "HEAD");
+        const committed = await git(path, "log", "-1", "--format=%cs");
 
-        const commit = git(path, "rev-parse", "HEAD");
-        const committed = git(path, "log", "-1", "--format=%cs");
+        // Only a download we performed establishes what the marker states
+        if (downloaded) {
+            await writeFile(marker, markerFor(ref, commit));
+        }
 
         return new CachedDownload(path, commit, committed);
     }
@@ -207,7 +240,7 @@ class CachedDownload implements ChipDataModel {
     }
 
     async versions() {
-        return git(this.#path, "ls-tree", "--name-only", "HEAD", "data_model/")
+        return (await git(this.#path, "ls-tree", "--name-only", "HEAD", "data_model/"))
             .split("\n")
             .map(line => line.replace(/^data_model\//, "").replace(/\/$/, ""))
             .filter(entry => VERSION_PATTERN.test(entry))
@@ -220,20 +253,56 @@ class CachedDownload implements ChipDataModel {
                 throw new DataModelSourceError(`CHIP ${this.description} has no data model for version ${version}`);
             }
 
-            this.#checkout.add(version);
-            git(this.#path, "sparse-checkout", "set", "--no-cone", ...[...this.#checkout].map(v => `data_model/${v}`));
+            const wanted = [...this.#checkout, version];
+            await git(this.#path, "sparse-checkout", "set", "--no-cone", ...wanted.map(v => `data_model/${v}`));
 
             if (!this.#populated) {
-                git(this.#path, "checkout", "--detach", this.#commit);
+                await git(this.#path, "checkout", "--detach", this.#commit);
                 this.#populated = true;
             }
+
+            // Recorded only once the working tree holds the version, so a failure above leaves a retry able to repeat it
+            this.#checkout.add(version);
         }
 
         const path = resolve(this.#path, "data_model", version);
-        if (!statSync(path, { throwIfNoEntry: false })?.isDirectory()) {
+        if (!(await isDirectory(path))) {
             throw new DataModelSourceError(`Checkout of CHIP data model ${version} produced no ${path}`);
         }
 
         return path;
     }
+}
+
+function markerFor(ref: string, commit: string) {
+    return `${ref} ${commit}`;
+}
+
+/**
+ * The commit a ref names in the remote.
+ *
+ * Returns undefined when the remote cannot be reached, which leaves whatever the cache holds in place rather than
+ * failing a run that has everything it needs.
+ */
+async function resolvedCommit(ref: string) {
+    let output;
+    try {
+        // git peels a ref only where asked to, so the annotated-tag case needs the peeled pattern of its own
+        output = await git(process.cwd(), "ls-remote", REPO_URL, ref, `${ref}^{}`);
+    } catch (cause) {
+        logger.warn(`Cannot reach ${REPO_URL}; using the cached download if there is one`, cause);
+        return undefined;
+    }
+
+    const lines = output.split("\n").filter(line => line !== "");
+
+    // An annotated tag resolves to the tag object; the peeled entry names the commit the clone will check out
+    const line = lines.find(candidate => candidate.endsWith("^{}")) ?? lines[0];
+
+    const commit = line?.split(/\s/, 1)[0].toLowerCase();
+    if (commit === undefined || !COMMIT_PATTERN.test(commit)) {
+        throw new DataModelSourceError(`${REPO_URL} has no branch or tag ${ref}`);
+    }
+
+    return commit;
 }
