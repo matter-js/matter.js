@@ -2094,7 +2094,7 @@ describe("CertTest", () => {
         expect(banners).to.include("TC-CADMIN-1.17 — 2 steps skipped as unsupported by the controller");
     });
 
-    it("records a teardown failure in the run's own record, which is written after the flush", async () => {
+    it("records a close failure, then settles the record that carries it", async () => {
         const definition: CertTestDefinition = {
             tc: "TC-CADMIN-1.17",
             plan: "multiplefabrics.adoc",
@@ -2130,7 +2130,7 @@ describe("CertTest", () => {
         expect(calls).deep.equal(["flush", "teardownFailed: controller would not close", "concludeRun"]);
     });
 
-    it("re-writes the run record when a device exits after the flush, so the bundle is not left saying pass", async () => {
+    it("settles the verdict as failed when a device exits after the evidence was written", async () => {
         const outDir = await mkdtemp(join(tmpdir(), "matter-cert-test-evidence-"));
         try {
             let exitDevice!: (info: DeviceExitInfo) => void;
