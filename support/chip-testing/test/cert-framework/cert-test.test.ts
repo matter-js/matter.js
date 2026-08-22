@@ -2115,8 +2115,8 @@ describe("CertTest", () => {
                     calls.push("flush");
                     return "";
                 },
-                async flushRunRecord() {
-                    calls.push("flushRunRecord");
+                async concludeRun() {
+                    calls.push("concludeRun");
                 },
             }),
         };
@@ -2127,7 +2127,7 @@ describe("CertTest", () => {
 
         await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith("failed to close");
 
-        expect(calls).deep.equal(["flush", "teardownFailed: controller would not close", "flushRunRecord"]);
+        expect(calls).deep.equal(["flush", "teardownFailed: controller would not close", "concludeRun"]);
     });
 
     it("re-writes the run record when a device exits after the flush, so the bundle is not left saying pass", async () => {
@@ -2160,9 +2160,9 @@ describe("CertTest", () => {
 
             let verdictBeforeExit: string | undefined;
             const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, undefined, [], {
-                // Teardown runs after the first write, so this is the window the second write exists
-                // for. Reading the record before killing the device proves the final verdict cannot
-                // have come from that first write.
+                // Teardown runs after the interim write, which is where a device can still die
+                // unobserved by any step. Reading the record here proves the final verdict is settled
+                // afterwards rather than carried over from it.
                 onTeardown: async () => {
                     verdictBeforeExit = JSON.parse(await readFile(resultPath, "utf8")).verdict;
                     exitDevice({ code: 1, signal: null });
@@ -2174,7 +2174,7 @@ describe("CertTest", () => {
                 "exited unexpectedly",
             );
 
-            expect(verdictBeforeExit).equal("pass");
+            expect(verdictBeforeExit).equal("incomplete");
 
             const resultJson = JSON.parse(await readFile(resultPath, "utf8"));
             expect(resultJson.verdict).equal("fail");
@@ -2185,50 +2185,84 @@ describe("CertTest", () => {
         }
     });
 
-    it("does not re-write the run record for a run that ended cleanly", async () => {
-        const definition: CertTestDefinition = {
-            tc: "TC-CADMIN-1.17",
-            plan: "multiplefabrics.adoc",
-            pics: [],
-            app: "all-clusters",
-            steps: [{ number: 1, text: "Passing step", run: async () => {} }],
-        };
+    it("leaves the record stating no verdict when the run never reaches its conclusion", async () => {
+        const outDir = await mkdtemp(join(tmpdir(), "matter-cert-test-evidence-"));
+        try {
+            const definition: CertTestDefinition = {
+                tc: "TC-CADMIN-1.17",
+                plan: "multiplefabrics.adoc",
+                pics: [],
+                app: "all-clusters",
+                steps: [{ number: 1, text: "Passing step", run: async () => {} }],
+            };
 
-        let rewrites = 0;
-        const cx: CertStepContext = {
-            controllers: {},
-            devices: {},
-            recorder: stubRecorder({
-                async flushRunRecord() {
-                    rewrites++;
-                },
-            }),
-        };
+            const recorder = new EvidenceRecorder(outDir, {
+                tc: "TC-CADMIN-1.17",
+                plan: "multiplefabrics.adoc",
+                timestamp: "2026-08-07T00:00:00.000Z",
+                controller: "dut",
+                controllerImplementation: "matterjs",
+                device: "matterjs:all-clusters",
+                matterJsCommit: "abc1234",
+            });
+            const resultPath = join(outDir, "2026-08-07T00-00-00.000Z-TC-CADMIN-1.17", "result.json");
+            const cx: CertStepContext = { controllers: {}, devices: {}, recorder };
 
-        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
-        await test.invoke(stubSubject(new PicsFile([])), () => {}, [], false);
+            // A teardown that never returns is the case the pre-teardown write exists for, and the one
+            // no later write can repair.
+            const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, undefined, [], {
+                onTeardown: () => new Promise<void>(() => {}),
+            });
 
-        expect(rewrites).equal(0);
+            const invoked = test.invoke(stubSubject(new PicsFile([])), () => {}, [], false);
+            invoked.catch(() => {});
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            const resultJson = JSON.parse(await readFile(resultPath, "utf8"));
+            expect(resultJson.verdict).equal("incomplete");
+            expect(resultJson.steps[0].verdict).equal("pass");
+        } finally {
+            await rm(outDir, { recursive: true, force: true });
+        }
     });
 
-    it("fails a run whose logs could not be attached, so no bundle claims checks it cannot support", async () => {
-        const definition: CertTestDefinition = {
-            tc: "TC-CADMIN-1.17",
-            plan: "multiplefabrics.adoc",
-            pics: [],
-            app: "all-clusters",
-            steps: [{ number: 1, text: "Passing step", run: async () => {} }],
-        };
+    it("settles the record's verdict once the run concludes", async () => {
+        const outDir = await mkdtemp(join(tmpdir(), "matter-cert-test-evidence-"));
+        try {
+            const definition: CertTestDefinition = {
+                tc: "TC-CADMIN-1.17",
+                plan: "multiplefabrics.adoc",
+                pics: [],
+                app: "all-clusters",
+                steps: [{ number: 1, text: "Passing step", run: async () => {} }],
+            };
 
-        const cx: CertStepContext = { controllers: {}, devices: {}, recorder: stubRecorder() };
+            const recorder = new EvidenceRecorder(outDir, {
+                tc: "TC-CADMIN-1.17",
+                plan: "multiplefabrics.adoc",
+                timestamp: "2026-08-07T00:00:00.000Z",
+                controller: "dut",
+                controllerImplementation: "matterjs",
+                device: "matterjs:all-clusters",
+                matterJsCommit: "abc1234",
+            });
+            const resultPath = join(outDir, "2026-08-07T00-00-00.000Z-TC-CADMIN-1.17", "result.json");
+            const cx: CertStepContext = { controllers: {}, devices: {}, recorder };
 
-        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, undefined, [], {
-            beforeFlushError: new Error("log attach blew up"),
-        });
+            let verdictBeforeConclusion: string | undefined;
+            const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, undefined, [], {
+                onTeardown: async () => {
+                    verdictBeforeConclusion = JSON.parse(await readFile(resultPath, "utf8")).verdict;
+                },
+            });
 
-        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
-            "log attach blew up",
-        );
+            await test.invoke(stubSubject(new PicsFile([])), () => {}, [], false);
+
+            expect(verdictBeforeConclusion).equal("incomplete");
+            expect(JSON.parse(await readFile(resultPath, "utf8")).verdict).equal("pass");
+        } finally {
+            await rm(outDir, { recursive: true, force: true });
+        }
     });
 
     it("persists the log-attachment failure, so the written record does not report a pass", async () => {

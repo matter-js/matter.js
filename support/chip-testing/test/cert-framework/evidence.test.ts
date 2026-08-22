@@ -10,6 +10,13 @@ import * as fsp from "node:fs/promises";
 import * as osMod from "node:os";
 import * as pathMod from "node:path";
 
+/** Writes the bundle the way a completed run does: the evidence, then the verdict. */
+async function publish(recorder: EvidenceRecorder): Promise<string> {
+    const dir = await recorder.flush();
+    await recorder.concludeRun();
+    return dir;
+}
+
 function logLine(index: number, text: string): LogLine {
     return { index, at: new Date(0), text };
 }
@@ -74,7 +81,7 @@ describe("EvidenceRecorder", () => {
         recorder.attachLog("controller", [logLine(0, "line one"), logLine(1, "line two")]);
         recorder.attachLog("device-app1", [logLine(0, "device booted")]);
 
-        const dir = await recorder.flush();
+        const dir = await publish(recorder);
 
         expect(dir).equal(pathMod.join(outDir, "2026-08-07T12-34-56.789Z-TC-CADMIN-1.17"));
 
@@ -144,7 +151,7 @@ describe("EvidenceRecorder", () => {
         recorder.endStep(step1, "pass");
         recorder.endStep(step2, "skipped", "CADMIN.S.UnmetToken not met");
 
-        const dir = await recorder.flush();
+        const dir = await publish(recorder);
         const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
 
         expect(resultJson.verdict).equal("pass");
@@ -172,7 +179,7 @@ describe("EvidenceRecorder", () => {
         recorder.endStep(step1, "skipped", 'unsupported on device flavor "matterjs"');
         recorder.endStep(step2, "skipped", 'unsupported on device flavor "matterjs"');
 
-        const dir = await recorder.flush();
+        const dir = await publish(recorder);
         const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
 
         expect(resultJson.verdict).equal("skipped");
@@ -189,7 +196,7 @@ describe("EvidenceRecorder", () => {
             matterJsCommit: "abc1234",
         });
 
-        const dir = await recorder.flush();
+        const dir = await publish(recorder);
         const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
 
         expect(resultJson.verdict).equal("skipped");
@@ -210,7 +217,7 @@ describe("EvidenceRecorder", () => {
         recorder.endStep(step1, "pass");
         recorder.endStep(step2, "aborted");
 
-        const dir = await recorder.flush();
+        const dir = await publish(recorder);
         const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
 
         expect(resultJson.verdict).equal("fail");
@@ -231,7 +238,7 @@ describe("EvidenceRecorder", () => {
         recorder.endStep(step1, "pass");
         recorder.deviceExited({ code: null, signal: "SIGKILL" });
 
-        const dir = await recorder.flush();
+        const dir = await publish(recorder);
         const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
 
         expect(resultJson.verdict).equal("fail");
@@ -253,7 +260,7 @@ describe("EvidenceRecorder", () => {
         recorder.endStep(step1, "pass");
         recorder.finalizationFailed("Failed to decommission dut: node is reconnecting");
 
-        const dir = await recorder.flush();
+        const dir = await publish(recorder);
         const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
 
         expect(resultJson.verdict).equal("fail");
@@ -303,7 +310,7 @@ describe("EvidenceRecorder", () => {
             chipToolRef: "df8bd0308caa0680e2a78cda724a959e5b385205",
         });
 
-        const dir = await recorder.flush();
+        const dir = await publish(recorder);
         const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
 
         expect(resultJson.run.controllerImplementation).equal("chip-tool");
@@ -325,7 +332,7 @@ describe("EvidenceRecorder", () => {
         recorder.endStep(step1, "pass");
         recorder.recordControllerUnsupportedSkips(2);
 
-        const dir = await recorder.flush();
+        const dir = await publish(recorder);
         const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
 
         // A pass verdict alongside a nonzero count is exactly the case the field exists for.
@@ -347,13 +354,13 @@ describe("EvidenceRecorder", () => {
         recorder.beginStep(step1);
         recorder.endStep(step1, "pass");
 
-        const dir = await recorder.flush();
+        const dir = await publish(recorder);
         const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
 
         expect("controllerUnsupportedSkips" in resultJson).equal(false);
     });
 
-    it("records a teardown failure that arrives after the flush, and fails the run over it", async () => {
+    it("records a teardown failure arriving between the evidence and the verdict, and fails the run over it", async () => {
         const recorder = new EvidenceRecorder(outDir, {
             tc: "TC-IDM-2.1",
             plan: "interactiondatamodel.adoc",
@@ -369,10 +376,10 @@ describe("EvidenceRecorder", () => {
         recorder.attachLog("controller", [logLine(0, "a line")]);
 
         const dir = await recorder.flush();
-        expect(JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8")).verdict).equal("pass");
+        expect(JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8")).verdict).equal("incomplete");
 
         recorder.teardownFailed("chip-tool would not close");
-        await recorder.flushRunRecord();
+        await recorder.concludeRun();
 
         const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
         expect(resultJson.verdict).equal("fail");
@@ -399,41 +406,13 @@ describe("EvidenceRecorder", () => {
         recorder.attachLog("missing-dir/controller", [logLine(0, "a line")]);
 
         await expect(recorder.flush()).rejected;
+        await recorder.concludeRun();
 
         const dir = pathMod.join(outDir, "2026-08-07T00-00-00.000Z-TC-IDM-2.1");
         const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
         expect(resultJson.verdict).equal("fail");
         expect(resultJson.evidenceError).match(/could not be written/);
         expect(resultJson.steps[0].verdict).equal("pass");
-    });
-
-    it("leaves no record at all when a late rewrite cannot complete, rather than the stale passing one", async () => {
-        const recorder = new EvidenceRecorder(outDir, {
-            tc: "TC-IDM-2.1",
-            plan: "interactiondatamodel.adoc",
-            timestamp: "2026-08-07T00:00:00.000Z",
-            controller: "dut",
-            controllerImplementation: "chip-tool",
-            device: "chip-local:all-clusters",
-            matterJsCommit: "abc1234",
-        });
-
-        recorder.beginStep(step1);
-        recorder.endStep(step1, "pass");
-
-        const dir = await recorder.flush();
-        const resultPath = pathMod.join(dir, "result.json");
-        expect(JSON.parse(await fsp.readFile(resultPath, "utf8")).verdict).equal("pass");
-
-        // A directory where the rewrite wants its temporary file, so the write fails the way a full or
-        // read-only volume would.
-        await fsp.mkdir(`${resultPath}.pending`);
-
-        recorder.teardownFailed("chip-tool would not close");
-        await expect(recorder.flushRunRecord()).rejected;
-
-        // The record it could not replace said "pass", which this run has already contradicted.
-        await expect(fsp.readFile(resultPath, "utf8")).rejected;
     });
 
     it("persists the unverified-check count, so a bare result.json says how much of a passing run rests on nothing observed", async () => {
@@ -452,7 +431,7 @@ describe("EvidenceRecorder", () => {
         recorder.endStep(step1, "pass");
         recorder.recordUnverifiedChecks(3);
 
-        const dir = await recorder.flush();
+        const dir = await publish(recorder);
         const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
 
         // An unverified check is a gap in what was observed, not a defect — the verdict stays a pass.
@@ -474,7 +453,7 @@ describe("EvidenceRecorder", () => {
         recorder.beginStep(step1);
         recorder.endStep(step1, "pass");
 
-        const dir = await recorder.flush();
+        const dir = await publish(recorder);
         const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
 
         expect("unverifiedChecks" in resultJson).equal(false);
@@ -491,7 +470,7 @@ describe("EvidenceRecorder", () => {
             matterJsCommit: "abc1234",
         });
 
-        const dir = await recorder.flush();
+        const dir = await publish(recorder);
         const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
 
         expect("chipToolRef" in resultJson.run).equal(false);

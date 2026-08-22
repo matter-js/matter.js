@@ -275,16 +275,16 @@ describe("TC-SC-3.5", () => {
                 closeFailure = e;
             }
 
-            // Here rather than beside the throw below: this test writes its own bundle instead of going
-            // through `CertTest`, and a close failure has to reach the record even on the paths that
-            // never reach that throw — a step that failed, or a flush that did.
             if (closeFailure !== undefined) {
                 recorder.teardownFailed(`TC-SC-3.5's dut adapter would not close: ${closeFailure}`);
-                try {
-                    await recorder.flushRunRecord();
-                } catch (e) {
-                    console.warn("TC-SC-3.5 could not republish its run record after a close failure:", e);
-                }
+            }
+
+            // This test writes its own bundle instead of going through `CertTest`, so its record states
+            // no verdict until it settles one here.
+            try {
+                await recorder.concludeRun();
+            } catch (e) {
+                console.warn("TC-SC-3.5 could not settle its evidence record:", e);
             }
         }
 

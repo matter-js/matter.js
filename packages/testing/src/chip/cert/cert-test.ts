@@ -106,11 +106,11 @@ export class CertTest extends BaseTest {
             evidenceIncomplete:
                 recorded.evidenceIncomplete === undefined ? undefined : detail => recorded.evidenceIncomplete?.(detail),
             flush: () => recorded.flush(),
-            flushRunRecord:
-                recorded.flushRunRecord === undefined
+            concludeRun:
+                recorded.concludeRun === undefined
                     ? undefined
                     : async () => {
-                          await recorded.flushRunRecord?.();
+                          await recorded.concludeRun?.();
                       },
         };
         cx.recorder = recorder;
@@ -310,16 +310,20 @@ export class CertTest extends BaseTest {
             const exited = deviceExitWatch.observed;
             deviceExitWatch.disarm();
 
-            // Teardown and the exit it can provoke both land after the flush, so without this the
-            // bundle would keep saying "pass" for a run this method is about to reject.
-            if (teardownErrors.length > 0 || exited !== undefined) {
-                try {
-                    if (teardownErrors.length > 0) {
-                        recorder.teardownFailed?.(teardownErrors.map(errorText).join("; "));
-                    }
-                    await recorder.flushRunRecord?.();
-                } catch (e) {
-                    console.warn("Cert test post-teardown reporting failed:", e);
+            if (teardownErrors.length > 0) {
+                recorder.teardownFailed?.(teardownErrors.map(errorText).join("; "));
+            }
+
+            // The record states no verdict until here, so this is what makes the bundle assert anything
+            // at all — and a run that cannot get this far leaves one that says so.
+            try {
+                await recorder.concludeRun?.();
+            } catch (e) {
+                if (failed) {
+                    console.warn("Cert test could not settle its evidence record after a failure:", e);
+                } else {
+                    failed = true;
+                    failure = e;
                 }
             }
 

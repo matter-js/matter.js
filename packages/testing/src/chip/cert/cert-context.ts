@@ -140,11 +140,12 @@ export interface StepRecorder {
      */
     flush(): Promise<string>;
     /**
-     * Re-persists the run's own record, without the attached logs, for information that only becomes
-     * known after {@link flush} — teardown runs after the flush so that a bundle exists even for a
-     * teardown that hangs, which leaves this as the only way its outcome can reach the bundle.
+     * Settles the run's verdict, after teardown, and persists the record carrying it. {@link flush} runs
+     * before teardown so a bundle exists even for a teardown that hangs; until this call the persisted
+     * record states no verdict, so a run that never reaches it cannot leave one behind (see
+     * {@link EvidenceRecorder.concludeRun}).
      */
-    flushRunRecord?(): Promise<void>;
+    concludeRun?(): Promise<void>;
 }
 
 /**

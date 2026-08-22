@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { CertStepDefinition, CheckRecord, DeviceExitInfo, StepRecorder, StepVerdict } from "./cert-context.js";
 import type { LogLine } from "./log-follower.js";
@@ -27,7 +27,7 @@ export interface StepRecord {
 
 /**
  * The evidence bundle for one cert-test run, written to `result.json` by {@link EvidenceRecorder.flush}
- * and rewritten there by {@link EvidenceRecorder.flushRunRecord} for whatever the run learns after it.
+ * and settled there by {@link EvidenceRecorder.concludeRun}.
  */
 export interface RunRecord {
     tc: string;
@@ -42,7 +42,13 @@ export interface RunRecord {
         chipToolRef?: string;
     };
     steps: StepRecord[];
-    verdict: "pass" | "fail" | "skipped";
+    /**
+     * `"incomplete"` until the run concludes. The record is written before teardown so a teardown
+     * hanging against an unreachable device still leaves a bundle behind, and a run that has not
+     * finished reporting has no verdict to state — so no hang, interruption or unwritable volume can
+     * leave a passing record standing for a run that failed.
+     */
+    verdict: "pass" | "fail" | "skipped" | "incomplete";
     deviceExit?: { code: number | null; signal?: string };
     /** Why the run's own cleanup failed, if it did (see {@link EvidenceRecorder.finalizationFailed}). */
     finalizationError?: string;
@@ -74,15 +80,6 @@ function errorText(e: unknown): string {
     return e instanceof Error ? e.message : String(e);
 }
 
-/** Removes `path` if it can, never masking the failure that made removal necessary. */
-async function discard(path: string): Promise<void> {
-    try {
-        await rm(path, { force: true, recursive: true });
-    } catch (e) {
-        console.warn(`Cert evidence could not remove ${path}:`, e);
-    }
-}
-
 /**
  * Collects a {@link CertTest} run's per-step evidence and writes it to disk as `result.json` plus one
  * `<name>.log` per {@link attachLog} call.
@@ -104,6 +101,7 @@ export class EvidenceRecorder implements StepRecorder {
     #evidenceError?: string;
     #controllerUnsupportedSkips?: number;
     #unverifiedChecks?: number;
+    #concluded = false;
 
     constructor(outDir: string, meta: RunRecord["run"] & { tc: string; plan: string }) {
         this.#meta = meta;
@@ -230,7 +228,7 @@ export class EvidenceRecorder implements StepRecorder {
             );
         }
 
-        await this.flushRunRecord();
+        await this.#writeRecord();
 
         if (logFailure !== undefined) {
             throw logFailure;
@@ -239,7 +237,17 @@ export class EvidenceRecorder implements StepRecorder {
         return this.#dir;
     }
 
-    async flushRunRecord(): Promise<void> {
+    /**
+     * Settles the run's verdict and writes the record carrying it. Until this runs the record states no
+     * verdict, so a run that never gets here — a teardown that hangs, a volume that stopped accepting
+     * writes — leaves a bundle saying so rather than one claiming a pass.
+     */
+    async concludeRun(): Promise<void> {
+        this.#concluded = true;
+        await this.#writeRecord();
+    }
+
+    async #writeRecord(): Promise<void> {
         await mkdir(this.#dir, { recursive: true });
 
         const record: RunRecord = {
@@ -268,17 +276,8 @@ export class EvidenceRecorder implements StepRecorder {
         // torn record where a whole one stood.
         const target = join(this.#dir, "result.json");
         const pending = `${target}.pending`;
-        try {
-            await writeFile(pending, JSON.stringify(record, null, 4));
-            await rename(pending, target);
-        } catch (e) {
-            // An update that cannot complete must take the record it was replacing with it. That record
-            // predates what this call carries — for every late call, a verdict the run has since
-            // contradicted — so leaving it behind states a passing outcome nothing stands behind.
-            await discard(target);
-            await discard(pending);
-            throw e;
-        }
+        await writeFile(pending, JSON.stringify(record, null, 4));
+        await rename(pending, target);
     }
 
     /**
@@ -311,7 +310,10 @@ export class EvidenceRecorder implements StepRecorder {
      * neither a pass nor a fail: nothing was actually exercised, so reporting `"pass"` would overstate
      * what the run proved. Only a run with at least one non-skipped step can pass.
      */
-    #verdict(): "pass" | "fail" | "skipped" {
+    #verdict(): RunRecord["verdict"] {
+        if (!this.#concluded) {
+            return "incomplete";
+        }
         if (
             this.#deviceExit ||
             this.#finalizationError !== undefined ||
