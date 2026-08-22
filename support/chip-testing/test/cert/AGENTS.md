@@ -99,7 +99,20 @@ The convention this series has followed, worth stating explicitly for the next T
   differ. A check with no pattern for the running flavor resolves `"unverified"`: not a failure, but
   a gap in that step's device-side evidence, with the accompanying `type: "response"` check the only
   thing left proving controller behavior. `RunRecord.unverifiedChecks` counts them, so a bundle says
-  how much of a passing run rests on nothing observed — bring the count down, don't add to it.
+  how much of a passing run rests on nothing observed — bring the count down, don't add to it. As of
+  this writing every device-log check in this directory carries both flavors' patterns, and the whole
+  matterjs leg reports one unverified check: TC-IDM-2.1 step 21's honest "matter.js's all-clusters app
+  defines no manufacturer-specific cluster".
+
+  Two things bite when writing the matterjs half:
+
+  - **What chip spreads over a block of lines, matter.js often puts on one.** A second check about
+    the same message therefore cannot start searching after the line the first one matched, or it
+    reads the next message instead — `sameMessageFrom(flavor, earlier, mark)` is that rule.
+  - **What matter.js spreads over several lines, it interleaves with its own work.** Where a claim
+    needs more than one of its lines (a subscribe's flags, its paths, the intervals it accepted),
+    pass `matterjs: { ordered: [...] }` rather than a plain array: a plain array demands
+    consecutive lines, which is right for chip's dump and wrong here.
 - Use `CertStepOptions.flavors` (see "Declaring a device-flavor capability gap") when a TH app
   genuinely lacks a capability on one flavor — not as a way to avoid running a TC against chip at
   all.
