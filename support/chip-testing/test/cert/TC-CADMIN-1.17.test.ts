@@ -39,6 +39,23 @@ const WINDOW_OPEN_PATTERN = /Commissioning window is now open/;
 const COMMISSIONING_COMPLETE_PATTERN = /Commissioning completed successfully/;
 const REMOVE_FABRIC_SUCCESS_PATTERN = /OpCreds: RemoveFabric successful/;
 
+// matter.js's equivalents. It names the window by the timer it arms for it, and a completed
+// commissioning by the fabric the CASE session it completes belongs to.
+const MATTERJS_WINDOW_OPEN_PATTERN = /AdministratorCommissioningServer Commissioning window timer started/;
+const MATTERJS_COMMISSIONING_COMPLETE_PATTERN = /GeneralCommissioningClusterHandler Commissioned fabric:/;
+
+// The invoke's own answer, which names the fabric it removed and the status it answered with, where
+// chip logs an unqualified success line.
+function matterjsRemoveFabricPattern(fabricIndex: number): RegExp {
+    return new RegExp(`operationalCredentials\\.removeFabric .*statusCode: 0 fabricIndex: ${fabricIndex}(?!\\d)`);
+}
+
+// A session is named `@<fabricIndex>:<fabricId>•<id>`, so this is chip's "Expiring all sessions for
+// fabric N" — the removed fabric's sessions going away — as matter.js reports it, one line per session.
+function matterjsSessionEndedPattern(fabricIndex: number): RegExp {
+    return new RegExp(`Session @${fabricIndex}:[0-9a-f]+•[0-9a-f]+ Session ended`);
+}
+
 type Role = "dut" | "th_cr2" | "th_cr3";
 
 const commissioned = new CommissionedRefs<Role>();
@@ -137,7 +154,7 @@ async function checkCommissioned(
     const { check } = await expectDeviceLog(
         th.log,
         th.flavor,
-        { chip: COMMISSIONING_COMPLETE_PATTERN },
+        { chip: COMMISSIONING_COMPLETE_PATTERN, matterjs: MATTERJS_COMMISSIONING_COMPLETE_PATTERN },
         logFrom,
         LOG_TIMEOUT,
     );
@@ -164,7 +181,13 @@ async function openWindowAndCheck(cx: CertStepContext): Promise<void> {
         detail: `manualPairingCode length=${manualPairingCode.length}`,
     });
 
-    const { check } = await expectDeviceLog(th.log, th.flavor, { chip: WINDOW_OPEN_PATTERN }, from, LOG_TIMEOUT);
+    const { check } = await expectDeviceLog(
+        th.log,
+        th.flavor,
+        { chip: WINDOW_OPEN_PATTERN, matterjs: MATTERJS_WINDOW_OPEN_PATTERN },
+        from,
+        LOG_TIMEOUT,
+    );
     record(cx, check, "Commissioning-window-open log");
 }
 
@@ -291,18 +314,21 @@ certTest("TC-CADMIN-1.17", {
             const removed = await expectDeviceLog(
                 th.log,
                 th.flavor,
-                { chip: REMOVE_FABRIC_SUCCESS_PATTERN },
+                { chip: REMOVE_FABRIC_SUCCESS_PATTERN, matterjs: matterjsRemoveFabricPattern(fabricIndex) },
                 from,
                 LOG_TIMEOUT,
             );
             record(cx, removed.check, "RemoveFabric-successful log");
 
+            // Searched from the step's own mark, not from the line above: matter.js closes the removed
+            // fabric's sessions before it answers the invoke, chip after. Both patterns name the fabric
+            // index, and the mark precedes this step's removal, so neither can match another removal's.
             const expiringPattern = new RegExp(`Expiring all sessions for fabric 0x${fabricIndex.toString(16)}!!`);
             const expiring = await expectDeviceLog(
                 th.log,
                 th.flavor,
-                { chip: expiringPattern },
-                removed.from,
+                { chip: expiringPattern, matterjs: matterjsSessionEndedPattern(fabricIndex) },
+                from,
                 LOG_TIMEOUT,
             );
             record(cx, expiring.check, '"Expiring all sessions" log');

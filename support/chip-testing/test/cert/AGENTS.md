@@ -90,11 +90,16 @@ The convention this series has followed, worth stating explicitly for the next T
   independent of chip's TH-side implementation quirks. But a TC that only ever runs green on
   `matterjs` and skips or has never been tried against a chip flavor hasn't actually demonstrated
   interop with anything.
-- **Every device-log check should supply a `chip:`-flavored pattern; a `matterjs:` pattern is a
-  bonus, not a requirement.** matter.js's own logger has no equivalent of chip's structured
-  `CHIP:DMG:` decode dumps, so a log check with no matterjs pattern resolves `"unverified"` under
-  that flavor — by design, not a gap to fix (see "Evidence expectations" below). What actually
-  proves controller behavior on `matterjs` is the accompanying `type: "response"` check.
+- **Every device-log check supplies a `chip:` pattern, and a `matterjs:` pattern wherever
+  matter.js's own log carries the same claim.** The two logs are shaped differently rather than one
+  being poorer: chip prints a structured `CHIP:DMG:` decode dump spanning a dozen lines where
+  matter.js names a whole interaction, and every path it carried, on one line. So a matterjs pattern
+  is a separate authoring job, not a translation of the chip one — which is why
+  `expectAdjacentLines`/`expectSequence` take a `{chip, matterjs}` pair of sequences whose lengths
+  differ. A check with no pattern for the running flavor resolves `"unverified"`: not a failure, but
+  a gap in that step's device-side evidence, with the accompanying `type: "response"` check the only
+  thing left proving controller behavior. `RunRecord.unverifiedChecks` counts them, so a bundle says
+  how much of a passing run rests on nothing observed — bring the count down, don't add to it.
 - Use `CertStepOptions.flavors` (see "Declaring a device-flavor capability gap") when a TH app
   genuinely lacks a capability on one flavor — not as a way to avoid running a TC against chip at
   all.
@@ -184,9 +189,9 @@ What a check's `type` should be:
 - **`"device-log"`** — a pattern match against the TH's own stdout (via `LogFollower.expect`,
   usually wrapped so a timeout/close error becomes a recorded `"fail"` rather than propagating
   uncaught — see `TC-ACT-3.2`'s `recordInvokeStatus`/adversarial-review fix below for why an
-  uncaught log-check error is a real evidence gap, not just noise). `"unverified"` is the correct,
-  expected verdict when only a `chip:`-flavored pattern was supplied and the run is on `matterjs`
-  (see "Flavor policy" above) — don't treat every `"unverified"` in a result as a bug.
+  uncaught log-check error is a real evidence gap, not just noise). `"unverified"` means no pattern
+  was supplied for the running flavor (see "Flavor policy" above) — an evidence gap to close by
+  writing that pattern, not a failure and not a bug in the run.
 - **`"network"`** — `expectMdns`'s own check kind (mDNS record presence/absence).
 
 A step passing means its `run` callback didn't throw — `recorder.check(...)` only records evidence,
@@ -442,12 +447,11 @@ This is a framework-level fix (`log-follower.ts`), not something an individual T
   one's `from` set to the previous match's `index + 1` — and failing if a match doesn't land exactly there.
   See `tc-support.ts`'s `expectAttributePathIB`/`attributePathIBSequence`, promoted there once
   TC-IDM-3.1/TC-IDM-4.1 needed the same shape of check as this TC.
-- **Every log check in this TC supplies only a `chip` pattern, never a `matterjs` one** — matter.js's own
-  logger doesn't emit an equivalent decode dump, so every log check against the matterjs flavor resolves to
-  `"unverified"` by design (see `LogExpectPatterns`/the flavor-pattern policy already documented above).
-  That's the intended dual-flavor split: response-shape assertions (`recorder.check({type: "response", ...})`)
-  are what actually prove behavior on matterjs; the chip-side log check is additional protocol-level
-  evidence only available for the chip flavor.
+- **Every path check in this TC now carries both flavors' patterns.** chip's is the decode-dump
+  sequence above; matter.js names the read and every path it carried on one line, which
+  `expectAttributePathIB` matches through `matterjsPath` (see the flavor policy above). The response
+  checks still carry the behavioral claim on either flavor — the device-log check is the TH-side
+  corroboration of it.
 - **Never leave the DUT commissioned.** With ~21 steps sharing one commissioned node, the step engine aborts
   (skips, doesn't run) every step after the one that threw — see `cert-test.ts`'s `invoke()` — except a
   step that throws `UnsupportedByControllerError`, which is recorded `"skipped"` and lets later steps run.
@@ -871,14 +875,14 @@ A "DUT writes an attribute on the TH" step needs the same two-sided proof a read
 the *TH's own log* showing chip received this specific `WriteRequestMessage`, not some other step's.
 `writeAndCheck` (`TC-IDM-3.1.test.ts`) is the shape every executable write step in this TC shares:
 mark the log, `writeAttribute`, record a `"response"` check either way, then call
-`expectMessageWithPath(log, flavor, WRITE_REQUEST_MESSAGE, path, from, timeoutMs)` (`tc-support.ts`)
-to confirm the message name and the request's `AttributePathIB` appear as a consecutive block after
-the mark — the same anchor-then-walk `expectAttributePathIB` does for reads (see "Wildcard path
-idioms" above), just anchored on `WRITE_REQUEST_MESSAGE` first. `expectMessageWithPath` is the
-write/subscribe-shared promotion of that pattern: `TC-IDM-4.1` reuses it verbatim with
-`SUBSCRIBE_REQUEST_MESSAGE` for its own priming subscribe (see below). `INVOKE_REQUEST_MESSAGE`'s
-`CommandDataIB` shape still needs `expectCommandInvoke` instead — a command's fields aren't an
-`AttributePathIB`.
+`expectMessageWithPath(log, flavor, "write", path, from, timeout)` (`tc-support.ts`) to confirm the
+request the TH received carries this path. Against chip that is the message name plus the request's
+`AttributePathIB` as a consecutive block after the mark — the same anchor-then-walk
+`expectAttributePathIB` does for reads (see "Wildcard path idioms" above), anchored on
+`WRITE_REQUEST_MESSAGE` first; against matter.js it is the one line naming the write and its paths.
+The third argument is the interaction kind, not a pattern, because each kind names a different line
+in either log: `TC-IDM-4.1` passes `"subscribe"` for its own priming subscribe (see below). A
+command's fields aren't an `AttributePathIB`, so an invoke still needs `expectCommandInvoke`.
 
 ## No capability gap for `ThermostatUserInterfaceConfiguration`/`ColorControl` (`TC-IDM-3.1`)
 
@@ -994,9 +998,9 @@ call site — there's no guard for it; the caller is expected to know the TH's s
 Why the correlation is by subscription id rather than by counting callbacks: chip-tool accumulates
 `ReadClient`s inside one command object, so a TC that subscribed to a path N times sees N reports per
 change, and chip-tool's report JSON carries no subscription id to tell them apart. Counting `onUpdate`
-calls therefore fails on the chip-tool controller leg. The device log does carry the id, which is what
-the helper matches on; where it doesn't (matterjs device flavor, where log checks are `unverified`),
-the in-order subsequence is the confirmation.
+calls therefore fails on the chip-tool controller leg. Both device flavors' logs carry the id, which
+is what the helper matches on (`expectSubscriptionId`); the in-order subsequence is what confirms the
+reports themselves.
 
 ## Subscription policy: the automatic node-level subscription stays on
 
