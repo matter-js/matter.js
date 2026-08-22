@@ -22,12 +22,16 @@ import type {
 } from "@matter/testing";
 import {
     CertTest,
+    EvidenceRecorder,
     LogFollower,
     PicsFile,
     PicsUnavailableError,
     unmetTestPics,
     UnsupportedByControllerError,
 } from "@matter/testing";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { env } from "node:process";
 import { CommissionedRefs } from "../cert/tc-support.js";
 
@@ -2219,6 +2223,49 @@ describe("CertTest", () => {
         await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
             "log attach blew up",
         );
+    });
+
+    it("persists the log-attachment failure, so the written record does not report a pass", async () => {
+        const outDir = await mkdtemp(join(tmpdir(), "matter-cert-test-evidence-"));
+        try {
+            const definition: CertTestDefinition = {
+                tc: "TC-CADMIN-1.17",
+                plan: "multiplefabrics.adoc",
+                pics: [],
+                app: "all-clusters",
+                steps: [{ number: 1, text: "Passing step", run: async () => {} }],
+            };
+
+            // A real recorder, because the defect this covers is what reaches disk, not what the
+            // engine reports.
+            const recorder = new EvidenceRecorder(outDir, {
+                tc: "TC-CADMIN-1.17",
+                plan: "multiplefabrics.adoc",
+                timestamp: "2026-08-07T00:00:00.000Z",
+                controller: "dut",
+                controllerImplementation: "matterjs",
+                device: "matterjs:all-clusters",
+                matterJsCommit: "abc1234",
+            });
+            const cx: CertStepContext = { controllers: {}, devices: {}, recorder };
+
+            const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, undefined, [], {
+                beforeFlushError: new Error("log attach blew up"),
+            });
+
+            await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+                "log attach blew up",
+            );
+
+            const resultJson = JSON.parse(
+                await readFile(join(outDir, "2026-08-07T00-00-00.000Z-TC-CADMIN-1.17", "result.json"), "utf8"),
+            );
+            expect(resultJson.verdict).equal("fail");
+            expect(resultJson.evidenceError).equal("log attach blew up");
+            expect(resultJson.steps[0].verdict).equal("pass");
+        } finally {
+            await rm(outDir, { recursive: true, force: true });
+        }
     });
 
     it("keeps a step failure ahead of logs that could not be attached", async () => {

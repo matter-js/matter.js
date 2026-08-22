@@ -103,6 +103,8 @@ export class CertTest extends BaseTest {
                     : count => recorded.recordUnverifiedChecks?.(count),
             teardownFailed:
                 recorded.teardownFailed === undefined ? undefined : detail => recorded.teardownFailed?.(detail),
+            evidenceIncomplete:
+                recorded.evidenceIncomplete === undefined ? undefined : detail => recorded.evidenceIncomplete?.(detail),
             flush: () => recorded.flush(),
             flushRunRecord:
                 recorded.flushRunRecord === undefined
@@ -280,6 +282,11 @@ export class CertTest extends BaseTest {
                 } else {
                     failed = true;
                     failure = e;
+                }
+                try {
+                    recorder.evidenceIncomplete?.(errorText(e));
+                } catch (reportError) {
+                    console.warn("Cert test evidence-gap reporting failed:", reportError);
                 }
             }
 

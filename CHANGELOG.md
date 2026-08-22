@@ -11,6 +11,10 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/testing
+    - Fix: A certification run's `result.json` no longer reports `"verdict": "pass"` when the run failed to close its controllers or devices, a device exited during teardown, or the device logs its checks cite could not be attached; `RunRecord` gains `teardownError`, `evidenceError` and `unverifiedChecks`
+    - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
+
 - @matter/general
     - Breaking: `DnssdNames.Context.goodbyeProtectionWindow` and `DnssdNames.defaults.goodbyeProtectionWindow` are now `evictionDelay`, and `DnssdName.deleteRecord` no longer takes an `ifOlderThan` argument
     - Enhancement: New `MatterAggregateError.settleSeries()` runs tasks in order, continuing past a failure, and reports the accumulated errors

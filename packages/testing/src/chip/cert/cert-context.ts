@@ -127,6 +127,13 @@ export interface StepRecorder {
      */
     teardownFailed?(detail: string): void;
     /**
+     * Records that the evidence a step's checks cite could not be assembled — the device logs every
+     * `device-log` check's `logLine` indexes into, above all. The checks themselves say nothing about
+     * this, so without it the record would carry claims nothing in the bundle can support (see
+     * {@link EvidenceRecorder.evidenceIncomplete}).
+     */
+    evidenceIncomplete?(detail: string): void;
+    /**
      * Persists whatever evidence was recorded. Returns an implementation-defined locator for it
      * (e.g. {@link EvidenceRecorder} returns the directory it wrote to); a recorder with nothing to
      * persist returns an empty string.

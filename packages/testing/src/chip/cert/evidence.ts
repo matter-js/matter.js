@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { CertStepDefinition, CheckRecord, DeviceExitInfo, StepRecorder, StepVerdict } from "./cert-context.js";
 import type { LogLine } from "./log-follower.js";
@@ -47,6 +47,8 @@ export interface RunRecord {
     finalizationError?: string;
     /** Why closing the run's controllers or devices failed, if it did (see {@link EvidenceRecorder.teardownFailed}). */
     teardownError?: string;
+    /** Why the evidence this record's checks cite is incomplete, if it is (see {@link EvidenceRecorder.evidenceIncomplete}). */
+    evidenceError?: string;
     /**
      * How many steps the controller under test could not express, absent if none. A run can reach a
      * "pass" verdict with most of its steps skipped this way, so a reader of this record alone needs
@@ -85,6 +87,7 @@ export class EvidenceRecorder implements StepRecorder {
     #deviceExit?: { code: number | null; signal?: string };
     #finalizationError?: string;
     #teardownError?: string;
+    #evidenceError?: string;
     #controllerUnsupportedSkips?: number;
     #unverifiedChecks?: number;
 
@@ -165,6 +168,15 @@ export class EvidenceRecorder implements StepRecorder {
     }
 
     /**
+     * Records that the evidence this record's checks cite could not be assembled, which makes the run's
+     * verdict a failure: a bundle missing the logs its checks index into cannot support them (see
+     * {@link RunRecord.evidenceError}).
+     */
+    evidenceIncomplete(detail: string): void {
+        this.#evidenceError = detail;
+    }
+
+    /**
      * Records how many checks could not be evaluated (see {@link RunRecord.unverifiedChecks}). Unlike a
      * failed step this never changes the verdict — such a check is a gap in what the run observed, not
      * a defect in the device.
@@ -211,11 +223,17 @@ export class EvidenceRecorder implements StepRecorder {
             deviceExit: this.#deviceExit,
             finalizationError: this.#finalizationError,
             teardownError: this.#teardownError,
+            evidenceError: this.#evidenceError,
             controllerUnsupportedSkips: this.#controllerUnsupportedSkips,
             unverifiedChecks: this.#unverifiedChecks,
         };
 
-        await writeFile(join(this.#dir, "result.json"), JSON.stringify(record, null, 4));
+        // Written beside the target and renamed over it, because a second call replaces a record that
+        // is already valid and a truncating write interrupted partway would destroy it.
+        const target = join(this.#dir, "result.json");
+        const pending = `${target}.pending`;
+        await writeFile(pending, JSON.stringify(record, null, 4));
+        await rename(pending, target);
     }
 
     /**
@@ -249,7 +267,12 @@ export class EvidenceRecorder implements StepRecorder {
      * what the run proved. Only a run with at least one non-skipped step can pass.
      */
     #verdict(): "pass" | "fail" | "skipped" {
-        if (this.#deviceExit || this.#finalizationError !== undefined || this.#teardownError !== undefined) {
+        if (
+            this.#deviceExit ||
+            this.#finalizationError !== undefined ||
+            this.#teardownError !== undefined ||
+            this.#evidenceError !== undefined
+        ) {
             return "fail";
         }
         if (this.#steps.some(step => step.verdict === "fail" || step.verdict === "aborted")) {
