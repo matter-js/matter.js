@@ -249,6 +249,26 @@ describe("Presets local write", () => {
         }
     });
 
+    it("validates a change an observer makes after the thermostat normalized", async () => {
+        await using ctx = await thermostat();
+        const { deviceEp } = ctx;
+
+        // An application observer registers after the behavior, so it runs after normalization; only the first
+        // announcement that follows is the normalization coming back around
+        deviceEp.events.thermostat.persistedPresets$Changing.on(presets => {
+            if (presets[0].heatingSetpoint === 2000) {
+                presets[0].heatingSetpoint = 3100;
+            }
+        });
+
+        await expect(writePresets(deviceEp, [newPreset()])).rejectedWith(
+            StatusResponse.ConstraintErrorError,
+            "out of bounds",
+        );
+
+        expect(storedPresets(deviceEp)).deep.equals([]);
+    });
+
     it("validates every write that shares one transaction", async () => {
         await using ctx = await thermostat();
         const { deviceEp } = ctx;

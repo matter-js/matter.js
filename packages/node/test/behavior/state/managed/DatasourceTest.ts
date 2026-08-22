@@ -11,7 +11,14 @@ import { StateType } from "#behavior/state/StateType.js";
 import { BehaviorSupervisor } from "#behavior/supervision/BehaviorSupervisor.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
-import { AsyncObservable, MaybePromise, MockCrypto, Observable, UnsettledStateError } from "@matter/general";
+import {
+    AsyncObservable,
+    ImplementationError,
+    MaybePromise,
+    MockCrypto,
+    Observable,
+    UnsettledStateError,
+} from "@matter/general";
 import { DataModelPath, DatatypeModel, FieldElement, FieldModel } from "@matter/model";
 import { AccessControl, Val } from "@matter/protocol";
 import { EndpointNumber, NodeId } from "@matter/types";
@@ -640,7 +647,7 @@ describe("Datasource", () => {
             const announced = new Array<unknown>();
             events.foo$Changing.on(newValue => {
                 announced.push(newValue);
-                throw new Error("refused");
+                throw new ImplementationError("refused");
             });
 
             await LocalActorContext.act("test-datasource", async context => {

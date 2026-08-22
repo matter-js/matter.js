@@ -31,10 +31,6 @@ import { ThermostatBehavior } from "./ThermostatBehavior.js";
 
 const logger = Logger.get("ThermostatServer");
 
-function presetHandlesOf(presets: Thermostat.Preset[]) {
-    return presets.map(preset => (preset.presetHandle === null ? "" : Bytes.toHex(preset.presetHandle))).join(",");
-}
-
 // Enable some features we need for implementation, they will be reset at the end again
 const ThermostatBehaviorLogicBase = ThermostatBehavior.with(
     Thermostat.Feature.Heating,
@@ -134,8 +130,11 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                     preset.presetHandle === null ? { ...preset, presetHandle: entropy.randomBytes(16) } : preset,
                 );
 
-                // The device issues these handles, so the write must not be validated as one citing unknown handles
-                this.#markPresetsValidated(this.context, repaired);
+                const issued = this.#handlesIssuedIn(this.context);
+                for (const preset of repaired) {
+                    issued.add(Bytes.toHex(preset.presetHandle!));
+                }
+
                 this.state.persistedPresets = repaired;
             }
 
@@ -1250,8 +1249,8 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     /**
      * A staged atomic write is validated against the stored presets, which it has not replaced yet.
      */
-    #handlePresetsAtomicChanging(newPresets: Thermostat.Preset[]) {
-        this.#validatePresetWriteRequest(newPresets, this.state.persistedPresets);
+    #handlePresetsAtomicChanging(newPresets: Thermostat.Preset[], _oldPresets: unknown, context: ActionContext) {
+        this.#validatePresetWriteRequest(newPresets, this.state.persistedPresets, this.#handlesIssuedIn(context));
     }
 
     /**
@@ -1262,37 +1261,42 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         oldPresets: Thermostat.Preset[] | undefined,
         context: ActionContext,
     ) {
-        const validated = this.internal.validatedPresets;
-        if (validated?.transaction === context.transaction && validated.handles === presetHandlesOf(newPresets)) {
-            return;
-        }
+        const issued = this.#handlesIssuedIn(context);
 
-        this.#validatePresetWriteRequest(newPresets, oldPresets);
-        this.#normalizeAndValidatePresetCommit(newPresets, oldPresets);
-
-        this.#markPresetsValidated(context, newPresets);
+        this.#validatePresetWriteRequest(newPresets, oldPresets, issued);
+        this.#normalizeAndValidatePresetCommit(newPresets, oldPresets, issued);
     }
 
     /**
-     * Records the handles this transaction validated and normalized.  The same set announced again is that
-     * normalization coming back around, and validating it would use a baseline that predates those handles.
+     * The preset handles this device issued in a transaction.  Normalization mutates the value in flight, so
+     * pre-commit announces the presets again, and an atomic write stores what it staged; both carry handles the
+     * baseline predates.  Every announcement is still validated - the handles are what the client did not supply.
      */
-    #markPresetsValidated({ transaction }: ActionContext, presets: Thermostat.Preset[]) {
-        if (this.internal.validatedPresets?.transaction !== transaction) {
+    #handlesIssuedIn({ transaction }: ActionContext) {
+        let issued = this.internal.presetHandlesIssued;
+
+        if (issued?.transaction !== transaction) {
+            issued = { transaction, handles: new Set<string>() };
+            this.internal.presetHandlesIssued = issued;
+
             transaction.onShared(() => {
-                if (this.internal.validatedPresets?.transaction === transaction) {
-                    this.internal.validatedPresets = undefined;
+                if (this.internal.presetHandlesIssued?.transaction === transaction) {
+                    this.internal.presetHandlesIssued = undefined;
                 }
             }, true);
         }
 
-        this.internal.validatedPresets = { transaction, handles: presetHandlesOf(presets) };
+        return issued.handles;
     }
 
     /**
      * Validates presets a client wants to store against the presets they replace.
      */
-    #validatePresetWriteRequest(newPresets: Thermostat.Preset[], oldPresets: Thermostat.Preset[] | undefined) {
+    #validatePresetWriteRequest(
+        newPresets: Thermostat.Preset[],
+        oldPresets: Thermostat.Preset[] | undefined,
+        issuedHandles: ReadonlySet<string>,
+    ) {
         if (newPresets.length > this.state.numberOfPresets) {
             throw new StatusResponse.ResourceExhaustedError(
                 `Number of presets (${newPresets.length}) exceeds NumberOfPresets (${this.state.numberOfPresets})`,
@@ -1327,18 +1331,17 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                     throw new StatusResponse.ConstraintErrorError(`Duplicate presetHandle ${presetHex} in new Presets`);
                 }
 
-                if (oldPresets !== undefined) {
-                    const persistedPreset = oldPresetsMap.get(presetHex);
-                    if (persistedPreset === undefined) {
+                const oldPreset = oldPresetsMap.get(presetHex);
+                if (oldPreset === undefined) {
+                    if (oldPresets !== undefined && !issuedHandles.has(presetHex)) {
                         throw new StatusResponse.NotFoundError(
                             `Preset with presetHandle ${presetHex} does not exist in old Presets, cannot add new Presets with non-null presetHandle`,
                         );
                     }
-                    if (preset.builtIn !== null && persistedPreset.builtIn !== preset.builtIn) {
-                        throw new StatusResponse.ConstraintErrorError(
-                            `Cannot change built-in status of preset with presetHandle ${presetHex}`,
-                        );
-                    }
+                } else if (preset.builtIn !== null && oldPreset.builtIn !== preset.builtIn) {
+                    throw new StatusResponse.ConstraintErrorError(
+                        `Cannot change built-in status of preset with presetHandle ${presetHex}`,
+                    );
                 }
 
                 newPresetsSet.add(presetHex);
@@ -1420,8 +1423,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         oldPresets: Thermostat.Preset[] | undefined,
         context: ActionContext,
     ) {
-        this.#normalizeAndValidatePresetCommit(newPresets, oldPresets);
-        this.#markPresetsValidated(context, newPresets);
+        this.#normalizeAndValidatePresetCommit(newPresets, oldPresets, this.#handlesIssuedIn(context));
     }
 
     /**
@@ -1435,7 +1437,11 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     /**
      * Assigns a handle to any preset lacking one and validates the set, for both the atomic and the stored path.
      */
-    #normalizeAndValidatePresetCommit(newPresets: Thermostat.Preset[], oldPresets: Thermostat.Preset[] | undefined) {
+    #normalizeAndValidatePresetCommit(
+        newPresets: Thermostat.Preset[],
+        oldPresets: Thermostat.Preset[] | undefined,
+        issuedHandles: Set<string>,
+    ) {
         if (oldPresets === undefined) {
             logger.debug(
                 "Old presets is undefined, skipping some checks. This should only happen on setup of the behavior.",
@@ -1450,6 +1456,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             if (preset.presetHandle === null) {
                 logger.debug("Preset is missing presetHandle, generating a new one");
                 preset.presetHandle = entropy.randomBytes(16);
+                issuedHandles.add(Bytes.toHex(preset.presetHandle));
             }
             newPresetHandles.add(Bytes.toHex(preset.presetHandle));
             if (oldPresets === undefined) {
@@ -1626,7 +1633,7 @@ export namespace ThermostatBaseServer {
 
                     set(value: Thermostat.Preset[]) {
                         if (hasLocalActor(session) || ("command" in session && session.command)) {
-                            // A list is written element-wise, and each step reads back what the previous stored
+                            // A list is written element-wise, and each step reads back what the previous step stored
                             state.persistedPresets = value;
                         } else {
                             endpoint.env
@@ -1701,9 +1708,9 @@ export namespace ThermostatBaseServer {
         controlSequenceOfOperation!: Thermostat.ControlSequenceOfOperation;
 
         /**
-         * The preset handles a transaction validated and normalized.
+         * The preset handles this device issued in a transaction, which no baseline within it carries.
          */
-        validatedPresets?: { transaction: Transaction; handles: string };
+        presetHandlesIssued?: { transaction: Transaction; handles: Set<string> };
     }
 }
 
