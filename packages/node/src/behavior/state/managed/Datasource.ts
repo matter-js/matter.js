@@ -1091,6 +1091,11 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
     rollback() {
         this.#values = this.#internals.values;
         this.#baseValues = undefined;
+
+        // A rolled back value was never adopted, so it must not stand as the baseline the next announcement diffs
+        // against
+        this.#precommitValues = undefined;
+
         this.#refreshSubrefs();
     }
 
