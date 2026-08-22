@@ -201,7 +201,9 @@ export class EvidenceRecorder implements StepRecorder {
         await mkdir(this.#dir, { recursive: true });
 
         // The record is published only after the logs its checks cite, and a log that could not be
-        // written reaches it as an evidence gap before this call reports the failure.
+        // written reaches it as an evidence gap before this call reports the failure. We accept that a
+        // run killed mid-flush leaves no record at all: a record that overclaims is worse than none,
+        // because a certification reader cannot tell the difference.
         let logFailure: unknown;
         for (const [name, lines] of this.#logs) {
             try {

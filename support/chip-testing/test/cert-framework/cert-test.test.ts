@@ -183,6 +183,7 @@ class TestCertTest extends CertTest {
     #finalizationTimeoutMs?: number;
     #teardownErrors: unknown[];
     #beforeFlushError?: unknown;
+    #onTeardown?: () => Promise<void>;
 
     constructor(
         definition: CertTestDefinition,
@@ -191,13 +192,14 @@ class TestCertTest extends CertTest {
         cx: CertStepContext,
         finalizationTimeoutMs?: number,
         teardownErrors: unknown[] = [],
-        options: { beforeFlushError?: unknown } = {},
+        options: { beforeFlushError?: unknown; onTeardown?: () => Promise<void> } = {},
     ) {
         super(definition, descriptor, container);
         this.#cx = cx;
         this.#finalizationTimeoutMs = finalizationTimeoutMs;
         this.#teardownErrors = teardownErrors;
         this.#beforeFlushError = options.beforeFlushError;
+        this.#onTeardown = options.onTeardown;
     }
 
     protected override async beforeFlush(cx: CertStepContext): Promise<void> {
@@ -211,6 +213,7 @@ class TestCertTest extends CertTest {
 
     protected override async teardown(): Promise<unknown[]> {
         this.teardownCalls++;
+        await this.#onTeardown?.();
         return this.#teardownErrors;
     }
 
@@ -2128,55 +2131,58 @@ describe("CertTest", () => {
     });
 
     it("re-writes the run record when a device exits after the flush, so the bundle is not left saying pass", async () => {
-        let exitDevice!: (info: DeviceExitInfo) => void;
-        const exitPromise = new Promise<DeviceExitInfo>(resolve => {
-            exitDevice = resolve;
-        });
+        const outDir = await mkdtemp(join(tmpdir(), "matter-cert-test-evidence-"));
+        try {
+            let exitDevice!: (info: DeviceExitInfo) => void;
+            const exitPromise = new Promise<DeviceExitInfo>(resolve => {
+                exitDevice = resolve;
+            });
 
-        const definition: CertTestDefinition = {
-            tc: "TC-CADMIN-1.17",
-            plan: "multiplefabrics.adoc",
-            pics: [],
-            app: "all-clusters",
-            steps: [
-                {
-                    number: 1,
-                    text: "Step that completes before the device dies",
-                    run: async () => {
-                        setTimeout(() => exitDevice({ code: 1, signal: null }), 0);
-                    },
+            const definition: CertTestDefinition = {
+                tc: "TC-CADMIN-1.17",
+                plan: "multiplefabrics.adoc",
+                pics: [],
+                app: "all-clusters",
+                steps: [{ number: 1, text: "Passing step", run: async () => {} }],
+            };
+
+            const recorder = new EvidenceRecorder(outDir, {
+                tc: "TC-CADMIN-1.17",
+                plan: "multiplefabrics.adoc",
+                timestamp: "2026-08-07T00:00:00.000Z",
+                controller: "dut",
+                controllerImplementation: "matterjs",
+                device: "matterjs:all-clusters",
+                matterJsCommit: "abc1234",
+            });
+            const resultPath = join(outDir, "2026-08-07T00-00-00.000Z-TC-CADMIN-1.17", "result.json");
+            const cx: CertStepContext = { controllers: {}, devices: { th: stubCertDevice(exitPromise) }, recorder };
+
+            let verdictBeforeExit: string | undefined;
+            const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, undefined, [], {
+                // Teardown runs after the first write, so this is the window the second write exists
+                // for. Reading the record before killing the device proves the final verdict cannot
+                // have come from that first write.
+                onTeardown: async () => {
+                    verdictBeforeExit = JSON.parse(await readFile(resultPath, "utf8")).verdict;
+                    exitDevice({ code: 1, signal: null });
+                    await new Promise(resolve => setTimeout(resolve, 10));
                 },
-            ],
-        };
+            });
 
-        const calls = new Array<string>();
-        const cx: CertStepContext = {
-            controllers: {},
-            devices: { th: stubCertDevice(exitPromise) },
-            recorder: stubRecorder({
-                deviceExited() {
-                    calls.push("deviceExited");
-                },
-                async flush() {
-                    calls.push("flush");
-                    await new Promise(resolve => setTimeout(resolve, 20));
-                    return "";
-                },
-                async flushRunRecord() {
-                    calls.push("flushRunRecord");
-                },
-            }),
-        };
+            await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+                "exited unexpectedly",
+            );
 
-        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+            expect(verdictBeforeExit).equal("pass");
 
-        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
-            "exited unexpectedly",
-        );
-
-        // The exit is recorded while the flush is still in flight, so only a second write of the
-        // record can carry it.
-        expect(calls).deep.equal(["flush", "deviceExited", "flushRunRecord"]);
+            const resultJson = JSON.parse(await readFile(resultPath, "utf8"));
+            expect(resultJson.verdict).equal("fail");
+            expect(resultJson.deviceExit).deep.equal({ code: 1 });
+            expect(resultJson.steps[0].verdict).equal("pass");
+        } finally {
+            await rm(outDir, { recursive: true, force: true });
+        }
     });
 
     it("does not re-write the run record for a run that ended cleanly", async () => {
