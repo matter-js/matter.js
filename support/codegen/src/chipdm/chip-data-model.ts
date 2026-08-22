@@ -224,12 +224,20 @@ class CachedDownload implements ChipDataModel {
             await rm(path, { force: true, recursive: true });
         } else {
             // The download is a single commit, so the cache is only good for the commit the ref pointed at when we
-            // populated it; a branch that has moved since must download again.  A ref we could not resolve leaves the
-            // cache in place, as there is nothing better to compare against
+            // populated it; a branch that has moved since must download again
             const wanted = await resolvedCommit(ref);
             const cached = await readFile(marker, "utf-8").catch(() => undefined);
 
-            if (wanted !== undefined && cached !== markerFor(ref, wanted)) {
+            if (wanted === undefined) {
+                // The remote is unreachable, so the commit cannot be checked.  The ref still can be, and a download of
+                // another ref is not an answer to what was asked
+                if (refOf(cached) !== ref && (await isDirectory(resolve(path, ".git")))) {
+                    throw new DataModelSourceError(
+                        `Cannot reach ${REPO_URL}, and the download cached in ${path} is ` +
+                            `${refOf(cached) === undefined ? "of an unrecorded ref" : refOf(cached)} rather than ${ref}`,
+                    );
+                }
+            } else if (cached !== markerFor(ref, wanted)) {
                 await rm(path, { force: true, recursive: true });
             }
         }
@@ -238,6 +246,9 @@ class CachedDownload implements ChipDataModel {
         if (await isDirectory(resolve(path, ".git"))) {
             logger.info(`Using cached CHIP data model download in ${path}`);
         } else {
+            // git refuses to clone into a directory holding anything, so a download interrupted before it produced a
+            // repository would otherwise wedge the cache until someone cleared it by hand
+            await rm(path, { force: true, recursive: true });
             await mkdir(path, { recursive: true });
             logger.info(`Downloading CHIP data model ${ref} into ${path}`);
             await git(
@@ -423,6 +434,11 @@ function isErrno(cause: unknown, code: string) {
 
 function markerFor(ref: string, commit: string) {
     return `${ref} ${commit}`;
+}
+
+/** The ref a marker records, or undefined for a cache with no marker to vouch for it */
+function refOf(marker: string | undefined) {
+    return marker?.split(" ", 1)[0];
 }
 
 /**
