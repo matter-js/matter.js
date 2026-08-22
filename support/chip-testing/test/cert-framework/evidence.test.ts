@@ -407,6 +407,35 @@ describe("EvidenceRecorder", () => {
         expect(resultJson.steps[0].verdict).equal("pass");
     });
 
+    it("leaves no record at all when a late rewrite cannot complete, rather than the stale passing one", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-IDM-2.1",
+            plan: "interactiondatamodel.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "chip-tool",
+            device: "chip-local:all-clusters",
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.endStep(step1, "pass");
+
+        const dir = await recorder.flush();
+        const resultPath = pathMod.join(dir, "result.json");
+        expect(JSON.parse(await fsp.readFile(resultPath, "utf8")).verdict).equal("pass");
+
+        // A directory where the rewrite wants its temporary file, so the write fails the way a full or
+        // read-only volume would.
+        await fsp.mkdir(`${resultPath}.pending`);
+
+        recorder.teardownFailed("chip-tool would not close");
+        await expect(recorder.flushRunRecord()).rejected;
+
+        // The record it could not replace said "pass", which this run has already contradicted.
+        await expect(fsp.readFile(resultPath, "utf8")).rejected;
+    });
+
     it("persists the unverified-check count, so a bare result.json says how much of a passing run rests on nothing observed", async () => {
         const recorder = new EvidenceRecorder(outDir, {
             tc: "TC-IDM-5.1",

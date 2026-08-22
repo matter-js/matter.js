@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { mkdir, rename, writeFile } from "node:fs/promises";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { CertStepDefinition, CheckRecord, DeviceExitInfo, StepRecorder, StepVerdict } from "./cert-context.js";
 import type { LogLine } from "./log-follower.js";
@@ -72,6 +72,15 @@ function sanitizeTimestampForPath(timestamp: string): string {
 
 function errorText(e: unknown): string {
     return e instanceof Error ? e.message : String(e);
+}
+
+/** Removes `path` if it can, never masking the failure that made removal necessary. */
+async function discard(path: string): Promise<void> {
+    try {
+        await rm(path, { force: true, recursive: true });
+    } catch (e) {
+        console.warn(`Cert evidence could not remove ${path}:`, e);
+    }
 }
 
 /**
@@ -255,12 +264,21 @@ export class EvidenceRecorder implements StepRecorder {
             unverifiedChecks: this.#unverifiedChecks,
         };
 
-        // Written beside the target and renamed over it, because a second call replaces a record that
-        // is already valid and a truncating write interrupted partway would destroy it.
+        // Written beside the target and renamed over it, so a write interrupted partway cannot leave a
+        // torn record where a whole one stood.
         const target = join(this.#dir, "result.json");
         const pending = `${target}.pending`;
-        await writeFile(pending, JSON.stringify(record, null, 4));
-        await rename(pending, target);
+        try {
+            await writeFile(pending, JSON.stringify(record, null, 4));
+            await rename(pending, target);
+        } catch (e) {
+            // An update that cannot complete must take the record it was replacing with it. That record
+            // predates what this call carries — for every late call, a verdict the run has since
+            // contradicted — so leaving it behind states a passing outcome nothing stands behind.
+            await discard(target);
+            await discard(pending);
+            throw e;
+        }
     }
 
     /**
