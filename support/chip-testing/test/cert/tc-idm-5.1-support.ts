@@ -6,8 +6,8 @@
 
 import { Duration, InternalError, Millis, Seconds, Time } from "@matter/main";
 import type { CheckRecord, LogFollower, LogLine } from "@matter/testing";
-import { CertLogClosedError, CertLogTimeoutError } from "@matter/testing";
-import { expectAdjacentLines } from "./tc-support.js";
+import { CertLogClosedError, CertLogTimeoutError, forFlavor } from "@matter/testing";
+import { expectAdjacentLines, INVOKE_REQUEST_MESSAGE, WRITE_REQUEST_MESSAGE } from "./tc-support.js";
 
 // TC-IDM-5.1's own checks live beside the test case rather than inside it because a `TC-*.test.ts`
 // registers a device-driven mocha test at import time, so the cert-framework spec set cannot import
@@ -55,21 +55,32 @@ const FLAG_WAIT = Seconds(2);
  * carries. The digit count is what says which, so both are read rather than one assumed.
  */
 export function timestampMsOf(text: string): number | undefined {
-    const match = /^\[(\d+)\.(\d+)\]/.exec(text.trim());
-    if (match === null) {
-        return undefined;
+    const chip = /^\[(\d+)\.(\d+)\]/.exec(text.trim());
+    if (chip !== null) {
+        const [, seconds, fraction] = chip;
+        return Number(seconds) * 1000 + Number(fraction) / 10 ** (fraction.length - 3);
     }
-    const [, seconds, fraction] = match;
-    return Number(seconds) * 1000 + Number(fraction) / 10 ** (fraction.length - 3);
+
+    // matter.js prefixes every line with wall-clock time. Read as UTC whatever the host's zone: the
+    // only use is the difference between two lines of one log, and a zone offset cancels there.
+    const matterjs = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}\.\d+)/.exec(text.trim());
+    if (matterjs !== null) {
+        const parsed = Date.parse(`${matterjs[1]}T${matterjs[2]}Z`);
+        return Number.isNaN(parsed) ? undefined : parsed;
+    }
+
+    return undefined;
 }
 
 /** The receive line one message arrived on. */
 export interface Receipt {
     index: number;
     text: string;
-    /** chip's own exchange id, role suffix included (e.g. `32870r`). */
+    /** The exchange as its own log names it: chip's id with the role suffix, matter.js's in hex. */
     exchange: string;
     category: "S" | "U" | "G";
+    /** The pattern that found this line, for the evidence a check built from it carries. */
+    pattern: string;
 }
 
 /** The receive line for the message whose decode dump starts at `index`, as {@link LogFollower.lastMatchBefore} finds it. */
@@ -79,7 +90,13 @@ function receiptBefore(log: LogFollower, index: number): Receipt | undefined {
         return undefined;
     }
     const { line, match } = found;
-    return { index: line.index, text: line.text, exchange: match[1], category: match[2] as Receipt["category"] };
+    return {
+        index: line.index,
+        text: line.text,
+        exchange: match[1],
+        category: match[2] as Receipt["category"],
+        pattern: String(RECEIPT_LINE),
+    };
 }
 
 /**
@@ -96,6 +113,75 @@ export type TimedRequestLookup =
     /** The search itself failed; `check` carries why. */
     | { outcome: "failed"; check: CheckRecord };
 
+// matter.js names the session a timed request arrived on and the exchange it opened on the request's
+// own line, so what chip prints as a separate receive line is part of it here.
+function matterjsTimedRequestPattern(timeout: Duration): RegExp {
+    const interval = Duration.format(timeout).replace(/\./g, "\\.");
+    return new RegExp(`InteractionServer Timed request « (\\S+)⇵([0-9a-f]+) interval: ${interval}(?!\\d)`);
+}
+
+// A session renders as `@<fabricIndex>:<fabricId>•<id>` when it is a secure unicast one, and names
+// what it is otherwise (`UnsecuredSession.via`, `GroupSession.via`).
+function matterjsSessionCategory(session: string): Receipt["category"] {
+    if (session.includes("group#")) {
+        return "G";
+    }
+    if (session.includes("unsecured#")) {
+        return "U";
+    }
+    return "S";
+}
+
+/** As {@link expectTimedRequest} against a matter.js TH. */
+async function matterjsTimedRequest(
+    log: LogFollower,
+    pattern: RegExp,
+    from: number,
+    wait: Duration,
+): Promise<TimedRequestLookup> {
+    try {
+        const line = await log.expectPattern(pattern, { timeoutMs: wait, from });
+        const match = pattern.exec(line.text);
+        if (match === null) {
+            throw new InternalError(`Timed request line matched but does not parse: ${line.text}`);
+        }
+
+        const [, session, exchange] = match;
+        return {
+            outcome: "found",
+            line,
+            receipt: {
+                index: line.index,
+                text: line.text,
+                exchange,
+                category: matterjsSessionCategory(session),
+                pattern: String(pattern),
+            },
+            check: {
+                type: "device-log",
+                verdict: "pass",
+                pattern: String(pattern),
+                matched: line.text,
+                logLine: line.index,
+            },
+        };
+    } catch (e) {
+        if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
+            return {
+                outcome: "failed",
+                check: {
+                    type: "device-log",
+                    verdict: "fail",
+                    pattern: String(pattern),
+                    detail: e.message,
+                    logLine: from,
+                },
+            };
+        }
+        throw e;
+    }
+}
+
 /**
  * Confirms the device received a `TimedRequestMessage` asking for `timeout` at or after `from`, and
  * returns what a follow-up check needs to attribute the interaction that follows to this request.
@@ -107,6 +193,14 @@ export async function expectTimedRequest(
     from: number,
     wait: Duration,
 ): Promise<TimedRequestLookup> {
+    if (!flavor.startsWith("chip")) {
+        const matterjs = forFlavor({ matterjs: matterjsTimedRequestPattern(timeout) }, flavor);
+        if (matterjs === undefined) {
+            return { outcome: "unnamed", check: { type: "device-log", verdict: "unverified" } };
+        }
+        return matterjsTimedRequest(log, matterjs, from, wait);
+    }
+
     const pattern = `TimedRequestMessage(TimeoutMs = 0x${timeout.toString(16)})`;
     try {
         const result = await expectAdjacentLines(log, flavor, { chip: timedRequestSequence(timeout) }, from, wait);
@@ -158,7 +252,7 @@ export function expectUnicastReceipt(timed: TimedRequestLookup): CheckRecord {
     return {
         type: "device-log",
         verdict: receipt.category === "G" ? "fail" : "pass",
-        pattern: String(RECEIPT_LINE),
+        pattern: receipt.pattern,
         detail:
             receipt.category === "G"
                 ? "The timed request arrived over a group session"
@@ -166,6 +260,81 @@ export function expectUnicastReceipt(timed: TimedRequestLookup): CheckRecord {
         matched: receipt.text,
         logLine: receipt.index,
     };
+}
+
+/** Which message the timed request opened the window for. */
+export type TimedInteraction = "invoke" | "write";
+
+const CHIP_FOLLOW_UPS: Record<TimedInteraction, RegExp> = {
+    invoke: INVOKE_REQUEST_MESSAGE,
+    write: WRITE_REQUEST_MESSAGE,
+};
+
+const MATTERJS_FOLLOW_UPS: Record<TimedInteraction, string> = {
+    invoke: "InvokeRequest",
+    write: "WriteRequest",
+};
+
+/** matter.js's own line for the message of `interaction` that arrived on `exchange`. */
+function matterjsFollowUpPattern(interaction: TimedInteraction, exchange: string): RegExp {
+    return new RegExp(`Message « for: I/${MATTERJS_FOLLOW_UPS[interaction]} id: \\S+⇵${exchange}✉`);
+}
+
+// matter.js clears the timed interaction a message consumed, naming the exchange in decimal where the
+// message line names it in hex. That line is what says the device treated this message as the timed
+// one — its own equivalent of chip's `timedRequest = true` flag, and, unlike a write's flag (which
+// matter.js does not print at all), present for both kinds.
+function matterjsTimedClearedPattern(exchange: string): RegExp {
+    return new RegExp(`Clearing timed interaction exId: ${parseInt(exchange, 16)}(?!\\d)`);
+}
+
+/** As {@link expectTimedFollowUp} against a matter.js TH. */
+async function matterjsTimedFollowUp(
+    log: LogFollower,
+    interaction: TimedInteraction,
+    timedLine: LogLine,
+    exchange: string,
+    budget: Duration,
+    wait: Duration,
+): Promise<CheckRecord> {
+    const followUp = matterjsFollowUpPattern(interaction, exchange);
+    const cleared = matterjsTimedClearedPattern(exchange);
+    const pattern = `${followUp.source} then ${cleared.source} within ${budget}ms`;
+
+    const deadline = Time.nowMs + wait;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowMs));
+
+    try {
+        const message = await log.expectPattern(followUp, { timeoutMs: remaining(), from: timedLine.index + 1 });
+        await log.expectPattern(cleared, { timeoutMs: remaining(), from: message.index + 1 });
+
+        const started = timestampMsOf(timedLine.text);
+        const arrived = timestampMsOf(message.text);
+        if (started === undefined || arrived === undefined) {
+            return {
+                type: "device-log",
+                verdict: "fail",
+                pattern,
+                detail: "A message line carries no readable timestamp, so the elapsed time cannot be measured",
+                logLine: message.index,
+            };
+        }
+
+        const elapsed = arrived - started;
+        return {
+            type: "device-log",
+            verdict: elapsed >= 0 && elapsed <= budget ? "pass" : "fail",
+            pattern,
+            detail: `arrived ${elapsed.toFixed(1)}ms after the timed request (budget ${budget}ms)`,
+            matched: message.text,
+            logLine: message.index,
+        };
+    } catch (e) {
+        if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
+            return { type: "device-log", verdict: "fail", pattern, detail: e.message, logLine: timedLine.index };
+        }
+        throw e;
+    }
 }
 
 /**
@@ -184,7 +353,7 @@ export function expectUnicastReceipt(timed: TimedRequestLookup): CheckRecord {
 export async function expectTimedFollowUp(
     log: LogFollower,
     flavor: string,
-    message: RegExp,
+    interaction: TimedInteraction,
     timed: TimedRequestLookup,
     budget: Duration,
     wait: Duration,
@@ -194,6 +363,17 @@ export async function expectTimedFollowUp(
     }
     const { line: timedLine, receipt } = timed;
 
+    if (!flavor.startsWith("chip")) {
+        if (forFlavor({ matterjs: interaction }, flavor) === undefined) {
+            return { type: "device-log", verdict: "unverified" };
+        }
+        if (receipt === undefined) {
+            throw new InternalError("A matter.js timed request always names its own exchange");
+        }
+        return matterjsTimedFollowUp(log, interaction, timedLine, receipt.exchange, budget, wait);
+    }
+
+    const message = CHIP_FOLLOW_UPS[interaction];
     const pattern = `${message.source} with ${TIMED_REQUEST_FLAG.source} within ${budget}ms`;
     if (receipt === undefined) {
         return {
