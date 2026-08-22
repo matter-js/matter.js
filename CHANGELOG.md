@@ -90,6 +90,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A report for a quieter attribute a behavior computes on read carries an advanced cluster data version, so a subscription no longer discards it as one it already has
     - Fix: `LevelControl.RemainingTime` and `ColorControl.RemainingTime` report the time left in a transition; the attribute read 0 on any endpoint whose application did not itself pass a `remainingTime` value
     - Fix: `endpoints.size` no longer double-counts the root endpoint
+    - Fix: The log line for an opened commissioning window states the timeout as a duration, not as a millisecond count labelled seconds
     - Fix: A commissioned peer's connection state leaves `Connected` as soon as its last operational session is lost
     - Fix: `ChangeNotificationService` event occurrences carry a `timestampKind` naming which of the four wire variants the timestamp is (`epoch`, `system`, `epoch-delta`, `system-delta`), so a consumer forwarding an event no longer has to guess its clock or whether it is absolute or a delta from the previous event
     - Fix: `IdentifyServer` no longer offers the optional `TriggerEffect` command unless the device type requires it, an own command implementation has been added via an override or suppression is disabled; `IdentifyServer.enable({ commands: { triggerEffect: true } })`, `IdentifyServer.alter({ commands: { triggerEffect: { optional: false } } })` and an override of `suppressTriggerEffect()` also offer it
