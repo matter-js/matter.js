@@ -159,7 +159,10 @@ export async function expectAdjacentLines(
     if (sequence === undefined) {
         return { verdict: "unverified" };
     }
+    return { verdict: "pass", last: await adjacentRun(log, sequence, from, timeout) };
+}
 
+async function adjacentRun(log: LogFollower, sequence: RegExp[], from: number, timeout: Duration): Promise<LogLine> {
     const deadline = Time.nowMs + timeout;
     const remaining = () => Millis(Math.max(1, deadline - Time.nowMs));
 
@@ -179,10 +182,32 @@ export async function expectAdjacentLines(
         }
 
         if (!interleaved) {
-            return { verdict: "pass", last };
+            return last;
         }
         cursor = anchor.index + 1;
     }
+}
+
+/**
+ * Waits for every pattern of `sequence` to match a line at or after `from`, in order, with anything at
+ * all allowed in between — for a claim its implementation states across lines its own handlers emit
+ * rather than in one block. Shares one `timeout` budget, as {@link adjacentRun} does.
+ */
+async function orderedRun(log: LogFollower, sequence: RegExp[], from: number, timeout: Duration): Promise<LogLine> {
+    const deadline = Time.nowMs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowMs));
+
+    let last: LogLine | undefined;
+    for (const pattern of sequence) {
+        last = await log.expectPattern(pattern, {
+            timeoutMs: remaining(),
+            from: last === undefined ? from : last.index + 1,
+        });
+    }
+    if (last === undefined) {
+        throw new InternalError("An ordered log expectation was given no patterns");
+    }
+    return last;
 }
 
 // chip's DMG log dumps a ReportDataMessage every time the read handler sends one chunk, and an
@@ -315,6 +340,19 @@ function attributeHex(id: number): string {
 }
 
 /**
+ * One implementation's lines for a claim: consecutive by default, or `{ ordered }` where that
+ * implementation prints lines of its own in between — matter.js states one subscribe across the flags
+ * of the request, the paths it carried and the intervals it accepted, with its own work logged
+ * between them.
+ */
+export type FlavorLines = RegExp[] | { ordered: RegExp[] };
+
+export interface LogExpectClaim {
+    chip?: FlavorLines;
+    matterjs?: FlavorLines;
+}
+
+/**
  * Records whether the running flavor's sequence matches consecutive log lines at or after `from` (see
  * {@link expectAdjacentLines}) as a check, with `label` naming what the sequence stands for in the
  * evidence. A timeout or a source closing mid-wait is recorded `"fail"` rather than propagating, so a
@@ -324,21 +362,25 @@ export async function expectSequence(
     log: LogFollower,
     flavor: string,
     label: string,
-    sequences: LogExpectSequences,
+    claim: LogExpectClaim,
     from: number,
     timeout: Duration,
 ): Promise<CheckRecord> {
+    const lines = forFlavor(claim, flavor);
+    if (lines === undefined) {
+        return { type: "device-log", verdict: "unverified" };
+    }
+
     try {
-        const result = await expectAdjacentLines(log, flavor, sequences, from, timeout);
-        if (result.verdict === "unverified") {
-            return { type: "device-log", verdict: "unverified" };
-        }
+        const last = Array.isArray(lines)
+            ? await adjacentRun(log, lines, from, timeout)
+            : await orderedRun(log, lines.ordered, from, timeout);
         return {
             type: "device-log",
             verdict: "pass",
             pattern: label,
-            matched: result.last.text,
-            logLine: result.last.index,
+            matched: last.text,
+            logLine: last.index,
         };
     } catch (e) {
         if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
@@ -426,6 +468,12 @@ function matterjsElement(name: string | undefined, id: number | undefined): stri
     return name === undefined ? hex : `(?:${camelize(name)}|${hex})`;
 }
 
+/**
+ * matter.js's own announcement that a commissioning completed, naming the fabric the CASE session
+ * that completed it belongs to — the equivalent of chip's "Commissioning completed successfully".
+ */
+export const MATTERJS_COMMISSIONED_FABRIC = /GeneralCommissioningClusterHandler Commissioned fabric:/;
+
 // A path is one entry of a comma-separated list, so a match needs both ends bounded: without this,
 // the path a step asked for matches as the tail of a longer endpoint number or the head of a longer
 // element name, attributing another path's line to this check.
@@ -453,6 +501,112 @@ function matterjsSubscribePath(fields: AttributePathSpec): RegExp {
     return new RegExp(
         `InteractionServer Subscribe request details «.*attributes: (?:(?! (?:dataVersionFilters|events):).)*?${MATTERJS_PATH_START}${matterjsPath(fields)}${MATTERJS_PATH_END}`,
     );
+}
+
+/**
+ * As {@link matterjsPath}, for an event path: its last segment sits under `events` where an
+ * attribute's sits under `state`.
+ */
+function matterjsEventPath(fields: EventPathSpec): string {
+    const resolvable = fields.endpoint !== undefined && fields.cluster !== undefined;
+    const cluster = fields.cluster === undefined ? undefined : Matter.clusters(fields.cluster);
+
+    const elements = [
+        fields.endpoint === undefined ? "\\*" : `${fields.endpoint}`,
+        matterjsElement(resolvable ? cluster?.name : undefined, fields.cluster),
+    ];
+    if (fields.event === undefined) {
+        elements.push("\\*");
+    } else {
+        const event = resolvable ? cluster?.events(fields.event) : undefined;
+        elements.push("events", matterjsElement(event?.name, fields.event));
+    }
+
+    return elements.join("\\.");
+}
+
+/**
+ * matter.js's log of a read the TH received, naming `fields` among the event paths it asked for, and
+ * carrying every flag in `flags` — which are printed before the paths, and only when set.
+ *
+ * The flags belong on the same pattern because they are on the same line: a separate search starting
+ * past this one's match would be looking at the next read, not at this one's flags.
+ */
+export function matterjsReadEventPath(fields: EventPathSpec, flags: string[] = []): RegExp {
+    const set = flags.map(flag => `${flag} `).join("");
+    return new RegExp(
+        `InteractionServer Read «.*${set}.*events: (?:(?! eventFilters:).)*?${MATTERJS_PATH_START}${matterjsEventPath(fields)}${MATTERJS_PATH_END}`,
+    );
+}
+
+/** As {@link matterjsReadEventPath}, for the subscribe line that names paths. */
+export function matterjsSubscribeEventPath(fields: EventPathSpec): RegExp {
+    return new RegExp(
+        `InteractionServer Subscribe request details «.*events: (?:(?! eventFilters:).)*?${MATTERJS_PATH_START}${matterjsEventPath(fields)}${MATTERJS_PATH_END}`,
+    );
+}
+
+/** matter.js's line for the flags a subscribe request carried; only those actually set are printed. */
+export function matterjsSubscribeFlags(...flags: string[]): RegExp {
+    return new RegExp(`InteractionServer Subscribe «.*${flags.map(flag => `${flag} `).join(".*")}`);
+}
+
+/**
+ * matter.js's line for the subscription it accepted, naming the interval bounds it took from the
+ * request — a caller-supplied ceiling reaches the wire unchanged, so these are the requested values.
+ */
+export function matterjsSubscribeTiming(minIntervalSeconds: number, maxIntervalSeconds: number): RegExp {
+    const bounds = [minIntervalSeconds, maxIntervalSeconds]
+        .map(seconds => Duration.format(Seconds(seconds)).replace(/\./g, "\\."))
+        .join(" - ");
+    return new RegExp(`InteractionServer Subscribe successful ».*timing: ${bounds} `);
+}
+
+/**
+ * Where a check whose claim matter.js prints on a line an earlier check already matched must start
+ * searching. chip prints one message as a block of lines, so a further claim about that same message
+ * lies after the earlier match; matter.js prints the whole message on one line, so a search starting
+ * past that line would be reading the next message instead.
+ *
+ * On matterjs this hands back the step's own mark, which binds the two searches to the same message
+ * only as long as the step drove one interaction of that kind. A step driving two would need its
+ * checks correlated by the exchange each names instead.
+ */
+export function sameMessageFrom(flavor: string, earlier: CheckRecord, mark: number): number {
+    if (!flavor.startsWith("chip")) {
+        return mark;
+    }
+    return earlier.logLine === undefined ? mark : earlier.logLine + 1;
+}
+
+/**
+ * matter.js's line for a command an invoke carried, rendered like an attribute path but ending in the
+ * command itself — a command path has no `state.` segment (`resolvePathForNode`).
+ */
+function matterjsInvokePath(endpoint: number, cluster: number, command: number): RegExp {
+    const model = Matter.clusters(cluster);
+    const path = [
+        `${endpoint}`,
+        matterjsElement(model?.name, cluster),
+        matterjsElement(model?.commands(command)?.name, command),
+    ].join("\\.");
+    return new RegExp(`InteractionServer Invoke «.*invokes: .*?${MATTERJS_PATH_START}${path}${MATTERJS_PATH_END}`);
+}
+
+/**
+ * matter.js's line for the invoked command's own payload, which names each field rather than
+ * numbering it: `<name>: <value>`, in payload order, on the line that names the command.
+ */
+function matterjsCommandFields(cluster: number, command: number, fields: CommandFieldValue[]): RegExp {
+    const model = Matter.clusters(cluster)?.commands(command);
+    const named = fields.map(({ id, value }) => {
+        const name = model?.fields(id)?.name;
+        if (name === undefined) {
+            throw new InternalError(`Command 0x${command.toString(16)} has no field 0x${id.toString(16)}`);
+        }
+        return `${camelize(name)}: ${value}(?!\\d)`;
+    });
+    return new RegExp(`ProtocolService Invoke «.*${matterjsElement(model?.name, command)}\\b.*${named.join(".*")}`);
 }
 
 /**
@@ -596,6 +750,46 @@ export function commandPathIBSequence(endpoint: number, cluster: number, command
 }
 
 /**
+ * As {@link expectCommandInvoke} against a matter.js TH, which names every command one invoke carried
+ * on a single line, and the invoked command's own field values on the line that reports the command
+ * it dispatched.
+ */
+async function matterjsCommandInvoke(
+    log: LogFollower,
+    flavor: string,
+    endpoint: number,
+    cluster: number,
+    command: number,
+    fields: CommandFieldValue[],
+    from: number,
+    timeout: Duration,
+): Promise<CheckRecord> {
+    const deadline = Time.nowMs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowMs));
+
+    const invoke = await expectDeviceLog(
+        log,
+        flavor,
+        { matterjs: matterjsInvokePath(endpoint, cluster, command) },
+        from,
+        remaining(),
+    );
+    if (fields.length === 0 || invoke.check.verdict !== "pass") {
+        return invoke.check;
+    }
+
+    return (
+        await expectDeviceLog(
+            log,
+            flavor,
+            { matterjs: matterjsCommandFields(cluster, command, fields) },
+            invoke.from,
+            remaining(),
+        )
+    ).check;
+}
+
+/**
  * Confirms chip's `InvokeRequestMessage` log carries a `CommandPathIB` matching `endpoint`/`cluster`/
  * `command` as a consecutive block at or after `from` (see {@link expectAdjacentLines}), then that
  * every `fields` entry appears afterward, in order, as its own `0x<id> = <value>,` line inside
@@ -615,6 +809,10 @@ export async function expectCommandInvoke(
     from: number,
     timeout: Duration,
 ): Promise<CheckRecord> {
+    if (!flavor.startsWith("chip")) {
+        return matterjsCommandInvoke(log, flavor, endpoint, cluster, command, fields, from, timeout);
+    }
+
     let cursor = from;
     let last: { index: number; text: string } | undefined;
 

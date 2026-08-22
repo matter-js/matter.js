@@ -15,6 +15,8 @@ import {
     expectSequence,
     expectSubscriptionId,
     LOG_TIMEOUT,
+    matterjsSubscribeFlags,
+    matterjsSubscribeTiming,
     record,
     requireId,
     SUBSCRIBE_REQUEST_MESSAGE,
@@ -104,7 +106,15 @@ certTest("TC-IDM-4.1", {
                 th.log,
                 th.flavor,
                 SUBSCRIBE_ENVELOPE_LABEL,
-                { chip: SUBSCRIBE_ENVELOPE_SEQUENCE },
+                {
+                    chip: SUBSCRIBE_ENVELOPE_SEQUENCE,
+                    matterjs: {
+                        ordered: [
+                            matterjsSubscribeFlags("keepSubscriptions"),
+                            matterjsSubscribeTiming(MIN_INTERVAL_FLOOR_SECONDS, MAX_INTERVAL_CEILING_SECONDS),
+                        ],
+                    },
+                },
                 from,
                 LOG_TIMEOUT,
             );

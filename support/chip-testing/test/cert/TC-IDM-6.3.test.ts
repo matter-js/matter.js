@@ -15,9 +15,11 @@ import {
     expectSequence,
     fabricFilteredPattern,
     LOG_TIMEOUT,
+    matterjsReadEventPath,
     READ_REQUEST_MESSAGE,
     record,
     requireId,
+    sameMessageFrom,
 } from "./tc-support.js";
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
@@ -88,20 +90,24 @@ certTest("TC-IDM-6.3", {
                 th.log,
                 th.flavor,
                 `ReadRequestMessage EventPathIBs ${JSON.stringify(EVENT_PATH)}`,
-                { chip: READ_EVENT_SEQUENCE },
+                { chip: READ_EVENT_SEQUENCE, matterjs: [matterjsReadEventPath(EVENT_PATH)] },
                 from,
                 LOG_TIMEOUT,
             );
             record(cx, pathCheck, "ReadRequestMessage event path");
 
-            // The plan's expected outcome names FabricFiltered alongside EventRequests; it sits after
-            // the path list in the same message, separated from it by the list's own closing lines.
+            // The plan's expected outcome names FabricFiltered alongside EventRequests; in chip's log it
+            // sits after the path list in the same message, separated from it by the list's own closing
+            // lines, and in matter.js's it is a flag on the line that names the paths.
             const fabricFilteredCheck = await expectSequence(
                 th.log,
                 th.flavor,
                 "ReadRequestMessage isFabricFiltered",
-                { chip: [fabricFilteredPattern(true)] },
-                pathCheck.logLine === undefined ? from : pathCheck.logLine + 1,
+                {
+                    chip: [fabricFilteredPattern(true)],
+                    matterjs: [matterjsReadEventPath(EVENT_PATH, ["fabricFiltered"])],
+                },
+                sameMessageFrom(th.flavor, pathCheck, from),
                 LOG_TIMEOUT,
             );
             record(cx, fabricFilteredCheck, "ReadRequestMessage isFabricFiltered");

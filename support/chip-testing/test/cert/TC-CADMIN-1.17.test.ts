@@ -15,6 +15,7 @@ import {
     expectDeviceLog,
     expectRejection,
     LOG_TIMEOUT,
+    MATTERJS_COMMISSIONED_FABRIC,
     PendingPairingCode,
     record,
 } from "./tc-support.js";
@@ -39,10 +40,8 @@ const WINDOW_OPEN_PATTERN = /Commissioning window is now open/;
 const COMMISSIONING_COMPLETE_PATTERN = /Commissioning completed successfully/;
 const REMOVE_FABRIC_SUCCESS_PATTERN = /OpCreds: RemoveFabric successful/;
 
-// matter.js's equivalents. It names the window by the timer it arms for it, and a completed
-// commissioning by the fabric the CASE session it completes belongs to.
+// matter.js names the window by the timer it arms for it.
 const MATTERJS_WINDOW_OPEN_PATTERN = /AdministratorCommissioningServer Commissioning window timer started/;
-const MATTERJS_COMMISSIONING_COMPLETE_PATTERN = /GeneralCommissioningClusterHandler Commissioned fabric:/;
 
 // The invoke's own answer, which names the fabric it removed and the status it answered with, where
 // chip logs an unqualified success line.
@@ -154,7 +153,7 @@ async function checkCommissioned(
     const { check } = await expectDeviceLog(
         th.log,
         th.flavor,
-        { chip: COMMISSIONING_COMPLETE_PATTERN, matterjs: MATTERJS_COMMISSIONING_COMPLETE_PATTERN },
+        { chip: COMMISSIONING_COMPLETE_PATTERN, matterjs: MATTERJS_COMMISSIONED_FABRIC },
         logFrom,
         LOG_TIMEOUT,
     );
