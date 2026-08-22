@@ -1361,7 +1361,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
      * Handles additional validation of preset changes when all chunks were written in an atomic write operation.
      */
     #handlePresetsChanged(newPresets: Thermostat.Preset[], oldPresets: Thermostat.Preset[]) {
-        this.#handlePersistedPresetsChanged(newPresets, oldPresets);
+        this.#normalizeAndValidatePresets(newPresets, oldPresets);
 
         // Store old Presets for lookup convenience
         const oldPresetsMap = new Map<string, Thermostat.Preset>();
@@ -1391,10 +1391,19 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     }
 
     /**
-     * Handles additional validation and required value adjustments of persistedPresets changes when all chunks were
-     * written in an atomic write.
+     * `Presets` is computed on read, so no `presets$Changed` event fires for it; react to `persistedPresets$Changed` to
+     * observe preset changes inside the device.
      */
     #handlePersistedPresetsChanged(newPresets: Thermostat.Preset[], oldPresets: Thermostat.Preset[]) {
+        this.#normalizeAndValidatePresets(newPresets, oldPresets);
+
+        this.markChanged("presets");
+    }
+
+    /**
+     * Assigns a handle to any preset lacking one and validates the set, for both the atomic and the stored path.
+     */
+    #normalizeAndValidatePresets(newPresets: Thermostat.Preset[], oldPresets: Thermostat.Preset[]) {
         if (oldPresets === undefined) {
             logger.debug(
                 "Old presets is undefined, skipping some checks. This should only happen on setup of the behavior.",
@@ -1404,6 +1413,8 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         const entropy = this.endpoint.env.get(Entropy);
         let changed = false;
         const newPresetHandles = new Set<string>();
+
+        // Normalized in place: the report that follows reads these back through the attribute's accessor
         for (const preset of newPresets) {
             if (preset.presetHandle === null) {
                 logger.debug("Preset is missing presetHandle, generating a new one");

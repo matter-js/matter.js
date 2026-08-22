@@ -82,6 +82,21 @@ export interface Datasource<T extends StateType = StateType> extends Transaction
     readonly version: number;
 
     /**
+     * Advance {@link version}, which Matter requires to move with the data a report carries.
+     *
+     * Does nothing where the version belongs to someone else: a client node's version is whatever the peer reported,
+     * so it advances only when a data report says so.
+     */
+    advanceVersion(): void;
+
+    /**
+     * Advance {@link version} only where one of these properties is served from an accessor, as declared by
+     * {@link Val.Dynamic}.  Use this where a stored property's own commit already advanced the version, so advancing
+     * again would count one change twice.
+     */
+    advanceVersionFor(props: string[]): void;
+
+    /**
      * Validate values against the schema.
      */
     validate(session: ValueSupervisor.Session, values?: Val.Struct): void;
@@ -309,6 +324,8 @@ interface CommitChanges {
  * Internal implementation of the Datasource interface.  Combines what was previously separate Internals state and
  * Datasource object literal into a single class with shared prototype methods.
  */
+const NoProperties: ReadonlySet<string> = new Set();
+
 class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Consumer {
     // From Datasource.Options
     type;
@@ -503,16 +520,50 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
         });
     }
 
+    advanceVersionFor(props: string[]) {
+        if (!this.manageVersion) {
+            return;
+        }
+
+        const dynamic = this.#dynamicProperties();
+        if (props.some(name => dynamic.has(name))) {
+            this.advanceVersion();
+        }
+    }
+
+    advanceVersion() {
+        if (!this.manageVersion) {
+            return;
+        }
+
+        this.version++;
+        if (this.version > 0xffff_ffff) {
+            this.version = 0;
+        }
+    }
+
+    /**
+     * The properties the state serves from an accessor.  A provider decides this per call, so ask it each time rather
+     * than assuming the answer holds for the life of the datasource.
+     */
+    #dynamicProperties(): ReadonlySet<string> {
+        const values = this.#values as Val.Dynamic;
+        if (!(Val.properties in values)) {
+            return NoProperties;
+        }
+
+        const properties = values[Val.properties](this.owner, this.#viewSession);
+        return new Set(Reflect.ownKeys(properties).filter((key): key is string => typeof key === "string"));
+    }
+
     get view() {
         if (!this.#readOnlyView) {
-            const session: ValueSupervisor.Session = {
-                transaction: viewTx,
-                supervisionMode: "global",
-            };
-            this.#readOnlyView = createReference(this, this, session).managed as InstanceType<StateType>;
+            this.#readOnlyView = createReference(this, this, this.#viewSession).managed as InstanceType<StateType>;
         }
         return this.#readOnlyView as InstanceType<StateType>;
     }
+
+    readonly #viewSession: ValueSupervisor.Session = { transaction: viewTx, supervisionMode: "global" };
 
     // -- Internal methods (used by RootReference) --
 
@@ -1097,17 +1148,6 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
         }
     }
 
-    #incrementVersion() {
-        if (!this.#internals.manageVersion) {
-            return;
-        }
-
-        this.#internals.version++;
-        if (this.#internals.version > 0xffff_ffff) {
-            this.#internals.version = 0;
-        }
-    }
-
     #computePreCommitChange(name: string): undefined | { newValue: unknown; oldValue: unknown } {
         let oldValue;
         if (this.#precommitValues && name in this.#precommitValues) {
@@ -1180,7 +1220,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
         }
 
         if (this.#changes) {
-            this.#incrementVersion();
+            this.#internals.advanceVersion();
 
             if (this.#internals.events.stateChanged?.isObserved) {
                 this.#changes.notifications.push({

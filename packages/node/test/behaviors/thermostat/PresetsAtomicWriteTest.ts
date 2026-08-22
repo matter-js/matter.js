@@ -163,13 +163,13 @@ describe("Presets atomic write", () => {
         expect(persisted[0].heatingSetpoint).equals(2000);
         expect(persisted[0].builtIn).equals(false);
 
-        // Characterization: the device announces the change under the name of the field behind the attribute, which
-        // carries no attribute id, so the announcement names nothing and no report reaches the subscriber.  The
-        // controller therefore never learns the handle the device generated and cannot address the preset in a later
-        // write without reading it back explicitly
-        expect(deviceAnnouncements).deep.equals([[]]);
-        expect(clientReports.map(presets => presets.map(({ presetHandle }) => presetHandle))).deep.equals([[null]]);
-        expect(cachedPresets(ep1)[0]?.presetHandle).equals(null);
+        expect(deviceAnnouncements.filter(attrs => attrs.includes(PRESETS_ATTRIBUTE))).length(1);
+
+        // The controller learns the handle the device generated, so it can address the preset in a later write
+        const cached = cachedPresets(ep1);
+        expect(cached.length).equals(1);
+        expect(cached[0].presetHandle?.byteLength).equals(16);
+        expect(clientReports[clientReports.length - 1][0].presetHandle?.byteLength).equals(16);
     });
 
     it("declines a write outside an atomic write", async () => {
