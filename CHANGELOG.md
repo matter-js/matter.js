@@ -87,6 +87,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A constraint whose bound carries a unit, such as the `0.01% to 100.00%` of a `percent100ths` value, is enforced in the units the value is encoded in
     - Fix: Struct validation resolves a member stored under its TLV tag number, so a constraint violation there is caught and a mandatory member present only at its id no longer raises a conformance error
     - Fix: `Thermostat.Presets` reports to subscribers and advances the cluster's data version when the presets change
+    - Fix: A local write of `Thermostat.Presets` is stored instead of silently discarded, and an invalid one rejects the caller's write
+    - Fix: A preset write is refused for referencing the active preset only when it removes that preset; a thermostat starting with an `ActivePresetHandle` that names no preset stores null instead of refusing to start
+    - Fix: A preset handle the thermostat generates is persisted, so it still addresses the preset after a restart
+    - Fix: A stored preset carrying no handle is given one at startup and no longer blocks every later preset write
+    - Fix: Two presets sharing a scenario and carrying no name are refused on an atomic write, as they already were on a local one
+    - Fix: A state class serving an attribute from an accessor sees the values of the writing transaction
+    - Fix: A write refused by pre-commit validation is announced again when the same value is written a second time on one transaction
     - Fix: A report for a quieter attribute a behavior computes on read carries an advanced cluster data version, so a subscription no longer discards it as one it already has
     - Fix: `LevelControl.RemainingTime` and `ColorControl.RemainingTime` report the time left in a transition; the attribute read 0 on any endpoint whose application did not itself pass a `remainingTime` value
     - Fix: `endpoints.size` no longer double-counts the root endpoint
