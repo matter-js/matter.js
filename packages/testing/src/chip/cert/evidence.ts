@@ -57,10 +57,10 @@ export interface RunRecord {
     /** Why the evidence this record's checks cite is incomplete, if it is (see {@link EvidenceRecorder.evidenceIncomplete}). */
     evidenceError?: string;
     /**
-     * Why the run failed, when nothing else in this record accounts for it — a bundle that could not be
-     * written, evidence reporting that threw, a cause added after this was written. The run's own
-     * outcome settles the verdict (see {@link EvidenceRecorder.concludeRun}), so no cause has to be
-     * enumerated here to keep a failed run from reading as a pass.
+     * How the run's own runner reported its failure, present for every failed run. The other fields
+     * here name particular mechanisms — a device that exited, cleanup that threw — and this names the
+     * outcome, so a failure none of them covers still reaches the record and still settles the verdict
+     * (see {@link EvidenceRecorder.concludeRun}). Expect it alongside them rather than instead of them.
      */
     runError?: string;
     /**
@@ -193,7 +193,9 @@ export class EvidenceRecorder implements StepRecorder {
      * {@link RunRecord.evidenceError}).
      */
     evidenceIncomplete(detail: string): void {
-        this.#evidenceError = detail;
+        // Accumulated: one gap often causes the next, and the first is usually the one that explains
+        // why the checks cite evidence the bundle lacks.
+        this.#evidenceError = this.#evidenceError === undefined ? detail : `${this.#evidenceError}; ${detail}`;
     }
 
     /**
@@ -216,15 +218,16 @@ export class EvidenceRecorder implements StepRecorder {
     async flush(): Promise<string> {
         await mkdir(this.#dir, { recursive: true });
 
-        // The record is published only after the logs its checks cite, and a log that could not be
-        // written reaches it as an evidence gap before this call reports the failure. We accept that a
-        // run killed mid-flush leaves no record at all: a record that overclaims is worse than none,
-        // because a certification reader cannot tell the difference.
+        // The record is written only after the logs its checks cite, so a reader that finds it finds
+        // them too, and a log that could not be written reaches it as an evidence gap before this call
+        // reports the failure.
         let logFailure: unknown;
+        let logFailures = 0;
         for (const [name, lines] of this.#logs) {
             try {
                 await writeFile(join(this.#dir, `${name}.log`), lines.map(line => line.text).join("\n"));
             } catch (e) {
+                logFailures++;
                 if (logFailure === undefined) {
                     logFailure = e;
                 }
@@ -232,7 +235,7 @@ export class EvidenceRecorder implements StepRecorder {
         }
         if (logFailure !== undefined) {
             this.evidenceIncomplete(
-                `${this.#logs.size} attached log(s) could not be written: ${errorText(logFailure)}`,
+                `${logFailures} of ${this.#logs.size} attached log(s) could not be written: ${errorText(logFailure)}`,
             );
         }
 
@@ -252,7 +255,8 @@ export class EvidenceRecorder implements StepRecorder {
      *
      * `outcome.failed` is the run's own outcome as its runner will report it, and a failed run cannot
      * settle as a pass whatever the steps recorded. That is what keeps the two from diverging over a
-     * cause this recorder was never told about.
+     * cause this recorder was never told about, and `outcome.detail` records that report as
+     * {@link RunRecord.runError} whether or not another field already names a mechanism for it.
      */
     async concludeRun(outcome: { failed: boolean; detail?: string }): Promise<void> {
         this.#concluded = true;

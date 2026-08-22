@@ -1307,7 +1307,16 @@ describe("CertTest", () => {
             steps: [{ number: 1, text: "A step that never runs", run: async () => {} }],
         };
 
-        const cx: CertStepContext = { controllers: {}, devices: {}, recorder: stubRecorder() };
+        const outcomes = new Array<{ failed: boolean; detail?: string }>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                async concludeRun(outcome) {
+                    outcomes.push(outcome);
+                },
+            }),
+        };
         const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
 
         await expect(
@@ -1315,6 +1324,10 @@ describe("CertTest", () => {
         ).rejectedWith("PICS accessor exploded");
 
         expect(test.teardownCalls).equal(1);
+
+        // The throw came from outside every step, so only the run's own outcome can keep the record
+        // from settling as though nothing went wrong.
+        expect(outcomes).deep.equal([{ failed: true, detail: "PICS accessor exploded" }]);
     });
 
     it("reports a device that died rather than a controller that would not close", async () => {

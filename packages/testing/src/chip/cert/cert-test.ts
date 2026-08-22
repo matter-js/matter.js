@@ -251,6 +251,15 @@ export class CertTest extends BaseTest {
                     console.warn("Cert test unverified-check summary reporting failed:", e);
                 }
             }
+        } catch (e) {
+            // Kept before rethrowing: the handlers inside cover what a step can do, and everything else
+            // — resolving the controller, reading the PICS — would otherwise reach the record below as
+            // a run that never failed.
+            if (!failed) {
+                failed = true;
+                failure = e;
+            }
+            throw e;
         } finally {
             const finalize = this.#definition.finalize;
             if (finalize !== undefined) {
@@ -311,7 +320,11 @@ export class CertTest extends BaseTest {
             deviceExitWatch.disarm();
 
             if (teardownErrors.length > 0) {
-                recorder.teardownFailed?.(teardownErrors.map(errorText).join("; "));
+                try {
+                    recorder.teardownFailed?.(teardownErrors.map(errorText).join("; "));
+                } catch (e) {
+                    console.warn("Cert test close-failure reporting failed:", e);
+                }
             }
 
             // In order: what the run itself hit, then a device that died under it — an exit settling

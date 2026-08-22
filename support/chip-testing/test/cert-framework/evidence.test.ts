@@ -415,6 +415,55 @@ describe("EvidenceRecorder", () => {
         expect(resultJson.steps[0].verdict).equal("pass");
     });
 
+    it("writes the record before reporting a log failure, so a run that stops there still has one", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-IDM-2.1",
+            plan: "interactiondatamodel.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "chip-tool",
+            device: "chip-local:all-clusters",
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.endStep(step1, "pass");
+        recorder.attachLog("written", [logLine(0, "a line")]);
+        await fsp.mkdir(pathMod.join(outDir, "2026-08-07T00-00-00.000Z-TC-IDM-2.1"), { recursive: true });
+        await fsp.mkdir(pathMod.join(outDir, "2026-08-07T00-00-00.000Z-TC-IDM-2.1", "unwritable.log"));
+        recorder.attachLog("unwritable", [logLine(0, "another line")]);
+
+        await expect(recorder.flush()).rejected;
+
+        // Nothing concludes the run here: this is what a run whose teardown then hangs leaves behind.
+        const dir = pathMod.join(outDir, "2026-08-07T00-00-00.000Z-TC-IDM-2.1");
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+        expect(resultJson.verdict).equal("incomplete");
+        expect(resultJson.evidenceError).match(/^1 of 2 attached log\(s\) could not be written/);
+    });
+
+    it("keeps every evidence gap, not only the last one reported", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-IDM-2.1",
+            plan: "interactiondatamodel.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "chip-tool",
+            device: "chip-local:all-clusters",
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.endStep(step1, "pass");
+        recorder.evidenceIncomplete("the logs were never attached");
+        recorder.evidenceIncomplete("a log could not be written");
+        await recorder.concludeRun({ failed: true, detail: "the evidence is incomplete" });
+
+        const dir = pathMod.join(outDir, "2026-08-07T00-00-00.000Z-TC-IDM-2.1");
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+        expect(resultJson.evidenceError).equal("the logs were never attached; a log could not be written");
+    });
+
     it("cannot settle as a pass for a run its steps say nothing about failing", async () => {
         const recorder = new EvidenceRecorder(outDir, {
             tc: "TC-SC-3.5",

@@ -267,8 +267,8 @@ describe("TC-SC-3.5", () => {
             recorder.attachLog("controller-dut", dut.log.lines);
             recorder.attachLog("device-python", test.logLines);
 
-            // Warned as well as kept: the throw below is unreachable when the body itself threw, so
-            // the console is the only place a flush failure surfaces on that path.
+            // Warned as well as kept: the throw below is unreachable when the body itself threw, and a
+            // failure to create the directory or name the record reaches nothing but the console.
             try {
                 await recorder.flush();
             } catch (e) {

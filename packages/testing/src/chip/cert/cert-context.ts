@@ -143,8 +143,9 @@ export interface StepRecorder {
      * Settles the run's verdict, after teardown, and persists the record carrying it. {@link flush} runs
      * before teardown so a bundle exists even for a teardown that hangs; until this call the persisted
      * record states no verdict, so a run that never reaches it cannot leave one behind. `outcome` is
-     * the run's own result as its runner will report it, so a failed run cannot settle as a pass over a
-     * cause this recorder was never told about (see {@link EvidenceRecorder.concludeRun}).
+     * the run's own result as its runner will report it — recorded for every failed run, whatever else
+     * the record already names — so a failed run cannot settle as a pass over a cause this recorder was
+     * never told about (see {@link EvidenceRecorder.concludeRun}).
      */
     concludeRun?(outcome: { failed: boolean; detail?: string }): Promise<void>;
 }
