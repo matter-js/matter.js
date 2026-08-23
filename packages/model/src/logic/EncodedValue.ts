@@ -17,7 +17,7 @@ import type { ValueModel } from "../models/ValueModel.js";
  * Returns undefined for a value that has no numeric form, such as a reference to another field.
  */
 export function EncodedValue(model: ValueModel, value: FieldValue.Open | undefined) {
-    const encoded = FieldValue.numericValue(value, model.effectiveType);
+    const encoded = scaled(model, value);
 
     // Scaling a fraction to its encoding units is a binary multiplication, so it lands next to the integer the units
     // count rather than on it; 0.07% of a percent100ths is 7.000000000000001
@@ -29,4 +29,24 @@ export function EncodedValue(model: ValueModel, value: FieldValue.Open | undefin
     }
 
     return encoded;
+}
+
+/**
+ * The scale of a unit comes from the name of the type stating it, and the same type states the same scale under more
+ * than one name: a datatype of another cluster is referenced by a qualified name, and case varies.  So where the name
+ * of the value does not answer, the definitions it derives from do.
+ */
+function scaled(model: ValueModel, value: FieldValue.Open | undefined) {
+    let base: ValueModel | undefined = model;
+    let name = model.effectiveType;
+
+    for (let depth = 0; base !== undefined && depth < 8; depth++) {
+        const numeric = FieldValue.numericValue(value, name);
+        if (numeric !== undefined) {
+            return numeric;
+        }
+
+        base = base.base;
+        name = base?.name;
+    }
 }

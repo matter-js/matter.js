@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { UnscaledConstraintBounds } from "#logic/EncodedConstraint.js";
 import { ModelTraversal } from "#logic/ModelTraversal.js";
 import { camelize } from "@matter/general";
 import { Access, Aspect, Conformance, Constraint, Quality } from "../../aspects/index.js";
@@ -31,6 +32,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         this.model.conformance.validateComputation(this, this.model.owner(ClusterModel)?.definedFeatures);
 
         this.#validateAspect("constraint");
+        this.#validateConstraintUnits();
         this.#validateAspect("access");
         this.#validateAspect("quality");
 
@@ -38,6 +40,33 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         this.#validateEntries();
 
         super.validate();
+    }
+
+    /**
+     * A bound the specification writes with a unit, such as the "0 to 12.7°C" of a `SignedTemperature`, only
+     * constrains once restated in the units the value is encoded in.  A unit left in place does not fail closed: as a
+     * range it admits every value, and as an exact value it admits none.
+     *
+     * This reads the constraint the model states rather than the one it inherits, so one bad definition is reported
+     * once instead of once per model deriving from it.
+     */
+    #validateConstraintUnits() {
+        const constraint = this.model.constraint;
+        if (constraint.isEmpty) {
+            return;
+        }
+
+        const unscaled = UnscaledConstraintBounds(constraint, this.model);
+        if (!unscaled.length) {
+            return;
+        }
+
+        this.error(
+            "CONSTRAINT_UNIT_WITHOUT_SCALE",
+            `Constraint "${constraint}" states ${unscaled.map(bound => FieldValue.serialize(bound)).join(" and ")} ` +
+                `in a unit that type ${this.model.effectiveType} gives no scale for, so the bound admits every ` +
+                `value as a range and none as an exact value`,
+        );
     }
 
     /**
