@@ -8,15 +8,9 @@ import { Millis } from "@matter/main";
 import { Matter } from "@matter/model";
 import type { CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
+import type { TimedInteraction } from "./tc-idm-5.1-support.js";
 import { expectTimedFollowUp, expectTimedRequest, expectUnicastReceipt } from "./tc-idm-5.1-support.js";
-import {
-    CommissionedRefs,
-    INVOKE_REQUEST_MESSAGE,
-    LOG_TIMEOUT,
-    record,
-    requireId,
-    WRITE_REQUEST_MESSAGE,
-} from "./tc-support.js";
+import { CommissionedRefs, LOG_TIMEOUT, record, requireId } from "./tc-support.js";
 
 const ON_OFF = Matter.clusters.require("OnOff");
 const ON_OFF_ID = requireId(ON_OFF.id, "OnOff cluster");
@@ -30,7 +24,7 @@ const TIMED_INTERACTION_TIMEOUT = Millis(200);
 
 const commissioned = new CommissionedRefs();
 
-async function recordTimedInteraction(cx: CertStepContext, message: RegExp, from: number): Promise<void> {
+async function recordTimedInteraction(cx: CertStepContext, interaction: TimedInteraction, from: number): Promise<void> {
     const th = cx.devices.th;
 
     const timed = await expectTimedRequest(th.log, th.flavor, TIMED_INTERACTION_TIMEOUT, from, LOG_TIMEOUT);
@@ -41,7 +35,7 @@ async function recordTimedInteraction(cx: CertStepContext, message: RegExp, from
     const followUp = await expectTimedFollowUp(
         th.log,
         th.flavor,
-        message,
+        interaction,
         timed,
         TIMED_INTERACTION_TIMEOUT,
         LOG_TIMEOUT,
@@ -75,7 +69,7 @@ certTest("TC-IDM-5.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C"
                 detail: `timed invoke of OnOff.on on endpoint ${ENDPOINT_1} succeeded`,
             });
 
-            await recordTimedInteraction(cx, INVOKE_REQUEST_MESSAGE, from);
+            await recordTimedInteraction(cx, "invoke", from);
         },
         {
             pics: "MCORE.IDM.C.InvokeRequest",
@@ -105,7 +99,7 @@ certTest("TC-IDM-5.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C"
                 detail: `timed write of OnOff.onTime on endpoint ${ENDPOINT_1} succeeded`,
             });
 
-            await recordTimedInteraction(cx, WRITE_REQUEST_MESSAGE, from);
+            await recordTimedInteraction(cx, "write", from);
         }),
         {
             pics: "MCORE.IDM.C.WriteRequest",

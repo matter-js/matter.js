@@ -5,16 +5,17 @@
  */
 
 import { InternalError, Millis, Time, Seconds } from "@matter/main";
-import type { CertNodeApi, CertStepContext, CheckRecord, ControllerAdapter } from "@matter/testing";
+import type { AttributePathSpec, CertNodeApi, CertStepContext, CheckRecord, ControllerAdapter } from "@matter/testing";
 import { LogFollower } from "@matter/testing";
 import {
     attributePathIBSequence,
     CertCheckFailedError,
     CertCleanupError,
-    CommissionedRefs,
     commandPathIBSequence,
+    CommissionedRefs,
     EVENT_PATH_IBS_SEQUENCE,
     eventPathIBSequence,
+    expectAttributePathIB,
     expectChunkedTransfer,
     expectCommandInvoke,
     expectMessageWithPath,
@@ -23,6 +24,10 @@ import {
     expectSequence,
     expectSubscriptionId,
     fabricFilteredPattern,
+    matterjsReadEventPath,
+    matterjsSubscribeEventPath,
+    matterjsSubscribeFlags,
+    matterjsSubscribeTiming,
     READ_REQUEST_MESSAGE,
     recordAll,
     requireId,
@@ -198,8 +203,8 @@ describe("expectChunkedTransfer", () => {
         expect(record.detail).equal("0 report chunks — the read did not chunk");
     });
 
-    it("reports unverified for a flavor with no pattern", async () => {
-        const record = await check([], "matterjs");
+    it("reports unverified for a flavor neither implementation's patterns speak for", async () => {
+        const record = await check([], "python");
 
         expect(record.verdict).equal("unverified");
     });
@@ -284,7 +289,7 @@ describe("expectSequence", () => {
 
     it("passes on the consecutive read-request-with-event-path run", async () => {
         const record = await withFollower(READ_EVENT_LINES, follower =>
-            expectSequence(follower, "chip-local", "read event path", SEQUENCE, 0, Seconds(1)),
+            expectSequence(follower, "chip-local", "read event path", { chip: SEQUENCE }, 0, Seconds(1)),
         );
 
         expect(record.verdict).equal("pass");
@@ -293,13 +298,20 @@ describe("expectSequence", () => {
 
     it("finds isFabricFiltered after the path block, which is not adjacent to it", async () => {
         const record = await withFollower(READ_EVENT_LINES, async follower => {
-            const block = await expectSequence(follower, "chip-local", "read event path", SEQUENCE, 0, Seconds(1));
+            const block = await expectSequence(
+                follower,
+                "chip-local",
+                "read event path",
+                { chip: SEQUENCE },
+                0,
+                Seconds(1),
+            );
             expect(block.logLine).equal(9);
             return expectSequence(
                 follower,
                 "chip-local",
                 "isFabricFiltered",
-                [fabricFilteredPattern(true)],
+                { chip: [fabricFilteredPattern(true)] },
                 block.logLine! + 1,
                 Seconds(1),
             );
@@ -310,7 +322,7 @@ describe("expectSequence", () => {
 
     it("fails, rather than throwing, when the sequence never arrives", async () => {
         const record = await withFollower(["[DMG] ReadRequestMessage ="], follower =>
-            expectSequence(follower, "chip-local", "read event path", SEQUENCE, 0, Millis(200)),
+            expectSequence(follower, "chip-local", "read event path", { chip: SEQUENCE }, 0, Millis(200)),
         );
 
         expect(record.verdict).equal("fail");
@@ -319,7 +331,7 @@ describe("expectSequence", () => {
 
     it("reports unverified for a flavor with no pattern for the sequence", async () => {
         const record = await withFollower(READ_EVENT_LINES, follower =>
-            expectSequence(follower, "matterjs", "read event path", SEQUENCE, 0, Seconds(1)),
+            expectSequence(follower, "matterjs", "read event path", { chip: SEQUENCE }, 0, Seconds(1)),
         );
 
         expect(record.verdict).equal("unverified");
@@ -340,7 +352,7 @@ describe("expectMessageWithPath", () => {
 
     it("passes when the path block follows the message", async () => {
         const record = await withFollower([WRITE, ...PATH], follower =>
-            expectMessageWithPath(follower, "chip-local", WRITE_REQUEST_MESSAGE, FIELDS, 0, Seconds(1)),
+            expectMessageWithPath(follower, "chip-local", "write", FIELDS, 0, Seconds(1)),
         );
 
         expect(record.verdict).equal("pass");
@@ -348,7 +360,7 @@ describe("expectMessageWithPath", () => {
 
     it("fails at the message stage when the path block appears without the message", async () => {
         const record = await withFollower([...PATH], follower =>
-            expectMessageWithPath(follower, "chip-local", WRITE_REQUEST_MESSAGE, FIELDS, 0, Seconds(1)),
+            expectMessageWithPath(follower, "chip-local", "write", FIELDS, 0, Seconds(1)),
         );
 
         expect(record.verdict).equal("fail");
@@ -357,16 +369,16 @@ describe("expectMessageWithPath", () => {
 
     it("fails at the path stage when a path block appears before the message but not after", async () => {
         const record = await withFollower([...PATH, WRITE], follower =>
-            expectMessageWithPath(follower, "chip-local", WRITE_REQUEST_MESSAGE, FIELDS, 0, Seconds(1)),
+            expectMessageWithPath(follower, "chip-local", "write", FIELDS, 0, Seconds(1)),
         );
 
         expect(record.verdict).equal("fail");
         expect(record.pattern).equal(`AttributePathIB ${JSON.stringify(FIELDS)}`);
     });
 
-    it("reports unverified for a flavor with no pattern for the message", async () => {
+    it("reports unverified for a flavor neither implementation's patterns speak for", async () => {
         const record = await withFollower([WRITE, ...PATH], follower =>
-            expectMessageWithPath(follower, "matterjs", WRITE_REQUEST_MESSAGE, FIELDS, 0, Seconds(1)),
+            expectMessageWithPath(follower, "python", "write", FIELDS, 0, Seconds(1)),
         );
 
         expect(record.verdict).equal("unverified");
@@ -382,12 +394,385 @@ describe("expectMessageWithPath", () => {
         setTimeout(() => source.push(WRITE), 300);
 
         const start = Date.now();
-        const record = await expectMessageWithPath(follower, "chip-local", WRITE_REQUEST_MESSAGE, FIELDS, 0, timeout);
+        const record = await expectMessageWithPath(follower, "chip-local", "write", FIELDS, 0, timeout);
         const elapsed = Date.now() - start;
         await follower.close();
 
         expect(record.verdict).equal("fail");
         expect(elapsed).lessThan(timeout * 1.25);
+    });
+});
+
+describe("attribute-path checks against a matter.js TH", () => {
+    // matter.js names every path of one interaction on a single line, so these are its real log
+    // lines, captured from a matterjs-vs-matterjs certification run's own device log.
+    const readLine = (paths: string, events = "none") =>
+        `2026-08-22 16:54:44.311 DEBUG InteractionServer Read « @1:f8b164969e6633a1•678b⇵50bc fabricFiltered attributes: ${paths} events: ${events}`;
+    const writeLine = (paths: string) =>
+        `2026-08-22 16:54:45.781 INFO InteractionServer Write « @1:ba8dee166d614303•0db5⇵ef90 ${paths}`;
+    const subscribeDetailsLine = (paths: string, tail = "") =>
+        `2026-08-22 16:54:46.946 DEBUG InteractionServer Subscribe request details « @1:b62937b31fd3030•80d9⇵37a7 attributes: ${paths}${tail}`;
+
+    const ON_OFF = { endpoint: 1, cluster: 0x6, attribute: 0x0 };
+
+    async function read(lines: string[], fields: AttributePathSpec = ON_OFF) {
+        return withFollower(lines, follower => expectAttributePathIB(follower, "matterjs", fields, 0, Millis(100)));
+    }
+
+    it("passes on the read line naming the path, with the element names matter.js resolved", async () => {
+        const record = await read([readLine("1.onOff.state.onOff")]);
+
+        expect(record.verdict).equal("pass");
+        expect(record.matched).contains("1.onOff.state.onOff");
+    });
+
+    it("finds the path among the several a single read carried", async () => {
+        const record = await read([
+            readLine("0.basicInformation.state.vendorId, 1.onOff.state.onOff, 0.descriptor.state.partsList"),
+        ]);
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("accepts the hex rendering a wildcarded endpoint leaves matter.js with", async () => {
+        const record = await read([readLine("*.0x1d.state.0x1")], { cluster: 0x1d, attribute: 0x1 });
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("does not take another attribute of the same cluster for the one it asked for", async () => {
+        const record = await read([readLine("1.onOff.state.globalSceneControl")]);
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("does not take a read of every attribute of the cluster for a read of one", async () => {
+        const record = await read([readLine("1.onOff.*")]);
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("does not take a longer endpoint number for the endpoint it asked for", async () => {
+        const record = await read([readLine("11.onOff.state.onOff")]);
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("does not take the read's event paths for its attribute paths", async () => {
+        // A wildcard event path renders exactly as a wildcard attribute path does.
+        const record = await read([readLine("1.onOff.state.onOff", "*.*.*, 1 filters")], {});
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("records the miss rather than throwing it, so the step's evidence carries it", async () => {
+        const record = await read([readLine("1.onOff.state.globalSceneControl")]);
+
+        expect(record.type).equal("device-log");
+        expect(record.pattern).equal(`AttributePathIB ${JSON.stringify(ON_OFF)}`);
+        expect(record.detail).match(/Timed out waiting/);
+    });
+
+    it("passes on the write line naming the path", async () => {
+        const record = await withFollower([writeLine("1.levelControl.state.onLevel")], follower =>
+            expectMessageWithPath(
+                follower,
+                "matterjs",
+                "write",
+                { endpoint: 1, cluster: 0x8, attribute: 0x11 },
+                0,
+                Millis(100),
+            ),
+        );
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("records a fail when no write line carries the path", async () => {
+        const record = await withFollower([writeLine("1.levelControl.state.options")], follower =>
+            expectMessageWithPath(
+                follower,
+                "matterjs",
+                "write",
+                { endpoint: 1, cluster: 0x8, attribute: 0x11 },
+                0,
+                Millis(100),
+            ),
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("passes on the subscribe line that names paths, past the filters that follow them", async () => {
+        const record = await withFollower(
+            [
+                subscribeDetailsLine(
+                    "1.onOff.state.onOff",
+                    " dataVersionFilters: undefined/1/6=2788245245 events: *.*.* eventFilters: undefined/4",
+                ),
+            ],
+            follower => expectMessageWithPath(follower, "matterjs", "subscribe", ON_OFF, 0, Millis(100)),
+        );
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("does not settle a subscribe path check on the line that carries path counts only", async () => {
+        const countsOnly =
+            "2026-08-22 16:54:46.945 INFO InteractionServer Subscribe « @1:b62937b31fd3030•80d9⇵37a7 fabricFiltered keepSubscriptions attributePaths: 1";
+        const record = await withFollower([countsOnly], follower =>
+            expectMessageWithPath(follower, "matterjs", "subscribe", ON_OFF, 0, Millis(100)),
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+});
+
+describe("expectChunkedTransfer against a matter.js TH", () => {
+    // matter.js names the exchange on the report line itself (`⇵<exchange>✉<counter>`), so a chunk
+    // carries its own attribution. Lines captured from a matterjs-vs-matterjs run's device log.
+    const MATTERJS_EXCHANGE = "50c9";
+    const mjsChunk = (exchange = MATTERJS_EXCHANGE) =>
+        `2026-08-22 16:54:44.382 DEBUG MessageChannel Message » for: I/ReportData moreChunkedMessages attr: 36 backOff: 371ms id: @1:f8b164969e6633a1•678b⇵${exchange}✉02ca1953 type: 0x1/0x5 acked: 0fcef3be reqAck size: 1139 payload: 1536`;
+    const mjsAck = (exchange = MATTERJS_EXCHANGE) =>
+        `2026-08-22 16:54:44.385 DEBUG MessageExchange Message « for: I/StatusResponse id: @1:f8b164969e6633a1•678b⇵${exchange}✉0fcef3bf type: 0x1/0x1 acked: 02ca1953 reqAck size: 8 payload: 0000000000000000`;
+
+    async function transfer(lines: string[]) {
+        return withFollower(lines, follower => expectChunkedTransfer(follower, "matterjs", 0, Seconds(1)));
+    }
+
+    it("passes when every chunk but the last is acked", async () => {
+        const record = await transfer([mjsChunk(), mjsAck(), mjsChunk(), mjsAck(), mjsChunk()]);
+
+        expect(record.verdict).equal("pass");
+        expect(record.detail).equal("3 report chunks, each but the last followed by a StatusResponse");
+    });
+
+    it("fails when a chunk pair has no StatusResponse between it", async () => {
+        const record = await transfer([mjsChunk(), mjsChunk(), mjsAck(), mjsChunk()]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).match(/chunk 1 of 3 went unacked/);
+    });
+
+    it("fails when the ack between two chunks answered another exchange", async () => {
+        const record = await transfer([mjsChunk(), mjsAck("50ca"), mjsChunk(), mjsAck(), mjsChunk()]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).match(/chunk 1 of 3 went unacked/);
+    });
+
+    it("fails when two separate reports look like one chunked transfer", async () => {
+        const record = await transfer([mjsChunk(), mjsAck(), mjsChunk("50ca"), mjsAck("50ca")]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).match(/belongs to another read/);
+    });
+
+    it("fails when the read never chunked", async () => {
+        const record = await transfer([mjsChunk(), mjsAck()]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).match(/did not chunk/);
+    });
+});
+
+describe("command, event and subscribe checks against a matter.js TH", () => {
+    // matter.js's own lines, captured from a matterjs-vs-matterjs certification run.
+    const SESSION = "@1:6933d77f2aac19fc•8c2d";
+    const invokeLine = (paths: string, flags = "") =>
+        `2026-08-22 16:56:18.684 INFO InteractionServer Invoke « ${SESSION}⇵4ef3 ${flags}invokes: ${paths}`;
+    const fieldsLine = (command: string, fields: string) =>
+        `2026-08-22 16:54:43.437 INFO ProtocolService Invoke « binford-6100.generalCommissioning.${command} ${SESSION}⇵4ef3✉0d8128da ${fields}`;
+    const readEventLine = (events: string, flags = "fabricFiltered ") =>
+        `2026-08-22 16:56:19.727 DEBUG InteractionServer Read « ${SESSION}⇵9376 ${flags}attributes: none events: ${events}`;
+    const subscribeFlagsLine = (flags: string) =>
+        `2026-08-22 16:56:20.732 INFO InteractionServer Subscribe « ${SESSION}⇵4ef4 ${flags} eventPaths: 1`;
+    const subscribeEventsLine = (events: string) =>
+        `2026-08-22 16:56:20.732 DEBUG InteractionServer Subscribe request details « ${SESSION}⇵4ef4 events: ${events}`;
+    const subscribeAcceptedLine = (timing: string) =>
+        `2026-08-22 16:56:20.738 NOTICE InteractionServer Subscribe successful » ${SESSION}⇵4ef4 2↔1 sub#: 549d86cf timing: ${timing} sendInterval: 1m 21s`;
+
+    const ON_OFF_ON = { endpoint: 1, cluster: 0x6, command: 0x1 };
+    const START_UP = { endpoint: 0, cluster: 0x28, event: 0x0 };
+
+    async function invoke(lines: string[], fields: { id: number; value: number }[] = []) {
+        return withFollower(lines, follower =>
+            expectCommandInvoke(
+                follower,
+                "matterjs",
+                ON_OFF_ON.endpoint,
+                ON_OFF_ON.cluster,
+                ON_OFF_ON.command,
+                fields,
+                0,
+                Millis(100),
+            ),
+        );
+    }
+
+    it("passes on the invoke line naming the command", async () => {
+        expect((await invoke([invokeLine("1.onOff.on")])).verdict).equal("pass");
+    });
+
+    it("does not take another command of the same cluster for the one it asked for", async () => {
+        expect((await invoke([invokeLine("1.onOff.off")])).verdict).equal("fail");
+    });
+
+    it("finds the command among the several one invoke carried", async () => {
+        expect((await invoke([invokeLine("1.onOff.off, 1.onOff.on")])).verdict).equal("pass");
+    });
+
+    it("checks a command's field values by the names matter.js prints them under", async () => {
+        const record = await withFollower(
+            [
+                invokeLine("0.generalCommissioning.armFailSafe"),
+                fieldsLine("armFailSafe", "expiryLengthSeconds: 60 breadcrumb: 1"),
+            ],
+            follower => expectCommandInvoke(follower, "matterjs", 0, 0x30, 0x0, [{ id: 0, value: 60 }], 0, Millis(100)),
+        );
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("fails when a field carried another value than the step asked for", async () => {
+        const record = await withFollower(
+            [
+                invokeLine("0.generalCommissioning.armFailSafe"),
+                fieldsLine("armFailSafe", "expiryLengthSeconds: 900 breadcrumb: 1"),
+            ],
+            follower => expectCommandInvoke(follower, "matterjs", 0, 0x30, 0x0, [{ id: 0, value: 60 }], 0, Millis(100)),
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("passes on the read line naming the event path, with the flag the step asked for", async () => {
+        const record = await withFollower([readEventLine("0.basicInformation.events.startUp")], follower =>
+            expectSequence(
+                follower,
+                "matterjs",
+                "read event path",
+                { matterjs: [matterjsReadEventPath(START_UP, ["fabricFiltered"])] },
+                0,
+                Millis(100),
+            ),
+        );
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("does not take another event of the same cluster for the one it asked for", async () => {
+        const record = await withFollower([readEventLine("0.basicInformation.events.shutDown")], follower =>
+            expectSequence(
+                follower,
+                "matterjs",
+                "read event path",
+                { matterjs: [matterjsReadEventPath(START_UP)] },
+                0,
+                Millis(100),
+            ),
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("does not pass a read the device did not fabric-filter as a filtered one", async () => {
+        const record = await withFollower([readEventLine("0.basicInformation.events.startUp", "")], follower =>
+            expectSequence(
+                follower,
+                "matterjs",
+                "read event path",
+                { matterjs: [matterjsReadEventPath(START_UP, ["fabricFiltered"])] },
+                0,
+                Millis(100),
+            ),
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("passes a subscribe envelope stated across the lines matter.js prints it on", async () => {
+        const record = await withFollower(
+            [
+                subscribeFlagsLine("fabricFiltered keepSubscriptions"),
+                subscribeEventsLine("0.basicInformation.events.startUp"),
+                "2026-08-22 16:56:20.735 DEBUG ServerSubscription some work of its own",
+                subscribeAcceptedLine("10s - 1m 40s =>"),
+            ],
+            follower =>
+                expectSequence(
+                    follower,
+                    "matterjs",
+                    "subscribe envelope",
+                    {
+                        matterjs: {
+                            ordered: [
+                                matterjsSubscribeFlags("keepSubscriptions"),
+                                matterjsSubscribeEventPath(START_UP),
+                                matterjsSubscribeTiming(10, 100),
+                            ],
+                        },
+                    },
+                    0,
+                    Millis(100),
+                ),
+        );
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("fails an envelope whose interval bounds are not the ones requested", async () => {
+        const record = await withFollower(
+            [subscribeFlagsLine("keepSubscriptions"), subscribeAcceptedLine("20s - 1m 40s =>")],
+            follower =>
+                expectSequence(
+                    follower,
+                    "matterjs",
+                    "subscribe envelope",
+                    { matterjs: { ordered: [matterjsSubscribeTiming(10, 100)] } },
+                    0,
+                    Millis(100),
+                ),
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("fails an envelope whose lines arrived in the wrong order", async () => {
+        const record = await withFollower(
+            [subscribeAcceptedLine("10s - 1m 40s =>"), subscribeFlagsLine("keepSubscriptions")],
+            follower =>
+                expectSequence(
+                    follower,
+                    "matterjs",
+                    "subscribe envelope",
+                    {
+                        matterjs: {
+                            ordered: [matterjsSubscribeFlags("keepSubscriptions"), matterjsSubscribeTiming(10, 100)],
+                        },
+                    },
+                    0,
+                    Millis(100),
+                ),
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("does not pass a request that omitted a flag the envelope names", async () => {
+        const record = await withFollower([subscribeFlagsLine("fabricFiltered")], follower =>
+            expectSequence(
+                follower,
+                "matterjs",
+                "subscribe envelope",
+                { matterjs: { ordered: [matterjsSubscribeFlags("keepSubscriptions")] } },
+                0,
+                Millis(100),
+            ),
+        );
+
+        expect(record.verdict).equal("fail");
     });
 });
 
@@ -583,9 +968,9 @@ describe("expectCommandInvoke", () => {
         expect(record.verdict).equal("pass");
     });
 
-    it("reports unverified for a flavor with no pattern", async () => {
+    it("reports unverified for a flavor neither implementation's patterns speak for", async () => {
         const record = await withFollower([...PATH], follower =>
-            expectCommandInvoke(follower, "matterjs", 1, 0x6, 0x1, [], 0, Seconds(1)),
+            expectCommandInvoke(follower, "python", 1, 0x6, 0x1, [], 0, Seconds(1)),
         );
 
         expect(record.verdict).equal("unverified");
