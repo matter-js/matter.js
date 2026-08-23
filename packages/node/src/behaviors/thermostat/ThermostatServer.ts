@@ -1489,8 +1489,9 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         const oldBuildInPresets = new Set<string>();
         if (oldPresets !== undefined) {
             for (const preset of oldPresets) {
-                if (preset.builtIn) {
-                    oldBuildInPresets.add(Bytes.toHex(preset.presetHandle!));
+                // A stored preset carrying no handle addresses nothing, so nothing can remove it
+                if (preset.builtIn && preset.presetHandle !== null) {
+                    oldBuildInPresets.add(Bytes.toHex(preset.presetHandle));
                 }
             }
         }
