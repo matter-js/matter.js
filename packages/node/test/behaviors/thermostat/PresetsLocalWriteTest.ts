@@ -215,40 +215,6 @@ describe("Presets local write", () => {
         expect(stored[0].presetHandle?.byteLength).equals(16);
     });
 
-    it("assigns a handle to a stored preset that carries none", async () => {
-        const environment = new Environment("test");
-        const storage = new StorageManager(new MemoryStorageDriver());
-        storage.close = () => {};
-        await storage.initialize();
-        environment.get(StorageService).open = () => Promise.resolve(storage);
-
-        {
-            await using node = new MockServerNode({ id: "node0", environment });
-            await node.construction.ready;
-            const deviceEp = presetsEndpoint();
-            await node.add(deviceEp);
-
-            deviceEp.events.thermostat.persistedPresets$Changing.on(presets => {
-                presets[0].presetHandle = null;
-            });
-            await writePresets(deviceEp, [newPreset()]);
-            expect(storedPresets(deviceEp)[0].presetHandle).equals(null);
-
-            await node.close();
-        }
-
-        {
-            await using node = new MockServerNode({ id: "node0", environment });
-            await node.construction.ready;
-            const deviceEp = presetsEndpoint();
-            await node.add(deviceEp);
-
-            expect(storedPresets(deviceEp)[0].presetHandle?.byteLength).equals(16);
-
-            await node.close();
-        }
-    });
-
     it("validates a change an observer makes after the thermostat normalized", async () => {
         await using ctx = await thermostat();
         const { deviceEp } = ctx;

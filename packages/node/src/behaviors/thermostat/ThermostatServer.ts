@@ -122,22 +122,6 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         }
 
         if (this.features.presets) {
-            const unaddressable = this.state.persistedPresets?.filter(preset => preset.presetHandle === null) ?? [];
-            if (unaddressable.length) {
-                logger.warn(`Assigning a handle to ${unaddressable.length} stored preset(s) that carry none`);
-                const entropy = this.endpoint.env.get(Entropy);
-                const repaired = this.state.persistedPresets!.map(preset =>
-                    preset.presetHandle === null ? { ...preset, presetHandle: entropy.randomBytes(16) } : preset,
-                );
-
-                const issued = this.#handlesIssuedIn(this.context);
-                for (const preset of repaired) {
-                    issued.add(Bytes.toHex(preset.presetHandle!));
-                }
-
-                this.state.persistedPresets = repaired;
-            }
-
             const { activePresetHandle } = this.state;
             if (
                 activePresetHandle !== null &&
@@ -1306,6 +1290,8 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         const oldPresetsMap = new Map<string, Thermostat.Preset>();
         if (oldPresets !== undefined) {
             for (const preset of oldPresets) {
+                // Pre-commit announces the presets again after normalization, so the value this one replaces is the
+                // one a client wrote, where a preset it is adding carries no handle yet
                 if (preset.presetHandle !== null) {
                     oldPresetsMap.set(Bytes.toHex(preset.presetHandle), preset);
                 }
@@ -1489,7 +1475,6 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         const oldBuildInPresets = new Set<string>();
         if (oldPresets !== undefined) {
             for (const preset of oldPresets) {
-                // A stored preset carrying no handle addresses nothing, so nothing can remove it
                 if (preset.builtIn && preset.presetHandle !== null) {
                     oldBuildInPresets.add(Bytes.toHex(preset.presetHandle));
                 }
