@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { canonicalizeName } from "./values.js";
+
 /**
  * Differences between our model and CHIP's that we do not intend to remove.
  *
@@ -291,21 +293,20 @@ export const KNOWN_DIFFERENCES: KnownDifference[] = [
     },
 ];
 
-const canonical = (text: string) => text.toLowerCase().replace(/[^a-z\d]/g, "");
-
 function matches(pattern: string, path: string) {
     const wanted = pattern
         .replace(/^\*\.?/, "")
         .split(".")
-        .map(canonical);
-    const actual = path.split(".").map(canonical);
+        .map(segment => canonicalizeName(segment));
+    const actual = path.split(".").map(segment => canonicalizeName(segment));
 
     if (!pattern.startsWith("*")) {
         return wanted.length === actual.length && wanted.every((segment, index) => segment === actual[index]);
     }
 
-    // A wildcard matches whole segments, so "*.Foo.Bar" does not match a single element named "FooBar"
-    if (wanted.length > actual.length) {
+    // A wildcard stands for at least one enclosing element, so it never explains a difference on a global of the same
+    // name.  It also matches whole segments, so "*.Foo.Bar" does not match a single element named "FooBar"
+    if (wanted.length >= actual.length) {
         return false;
     }
 
@@ -322,7 +323,7 @@ export function aliasOf(matterType: string) {
 
 /** The name we give a type CHIP names differently */
 export function matterNameFor(chipType: string) {
-    return MATTER_NAMES[canonical(chipType)];
+    return MATTER_NAMES[canonicalizeName(chipType)];
 }
 
 /** The reason a difference exists by design, if we know of one */
