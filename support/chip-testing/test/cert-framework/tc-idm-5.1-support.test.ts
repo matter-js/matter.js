@@ -83,10 +83,10 @@ describe("the timed-interaction checks against a matter.js TH", () => {
 
     const timedRequest = (session = SESSION, exchange = EXCHANGE, interval = "200ms") =>
         `${at(0)} DEBUG InteractionServer Timed request « ${session}⇵${exchange} interval: ${interval}`;
-    const followUpMessage = (afterMs: number, kind = "InvokeRequest", exchange = EXCHANGE) =>
-        `${at(afterMs)} DEBUG MessageExchange Message « for: I/${kind} id: ${SESSION}⇵${exchange}✉0133414f type: 0x1/0x8 reqAck size: 35`;
-    const cleared = (afterMs: number, exId = parseInt(EXCHANGE, 16)) =>
-        `${at(afterMs)} DEBUG MessageExchange Clearing timed interaction exId: ${exId} via: ${SESSION}@udp://[fe80::1%eth0]:36923`;
+    const followUpMessage = (afterMs: number, kind = "InvokeRequest", exchange = EXCHANGE, session = SESSION) =>
+        `${at(afterMs)} DEBUG MessageExchange Message « for: I/${kind} id: ${session}⇵${exchange}✉0133414f type: 0x1/0x8 reqAck size: 35`;
+    const cleared = (afterMs: number, exId = parseInt(EXCHANGE, 16), session = SESSION) =>
+        `${at(afterMs)} DEBUG MessageExchange Clearing timed interaction exId: ${exId} via: ${session}@udp://[fe80::1%eth0]:36923`;
 
     async function timedAndFollowUp(lines: string[], interaction: TimedInteraction = "invoke") {
         return withFollower(lines, async follower => {
@@ -157,6 +157,29 @@ describe("the timed-interaction checks against a matter.js TH", () => {
 
     it("does not accept a message the device never treated as the timed interaction", async () => {
         const { followUp } = await timedAndFollowUp([timedRequest(), followUpMessage(10)]);
+
+        expect(followUp.verdict).equal("fail");
+    });
+
+    it("does not take another session's identically numbered exchange for this one", async () => {
+        // An exchange id is unique only within a session, so a second CASE session can hold one with
+        // the same number at the same time.
+        const OTHER = "@1:b3e096d0761f85d9•9f2c";
+        const { followUp } = await timedAndFollowUp([
+            timedRequest(),
+            followUpMessage(10, "InvokeRequest", EXCHANGE, OTHER),
+            cleared(10, parseInt(EXCHANGE, 16), OTHER),
+        ]);
+
+        expect(followUp.verdict).equal("fail");
+    });
+
+    it("does not accept another session clearing its own timed interaction as this one's proof", async () => {
+        const { followUp } = await timedAndFollowUp([
+            timedRequest(),
+            followUpMessage(10),
+            cleared(10, parseInt(EXCHANGE, 16), "@1:b3e096d0761f85d9•9f2c"),
+        ]);
 
         expect(followUp.verdict).equal("fail");
     });

@@ -78,6 +78,11 @@ export interface Receipt {
     text: string;
     /** The exchange as its own log names it: chip's id with the role suffix, matter.js's in hex. */
     exchange: string;
+    /**
+     * The session the message arrived on, where the log names it. An exchange id is unique only
+     * within one session, so a check attributing a later message to this exchange needs both.
+     */
+    session?: string;
     category: "S" | "U" | "G";
     /** The pattern that found this line, for the evidence a check built from it carries. */
     pattern: string;
@@ -154,6 +159,7 @@ async function matterjsTimedRequest(
                 index: line.index,
                 text: line.text,
                 exchange,
+                session,
                 category: matterjsSessionCategory(session),
                 pattern: String(pattern),
             },
@@ -275,17 +281,24 @@ const MATTERJS_FOLLOW_UPS: Record<TimedInteraction, string> = {
     write: "WriteRequest",
 };
 
-/** matter.js's own line for the message of `interaction` that arrived on `exchange`. */
-function matterjsFollowUpPattern(interaction: TimedInteraction, exchange: string): RegExp {
-    return new RegExp(`Message « for: I/${MATTERJS_FOLLOW_UPS[interaction]} id: \\S+⇵${exchange}✉`);
+/** matter.js's own line for the message of `interaction` that arrived on `session`'s `exchange`. */
+function matterjsFollowUpPattern(interaction: TimedInteraction, session: string, exchange: string): RegExp {
+    return new RegExp(`Message « for: I/${MATTERJS_FOLLOW_UPS[interaction]} id: ${escaped(session)}⇵${exchange}✉`);
 }
 
 // matter.js clears the timed interaction a message consumed, naming the exchange in decimal where the
 // message line names it in hex. That line is what says the device treated this message as the timed
 // one — its own equivalent of chip's `timedRequest = true` flag, and, unlike a write's flag (which
 // matter.js does not print at all), present for both kinds.
-function matterjsTimedClearedPattern(exchange: string): RegExp {
-    return new RegExp(`Clearing timed interaction exId: ${parseInt(exchange, 16)}(?!\\d)`);
+function matterjsTimedClearedPattern(session: string, exchange: string): RegExp {
+    return new RegExp(
+        `Clearing timed interaction exId: ${parseInt(exchange, 16)}(?!\\d) via: ${escaped(session)}(?![0-9a-f])`,
+    );
+}
+
+/** A captured log token used as a literal inside a larger pattern. */
+function escaped(text: string): string {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /** As {@link expectTimedFollowUp} against a matter.js TH. */
@@ -293,12 +306,13 @@ async function matterjsTimedFollowUp(
     log: LogFollower,
     interaction: TimedInteraction,
     timedLine: LogLine,
+    session: string,
     exchange: string,
     budget: Duration,
     wait: Duration,
 ): Promise<CheckRecord> {
-    const followUp = matterjsFollowUpPattern(interaction, exchange);
-    const cleared = matterjsTimedClearedPattern(exchange);
+    const followUp = matterjsFollowUpPattern(interaction, session, exchange);
+    const cleared = matterjsTimedClearedPattern(session, exchange);
     const pattern = `${followUp.source} then ${cleared.source} within ${budget}ms`;
 
     const deadline = Time.nowUs + wait;
@@ -367,10 +381,10 @@ export async function expectTimedFollowUp(
         if (forFlavor({ matterjs: interaction }, flavor) === undefined) {
             return { type: "device-log", verdict: "unverified" };
         }
-        if (receipt === undefined) {
-            throw new InternalError("A matter.js timed request always names its own exchange");
+        if (receipt?.session === undefined) {
+            throw new InternalError("A matter.js timed request always names its own session and exchange");
         }
-        return matterjsTimedFollowUp(log, interaction, timedLine, receipt.exchange, budget, wait);
+        return matterjsTimedFollowUp(log, interaction, timedLine, receipt.session, receipt.exchange, budget, wait);
     }
 
     const message = CHIP_FOLLOW_UPS[interaction];
