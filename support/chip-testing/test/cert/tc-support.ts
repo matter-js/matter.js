@@ -796,8 +796,10 @@ async function matterjsCommandInvoke(
  * `CommandFields`. Field lines aren't required adjacent to the `CommandPathIB` block itself — chip
  * emits a blank `CHIP:DMG:` separator line in between that isn't part of what this check verifies. A
  * search always starts at or after the previous match's own index (`log.expect`'s `from`), so this
- * can't match a field line belonging to an earlier invoke. Returns `"unverified"` for the matterjs
- * flavor: matter.js's logger doesn't emit this chip-specific decode dump.
+ * can't match a field line belonging to an earlier invoke. matter.js names every command one invoke
+ * carried on one line, and its field values on the line reporting the command it dispatched, so
+ * against a matter.js TH this is two waits rather than one per field (see
+ * {@link matterjsCommandInvoke}).
  */
 export async function expectCommandInvoke(
     log: LogFollower,

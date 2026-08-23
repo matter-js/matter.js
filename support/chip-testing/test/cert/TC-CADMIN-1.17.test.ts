@@ -10,12 +10,17 @@ import type { CertNodeApi, CertNodeRef, CertStepContext, ControllerAdapter } fro
 import { certTest } from "@matter/testing";
 import { expectMdns } from "../../src/cert/mdns-check.js";
 import {
+    COMMISSIONING_COMPLETE,
+    fabricSessionsEnded,
+    removeFabricSucceeded,
+    WINDOW_OPEN,
+} from "./tc-cadmin-1.17-support.js";
+import {
     CertCheckFailedError,
     CommissionedRefs,
     expectDeviceLog,
     expectRejection,
     LOG_TIMEOUT,
-    MATTERJS_COMMISSIONED_FABRIC,
     PendingPairingCode,
     record,
 } from "./tc-support.js";
@@ -35,25 +40,6 @@ const EXPECTED_CR2_FABRIC_INDEX = 2;
 // resolution. A budget under that reports "neither resolved nor rejected" for a controller that was
 // about to reject.
 const POST_REMOVAL_TIMEOUT = Seconds(60);
-
-const WINDOW_OPEN_PATTERN = /Commissioning window is now open/;
-const COMMISSIONING_COMPLETE_PATTERN = /Commissioning completed successfully/;
-const REMOVE_FABRIC_SUCCESS_PATTERN = /OpCreds: RemoveFabric successful/;
-
-// matter.js names the window by the timer it arms for it.
-const MATTERJS_WINDOW_OPEN_PATTERN = /AdministratorCommissioningServer Commissioning window timer started/;
-
-// The invoke's own answer, which names the fabric it removed and the status it answered with, where
-// chip logs an unqualified success line.
-function matterjsRemoveFabricPattern(fabricIndex: number): RegExp {
-    return new RegExp(`operationalCredentials\\.removeFabric .*statusCode: 0 fabricIndex: ${fabricIndex}(?!\\d)`);
-}
-
-// A session is named `@<fabricIndex>:<fabricId>•<id>`, so this is chip's "Expiring all sessions for
-// fabric N" — the removed fabric's sessions going away — as matter.js reports it, one line per session.
-function matterjsSessionEndedPattern(fabricIndex: number): RegExp {
-    return new RegExp(`Session @${fabricIndex}:[0-9a-f]+•[0-9a-f]+ Session ended`);
-}
 
 type Role = "dut" | "th_cr2" | "th_cr3";
 
@@ -150,13 +136,7 @@ async function checkCommissioned(
         );
     }
 
-    const { check } = await expectDeviceLog(
-        th.log,
-        th.flavor,
-        { chip: COMMISSIONING_COMPLETE_PATTERN, matterjs: MATTERJS_COMMISSIONED_FABRIC },
-        logFrom,
-        LOG_TIMEOUT,
-    );
+    const { check } = await expectDeviceLog(th.log, th.flavor, COMMISSIONING_COMPLETE, logFrom, LOG_TIMEOUT);
     record(cx, check, `Commissioning-complete log for ${who}`);
 }
 
@@ -180,13 +160,7 @@ async function openWindowAndCheck(cx: CertStepContext): Promise<void> {
         detail: `manualPairingCode length=${manualPairingCode.length}`,
     });
 
-    const { check } = await expectDeviceLog(
-        th.log,
-        th.flavor,
-        { chip: WINDOW_OPEN_PATTERN, matterjs: MATTERJS_WINDOW_OPEN_PATTERN },
-        from,
-        LOG_TIMEOUT,
-    );
+    const { check } = await expectDeviceLog(th.log, th.flavor, WINDOW_OPEN, from, LOG_TIMEOUT);
     record(cx, check, "Commissioning-window-open log");
 }
 
@@ -313,7 +287,7 @@ certTest("TC-CADMIN-1.17", {
             const removed = await expectDeviceLog(
                 th.log,
                 th.flavor,
-                { chip: REMOVE_FABRIC_SUCCESS_PATTERN, matterjs: matterjsRemoveFabricPattern(fabricIndex) },
+                removeFabricSucceeded(fabricIndex),
                 from,
                 LOG_TIMEOUT,
             );
@@ -322,11 +296,10 @@ certTest("TC-CADMIN-1.17", {
             // Searched from the step's own mark, not from the line above: matter.js closes the removed
             // fabric's sessions before it answers the invoke, chip after. Both patterns name the fabric
             // index, and the mark precedes this step's removal, so neither can match another removal's.
-            const expiringPattern = new RegExp(`Expiring all sessions for fabric 0x${fabricIndex.toString(16)}!!`);
             const expiring = await expectDeviceLog(
                 th.log,
                 th.flavor,
-                { chip: expiringPattern, matterjs: matterjsSessionEndedPattern(fabricIndex) },
+                fabricSessionsEnded(fabricIndex),
                 from,
                 LOG_TIMEOUT,
             );
