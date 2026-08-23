@@ -6,7 +6,7 @@
 
 import { Duration, Logger, Minutes, Mutex } from "#general";
 import { execFile } from "node:child_process";
-import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 import { absolute } from "../util/file.js";
@@ -335,9 +335,13 @@ class CachedDownload implements ChipDataModel {
  * The claim is a sibling of the cache directory rather than a file inside it, so refreshing the cache cannot delete
  * the claim that guards the refresh.
  *
- * A claim is never taken from a running holder and never expires, because there is no upper bound on how long a
- * legitimate run takes.  Concurrent use therefore fails immediately rather than queueing; we accept that over a wait
- * that ends in comparing a working tree another run is still moving.
+ * Taking a claim is one atomic file creation and no run ever removes a claim but its own, so there is no window in
+ * which two runs both believe they hold it.  That costs automatic recovery: a run killed outright leaves a claim
+ * behind, and the next run says whose it was and that removing the file is safe.  We accept the manual step, because
+ * every scheme for reclaiming a claim on the holder's behalf has a race that ends with two runs in one repository.
+ *
+ * Concurrent use fails immediately rather than queueing; a claim never expires, because there is no upper bound on how
+ * long a legitimate run takes.
  */
 class CacheLock {
     readonly #path: string;
@@ -351,29 +355,32 @@ class CacheLock {
         const path = `${cache}${LOCK_SUFFIX}`;
         await mkdir(dirname(path), { recursive: true });
 
-        // Two attempts: the second is for a claim the first found abandoned and cleared
-        for (let attempt = 0; attempt < 2; attempt++) {
-            try {
-                await writeFile(path, `${process.pid}`, { flag: "wx" });
-                return new CacheLock(path);
-            } catch (cause) {
-                if (!isErrno(cause, "EEXIST")) {
-                    throw new DataModelSourceError(`Cannot claim CHIP data model cache ${cache}`, { cause });
-                }
+        try {
+            await writeFile(path, `${process.pid}`, { flag: "wx" });
+        } catch (cause) {
+            if (!isErrno(cause, "EEXIST")) {
+                throw new DataModelSourceError(`Cannot claim CHIP data model cache ${cache}`, { cause });
             }
-
-            const holder = await CacheLock.#holder(path);
-            if (holder === undefined || isRunning(holder)) {
-                throw new DataModelSourceError(
-                    `Another run${holder === undefined ? "" : ` (pid ${holder})`} is using the CHIP data model cache ` +
-                        `${cache}; wait for it to finish, or read a checkout of your own with --chip-dir`,
-                );
-            }
-
-            await CacheLock.#discard(path, holder);
+            throw new DataModelSourceError(await CacheLock.#refusal(path, cache));
         }
 
-        throw new DataModelSourceError(`Cannot claim CHIP data model cache ${cache}`);
+        return new CacheLock(path);
+    }
+
+    static async #refusal(path: string, cache: string) {
+        const holder = await CacheLock.#holder(path);
+
+        if (holder !== undefined && !isRunning(holder)) {
+            return (
+                `A run that no longer exists (pid ${holder}) left its claim on the CHIP data model cache ${cache}; ` +
+                `delete ${path} to clear it`
+            );
+        }
+
+        return (
+            `Another run${holder === undefined ? "" : ` (pid ${holder})`} is using the CHIP data model cache ` +
+            `${cache}; wait for it to finish, or read a checkout of your own with --chip-dir`
+        );
     }
 
     /** The process ID a claim states, or undefined for a claim we cannot read or did not write */
@@ -383,35 +390,13 @@ class CacheLock {
         return Number.isSafeInteger(pid) && pid > 0 ? pid : undefined;
     }
 
-    /**
-     * Clear the claim of a process that no longer exists.
-     *
-     * Renaming is atomic, so of several runs that find the same abandoned claim exactly one clears it and the rest see
-     * `ENOENT`.  Deleting in place would instead let one run delete the claim another had just taken.
-     */
-    static async #discard(path: string, holder: number) {
-        logger.warn(`Discarding the claim of pid ${holder} on the CHIP data model cache; that process is gone`);
-
-        const discarded = `${path}.${process.pid}`;
-        try {
-            await rename(path, discarded);
-        } catch (cause) {
-            if (isErrno(cause, "ENOENT")) {
-                return;
-            }
-            throw new DataModelSourceError(`Cannot discard the abandoned claim ${path}`, { cause });
-        }
-
-        await rm(discarded, { force: true });
-    }
-
     async [Symbol.asyncDispose]() {
         if (!this.#held) {
             return;
         }
         this.#held = false;
 
-        // Release only a claim that is still ours; another run may have discarded it and taken its own
+        // Release only a claim that is still ours, so a file another run has since created survives
         if ((await CacheLock.#holder(this.#path)) === process.pid) {
             await rm(this.#path, { force: true });
         }

@@ -335,6 +335,19 @@ describe("comparison against the CHIP data model", () => {
             expect(of(result, "datatype")).deep.equal([]);
         });
 
+        // Both models must resolve an alias the same way, or the override reads as a difference nothing explains
+        it("credits an override of a type CHIP names differently", () => {
+            const result = globalFindings(
+                [datatype("AttributeID", { type: "uint32" })],
+                [DatatypeElement({ name: "attrib-id", type: "uint16" })],
+                [DatatypeElement({ name: "attrib-id", type: "uint32" })],
+            );
+
+            const types = of(result, "type");
+            expect(types.length).equal(1);
+            expect(types[0].category).equal(Category.Override);
+        });
+
         // A known difference written for a type nested in clusters must not explain a global of the same name
         it("does not explain a global with a known difference written for a nested element", () => {
             const result = globalFindings([], [DatatypeElement({ name: "ModeChangeStatus", type: "enum8" })]);

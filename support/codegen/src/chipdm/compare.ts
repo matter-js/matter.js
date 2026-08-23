@@ -14,6 +14,7 @@ import {
     EventModel,
     FieldValue,
     Metatype,
+    MatterModel,
     Model,
     RequirementElement,
     RequirementModel,
@@ -483,10 +484,11 @@ class Comparison {
      * The global data type CHIP names, under either name.
      *
      * An alias states the canonical form of our name, which is not the form the index answers to, so a name the index
-     * cannot resolve is matched canonically against what we do define.
+     * cannot resolve is matched canonically against what we do define.  Both models resolve the same way, or an
+     * override of an aliased type would read as a difference nothing explains.
      */
-    #globalDatatypeOf(name: string) {
-        const datatypes = this.#models.merged.datatypes;
+    #globalDatatypeOf(name: string, model: MatterModel = this.#models.merged) {
+        const datatypes = model.datatypes;
         const ours = matterNameFor(name) ?? name;
 
         const indexed = datatypes(name) ?? datatypes(ours);
@@ -568,7 +570,7 @@ class Comparison {
                 // We scope a type to the cluster that defines it where CHIP places it in global scope
                 const scoped = this.#scopedDatatype(name);
                 if (scoped === undefined) {
-                    this.#absent([chip.name], "datatype", unmodified.datatypes(name));
+                    this.#absent([chip.name], "datatype", this.#globalDatatypeOf(chip.name, unmodified));
                     continue;
                 }
 
@@ -585,7 +587,7 @@ class Comparison {
                 continue;
             }
 
-            this.#element([datatype.name], chip, datatype, unmodified.datatypes(name));
+            this.#element([datatype.name], chip, datatype, this.#globalDatatypeOf(chip.name, unmodified));
         }
 
         // CHIP publishes the global types the specification derives; our seed datatypes are the base types every
