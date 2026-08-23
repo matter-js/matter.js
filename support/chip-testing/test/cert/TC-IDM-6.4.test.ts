@@ -16,8 +16,12 @@ import {
     expectSubscriptionId,
     fabricFilteredPattern,
     LOG_TIMEOUT,
+    matterjsSubscribeEventPath,
+    matterjsSubscribeFlags,
+    matterjsSubscribeTiming,
     record,
     requireId,
+    sameMessageFrom,
     SUBSCRIBE_REQUEST_MESSAGE,
 } from "./tc-support.js";
 
@@ -36,6 +40,16 @@ const STEP_1_MIN_INTERVAL = 10;
 const STEP_1_MAX_INTERVAL = 100;
 const STEP_2_MIN_INTERVAL = 20;
 const STEP_2_MAX_INTERVAL = 400;
+
+// matter.js states the same envelope across three of its own lines, in this order: the flags the
+// request carried, the paths it asked for, and the interval bounds it accepted from it.
+function matterjsSubscribeEnvelope(minInterval: number, maxInterval: number): RegExp[] {
+    return [
+        matterjsSubscribeFlags("keepSubscriptions"),
+        matterjsSubscribeEventPath(EVENT_PATH),
+        matterjsSubscribeTiming(minInterval, maxInterval),
+    ];
+}
 
 function subscribeEnvelopeSequence(minInterval: number, maxInterval: number) {
     return [
@@ -85,7 +99,10 @@ certTest("TC-IDM-6.4", {
                 th.flavor,
                 "SubscribeRequestMessage envelope (KeepSubscriptions, MinIntervalFloorSeconds, " +
                     `MaxIntervalCeilingSeconds, EventPathIBs ${JSON.stringify(EVENT_PATH)})`,
-                subscribeEnvelopeSequence(STEP_1_MIN_INTERVAL, STEP_1_MAX_INTERVAL),
+                {
+                    chip: subscribeEnvelopeSequence(STEP_1_MIN_INTERVAL, STEP_1_MAX_INTERVAL),
+                    matterjs: { ordered: matterjsSubscribeEnvelope(STEP_1_MIN_INTERVAL, STEP_1_MAX_INTERVAL) },
+                },
                 from,
                 LOG_TIMEOUT,
             );
@@ -95,8 +112,8 @@ certTest("TC-IDM-6.4", {
                 th.log,
                 th.flavor,
                 "SubscribeRequestMessage isFabricFiltered",
-                [fabricFilteredPattern(true)],
-                envelopeCheck.logLine === undefined ? from : envelopeCheck.logLine + 1,
+                { chip: [fabricFilteredPattern(true)], matterjs: [matterjsSubscribeFlags("fabricFiltered")] },
+                sameMessageFrom(th.flavor, envelopeCheck, from),
                 LOG_TIMEOUT,
             );
             record(cx, fabricFilteredCheck, "SubscribeRequestMessage isFabricFiltered");

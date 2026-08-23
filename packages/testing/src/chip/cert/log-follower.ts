@@ -34,6 +34,16 @@ export interface LogExpectPatterns {
     matterjs?: RegExp;
 }
 
+/**
+ * Per-implementation-family line sequences: {@link LogExpectPatterns}'s analogue for an expectation
+ * spanning several consecutive lines, whose length differs per family (one implementation's dump of a
+ * message can take a dozen lines where another's takes one).
+ */
+export interface LogExpectSequences {
+    chip?: RegExp[];
+    matterjs?: RegExp[];
+}
+
 export interface LogExpectOptions {
     flavor: string;
     timeoutMs?: number;
@@ -70,15 +80,20 @@ export class CertLogClosedError extends Error {
     }
 }
 
-// Cert plans express expectations per implementation family, not per concrete DeviceFlavor
-// ("chip-docker"/"chip-local" both speak for "chip"); this maps a flavor to the bucket that
-// carries its pattern.
-function patternFor(patterns: LogExpectPatterns, flavor: string): RegExp | undefined {
+/**
+ * The variant `flavor`'s implementation family carries, or `undefined` where the caller supplied
+ * none for it.
+ *
+ * Cert plans express expectations per implementation family, not per concrete DeviceFlavor
+ * ("chip-docker"/"chip-local" both speak for "chip"), and they express them as single patterns
+ * ({@link LogExpectPatterns}) or as sequences ({@link LogExpectSequences}) — hence the generic.
+ */
+export function forFlavor<T>(variants: { chip?: T; matterjs?: T }, flavor: string): T | undefined {
     if (flavor.startsWith("chip")) {
-        return patterns.chip;
+        return variants.chip;
     }
     if (flavor === "matterjs") {
-        return patterns.matterjs;
+        return variants.matterjs;
     }
     return undefined;
 }
@@ -227,11 +242,20 @@ export class LogFollower implements LogSource {
      * first.
      */
     async expect(patterns: LogExpectPatterns, options: LogExpectOptions): Promise<LogExpectResult> {
-        const original = patternFor(patterns, options.flavor);
+        const original = forFlavor(patterns, options.flavor);
         if (!original) {
             return { verdict: "unverified", reason: "no-pattern-for-flavor" };
         }
 
+        return { verdict: "pass", matched: await this.expectPattern(original, options), pattern: String(original) };
+    }
+
+    /**
+     * As {@link expect}, for a caller that has already selected the pattern for the flavor it runs
+     * under — a multi-line expectation resolves its whole sequence with {@link forFlavor} once, then
+     * waits for each line of it here. Has no `unverified` outcome for that reason.
+     */
+    async expectPattern(original: RegExp, options: Omit<LogExpectOptions, "flavor">): Promise<LogLine> {
         const pattern = matchableCopy(original);
         const from = options.from ?? this.#lastMark;
         const timeout = delay(options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
@@ -240,7 +264,7 @@ export class LogFollower implements LogSource {
             for (;;) {
                 const matched = this.#firstMatchFrom(pattern, from);
                 if (matched) {
-                    return { verdict: "pass", matched, pattern: String(original) };
+                    return matched;
                 }
 
                 if (this.#closeError) {

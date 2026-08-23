@@ -76,7 +76,14 @@ export function expectInjectedFault(
     from: number,
     timeout: Duration,
 ): Promise<CheckRecord> {
-    return expectSequence(log, flavor, `fault ${fault} injected`, injectedFaultSequence(fault), from, timeout);
+    return expectSequence(
+        log,
+        flavor,
+        `fault ${fault} injected`,
+        { chip: injectedFaultSequence(fault) },
+        from,
+        timeout,
+    );
 }
 
 /**
@@ -150,7 +157,7 @@ export async function expectBatchRequestPaths(
     const label = `InvokeRequestMessage with paths ${JSON.stringify(paths)}`;
 
     try {
-        const envelope = await expectAdjacentLines(log, flavor, [INVOKE_REQUEST_MESSAGE], from, timeout);
+        const envelope = await expectAdjacentLines(log, flavor, { chip: [INVOKE_REQUEST_MESSAGE] }, from, timeout);
         if (envelope.verdict === "unverified") {
             return { type: "device-log", verdict: "unverified" };
         }
@@ -171,7 +178,7 @@ export async function expectBatchRequestPaths(
             const block = await expectAdjacentLines(
                 log,
                 flavor,
-                commandPathIBSequence(endpoint, cluster, command),
+                { chip: commandPathIBSequence(endpoint, cluster, command) },
                 last.index + 1,
                 timeout,
             );

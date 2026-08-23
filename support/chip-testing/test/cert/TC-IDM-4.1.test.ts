@@ -15,6 +15,8 @@ import {
     expectSequence,
     expectSubscriptionId,
     LOG_TIMEOUT,
+    matterjsSubscribeFlags,
+    matterjsSubscribeTiming,
     record,
     requireId,
     SUBSCRIBE_REQUEST_MESSAGE,
@@ -97,21 +99,22 @@ certTest("TC-IDM-4.1", {
                 detail: `subscribe() resolved for ${JSON.stringify(path)}`,
             });
 
-            const pathCheck = await expectMessageWithPath(
-                th.log,
-                th.flavor,
-                SUBSCRIBE_REQUEST_MESSAGE,
-                path,
-                from,
-                LOG_TIMEOUT,
-            );
+            const pathCheck = await expectMessageWithPath(th.log, th.flavor, "subscribe", path, from, LOG_TIMEOUT);
             record(cx, pathCheck, "SubscribeRequestMessage log");
 
             const envelopeCheck = await expectSequence(
                 th.log,
                 th.flavor,
                 SUBSCRIBE_ENVELOPE_LABEL,
-                SUBSCRIBE_ENVELOPE_SEQUENCE,
+                {
+                    chip: SUBSCRIBE_ENVELOPE_SEQUENCE,
+                    matterjs: {
+                        ordered: [
+                            matterjsSubscribeFlags("keepSubscriptions"),
+                            matterjsSubscribeTiming(MIN_INTERVAL_FLOOR_SECONDS, MAX_INTERVAL_CEILING_SECONDS),
+                        ],
+                    },
+                },
                 from,
                 LOG_TIMEOUT,
             );
@@ -143,14 +146,7 @@ certTest("TC-IDM-4.1", {
                 detail: "subscribe() resolved after receiving and acking the priming report",
             });
 
-            const requestCheck = await expectMessageWithPath(
-                th.log,
-                th.flavor,
-                SUBSCRIBE_REQUEST_MESSAGE,
-                path,
-                from,
-                LOG_TIMEOUT,
-            );
+            const requestCheck = await expectMessageWithPath(th.log, th.flavor, "subscribe", path, from, LOG_TIMEOUT);
             record(cx, requestCheck, "SubscribeRequestMessage log");
 
             // Steps 1 and 2 subscribe to the same path, so only the request line tells their
