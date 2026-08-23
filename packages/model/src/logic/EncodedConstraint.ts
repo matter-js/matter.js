@@ -37,6 +37,8 @@ export function EncodedConstraint(constraint: Constraint, model: ValueModel): Co
  * This reports temperatures only.  A percentage falls back to the number the specification prints, which is right for
  * `percent` and wrong by a factor of 100 for anything encoded as `percent100ths` under another name, and nothing here
  * can tell the two apart.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 7.19.2
  */
 export function UnscaledConstraintBounds(constraint: Constraint, model: ValueModel) {
     const unscaled = new Array<FieldValue>();

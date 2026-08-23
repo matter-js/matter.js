@@ -5,7 +5,9 @@
  */
 
 import { FieldValue } from "../common/FieldValue.js";
+import { ElementTag } from "../common/index.js";
 import type { ValueModel } from "../models/ValueModel.js";
+import { ModelTraversal } from "./ModelTraversal.js";
 
 /**
  * The numeric form of a value in the units of the model that carries it.
@@ -34,19 +36,24 @@ export function EncodedValue(model: ValueModel, value: FieldValue.Open | undefin
 /**
  * The scale of a unit comes from the name of the type stating it, and the same type states the same scale under more
  * than one name: a datatype of another cluster is referenced by a qualified name, and case varies.  So where the name
- * of the value does not answer, the definitions it derives from do.
+ * the value states does not answer, the definitions it derives from do.
  */
 function scaled(model: ValueModel, value: FieldValue.Open | undefined) {
-    let base: ValueModel | undefined = model;
-    let name = model.effectiveType;
+    let numeric = FieldValue.numericValue(value, model.effectiveType);
+    if (numeric !== undefined) {
+        return numeric;
+    }
 
-    for (let depth = 0; base !== undefined && depth < 8; depth++) {
-        const numeric = FieldValue.numericValue(value, name);
-        if (numeric !== undefined) {
-            return numeric;
+    new ModelTraversal().visitInheritance(model, definition => {
+        // A datatype is itself a type, so its name states a scale; the name of a value that happens to carry the type
+        // does not
+        if (definition.tag !== ElementTag.Datatype) {
+            return;
         }
 
-        base = base.base;
-        name = base?.name;
-    }
+        numeric = FieldValue.numericValue(value, definition.name);
+        return numeric === undefined;
+    });
+
+    return numeric;
 }

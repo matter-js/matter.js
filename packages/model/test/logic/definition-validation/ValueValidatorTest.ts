@@ -7,6 +7,21 @@
 import { AttributeElement as Attribute, uint8, uint16, ValidateModel } from "#index.js";
 import { ClusterModel, DatatypeModel, MatterModel } from "#models/index.js";
 
+/** A constraint stated on the datatype that names the scale, rather than on a value of that type */
+function validateDatatype(constraint: string) {
+    const Matter = new MatterModel(
+        {},
+        uint8.clone(),
+        new ClusterModel(
+            { name: "Test", id: 0xfff1 },
+            new DatatypeModel({ name: "UnsignedTemperature", type: "uint8", constraint }),
+        ),
+    );
+    Matter.finalize();
+
+    return ValidateModel(Matter).errors.filter(e => e.code === "CONSTRAINT_UNIT_WITHOUT_SCALE");
+}
+
 function validateConstraint(type: string, constraint: string) {
     const Matter = new MatterModel(
         {},
@@ -33,6 +48,11 @@ describe("ValueValidator", () => {
 
         it("accepts a bound whose scale comes from the type it derives from", () => {
             expect(validateConstraint("RoomTemperature", "0°C to 25.5°C")).deep.equals([]);
+        });
+
+        // The name of a datatype is a type name, so it states a scale for a bound the datatype itself carries
+        it("accepts a bound on the datatype that names the scale", () => {
+            expect(validateDatatype("0°C to 25.5°C")).deep.equals([]);
         });
 
         it("accepts a bound with no unit", () => {
