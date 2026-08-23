@@ -301,8 +301,8 @@ async function matterjsTimedFollowUp(
     const cleared = matterjsTimedClearedPattern(exchange);
     const pattern = `${followUp.source} then ${cleared.source} within ${budget}ms`;
 
-    const deadline = Time.nowMs + wait;
-    const remaining = () => Millis(Math.max(1, deadline - Time.nowMs));
+    const deadline = Time.nowUs + wait;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
 
     try {
         const message = await log.expectPattern(followUp, { timeoutMs: remaining(), from: timedLine.index + 1 });
@@ -385,8 +385,8 @@ export async function expectTimedFollowUp(
         };
     }
 
-    const deadline = Time.nowMs + wait;
-    const remaining = () => Millis(Math.max(1, deadline - Time.nowMs));
+    const deadline = Time.nowUs + wait;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
     let cursor = timedLine.index + 1;
 
     try {

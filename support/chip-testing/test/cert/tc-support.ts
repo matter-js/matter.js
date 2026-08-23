@@ -163,8 +163,8 @@ export async function expectAdjacentLines(
 }
 
 async function adjacentRun(log: LogFollower, sequence: RegExp[], from: number, timeout: Duration): Promise<LogLine> {
-    const deadline = Time.nowMs + timeout;
-    const remaining = () => Millis(Math.max(1, deadline - Time.nowMs));
+    const deadline = Time.nowUs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
 
     let cursor = from;
     for (;;) {
@@ -194,8 +194,8 @@ async function adjacentRun(log: LogFollower, sequence: RegExp[], from: number, t
  * rather than in one block. Shares one `timeout` budget, as {@link adjacentRun} does.
  */
 async function orderedRun(log: LogFollower, sequence: RegExp[], from: number, timeout: Duration): Promise<LogLine> {
-    const deadline = Time.nowMs + timeout;
-    const remaining = () => Millis(Math.max(1, deadline - Time.nowMs));
+    const deadline = Time.nowUs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
 
     let last: LogLine | undefined;
     for (const pattern of sequence) {
@@ -692,8 +692,8 @@ export async function expectMessageWithPath(
         return (await expectDeviceLog(log, flavor, { matterjs: matterjs(fields) }, from, timeout)).check;
     }
 
-    const deadline = Time.nowMs + timeout;
-    const remaining = () => Millis(Math.max(1, deadline - Time.nowMs));
+    const deadline = Time.nowUs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
 
     let anchor: LogExpectResult;
     try {
@@ -764,8 +764,8 @@ async function matterjsCommandInvoke(
     from: number,
     timeout: Duration,
 ): Promise<CheckRecord> {
-    const deadline = Time.nowMs + timeout;
-    const remaining = () => Millis(Math.max(1, deadline - Time.nowMs));
+    const deadline = Time.nowUs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
 
     const invoke = await expectDeviceLog(
         log,
@@ -818,8 +818,8 @@ export async function expectCommandInvoke(
 
     // One deadline for the whole check, not one per wait: a per-wait budget makes the worst case
     // timeout × (1 + fields.length), where the caller asked for timeout
-    const deadline = Time.nowMs + timeout;
-    const remaining = () => Millis(Math.max(1, deadline - Time.nowMs));
+    const deadline = Time.nowUs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
 
     try {
         const block = await expectAdjacentLines(
@@ -915,8 +915,8 @@ export async function expectChunkedTransfer(
         return { type: "device-log", verdict: "unverified" };
     }
 
-    const deadline = Time.nowMs + timeout;
-    const remaining = () => Millis(Math.max(1, deadline - Time.nowMs));
+    const deadline = Time.nowUs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
 
     const chunks = new Array<LogLine>();
     for (;;) {
@@ -1220,8 +1220,8 @@ async function matterjsReportAck(
     from: number,
     timeout: Duration,
 ): Promise<CheckRecord> {
-    const deadline = Time.nowMs + timeout;
-    const remaining = () => Millis(Math.max(1, deadline - Time.nowMs));
+    const deadline = Time.nowUs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
     const reportPattern = matterjsReportPattern(subscriptionId);
     const pattern = `${reportPattern} then its own Success StatusResponse`;
 
@@ -1310,8 +1310,8 @@ export async function expectReportAck(
         return matterjsReportAck(log, flavor, subscriptionId, from, timeout);
     }
 
-    const deadline = Time.nowMs + timeout;
-    const remaining = () => Millis(Math.max(1, deadline - Time.nowMs));
+    const deadline = Time.nowUs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
     const pattern = `ReportDataMessage(SubscriptionId = 0x${subscriptionId.toString(16)}) then its own ${STATUS_RESPONSE_SUCCESS} (matched by Exchange id)`;
 
     try {

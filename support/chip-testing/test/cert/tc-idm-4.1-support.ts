@@ -42,9 +42,9 @@ async function waitForReport(
     setNotify: (fn: (() => void) | undefined) => void,
     timeout: Duration,
 ): Promise<boolean> {
-    const deadline = Time.nowMs + timeout;
+    const deadline = Time.nowUs + timeout;
     while (!satisfied()) {
-        const remaining = deadline - Time.nowMs;
+        const remaining = deadline - Time.nowUs;
         if (remaining <= 0) {
             return false;
         }

@@ -152,7 +152,7 @@ async function checkOperationalRecords(
     instanceNames: string[],
     timeoutMs: number,
 ): Promise<ExpectationResult> {
-    const deadline = Timestamp(Time.nowMs + Millis(timeoutMs));
+    const deadline = Timestamp(Time.nowUs + Millis(timeoutMs));
     const resolved = instanceNames.map(instanceName => names.get(instanceName));
 
     for (;;) {
@@ -163,7 +163,7 @@ async function checkOperationalRecords(
                 detail: `operationalRecords (${instanceNames.join(", ")}): expected ${expected}, observed ${observed}`,
             };
         }
-        if (Time.nowMs >= deadline) {
+        if (Time.nowUs >= deadline) {
             return {
                 matched: false,
                 detail: `operationalRecords (${instanceNames.join(", ")}): expected ${expected}, observed ${observed}`,
