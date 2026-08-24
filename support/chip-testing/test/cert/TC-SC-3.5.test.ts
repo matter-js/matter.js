@@ -101,6 +101,38 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
             };
             cx.recorder.beginStep(stepDef);
 
+            if (!expectSuccess) {
+                // A rejection alone doesn't implicate the DUT — commission() fails the same way when
+                // TH_SERVER is not there at all. So prove TH_SERVER is advertising its just-opened
+                // window BEFORE driving the attempt. Before, not after: once the DUT's PASE consumed
+                // the window the device stops commissionable advertising even though the window is
+                // still open (chip's TH_SERVER does; observed on the own-built CI leg), so a
+                // post-attempt check fails a conforming device. Presence evidence only — nothing here
+                // proves the handshake itself was reached.
+                let advertised: CheckRecord;
+                try {
+                    advertised = await expectMdns(
+                        { commissioning: { discriminator: TH_SERVER_DISCRIMINATOR } },
+                        { commissionable: true },
+                    );
+                } catch (e) {
+                    // The step must settle its recorder frame even when the check itself blows up
+                    advertised = {
+                        type: "network",
+                        verdict: "fail",
+                        detail: `commissionable mDNS check could not run: ${errorMessage(e)}`,
+                    };
+                }
+                cx.recorder.check(advertised);
+                if (advertised.verdict !== "pass") {
+                    cx.recorder.endStep(stepDef, "fail");
+                    throw new CertCheckFailedError(
+                        `attempt ${attempt} was not driven: TH_SERVER was not observed advertising, so a ` +
+                            `rejection would have proven nothing about the DUT (${advertised.detail})`,
+                    );
+                }
+            }
+
             const outcome = await settleWithin(
                 `TC-SC-3.5 commissioning attempt ${attempt}`,
                 dut.commission({
@@ -143,59 +175,24 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
                     }
                     break;
 
-                case "rejected": {
+                case "rejected":
+                    verdict = expectSuccess ? "fail" : "pass";
+                    cx.recorder.check({
+                        type: "response",
+                        verdict,
+                        // Reports only that commissioning did not complete against the TH_SERVER the
+                        // pre-attempt check proved present. What the DUT answered the corrupted Sigma2
+                        // with is in the attached controller log, and TH_SERVER's own view of the
+                        // handshake plus its commissioning-window assertion are in the script's.
+                        detail: `commission() did not complete on attempt ${attempt}: ${errorMessage(outcome.error)}`,
+                    });
                     if (expectSuccess) {
-                        verdict = "fail";
-                        cx.recorder.check({
-                            type: "response",
-                            verdict,
-                            detail: `commission() did not complete on attempt ${attempt}: ${errorMessage(outcome.error)}`,
-                        });
                         failure =
                             outcome.error instanceof Error
                                 ? outcome.error
                                 : new CertCheckFailedError(errorMessage(outcome.error));
-                        break;
-                    }
-
-                    // A rejection alone doesn't implicate the DUT — commission() fails the same way
-                    // when TH_SERVER is not there at all. TH_SERVER's window is still open (the
-                    // script asserts so after every failed attempt), so a live commissionable
-                    // advertisement ties the rejection to a TH_SERVER that was present and
-                    // advertising around the attempt — presence evidence only: the scanner primes
-                    // from cached announcements, and nothing here proves the handshake was reached.
-                    let advertised: CheckRecord;
-                    try {
-                        advertised = await expectMdns(
-                            { commissioning: { discriminator: TH_SERVER_DISCRIMINATOR } },
-                            { commissionable: true },
-                        );
-                    } catch (e) {
-                        // The step must settle its recorder frame even when the check itself blows up
-                        advertised = {
-                            type: "network",
-                            verdict: "fail",
-                            detail: `commissionable mDNS check could not run: ${errorMessage(e)}`,
-                        };
-                    }
-                    cx.recorder.check(advertised);
-                    verdict = advertised.verdict === "pass" ? "pass" : "fail";
-                    cx.recorder.check({
-                        type: "response",
-                        verdict,
-                        // Reports only that commissioning did not complete. What the DUT answered the
-                        // corrupted Sigma2 with is in the attached controller log, and TH_SERVER's own view of
-                        // the handshake plus its commissioning-window assertion are in the script's.
-                        detail: `commission() did not complete on attempt ${attempt}: ${errorMessage(outcome.error)}`,
-                    });
-                    if (verdict !== "pass") {
-                        failure = new CertCheckFailedError(
-                            `attempt ${attempt}'s rejection cannot be attributed to the DUT: TH_SERVER was not ` +
-                                `observed advertising (${advertised.detail})`,
-                        );
                     }
                     break;
-                }
 
                 case "timeout":
                     verdict = "fail";
