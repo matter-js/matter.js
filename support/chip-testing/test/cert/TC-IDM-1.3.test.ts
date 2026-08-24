@@ -11,6 +11,7 @@ import type { BatchCommandResult, BatchCommandSpec, CertStepContext, DeviceFlavo
 import { certTest } from "@matter/testing";
 import { registerCertCustomCluster } from "../../src/cert/custom-clusters.js";
 import { ChipFault, FAULT_TYPE_CHIP, FaultInjectionCluster } from "./fault-injection.js";
+import { COMMISSIONING_LOG_TIMEOUT } from "./tc-dd-support.js";
 import type { BatchPath } from "./tc-idm-1.3-support.js";
 import {
     expectBatchRequestPaths,
@@ -327,6 +328,7 @@ async function rebootTh(cx: CertStepContext) {
     await th.backchannel({ name: "reboot" });
 
     // start() returns when the process is up, not when the app is, and the decommission that follows
-    // needs a device that answers
-    await th.log.expect({ chip: SERVER_READY }, { flavor: th.flavor, from, timeoutMs: LOG_TIMEOUT });
+    // needs a device that answers. A device coming up is what COMMISSIONING_LOG_TIMEOUT bounds;
+    // LOG_TIMEOUT covers a line the step itself just caused.
+    await th.log.expect({ chip: SERVER_READY }, { flavor: th.flavor, from, timeoutMs: COMMISSIONING_LOG_TIMEOUT });
 }
