@@ -9,10 +9,11 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { env, platform as hostPlatform } from "node:process";
+import type { BackchannelCommand } from "../../device/backchannel.js";
 import type { Subject } from "../../device/subject.js";
 import type { Container } from "../../docker/container.js";
 import { Docker } from "../../docker/docker.js";
-import { NonZeroExitError } from "../../docker/errors.js";
+import { DockerError, NonZeroExitError } from "../../docker/errors.js";
 import { Terminal } from "../../docker/terminal.js";
 import { Volume } from "../../docker/volume.js";
 import { delay, LineQueue } from "../../util/async.js";
@@ -31,6 +32,11 @@ export { HARNESS_DBUS_CONTAINER };
 const DEFAULT_DISCRIMINATOR = 3840;
 const DEFAULT_PASSCODE = 20202021;
 const STOP_TIMEOUT_MS = 5_000;
+const DRAIN_TIMEOUT_MS = 5_000;
+
+// Killing a container and seeing it gone goes through the Docker daemon, so it is nothing like as
+// prompt as a SIGTERM to a local child.
+const CONTAINER_STOP_TIMEOUT_MS = 30_000;
 
 // Without these, a chip binary logs only its terse progress categories (EM/IN/SC) — the structured
 // `CHIP:DMG: ReadRequestMessage = { AttributePathIB = ... }` decode dumps cert-test log checks match
@@ -66,6 +72,37 @@ function throwUnsupported(flavor: DeviceFlavor, capability: string): never {
 interface ExitDeferred {
     promise: Promise<DeviceExitInfo>;
     resolve: (info: DeviceExitInfo) => void;
+}
+
+/**
+ * One run of a device's backing process or container. A cert step can restart a device, so every
+ * latch and every output pump belongs to the generation that created it: a handler still attached to
+ * a process that has gone must not be able to settle its successor's.
+ */
+interface Generation {
+    /** Settles when this generation ends, however it ended; `stop()` awaits this. */
+    terminated: ExitDeferred;
+    pumps: Promise<void>[];
+    /** Set once this generation has ended, so `start()` knows to replace it. */
+    exited: boolean;
+    /** Set while the harness is terminating this generation, which is not the crash `exit` reports. */
+    stopping: boolean;
+}
+
+interface LocalGeneration extends Generation {
+    child: ChildProcess;
+}
+
+interface DockerGeneration extends Generation {
+    composition: CompositionHandle;
+    /** Absent until the app container has been added, which `start()` may fail before. */
+    container?: Container;
+    /** Set when this generation never came up, so a later `start()` replaces it rather than joining it. */
+    startFailed?: boolean;
+}
+
+function newGeneration(pumps: Promise<void>[]): Generation {
+    return { terminated: createExitDeferred(), pumps, exited: false, stopping: false };
 }
 
 function createExitDeferred(): ExitDeferred {
@@ -124,9 +161,9 @@ class ChipLocalDevice implements CertDevice {
     #appArgs: string[];
     #hub = new LineQueue();
     #storageDir?: string;
-    #child?: ChildProcess;
+    #generation?: LocalGeneration;
+    #starting?: Promise<void>;
     #exit: ExitDeferred = createExitDeferred();
-    #pumps = new Array<Promise<void>>();
 
     constructor(app: string, domain: string, options?: Subject.Options, appVariant?: string) {
         this.app = app;
@@ -151,8 +188,19 @@ class ChipLocalDevice implements CertDevice {
     }
 
     async start(): Promise<void> {
-        if (this.#child) {
-            return;
+        // One process per device, even when two callers start it at once
+        this.#starting ??= this.#spawn().finally(() => (this.#starting = undefined));
+        return this.#starting;
+    }
+
+    async #spawn(): Promise<void> {
+        const previous = this.#generation;
+        if (previous !== undefined) {
+            if (!previous.exited) {
+                return;
+            }
+            this.#generation = undefined;
+            await this.#drain(previous);
         }
 
         const dir = await resolveChipLocalAppDir();
@@ -178,52 +226,144 @@ class ChipLocalDevice implements CertDevice {
             throw new Error("Spawned process has no stdout/stderr streams");
         }
 
-        this.#child = child;
-        this.#exit = createExitDeferred();
-        this.#pumps = [this.#hub.pump(asyncLinesOf(stdout)), this.#hub.pump(asyncLinesOf(stderr))];
+        const generation: LocalGeneration = {
+            child,
+            ...newGeneration([this.#hub.pump(asyncLinesOf(stdout)), this.#hub.pump(asyncLinesOf(stderr))]),
+        };
+        this.#generation = generation;
+
+        let failSpawn: ((error: Error) => void) | undefined;
+        const spawned = new Promise<void>((resolve, reject) => {
+            failSpawn = reject;
+            child.once("spawn", () => {
+                failSpawn = undefined;
+                resolve();
+            });
+        });
 
         child.once("exit", (code, signal) => {
-            this.#exit.resolve({ code, signal });
+            // A process that never ran has already been reported through start()'s own rejection
+            if (failSpawn === undefined) {
+                this.#ended(generation, { code, signal });
+            }
         });
 
         child.once("error", error => {
-            // spawn() failures (e.g. ENOENT) surface via "error", not "exit" — the exit promise
-            // still needs to settle so a caller awaiting it doesn't hang.
-            this.#exit.resolve({ code: null, signal: null });
+            // spawn() failures (e.g. ENOENT) surface via "error", not "exit". The process never ran,
+            // so this is start()'s own failure rather than a device that died on its own.
+            if (failSpawn !== undefined) {
+                generation.exited = true;
+                generation.terminated.resolve({ code: null, signal: null });
+                if (this.#generation === generation) {
+                    this.#generation = undefined;
+                }
+                failSpawn(error);
+                return;
+            }
+
             console.warn(`Error running ${binPath}:`, error);
+            this.#ended(generation, { code: null, signal: null });
         });
+
+        try {
+            await spawned;
+        } catch (e) {
+            await this.#drain(generation);
+            throw e;
+        }
     }
 
-    async stop(): Promise<void> {
-        const child = this.#child;
-        if (!child) {
+    /**
+     * Settles `generation`'s own latch, and the device's crash latch only for an end nobody asked
+     * for. The crash latch spans the device's whole life, so a run that restarts a device keeps the
+     * detection it armed before its first step.
+     */
+    #ended(generation: Generation, info: DeviceExitInfo): void {
+        generation.exited = true;
+        generation.terminated.resolve(info);
+
+        if (!generation.stopping) {
+            this.#exit.resolve(info);
+        }
+    }
+
+    /**
+     * Awaits `generation`'s output pumps, bounded: a stream something else still holds open would
+     * otherwise stall a restart with nothing said about why.
+     */
+    async #drain(generation: Generation): Promise<void> {
+        const pumps = generation.pumps;
+        generation.pumps = [];
+        if (pumps.length === 0) {
             return;
         }
 
-        child.kill("SIGTERM");
-
-        const timer = delay(STOP_TIMEOUT_MS);
+        const timer = delay(DRAIN_TIMEOUT_MS);
         try {
-            const outcome = await Promise.race([this.#exit.promise.then((): "exited" => "exited"), timer.promise]);
+            const outcome = await Promise.race([
+                Promise.allSettled(pumps).then((results): "drained" => {
+                    for (const result of results) {
+                        if (result.status === "rejected") {
+                            console.warn("Error reading device output:", result.reason);
+                        }
+                    }
+                    return "drained";
+                }),
+                timer.promise,
+            ]);
+
             if (outcome === "timeout") {
-                child.kill("SIGKILL");
-                await this.#exit.promise;
+                console.warn(
+                    `Cert device ${this.id}: output pumps did not finish within ${DRAIN_TIMEOUT_MS}ms; ` +
+                        "continuing without them",
+                );
+                for (const pump of pumps) {
+                    void pump.catch(e => console.warn("Error reading device output:", e));
+                }
             }
         } finally {
             timer.cancel();
-            this.#child = undefined;
+        }
+    }
+
+    async stop(): Promise<void> {
+        const generation = this.#generation;
+        if (generation === undefined) {
+            return;
+        }
+
+        this.#generation = undefined;
+        generation.stopping = true;
+
+        try {
+            if (generation.exited) {
+                return;
+            }
+
+            const { child } = generation;
+            child.kill("SIGTERM");
+
+            const timer = delay(STOP_TIMEOUT_MS);
+            try {
+                const outcome = await Promise.race([
+                    generation.terminated.promise.then((): "exited" => "exited"),
+                    timer.promise,
+                ]);
+                if (outcome === "timeout") {
+                    child.kill("SIGKILL");
+                    await generation.terminated.promise;
+                }
+            } finally {
+                timer.cancel();
+            }
+        } finally {
+            await this.#drain(generation);
         }
     }
 
     async close(): Promise<void> {
         await this.stop();
 
-        const results = await Promise.allSettled(this.#pumps);
-        for (const result of results) {
-            if (result.status === "rejected") {
-                console.warn("Error reading device output:", result.reason);
-            }
-        }
         this.#hub.close();
 
         if (this.#storageDir) {
@@ -240,8 +380,37 @@ class ChipLocalDevice implements CertDevice {
         throwUnsupported(this.flavor, "snapshot/restore");
     }
 
-    async backchannel(): Promise<void> {
-        throwUnsupported(this.flavor, "backchannel simulation");
+    async backchannel(command: BackchannelCommand): Promise<void> {
+        switch (command.name) {
+            case "factoryReset":
+                await this.stop();
+
+                // A chip app is factory-new only once its key-value store is gone. Dropping the
+                // whole storage directory keeps this independent of the file layout the app's KVS
+                // implementation chooses; start() creates a fresh one.
+                if (this.#storageDir !== undefined) {
+                    await rm(this.#storageDir, { recursive: true, force: true });
+                    this.#storageDir = undefined;
+                }
+                await this.start();
+                break;
+
+            case "reboot":
+                await this.stop();
+                await this.start();
+                break;
+
+            case "stop":
+                await this.stop();
+                break;
+
+            case "start":
+                await this.start();
+                break;
+
+            default:
+                throwUnsupported(this.flavor, `the "${command.name}" backchannel command`);
+        }
     }
 }
 
@@ -309,10 +478,9 @@ export class ChipDockerDevice implements CertDevice {
     #appArgs: string[];
     #hub = new LineQueue();
     #docker: DockerHandle;
-    #composition?: CompositionHandle;
-    #container?: Container;
+    #generation?: DockerGeneration;
+    #starting?: Promise<void>;
     #exit: ExitDeferred = createExitDeferred();
-    #pump?: Promise<void>;
 
     constructor(
         app: string,
@@ -357,8 +525,20 @@ export class ChipDockerDevice implements CertDevice {
     }
 
     async start(): Promise<void> {
-        if (this.#container) {
-            return;
+        // One container per device, even when two callers start it at once
+        this.#starting ??= this.#launch().finally(() => (this.#starting = undefined));
+        return this.#starting;
+    }
+
+    async #launch(): Promise<void> {
+        const previous = this.#generation;
+        if (previous !== undefined) {
+            // A generation that is up is joined; one that ended, or never came up at all, is replaced —
+            // reaping whatever it did manage to create, since a container it left behind is ours
+            if (!previous.exited && previous.startFailed !== true) {
+                return;
+            }
+            await this.stop();
         }
 
         this.#assertNoVariant();
@@ -380,12 +560,16 @@ export class ChipDockerDevice implements CertDevice {
 
         await this.#docker.ensureVolume(volumeName);
 
+        // Installed before the container is added: a failing add() otherwise leaves the composition
+        // (and its network) behind with nothing holding a reference to close it.
         const composition = this.#docker.compose(`cert-${this.app}-${this.id}`, {
             platform,
             binds: { [volumeName]: "/run/dbus" },
             network: "host",
             autoRemove: true,
         });
+        const generation: DockerGeneration = { composition, ...newGeneration([]) };
+        this.#generation = generation;
 
         const args = [
             "--discriminator",
@@ -396,70 +580,159 @@ export class ChipDockerDevice implements CertDevice {
             ...this.#appArgs,
         ];
 
-        const container = await composition.add({
-            name: "app",
-            image: appImage,
-            recreate: true,
-            binds: { [volumeName]: "/run/dbus" },
-            command: args,
-        });
+        try {
+            const container = await composition.add({
+                name: "app",
+                image: appImage,
+                recreate: true,
+                binds: { [volumeName]: "/run/dbus" },
+                command: args,
+            });
 
-        this.#composition = composition;
-        this.#container = container;
-        this.#exit = createExitDeferred();
+            generation.container = container;
 
-        // Deliberately not awaited — it runs for the container's whole lifetime and only settles
-        // #exit, which stop()/close() await separately. Its own try/catch means nothing is swallowed.
-        // Must stay ahead of anything that can throw below: #container/#exit are already installed,
-        // so a start() that fails later still leaves stop() an #exit that settles.
-        void this.#trackExit(container);
+            // Deliberately not awaited — it runs for the container's whole lifetime and only settles
+            // this generation's latches, which stop() awaits separately. Its own try/catch means
+            // nothing is swallowed. Must stay ahead of anything that can throw below, so a start()
+            // that fails later still leaves stop() a latch that settles.
+            void this.#trackExit(generation, container);
 
-        // Attaching immediately after the container starts still risks losing whatever it printed
-        // in that gap — Docker doesn't let us attach before start. Acceptable for now; Task 6 smoke-
-        // tests this flavor end to end.
-        const terminal = await container.attach(Terminal.Line);
-        this.#pump = this.#hub.pump(terminal);
+            // Attaching immediately after the container starts still risks losing whatever it printed
+            // in that gap — Docker doesn't let us attach before start.
+            const terminal = await container.attach(Terminal.Line);
+            generation.pumps.push(this.#hub.pump(terminal));
+        } catch (e) {
+            // Marked rather than dropped: stop() still has to reap what this attempt created, and a
+            // later start() must not take this generation for a device that came up.
+            generation.startFailed = true;
+            throw e;
+        }
     }
 
-    async #trackExit(container: Container): Promise<void> {
+    async #trackExit(generation: DockerGeneration, container: Container): Promise<void> {
         try {
             await container.wait();
-            this.#exit.resolve({ code: 0, signal: null });
+            this.#ended(generation, { code: 0, signal: null });
         } catch (e) {
             if (e instanceof NonZeroExitError) {
-                this.#exit.resolve({ code: e.code, signal: null });
-            } else {
-                console.warn(`Error waiting for cert device container ${this.id}:`, e);
-                this.#exit.resolve({ code: null, signal: null });
+                this.#ended(generation, { code: e.code, signal: null });
+                return;
             }
+
+            // The daemon did not tell us the container stopped, so we do not know that it did: the
+            // run can no longer trust the device, but the container stays a candidate for stop()'s
+            // kill, which composition.close() does not perform.
+            console.warn(`Error waiting for cert device container ${this.id}:`, e);
+            this.#report(generation, { code: null, signal: null });
+        }
+    }
+
+    /** {@link #report}s an end the daemon confirmed, which stop() then has nothing left to kill for. */
+    #ended(generation: DockerGeneration, info: DeviceExitInfo): void {
+        generation.exited = true;
+        this.#report(generation, info);
+    }
+
+    /**
+     * Settles `generation`'s own latch, and the device's crash latch only for an end nobody asked
+     * for. The crash latch spans the device's whole life, so a run that restarts a device keeps the
+     * detection it armed before its first step.
+     */
+    #report(generation: DockerGeneration, info: DeviceExitInfo): void {
+        generation.terminated.resolve(info);
+
+        if (!generation.stopping) {
+            this.#exit.resolve(info);
+        }
+    }
+
+    /**
+     * Awaits `generation`'s output pump, bounded: a terminal something else still holds open would
+     * otherwise stall a restart with nothing said about why.
+     */
+    async #drain(generation: DockerGeneration): Promise<void> {
+        const pumps = generation.pumps;
+        generation.pumps = [];
+        if (pumps.length === 0) {
+            return;
+        }
+
+        const timer = delay(DRAIN_TIMEOUT_MS);
+        try {
+            const outcome = await Promise.race([
+                Promise.allSettled(pumps).then((results): "drained" => {
+                    for (const result of results) {
+                        if (result.status === "rejected") {
+                            console.warn("Error reading device output:", result.reason);
+                        }
+                    }
+                    return "drained";
+                }),
+                timer.promise,
+            ]);
+
+            if (outcome === "timeout") {
+                console.warn(
+                    `Cert device ${this.id}: output pump did not finish within ${DRAIN_TIMEOUT_MS}ms; ` +
+                        "continuing without it",
+                );
+                for (const pump of pumps) {
+                    void pump.catch(e => console.warn("Error reading device output:", e));
+                }
+            }
+        } finally {
+            timer.cancel();
         }
     }
 
     async stop(): Promise<void> {
-        const container = this.#container;
-        if (!container) {
+        const generation = this.#generation;
+        if (generation === undefined) {
             return;
         }
 
-        try {
-            await container.kill();
-        } catch {
-            // Already stopped/removed (e.g. crashed) — nothing left to stop.
-        }
-        await this.#exit.promise;
+        this.#generation = undefined;
+        generation.stopping = true;
 
-        await this.#composition?.close();
-        this.#composition = undefined;
-        this.#container = undefined;
+        try {
+            const { container } = generation;
+            if (container !== undefined && !generation.exited) {
+                try {
+                    await container.kill();
+                } catch (e) {
+                    // A container that has already gone has nothing left to kill; every other cause
+                    // leaves it running, which the wait below then reports.
+                    DockerError.accept(e, 404, 409);
+                }
+
+                const timer = delay(CONTAINER_STOP_TIMEOUT_MS);
+                try {
+                    const outcome = await Promise.race([
+                        generation.terminated.promise.then((): "exited" => "exited"),
+                        timer.promise,
+                    ]);
+                    if (outcome === "timeout") {
+                        throw new Error(
+                            `Cert device container ${this.id} did not exit within ${CONTAINER_STOP_TIMEOUT_MS}ms`,
+                        );
+                    }
+                } finally {
+                    timer.cancel();
+                }
+            }
+        } finally {
+            // A container that would not die must still release the composition and its network
+            try {
+                await generation.composition.close();
+            } finally {
+                await this.#drain(generation);
+            }
+        }
     }
 
     async close(): Promise<void> {
         await this.stop();
 
-        if (this.#pump) {
-            await this.#pump.catch(e => console.warn("Error reading device output:", e));
-            this.#pump = undefined;
-        }
         this.#hub.close();
     }
 
@@ -471,8 +744,34 @@ export class ChipDockerDevice implements CertDevice {
         throwUnsupported(this.flavor, "snapshot/restore");
     }
 
-    async backchannel(): Promise<void> {
-        throwUnsupported(this.flavor, "backchannel simulation");
+    async backchannel(command: BackchannelCommand): Promise<void> {
+        switch (command.name) {
+            case "factoryReset":
+                // The app's key-value store lives in the container's own filesystem, which the
+                // composition discards when it stops, so a fresh container is a factory-new device.
+                await this.stop();
+                await this.start();
+                break;
+
+            case "reboot":
+                throwUnsupported(
+                    this.flavor,
+                    "rebooting with its key-value store intact: the store lives in the container's " +
+                        "filesystem, which is discarded when the container stops, so a restart here is a " +
+                        "factory reset. Restrict the test to the chip-local flavor",
+                );
+
+            case "stop":
+                await this.stop();
+                break;
+
+            case "start":
+                await this.start();
+                break;
+
+            default:
+                throwUnsupported(this.flavor, `the "${command.name}" backchannel command`);
+        }
     }
 }
 

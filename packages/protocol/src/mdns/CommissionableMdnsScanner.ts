@@ -189,7 +189,7 @@ export class CommissionableMdnsScanner implements Scanner {
         // Callback may trigger an async cancel chain that must settle before we start discovery
         let callbackInvoked = false;
         for (const cached of this.#cache.values()) {
-            const device = refreshAddresses(cached);
+            const device = refreshDiscoveredHost(cached);
             if (!matchesIdentifier(device, identifier)) {
                 continue;
             }
@@ -248,7 +248,7 @@ export class CommissionableMdnsScanner implements Scanner {
 
     getDiscoveredCommissionableDevices(identifier: CommissionableDeviceIdentifiers): CommissionableDevice[] {
         return [...this.#cache.values()]
-            .map(cached => refreshAddresses(cached))
+            .map(cached => refreshDiscoveredHost(cached))
             .filter(device => matchesIdentifier(device, identifier) && device.addresses.length > 0);
     }
 
@@ -432,7 +432,7 @@ export class CommissionableMdnsScanner implements Scanner {
     }
 
     #deliverDeviceIfResolved(cached: CachedDevice): boolean {
-        const device = refreshAddresses(cached);
+        const device = refreshDiscoveredHost(cached);
         if (device.addresses.length === 0) {
             return false;
         }
@@ -481,14 +481,43 @@ function buildCommissionableDevice(name: DnssdName): CommissionableDevice | unde
         deviceIdentifier: instanceId,
         D,
         CM,
+        hostname: hostnameOf(name),
         addresses: [] as ServerAddressUdp[],
     } satisfies CommissionableDevice;
 }
 
-function refreshAddresses(cached: CachedDevice): CommissionableDevice {
+/**
+ * The host the name's SRV records agree on, without its domain, or nothing while they disagree.
+ *
+ * A record's key includes its target, so a device that moves host holds two SRV records until the
+ * superseded one is evicted — for the eviction delay where it flushed the cache, for its whole TTL
+ * where it did not. Which of them is current cannot be read off the record set: `installedAt` is a
+ * wall clock, so two records from the same millisecond, or a clock that steps between them, order
+ * wrongly. Reporting nothing while the set is ambiguous keeps the field from ever naming a host the
+ * device has left; the addresses stay authoritative for reaching it.
+ */
+function hostnameOf(name: DnssdName): string | undefined {
+    const hosts = new Set<string>();
+    for (const record of name.records) {
+        if (record.recordType === DnsRecordType.SRV) {
+            hosts.add(record.value.target.split(".")[0]);
+        }
+    }
+    return hosts.size === 1 ? hosts.values().next().value : undefined;
+}
+
+/**
+ * Restamps the facts a cached device holds about where it currently answers.
+ *
+ * A device is cached as soon as its TXT record identifies it, so its SRV may arrive afterwards or name
+ * a different host later; both the addresses and the hostname are therefore read per delivery rather
+ * than once.
+ */
+function refreshDiscoveredHost(cached: CachedDevice): CommissionableDevice {
     // IpService returns transport-agnostic addresses; stamp as UDP since commissionable
     // devices are always discovered and commissioned via UDP
     cached.device.addresses = [...cached.ipService.addresses].map(a => ({ ...a, type: "udp" }) as ServerAddressUdp);
+    cached.device.hostname = hostnameOf(cached.name);
     return cached.device;
 }
 

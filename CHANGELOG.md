@@ -11,6 +11,10 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/testing
+    - Fix: A certification run's `result.json` no longer reports a passing verdict for a run that failed
+    - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
+
 - @matter/general
     - Breaking: `DnssdNames.Context.goodbyeProtectionWindow` and `DnssdNames.defaults.goodbyeProtectionWindow` are now `evictionDelay`, and `DnssdName.deleteRecord` no longer takes an `ifOlderThan` argument
     - Enhancement: New `MatterAggregateError.settleSeries()` runs tasks in order, continuing past a failure, and reports the accumulated errors
@@ -26,6 +30,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: A provisional element is no longer mandatory; conformance following a `P` describes the conformance intended once the element leaves provisional state
     - Enhancement: `FeatureSelectionErrors()` assesses a cluster's selected features against the combinations its FeatureMap conformance disallows
     - Enhancement: `FeatureSet.resolve()` resolves a feature short code, title or camelized title to a short code
+    - Enhancement: New `EncodedConstraint()` restates every bound of a constraint in the units the value is encoded in
+    - Enhancement: New `EncodedConstraint.bounds()` reports which of a constraint's bounds state a number in encoding units and which state a unit with no known scale
+    - Fix: The model build rejects a value stating a unit with no known scale, a fraction an integer type cannot hold, or a negative an unsigned type cannot hold
+    - Fix: A default stating a number no integer form matches, such as `1e-3`, is rejected instead of stored as the digits preceding the exponent
+    - Fix: A percentage on a type other than `percent` or `percent100ths` no longer resolves to the printed number as though it were already encoded
+    - Fix: A constraint bound's unit takes its scale from the types the value derives from, not from its own type name alone
     - Enhancement: New `Scope.isMandatory()` tells whether a member is mandatory under a schema's supported features, and the new `MandatoryDefaultValue()` computes the value such a member assumes when no real value exists (schema default, else the specification's fallback value, recursing into structs) — the basis for what an unreported client node attribute reads, usable wherever schema-derived fallback values are needed; `SelectDefaultValue()` exposes the shallow variant used for server state seeding
     - Fix: A cluster's feature table no longer selects features; a feature the specification makes unconditionally mandatory is always selected
     - Fix: Feature selection records against `operationalIsSupported` so a feature's `default` conveys only the specification's fallback value
@@ -65,12 +75,14 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Added a `ClientNode` connection-state engine — `lifecycle.connectionState`/`connectionStateChanged`/`isConnected` and the `NodeConnectionState` enum
     - Feature: Added `ClientNodeLifecycle.isSeeded` and the `seeded` event, indicating a peer node's structure has been read from the device at least once
     - Feature: Added `Behaviors.forCluster(clusterId)` to resolve a cluster behavior type by numeric cluster id
+    - Feature: A behavior reports an attribute it computes on read via the new protected `Behavior.markChanged()`
     - Feature: Added `openBasicCommissioningWindow`/`openEnhancedCommissioningWindow` on `CommissioningClient`/`ClientNode` to open a commissioning window on a commissioned peer
     - Feature: Added split/delegated commissioning — `CommissioningClient.CommissioningOptions.finalizeCommissioning` plus `ServerNode.peers.completeCommissioning(nodeId, discoveryData?, options?)`
     - Feature: Added `NetworkServer.autoStartCommissionedPeers` (default true) to opt out of auto-starting commissioned peers when the node goes online
     - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding how long it waits for the operational CASE connection that follows it
     - Enhancement: `SoftwareUpdateManager` caps the BDX block size for OTA transfers via `maxBdxBlockSize` and overrides their MRP retransmission margin via `bdxAdditionalMrpDelay`, either generally in its state or per update when giving consent
     - Enhancement: `network.profiles` accepts `bdxAdditionalMrpDelay`
+    - Enhancement: A node's commissioning state records the `hostname` the device's SRV record names, alongside its addresses
     - Enhancement: Discovery reports at notice level, naming an installed BLE scanner it was not asked to use, and reports a discovery that asks for BLE where BLE is not enabled
     - Enhancement: Discovery warns where no scanner takes part in it at all
     - Enhancement: `Discovery.Options` accepts `discoveryCapabilities` to select the transports to discover on, so a caller no longer builds a `scannerFilter` for it
@@ -81,7 +93,18 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: A `SoftwareUpdateManager.State.announcementInterval` of `Instant` disables OTA provider announcements
     - Fix: A constraint whose bound carries a unit, such as the `0.01% to 100.00%` of a `percent100ths` value, is enforced in the units the value is encoded in
     - Fix: Struct validation resolves a member stored under its TLV tag number, so a constraint violation there is caught and a mandatory member present only at its id no longer raises a conformance error
+    - Fix: `Thermostat.Presets` reports to subscribers and advances the cluster's data version when the presets change
+    - Fix: A local write of `Thermostat.Presets` is stored instead of silently discarded, and an invalid one rejects the caller's write
+    - Fix: `Thermostat.Presets` is validated and staged for an atomic write on every endpoint that selects the Presets feature, not only where the application passed a `presets` value; presets such an endpoint stored before are ignored
+    - Fix: A preset write is refused for referencing the active preset only when it removes that preset; a thermostat starting with an `ActivePresetHandle` that names no preset stores null instead of refusing to start
+    - Fix: A preset handle the thermostat generates is persisted, so it still addresses the preset after a restart
+    - Fix: Two presets sharing a scenario and carrying no name are refused on an atomic write, as they already were on a local one
+    - Fix: A state class serving an attribute from an accessor sees the values of the writing transaction
+    - Fix: A write refused by pre-commit validation is announced again when the same value is written a second time on one transaction
+    - Fix: A report for a quieter attribute a behavior computes on read carries an advanced cluster data version, so a subscription no longer discards it as one it already has
+    - Fix: `LevelControl.RemainingTime` and `ColorControl.RemainingTime` report the time left in a transition; the attribute read 0 on any endpoint whose application did not itself pass a `remainingTime` value
     - Fix: `endpoints.size` no longer double-counts the root endpoint
+    - Fix: The log line for an opened commissioning window states the timeout as a duration, not as a millisecond count labelled seconds
     - Fix: A commissioned peer's connection state leaves `Connected` as soon as its last operational session is lost
     - Fix: `ChangeNotificationService` event occurrences carry a `timestampKind` naming which of the four wire variants the timestamp is (`epoch`, `system`, `epoch-delta`, `system-delta`), so a consumer forwarding an event no longer has to guess its clock or whether it is absolute or a delta from the previous event
     - Fix: `IdentifyServer` no longer offers the optional `TriggerEffect` command unless the device type requires it, an own command implementation has been added via an override or suppression is disabled; `IdentifyServer.enable({ commands: { triggerEffect: true } })`, `IdentifyServer.alter({ commands: { triggerEffect: { optional: false } } })` and an override of `suppressTriggerEffect()` also offer it
@@ -93,6 +116,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A client node's storage metadata no longer surfaces as state: a peer report that only bumps the data version emits no change notification, and `__version__` no longer appears among the changed properties or in cluster state
     - Fix: A peer that cannot be loaded, such as one whose fabric is missing locally, is reported with its actual cause instead of escaping as an unhandled rejection
     - Fix: Commissioning passes over a discovered device whose advertised vendor or product ID disagrees with the onboarding payload's
+    - Fix: Validating a state class that serves properties dynamically passes it the endpoint, as every other caller does
 
 - @matter/matter.js
     - Adjustment: The duplicate "BLE is not enabled" log lines are gone; a node reports missing BLE support once, where it decides on it
@@ -123,11 +147,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Deprecation: The legacy `ClusterType` command request surface (`Invoke.LegacyCommandRequest`, `Specifier.ClusterTypeCommand`) and `SessionManager.owner` are scheduled for removal in 0.19
     - Enhancement: Network profiles accept a separate `bdxAdditionalMrpDelay` for bulk transfer, defaulting to the profile's messaging margin
     - Enhancement: New `CertificateAuthority.erase()` discards the authority's key material, persisted and in memory
+    - Enhancement: A discovered commissionable device reports the `hostname` its SRV record names
     - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding how long it waits for the operational CASE connection that follows it; defaults to the previous fixed 4m15s
     - Enhancement: `BtpSessionHandler.stalledAfterHandshake` reports a peer that answers the handshake and then nothing else, carrying the messages it never acknowledged; a session nobody observes closes on the acknowledgement timeout as before
     - Enhancement: New `BtpCodec.isHandshakeResponse()` identifies a BTP handshake response without a session to decode against
     - Fix: A central BTP session no longer accepts a segment size larger than the one it offered; `createAsCentral` requires the offered size
     - Fix: Cancelling BLE commissioning aborts the in-flight channel open
+    - Fix: A concrete subscription path is reported only when that attribute changed; it was previously reported whenever any other attribute of the same cluster changed
     - Fix: A subscription's `maxIntervalCeiling` is transmitted exactly as requested; jitter now applies only when we derive the ceiling ourselves
     - Fix: mDNS advertisements set the cache-flush bit on the SRV, TXT and address records unique to the node
     - Fix: mDNS known-answer suppression compares what identifies a record

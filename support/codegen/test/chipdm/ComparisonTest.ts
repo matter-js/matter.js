@@ -7,7 +7,16 @@
 import { ValidationModels } from "#chipdm/build-models.js";
 import { Category, compareModels, Finding } from "#chipdm/compare.js";
 import { DataModel, DmCluster, DmElement } from "#chipdm/data-model.js";
-import { Access, ClusterElement, Conformance, Constraint, ElementTag, MatterElement, MatterModel } from "#model";
+import {
+    Access,
+    ClusterElement,
+    Conformance,
+    Constraint,
+    DatatypeElement,
+    ElementTag,
+    MatterElement,
+    MatterModel,
+} from "#model";
 
 function models(...clusters: ClusterElement[]): ValidationModels {
     const matter = () => new MatterModel(MatterElement({ name: "Test", children: [...clusters] }));
@@ -37,6 +46,21 @@ function attribute(id: number, name: string, properties: Partial<DmElement> = {}
 
 function findings(dm: DataModel, ...clusters: ClusterElement[]) {
     return compareModels(models(...clusters), dm);
+}
+
+/** Compare global data types, optionally with a model whose overrides differ from the specification's */
+function globalFindings(chip: DmElement[], ours: DatatypeElement[], stated = ours) {
+    return compareModels(
+        {
+            merged: new MatterModel(MatterElement({ name: "Test", children: [...ours] })),
+            unmodified: new MatterModel(MatterElement({ name: "Test", children: [...stated] })),
+        },
+        { ...dataModel(), globals: chip },
+    );
+}
+
+function datatype(name: string, properties: Partial<DmElement> = {}): DmElement {
+    return { tag: ElementTag.Datatype, name, type: "uint8", children: [], ...properties };
 }
 
 function of(findings: Finding[], property: string) {
@@ -273,5 +297,72 @@ describe("comparison against the CHIP data model", () => {
         const clusters = of(result, "cluster");
         expect(clusters.length).equal(2);
         expect(clusters.map(finding => finding.chip).sort()).deep.equal(["absent", "present"]);
+    });
+
+    describe("global data types", () => {
+        it("reports nothing where both models define the same type", () => {
+            const result = globalFindings([datatype("Extra")], [DatatypeElement({ name: "Extra", type: "uint8" })]);
+
+            expect(of(result, "datatype")).deep.equal([]);
+        });
+
+        it("reports a type only we define", () => {
+            const result = globalFindings([], [DatatypeElement({ name: "Extra", type: "uint8" })]);
+
+            const datatypes = of(result, "datatype");
+            expect(datatypes.length).equal(1);
+            expect(datatypes[0].category).equal(Category.Mismatch);
+            expect(datatypes[0].path).equal("Extra");
+            expect(datatypes[0].chip).equal("absent");
+        });
+
+        it("reports a type an override adds as an intended divergence", () => {
+            const result = globalFindings([], [DatatypeElement({ name: "Extra", type: "uint8" })], []);
+
+            const datatypes = of(result, "datatype");
+            expect(datatypes.length).equal(1);
+            expect(datatypes[0].category).equal(Category.Override);
+        });
+
+        // An alias states the canonical form of our name, which the datatype index does not answer to.  Resolving it
+        // matters twice over: unresolved, the type reads as absent from our model and as ours alone at the same time
+        it("resolves a type CHIP names differently", () => {
+            const result = globalFindings(
+                [datatype("AttributeID")],
+                [DatatypeElement({ name: "attrib-id", type: "uint32" })],
+            );
+
+            expect(of(result, "datatype")).deep.equal([]);
+        });
+
+        // Both models must resolve an alias the same way, or the override reads as a difference nothing explains
+        it("credits an override of a type CHIP names differently", () => {
+            const result = globalFindings(
+                [datatype("AttributeID", { type: "uint32" })],
+                [DatatypeElement({ name: "attrib-id", type: "uint16" })],
+                [DatatypeElement({ name: "attrib-id", type: "uint32" })],
+            );
+
+            const types = of(result, "type");
+            expect(types.length).equal(1);
+            expect(types[0].category).equal(Category.Override);
+        });
+
+        // A known difference written for a type nested in clusters must not explain a global of the same name
+        it("does not explain a global with a known difference written for a nested element", () => {
+            const result = globalFindings([], [DatatypeElement({ name: "ModeChangeStatus", type: "enum8" })]);
+
+            const datatypes = of(result, "datatype");
+            expect(datatypes.length).equal(1);
+            expect(datatypes[0].category).equal(Category.Mismatch);
+            expect(datatypes[0].reason).equal(undefined);
+        });
+
+        // CHIP states the base types in each cluster that uses them rather than enumerating them globally
+        it("ignores a seed type CHIP does not enumerate", () => {
+            const result = globalFindings([], [DatatypeElement({ name: "Extra", type: "uint8", isSeed: true })]);
+
+            expect(of(result, "datatype")).deep.equal([]);
+        });
     });
 });

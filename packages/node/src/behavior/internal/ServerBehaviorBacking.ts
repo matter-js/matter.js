@@ -28,7 +28,7 @@ export class FeatureMismatchError extends ImplementationError {}
  */
 export class ServerBehaviorBacking extends BehaviorBacking {
     #elements?: SupportedElements;
-    #suppressedChanges?: Set<string>;
+    #suppressedChanges?: Map<string, "changesOmitted" | "quieter">;
     #quietObservers?: ObserverGroup;
 
     constructor(endpoint: Endpoint, type: Behavior.Type, store: Datasource.Store, options?: Behavior.Options) {
@@ -176,6 +176,44 @@ export class ServerBehaviorBacking extends BehaviorBacking {
         this.broadcastChanges(props);
     }
 
+    /**
+     * Report attributes this behavior computes on read.  Change detection diffs stored values, so it never sees such
+     * an attribute change; the behavior says so instead.
+     */
+    override markChanged(props: string[]) {
+        if (!props.length) {
+            throw new ImplementationError(`${this} cannot report a change without naming an attribute`);
+        }
+
+        if (this.#elements === undefined) {
+            throw new ImplementationError(`${this} cannot report a change before it is initialized`);
+        }
+
+        for (const name of props) {
+            if (!this.#elements.attributes.has(name)) {
+                throw new ImplementationError(`${this} cannot report "${name}", which is not an attribute it supports`);
+            }
+
+            // Refuse rather than ignore, so a behavior naming one of these learns it has the wrong mechanism
+            switch (this.#suppressedChanges?.get(name)) {
+                case "changesOmitted":
+                    throw new ImplementationError(
+                        `${this} cannot report "${name}"; the specification omits change reporting for it`,
+                    );
+
+                case "quieter":
+                    throw new ImplementationError(
+                        `${this} cannot report "${name}" directly; emit its change event so its throttle applies`,
+                    );
+            }
+        }
+
+        // The framework never saw this change, so nothing has moved the version for it
+        this.datasource.advanceVersion();
+
+        this.broadcastChanges(props);
+    }
+
     protected override get datasourceOptions(): Datasource.Options {
         const options = super.datasourceOptions;
         options.onChange = this.#onChange.bind(this);
@@ -208,9 +246,9 @@ export class ServerBehaviorBacking extends BehaviorBacking {
             const name = property.propertyName;
 
             if (!this.#suppressedChanges) {
-                this.#suppressedChanges = new Set();
+                this.#suppressedChanges = new Map();
             }
-            this.#suppressedChanges.add(name);
+            this.#suppressedChanges.set(name, changesOmitted ? "changesOmitted" : "quieter");
 
             if (!quieter) {
                 continue;
@@ -226,7 +264,10 @@ export class ServerBehaviorBacking extends BehaviorBacking {
                     this.#quietObservers = new ObserverGroup();
                 }
 
-                this.#quietObservers.on(event.quiet, () => this.broadcastChanges([name]));
+                this.#quietObservers.on(event.quiet, () => {
+                    this.datasource.advanceVersionFor([name]);
+                    this.broadcastChanges([name]);
+                });
             }
         }
     }

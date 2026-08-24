@@ -55,6 +55,7 @@ export namespace RemoteDescriptor {
         const {
             addresses,
             discoveredAt,
+            hostname,
             ttl,
             deviceIdentifier,
             discriminator,
@@ -81,6 +82,10 @@ export namespace RemoteDescriptor {
 
         if (deviceIdentifier !== undefined) {
             result.deviceIdentifier = deviceIdentifier;
+        }
+
+        if (hostname !== undefined) {
+            result.hostname = hostname;
         }
 
         if (vendorId !== undefined) {
@@ -163,8 +168,24 @@ export namespace RemoteDescriptor {
             return long;
         }
 
-        const { addresses, discoveredAt, ttl, deviceIdentifier, VP, DT, DN, RI, PH, PI, SII, SAI, SAT, T, ICD } =
-            descriptor;
+        const {
+            addresses,
+            discoveredAt,
+            hostname,
+            ttl,
+            deviceIdentifier,
+            VP,
+            DT,
+            DN,
+            RI,
+            PH,
+            PI,
+            SII,
+            SAI,
+            SAT,
+            T,
+            ICD,
+        } = descriptor;
 
         if (discoveredAt !== undefined) {
             long.discoveredAt = discoveredAt;
@@ -180,6 +201,13 @@ export namespace RemoteDescriptor {
 
         if (deviceIdentifier !== undefined) {
             long.deviceIdentifier = deviceIdentifier;
+        }
+
+        // Present-but-undefined is a device whose SRV expired, and must clear the host on record; a
+        // descriptor without the key at all is a caller that knows nothing about the host — half of them
+        // pass a bare `DiscoveryData` — and must leave what discovery found alone
+        if ("hostname" in descriptor) {
+            long.hostname = hostname;
         }
 
         if (VP !== undefined) {

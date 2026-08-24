@@ -14,14 +14,16 @@ import {
     EventModel,
     FieldValue,
     Metatype,
+    MatterModel,
     Model,
     RequirementElement,
+    RequirementModel,
     ValueModel,
 } from "#model";
 import { ValidationModels } from "./build-models.js";
 import { aliasOf, matterNameFor, reasonFor } from "./by-design.js";
 import { DataModel, DmCluster, DmElement } from "./data-model.js";
-import { canonicalizeValue } from "./values.js";
+import { canonicalizeName, canonicalizeValue } from "./values.js";
 
 /**
  * Why a difference between our model and CHIP's is reported.
@@ -62,6 +64,13 @@ interface ElementContext {
     isFeature?: boolean;
 }
 
+/**
+ * Aspects the comparator compares as a whole.
+ *
+ * Access is not among them because CHIP states only the facets the specification lists, so it compares facet by facet.
+ */
+type ComparedAspect = "conformance" | "constraint" | "quality";
+
 /** Attributes at or above this ID are global; CHIP does not repeat them in cluster definitions */
 const GLOBAL_ATTRIBUTE_ID = 0xfff8;
 
@@ -83,9 +92,9 @@ class Comparison {
         this.#dm = dm;
         // A cluster with an ID of its own may still serve as the base of another, as operational state does
         this.#bases = new Map(
-            [...dm.clusters, ...dm.baseClusters].map(cluster => [canonicalize(cluster.name), cluster]),
+            [...dm.clusters, ...dm.baseClusters].map(cluster => [canonicalizeName(cluster.name), cluster]),
         );
-        this.#globalDatatypes = new Set(dm.globals.map(datatype => canonicalize(datatype.name)));
+        this.#globalDatatypes = new Set(dm.globals.map(datatype => canonicalizeName(datatype.name)));
     }
 
     run() {
@@ -112,7 +121,7 @@ class Comparison {
             const path = [cluster.name];
             const shadow = unmodified.clusters(chip.id);
 
-            this.#value(path, "name", canonicalize(chip.name), canonicalize(cluster.name), shadowName(shadow));
+            this.#value(path, "name", canonicalizeName(chip.name), canonicalizeName(cluster.name), shadowName(shadow));
             this.#value(path, "revision", `${chip.revision}`, `${cluster.revision}`, shadowRevision(shadow));
             this.#value(
                 path,
@@ -140,7 +149,7 @@ class Comparison {
         for (let current: DmCluster | undefined = cluster; current !== undefined && !visited.has(current);) {
             visited.add(current);
             for (const child of current.children) {
-                const key = `${child.tag}:${canonicalize(child.name)}`;
+                const key = `${child.tag}:${canonicalizeName(child.name)}`;
                 if (!children.has(key)) {
                     children.set(key, child);
                 } else if (current !== cluster) {
@@ -148,15 +157,15 @@ class Comparison {
                 }
             }
 
-            current = current.base === undefined ? undefined : this.#bases.get(canonicalize(current.base));
+            current = current.base === undefined ? undefined : this.#bases.get(canonicalizeName(current.base));
         }
 
         return [...children.values()];
     }
 
     #members(path: string[], chipChildren: DmElement[], cluster: ClusterModel, shadow?: ClusterModel) {
-        const features = new Map(cluster.features.map(feature => [canonicalize(feature.name), feature]));
-        const shadowFeatures = new Map((shadow?.features ?? []).map(f => [canonicalize(f.name), f]));
+        const features = new Map(cluster.features.map(feature => [canonicalizeName(feature.name), feature]));
+        const shadowFeatures = new Map((shadow?.features ?? []).map(f => [canonicalizeName(f.name), f]));
 
         const members = new Map<string, Model>();
         const shadowMembers = new Map<string, Model>();
@@ -179,7 +188,7 @@ class Comparison {
 
         for (const chip of chipChildren) {
             if (chip.tag === ElementTag.Field) {
-                const key = canonicalize(chip.name);
+                const key = canonicalizeName(chip.name);
                 seen.add(`feature:${key}`);
                 const feature = features.get(key);
                 if (feature === undefined) {
@@ -221,8 +230,8 @@ class Comparison {
             }
             if (
                 member.tag === ElementTag.Datatype &&
-                (this.#globalDatatypes.has(canonicalize(member.name)) ||
-                    this.#globalDatatypes.has(aliasOf(canonicalize(member.name)) ?? ""))
+                (this.#globalDatatypes.has(canonicalizeName(member.name)) ||
+                    this.#globalDatatypes.has(aliasOf(canonicalizeName(member.name)) ?? ""))
             ) {
                 continue;
             }
@@ -231,18 +240,18 @@ class Comparison {
     }
 
     #element(path: string[], chip: DmElement, model: Model, shadow?: Model, context: ElementContext = {}) {
-        const name = canonicalize(model.name);
-        if (aliasOf(name) === canonicalize(chip.name)) {
+        const name = canonicalizeName(model.name);
+        if (aliasOf(name) === canonicalizeName(chip.name)) {
             this.#report(
                 Category.Informative,
                 path,
                 "name",
-                canonicalize(chip.name),
+                canonicalizeName(chip.name),
                 name,
                 "We and CHIP name the same type differently",
             );
         } else {
-            this.#value(path, "name", canonicalize(chip.name), name, shadowName(shadow));
+            this.#value(path, "name", canonicalizeName(chip.name), name, shadowName(shadow));
         }
 
         if (chip.tag !== ElementTag.Datatype || chip.type !== undefined) {
@@ -253,9 +262,9 @@ class Comparison {
             this.#value(
                 path,
                 "response",
-                canonicalize(chip.response),
-                canonicalize(responseOf(model)),
-                canonicalize(responseOf(shadow)),
+                canonicalizeName(chip.response),
+                canonicalizeName(responseOf(model)),
+                canonicalizeName(responseOf(shadow)),
             );
         }
 
@@ -263,9 +272,9 @@ class Comparison {
             this.#value(
                 path,
                 "priority",
-                canonicalize(chip.priority),
-                canonicalize(priorityOf(model)),
-                canonicalize(priorityOf(shadow)),
+                canonicalizeName(chip.priority),
+                canonicalizeName(priorityOf(model)),
+                canonicalizeName(priorityOf(shadow)),
             );
         }
 
@@ -298,12 +307,12 @@ class Comparison {
     #fields(path: string[], chip: DmElement, model: ValueModel, shadow?: ValueModel) {
         const metatype = model.effectiveMetatype;
         const inValueTable = metatype === Metatype.enum || metatype === Metatype.bitmap;
-        const fields = new Map([...model.members].map(field => [canonicalize(field.name), field]));
-        const shadowFields = new Map([...(shadow?.members ?? [])].map(field => [canonicalize(field.name), field]));
+        const fields = new Map([...model.members].map(field => [canonicalizeName(field.name), field]));
+        const shadowFields = new Map([...(shadow?.members ?? [])].map(field => [canonicalizeName(field.name), field]));
         const seen = new Set<string>();
 
         for (const chipField of chip.children) {
-            const key = canonicalize(chipField.name);
+            const key = canonicalizeName(chipField.name);
             seen.add(key);
 
             const field = fields.get(key);
@@ -350,7 +359,13 @@ class Comparison {
 
             const path = [deviceType.name];
 
-            this.#value(path, "name", canonicalize(chip.name), canonicalize(deviceType.name), shadowName(shadow));
+            this.#value(
+                path,
+                "name",
+                canonicalizeName(chip.name),
+                canonicalizeName(deviceType.name),
+                shadowName(shadow),
+            );
             this.#value(
                 path,
                 "revision",
@@ -373,7 +388,7 @@ class Comparison {
     #requirements(path: string[], chipChildren: DmElement[], model: Model, shadow?: Model, cluster?: ClusterModel) {
         const requirements = new Map(model.children.filter(isRequirement).map(child => [requirementKey(child), child]));
         const shadowRequirements = new Map(
-            (shadow?.children ?? []).filter(isRequirement).map(child => [requirementKey(child), child]),
+            (shadow?.children.filter(isRequirement) ?? []).map(child => [requirementKey(child), child]),
         );
         const seen = new Set<string>();
 
@@ -429,14 +444,14 @@ class Comparison {
      * device type table, which is the feature's title in upper case.
      */
     #requirementKeys(chip: DmElement, cluster?: ClusterModel) {
-        const keys = [`${chip.element}:${canonicalize(chip.name)}`];
+        const keys = [`${chip.element}:${canonicalizeName(chip.name)}`];
 
         if (chip.element === RequirementElement.ElementType.Feature && cluster !== undefined) {
             const feature = cluster.features.find(
-                candidate => canonicalize(candidate.name) === canonicalize(chip.name),
+                candidate => canonicalizeName(candidate.name) === canonicalizeName(chip.name),
             );
             if (feature?.title !== undefined) {
-                keys.push(`${chip.element}:${canonicalize(feature.title)}`);
+                keys.push(`${chip.element}:${canonicalizeName(feature.title)}`);
             }
         }
 
@@ -465,10 +480,24 @@ class Comparison {
         return found;
     }
 
-    /** The global data type CHIP names, under either name */
-    #globalDatatypeOf(name: string) {
-        const datatypes = this.#models.merged.datatypes;
-        return datatypes(name) ?? datatypes(matterNameFor(name) ?? name);
+    /**
+     * The global data type CHIP names, under either name.
+     *
+     * An alias states the canonical form of our name, which is not the form the index answers to, so a name the index
+     * cannot resolve is matched canonically against what we do define.  Both models resolve the same way, or an
+     * override of an aliased type would read as a difference nothing explains.
+     */
+    #globalDatatypeOf(name: string, model: MatterModel = this.#models.merged) {
+        const datatypes = model.datatypes;
+        const ours = matterNameFor(name) ?? name;
+
+        const indexed = datatypes(name) ?? datatypes(ours);
+        if (indexed !== undefined) {
+            return indexed;
+        }
+
+        const wanted = canonicalizeName(ours);
+        return [...datatypes].find(datatype => canonicalizeName(datatype.name) === wanted);
     }
 
     #compareNamespaces() {
@@ -487,13 +516,13 @@ class Comparison {
             }
 
             const path = [namespace.name];
-            const tags = new Map(namespace.children.map(tag => [canonicalize(tag.name), tag]));
-            const shadowTags = new Map((shadow?.children ?? []).map(tag => [canonicalize(tag.name), tag]));
+            const tags = new Map(namespace.children.map(tag => [canonicalizeName(tag.name), tag]));
+            const shadowTags = new Map((shadow?.children ?? []).map(tag => [canonicalizeName(tag.name), tag]));
 
             this.#value(
                 path,
                 "name",
-                canonicalize(chip.name),
+                canonicalizeName(chip.name),
                 namespaceName(namespace.name),
                 shadow === undefined ? undefined : namespaceName(shadow.name),
             );
@@ -501,7 +530,7 @@ class Comparison {
             const tagsSeen = new Set<string>();
 
             for (const chipTag of chip.children) {
-                const key = canonicalize(chipTag.name);
+                const key = canonicalizeName(chipTag.name);
                 tagsSeen.add(key);
 
                 const tag = tags.get(key);
@@ -535,13 +564,13 @@ class Comparison {
 
         for (const chip of this.#dm.globals) {
             const name = matterNameFor(chip.name) ?? chip.name;
-            const datatype = merged.datatypes(name);
+            const datatype = this.#globalDatatypeOf(chip.name);
 
             if (datatype === undefined) {
                 // We scope a type to the cluster that defines it where CHIP places it in global scope
                 const scoped = this.#scopedDatatype(name);
                 if (scoped === undefined) {
-                    this.#absent([chip.name], "datatype", unmodified.datatypes(name));
+                    this.#absent([chip.name], "datatype", this.#globalDatatypeOf(chip.name, unmodified));
                     continue;
                 }
 
@@ -558,7 +587,19 @@ class Comparison {
                 continue;
             }
 
-            this.#element([datatype.name], chip, datatype, unmodified.datatypes(name));
+            this.#element([datatype.name], chip, datatype, this.#globalDatatypeOf(chip.name, unmodified));
+        }
+
+        // CHIP publishes the global types the specification derives; our seed datatypes are the base types every
+        // cluster definition builds on, which CHIP states in each cluster instead of enumerating globally.  What CHIP
+        // states decides, not whether the pass above resolved it, so a name we fail to resolve is reported once
+        for (const datatype of merged.datatypes) {
+            const name = canonicalizeName(datatype.name);
+            if (datatype.isSeed || this.#globalDatatypes.has(name) || this.#globalDatatypes.has(aliasOf(name) ?? "")) {
+                continue;
+            }
+
+            this.#extra([datatype.name], "datatype", unmodified.datatypes(datatype.name) === undefined);
         }
     }
 
@@ -581,7 +622,7 @@ class Comparison {
         const metabase = model instanceof ValueModel ? model.metabase : undefined;
         if (
             metabase !== undefined &&
-            (canonicalize(metabase.name) === chipType || canonicalize(metabase.type) === chipType)
+            (canonicalizeName(metabase.name) === chipType || canonicalizeName(metabase.type) === chipType)
         ) {
             this.#report(Category.Tolerated, path, property, chipType, type);
             return;
@@ -683,13 +724,13 @@ class Comparison {
 
     #aspect(
         path: string[],
-        property: string,
+        property: ComparedAspect,
         chip: DmElement,
         model: Model,
         shadow?: Model,
         context: ElementContext = {},
     ) {
-        const chipValue = normalizeAspect(chip[property as "conformance"]?.toString(), property);
+        const chipValue = normalizeAspect(chip[property]?.toString(), property);
         if (chipValue === undefined) {
             return;
         }
@@ -775,7 +816,7 @@ function memberKey(model: Model) {
         return `${model.tag}:${model.isRequest ? "request" : "response"}:${model.id}`;
     }
     if (model.id === undefined) {
-        return `${model.tag}:${canonicalize(model.name)}`;
+        return `${model.tag}:${canonicalizeName(model.name)}`;
     }
     return `${model.tag}:${model.id}`;
 }
@@ -785,17 +826,17 @@ function chipKey(chip: DmElement) {
         return `${chip.tag}:${chip.direction ?? "request"}:${chip.id}`;
     }
     if (chip.id === undefined) {
-        return `${chip.tag}:${canonicalize(chip.name)}`;
+        return `${chip.tag}:${canonicalizeName(chip.name)}`;
     }
     return `${chip.tag}:${chip.id}`;
 }
 
-function requirementKey(model: Model) {
-    return `${(model as { element?: string }).element}:${canonicalize(model.name)}`;
+function requirementKey(model: RequirementModel) {
+    return `${model.element}:${canonicalizeName(model.name)}`;
 }
 
-function isRequirement(model: Model): model is Model {
-    return model.tag === ElementTag.Requirement;
+function isRequirement(model: Model): model is RequirementModel {
+    return model instanceof RequirementModel;
 }
 
 /**
@@ -811,11 +852,10 @@ function isClusterRequirement(chip: DmElement) {
     );
 }
 
-function isImplicitRequirement(model: Model) {
-    const element = (model as { element?: string }).element;
+function isImplicitRequirement(model: RequirementModel) {
     return (
-        element === RequirementElement.ElementType.DeviceType ||
-        element === RequirementElement.ElementType.Condition ||
+        model.element === RequirementElement.ElementType.DeviceType ||
+        model.element === RequirementElement.ElementType.Condition ||
         model.name === "Descriptor"
     );
 }
@@ -826,10 +866,10 @@ function isGlobal(model: Model) {
 
 /** Merge a derived CHIP element over the base element it refines */
 function inherit(derived: DmElement, base: DmElement): DmElement {
-    const children = new Map(base.children.map(child => [`${child.tag}:${canonicalize(child.name)}`, child]));
+    const children = new Map(base.children.map(child => [`${child.tag}:${canonicalizeName(child.name)}`, child]));
 
     for (const child of derived.children) {
-        const key = `${child.tag}:${canonicalize(child.name)}`;
+        const key = `${child.tag}:${canonicalizeName(child.name)}`;
         const inherited = children.get(key);
         children.set(key, inherited === undefined ? child : inherit(child, inherited));
     }
@@ -909,21 +949,43 @@ function resolvedClassification(cluster?: ClusterModel, depth = 0): string | und
     return cluster.classification ?? resolvedClassification(cluster.base as ClusterModel | undefined, depth + 1);
 }
 
-function effectiveAspect(model: Model | undefined, property: string) {
-    if (model === undefined) {
-        return;
-    }
+/** Only value models resolve aspects through inheritance; others carry the aspect directly */
+const MATTER_ASPECTS: Record<ComparedAspect, (model: Model) => { toString(): string } | undefined> = {
+    conformance(model) {
+        if (model instanceof ValueModel) {
+            return model.effectiveConformance;
+        }
+        if (model instanceof RequirementModel) {
+            return model.conformance;
+        }
+    },
 
-    // Only value models resolve aspects through inheritance; others carry the aspect directly
-    const properties = model as unknown as Record<string, unknown>;
-    const value =
-        properties[`effective${property.slice(0, 1).toUpperCase()}${property.slice(1)}`] ?? properties[property];
+    constraint(model) {
+        if (model instanceof ValueModel) {
+            return model.effectiveConstraint;
+        }
+        if (model instanceof RequirementModel) {
+            return model.constraint;
+        }
+    },
 
+    quality(model) {
+        if (model instanceof ValueModel || model instanceof ClusterModel) {
+            return model.effectiveQuality;
+        }
+        if (model instanceof RequirementModel) {
+            return model.quality;
+        }
+    },
+};
+
+function effectiveAspect(model: Model | undefined, aspect: ComparedAspect) {
+    const value = model === undefined ? undefined : MATTER_ASPECTS[aspect](model);
     return value === undefined ? undefined : `${value}`;
 }
 
 /** Aspects differ only in case and spacing between CHIP and our scrape of the specification's prose */
-function normalizeAspect(text?: string, property?: string) {
+function normalizeAspect(text?: string, property?: ComparedAspect) {
     if (text === undefined) {
         return;
     }
@@ -954,7 +1016,7 @@ function isToleratedQuality(chip: string, matter?: string) {
 
 /** We disambiguate a namespace from the cluster of the same name with a suffix */
 function namespaceName(name: string) {
-    return canonicalize(name.replace(/Namespace$/, ""));
+    return canonicalizeName(name.replace(/Namespace$/, ""));
 }
 
 function accessOf(model?: Model) {
@@ -971,14 +1033,7 @@ function responseOf(model?: Model) {
 
 /** Our type names carry the defining scope where CHIP relies on a single global namespace */
 function typeName(type?: string) {
-    return type === undefined ? undefined : canonicalize(type.slice(type.lastIndexOf(".") + 1));
-}
-
-function canonicalize(name: string): string;
-function canonicalize(name: string | undefined): string | undefined;
-
-function canonicalize(name?: string) {
-    return name === undefined ? undefined : name.toLowerCase().replace(/[^a-z\d]/g, "");
+    return type === undefined ? undefined : canonicalizeName(type.slice(type.lastIndexOf(".") + 1));
 }
 
 function hex(id?: number) {
@@ -986,7 +1041,7 @@ function hex(id?: number) {
 }
 
 function shadowName(model?: { name: string }) {
-    return model === undefined ? undefined : canonicalize(model.name);
+    return model === undefined ? undefined : canonicalizeName(model.name);
 }
 
 function shadowRevision(cluster?: ClusterModel) {
@@ -1004,7 +1059,7 @@ function describeOverride(path: string[]) {
 
     for (const segment of path) {
         const children: AnyElement[] = (element as { children?: AnyElement[] }).children ?? [];
-        const next = children.find(child => canonicalize(child.name) === canonicalize(segment));
+        const next = children.find(child => canonicalizeName(child.name) === canonicalizeName(segment));
         if (next === undefined) {
             break;
         }

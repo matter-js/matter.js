@@ -8,7 +8,13 @@ import { InternalError } from "@matter/main";
 import { Matter } from "@matter/model";
 import type { CertNodeRef, CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
-import { commissionByQr, LOG_TIMEOUT_MS, recordCommissionable, recordParse, thQrPayload } from "./tc-dd-support.js";
+import {
+    commissionByQr,
+    COMMISSIONING_LOG_TIMEOUT,
+    recordCommissionable,
+    recordParse,
+    thQrPayload,
+} from "./tc-dd-support.js";
 import { CommissionedRefs, expectCommandInvoke, record, requireId } from "./tc-support.js";
 
 const DESCRIPTOR = Matter.clusters.require("Descriptor");
@@ -128,7 +134,16 @@ certTest("TC-DD-3.21", {
                 await cx.controllers.dut.node(ref).invoke("OnOff", "on", {}, endpoint);
                 record(
                     cx,
-                    await expectCommandInvoke(th.log, th.flavor, endpoint, ON_OFF_ID, ON, [], from, LOG_TIMEOUT_MS),
+                    await expectCommandInvoke(
+                        th.log,
+                        th.flavor,
+                        endpoint,
+                        ON_OFF_ID,
+                        ON,
+                        [],
+                        from,
+                        COMMISSIONING_LOG_TIMEOUT,
+                    ),
                     `OnOff.on reached endpoint ${endpoint}`,
                 );
 

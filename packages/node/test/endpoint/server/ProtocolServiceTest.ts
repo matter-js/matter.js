@@ -204,28 +204,26 @@ describe("ProtocolServiceTest", () => {
             maxIntervalCeilingSeconds: 2,
         });
 
-        // Handle an updated report
-        const fabricAdded = interaction.receiveData(node, 3, 0);
+        // NOCs carries the "changes omitted" quality, so its subscription path stays silent
+        const fabricAdded = interaction.receiveData(node, 2, 0);
 
         // Create another fabric so we can capture subscription messages
         const fabric2 = await node.addFabric();
         let report = await MockTime.resolve(fabricAdded);
-        expect(report.attributes.length).equals(3);
+        expect(report.attributes.map(({ attributeData }) => attributeData?.path)).deep.equals([
+            FABRICS_PATH,
+            COMMISSIONED_FABRICS_PATH,
+        ]);
         expect(report.events.length).equals(0);
 
         const fabricsReport = report.attributes[0]?.attributeData;
-        expect(fabricsReport?.path).deep.equals(FABRICS_PATH);
         const decodedFabrics =
             fabricsReport?.data && TlvOfModel(OperationalCredentials.attributes.fabrics).decodeTlv(fabricsReport?.data);
         expect((decodedFabrics as { fabricIndex: number }[])?.map(({ fabricIndex }) => fabricIndex)).deep.equals([
             1, 2,
         ]);
 
-        const nocsReport = report.attributes[1]?.attributeData;
-        expect(nocsReport?.path).deep.equals(NOCS_PATH);
-
-        const commissionedFabricsReport = report.attributes[2]?.attributeData;
-        expect(commissionedFabricsReport?.path).deep.equals(COMMISSIONED_FABRICS_PATH);
+        const commissionedFabricsReport = report.attributes[1]?.attributeData;
 
         const commissionedFabricCount =
             commissionedFabricsReport?.data &&
@@ -233,7 +231,7 @@ describe("ProtocolServiceTest", () => {
         expect(commissionedFabricCount).deep.equals(2);
 
         // Remove the second fabric so we can capture the leave event notification
-        const fabricRemoved = interaction.receiveData(node, 3, 1);
+        const fabricRemoved = interaction.receiveData(node, 2, 1);
 
         await MockTime.resolve(fabric2.leave());
 

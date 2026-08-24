@@ -163,9 +163,10 @@ export const State = {
 
             const image = await State.container.image;
             const info = await image.inspect();
-            const chipCommit = formatSha(info.Config.Labels["org.opencontainers.image.revision"] ?? "(unknown)");
-            const imageVersion = info.Config.Labels["org.opencontainers.image.version"] ?? "(unknown)";
-            const arch = info.Architecture;
+            const labels = info.Config?.Labels;
+            const chipCommit = formatSha(labels?.["org.opencontainers.image.revision"] ?? "(unknown)");
+            const imageVersion = labels?.["org.opencontainers.image.version"] ?? "(unknown)";
+            const arch = info.Architecture || "(unknown)";
 
             progress.success(
                 `Initialized CHIP ${ansi.bold(chipCommit)} image ${ansi.bold(imageVersion)} for ${ansi.bold(arch)}`,
@@ -429,14 +430,17 @@ async function initialize() {
 async function configureContainer() {
     const docker = new Docker();
 
-    let platform = Constants.platform;
+    let platform: string | undefined = Constants.platform;
 
     if (Values.pullBeforeTesting) {
         await docker.pull(Constants.imageName, platform);
     } else if (Constants.selectedPlatform === undefined) {
-        // Without pull, use whatever platform is available unless explicitly configured
+        // Without pull, use whatever platform is available unless explicitly configured. A multi-arch
+        // image reports no architecture of its own — Docker 29 answers `inspect` with an empty string
+        // — and `linux/` is not a platform specifier it will accept on create, so leave it unset and
+        // let the daemon pick.
         const arch = (await Image(docker, Constants.imageName).inspect()).Architecture;
-        platform = `linux/${arch}`;
+        platform = arch ? `linux/${arch}` : undefined;
     }
 
     // chip-cert-bins publishes linux/arm64 only (no amd64 manifest exists at any tag). Bind-mounting
@@ -444,11 +448,12 @@ async function configureContainer() {
     // confusing "cannot execute: required file not found" deep inside a test run, so fail fast here
     // instead, before spending time on extraction.
     const chipBinsSelected = resolveChipBinsSource() === "cert-bins";
-    if (chipBinsSelected && !chipBinsPlatformSupported(platform)) {
+    if (chipBinsSelected && (platform === undefined || !chipBinsPlatformSupported(platform))) {
         throw new Error(
             `MATTER_CHIP_BINS_SOURCE=cert-bins requires the harness "chip" container to run ` +
                 `${CERT_BINS_PLATFORM} (chip-cert-bins publishes no other platform), but it is configured for ` +
-                `${platform}. Set MATTER_CHIP_PLATFORM=${CERT_BINS_PLATFORM} and point MATTER_CHIP_IMAGE at an ` +
+                `${platform ?? "whichever the daemon picks"}. Set MATTER_CHIP_PLATFORM=${CERT_BINS_PLATFORM} and ` +
+                `point MATTER_CHIP_IMAGE at an ` +
                 `${CERT_BINS_PLATFORM} build of the harness image, or unset MATTER_CHIP_BINS_SOURCE.`,
         );
     }

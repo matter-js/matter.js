@@ -269,6 +269,9 @@ export interface CertNodeApi {
      * A step needing the data versions of two clusters (TC-IDM-3.1 step 15) must obtain them from a
      * single `ReadRequest`, which is what the plan's procedure describes; issuing one read per cluster
      * would exercise a different interaction.
+     *
+     * A concrete path the device answers with a status **rejects**, matching {@link readAttribute}; a
+     * wildcard path's statuses are per-item results of the expansion and are dropped.
      */
     readAttributes(paths: AttributePathSpec[], options?: ReadAttributeOptions): Promise<AttributeReadEntry[]>;
     writeAttribute(path: AttributePathSpec, value: unknown, options?: TimedInteractionOptions): Promise<void>;
@@ -343,12 +346,17 @@ export interface CertNodeApi {
 /**
  * Thrown by a {@link ControllerAdapter} (or a {@link CertNodeApi} it returns) whose underlying
  * controller cannot express the requested operation — e.g. a {@link CertNodeApi.writeAttributes}
- * request chip-tool has no single command for. The step runner records such a step `skipped`
- * rather than failing the run; every other thrown value still fails and aborts it.
+ * request chip-tool has no single command for.
  *
  * Raise this before the operation has any observable effect (a commission, a write, a recorded
- * check). Raising it after a step already recorded evidence discards that evidence under a
- * `skipped` verdict instead of a `fail`.
+ * check). The step runner enforces that: a refusal reaching it before the step recorded anything is
+ * a `skipped` step, counted as a coverage gap in the run summary; a refusal arriving after the step
+ * recorded evidence fails and aborts the run, because the step did act and no later step can rest on
+ * a device state the bundle cannot describe.
+ *
+ * A controller that cannot do something at all should say so in its own PICS
+ * (see {@link controllerPicsOverridesFor}), which gates the step before it runs and keeps the rest of
+ * the run's coverage.
  */
 export class UnsupportedByControllerError extends Error {
     constructor(

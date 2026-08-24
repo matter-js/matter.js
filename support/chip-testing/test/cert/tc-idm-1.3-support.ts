@@ -4,17 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError } from "@matter/main";
+import { Duration, ImplementationError } from "@matter/main";
 import type { CheckRecord, LogFollower } from "@matter/testing";
 import { CertLogClosedError, CertLogTimeoutError } from "@matter/testing";
 import { ChipFault } from "./fault-injection.js";
-import {
-    commandPathIBSequence,
-    countMatches,
-    expectAdjacentLines,
-    expectSequence,
-    INVOKE_REQUEST_MESSAGE,
-} from "./tc-support.js";
+import { commandPathIBSequence, expectAdjacentLines, expectSequence, INVOKE_REQUEST_MESSAGE } from "./tc-support.js";
 
 /** A concrete command path of a batched invoke. */
 export interface BatchPath {
@@ -80,9 +74,16 @@ export function expectInjectedFault(
     flavor: string,
     fault: number,
     from: number,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<CheckRecord> {
-    return expectSequence(log, flavor, `fault ${fault} injected`, injectedFaultSequence(fault), from, timeoutMs);
+    return expectSequence(
+        log,
+        flavor,
+        `fault ${fault} injected`,
+        { chip: injectedFaultSequence(fault) },
+        from,
+        timeout,
+    );
 }
 
 /**
@@ -97,7 +98,7 @@ export function expectNoInjectedFault(log: LogFollower, flavor: string, from: nu
         return { type: "device-log", verdict: "unverified" };
     }
 
-    const count = countMatches(log, flavor, FAULT_INJECTED_LINE, from);
+    const count = log.count(FAULT_INJECTED_LINE, from);
     return {
         type: "device-log",
         verdict: count === 0 ? "pass" : "fail",
@@ -120,7 +121,7 @@ export function expectInvokeCount(log: LogFollower, flavor: string, from: number
         return { type: "device-log", verdict: "unverified" };
     }
 
-    const count = countMatches(log, flavor, INVOKE_REQUEST_MESSAGE, from);
+    const count = log.count(INVOKE_REQUEST_MESSAGE, from);
     return {
         type: "device-log",
         verdict: count === expected ? "pass" : "fail",
@@ -151,13 +152,24 @@ export async function expectBatchRequestPaths(
     flavor: string,
     paths: BatchPath[],
     from: number,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<CheckRecord> {
     const label = `InvokeRequestMessage with paths ${JSON.stringify(paths)}`;
 
     try {
-        const envelope = await expectAdjacentLines(log, flavor, [INVOKE_REQUEST_MESSAGE], from, timeoutMs);
+        const envelope = await expectAdjacentLines(log, flavor, { chip: [INVOKE_REQUEST_MESSAGE] }, from, timeout);
         if (envelope.verdict === "unverified") {
+            return { type: "device-log", verdict: "unverified" };
+        }
+
+        // The matched message's own closing line is located first, because it is what bounds
+        // everything below: a path or a command found past it belongs to a later request, which is
+        // the case this check exists to tell apart from one batch carrying them all.
+        const end = await log.expect(
+            { chip: INTERACTION_MODEL_REVISION },
+            { flavor, timeoutMs: timeout, from: envelope.last.index + 1 },
+        );
+        if (end.verdict === "unverified") {
             return { type: "device-log", verdict: "unverified" };
         }
 
@@ -166,24 +178,29 @@ export async function expectBatchRequestPaths(
             const block = await expectAdjacentLines(
                 log,
                 flavor,
-                commandPathIBSequence(endpoint, cluster, command),
+                { chip: commandPathIBSequence(endpoint, cluster, command) },
                 last.index + 1,
-                timeoutMs,
+                timeout,
             );
             if (block.verdict === "unverified") {
                 return { type: "device-log", verdict: "unverified" };
             }
+            if (block.last.index > end.matched.index) {
+                return {
+                    type: "device-log",
+                    verdict: "fail",
+                    pattern: label,
+                    detail:
+                        `endpoint ${endpoint} cluster ${cluster} command ${command} appears only after the ` +
+                        "request ended, so a later request carried it",
+                    logLine: block.last.index,
+                };
+            }
             last = block.last;
         }
 
-        const end = await log.expect({ chip: INTERACTION_MODEL_REVISION }, { flavor, timeoutMs, from: last.index + 1 });
-        if (end.verdict === "unverified") {
-            return { type: "device-log", verdict: "unverified" };
-        }
-
         const commands =
-            countMatches(log, flavor, COMMAND_DATA_IB, envelope.last.index) -
-            countMatches(log, flavor, COMMAND_DATA_IB, end.matched.index);
+            log.count(COMMAND_DATA_IB, envelope.last.index) - log.count(COMMAND_DATA_IB, end.matched.index);
         if (commands !== paths.length) {
             return {
                 type: "device-log",

@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { EncodedConstraint } from "#logic/EncodedConstraint.js";
+import { EncodedValue } from "#logic/EncodedValue.js";
 import { ModelTraversal } from "#logic/ModelTraversal.js";
 import { camelize } from "@matter/general";
 import { Access, Aspect, Conformance, Constraint, Quality } from "../../aspects/index.js";
@@ -12,6 +14,34 @@ import { CommandElement } from "../../elements/index.js";
 import { ClusterModel, CommandModel, Globals, Model, ValueModel } from "../../models/index.js";
 import { ModelValidator } from "./ModelValidator.js";
 import { ValidationExceptions } from "./ValidationExceptions.js";
+
+const INTEGER_TYPE = /^u?int(8|16|24|32|40|48|56|64)$/;
+const UNSIGNED_TYPE = /^uint(8|16|24|32|40|48|56|64)$/;
+
+function list(values: FieldValue[]) {
+    return values.map(value => FieldValue.serialize(value)).join(" and ");
+}
+
+/** Group bounds by the type that decides what they may state, which for a list entry is not the type of the list */
+function groupBy<T>(bounds: EncodedConstraint.Bound<T>[], keyOf: (model: ValueModel) => string | undefined) {
+    const groups = new Map<string, T[]>();
+
+    for (const { value, model } of bounds) {
+        const key = keyOf(model);
+        if (key === undefined) {
+            continue;
+        }
+
+        const group = groups.get(key);
+        if (group === undefined) {
+            groups.set(key, [value]);
+        } else {
+            group.push(value);
+        }
+    }
+
+    return groups;
+}
 
 /**
  * Validates models that extend DataModel.
@@ -34,10 +64,103 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         this.#validateAspect("access");
         this.#validateAspect("quality");
 
+        // After the type is validated, which is where a default stated as text becomes the value it denotes.  A unit
+        // in particular is only a unit once cast; judging the text would see its digits and not its scale.  The cast
+        // discards what it cannot represent, so what was stated is kept to notice that
+        const stated = this.model.default;
         this.#validateType();
+        this.#validateNumericValues(stated);
         this.#validateEntries();
 
         super.validate();
+    }
+
+    /**
+     * Every number a value states — the bounds of its constraint and its default — must mean something for the type
+     * that carries it.
+     *
+     * A bound the specification writes with a unit, such as the "0 to 12.7°C" of a `SignedTemperature`, only
+     * constrains once restated in the units the value is encoded in.  A unit left in place does not fail closed: as a
+     * range it admits every value, and as an exact value it admits none.  Nor can an integer hold a fraction or an
+     * unsigned integer a negative, so a specification that states either is describing something the encoding cannot
+     * represent.
+     *
+     * This reads what the model states rather than what it inherits, so one bad definition is reported once instead
+     * of once per model deriving from it.
+     */
+    #validateNumericValues(stated?: FieldValue) {
+        const encoded = new Array<EncodedConstraint.Bound<number | bigint>>();
+        const unscaled = new Array<EncodedConstraint.Bound<FieldValue>>();
+
+        const constraint = this.model.constraint;
+        if (!constraint.isEmpty) {
+            const bounds = EncodedConstraint.bounds(constraint, this.model);
+            encoded.push(...bounds.encoded);
+            unscaled.push(...bounds.unscaled);
+        }
+
+        // A number states itself; only a unit needs converting.  Asking for the encoded form of every default would
+        // lose one too large to be a number, which is where the values of a 64 bit type live
+        const fallback = this.model.default;
+        let reportedUnit = false;
+        if (typeof fallback === "number" || typeof fallback === "bigint") {
+            encoded.push({ value: fallback, model: this.model });
+        } else if (fallback !== undefined) {
+            const value = EncodedValue(this.model, fallback);
+            if (value !== undefined) {
+                encoded.push({ value, model: this.model });
+            } else if (FieldValue.is(fallback, FieldValue.percent) || FieldValue.is(fallback, FieldValue.celsius)) {
+                unscaled.push({ value: fallback, model: this.model });
+                reportedUnit = true;
+            }
+        }
+
+        // The cast erases a unit it cannot place, whether by dropping the default or by rendering it as the type it
+        // could not scale to — a percentage on a string leaves "[object Object]" behind
+        if (
+            !reportedUnit &&
+            stated !== undefined &&
+            (FieldValue.is(stated, FieldValue.percent) || FieldValue.is(stated, FieldValue.celsius)) &&
+            EncodedValue(this.model, stated) === undefined
+        ) {
+            unscaled.push({ value: stated, model: this.model });
+        }
+
+        for (const [type, values] of groupBy(unscaled, model => model.effectiveType)) {
+            this.error(
+                "UNIT_WITHOUT_SCALE",
+                `${list(values)} state${values.length === 1 ? "s" : ""} a unit that type ${type} gives no scale ` +
+                    `for, so the value has no numeric meaning`,
+            );
+        }
+
+        for (const [primitive, values] of groupBy(encoded, model => model.primitiveBase?.name)) {
+            if (INTEGER_TYPE.test(primitive)) {
+                // Casting one of these to an integer throws, so the guard in #validateType leaves it alone; without a
+                // word here it would pass silently
+                const unrepresentable = values.filter(value => typeof value === "number" && !Number.isFinite(value));
+                if (unrepresentable.length) {
+                    this.error("INVALID_VALUE", `${list(unrepresentable)} is not a number ${primitive} can hold`);
+                }
+
+                const fractional = values.filter(
+                    value => typeof value === "number" && Number.isFinite(value) && !Number.isInteger(value),
+                );
+                if (fractional.length) {
+                    this.error("FRACTION_ON_INTEGER_TYPE", `${list(fractional)} cannot be held by ${primitive}`);
+                }
+            }
+
+            if (UNSIGNED_TYPE.test(primitive)) {
+                // A value that is no number at all is reported above; reporting it again as negative says nothing
+                const negative = values.filter(
+                    value => (typeof value === "bigint" || Number.isFinite(value)) && value < 0,
+                );
+                if (negative.length) {
+                    this.error("NEGATIVE_ON_UNSIGNED_TYPE", `${list(negative)} cannot be held by ${primitive}`);
+                }
+            }
+        }
     }
 
     /**
@@ -150,6 +273,12 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
             // In this case though the data likely comes from the spec so we're going to take a flyer and say you can
             // never have "empty" as a default value
             delete this.model.default;
+            return;
+        }
+
+        // A fraction has no integer form, and casting it throws rather than saying so.  The numeric validation above
+        // has already reported it, so leave the default as stated
+        if (metatype === Metatype.integer && typeof defaultValue === "number" && !Number.isInteger(defaultValue)) {
             return;
         }
 

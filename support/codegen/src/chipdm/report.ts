@@ -4,12 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { compareVersions } from "./chip-data-model.js";
 import { Category, Finding } from "./compare.js";
 import { DataModel } from "./data-model.js";
-
-/** The earliest version whose differences we have reviewed and explained */
-const CALIBRATED_FOR = "1.6.0";
+import { CALIBRATED_FOR, compareVersions } from "./version.js";
 
 const HEADINGS: Record<Category, string> = {
     [Category.Mismatch]: "Mismatches",

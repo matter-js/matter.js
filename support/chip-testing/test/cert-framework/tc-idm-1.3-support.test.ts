@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Millis } from "@matter/main";
 import { LineQueue, LogFollower } from "@matter/testing";
 import { expect } from "chai";
 import { ChipFault } from "../cert/fault-injection.js";
@@ -136,7 +137,7 @@ describe("injectedFaultSequence", () => {
 describe("expectInjectedFault", () => {
     it("records the fault the TH announced", async () => {
         const check = await withFollower(faultLines(ChipFault.imInvokeSkipSecondResponse), follower =>
-            expectInjectedFault(follower, "chip-local", ChipFault.imInvokeSkipSecondResponse, 0, 500),
+            expectInjectedFault(follower, "chip-local", ChipFault.imInvokeSkipSecondResponse, 0, Millis(500)),
         );
 
         expect(check.verdict).equal("pass");
@@ -145,7 +146,7 @@ describe("expectInjectedFault", () => {
 
     it("fails when a different fault fired", async () => {
         const check = await withFollower(faultLines(ChipFault.imInvokeSeparateResponses), follower =>
-            expectInjectedFault(follower, "chip-local", ChipFault.imInvokeSkipSecondResponse, 0, 200),
+            expectInjectedFault(follower, "chip-local", ChipFault.imInvokeSkipSecondResponse, 0, Millis(200)),
         );
 
         expect(check.verdict).equal("fail");
@@ -153,7 +154,7 @@ describe("expectInjectedFault", () => {
 
     it("is unverified for a matterjs device", async () => {
         const check = await withFollower([], follower =>
-            expectInjectedFault(follower, "matterjs", ChipFault.imInvokeSeparateResponses, 0, 200),
+            expectInjectedFault(follower, "matterjs", ChipFault.imInvokeSeparateResponses, 0, Millis(200)),
         );
 
         expect(check.verdict).equal("unverified");
@@ -227,7 +228,7 @@ describe("expectInvokeCount", () => {
 describe("expectBatchRequestPaths", () => {
     it("records both command paths of the request", async () => {
         const check = await withFollower(batchRequestLines(PATHS), follower =>
-            expectBatchRequestPaths(follower, "chip-local", PATHS, 0, 500),
+            expectBatchRequestPaths(follower, "chip-local", PATHS, 0, Millis(500)),
         );
 
         expect(check.verdict).equal("pass");
@@ -236,7 +237,7 @@ describe("expectBatchRequestPaths", () => {
 
     it("fails when the paths arrived in the other order", async () => {
         const check = await withFollower(batchRequestLines([PATHS[1], PATHS[0]]), follower =>
-            expectBatchRequestPaths(follower, "chip-local", PATHS, 0, 200),
+            expectBatchRequestPaths(follower, "chip-local", PATHS, 0, Millis(200)),
         );
 
         expect(check.verdict).equal("fail");
@@ -244,7 +245,7 @@ describe("expectBatchRequestPaths", () => {
 
     it("fails when a requested path is absent", async () => {
         const check = await withFollower(batchRequestLines([PATHS[0]]), follower =>
-            expectBatchRequestPaths(follower, "chip-local", PATHS, 0, 200),
+            expectBatchRequestPaths(follower, "chip-local", PATHS, 0, Millis(200)),
         );
 
         expect(check.verdict).equal("fail");
@@ -253,7 +254,7 @@ describe("expectBatchRequestPaths", () => {
     it("fails when the request carried a command beside the expected ones", async () => {
         const extra: BatchPath = { endpoint: 1, cluster: ON_OFF, command: 0x2 };
         const check = await withFollower([...batchRequestLines([PATHS[0], extra, PATHS[1]])], follower =>
-            expectBatchRequestPaths(follower, "chip-local", PATHS, 0, 500),
+            expectBatchRequestPaths(follower, "chip-local", PATHS, 0, Millis(500)),
         );
 
         expect(check.verdict).equal("fail");
@@ -264,15 +265,24 @@ describe("expectBatchRequestPaths", () => {
         // Buffered, so a later request's commands are actually in reach of the count being bounded.
         const check = await withBufferedFollower(
             [...batchRequestLines(PATHS), ...batchRequestLines([PATHS[0]])],
-            follower => expectBatchRequestPaths(follower, "chip-local", PATHS, 0, 500),
+            follower => expectBatchRequestPaths(follower, "chip-local", PATHS, 0, Millis(500)),
         );
 
         expect(check.verdict).equal("pass");
     });
 
+    it("fails when two separate requests carried one command each instead of one batch", async () => {
+        const check = await withBufferedFollower(
+            [...batchRequestLines([PATHS[0]]), ...batchRequestLines([PATHS[1]])],
+            follower => expectBatchRequestPaths(follower, "chip-local", PATHS, 0, Millis(500)),
+        );
+
+        expect(check.verdict).equal("fail");
+    });
+
     it("is unverified for a matterjs device", async () => {
         const check = await withFollower(batchRequestLines(PATHS), follower =>
-            expectBatchRequestPaths(follower, "matterjs", PATHS, 0, 200),
+            expectBatchRequestPaths(follower, "matterjs", PATHS, 0, Millis(200)),
         );
 
         expect(check.verdict).equal("unverified");

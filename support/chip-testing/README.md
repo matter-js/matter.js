@@ -233,9 +233,20 @@ attached log stream (`device-<role>.log`, `controller-<name>.log`). Sketch of `r
 }
 ```
 
-`verdict` (both run-level and per-step) is one of `"pass" | "fail" | "skipped"` (steps also have
-`"aborted"`, for a step never reached after an earlier one failed). A run-level `"skipped"` means
-every step was skipped (a flavor or PICS gap) — not a failure.
+A run-level `verdict` is one of `"pass" | "fail" | "skipped" | "incomplete"`; a step's is
+`"pass" | "fail" | "skipped" | "aborted"` (`"aborted"` for a step never reached after an earlier one
+failed). A run-level `"skipped"` means every step was skipped (a flavor or PICS gap) — not a failure.
+
+`"incomplete"` means the run never reached the point where its verdict is settled: a teardown that
+hung, a process killed mid-run, a volume that stopped accepting writes. Treat it as a failure of the
+run, not a statement about the device.
+
+Alongside `verdict`, a failed run carries `runError` (how the run's own runner reported the failure)
+and, where they apply, `deviceExit`, `finalizationError` (cleanup threw), `teardownError` (a
+controller or device would not close) and `evidenceError` (evidence the checks cite could not be
+assembled). `unverifiedChecks` counts checks whose claim could not be evaluated at all, and
+`controllerUnsupportedSkips` counts steps the controller could not express — both are gaps in what a
+passing run proved, not failures.
 
 Every attached `.log` file also carries a step-boundary banner (chip python/yaml style) at the point
 a step starts and again when it ends, e.g.:
