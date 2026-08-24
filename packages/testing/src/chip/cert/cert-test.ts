@@ -84,7 +84,9 @@ export class CertTest extends BaseTest {
                 recorded.check(record);
                 if (record.verdict === "unverified") {
                     unverifiedChecks++;
-                    if (record.accepted === undefined) {
+                    // A blank reason accounts for nothing: an empty string would otherwise pass a step
+                    // off as proven on a field somebody forgot to fill in.
+                    if (record.accepted === undefined || record.accepted.trim() === "") {
                         unaccountedThisStep++;
                     }
                 }

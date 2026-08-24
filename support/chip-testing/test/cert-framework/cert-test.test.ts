@@ -2594,6 +2594,44 @@ describe("CertTest", () => {
         ]);
     });
 
+    it("counts a blank reason as no reason at all", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step whose gap was declared with an empty reason",
+                    run: async cx => {
+                        cx.recorder.check({ type: "response", verdict: "unverified", accepted: "   " });
+                    },
+                },
+            ],
+        };
+
+        const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                endStep(step, verdict) {
+                    endStepVerdicts.push({ number: step.number, verdict });
+                    return [];
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            "1 step ended with a check that could not be evaluated",
+        );
+
+        expect(endStepVerdicts).deep.equal([{ number: 1, verdict: "unverified" }]);
+    });
+
     it("fails a step whose second check went unverified although the first one stated its own gap", async () => {
         const definition: CertTestDefinition = {
             tc: "TC-CADMIN-1.17",

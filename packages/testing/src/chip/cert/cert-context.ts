@@ -83,7 +83,8 @@ export interface CheckRecord {
      * Why an `"unverified"` verdict here is expected rather than a gap to close — a claim this device
      * or controller cannot exhibit at all, as against a pattern nobody has written yet. Such a check
      * leaves its step at `"pass"`; every other unverified check makes the step `"unverified"` and fails
-     * the run. Ignored for a `"pass"`/`"fail"` verdict, which state what was observed.
+     * the run, a blank reason included, since a field left empty accounts for nothing. Ignored for a
+     * `"pass"`/`"fail"` verdict, which state what was observed.
      */
     accepted?: string;
 }

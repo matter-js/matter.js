@@ -315,18 +315,28 @@ describe("subscribeAndModify", () => {
     });
 
     it("leaves the shortfall a gap to close on any other controller", async () => {
-        const fixture = new Fixture("chip-local", (f, _index) => {
-            f.pushReport(SUBSCRIPTION_ID);
-            f.report(true);
-        });
+        const originalController = env.MATTER_CERT_CONTROLLER;
+        env.MATTER_CERT_CONTROLLER = "matterjs";
+        try {
+            const fixture = new Fixture("chip-local", (f, _index) => {
+                f.pushReport(SUBSCRIPTION_ID);
+                f.report(true);
+            });
 
-        await withFixture(fixture, async f => {
-            await f.run(VALUES, IMPATIENT);
+            await withFixture(fixture, async f => {
+                await f.run(VALUES, IMPATIENT);
 
-            const unverified = f.checks.filter(check => check.verdict === "unverified");
-            expect(unverified).to.have.lengthOf(1);
-            expect(unverified[0].accepted).equal(undefined);
-        });
+                const unverified = f.checks.filter(check => check.verdict === "unverified");
+                expect(unverified).to.have.lengthOf(1);
+                expect(unverified[0].accepted).equal(undefined);
+            });
+        } finally {
+            if (originalController === undefined) {
+                delete env.MATTER_CERT_CONTROLLER;
+            } else {
+                env.MATTER_CERT_CONTROLLER = originalController;
+            }
+        }
     });
 
     it("records the mismatch when a report carries a value nobody wrote", async () => {
