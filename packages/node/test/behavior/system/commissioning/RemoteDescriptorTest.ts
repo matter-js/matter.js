@@ -44,6 +44,57 @@ describe("RemoteDescriptor", () => {
             expect(back.deviceIdentifier).equals("test-device-123");
         });
 
+        it("preserves hostname", () => {
+            const device: CommissionableDevice = {
+                deviceIdentifier: "d",
+                hostname: "0011223344550000",
+                addresses: [udp("fd00::1")],
+                D: 100,
+                CM: 1,
+            };
+
+            const long = RemoteDescriptor.toLongForm(device);
+            const back = RemoteDescriptor.fromLongForm(long);
+
+            expect(long.hostname).equals("0011223344550000");
+            expect(back.hostname).equals("0011223344550000");
+        });
+
+        it("clears a hostname the device no longer names, rather than keeping the last one", () => {
+            const long = RemoteDescriptor.toLongForm({
+                deviceIdentifier: "d",
+                hostname: "0011223344550000",
+                addresses: [udp("fd00::1")],
+                D: 100,
+                CM: 1,
+            });
+
+            // A device whose SRV expired reports no host, and a host nothing has answered on must not
+            // stay on record
+            RemoteDescriptor.toLongForm(
+                { deviceIdentifier: "d", hostname: undefined, addresses: [udp("fd00::1")], D: 100, CM: 1 },
+                long,
+            );
+
+            expect(long.hostname).equals(undefined);
+        });
+
+        it("leaves a known host alone for a caller that carries no host at all", () => {
+            const long = RemoteDescriptor.toLongForm({
+                deviceIdentifier: "d",
+                hostname: "0011223344550000",
+                addresses: [udp("fd00::1")],
+                D: 100,
+                CM: 1,
+            });
+
+            // Half of toLongForm's callers pass a bare DiscoveryData, which cannot name a host; erasing
+            // on their behalf would drop what discovery stored
+            RemoteDescriptor.toLongForm({ DN: "a device" }, long);
+
+            expect(long.hostname).equals("0011223344550000");
+        });
+
         it("preserves discriminator (D field)", () => {
             const device: CommissionableDevice = {
                 deviceIdentifier: "d",
