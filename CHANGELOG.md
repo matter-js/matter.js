@@ -36,6 +36,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A default stating a number no integer form matches, such as `1e-3`, is rejected instead of stored as the digits preceding the exponent
     - Fix: `FieldValue.cast()` treats "no value" as a value of every type, so an override removes a default rather than making the value invalid
     - Fix: A rejected default is reported as the value it states and the type that rejected it
+    - Fix: `ValidateModel()` no longer writes a normalized default to a final model, which threw because a final model is frozen; it reports on such a model without normalizing it
     - Fix: A percentage on a type other than `percent` or `percent100ths` no longer resolves to the printed number as though it were already encoded
     - Fix: A constraint bound's unit takes its scale from the types the value derives from, not from its own type name alone
     - Enhancement: New `Scope.isMandatory()` tells whether a member is mandatory under a schema's supported features, and the new `MandatoryDefaultValue()` computes the value such a member assumes when no real value exists (schema default, else the specification's fallback value, recursing into structs) — the basis for what an unreported client node attribute reads, usable wherever schema-derived fallback values are needed; `SelectDefaultValue()` exposes the shallow variant used for server state seeding

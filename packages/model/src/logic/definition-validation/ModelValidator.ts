@@ -30,13 +30,6 @@ export class ModelValidator<T extends Model> {
             }
         }
 
-        if (this.model.xref) {
-            const parentXref = this.model.parent?.effectiveXref;
-            if (parentXref && this.model.xref === parentXref) {
-                delete this.model.xref;
-            }
-        }
-
         this.validateChildUniqueness();
     }
 
