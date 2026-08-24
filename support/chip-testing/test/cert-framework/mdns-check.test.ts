@@ -70,10 +70,8 @@ certTest("FRAMEWORK-MDNS-CHECK", { plan: "n/a", pics: [], app: "all-clusters" })
                 detail: `absence check against a live record correctly failed (${liveContradictsAbsence.detail})`,
             });
 
-            // Flag first: a throw here leaves the fabric's state unknown, and a second decommission
-            // attempt from the finally would replace this error with its own.
-            fabricLive = false;
             await dut.node(ref).decommission();
+            fabricLive = false;
 
             const start = Time.nowUs;
             const withdrawn = await expectMdns(
@@ -98,7 +96,12 @@ certTest("FRAMEWORK-MDNS-CHECK", { plan: "n/a", pics: [], app: "all-clusters" })
             }
         } finally {
             if (fabricLive) {
-                await dut.node(ref).decommission();
+                try {
+                    await dut.node(ref).decommission();
+                } catch (error) {
+                    // Best-effort: the step's own failure is the one mocha must report
+                    console.warn("FRAMEWORK-MDNS-CHECK could not decommission its fabric:", error);
+                }
             }
         }
     });

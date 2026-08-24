@@ -6,7 +6,7 @@
 
 import { OperationalCredentials } from "@matter/main/clusters";
 import { PeerCommunicationError } from "@matter/main/protocol";
-import { StatusResponseError } from "@matter/main/types";
+import { StatusResponseError, ValidationError } from "@matter/main/types";
 import type { LogExpectPatterns } from "@matter/testing";
 import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
 import { NoCommissionedPeerError } from "../../src/cert/InProcessControllerAdapter.js";
@@ -64,10 +64,14 @@ export function fabricSessionsEnded(fabricIndex: number): LogExpectPatterns {
  * network"). chip-tool reports {@link ChipToolCommandError} — its output cannot separate a failed
  * device interaction from every other command failure, so on those legs this only excludes a
  * controller that would not start or crashed — or a status the device answered with
- * ({@link StatusResponseError}). Anything else says nothing about the removal and must not pass the
- * step.
+ * ({@link StatusResponseError}). {@link ValidationError} is a {@link StatusResponseError} but is the
+ * client's own encode-time rejection before anything goes on the wire, so it proves nothing here.
+ * Anything else says nothing about the removal and must not pass the step.
  */
 export function isPostRemovalRefusal(error: unknown): boolean {
+    if (error instanceof ValidationError) {
+        return false;
+    }
     return (
         error instanceof NoCommissionedPeerError ||
         error instanceof PeerCommunicationError ||

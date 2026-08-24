@@ -6,7 +6,7 @@
 
 import { ImplementationError, Millis } from "@matter/main";
 import { PeerCommunicationError } from "@matter/main/protocol";
-import { Status, StatusResponseError } from "@matter/main/types";
+import { Status, StatusResponseError, ValidationError } from "@matter/main/types";
 import type { LogExpectPatterns } from "@matter/testing";
 import { LineQueue, LogFollower } from "@matter/testing";
 import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
@@ -144,6 +144,10 @@ describe("TC-CADMIN-1.17's post-removal refusal predicate", () => {
         expect(isPostRemovalRefusal(new ImplementationError("writeAttribute requires a concrete path"))).equal(false);
         expect(isPostRemovalRefusal(new Error("spawn ENOENT"))).equal(false);
         expect(isPostRemovalRefusal(undefined)).equal(false);
+    });
+
+    it("does not accept the client's own encode-time rejection", () => {
+        expect(isPostRemovalRefusal(new ValidationError("Value out of range", "nodeLabel"))).equal(false);
     });
 });
 
