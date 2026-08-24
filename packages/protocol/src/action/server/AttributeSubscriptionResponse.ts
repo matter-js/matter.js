@@ -59,7 +59,7 @@ export class AttributeSubscriptionResponse<
 
     protected override addConcrete(path: ReadResult.ConcreteAttributePath) {
         const { endpointId, clusterId, attributeId } = path;
-        if (this.#dirty[endpointId]?.[clusterId]?.has(attributeId) === undefined) {
+        if (!this.#dirty[endpointId]?.[clusterId]?.has(attributeId)) {
             return;
         }
         super.addConcrete(path);

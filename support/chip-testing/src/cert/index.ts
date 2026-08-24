@@ -140,7 +140,7 @@ class MatterJsCertDevice implements CertDevice {
     }
 
     backchannel(command: BackchannelCommand) {
-        return this.#inner.backchannel(command);
+        return runTaggedForDevice(this.#id, () => this.#inner.backchannel(command));
     }
 }
 

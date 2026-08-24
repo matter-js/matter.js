@@ -80,7 +80,6 @@ import {
     CaseAuthenticatedTag,
     CommissioningFlowType,
     DeviceTypeId,
-    DiscoveryCapabilitiesBitmap,
     DiscoveryCapabilitiesSchema,
     FabricIndex,
     ManualPairingCodeCodec,
@@ -88,7 +87,6 @@ import {
     QrPairingCodeCodec,
     Status,
     StatusResponseError,
-    TypeFromPartialBitSchema,
     VendorId,
 } from "@matter/types";
 import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
@@ -852,6 +850,18 @@ export namespace CommissioningClient {
         addresses?: ServerAddress[];
 
         /**
+         * The host named by the SRV record of the device's commissionable advertisement, as the
+         * responder wrote it.
+         *
+         * Operational discovery does not report a host, so this stays what commissioning found while
+         * {@link addresses} goes on being refreshed.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 4.3.1
+         */
+        @field(string, nonvolatile)
+        hostname?: string;
+
+        /**
          * Time at which the device was discovered.
          */
         @field(systimeMs, nonvolatile)
@@ -1031,12 +1041,6 @@ export namespace CommissioningClient {
          * Defaults to 30 seconds.
          */
         timeout?: Duration;
-
-        /**
-         * Discovery capabilities to use for discovery. These are included in the QR code normally and defined if BLE
-         * is supported for initial commissioning.
-         */
-        discoveryCapabilities?: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap>;
 
         /**
          * The initial read/subscription used to populate node data.

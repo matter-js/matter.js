@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Millis } from "@matter/main";
 import { LineQueue, LogFollower } from "@matter/testing";
+import type { TimedInteraction } from "../cert/tc-idm-5.1-support.js";
 import {
     expectTimedFollowUp,
     expectTimedRequest,
@@ -12,9 +14,8 @@ import {
     timedRequestSequence,
     timestampMsOf,
 } from "../cert/tc-idm-5.1-support.js";
-import { INVOKE_REQUEST_MESSAGE, WRITE_REQUEST_MESSAGE } from "../cert/tc-support.js";
 
-const TIMEOUT_MS = 200;
+const TIMEOUT = Millis(200);
 
 /** One chip log line: its own timestamp prefix, then the module tag the matchers anchor on. */
 function line(atMs: number, text: string) {
@@ -37,7 +38,7 @@ function timedRequestLines(atMs: number, category: "S" | "U" | "G" = "S") {
         receipt(atMs, category, "0a (IM:TimedRequest)"),
         line(atMs, "[DMG] TimedRequestMessage ="),
         line(atMs, "[DMG] {"),
-        line(atMs, `[DMG] \tTimeoutMs = 0x${TIMEOUT_MS.toString(16)},`),
+        line(atMs, `[DMG] \tTimeoutMs = 0x${TIMEOUT.toString(16)},`),
         line(atMs, "[DMG] }"),
     ];
 }
@@ -68,6 +69,133 @@ async function withFollower<T>(lines: string[], body: (follower: LogFollower) =>
     }
 }
 
+describe("the timed-interaction checks against a matter.js TH", () => {
+    // matter.js's own lines, captured from a matterjs-vs-matterjs certification run. It names the
+    // session and the exchange on the timed request itself, and clears the interaction the follow-up
+    // consumed by that exchange's decimal id (0x69e4 = 27108).
+    const SESSION = "@1:b3e096d0761f85d9•8657";
+    const EXCHANGE = "69e4";
+
+    function at(millis: number) {
+        const iso = new Date(T0 + millis).toISOString();
+        return `${iso.slice(0, 10)} ${iso.slice(11, 23)}`;
+    }
+
+    const timedRequest = (session = SESSION, exchange = EXCHANGE, interval = "200ms") =>
+        `${at(0)} DEBUG InteractionServer Timed request « ${session}⇵${exchange} interval: ${interval}`;
+    const followUpMessage = (afterMs: number, kind = "InvokeRequest", exchange = EXCHANGE, session = SESSION) =>
+        `${at(afterMs)} DEBUG MessageExchange Message « for: I/${kind} id: ${session}⇵${exchange}✉0133414f type: 0x1/0x8 reqAck size: 35`;
+    const cleared = (afterMs: number, exId = parseInt(EXCHANGE, 16), session = SESSION) =>
+        `${at(afterMs)} DEBUG MessageExchange Clearing timed interaction exId: ${exId} via: ${session}@udp://[fe80::1%eth0]:36923`;
+
+    async function timedAndFollowUp(lines: string[], interaction: TimedInteraction = "invoke") {
+        return withFollower(lines, async follower => {
+            const timed = await expectTimedRequest(follower, "matterjs", TIMEOUT, 0, Millis(200));
+            return {
+                timed,
+                followUp: await expectTimedFollowUp(follower, "matterjs", interaction, timed, TIMEOUT, Millis(200)),
+            };
+        });
+    }
+
+    it("finds the timed request naming the interval the step asked for", async () => {
+        const { timed } = await timedAndFollowUp([timedRequest(), followUpMessage(10), cleared(10)]);
+
+        expect(timed.outcome).equal("found");
+        expect(timed.check.verdict).equal("pass");
+    });
+
+    it("does not accept a timed request asking for another interval", async () => {
+        const { timed } = await timedAndFollowUp([timedRequest(SESSION, EXCHANGE, "2s")]);
+
+        expect(timed.outcome).equal("failed");
+        expect(timed.check.verdict).equal("fail");
+    });
+
+    it("reads the session the request arrived on off the request's own line", async () => {
+        const { timed } = await withFollower([timedRequest()], async follower => ({
+            timed: await expectTimedRequest(follower, "matterjs", TIMEOUT, 0, Millis(200)),
+        }));
+
+        expect(expectUnicastReceipt(timed).verdict).equal("pass");
+        expect(expectUnicastReceipt(timed).detail).contains(EXCHANGE);
+    });
+
+    it("fails a timed request that arrived over a group session", async () => {
+        const { timed } = await withFollower([timedRequest("•group#4f2b")], async follower => ({
+            timed: await expectTimedRequest(follower, "matterjs", TIMEOUT, 0, Millis(200)),
+        }));
+
+        expect(expectUnicastReceipt(timed).verdict).equal("fail");
+    });
+
+    it("passes when the follow-up arrives on the same exchange and is taken as the timed one", async () => {
+        const { followUp } = await timedAndFollowUp([timedRequest(), followUpMessage(20), cleared(20)]);
+
+        expect(followUp.verdict).equal("pass");
+        expect(followUp.detail).contains("20.0ms");
+    });
+
+    it("passes for a write, whose message matter.js does not flag at all", async () => {
+        const { followUp } = await timedAndFollowUp(
+            [timedRequest(), followUpMessage(5, "WriteRequest"), cleared(5)],
+            "write",
+        );
+
+        expect(followUp.verdict).equal("pass");
+    });
+
+    it("does not take another exchange's message for this timed request's follow-up", async () => {
+        const { followUp } = await timedAndFollowUp([
+            timedRequest(),
+            followUpMessage(10, "InvokeRequest", "69e5"),
+            cleared(10, parseInt("69e5", 16)),
+        ]);
+
+        expect(followUp.verdict).equal("fail");
+    });
+
+    it("does not accept a message the device never treated as the timed interaction", async () => {
+        const { followUp } = await timedAndFollowUp([timedRequest(), followUpMessage(10)]);
+
+        expect(followUp.verdict).equal("fail");
+    });
+
+    it("does not take another session's identically numbered exchange for this one", async () => {
+        // An exchange id is unique only within a session, so a second CASE session can hold one with
+        // the same number at the same time.
+        const OTHER = "@1:b3e096d0761f85d9•9f2c";
+        const { followUp } = await timedAndFollowUp([
+            timedRequest(),
+            followUpMessage(10, "InvokeRequest", EXCHANGE, OTHER),
+            cleared(10, parseInt(EXCHANGE, 16), OTHER),
+        ]);
+
+        expect(followUp.verdict).equal("fail");
+    });
+
+    it("does not accept another session clearing its own timed interaction as this one's proof", async () => {
+        const { followUp } = await timedAndFollowUp([
+            timedRequest(),
+            followUpMessage(10),
+            cleared(10, parseInt(EXCHANGE, 16), "@1:b3e096d0761f85d9•9f2c"),
+        ]);
+
+        expect(followUp.verdict).equal("fail");
+    });
+
+    it("fails a follow-up that arrived after the window it was promised", async () => {
+        const { followUp } = await timedAndFollowUp([
+            timedRequest(),
+            followUpMessage(TIMEOUT + 100),
+            cleared(TIMEOUT + 100),
+        ]);
+
+        expect(followUp.verdict).equal("fail");
+        expect(followUp.detail).contains("300.0ms");
+    });
+});
+
 describe("timestampMsOf", () => {
     it("reads a millisecond fraction, as the harness image's own build prints", () => {
         expect(timestampMsOf("[1786711488.301] [42:42] [DMG] x")).equal(1786711488_301);
@@ -84,7 +212,7 @@ describe("timestampMsOf", () => {
 
 describe("timedRequestSequence", () => {
     it("asks for the timeout in chip's own bare lowercase hex", () => {
-        const sequence = timedRequestSequence(200);
+        const sequence = timedRequestSequence(Millis(200));
 
         expect(sequence).to.have.lengthOf(3);
         expect(sequence[2].test("[DMG] \tTimeoutMs = 0xc8,")).equal(true);
@@ -95,25 +223,26 @@ describe("timedRequestSequence", () => {
 describe("expectTimedRequest", () => {
     it("matches the block and returns the line it matched", async () => {
         const result = await withFollower(timedRequestLines(T0), follower =>
-            expectTimedRequest(follower, "chip-local", TIMEOUT_MS, 0, 500),
+            expectTimedRequest(follower, "chip-local", TIMEOUT, 0, Millis(500)),
         );
 
         expect(result.check.verdict).equal("pass");
-        expect(result.line?.text).contains("TimeoutMs = 0xc8,");
+        expect(result.outcome).equal("found");
+        expect(result.outcome === "found" ? result.line.text : "").contains("TimeoutMs = 0xc8,");
     });
 
     it("fails when the device was asked for a different timeout", async () => {
         const result = await withFollower(timedRequestLines(T0), follower =>
-            expectTimedRequest(follower, "chip-local", 300, 0, 200),
+            expectTimedRequest(follower, "chip-local", Millis(300), 0, Millis(200)),
         );
 
         expect(result.check.verdict).equal("fail");
-        expect(result.line).equal(undefined);
+        expect(result.outcome).equal("failed");
     });
 
-    it("reports unverified for a flavor with no pattern for the message", async () => {
+    it("reports unverified for a flavor neither implementation's patterns speak for", async () => {
         const result = await withFollower(timedRequestLines(T0), follower =>
-            expectTimedRequest(follower, "matterjs", TIMEOUT_MS, 0, 500),
+            expectTimedRequest(follower, "python", TIMEOUT, 0, Millis(500)),
         );
 
         expect(result.check.verdict).equal("unverified");
@@ -123,7 +252,7 @@ describe("expectTimedRequest", () => {
 describe("expectUnicastReceipt", () => {
     async function categoryVerdict(category: "S" | "U" | "G") {
         return withFollower(timedRequestLines(T0, category), async follower => {
-            const timed = await expectTimedRequest(follower, "chip-local", TIMEOUT_MS, 0, 500);
+            const timed = await expectTimedRequest(follower, "chip-local", TIMEOUT, 0, Millis(500));
             return expectUnicastReceipt(timed);
         });
     }
@@ -145,7 +274,7 @@ describe("expectUnicastReceipt", () => {
 
     it("fails when no receive line precedes the message", async () => {
         const check = await withFollower(timedRequestLines(T0).slice(1), async follower => {
-            const timed = await expectTimedRequest(follower, "chip-local", TIMEOUT_MS, 0, 500);
+            const timed = await expectTimedRequest(follower, "chip-local", TIMEOUT, 0, Millis(500));
             return expectUnicastReceipt(timed);
         });
 
@@ -153,18 +282,29 @@ describe("expectUnicastReceipt", () => {
         expect(check.detail).contains("No receive line");
     });
 
-    it("reports unverified when the timed request itself was not located", () => {
-        expect(expectUnicastReceipt({ check: { type: "device-log", verdict: "unverified" } }).verdict).equal(
-            "unverified",
-        );
+    it("reports unverified for a flavor whose log names no timed request", () => {
+        expect(
+            expectUnicastReceipt({ outcome: "unnamed", check: { type: "device-log", verdict: "unverified" } }).verdict,
+        ).equal("unverified");
+    });
+
+    it("hands a failed search's own reason to the consumer, not a bare unverified", () => {
+        // Callers gate on `check` before getting here, so this is the guard for one that forgets
+        const check = expectUnicastReceipt({
+            outcome: "failed",
+            check: { type: "device-log", verdict: "fail", detail: "no TimedRequestMessage arrived" },
+        });
+
+        expect(check.verdict).equal("fail");
+        expect(check.detail).equal("no TimedRequestMessage arrived");
     });
 });
 
 describe("expectTimedFollowUp", () => {
-    async function followUp(lines: string[], message = INVOKE_REQUEST_MESSAGE) {
+    async function followUp(lines: string[], interaction: TimedInteraction = "invoke") {
         return withFollower(lines, async follower => {
-            const timed = await expectTimedRequest(follower, "chip-local", TIMEOUT_MS, 0, 500);
-            return expectTimedFollowUp(follower, "chip-local", message, timed, TIMEOUT_MS, 500);
+            const timed = await expectTimedRequest(follower, "chip-local", TIMEOUT, 0, Millis(500));
+            return expectTimedFollowUp(follower, "chip-local", interaction, timed, TIMEOUT, Millis(500));
         });
     }
 
@@ -184,11 +324,11 @@ describe("expectTimedFollowUp", () => {
             line(T0 + 5, "[DMG] \ttimedRequest = true, "),
         ];
 
-        expect((await followUp(lines, WRITE_REQUEST_MESSAGE)).verdict).equal("pass");
+        expect((await followUp(lines, "write")).verdict).equal("pass");
     });
 
     it("fails when the message arrives after the window it was promised", async () => {
-        const check = await followUp([...timedRequestLines(T0), ...invokeLines(T0 + TIMEOUT_MS + 1)]);
+        const check = await followUp([...timedRequestLines(T0), ...invokeLines(T0 + TIMEOUT + 1)]);
 
         expect(check.verdict).equal("fail");
         expect(check.detail).contains("201.0ms");
@@ -205,19 +345,38 @@ describe("expectTimedFollowUp", () => {
         expect(check.detail).contains("carries no timedRequest flag");
     });
 
-    it("reports unverified when the timed request itself was not located", async () => {
+    it("reports unverified for a flavor whose log names no timed request", async () => {
         const check = await withFollower([], follower =>
             expectTimedFollowUp(
                 follower,
                 "chip-local",
-                INVOKE_REQUEST_MESSAGE,
-                { check: { type: "device-log", verdict: "unverified" } },
-                TIMEOUT_MS,
-                500,
+                "invoke",
+                { outcome: "unnamed", check: { type: "device-log", verdict: "unverified" } },
+                TIMEOUT,
+                Millis(500),
             ),
         );
 
         expect(check.verdict).equal("unverified");
+    });
+
+    it("hands a failed search's own reason to the follow-up check, not a bare unverified", async () => {
+        const check = await withFollower([], follower =>
+            expectTimedFollowUp(
+                follower,
+                "chip-local",
+                "invoke",
+                {
+                    outcome: "failed",
+                    check: { type: "device-log", verdict: "fail", detail: "no TimedRequestMessage arrived" },
+                },
+                TIMEOUT,
+                Millis(500),
+            ),
+        );
+
+        expect(check.verdict).equal("fail");
+        expect(check.detail).equal("no TimedRequestMessage arrived");
     });
 
     it("skips an interaction on another exchange and reports the one this request opened", async () => {

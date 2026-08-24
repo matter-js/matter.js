@@ -54,7 +54,7 @@ const args = await yargs(hideBin(process.argv))
     })
     .strict().argv;
 
-const source = await ChipDataModel.open({ dir: args.chipDir, ref: args.chipRef, refresh: args.refresh });
+await using source = await ChipDataModel.open({ dir: args.chipDir, ref: args.chipRef, refresh: args.refresh });
 
 const versions = args.all ? await source.versions() : [ChipDataModel.versionFor(args.revision)];
 

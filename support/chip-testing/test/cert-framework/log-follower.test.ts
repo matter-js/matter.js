@@ -393,4 +393,133 @@ describe("LogFollower", () => {
 
         await follower.close();
     });
+
+    /**
+     * A follower whose buffer holds exactly `lines`. Awaiting the last line's *index* rather than a
+     * pattern is what makes this exact: `expect` resolves on the first match, which for a repeated
+     * line is not the point at which every line has arrived.
+     */
+    async function bufferedFollower(...lines: string[]) {
+        const source = new TestSource();
+        const follower = new LogFollower(source, "test");
+        followers.push(follower);
+        for (const line of lines) {
+            source.push(line);
+        }
+        await follower.expect({ chip: /.*/ }, { flavor: "chip", timeoutMs: 2_000, from: lines.length - 1 });
+        return follower;
+    }
+
+    const followers = new Array<LogFollower>();
+    afterEach(async () => {
+        // The CI gate runs with MATTER_WTF=1, so a parked #consume left per test is a reported leak
+        while (followers.length) {
+            await followers.pop()?.close();
+        }
+    });
+
+    describe("count", () => {
+        it("counts matching lines at or after the cursor it was given", async () => {
+            const follower = await bufferedFollower("alpha", "beta", "alpha");
+
+            expect(follower.count(/alpha/, 0), "from the start").equal(2);
+            expect(follower.count(/alpha/, 1), "past the first").equal(1);
+            expect(follower.count(/gamma/, 0), "no match").equal(0);
+        });
+
+        it("skips the synthetic lines expect() skips, so a banner cannot be counted", async () => {
+            const follower = await bufferedFollower("alpha");
+            follower.annotate("alpha in a step banner");
+
+            expect(follower.count(/alpha/, 0)).equal(1);
+        });
+
+        it("does not let a caller's /g pattern skip matches through lastIndex", async () => {
+            const follower = await bufferedFollower("alpha", "alpha");
+            const global = /alpha/g;
+
+            expect(follower.count(global, 0), "first call").equal(2);
+            expect(follower.count(global, 0), "same pattern reused").equal(2);
+        });
+
+        it("clamps a negative cursor rather than counting from the end", async () => {
+            const follower = await bufferedFollower("alpha", "beta");
+
+            expect(follower.count(/alpha|beta/, -2)).equal(2);
+        });
+    });
+
+    describe("window", () => {
+        it("returns count lines from the start index, not up to it", async () => {
+            const follower = await bufferedFollower("a", "b", "c", "d");
+
+            expect(follower.window(1, 2).map(({ text }) => text)).deep.equal(["b", "c"]);
+        });
+
+        it("clamps to the buffer rather than padding", async () => {
+            const follower = await bufferedFollower("a", "b");
+
+            expect(follower.window(1, 10).map(({ text }) => text)).deep.equal(["b"]);
+            expect(
+                follower.window(-2, 1).map(({ text }) => text),
+                "negative start",
+            ).deep.equal(["a"]);
+            expect(follower.window(0, -1), "negative count").deep.equal([]);
+        });
+    });
+
+    describe("lastMatchBefore", () => {
+        it("finds the nearest preceding match, not the first, and returns its captures", async () => {
+            const follower = await bufferedFollower("trace 1", "noise", "trace 2", "dump");
+            const found = follower.lastMatchBefore(/trace (\d)/, 3, 10);
+
+            expect(found?.line.text).equal("trace 2");
+            expect(found?.match[1], "the capture the caller needs").equal("2");
+        });
+
+        it("stops at the lookback bound rather than attributing a far older line", async () => {
+            const follower = await bufferedFollower("trace 1", "a", "b", "c", "dump");
+
+            expect(follower.lastMatchBefore(/trace/, 4, 2), "within 2 lines").equal(undefined);
+            expect(follower.lastMatchBefore(/trace/, 4, 10)?.line.text, "within 10").equal("trace 1");
+        });
+
+        it("measures the bound from the buffer's end when the cursor is past it", async () => {
+            // Bounding from a raw out-of-range cursor would put the floor past every line there is
+            const follower = await bufferedFollower("trace 1", "dump");
+
+            expect(follower.lastMatchBefore(/trace/, 5_000, 10)?.line.text).equal("trace 1");
+        });
+
+        it("skips a synthetic banner sitting between the match and the cursor", async () => {
+            // The banner has to land *between* the match and the cursor: annotating after the fact
+            // puts it past the cursor, where a scanner ignoring the flag would still return the
+            // right line and the test would prove nothing
+            const source = new TestSource();
+            const follower = new LogFollower(source, "test");
+            followers.push(follower);
+            source.push("trace 1");
+            await follower.expect({ chip: /trace 1/ }, { flavor: "chip", timeoutMs: 2_000, from: 0 });
+            follower.annotate("trace 999 in a step banner");
+            source.push("dump");
+            await follower.expect({ chip: /dump/ }, { flavor: "chip", timeoutMs: 2_000, from: 2 });
+
+            expect(follower.at(1)?.synthetic, "the banner sits between them").equal(true);
+            expect(follower.lastMatchBefore(/trace/, 2, 10)?.line.text).equal("trace 1");
+        });
+
+        it("excludes the line at the cursor itself", async () => {
+            const follower = await bufferedFollower("trace 1", "trace 2");
+
+            expect(follower.lastMatchBefore(/trace/, 1, 10)?.line.text).equal("trace 1");
+        });
+
+        it("does not let a caller's /g pattern skip a match", async () => {
+            const follower = await bufferedFollower("trace 1", "dump");
+            const global = /trace/g;
+
+            expect(follower.lastMatchBefore(global, 1, 10)?.line.text, "first call").equal("trace 1");
+            expect(follower.lastMatchBefore(global, 1, 10)?.line.text, "reused").equal("trace 1");
+        });
+    });
 });

@@ -90,11 +90,29 @@ The convention this series has followed, worth stating explicitly for the next T
   independent of chip's TH-side implementation quirks. But a TC that only ever runs green on
   `matterjs` and skips or has never been tried against a chip flavor hasn't actually demonstrated
   interop with anything.
-- **Every device-log check should supply a `chip:`-flavored pattern; a `matterjs:` pattern is a
-  bonus, not a requirement.** matter.js's own logger has no equivalent of chip's structured
-  `CHIP:DMG:` decode dumps, so a log check with no matterjs pattern resolves `"unverified"` under
-  that flavor — by design, not a gap to fix (see "Evidence expectations" below). What actually
-  proves controller behavior on `matterjs` is the accompanying `type: "response"` check.
+- **Every device-log check supplies a `chip:` pattern, and a `matterjs:` pattern wherever
+  matter.js's own log carries the same claim.** The two logs are shaped differently rather than one
+  being poorer: chip prints a structured `CHIP:DMG:` decode dump spanning a dozen lines where
+  matter.js names a whole interaction, and every path it carried, on one line. So a matterjs pattern
+  is a separate authoring job, not a translation of the chip one — which is why
+  `expectAdjacentLines`/`expectSequence` take a `{chip, matterjs}` pair of sequences whose lengths
+  differ. A check with no pattern for the running flavor resolves `"unverified"`: not a failure, but
+  a gap in that step's device-side evidence, with the accompanying `type: "response"` check the only
+  thing left proving controller behavior. `RunRecord.unverifiedChecks` counts them, so a bundle says
+  how much of a passing run rests on nothing observed — bring the count down, don't add to it. As of
+  this writing every device-log check in this directory carries both flavors' patterns, and the whole
+  matterjs leg reports one unverified check: TC-IDM-2.1 step 21's honest "matter.js's all-clusters app
+  defines no manufacturer-specific cluster".
+
+  Two things bite when writing the matterjs half:
+
+  - **What chip spreads over a block of lines, matter.js often puts on one.** A second check about
+    the same message therefore cannot start searching after the line the first one matched, or it
+    reads the next message instead — `sameMessageFrom(flavor, earlier, mark)` is that rule.
+  - **What matter.js spreads over several lines, it interleaves with its own work.** Where a claim
+    needs more than one of its lines (a subscribe's flags, its paths, the intervals it accepted),
+    pass `matterjs: { ordered: [...] }` rather than a plain array: a plain array demands
+    consecutive lines, which is right for chip's dump and wrong here.
 - Use `CertStepOptions.flavors` (see "Declaring a device-flavor capability gap") when a TH app
   genuinely lacks a capability on one flavor — not as a way to avoid running a TC against chip at
   all.
@@ -126,10 +144,50 @@ Two independent PICS mechanisms exist, and only one of them is live against toda
   actually does something, rather than assuming it's decorative everywhere just because it is on
   chip.
 
+## Running these tests locally
+
+The root `npm test` does **not** cover this package: `support/chip-testing/package.json` sets
+`nacho.test: false`, because the app legs need Docker and chip binaries, and the opt-out is per
+package rather than per spec. The hermetic tests under `test/cert-framework/**` are dropped with
+them. A cert change therefore needs its own command:
+
+```bash
+# what CI runs (esm and cjs legs)
+npm --prefix support/chip-testing run test-cert-framework -- --no-pull
+
+# one leg, for iteration
+MATTER_TEST_SHUTDOWN_TIMEOUT_MS=15000 npx matter-test esm -p support/chip-testing \
+    --spec "./test/cert-framework/*.test.ts"
+```
+
+`--prefix` rather than a `cd`, so a second command still resolves against the repository root.
+`--no-pull` because `pull` defaults to true, and CI pulls the image once itself and passes the same
+flag.
+
+Docker is required either way, and no flag avoids it: the specs themselves use fakes, but
+`test/test.config.ts` awaits `chip.initialize()` at module scope, so every leg starts the harness
+containers before any spec runs.
+
+The second form sets `MATTER_TEST_SHUTDOWN_TIMEOUT_MS` by hand because it bypasses the npm script
+that would have set it — without it a run can end in exit 101 during normal cleanup (see
+"Resolved: exit-101 flake after decommission-of-self" below).
+
+What not to reach for: `npm test -- -p support/chip-testing` looks like the same thing and is not. The
+root script is `matter-test -w`, so `-w` arrives with it and queues web tests for a package that has
+none.
+
+CI runs these as the `test-cert-framework` gate that `test-cert` depends on
+(`.github/workflows/chip-cert-tests.yml`). Note what triggers that workflow: a daily schedule,
+`workflow_dispatch`, a release, and a **push** whose changed paths match its `prepare` filter (or
+whose head commit message carries `[execute-certtests]`) — there is no `pull_request` trigger, and
+`prepare` is gated on `github.repository == 'matter-js/matter.js'`. So an in-repo branch push runs
+it; a fork PR does not, and the paths filter diffs against `main` rather than the PR base. A
+root-level "suite green" says nothing about this directory either way.
+
 ## Evidence expectations
 
-Every run writes one `result.json` (`EvidenceRecorder.flush`, shape: `RunRecord` in `evidence.ts`)
-plus one `<name>.log` per `attachLog` call (`device-<role>.log`, `controller-<name>.log`) to
+Every run writes one `result.json` (`EvidenceRecorder.flush` writes it, `concludeRun` settles its
+verdict; shape: `RunRecord` in `evidence.ts`) plus one `<name>.log` per `attachLog` call (`device-<role>.log`, `controller-<name>.log`) to
 `${MATTER_CERT_EVIDENCE_DIR}/<timestamp>-<tc>/`. A step's own evidence lives in `RunRecord.steps[]`
 as `{ step, text, expected, checks: CheckRecord[], verdict, skipReason? }`; `CheckRecord` is
 `{ type: "response" | "device-log" | "network", verdict: "pass" | "fail" | "unverified", detail?,
@@ -144,20 +202,24 @@ What a check's `type` should be:
 - **`"device-log"`** — a pattern match against the TH's own stdout (via `LogFollower.expect`,
   usually wrapped so a timeout/close error becomes a recorded `"fail"` rather than propagating
   uncaught — see `TC-ACT-3.2`'s `recordInvokeStatus`/adversarial-review fix below for why an
-  uncaught log-check error is a real evidence gap, not just noise). `"unverified"` is the correct,
-  expected verdict when only a `chip:`-flavored pattern was supplied and the run is on `matterjs`
-  (see "Flavor policy" above) — don't treat every `"unverified"` in a result as a bug.
+  uncaught log-check error is a real evidence gap, not just noise). `"unverified"` means no pattern
+  was supplied for the running flavor (see "Flavor policy" above) — an evidence gap to close by
+  writing that pattern, not a failure and not a bug in the run.
 - **`"network"`** — `expectMdns`'s own check kind (mDNS record presence/absence).
 
 A step passing means its `run` callback didn't throw — `recorder.check(...)` only records evidence,
 it never fails the step by itself (see "Shape of a cert test" above; this is worth repeating because
 it's the single easiest mistake to make writing a new step). `RunRecord.verdict` is computed by
-`EvidenceRecorder`, not hand-set: `deviceExit` or `finalizationError` set ⇒ `"fail"`; any step `"fail"`/`"aborted"` ⇒
-`"fail"`; else any step `"pass"` ⇒ `"pass"`; else (every step skipped, or zero steps ran, e.g.
-`TC-ACT-3.2` under `matterjs` or `TC-SC-3.5` when its prerequisite is missing) ⇒ `"skipped"`. A
-`"skipped"` run-level verdict is a legitimate, expected outcome for a flavor-gapped or
+`EvidenceRecorder`, not hand-set: until `concludeRun` runs ⇒ `"incomplete"`; then the run's own
+reported failure (`runError`), or `deviceExit`/`finalizationError`/`teardownError`/`evidenceError`
+set, or any step `"fail"`/`"aborted"` ⇒ `"fail"`; else any step `"pass"` ⇒ `"pass"`; else (every step
+skipped, or zero steps ran, e.g. `TC-ACT-3.2` under `matterjs` or `TC-SC-3.5` when its prerequisite is
+missing) ⇒ `"skipped"`.
+
+A `"skipped"` run-level verdict is a legitimate, expected outcome for a flavor-gapped or
 prerequisite-blocked TC — it is not the same as `"fail"`, and shouldn't be treated as a failure when
-triaging a run.
+triaging a run. `"incomplete"` is the opposite: the run never got far enough to state a verdict, so
+treat it as a failed run whose cause is outside the record.
 
 Every attached `.log` also carries a step-boundary banner (chip python/yaml style) at the point a
 step starts and again when it ends (`<tc> — Test Step <number>: <text>` / `<tc> — Test Step
@@ -174,16 +236,37 @@ certTest("TC-XXX-0.0", { plan: "n/a" | "<plan doc id>", pics: [], app: "all-clus
         const dut = cx.controllers.dut; // ControllerAdapter
         const th = cx.devices.th; // CertDevice
         // ...
-        cx.recorder.check({ type: "...", verdict: "pass" | "fail", detail: "..." });
-        if (/* not actually pass */) {
-            throw new Error("...");
-        }
+        record(cx, { type: "...", verdict: "pass" | "fail", detail: "..." }, "what this check is");
     });
 ```
 
 - `cx.recorder.check(...)` only records evidence; it does **not** fail the step. A step fails by
-  throwing from `run`. Always follow a check with an explicit `if (result.verdict !== "pass") throw
-  ...` if the check result should gate the step.
+  throwing from `run`. So a check that should gate the step goes through `record(cx, check, what)`
+  (`tc-support.ts`), which records it and throws `CertCheckFailedError` on `"fail"` — hand-rolling
+  the `if (verdict === "fail") throw` after a `check()` is how one such gate came to be missing.
+  `"unverified"` passes through: that is what a log check reports on a flavor nobody wrote a pattern
+  for. Use `cx.recorder.check` directly only for a record that is provenance rather than a gate — the
+  unconditional "this is what the DUT answered" line beside an `await` that would have thrown.
+- Never throw a plain `Error` from a step: `CertCheckFailedError` is the step-assertion type, and
+  `InternalError` is for a harness invariant that cannot hold.
+- A budget in this directory is a `Duration` (`Seconds(15)`, not `15_000`). The framework underneath
+  takes plain numbers, since `@matter/testing` carries no dependency on the library; a `Duration` is
+  milliseconds, so it crosses that boundary as a value — `{ flavor, timeoutMs: timeout, from }`.
+- Two log budgets, and they are not interchangeable. `LOG_TIMEOUT` (`tc-support.ts`, 15 s) bounds a
+  wait for a line the step has already caused — the device writes it while answering the interaction
+  the step drove, so the budget only covers the write and the follower's pump. It absorbed
+  TC-IDM-4.1's old ack budget, which had the same value and the same argument.
+  `COMMISSIONING_LOG_TIMEOUT` (`tc-dd-support.ts`, 30 s) bounds a line a device prints as it comes
+  up or is commissioned, with discovery, PASE, CASE and the commissioning exchanges in between.
+- A step whose only job is to produce something the next step consumes — a substituted QR payload, a
+  manual pairing code — still has a checkable claim: that the artifact carries the substitution the
+  plan asked for. Read it back (`checkGeneratedPayload`/`checkGeneratedManualCode` in
+  `tc-dd-support.ts`) instead of recording a hard-coded `"pass"` whose `detail` asserts a property
+  nobody looked at. Know what this is worth: the artifact is produced and read back in-process, so
+  the check catches a wiring or generator bug in the step, **not** anything the DUT or the TH did —
+  it is not interop evidence, and the `.b` step that feeds the artifact to the DUT is what carries
+  that. A step generating several artifacts records them through `recordAll` (`tc-support.ts`), which
+  puts every one in the evidence before failing; `record` in a loop stops at the first bad one.
 - `certTest` registers the mocha `it()` immediately; `.step()` calls append to it and may continue
   after `certTest()` returns (see `cert-dsl.ts`'s `certTest`/`defineCertTest`).
 - Role names: `cx.controllers.dut` / `cx.devices.th` are the defaults (`controllers: { dut: "dut" }`,
@@ -221,6 +304,17 @@ that as `RunRecord.finalizationError`, which makes the run's verdict `"fail"` on
 displace an earlier step failure — that stays the run's outcome, with the cleanup failure alongside
 it in the evidence. A cleanup failure this suite swallowed into a `console.warn` once already went
 unnoticed across passing runs, which is why it is loud now.
+
+**A TC owing more than one cleanup uses `runCleanups`, not a `try`/`finally`.** `finally` runs both
+but reports only the last one's failure, and the two name different state the next run inherits — an
+outstanding commissioning attempt is not a substitute for a fabric left on the TH. `runCleanups` runs
+each in order, rethrows a lone failure unchanged so its own type survives, and joins several into one
+`CertCleanupErrors` — a `MatterAggregateError` whose message names every failure, because the message
+is all the engine keeps of a finalization failure, with the originals as its causes:
+
+```ts
+    .finalize(cx => runCleanups(() => refusals.settle(cx), () => commissioned.decommissionAll(cx)));
+```
 
 `CommissionedRefs.withRef(role, run)` only requires the role's ref up front and threads it in; the
 old `guarded()` wrapper, which decommissioned on a step's own failure, is gone — the finalizer covers
@@ -377,12 +471,11 @@ This is a framework-level fix (`log-follower.ts`), not something an individual T
   one's `from` set to the previous match's `index + 1` — and failing if a match doesn't land exactly there.
   See `tc-support.ts`'s `expectAttributePathIB`/`attributePathIBSequence`, promoted there once
   TC-IDM-3.1/TC-IDM-4.1 needed the same shape of check as this TC.
-- **Every log check in this TC supplies only a `chip` pattern, never a `matterjs` one** — matter.js's own
-  logger doesn't emit an equivalent decode dump, so every log check against the matterjs flavor resolves to
-  `"unverified"` by design (see `LogExpectPatterns`/the flavor-pattern policy already documented above).
-  That's the intended dual-flavor split: response-shape assertions (`recorder.check({type: "response", ...})`)
-  are what actually prove behavior on matterjs; the chip-side log check is additional protocol-level
-  evidence only available for the chip flavor.
+- **Every path check in this TC now carries both flavors' patterns.** chip's is the decode-dump
+  sequence above; matter.js names the read and every path it carried on one line, which
+  `expectAttributePathIB` matches through `matterjsPath` (see the flavor policy above). The response
+  checks still carry the behavioral claim on either flavor — the device-log check is the TH-side
+  corroboration of it.
 - **Never leave the DUT commissioned.** With ~21 steps sharing one commissioned node, the step engine aborts
   (skips, doesn't run) every step after the one that threw — see `cert-test.ts`'s `invoke()` — except a
   step that throws `UnsupportedByControllerError`, which is recorded `"skipped"` and lets later steps run.
@@ -806,14 +899,14 @@ A "DUT writes an attribute on the TH" step needs the same two-sided proof a read
 the *TH's own log* showing chip received this specific `WriteRequestMessage`, not some other step's.
 `writeAndCheck` (`TC-IDM-3.1.test.ts`) is the shape every executable write step in this TC shares:
 mark the log, `writeAttribute`, record a `"response"` check either way, then call
-`expectMessageWithPath(log, flavor, WRITE_REQUEST_MESSAGE, path, from, timeoutMs)` (`tc-support.ts`)
-to confirm the message name and the request's `AttributePathIB` appear as a consecutive block after
-the mark — the same anchor-then-walk `expectAttributePathIB` does for reads (see "Wildcard path
-idioms" above), just anchored on `WRITE_REQUEST_MESSAGE` first. `expectMessageWithPath` is the
-write/subscribe-shared promotion of that pattern: `TC-IDM-4.1` reuses it verbatim with
-`SUBSCRIBE_REQUEST_MESSAGE` for its own priming subscribe (see below). `INVOKE_REQUEST_MESSAGE`'s
-`CommandDataIB` shape still needs `expectCommandInvoke` instead — a command's fields aren't an
-`AttributePathIB`.
+`expectMessageWithPath(log, flavor, "write", path, from, timeout)` (`tc-support.ts`) to confirm the
+request the TH received carries this path. Against chip that is the message name plus the request's
+`AttributePathIB` as a consecutive block after the mark — the same anchor-then-walk
+`expectAttributePathIB` does for reads (see "Wildcard path idioms" above), anchored on
+`WRITE_REQUEST_MESSAGE` first; against matter.js it is the one line naming the write and its paths.
+The third argument is the interaction kind, not a pattern, because each kind names a different line
+in either log: `TC-IDM-4.1` passes `"subscribe"` for its own priming subscribe (see below). A
+command's fields aren't an `AttributePathIB`, so an invoke still needs `expectCommandInvoke`.
 
 ## No capability gap for `ThermostatUserInterfaceConfiguration`/`ColorControl` (`TC-IDM-3.1`)
 
@@ -863,7 +956,7 @@ design decision for the maintainer, not something to improvise from inside a ste
 
 ## Deterministic per-write report/ack evidence, not a snapshot count (`TC-IDM-4.1`)
 
-An early draft of `subscribeAndModify` took one `countMatches(STATUS_RESPONSE_SUCCESS, from)`
+An early draft of `subscribeAndModify` took one `log.count(STATUS_RESPONSE_SUCCESS, from)`
 snapshot after all of a step's writes had completed and asserted `>= values.length`. An
 independent review caught that this count is genuinely nondeterministic across otherwise-identical
 runs (it can read 2, 3, or 4 for three correct writes): whether the priming report's own ack falls
@@ -929,9 +1022,9 @@ call site — there's no guard for it; the caller is expected to know the TH's s
 Why the correlation is by subscription id rather than by counting callbacks: chip-tool accumulates
 `ReadClient`s inside one command object, so a TC that subscribed to a path N times sees N reports per
 change, and chip-tool's report JSON carries no subscription id to tell them apart. Counting `onUpdate`
-calls therefore fails on the chip-tool controller leg. The device log does carry the id, which is what
-the helper matches on; where it doesn't (matterjs device flavor, where log checks are `unverified`),
-the in-order subsequence is the confirmation.
+calls therefore fails on the chip-tool controller leg. Both device flavors' logs carry the id, which
+is what the helper matches on (`expectSubscriptionId`); the in-order subsequence is what confirms the
+reports themselves.
 
 ## Subscription policy: the automatic node-level subscription stays on
 
@@ -1014,8 +1107,8 @@ the YAML captures (whose event blocks date from 2022):
 
 ## Promoting the subscription-id and report-ack checks (`TC-IDM-6.4`)
 
-`expectSubscriptionId`/`expectReportAck` (with `ACK_WAIT_TIMEOUT_MS` and their private exchange-id
-helpers) were TC-IDM-4.1-local until TC-IDM-6.4 needed the same "did the DUT ack *this* subscription's
+`expectSubscriptionId`/`expectReportAck` (with their private exchange-id helpers, and with an ack
+budget of their own that is now the shared `LOG_TIMEOUT`) were TC-IDM-4.1-local until TC-IDM-6.4 needed the same "did the DUT ack *this* subscription's
 report" evidence for an event subscription, so they moved to `tc-support.ts` unchanged — same trigger
 as `attributePathIBSequence`'s and `commandPathIBSequence`'s own promotions. `expectSequence` (record
 an `expectAdjacentLines` result as a `CheckRecord`, turning a timeout into a recorded `"fail"`) came
@@ -1232,26 +1325,49 @@ all, which is what lets `Test_TC_DD_1_8.yaml`'s own (older, larger) 1000-byte TL
 The TC asserts the length it built rather than trusting the arithmetic, since a filler byte count that
 misses lands on a payload the plan did not ask for.
 
-**Onboarding the same TH twice: open a basic window before removing the fabric.** A chip TH does not
-return to commissioning mode when its last fabric goes — after `RemoveFabric succeeds` its log stops
-there, and the next commissioning fails as `No device could be commissioned (1 of 1 started attempt(s)
-failed, 1 discovered)` against a stale advertisement. Spec-wise the plans cover this with a
-precondition ("place the TH back into commissioning mode using the TH manufacturer's means"), which for
-a TC that drives everything itself means opening the window before the fabric it needs to open it is
-gone. It must be a **basic** window (`openCommissioningWindow({ enhanced: false })`): its PASE verifier
-is the device's own setup code, so the TH's own onboarding payload still pairs, where an enhanced
-window would mint a fresh discriminator and passcode instead (see "Pairing-code commissioning" above).
+**Onboarding the same TH twice: factory reset it between attempts.** A chip TH does not return to
+commissioning mode when its last fabric goes — after `RemoveFabric succeeds` its log stops there, and
+the next commissioning fails as `No device could be commissioned (1 of 1 started attempt(s) failed, 1
+discovered)` against a stale advertisement. The plans cover this with a precondition ("place the TH
+back into commissioning mode using the TH manufacturer's means"), and for a TC that drives everything
+itself that means asking the device for a factory reset:
 
-A restart would satisfy the same precondition, and TC-DD-3.20 asks for one explicitly — but a step
-cannot stop a device today: `raceAgainstDeviceExit` (`cert-test.ts`) treats any device exit during a
-step as the run's failure. Deliberate-restart support is the framework piece that block still needs.
+```ts
+await cx.controllers.dut.node(ref).decommission();
+if (th.flavor !== "matterjs") {
+    const from = th.log.mark();
+    await th.backchannel({ name: "factoryReset" });
+    // wait for the restarted app's own SetupQRCode line before any mDNS check
+}
+```
 
-**A factory reset is not the same operation on both flavors.** Removing the last fabric leaves a chip
-app's KVS in place; the storage has to be deleted and the app restarted for it to come up factory-new,
-which is also why it stays out of commissioning mode above. matter.js returns to commissioning mode on
-its own instead. The specification allows either, so a TC whose precondition is a factory-reset TH must
-ask the device for one — per flavor, `ChipLocalDevice`'s own storage directory versus a matterjs
-subject's storage — rather than assume `RemoveFabric` delivered it.
+Three things about that shape are load-bearing. The fabric comes off first, so the controller never
+holds a peer for a fabric the device has forgotten — a later `decommissionAll` against a wiped device
+fails. The matterjs leg is excluded because it is already back in commissioning mode, and erasing it
+would restart a TH that needs nothing. And the wait for the restarted app matters because
+`ChipLocalDevice.start()` returns when the *process* is up, not when the app is, while
+`checkCommissionable` primes from the DNS-SD names already cached — so without it the check can be
+answered by an advertisement the generation that just died had published.
+
+Earlier revisions instead opened a *basic* commissioning window and then removed the fabric, which
+works on paper but publishes `_matterc._udp` twice inside about 15 ms; avahi calls that a name
+collision and withdraws the service, so the TH ends up advertising nothing. That was an intermittent
+failure of this helper on the own-built leg, root-caused from the TH's own log in the evidence bundle
+and filed upstream.
+
+**A factory reset is not the same operation on every flavor**, which is why it is the *device* that
+implements it, behind one `BackchannelCommand`:
+
+| Flavor | `factoryReset` | `reboot` |
+| --- | --- | --- |
+| `chip-local` | stop, drop the storage directory holding `chip_kvs`, start | stop, start (store kept) |
+| `chip-docker` | stop, start — the store lives in the container's own filesystem, which the composition discards | refused: it cannot keep the store, so a caller wanting one must use `chip-local` |
+| `matterjs` | `Node.erase()`, which goes offline, resets storage and comes back | close, reinitialize, start |
+
+**A stop the harness asked for is not a crash.** `CertDevice.exit` settles only for an exit nobody
+asked for, so `cert-test.ts`'s exit watch survives a step restarting a device and still fails the run
+if the device does not come back. This is what makes a restart from inside a step possible at all;
+TC-DD-3.20's "manufacturer's means" precondition needs nothing further.
 
 **On a developer host, limit mDNS to one interface.** With VPN tunnels up (`utun*`), a local run of the
 whole cert suite floods `UDP send timeout`/`EMSGSIZE` on every extra interface, stretches a 1m 40s run to
@@ -1396,16 +1512,24 @@ it did until `CommissioningTarget.giveUpAfterMs` was added. matter.js maps it to
 timeout; chip-tool cannot be bounded and says so, stopping on its own after ~30s, so the step's own
 budget has to outlast chip-tool rather than matter.js.
 
-**Step 6 records a real disagreement between the two controllers, and this one cost a review round.**
-The obvious reading — "a manual code's vendor id is informational, no commissioner matches it against
-the device it found" — is **false for chip-tool**:
-`SetUpCodePairer::NodeMatchesCurrentFilter` (`src/controller/SetUpCodePairer.cpp`) skips a discovered
-device whose advertised vendor or product id disagrees with the code's, so a code naming another
-vendor finds nothing and chip-tool gives up after its 30s discovery budget. matter.js discovers on
-the discriminator alone (`resolveCommissioningTarget` passes only `shortDiscriminator`/`passcode`)
-and onboards. **The plan's expected outcome admits both** — terminate, "unless the user is made fully
-aware of the security risks" — so the step records which happened instead of asserting one. Both
-outcomes appear in the evidence, one per controller.
+**Step 6: a manual code's vendor id is not informational, and both controllers act on it.** The
+obvious reading — "no commissioner matches a code's vendor id against the device it found" — is false
+for chip-tool: `SetUpCodePairer::NodeMatchesCurrentFilter` (`src/controller/SetUpCodePairer.cpp`)
+skips a discovered device whose advertised vendor or product id disagrees with the code's, so a code
+naming another vendor finds nothing and chip-tool gives up after its 30s discovery budget. It is
+false for matter.js too: `resolveCommissioningTarget` hands the code's `vendorId`/`productId` to
+`peers.commission`, whose discovery passes over a device whose advertisement disagrees, and the attempt
+ends in `DiscoveryError` after `giveUpAfterMs`. **The plan's expected outcome admits both
+outcomes** — terminate, "unless the user is made fully aware of the security risks" — so the step
+records which happened instead of asserting one.
+
+Two things the step's evidence has to say, and did not until it was made to. A `DiscoveryError` or a
+chip-tool command failure is what termination looks like, but so is a TH that stopped advertising, so
+`recordVendorOutcome` proves the TH is advertising commissionable immediately before each attempt (the
+`restoreCommissioningMode` that precedes it only does so for a code that follows an onboarding). And
+one of `TEST_VENDOR_IDS` is the vendor id a harness TH advertises for itself, so that code is step 1's
+code and its outcome says nothing about a substituted id — the detail now says which of the two the
+attempt was.
 
 **All four codes go to the DUT, which needs the TH restored between them.** The plan says "provide
 each", and an attempt that onboards leaves the TH out of commissioning mode for the next one — so

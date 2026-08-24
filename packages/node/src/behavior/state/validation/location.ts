@@ -35,6 +35,12 @@ export interface ValidationLocation {
     location?: string[];
 
     /**
+     * The owner of the values under validation, passed to a {@link Val.Dynamic} provider as it expects.  Only the
+     * datasource holding the values knows the owner, and a raw state class carries no reference to reach it through.
+     */
+    owner?: unknown;
+
+    /**
      * Fallback resolver for cross-struct references.  When a name cannot be resolved in siblings or the ownership
      * hierarchy, the validator calls this function.
      */

@@ -17,7 +17,18 @@ export interface TestDescriptor {
     kind: TestDescriptor.Kind;
     path?: string;
     subpath?: string;
+
+    /**
+     * The app the test requires. A test naming an app the harness does not implement is skipped.
+     */
     app?: string;
+
+    /**
+     * The app chip uses for the test. The harness dispatches to it when it implements the app and falls back to the
+     * default subject otherwise.
+     */
+    preferredApp?: string;
+
     members?: TestDescriptor[];
     isDisabled?: boolean;
     timeoutMs?: number;

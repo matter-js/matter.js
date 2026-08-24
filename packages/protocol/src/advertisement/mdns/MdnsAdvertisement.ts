@@ -14,6 +14,7 @@ import {
     AAAARecord,
     ARecord,
     DnsRecord,
+    DnsRecordType,
     Duration,
     Logger,
     NetworkInterfaceDetails,
@@ -177,7 +178,11 @@ export abstract class MdnsAdvertisement<T extends ServiceDescription = ServiceDe
             records.push(ip.includes(":") ? AAAARecord(hostname, ip) : ARecord(hostname, ip));
         }
 
-        return records;
+        // We claim these names without probing for a conflict first (RFC 6762 §8.1), which Matter's 64-bit instance
+        // names and MAC-derived hostnames make an acceptable trade for not implementing §9 conflict resolution
+        return records.map(record =>
+            DnsRecordType.isUnique(record.recordType) ? { ...record, flushCache: true } : record,
+        );
     }
 
     get #txtValues() {

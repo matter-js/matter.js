@@ -11,6 +11,7 @@ import type { BatchCommandResult, BatchCommandSpec, CertStepContext, DeviceFlavo
 import { certTest } from "@matter/testing";
 import { registerCertCustomCluster } from "../../src/cert/custom-clusters.js";
 import { ChipFault, FAULT_TYPE_CHIP, FaultInjectionCluster } from "./fault-injection.js";
+import { COMMISSIONING_LOG_TIMEOUT } from "./tc-dd-support.js";
 import type { BatchPath } from "./tc-idm-1.3-support.js";
 import {
     expectBatchRequestPaths,
@@ -18,7 +19,7 @@ import {
     expectInvokeCount,
     expectNoInjectedFault,
 } from "./tc-idm-1.3-support.js";
-import { CommissionedRefs, record, requireId } from "./tc-support.js";
+import { CommissionedRefs, LOG_TIMEOUT, record, requireId } from "./tc-support.js";
 
 const ON_OFF = Matter.clusters.require("OnOff");
 const ON_OFF_ID = requireId(ON_OFF.id, "OnOff cluster");
@@ -54,8 +55,6 @@ const BATCH_PATHS: BatchPath[] = [
  */
 const FLAVORS: DeviceFlavor[] = ["chip-local"];
 
-const LOG_TIMEOUT_MS = 15_000;
-
 const CW_TIMEOUT_SECONDS = 180;
 
 const commissioned = new CommissionedRefs<"dut" | "th_client">();
@@ -85,7 +84,7 @@ function recordResults(
 
 async function recordBatchRequest(cx: CertStepContext, from: number, paths: BatchPath[]) {
     const th = cx.devices.th;
-    record(cx, await expectBatchRequestPaths(th.log, th.flavor, paths, from, LOG_TIMEOUT_MS), "Invoke request paths");
+    record(cx, await expectBatchRequestPaths(th.log, th.flavor, paths, from, LOG_TIMEOUT), "Invoke request paths");
     record(cx, expectInvokeCount(th.log, th.flavor, from, 1), "Invoke request count");
 }
 
@@ -214,7 +213,7 @@ certTest("TC-IDM-1.3", {
             await recordBatchRequest(cx, from, BATCH_PATHS);
             record(
                 cx,
-                await expectInjectedFault(th.log, th.flavor, ChipFault.imInvokeSeparateResponses, from, LOG_TIMEOUT_MS),
+                await expectInjectedFault(th.log, th.flavor, ChipFault.imInvokeSeparateResponses, from, LOG_TIMEOUT),
                 "Separate response messages",
             );
         },
@@ -247,7 +246,7 @@ certTest("TC-IDM-1.3", {
                     th.flavor,
                     ChipFault.imInvokeSeparateResponsesInvertResponseOrder,
                     from,
-                    LOG_TIMEOUT_MS,
+                    LOG_TIMEOUT,
                 ),
                 "Inverted response order",
             );
@@ -275,13 +274,7 @@ certTest("TC-IDM-1.3", {
             await recordBatchRequest(cx, from, BATCH_PATHS);
             record(
                 cx,
-                await expectInjectedFault(
-                    th.log,
-                    th.flavor,
-                    ChipFault.imInvokeSkipSecondResponse,
-                    from,
-                    LOG_TIMEOUT_MS,
-                ),
+                await expectInjectedFault(th.log, th.flavor, ChipFault.imInvokeSkipSecondResponse, from, LOG_TIMEOUT),
                 "Dropped second response",
             );
         },
@@ -314,4 +307,26 @@ certTest("TC-IDM-1.3", {
             expected: "On the TH, the received request message has the same path as provided in the command",
         },
     )
-    .finalize(cx => commissioned.decommissionAll(cx));
+    .finalize(async cx => {
+        // What cleanup owes is a TH with none of this test's fabrics and none of its faults. A
+        // decommission cannot deliver either: faults 12/13/14 fire for any invoke and stop the device
+        // unless it carries two commands, so the RemoveFabric would take the TH down, and disarming
+        // first cannot work because `failAtFault` is itself a single-command invoke. A factory reset
+        // drops the fabrics and the faults together — they live in the app's memory.
+        const th = cx.devices.th;
+        const from = th.log.mark();
+
+        await th.backchannel({ name: "factoryReset" });
+
+        // start() returns when the process is up, not when the app is, and the next test activates its
+        // subject against whatever this leaves behind
+        await th.log.expect({ chip: SERVER_READY }, { flavor: th.flavor, from, timeoutMs: COMMISSIONING_LOG_TIMEOUT });
+
+        // The fabrics went with the reset, so nothing is left to remove — and a RemoveFabric sent to a
+        // device that has forgotten it waits out its own MRP budget before failing
+        commissioned.clear("dut");
+        commissioned.clear("th_client");
+    });
+
+/** A chip app says it is up on this line, once per generation. */
+const SERVER_READY = /\[SVR\] Server initialization complete/;

@@ -258,6 +258,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                         validate(value, this[Internal.session], {
                             path: this[Internal.reference].location.path,
                             siblings: struct,
+                            owner: this[Internal.reference].rootOwner,
                         });
                     } catch (e) {
                         // Undo our change on error.  Rollback will take care of this when transactional but this
@@ -379,6 +380,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                     validate(value, this[Internal.session], {
                         path: this[Internal.reference].location.path,
                         siblings: this[Internal.reference].value,
+                        owner: this[Internal.reference].rootOwner,
                     });
                 }
             };

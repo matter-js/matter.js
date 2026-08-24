@@ -7,8 +7,9 @@
 import { DnsRecord, DnsRecordType, SrvRecordValue } from "#codec/DnsCodec.js";
 import { Diagnostic } from "#log/Diagnostic.js";
 import { Logger } from "#log/Logger.js";
+import type { Duration } from "#time/Duration.js";
 import { Time } from "#time/Time.js";
-import type { Timestamp } from "#time/Timestamp.js";
+import { Timestamp } from "#time/Timestamp.js";
 import { Millis } from "#time/TimeUnit.js";
 import { Bytes } from "#util/Bytes.js";
 import { AsyncObserver, BasicObservable } from "#util/Observable.js";
@@ -141,6 +142,13 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
         }
 
         const at = options?.installedAt ?? Time.nowMs;
+
+        // Retire only once we know we are keeping this record.  The copy it replaces is still in #records here, so it
+        // is excluded by key too: retiring it would leave a scheduled deletion that later resolves to this key.
+        if (record.flushCache && DnsRecordType.isUnique(record.recordType)) {
+            this.#expireOthersSupersededBy(record, at, key);
+        }
+
         const isHostRecord = record.recordType === DnsRecordType.A || record.recordType === DnsRecordType.AAAA;
         const recordWithExpire = {
             ...record,
@@ -173,22 +181,67 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
         return true;
     }
 
-    deleteRecord(record: DnsRecord, ifOlderThan?: Timestamp) {
+    /**
+     * The record installed under {@link record}'s key, with that key, or undefined if we hold none.
+     */
+    #installedFor(record: DnsRecord): [key: string, record: DnssdName.Record] | undefined {
         const key = keyOf(record);
-        if (key === undefined) {
-            this.#deleteIfUnused();
+        if (key !== undefined) {
+            const installed = this.#records.get(key);
+            if (installed !== undefined) {
+                return [key, installed];
+            }
+        }
+
+        this.#deleteIfUnused();
+    }
+
+    /**
+     * Shorten a record's remaining lifetime to the context's eviction delay.  Never extends it.
+     */
+    expireRecord(record: DnsRecord) {
+        const installed = this.#installedFor(record);
+        if (installed === undefined) {
             return;
         }
 
-        const recordWithExpire = this.#records?.get(key);
-        if (!recordWithExpire) {
-            this.#deleteIfUnused();
+        this.#retire(...installed);
+    }
+
+    /**
+     * Retires the records {@link record} supersedes, identified by having arrived before the window in which a
+     * responder announces one record set.  A set too large for one packet arrives as several, so grouping by packet
+     * would let the later packets retire the earlier ones.
+     */
+    #expireOthersSupersededBy(record: DnsRecord, at: Timestamp, exceptKey: string) {
+        const before = at - this.#context.evictionDelay;
+        for (const [key, installed] of this.#records) {
+            if (key !== exceptKey && installed.recordType === record.recordType && installed.installedAt < before) {
+                this.#retire(key, installed);
+            }
+        }
+    }
+
+    #retire(key: string, current: DnssdName.Record) {
+        const delay = this.#context.evictionDelay;
+        const expiresAt = Timestamp(Time.nowMs + delay);
+        if (current.expiresAt <= expiresAt) {
             return;
         }
 
-        if (ifOlderThan !== undefined && recordWithExpire.installedAt >= ifOlderThan) {
+        const expiring = { ...current, ttl: delay, expiresAt };
+        this.#context.registerForExpiration(expiring);
+        this.#context.unregisterForExpiration(current);
+        this.#records.set(key, expiring);
+    }
+
+    deleteRecord(record: DnsRecord) {
+        const installed = this.#installedFor(record);
+        if (installed === undefined) {
             return;
         }
+
+        const [key, recordWithExpire] = installed;
 
         this.#records.delete(key);
         this.#recordCount--;
@@ -334,6 +387,11 @@ export namespace DnssdName {
          * Multiplier applied to TTL when computing record expiry.  Always provided by {@link DnssdNames}.
          */
         ttlGraceFactor: number;
+
+        /**
+         * How long a record survives once something supersedes it.  Always provided by {@link DnssdNames}.
+         */
+        evictionDelay: Duration;
     }
 
     export interface Expiration {

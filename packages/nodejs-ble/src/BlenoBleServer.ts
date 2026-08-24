@@ -150,6 +150,7 @@ export class BlenoBleServer extends BleChannel<Bytes> {
     );
     #disconnected = false;
     #closing = false;
+    #advertisementDeferred = false;
     readonly #closeListeners = new Set<() => void>();
     #iteratorQueue = new Array<Bytes>();
     #iteratorWaiter?: (value: IteratorResult<Bytes>) => void;
@@ -175,6 +176,10 @@ export class BlenoBleServer extends BleChannel<Bytes> {
                 if (this.#disconnected || this.#closing) return;
                 Bleno.stopAdvertising();
             } else if (this.advertisingData) {
+                if (this.#advertisementDeferred) {
+                    this.#advertisementDeferred = false;
+                    logger.notice("Bluetooth adapter is powered on, starting the deferred BLE advertisement");
+                }
                 Bleno.startAdvertisingWithEIRData(this.advertisingData);
                 this.isAdvertising = true;
             }
@@ -347,6 +352,12 @@ export class BlenoBleServer extends BleChannel<Bytes> {
     async advertise(advertiseData: Bytes, additionalAdvertisementData?: Bytes, interval = Millis(100)) {
         process.env["BLENO_ADVERTISING_INTERVAL"] = interval.toString();
 
+        // Stopping retracts the previous advertisement's data, so the new data is installed after it
+        if (this.isAdvertising) {
+            await this.stopAdvertising();
+            this.isAdvertising = false;
+        }
+
         this.advertisingData = Buffer.from(Bytes.of(advertiseData));
 
         if (additionalAdvertisementData) {
@@ -355,23 +366,32 @@ export class BlenoBleServer extends BleChannel<Bytes> {
             this.additionalAdvertisingData = Buffer.alloc(0);
         }
 
-        if (this.isAdvertising) {
-            await this.stopAdvertising();
-            this.isAdvertising = false;
+        if (this.state !== "poweredOn") {
+            // Awaiting a start that cannot arrive strands the advertisement; the state change handler resumes it
+            if (!this.#advertisementDeferred) {
+                this.#advertisementDeferred = true;
+                logger.notice(
+                    `BLE advertisement deferred until the Bluetooth adapter reports "poweredOn" (it reports "${this.state}"). Check that Bluetooth is enabled and that this process has the permissions needed to use it.`,
+                );
+            }
+            return;
         }
 
-        if (this.state === "poweredOn") {
-            Bleno.startAdvertisingWithEIRData(this.advertisingData);
-            this.isAdvertising = true;
-        } else {
-            logger.debug(`State is ${this.state}, advertise when powered on`);
-        }
-        return new Promise<void>(resolve => {
+        this.#advertisementDeferred = false;
+        const started = new Promise<void>(resolve => {
             Bleno.once("advertisingStart", () => resolve());
         });
+        Bleno.startAdvertisingWithEIRData(this.advertisingData);
+        this.isAdvertising = true;
+        return started;
     }
 
     async stopAdvertising() {
+        // Also retracts an advertisement that never started: the data outlives a deferred advertisement, and the
+        // power-on handler would otherwise broadcast what the advertiser has already given up on
+        this.#advertisementDeferred = false;
+        this.advertisingData = undefined;
+
         if (this.isAdvertising) {
             return new Promise<void>(resolve => {
                 Bleno.stopAdvertising();

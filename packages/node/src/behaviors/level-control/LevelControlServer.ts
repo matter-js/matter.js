@@ -669,13 +669,8 @@ export namespace LevelControlBaseServer {
         transitionStepInterval = Millis(100);
 
         [Val.properties](endpoint: Endpoint) {
-            // Only return remaining time if the attribute is defined in the endpoint
-            if (
-                (endpoint.behaviors.optionsFor(LevelControlBaseServer) as Record<string, unknown>)?.remainingTime ===
-                    undefined &&
-                (endpoint.behaviors.defaultsFor(LevelControlBaseServer) as Record<string, unknown>)?.remainingTime ===
-                    undefined
-            ) {
+            // An undefined value means the endpoint does not support the attribute
+            if (this.remainingTime === undefined) {
                 return {};
             }
             return {

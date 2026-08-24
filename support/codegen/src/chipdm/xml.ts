@@ -20,10 +20,21 @@ const ELEMENT_NODE = 1;
 
 export function parseXml(text: string, filename: string) {
     let document;
+
+    // The parser throws only on a fatal error and reports everything else while returning a best-effort document, so
+    // a diagnostic we ignore leaves us comparing markup the parser guessed at
+    const diagnostics = new Array<string>();
+
     try {
-        document = new DOMParser({ onError: () => {} }).parseFromString(text, "text/xml");
+        document = new DOMParser({
+            onError: (level, message) => diagnostics.push(`${level}: ${message}`),
+        }).parseFromString(text, "text/xml");
     } catch (cause) {
-        throw new DataModelSyntaxError(`${filename}: ${asError(cause).message}`);
+        throw new DataModelSyntaxError(`${filename}: ${asError(cause).message}`, { cause });
+    }
+
+    if (diagnostics.length) {
+        throw new DataModelSyntaxError(`${filename}: ${diagnostics.join("; ")}`);
     }
 
     const root = document.documentElement;

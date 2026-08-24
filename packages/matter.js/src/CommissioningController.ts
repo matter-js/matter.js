@@ -6,7 +6,6 @@
 
 import { InteractionClient, NodeDiscoveryType } from "#cluster/client/InteractionClient.js";
 import {
-    ChannelType,
     ClassExtends,
     Crypto,
     Duration,
@@ -92,9 +91,7 @@ export async function runDiscoverCommissionableDevices(
     const discovery = new ContinuousDiscovery(node, {
         ...identifierData,
         timeout,
-        scannerFilter: discoveryCapabilities
-            ? (s): boolean => s.type === ChannelType.UDP || (!!discoveryCapabilities.ble && s.type === ChannelType.BLE)
-            : undefined,
+        discoveryCapabilities,
     });
     const results = Array<CommissionableDevice>();
     const seen = new Set<string>();
@@ -436,10 +433,6 @@ export class CommissioningController {
             basicInformation,
             clientCacheFlushInterval,
         });
-
-        if (!controller.ble) {
-            logger.warn("BLE is not enabled on this platform");
-        }
 
         // Sync state for all peers before start
         for (const peer of controller.node.peers) {

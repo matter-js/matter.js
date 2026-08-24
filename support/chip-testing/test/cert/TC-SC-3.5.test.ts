@@ -4,8 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, InternalError, Millis, Time } from "@matter/main";
-import type { CertStepContext, CertStepDefinition, PromptHandler, StepVerdict, Subject } from "@matter/testing";
+import { Duration, InternalError, Seconds } from "@matter/main";
+import type {
+    CertStepContext,
+    CertStepDefinition,
+    CheckRecord,
+    PromptHandler,
+    StepVerdict,
+    Subject,
+} from "@matter/testing";
 import {
     chip,
     createControllerAdapter,
@@ -15,6 +22,8 @@ import {
 } from "@matter/testing";
 import { join } from "node:path";
 import { env } from "node:process";
+import { expectMdns } from "../../src/cert/mdns-check.js";
+import { CertCheckFailedError, CertCleanupError, settleWithin } from "./tc-support.js";
 
 // setup_class's th_server_discriminator — fixed for every OpenCommissioningWindow call in the script.
 // The passcode is NOT fixed the same way: only the initial precondition commission (TH_CLIENT pairing
@@ -60,16 +69,7 @@ function extractPasscode(promptText: string): number {
 
 // Corrupted-Sigma2 commissioning failures should surface promptly (an aborted CASE handshake), but a
 // DUT that hangs instead of rejecting must not stall this step for the full mocha timeout.
-const COMMISSION_TIMEOUT_MS = 60_000;
-
-type SettleOutcome = { kind: "resolved"; ref: string } | { kind: "rejected"; error: unknown } | { kind: "timeout" };
-
-function settled(promise: Promise<string>): Promise<SettleOutcome> {
-    return promise.then(
-        (ref): SettleOutcome => ({ kind: "resolved", ref }),
-        (error: unknown): SettleOutcome => ({ kind: "rejected", error }),
-    );
-}
+const COMMISSION_TIMEOUT = Seconds(60);
 
 /**
  * Handles every "Manual Pairing Code" prompt `TC_SC_3_5.py` prints — steps 1b, 2c, 3c, 4c, 5c (4c is
@@ -101,26 +101,50 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
             };
             cx.recorder.beginStep(stepDef);
 
-            const timeout = Time.sleep("TC-SC-3.5 commission timeout", Millis(COMMISSION_TIMEOUT_MS));
-            let outcome: SettleOutcome;
-            try {
-                outcome = await Promise.race([
-                    settled(
-                        dut.commission({
-                            passcode,
-                            discriminator: TH_SERVER_DISCRIMINATOR,
-                            // The script arms each fault for one handshake only, so a commissioner that retries gets a
-                            // clean one and commissions successfully. Step 1b injects no fault and must be free to
-                            // recover like any healthy commissioning.
-                            singleHandshakeAttempt: !expectSuccess,
-                        }),
-                    ),
-                    timeout.then((): SettleOutcome => ({ kind: "timeout" })),
-                ]);
-            } finally {
-                // A lost race leaves the sleep armed for its full duration, keeping the process alive past teardown
-                timeout.cancel();
+            if (!expectSuccess) {
+                // A rejection alone doesn't implicate the DUT — commission() fails the same way when
+                // TH_SERVER is not there at all. So prove TH_SERVER is advertising its just-opened
+                // window BEFORE driving the attempt. Before, not after: once the DUT's PASE consumed
+                // the window the device stops commissionable advertising even though the window is
+                // still open (chip's TH_SERVER does; observed on the own-built CI leg), so a
+                // post-attempt check fails a conforming device. Presence evidence only — nothing here
+                // proves the handshake itself was reached.
+                let advertised: CheckRecord;
+                try {
+                    advertised = await expectMdns(
+                        { commissioning: { discriminator: TH_SERVER_DISCRIMINATOR } },
+                        { commissionable: true },
+                    );
+                } catch (e) {
+                    // The step must settle its recorder frame even when the check itself blows up
+                    advertised = {
+                        type: "network",
+                        verdict: "fail",
+                        detail: `commissionable mDNS check could not run: ${errorMessage(e)}`,
+                    };
+                }
+                cx.recorder.check(advertised);
+                if (advertised.verdict !== "pass") {
+                    cx.recorder.endStep(stepDef, "fail");
+                    throw new CertCheckFailedError(
+                        `attempt ${attempt} was not driven: TH_SERVER was not observed advertising, so a ` +
+                            `rejection would have proven nothing about the DUT (${advertised.detail})`,
+                    );
+                }
             }
+
+            const outcome = await settleWithin(
+                `TC-SC-3.5 commissioning attempt ${attempt}`,
+                dut.commission({
+                    passcode,
+                    discriminator: TH_SERVER_DISCRIMINATOR,
+                    // The script arms each fault for one handshake only, so a commissioner that retries gets a
+                    // clean one and commissions successfully. Step 1b injects no fault and must be free to
+                    // recover like any healthy commissioning.
+                    singleHandshakeAttempt: !expectSuccess,
+                }),
+                COMMISSION_TIMEOUT,
+            );
 
             let verdict: StepVerdict;
             let failure: Error | undefined;
@@ -131,16 +155,19 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
                     cx.recorder.check({
                         type: "response",
                         verdict,
-                        detail: `commission() resolved on attempt ${attempt} (ref ${outcome.ref})`,
+                        detail: `commission() resolved on attempt ${attempt} (ref ${outcome.value})`,
                     });
                     if (!expectSuccess) {
-                        await dut
-                            .node(outcome.ref)
-                            .decommission()
-                            .catch(e =>
-                                console.warn(`Failed to decommission unexpectedly-successful attempt ${attempt}:`, e),
-                            );
-                        failure = new Error(
+                        try {
+                            await dut.node(outcome.value).decommission();
+                        } catch (e) {
+                            // Both: whether a fabric was left on TH_SERVER decides whether the *next*
+                            // run can be trusted, and the bundle carrying it may itself never be written
+                            const detail = `attempt ${attempt}'s fabric could not be removed, so it may remain on TH_SERVER: ${e}`;
+                            console.warn(`TC-SC-3.5: ${detail}`);
+                            cx.recorder.check({ type: "response", verdict: "fail", detail });
+                        }
+                        failure = new CertCheckFailedError(
                             `DUT commissioning unexpectedly succeeded on attempt ${attempt} against a ` +
                                 "Sigma2-fault-injected TH_SERVER, so either it accepted a corrupted Sigma2 or it " +
                                 "retried past the one the script corrupted",
@@ -153,14 +180,17 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
                     cx.recorder.check({
                         type: "response",
                         verdict,
-                        // Deliberately reports only that commissioning did not complete. What the DUT answered the
-                        // corrupted Sigma2 with is in the attached controller log, and TH_SERVER's own view of the
+                        // Reports only that commissioning did not complete against the TH_SERVER the
+                        // pre-attempt check proved present. What the DUT answered the corrupted Sigma2
+                        // with is in the attached controller log, and TH_SERVER's own view of the
                         // handshake plus its commissioning-window assertion are in the script's.
                         detail: `commission() did not complete on attempt ${attempt}: ${errorMessage(outcome.error)}`,
                     });
                     if (expectSuccess) {
                         failure =
-                            outcome.error instanceof Error ? outcome.error : new Error(errorMessage(outcome.error));
+                            outcome.error instanceof Error
+                                ? outcome.error
+                                : new CertCheckFailedError(errorMessage(outcome.error));
                     }
                     break;
 
@@ -171,9 +201,9 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
                         verdict,
                         detail:
                             `commission() neither resolved nor rejected on attempt ${attempt} within ` +
-                            Duration.format(Millis(COMMISSION_TIMEOUT_MS)),
+                            Duration.format(COMMISSION_TIMEOUT),
                     });
-                    failure = new Error(`DUT commissioning attempt ${attempt} timed out`);
+                    failure = new CertCheckFailedError(`DUT commissioning attempt ${attempt} timed out`);
                     break;
             }
 
@@ -239,6 +269,10 @@ describe("TC-SC-3.5", () => {
         this.timeout(10 * 60_000);
 
         const state = { attempts: 0 };
+        let bodyFailure: unknown;
+        let flushFailure: unknown;
+        let closeFailure: unknown;
+        let concludeFailure: unknown;
         const dut = createControllerAdapter("dut");
 
         const recorder = new EvidenceRecorder(evidenceOutDir(), {
@@ -267,15 +301,61 @@ describe("TC-SC-3.5", () => {
                         "commissioning prompts, so some of its fault-injected CASE handshakes were never attempted",
                 );
             }
+        } catch (e) {
+            // Kept so the verdict this settles below is the one mocha will report: the steps here are
+            // not the only way this test fails, and a failure outside them is invisible to the recorder.
+            bodyFailure = e;
+            throw e;
         } finally {
             recorder.attachLog("controller-dut", dut.log.lines);
             recorder.attachLog("device-python", test.logLines);
-            await recorder.flush().catch(e => console.warn("Failed to flush TC-SC-3.5 evidence:", e));
+
+            // Warned as well as kept: the throw below is unreachable when the body itself threw, and a
+            // failure to create the directory or name the record reaches nothing but the console.
+            try {
+                await recorder.flush();
+            } catch (e) {
+                console.warn("TC-SC-3.5 could not write its evidence bundle:", e);
+                flushFailure = e;
+            }
             try {
                 await dut.close();
             } catch (e) {
-                console.warn("Failed to close TC-SC-3.5 dut adapter:", e);
+                console.warn("TC-SC-3.5 could not close its dut adapter:", e);
+                closeFailure = e;
             }
+
+            if (closeFailure !== undefined) {
+                recorder.teardownFailed(`TC-SC-3.5's dut adapter would not close: ${closeFailure}`);
+            }
+
+            // This test writes its own bundle instead of going through `CertTest`, so its record states
+            // no verdict until it settles one here.
+            const failure = bodyFailure ?? flushFailure ?? closeFailure;
+            try {
+                await recorder.concludeRun({
+                    failed: failure !== undefined,
+                    detail: failure === undefined ? undefined : `${failure}`,
+                });
+            } catch (e) {
+                console.warn("TC-SC-3.5 could not settle its evidence record:", e);
+                concludeFailure = e;
+            }
+        }
+
+        // Reached only when the steps themselves succeeded, which is what makes these the run's own
+        // outcome. Flush first, as `cert-test.ts` orders it: a run with no bundle proves nothing, where
+        // a controller that would not close is state left for whatever runs next.
+        if (flushFailure !== undefined) {
+            throw flushFailure;
+        }
+        if (closeFailure !== undefined) {
+            throw new CertCleanupError(
+                `TC-SC-3.5's dut adapter would not close, so its fabric may remain on TH_SERVER: ${closeFailure}`,
+            );
+        }
+        if (concludeFailure !== undefined) {
+            throw concludeFailure;
         }
     });
 });

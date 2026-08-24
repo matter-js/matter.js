@@ -69,7 +69,11 @@ export class PicsFile {
     }
 
     patch(other: PicsFile) {
-        const newValues = { ...other.values };
+        const newValues = other.values;
+
+        // Chip's PICS files declare some keys more than once and the last declaration is the effective one, so an
+        // override must replace every occurrence or the file's own later value wins
+        const unapplied = { ...newValues };
 
         const newLines = new Array<string>();
         for (const line of this.lines) {
@@ -83,15 +87,15 @@ export class PicsFile {
                 const newValue = newValues[key];
                 if (newValue !== undefined) {
                     newLines.push(`${key}=${newValue}`);
-                    delete newValues[key];
+                    delete unapplied[key];
                 } else {
                     newLines.push(`${key}=${lineValues[key]}`);
                 }
             }
         }
 
-        for (const key in newValues) {
-            newLines.push(`${key}=${newValues[key]}`);
+        for (const key in unapplied) {
+            newLines.push(`${key}=${unapplied[key]}`);
         }
 
         this.#values = undefined;

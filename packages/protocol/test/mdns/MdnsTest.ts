@@ -67,7 +67,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
 
     const IPDnsRecords = [
         {
-            flushCache: false,
+            flushCache: true,
             name: "00B0D063C2260000.local",
             recordType: 28,
             recordClass: 1,
@@ -77,7 +77,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
     ];
     if (testIpv4Enabled && serverHasIpv4Addresses) {
         IPDnsRecords.push({
-            flushCache: false,
+            flushCache: true,
             name: "00B0D063C2260000.local",
             recordType: 1,
             recordClass: 1,
@@ -322,7 +322,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                             value: "0000000000000018-0000000000000001._matter._tcp.local",
                         },
                         {
-                            flushCache: false,
+                            flushCache: true,
                             name: "0000000000000018-0000000000000001._matter._tcp.local",
                             recordType: 33,
                             recordClass: 1,
@@ -330,7 +330,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                             value: { priority: 0, weight: 0, port: PORT, target: "00B0D063C2260000.local" },
                         },
                         {
-                            flushCache: false,
+                            flushCache: true,
                             name: "0000000000000018-0000000000000001._matter._tcp.local",
                             recordType: 16,
                             recordClass: 1,
@@ -389,7 +389,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                             value: "0000000000000018-0000000000000001._matter._tcp.local",
                         },
                         {
-                            flushCache: false,
+                            flushCache: true,
                             name: "0000000000000018-0000000000000001._matter._tcp.local",
                             recordType: 33,
                             recordClass: 1,
@@ -397,7 +397,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                             value: { priority: 0, weight: 0, port: PORT, target: "00B0D063C2260000.local" },
                         },
                         {
-                            flushCache: false,
+                            flushCache: true,
                             name: "0000000000000018-0000000000000001._matter._tcp.local",
                             recordType: 16,
                             recordClass: 1,
@@ -420,7 +420,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                     additionalRecords: [],
                     answers: [
                         {
-                            flushCache: false,
+                            flushCache: true,
                             name: "8080808080808080._matterc._udp.local",
                             recordClass: 1,
                             recordType: 33,
@@ -428,7 +428,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                             value: { port: PORT, priority: 0, target: "00B0D063C2260000.local", weight: 0 },
                         },
                         {
-                            flushCache: false,
+                            flushCache: true,
                             name: "8080808080808080._matterc._udp.local",
                             recordClass: 1,
                             recordType: 16,
@@ -559,7 +559,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                     additionalRecords: [],
                     answers: [
                         {
-                            flushCache: false,
+                            flushCache: true,
                             name: "8080808080808080._matterd._udp.local",
                             recordClass: 1,
                             recordType: 33,
@@ -567,7 +567,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                             value: { port: PORT, priority: 0, target: "00B0D063C2260000.local", weight: 0 },
                         },
                         {
-                            flushCache: false,
+                            flushCache: true,
                             name: "8080808080808080._matterd._udp.local",
                             recordClass: 1,
                             recordType: 16,
@@ -652,7 +652,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                     additionalRecords: [],
                     answers: [
                         {
-                            flushCache: false,
+                            flushCache: true,
                             name: "8080808080808080._matterd._udp.local",
                             recordClass: 1,
                             recordType: 33,
@@ -660,7 +660,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                             value: { port: PORT, priority: 0, target: "00B0D063C2260000.local", weight: 0 },
                         },
                         {
-                            flushCache: false,
+                            flushCache: true,
                             name: "8080808080808080._matterd._udp.local",
                             recordClass: 1,
                             recordType: 16,
@@ -766,7 +766,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                             value: "0000000000000018-0000000000000001._matter._tcp.local",
                         },
                         {
-                            flushCache: false,
+                            flushCache: true,
                             name: "0000000000000018-0000000000000001._matter._tcp.local",
                             recordType: 33,
                             recordClass: 1,
@@ -774,7 +774,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                             value: { priority: 0, weight: 0, port: PORT, target: "00B0D063C2260000.local" },
                         },
                         {
-                            flushCache: false,
+                            flushCache: true,
                             name: "0000000000000018-0000000000000001._matter._tcp.local",
                             recordType: 16,
                             recordClass: 1,
@@ -792,7 +792,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                     additionalRecords: [],
                     answers: [
                         {
-                            flushCache: false,
+                            flushCache: true,
                             name: "8080808080808080._matterc._udp.local",
                             recordClass: 1,
                             recordType: 33,
@@ -800,7 +800,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                             value: { port: PORT2, priority: 0, target: "00B0D063C2260000.local", weight: 0 },
                         },
                         {
-                            flushCache: false,
+                            flushCache: true,
                             name: "8080808080808080._matterc._udp.local",
                             recordClass: 1,
                             recordType: 16,
@@ -915,7 +915,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                     additionalRecords: [],
                     answers: [
                         {
-                            flushCache: false,
+                            flushCache: true,
                             name: "8080808080808080._matterd._udp.local",
                             recordClass: 1,
                             recordType: 33,
@@ -923,7 +923,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                             value: { port: PORT3, priority: 0, target: "00B0D063C2260000.local", weight: 0 },
                         },
                         {
-                            flushCache: false,
+                            flushCache: true,
                             name: "8080808080808080._matterd._udp.local",
                             recordClass: 1,
                             recordType: 16,

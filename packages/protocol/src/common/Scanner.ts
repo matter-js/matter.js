@@ -138,6 +138,15 @@ export type DiscoverableDevice<SA extends ServerAddress> = DiscoveryData &
     Partial<AddressLifespan> & {
         /** The device's addresses IP/port pairs */
         addresses: SA[];
+
+        /**
+         * The host the device's SRV record names, without its domain.
+         *
+         * Reported as the responder wrote it. Absent until an SRV record for the device arrives.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 4.3.1
+         */
+        hostname?: string;
     };
 
 export type AddressTypeFromDevice<D extends DiscoverableDevice<any>> =

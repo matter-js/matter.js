@@ -15,6 +15,24 @@ function element(xml: string) {
 }
 
 describe("translation of CHIP data model XML", () => {
+    describe("parsing", () => {
+        it("reads an element", () => {
+            expect(element('<attribute name="Level"/>').getAttribute("name")).equal("Level");
+        });
+
+        it("rejects markup the parser reports on", () => {
+            // The parser returns a best-effort document for anything short of a fatal error, and markup it guessed at
+            // compares as defects of our model
+            expect(() => element("<attribute>&nope;</attribute>")).throw(DataModelSyntaxError, "entity not found");
+            expect(() => element("<attribute name=Level/>")).throw(DataModelSyntaxError, "missed quot");
+            expect(() => element("<attribute name/>")).throw(DataModelSyntaxError, "missed value");
+        });
+
+        it("rejects markup the parser cannot read at all", () => {
+            expect(() => element("<attribute>")).throw(DataModelSyntaxError, "unclosed xml tag");
+        });
+    });
+
     describe("conformance", () => {
         function conformance(xml: string) {
             return `${translateConformance(element(xml))}`;

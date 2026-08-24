@@ -185,8 +185,8 @@ export class MdnsServer {
                     {
                         messageType: DnsMessageType.Response,
                         transactionId,
-                        answers,
-                        additionalRecords,
+                        answers: sendable(answers, portRecords, uniCastResponse),
+                        additionalRecords: sendable(additionalRecords, portRecords, uniCastResponse),
                     },
                     sourceIntf,
                     uniCastResponse ? sourceIp : undefined,
@@ -306,10 +306,23 @@ export class MdnsServer {
         return netInterface === undefined ? this.network.getNetInterfaces() : [{ name: netInterface }];
     }
 
+    /**
+     * Whether a querier's known answer already carries {@link record}.
+     *
+     * A record is identified by its name, type, class and value; the cache-flush bit is framing, meaningful only in a
+     * response.  A known answer suppresses only while more than half its lifetime remains.
+     *
+     * @see {@link https://www.rfc-editor.org/rfc/rfc6762#section-7.1} RFC 6762 §7.1
+     */
     #suppressedByKnownAnswer(record: DnsRecord<any>, knownAnswer: DnsRecord<any>): boolean {
-        const lcName = knownAnswer.name.toLowerCase();
-        if (record.name.toLowerCase() !== lcName) return false;
-        return isDeepEqual({ ...record, name: lcName }, { ...knownAnswer, name: lcName }, true);
+        // Cheapest discriminators first: this runs once per (answer, known answer) pair on every inbound query
+        return (
+            record.recordType === knownAnswer.recordType &&
+            record.recordClass === knownAnswer.recordClass &&
+            knownAnswer.ttl > record.ttl / 2 &&
+            sameName(record.name, knownAnswer.name) &&
+            isDeepEqual(record.value, knownAnswer.value)
+        );
     }
 
     #queryRecords({ name, recordType }: { name: string; recordType: DnsRecordType }, records: DnsRecord<any>[]) {
@@ -452,4 +465,53 @@ export namespace MdnsServer {
         /** Lower-cased names of records we own on this interface - used to fast-reject unrelated LAN queries. */
         ownedNames: Set<string>;
     }
+}
+
+/**
+ * Prepares records for the wire, clearing the cache-flush bit wherever we cannot honor what it claims.
+ *
+ * The bit says the receiver may drop everything else it holds for the name and type, which is only true if this
+ * response carries that whole set — suppression and rate limiting both remove records before we get here.  A legacy
+ * resolver, which we cannot distinguish because the source port does not reach us, must never see the bit at all, so
+ * a unicast response omits it.
+ *
+ * @see {@link https://www.rfc-editor.org/rfc/rfc6762#section-10.2} RFC 6762 §10.2
+ * @see {@link https://www.rfc-editor.org/rfc/rfc6762#section-6.7} RFC 6762 §6.7
+ */
+function sendable(sent: DnsRecord<any>[], complete: DnsRecord<any>[], isUnicast: boolean) {
+    if (isUnicast) {
+        return sent.map(record => (record.flushCache ? { ...record, flushCache: false } : record));
+    }
+
+    if (!sent.some(record => record.flushCache)) {
+        return sent;
+    }
+
+    const sentSizes = setSizes(sent);
+    const completeSizes = setSizes(complete);
+
+    return sent.map(record =>
+        record.flushCache && (sentSizes.get(setKeyOf(record)) ?? 0) < (completeSizes.get(setKeyOf(record)) ?? 0)
+            ? { ...record, flushCache: false }
+            : record,
+    );
+}
+
+/** Identifies the record set a record belongs to: RFC 6762 scopes the cache-flush bit to one name, type and class. */
+function setKeyOf(record: DnsRecord<any>) {
+    return `${record.recordType}-${record.recordClass}-${record.name.toLowerCase()}`;
+}
+
+function setSizes(records: DnsRecord<any>[]) {
+    const sizes = new Map<string, number>();
+    for (const record of records) {
+        const key = setKeyOf(record);
+        sizes.set(key, (sizes.get(key) ?? 0) + 1);
+    }
+    return sizes;
+}
+
+/** DNS names are case-insensitive (RFC 6762 §16), but they rarely differ in case, so try the cheap comparison first. */
+function sameName(a: string, b: string) {
+    return a === b || a.toLowerCase() === b.toLowerCase();
 }

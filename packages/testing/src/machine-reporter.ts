@@ -180,7 +180,16 @@ export class MachineReporter implements Reporter {
 
         if (descriptor) {
             const meta = Array<string>();
-            for (const key of ["kind", "description", "pics", "app", "timeoutMs", "config", "picsValues"] as const) {
+            for (const key of [
+                "kind",
+                "description",
+                "pics",
+                "app",
+                "preferredApp",
+                "timeoutMs",
+                "config",
+                "picsValues",
+            ] as const) {
                 const value = descriptor[key];
                 if (value !== undefined) {
                     meta.push(`- **${key}**: ${typeof value === "object" ? JSON.stringify(value) : value}`);

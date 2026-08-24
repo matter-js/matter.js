@@ -389,4 +389,14 @@ export abstract class BehaviorBacking {
         this.#protocol.handleChange(this, props);
         this.#changeTracking.broadcastUpdate(this, props);
     }
+
+    /**
+     * Report attributes a behavior computes on read.  Only a server behavior reports to subscribers, and only a server
+     * behavior owns its data version - a peer's belongs to the peer.
+     */
+    markChanged(props: string[]): void {
+        throw new ImplementationError(
+            `${this} cannot report ${props.map(name => `"${name}"`).join(", ")}; only a server behavior reports changes`,
+        );
+    }
 }

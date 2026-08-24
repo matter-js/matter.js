@@ -237,11 +237,11 @@ export class QueryMulticaster implements DnssdSolicitor {
                     queries.push({ name: name.qname, recordClass: DnsRecordClass.IN, recordType });
                 }
 
-                answers.push(...name.records);
+                answers.push(...knownAnswersOf(name));
 
                 for (const iterable of associatedNames) {
                     for (const assocName of iterable) {
-                        answers.push(...assocName.records);
+                        answers.push(...knownAnswersOf(assocName));
                     }
                 }
             }
@@ -264,4 +264,13 @@ export class QueryMulticaster implements DnssdSolicitor {
             }
         }
     }
+}
+
+/**
+ * A name's records as a query's known answers, without the cache-flush bit, which means nothing outside a response.
+ *
+ * @see {@link https://www.rfc-editor.org/rfc/rfc6762#section-18.12} RFC 6762 §18.12
+ */
+function knownAnswersOf(name: DnssdName) {
+    return [...name.records].map(record => (record.flushCache ? { ...record, flushCache: false } : record));
 }

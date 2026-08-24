@@ -4,39 +4,68 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Duration, InternalError, Millis, Time, Verhoeff } from "@matter/main";
+import {
+    Bytes,
+    DiscoveryAggregateError,
+    DiscoveryError,
+    Duration,
+    ImplementationError,
+    InternalError,
+    Millis,
+    Seconds,
+    Time,
+    Verhoeff,
+} from "@matter/main";
 import { Base38, DiscoveryCapabilitiesBitmap, DiscoveryCapabilitiesSchema } from "@matter/main/types";
-import type { CertNodeRef, CertStepContext, CommissioningTarget } from "@matter/testing";
+import type { CertNodeRef, CertStepContext, CheckRecord, CommissioningTarget } from "@matter/testing";
 import type { CertDevice } from "@matter/testing";
+import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
 import { expectMdns } from "../../src/cert/mdns-check.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
-import { CertCleanupError, CommissionedRefs, expectRejection, expectSequence, record } from "./tc-support.js";
+import {
+    CertCleanupError,
+    CommissionedRefs,
+    expectRejection,
+    expectSequence,
+    MATTERJS_COMMISSIONED_FABRIC,
+    record,
+    settleWithin,
+} from "./tc-support.js";
 
-export const LOG_TIMEOUT_MS = 30_000;
-export const MDNS_TIMEOUT_MS = 30_000;
+/** Bounds a wait for a line a device prints as it comes up, with a whole commissioning flow ahead of it. */
+export const COMMISSIONING_LOG_TIMEOUT = Seconds(30);
+export const MDNS_TIMEOUT = Seconds(30);
 
 /**
  * Bounds a "the DUT must refuse this" commissioning attempt. Both controllers read the payload
  * before they touch the network, so a refusal lands in milliseconds; the budget is what keeps a
  * controller that instead went looking for the commissionee from hanging the step.
  */
-export const REFUSAL_TIMEOUT_MS = 15_000;
+export const REFUSAL_TIMEOUT = Seconds(15);
 
 /**
- * Bounds the cleanup's wait for an attempt that outlived {@link REFUSAL_TIMEOUT_MS}. A commissioning
+ * Bounds the cleanup's wait for an attempt that outlived {@link REFUSAL_TIMEOUT}. A commissioning
  * that is going to succeed does so in seconds; what this cannot outwait is a chip-tool command stuck
  * in its own 3-minute budget, and that is deliberate — `CertTest`'s whole finalizer gets 2 minutes,
  * and a controller stuck that long has left the TH in a state this run cannot report on anyway.
  */
-export const REFUSAL_SETTLE_TIMEOUT_MS = 30_000;
+export const REFUSAL_SETTLE_TIMEOUT = Seconds(30);
 
-/** Outlives the rest of a run, so a later step never pairs against a window that closed on its own. */
-const WINDOW_TIMEOUT_SECONDS = 300;
+/**
+ * The trivial passcodes § 5.1.7.1 forbids, transcribed from the plans' own step 5.a rather than taken
+ * from matter.js's own list, so a divergence between the two shows up as a failing step.
+ */
+export const INVALID_PASSCODES: readonly number[] = [
+    0, 11111111, 22222222, 33333333, 44444444, 55555555, 66666666, 77777777, 88888888, 99999999, 12345678, 87654321,
+];
+
+/** The test vendor identifiers § 2.5.2 reserves, which TC-DD-3.17's own step 6.a substitutes. */
+export const TEST_VENDOR_IDS: readonly number[] = [0xfff1, 0xfff2, 0xfff3, 0xfff4];
 
 /** Both device flavors print the payload they publish on this line; chip prints one per commissioning flow. */
 const SETUP_QR_CODE = /SetupQRCode: \[(MT:[^\]]+)\]/;
 
-/** chip-all-clusters-app announces a completed commissioning; matter.js has no equivalent line. */
+/** chip-all-clusters-app announces a completed commissioning. */
 const COMMISSIONING_COMPLETE = /Commissioning completed successfully/;
 
 /**
@@ -51,7 +80,7 @@ export async function thQrPayload(th: CertDevice): Promise<string> {
 
     const result = await th.log.expect(
         { chip: SETUP_QR_CODE, matterjs: SETUP_QR_CODE },
-        { flavor: th.flavor, from: 0, timeoutMs: LOG_TIMEOUT_MS },
+        { flavor: th.flavor, from: 0, timeoutMs: COMMISSIONING_LOG_TIMEOUT },
     );
     if (result.verdict === "unverified") {
         throw new InternalError(`${th.flavor} devices neither report nor print an onboarding payload`);
@@ -119,13 +148,27 @@ export async function onNetworkOnlyPayload(cx: CertStepContext): Promise<string>
 /**
  * Records that `payload` does not offer `capability`, read back through the DUT so a controller that
  * cannot report a bitmask fails here rather than silently proving nothing.
+ *
+ * `unchangedFrom` is the payload the plan derived this one from ("using the QR code from Step 1"), and
+ * is what holds the derivation to changing only the discovery capabilities: a helper that also moved
+ * the discriminator or the passcode still offers no BLE, so the capability check alone cannot tell the
+ * plan's payload from a different device's. Required for that reason — a guard against a
+ * self-satisfying comparison is one an optional parameter loses by accident.
  */
 export async function recordDiscoveryCapabilityAbsent(
     cx: CertStepContext,
     payload: string,
     capability: keyof typeof DiscoveryCapabilitiesBitmap,
     what: string,
+    unchangedFrom: string,
 ): Promise<void> {
+    // Every field of the source but the capabilities, which is the one this derivation changes and the
+    // one the check below judges. Stating them from the source rather than through `unchangedFrom` is
+    // what keeps the capabilities out of the comparison without asserting the payload's own value
+    // against itself.
+    const { discoveryCapabilities: _capabilities, ...unchanged } = qrPayloadFields(unchangedFrom);
+    record(cx, checkGeneratedPayload(payload, unchanged), `${what}: derived from step 1's payload`);
+
     const parsed = await cx.controllers.dut.parseQrPayload(payload);
     const offered = DiscoveryCapabilitiesSchema.decode(parsed.discoveryCapabilities);
     const names = Object.entries(offered)
@@ -148,14 +191,25 @@ export async function recordDiscoveryCapabilityAbsent(
 
 /** Bit offset and length of § 5.1.3.1 Table 59's fields inside the payload's fixed structure. */
 const VERSION_BITS = { offset: 0, length: 3 };
-const PASSCODE_BITS = { offset: 57, length: 27 };
+const VENDOR_ID_BITS = { offset: 3, length: 16 };
+const PRODUCT_ID_BITS = { offset: 19, length: 16 };
+const FLOW_TYPE_BITS = { offset: 35, length: 2 };
 const DISCOVERY_BITS = { offset: 37, length: 8 };
+const DISCRIMINATOR_BITS = { offset: 45, length: 12 };
+const PASSCODE_BITS = { offset: 57, length: 27 };
+
+/** § 5.1.3.1's fixed structure is 11 bytes; § 5.1.5's optional TLV follows it. */
+const FIXED_PAYLOAD_BYTES = 11;
 
 function writeBits(data: Uint8Array, { offset, length }: { offset: number; length: number }, value: number): void {
     if (!Number.isInteger(value) || value < 0 || value >= 2 ** length) {
         // The bitwise operators below coerce a fraction and NaN silently, which would put a payload
         // nobody asked for into the evidence
         throw new InternalError(`${value} does not fit the ${length} bits at offset ${offset}`);
+    }
+    if (data.length * 8 < offset + length) {
+        // Writing past the end of a Uint8Array is silently dropped, for the same result
+        throw new InternalError(`The ${length} bits at offset ${offset} do not fit a payload of ${data.length} bytes`);
     }
     for (let i = 0; i < length; i++) {
         const bit = offset + i;
@@ -166,6 +220,20 @@ function writeBits(data: Uint8Array, { offset, length }: { offset: number; lengt
             data[bit >> 3] &= ~mask;
         }
     }
+}
+
+function readBits(data: Uint8Array, { offset, length }: { offset: number; length: number }): number {
+    if (data.length * 8 < offset + length) {
+        throw new InternalError(`The ${length} bits at offset ${offset} do not fit a payload of ${data.length} bytes`);
+    }
+    let value = 0;
+    for (let i = 0; i < length; i++) {
+        const bit = offset + i;
+        if (data[bit >> 3] & (1 << (bit % 8))) {
+            value |= 1 << i;
+        }
+    }
+    return value;
 }
 
 /**
@@ -207,6 +275,136 @@ export function qrPayloadWithPrefix(payload: string, prefix: string): string {
 }
 
 /**
+ * Names each of `names` that `expected` states and `actual` does not carry. A field `expected` omits
+ * is not asserted — keyed on the property being present, so a caller can assert an absent field, and
+ * so one that passes an accidental `undefined` gets an assertion rather than silence.
+ */
+function statedMismatches<T extends object>(actual: T, expected: Partial<T>, names: readonly (keyof T)[]): string[] {
+    const wrong = new Array<string>();
+    for (const name of names) {
+        if (Object.hasOwn(expected, name) && actual[name] !== expected[name]) {
+            wrong.push(`${String(name)}=${String(expected[name])}`);
+        }
+    }
+    return wrong;
+}
+
+/**
+ * Every field § 5.1.3.1 Table 59's fixed structure carries, plus § 5.1.5's optional tail.
+ *
+ * All of them, not only the ones the negative plans substitute: an expectation that a substitution
+ * left the rest of the payload alone is only as strong as the set of fields it can compare.
+ */
+export interface QrPayloadFields {
+    /** § 5.1.3's `MT:`, or whatever a step put in its place. */
+    prefix: string;
+
+    version: number;
+    vendorId: number;
+    productId: number;
+
+    /** 0 standard, 1 user intent, 2 custom (Table 59). */
+    flowType: number;
+
+    /** § 5.1.3.1 Table 60's bitmask, as it appears on the wire. */
+    discoveryCapabilities: number;
+
+    discriminator: number;
+    passcode: number;
+
+    /** § 5.1.5's TLV as hex, `""` where the payload carries none. */
+    tlv: string;
+}
+
+/**
+ * {@link qrPayloadWith}'s reader, and not a codec for the same reason it is not one.
+ *
+ * Base38 carries no colon, so the first one ends the prefix.
+ */
+export function qrPayloadFields(payload: string): QrPayloadFields {
+    const prefixEnd = payload.indexOf(":");
+    if (prefixEnd < 0) {
+        throw new InternalError(`Cannot read fields out of "${payload}", which carries no onboarding payload prefix`);
+    }
+
+    const prefix = payload.slice(0, prefixEnd + 1);
+    const data = Uint8Array.from(Bytes.of(Base38.decode(payload.slice(prefix.length))));
+
+    return {
+        prefix,
+        version: readBits(data, VERSION_BITS),
+        vendorId: readBits(data, VENDOR_ID_BITS),
+        productId: readBits(data, PRODUCT_ID_BITS),
+        flowType: readBits(data, FLOW_TYPE_BITS),
+        discoveryCapabilities: readBits(data, DISCOVERY_BITS),
+        discriminator: readBits(data, DISCRIMINATOR_BITS),
+        passcode: readBits(data, PASSCODE_BITS),
+        tlv: Bytes.toHex(data.slice(FIXED_PAYLOAD_BYTES)),
+    };
+}
+
+/** What a generating step claims about the payload it produced. */
+export interface ExpectedQrPayloadFields extends Partial<QrPayloadFields> {
+    /**
+     * The payload every field `expected` does not name must still match. The plans ask for "the same
+     * Onboarding Payload components except for" one, and without this the expectation and the
+     * substitution are the same value, which no generator bug can violate.
+     */
+    unchangedFrom?: string;
+}
+
+/**
+ * Judges a generated `payload` against the fields `expected` names; one it omits is not asserted
+ * unless {@link ExpectedQrPayloadFields.unchangedFrom} supplies it.
+ *
+ * This is a claim about the artifact a step produced, not about the DUT or the TH: a generating step
+ * has no interaction of its own to record, and what it can be held to is that the code it made
+ * carries the substitution the plan asked for and nothing else.
+ */
+export function checkGeneratedPayload(payload: string, expected: ExpectedQrPayloadFields): CheckRecord {
+    const { unchangedFrom, ...stated } = expected;
+    const unchanged = namedCode(expected, "unchangedFrom", unchangedFrom);
+    const fields = qrPayloadFields(payload);
+    const wrong = statedMismatches(
+        fields,
+        { ...(unchanged === undefined ? {} : qrPayloadFields(unchanged)), ...stated },
+        [
+            "prefix",
+            "version",
+            "vendorId",
+            "productId",
+            "flowType",
+            "discoveryCapabilities",
+            "discriminator",
+            "passcode",
+            "tlv",
+        ],
+    );
+
+    return {
+        type: "response",
+        verdict: wrong.length ? "fail" : "pass",
+        detail:
+            `Generated ${payload}, carrying prefix ${fields.prefix} version=${fields.version} ` +
+            `vendorId=${fields.vendorId} productId=${fields.productId} flowType=${fields.flowType} ` +
+            `discoveryCapabilities=0b${fields.discoveryCapabilities.toString(2).padStart(8, "0")} ` +
+            `discriminator=${fields.discriminator} passcode=${fields.passcode}` +
+            (fields.tlv ? ` tlv=${fields.tlv}` : "") +
+            (wrong.length ? `; expected ${wrong.join(", ")}` : ""),
+    };
+}
+
+/** {@link checkGeneratedPayload} for the one-artifact case; use {@link recordAll} for a step generating several. */
+export function recordGeneratedPayload(
+    cx: CertStepContext,
+    payload: string,
+    expected: ExpectedQrPayloadFields,
+    what: string,
+): void {
+    record(cx, checkGeneratedPayload(payload, expected), what);
+}
+
+/**
  * The commissioning attempts a TC has told the DUT to refuse.
  *
  * A TC's `finalize` must {@link settle} this. An attempt outlives the check that judged it —
@@ -215,13 +413,34 @@ export function qrPayloadWithPrefix(payload: string, prefix: string): string {
  */
 export class CommissioningRefusals {
     #attempts = new Array<Promise<CertNodeRef | undefined>>();
-    #refusalTimeoutMs: number;
-    #settleTimeoutMs: number;
+    #refusalTimeout: Duration;
+    #settleTimeout: Duration;
 
     /** Budgets are injectable because the unit tests cannot wait out the real ones. */
-    constructor(budgets?: { refusalTimeoutMs?: number; settleTimeoutMs?: number }) {
-        this.#refusalTimeoutMs = budgets?.refusalTimeoutMs ?? REFUSAL_TIMEOUT_MS;
-        this.#settleTimeoutMs = budgets?.settleTimeoutMs ?? REFUSAL_SETTLE_TIMEOUT_MS;
+    constructor(budgets?: { refusalTimeout?: Duration; settleTimeout?: Duration }) {
+        this.#refusalTimeout = budgets?.refusalTimeout ?? REFUSAL_TIMEOUT;
+        this.#settleTimeout = budgets?.settleTimeout ?? REFUSAL_SETTLE_TIMEOUT;
+    }
+
+    /** How long {@link settle} waits, for a step that needs the same slack for its own wait. */
+    get settleBudget(): number {
+        return this.#settleTimeout;
+    }
+
+    /**
+     * Hands `attempt` to {@link settle}, which is what a step that stops waiting for a commissioning
+     * owes the run: one that succeeds afterwards leaves a fabric on the TH that nothing else will
+     * remove. An attempt whose outcome the step *did* see is owned by the step, and handing that one
+     * over as well would have its fabric removed twice. Kept as a settled outcome so an attempt nobody
+     * awaits again cannot surface as an unhandled rejection.
+     */
+    track(attempt: Promise<CertNodeRef>): void {
+        this.#attempts.push(
+            attempt.then(
+                ref => ref,
+                () => undefined,
+            ),
+        );
     }
 
     /**
@@ -234,21 +453,14 @@ export class CommissioningRefusals {
      */
     async requireRefusal(cx: CertStepContext, target: CommissioningTarget, what: string): Promise<void> {
         const attempt = cx.controllers.dut.commission(target);
-        // Kept as a settled outcome so an attempt nobody awaits again cannot surface as an unhandled
-        // rejection, and so settle() can collect the ref of one that succeeded after its budget
-        this.#attempts.push(
-            attempt.then(
-                ref => ref,
-                () => undefined,
-            ),
-        );
+        this.track(attempt);
 
         record(
             cx,
             await expectRejection(
                 `commissioning from ${describeTarget(target)}`,
                 attempt,
-                this.#refusalTimeoutMs,
+                this.#refusalTimeout,
                 isPayloadRefusal,
             ),
             what,
@@ -264,22 +476,17 @@ export class CommissioningRefusals {
         cx: CertStepContext,
         target: CommissioningTarget,
         what: string,
-        timeoutMs: number,
+        timeout: Duration,
     ): Promise<void> {
         const attempt = cx.controllers.dut.commission(target);
-        this.#attempts.push(
-            attempt.then(
-                ref => ref,
-                () => undefined,
-            ),
-        );
+        this.track(attempt);
 
         record(
             cx,
             await expectRejection(
                 `commissioning from ${describeTarget(target)}`,
                 attempt,
-                timeoutMs,
+                timeout,
                 // A payload refusal would mean the code never reached discovery, so the step proved
                 // nothing about a commissionee that is not there
                 error => !isPayloadRefusal(error),
@@ -299,7 +506,7 @@ export class CommissioningRefusals {
             return;
         }
 
-        const timeout = Time.sleep("outstanding refused commissionings", Millis(this.#settleTimeoutMs));
+        const timeout = Time.sleep("outstanding refused commissionings", this.#settleTimeout);
         let refs;
         try {
             refs = await Promise.race([Promise.all(attempts), timeout.then(() => undefined)]);
@@ -310,7 +517,7 @@ export class CommissioningRefusals {
         if (refs === undefined) {
             throw new CertCleanupError(
                 `${attempts.length} commissioning attempt(s) the DUT was asked to refuse are still running after ` +
-                    `${Duration.format(Millis(this.#settleTimeoutMs))}; one that succeeds now cannot be cleaned up`,
+                    `${Duration.format(this.#settleTimeout)}; one that succeeds now cannot be cleaned up`,
             );
         }
 
@@ -327,8 +534,8 @@ export class CommissioningRefusals {
         }
         if (failures.length) {
             throw new CertCleanupError(
-                `The DUT commissioned the TH from a payload it was asked to refuse and the fabric could not be ` +
-                    `removed: ${failures.join("; ")}`,
+                `A commissioning attempt this run stopped waiting for onboarded the TH after all, and the fabric ` +
+                    `could not be removed: ${failures.join("; ")}`,
             );
         }
     }
@@ -367,10 +574,24 @@ export async function thManualPairingCode(
 /**
  * What the TH's own setup code puts into a 21-digit manual code. Read once by a step that builds
  * several, so a dozen substitutions do not become a dozen concurrent requests to the DUT.
+ *
+ * The two ids are optional on {@link ManualPairingCodeParts} — a step generating a code may leave them
+ * out — but a TH that names neither is refused below, so a caller comparing against the TH's own ids
+ * gets them without a check of its own.
  */
-export async function thCodeParts(cx: CertStepContext): Promise<ManualPairingCodeParts> {
+export async function thCodeParts(
+    cx: CertStepContext,
+): Promise<ManualPairingCodeParts & { vendorId: number; productId: number }> {
     const th = cx.devices.th;
     const { vendorId, productId } = await cx.controllers.dut.parseQrPayload(await thQrPayload(th));
+    if (vendorId === undefined || productId === undefined) {
+        // parseQrPayload reports § 2.5.2/§ 2.5.3's "unspecified" as absent, and Table 64's 21-digit
+        // form has nowhere to put an absent one — a TH publishing neither cannot host these plans
+        throw new InternalError(
+            `The TH's onboarding payload names vendor ${vendorId} and product ${productId}; a 21-digit ` +
+                "manual pairing code carries both",
+        );
+    }
 
     return {
         vidPidPresent: true,
@@ -415,7 +636,7 @@ export async function recordManualParse(cx: CertStepContext, code: string): Prom
 }
 
 /** § 5.1.4.1 Table 62 carries only the discriminator's 4 most significant bits. */
-const SHORT_DISCRIMINATOR_SHIFT = 8;
+export const SHORT_DISCRIMINATOR_SHIFT = 8;
 
 /**
  * Records that the TH is discoverable as a commissionable device, which every commissioning-flow plan
@@ -425,89 +646,199 @@ export async function recordCommissionable(
     cx: CertStepContext,
     what = "TH advertising as commissionable",
 ): Promise<void> {
-    record(cx, await expectMdns(cx.devices.th, { commissionable: true }, { timeoutMs: MDNS_TIMEOUT_MS }), what);
+    record(cx, await expectMdns(cx.devices.th, { commissionable: true }, { timeoutMs: MDNS_TIMEOUT }), what);
 }
 
 /**
- * Records what the DUT made of a code naming a given vendor, where the plan accepts either outcome:
- * terminating commissioning, or onboarding anyway with the user aware of the risk.
+ * Whether `error` is a commissioner giving up on a code it read successfully, which is what the
+ * negative vendor and product plans mean by "the DUT terminates the commissioning process".
  *
- * The two controllers genuinely differ. chip-tool matches a code's vendor and product id against the
- * device it discovered (`SetUpCodePairer::NodeMatchesCurrentFilter`) and finds nothing; matter.js
- * discovers on the discriminator alone and onboards. A fabric that results is handed to
- * `commissioned`, whose next {@link commissionByManualCode} takes it off the TH the only way a chip
- * TH survives — opening a window before the fabric that opens it is gone.
+ * The two controllers say it differently. In-process, a code no advertisement satisfies ends as a
+ * {@link DiscoveryError}, or as a {@link DiscoveryAggregateError} where a candidate was tried and
+ * failed — a manual code carries only the discriminator's 4 most significant bits, so one device in
+ * sixteen on the network is a candidate the scanner hands on. chip-tool's output cannot separate one
+ * command failure from another, so its give-up arrives as a {@link ChipToolCommandError} — on those
+ * legs this excludes a controller that would not start, and the probe the caller makes first excludes
+ * a TH that was not there.
+ *
+ * An {@link OnboardingPayloadRefusedError} is the opposite outcome — the controller rejected the code
+ * before it looked for anything, and these steps generate a well-formed one. It is not a subclass of
+ * either accepted error today, and the guard is what keeps that true if it becomes one.
  */
-export async function recordVendorOutcome(
-    cx: CertStepContext,
-    manualPairingCode: string,
-    commissioned: CommissionedRefs,
-    what: string,
-    timeoutMs: number,
-): Promise<void> {
-    await restoreCommissioningMode(cx, commissioned);
-
-    const dut = cx.controllers.dut;
-    const attempt = dut.commission({ manualPairingCode, giveUpAfterMs: timeoutMs });
-
-    const outcome = await expectRejection(`commissioning from ${manualPairingCode}`, attempt, timeoutMs + 30_000);
-    if (outcome.verdict === "pass") {
-        record(cx, { ...outcome, detail: `DUT terminated commissioning: ${outcome.detail}` }, what);
-        return;
+export function isCommissioningGiveUp(error: unknown): boolean {
+    if (error instanceof OnboardingPayloadRefusedError) {
+        return false;
     }
-
-    const ref = await attempt;
-    commissioned.set("dut", ref);
-    record(
-        cx,
-        {
-            type: "response",
-            verdict: "pass",
-            detail: `DUT onboarded the TH as node ${ref}, which the plan allows where the user accepts the risk`,
-        },
-        what,
+    return (
+        error instanceof DiscoveryError ||
+        error instanceof DiscoveryAggregateError ||
+        error instanceof ChipToolCommandError
     );
 }
 
 /**
- * Puts the TH back into commissioning mode if a fabric from an earlier onboarding is still on it.
+ * Records what the DUT made of a code naming `vendorId` where the TH's own payload names `thVendorId`,
+ * and the plan accepts either outcome: terminating commissioning, or onboarding anyway with the user
+ * aware of the risk.
  *
- * A chip TH does not return there when its last fabric goes, so the window is opened while the fabric
- * that can open it is still present. It is a basic one: that is the window whose PASE verifier is the
- * device's own setup code, which is what an onboarding code carries.
+ * The two controllers genuinely differ. chip-tool matches a code's vendor and product id against the
+ * device it discovered (`SetUpCodePairer::NodeMatchesCurrentFilter`) and finds nothing; matter.js
+ * filters its own discovery on the ids the code carries and finds nothing either. A fabric that
+ * results is handed to `commissioned`, whose next {@link commissionByManualCode} takes it off the TH
+ * again.
+ *
+ * Two things the evidence has to carry, because the verdict is `pass` either way:
+ *
+ * - Only a give-up counts as termination ({@link isCommissioningGiveUp}), and the TH has to be
+ *   observed advertising first: accepting any rejection would pass the step on a controller that would
+ *   not start, and on a TH that stopped advertising. The restore this runs first probes only for a code
+ *   that follows an onboarding, so a code after a refusal needs its own probe.
+ * - A code naming the vendor the TH itself advertises is step 1's code, so what the DUT did with it
+ *   says nothing about a substituted id. The detail says which of the two happened.
  */
-async function restoreCommissioningMode(cx: CertStepContext, commissioned: CommissionedRefs): Promise<void> {
-    const previous = commissioned.get("dut");
-    if (previous === undefined) {
-        return;
+export async function recordVendorOutcome(
+    cx: CertStepContext,
+    code: string,
+    commissioned: CommissionedRefs,
+    refusals: CommissioningRefusals,
+    what: string,
+    timeout: Duration,
+    ids: { vendorId: number; thVendorId: number },
+    /** Overridden by the unit tests, which have no advertisement to observe. */
+    probeCommissionable: (cx: CertStepContext, what: string) => Promise<void> = recordCommissionable,
+): Promise<void> {
+    const restored = await restoreCommissioningMode(cx, commissioned);
+
+    // A rejection is evidence about the code only if the TH was there to be found; without this the
+    // step passes on a TH that stopped advertising after an earlier attempt. A restore that ran has
+    // just proven the same thing.
+    if (!restored) {
+        await probeCommissionable(cx, `${what}: TH advertising before the attempt`);
     }
 
-    const dut = cx.controllers.dut;
-    await dut.node(previous).openCommissioningWindow({ timeout: WINDOW_TIMEOUT_SECONDS, enhanced: false });
-    await dut.node(previous).decommission();
+    const substitution =
+        ids.vendorId === ids.thVendorId
+            ? `the code names the TH's own vendor 0x${ids.thVendorId.toString(16)}, so it is step 1's code and ` +
+              "substitutes nothing"
+            : `the code names vendor 0x${ids.vendorId.toString(16)} where the TH's own payload names ` +
+              `0x${ids.thVendorId.toString(16)}`;
+
+    const label = `commissioning from ${code}`;
+    const attempt = cx.controllers.dut.commission({ manualPairingCode: code, giveUpAfterMs: timeout });
+    const outcome = await settleWithin(label, attempt, Millis(timeout + refusals.settleBudget));
+
+    switch (outcome.kind) {
+        case "rejected": {
+            const { error } = outcome;
+            const message = error instanceof Error ? `${error.constructor.name}: ${error.message}` : String(error);
+            const gaveUp = isCommissioningGiveUp(error);
+            record(
+                cx,
+                {
+                    type: "response",
+                    verdict: gaveUp ? "pass" : "fail",
+                    detail: gaveUp
+                        ? `DUT terminated commissioning after ${outcome.elapsed} (${substitution}): ${message}`
+                        : `${label} failed after ${outcome.elapsed} for a reason that says nothing about the code ` +
+                          `(${substitution}): ${message}`,
+                },
+                what,
+            );
+            return;
+        }
+
+        case "resolved": {
+            const ref = outcome.value;
+            commissioned.set("dut", ref);
+            record(
+                cx,
+                {
+                    type: "response",
+                    verdict: "pass",
+                    detail:
+                        `DUT onboarded the TH as node ${ref} (${substitution}), which the plan allows where the ` +
+                        "user accepts the risk",
+                },
+                what,
+            );
+            return;
+        }
+
+        case "timeout":
+            // Only now does cleanup own the attempt: an outcome this step saw is already owned, by
+            // `commissioned` for one that onboarded, and handing it over as well would have the fabric
+            // removed twice.
+            refusals.track(attempt);
+            record(
+                cx,
+                {
+                    type: "response",
+                    verdict: "fail",
+                    detail: `${label} neither onboarded the TH nor gave up within ${outcome.elapsed}`,
+                },
+                what,
+            );
+    }
+}
+
+/**
+ * Returns the TH to a factory-new state if a fabric from an earlier onboarding is still on it, which
+ * is what a plan means by commissioning the same device again.
+ *
+ * The fabric comes off first, so the controller never holds a peer for a fabric the device has
+ * forgotten. A chip TH then needs a factory reset, which is what actually puts it back into
+ * commissioning mode — removing its last fabric does not. A matter.js device is already there, and
+ * erasing it would restart a TH that needs nothing.
+ */
+async function restoreCommissioningMode(cx: CertStepContext, commissioned: CommissionedRefs): Promise<boolean> {
+    const previous = commissioned.get("dut");
+    if (previous === undefined) {
+        return false;
+    }
+
+    const th = cx.devices.th;
+    await cx.controllers.dut.node(previous).decommission();
     commissioned.clear("dut");
 
-    // Removing the fabric returns as soon as the TH answers; the TH advertises itself commissionable
-    // again on its own schedule, and a discovery started before that finds only the devices this run
-    // is not looking for.
+    if (th.flavor !== "matterjs") {
+        const from = th.log.mark();
+        await th.backchannel({ name: "factoryReset" });
+
+        // A chip app's start() returns when the process is up, not when the app is; without waiting
+        // for the new generation to reach its own onboarding print, the check below can be answered
+        // by a cached advertisement from the generation that just went down.
+        record(
+            cx,
+            await expectSequence(
+                th.log,
+                th.flavor,
+                "TH restarted",
+                { chip: [SETUP_QR_CODE] },
+                from,
+                COMMISSIONING_LOG_TIMEOUT,
+            ),
+            "TH factory reset",
+        );
+    }
+
+    // The TH advertises itself commissionable on its own schedule, and a discovery started before
+    // that finds only the devices this run is not looking for.
     await recordCommissionable(cx, "TH back in commissioning mode");
+    return true;
 }
 
 /** {@link commissionByQr} for a manual pairing code, which discovers by the short discriminator. */
 export async function commissionByManualCode(
     cx: CertStepContext,
-    manualPairingCode: string,
+    code: string,
     commissioned: CommissionedRefs,
 ): Promise<void> {
-    await commissionByTarget(cx, { manualPairingCode }, commissioned);
+    await commissionByTarget(cx, { manualPairingCode: code }, commissioned);
 }
 
 /**
- * Onboards the TH from `payload`, first taking off a fabric an earlier step commissioned.
- *
- * A chip TH does not return to commissioning mode when its last fabric goes, so the window is opened
- * while the fabric is still there. It is a basic one: that is the window whose PASE verifier is the
- * device's own setup code, which is what an onboarding payload carries.
+ * Onboards the TH from `payload`, first returning it to a factory-new state if an earlier step
+ * commissioned it (see {@link restoreCommissioningMode}).
  */
 export async function commissionByQr(
     cx: CertStepContext,
@@ -548,9 +879,9 @@ async function commissionByTarget(
             th.log,
             th.flavor,
             "commissioning complete",
-            [COMMISSIONING_COMPLETE],
+            { chip: [COMMISSIONING_COMPLETE], matterjs: [MATTERJS_COMMISSIONED_FABRIC] },
             from,
-            LOG_TIMEOUT_MS,
+            COMMISSIONING_LOG_TIMEOUT,
         ),
         "TH commissioning",
     );
@@ -629,4 +960,149 @@ export function manualPairingCode(parts: ManualPairingCodeParts): string {
     }
 
     return digits + (checkDigit ?? new Verhoeff().computeChecksum(digits));
+}
+
+/** § 5.1.4.1 Table 62/64's two lengths. */
+const MANUAL_CODE_SHORT_LENGTH = 11;
+const MANUAL_CODE_LONG_LENGTH = 21;
+
+/** What § 5.1.4.1 Table 62's digits say, read back without judging any of it. */
+export interface ManualPairingCodeDigits {
+    /** Table 62's 11 or Table 64's 21. */
+    length: number;
+
+    /** § 5.1.4.1.2's "a format after v1", which a first digit of 8 or 9 marks. */
+    futureFormat: boolean;
+
+    /** The `VID_PID_PRESENT` bit, which {@link length} states a second time and may disagree with. */
+    vidPidPresent: boolean;
+
+    /** Table 62's 4-bit form. Says nothing about a {@link futureFormat} code, whose marker displaces it. */
+    shortDiscriminator: number;
+
+    passcode: number;
+
+    /**
+     * The digits the 21-digit form carries, whatever `VID_PID_PRESENT` says. Reported as 0 where the
+     * codecs would normalise § 2.5.3's unspecified identifier to absent, so a step can assert the 0 it
+     * substituted.
+     */
+    vendorId?: number;
+    productId?: number;
+
+    checkDigit: number;
+
+    /** Whether {@link checkDigit} is § 5.1.4.1's Verhoeff digit over every digit before it. */
+    checkDigitCorrect: boolean;
+}
+
+/** {@link manualPairingCode}'s reader, and not a codec for the same reason it is not one. */
+export function manualPairingCodeDigits(code: string): ManualPairingCodeDigits {
+    const digits = code.replace(/\D/g, "");
+    if (digits.length !== MANUAL_CODE_SHORT_LENGTH && digits.length !== MANUAL_CODE_LONG_LENGTH) {
+        throw new InternalError(`"${code}" is ${digits.length} digits, which is no manual pairing code length`);
+    }
+
+    const header = Number(digits[0]);
+    const carriesIdentity = digits.length === MANUAL_CODE_LONG_LENGTH;
+    const checkDigit = Number(digits.slice(-1));
+
+    return {
+        length: digits.length,
+        futureFormat: header >= FUTURE_FORMAT_DIGIT,
+        vidPidPresent: !!(header & (1 << 2)),
+        shortDiscriminator: ((header & 0x03) << 2) | ((Number(digits.slice(1, 6)) >> 14) & 0x03),
+        passcode: (Number(digits.slice(1, 6)) & 0x3fff) | (Number(digits.slice(6, 10)) << 14),
+        vendorId: carriesIdentity ? Number(digits.slice(10, 15)) : undefined,
+        productId: carriesIdentity ? Number(digits.slice(15, 20)) : undefined,
+        checkDigit,
+        checkDigitCorrect: new Verhoeff().computeChecksum(digits.slice(0, -1)) === checkDigit,
+    };
+}
+
+/** What a generating step claims about the manual code it produced. */
+export interface ExpectedManualCodeDigits extends Partial<ManualPairingCodeDigits> {
+    /** The plan requires the generated code to differ from step 1's. */
+    differsFrom?: string;
+
+    /**
+     * The code every field `expected` does not name must still match, the check digit aside — every
+     * substitution changes that one. See {@link ExpectedQrPayloadFields.unchangedFrom} for why an
+     * expectation naming only the substituted field asserts nothing.
+     */
+    unchangedFrom?: string;
+}
+
+/**
+ * {@link checkGeneratedPayload} for a manual pairing code, and a claim about the artifact for the
+ * same reason.
+ *
+ * The check digit is asserted whether or not `expected` names it, because every generating step's
+ * expected outcome demands the Verhoeff digit of § 5.1.4.1; the step asking for a wrong one states
+ * `checkDigitCorrect: false`.
+ */
+export function checkGeneratedManualCode(code: string, expected: ExpectedManualCodeDigits): CheckRecord {
+    const { differsFrom, unchangedFrom, ...stated } = expected;
+    const differs = namedCode(expected, "differsFrom", differsFrom);
+    const unchanged = unchangedDigits(namedCode(expected, "unchangedFrom", unchangedFrom));
+    const digits = manualPairingCodeDigits(code);
+    const wrong = statedMismatches(digits, { checkDigitCorrect: true, ...unchanged, ...stated }, [
+        "length",
+        "futureFormat",
+        "vidPidPresent",
+        "shortDiscriminator",
+        "passcode",
+        "vendorId",
+        "productId",
+        "checkDigit",
+        "checkDigitCorrect",
+    ]);
+    if (differs !== undefined && code === differs) {
+        wrong.push(`a code other than ${differs}`);
+    }
+
+    return {
+        type: "response",
+        verdict: wrong.length ? "fail" : "pass",
+        detail:
+            `Generated ${code}, carrying ${digits.length} digits futureFormat=${digits.futureFormat} ` +
+            `vidPidPresent=${digits.vidPidPresent} shortDiscriminator=${digits.shortDiscriminator} ` +
+            `passcode=${digits.passcode} vendorId=${digits.vendorId} productId=${digits.productId} ` +
+            `checkDigit=${digits.checkDigit} (${digits.checkDigitCorrect ? "correct" : "not the Verhoeff digit"})` +
+            (wrong.length ? `; expected ${wrong.join(", ")}` : ""),
+    };
+}
+
+/** Every digit field a substitution leaves alone, which is all of them but the check digit. */
+function unchangedDigits(code?: string): Partial<ManualPairingCodeDigits> {
+    if (code === undefined) {
+        return {};
+    }
+    const { checkDigit, ...unchanged } = manualPairingCodeDigits(code);
+    return unchanged;
+}
+
+/**
+ * The code an expectation names under `key`, holding to the presence rule {@link statedMismatches}
+ * follows: a property that is there but undefined is a caller threading an optional value in, which
+ * would otherwise drop the assertion silently.
+ */
+function namedCode(expected: object, key: string, code: string | undefined): string | undefined {
+    if (!Object.hasOwn(expected, key)) {
+        return undefined;
+    }
+    if (code === undefined) {
+        throw new ImplementationError(`${key} names a code to compare against; omit it when there is none`);
+    }
+    return code;
+}
+
+/** {@link checkGeneratedManualCode} for the one-code case; use {@link recordAll} for a step generating several. */
+export function recordGeneratedManualCode(
+    cx: CertStepContext,
+    code: string,
+    expected: ExpectedManualCodeDigits,
+    what: string,
+): void {
+    record(cx, checkGeneratedManualCode(code, expected), what);
 }

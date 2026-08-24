@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/main";
+import { InternalError, Millis, Seconds } from "@matter/main";
 import type {
     CertDevice,
     CertNodeApi,
@@ -31,11 +31,11 @@ const ACKED_SIBLING_ID = 0x77;
 const PATH = { endpoint: 0, cluster: 0x28, attribute: 0x10 };
 const VALUES = [true, false, true];
 
-const TIMEOUTS: SubscribeAndModifyTimeouts = { establishMs: 5_000, reportMs: 5_000 };
+const TIMEOUTS: SubscribeAndModifyTimeouts = { establish: Seconds(5), report: Seconds(5) };
 
 // Only for the cases that assert a wait giving up: long enough for the follower's async pump, short
 // enough that the failure lands inside a normal mocha timeout.
-const IMPATIENT: SubscribeAndModifyTimeouts = { establishMs: 5_000, reportMs: 400 };
+const IMPATIENT: SubscribeAndModifyTimeouts = { establish: Seconds(5), report: Millis(400) };
 
 function subscribeRequestLines(path: { endpoint: number; cluster: number; attribute: number }): string[] {
     const attribute = path.attribute.toString(16).toUpperCase().padStart(8, "0");

@@ -12,7 +12,6 @@ import { BitmapEncodedValue, FabricIndex, Status } from "@matter/types";
 import { RootSupervisor } from "../../supervision/RootSupervisor.js";
 import { maybeConfigOf } from "../../supervision/SupervisionConfig.js";
 import type { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
-import { Internal } from "../managed/Internal.js";
 import { memberSlotOf, memberValueOf } from "../managed/MemberKeys.js";
 import {
     assertArray,
@@ -361,6 +360,7 @@ function createStructValidator(schema: Schema, supervisor: RootSupervisor): Valu
             choices: {},
             outerResolve: location.outerResolve,
             config,
+            owner: location.owner,
         } as ValidationLocation;
 
         for (const name in validators) {
@@ -371,8 +371,7 @@ function createStructValidator(schema: Schema, supervisor: RootSupervisor): Valu
             // a name-keyed struct decoded without a schema keys members by TLV tag number, and an id-keyed mirror
             // root keys by id canonically — do not narrow this to the read-fallback policy
             if ((struct as Val.Dynamic)[Val.properties]) {
-                const rootOwner = (struct as unknown as Internal.Collection)[Internal.reference];
-                const properties = (struct as Val.Dynamic)[Val.properties](rootOwner, session);
+                const properties = (struct as Val.Dynamic)[Val.properties](location.owner, session);
                 if (name in properties) {
                     value = properties[name];
                 } else {
@@ -431,6 +430,7 @@ function createListValidator(schema: ValueModel, supervisor: RootSupervisor): Va
                 let index = 0;
                 const sublocation = {
                     path: location.path.at(""),
+                    owner: location.owner,
                 } as ValidationLocation;
                 for (const e of list as Iterable<unknown>) {
                     if (e === undefined || e === null) {

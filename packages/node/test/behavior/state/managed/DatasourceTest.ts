@@ -11,7 +11,14 @@ import { StateType } from "#behavior/state/StateType.js";
 import { BehaviorSupervisor } from "#behavior/supervision/BehaviorSupervisor.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
-import { AsyncObservable, MaybePromise, MockCrypto, Observable, UnsettledStateError } from "@matter/general";
+import {
+    AsyncObservable,
+    ImplementationError,
+    MaybePromise,
+    MockCrypto,
+    Observable,
+    UnsettledStateError,
+} from "@matter/general";
 import { DataModelPath, DatatypeModel, FieldElement, FieldModel } from "@matter/model";
 import { AccessControl, Val } from "@matter/protocol";
 import { EndpointNumber, NodeId } from "@matter/types";
@@ -378,6 +385,166 @@ describe("Datasource", () => {
         });
     });
 
+    it("validates dynamic properties against the datasource's owner", async () => {
+        const owner = { id: "owner" };
+        let ownerSeen: unknown;
+
+        class State {
+            foo = "";
+
+            [Val.properties](endpoint: unknown, _session: ValueSupervisor.Session) {
+                ownerSeen = endpoint;
+                return { foo: 42 };
+            }
+        }
+
+        const supervisor = BehaviorSupervisor({
+            id: "test",
+            State,
+            schema: new DatatypeModel({
+                name: "MyState",
+                type: "struct",
+                children: [FieldElement({ name: "foo", type: "string" })],
+            }),
+        });
+        const datasource = createDatasource({ type: State, supervisor, owner });
+
+        expect(() => LocalActorContext.act("test-validate", context => datasource.validate(context))).throws(/foo/);
+
+        expect(ownerSeen).equals(owner);
+    });
+
+    it("validates a dynamic struct inside a list against the datasource's owner", async () => {
+        const owner = { id: "owner" };
+        const ownersSeen = new Array<unknown>();
+
+        class Entry {
+            bar = "";
+
+            [Val.properties](endpoint: unknown, _session: ValueSupervisor.Session) {
+                ownersSeen.push(endpoint);
+                return { bar: 42 };
+            }
+        }
+
+        class State {
+            entries = [new Entry()];
+        }
+
+        const supervisor = BehaviorSupervisor({
+            id: "test",
+            State,
+            schema: new DatatypeModel({
+                name: "MyState",
+                type: "struct",
+                children: [
+                    FieldElement({
+                        name: "entries",
+                        type: "list",
+                        children: [
+                            FieldElement({
+                                name: "entry",
+                                type: "struct",
+                                children: [FieldElement({ name: "bar", type: "string" })],
+                            }),
+                        ],
+                    }),
+                ],
+            }),
+        });
+        const datasource = createDatasource({ type: State, supervisor, owner });
+
+        expect(() => LocalActorContext.act("test-validate", context => datasource.validate(context))).throws(/bar/);
+
+        expect(ownersSeen).deep.equals([owner]);
+    });
+
+    it("validates a dynamic struct assigned through managed state against the owner", async () => {
+        const owner = { id: "owner" };
+        const ownersSeen = new Array<unknown>();
+
+        const dynamicStruct = {
+            bar: "seen",
+
+            [Val.properties](endpoint: unknown, _session: ValueSupervisor.Session) {
+                ownersSeen.push(endpoint);
+                return { bar: "seen" };
+            },
+        };
+
+        class State {
+            member?: { bar: string };
+        }
+
+        const supervisor = BehaviorSupervisor({
+            id: "test",
+            State,
+            schema: new DatatypeModel({
+                name: "MyState",
+                type: "struct",
+                children: [
+                    FieldElement({
+                        name: "member",
+                        type: "struct",
+                        children: [FieldElement({ name: "bar", type: "string" })],
+                    }),
+                ],
+            }),
+        });
+
+        await withDatasourceAndReference({ type: State, supervisor, owner }, ({ state }) => {
+            state.member = dynamicStruct;
+        });
+
+        expect(ownersSeen).deep.equals([owner]);
+    });
+
+    it("validates a dynamic list entry assigned through managed state against the owner", async () => {
+        const owner = { id: "owner" };
+        const ownersSeen = new Array<unknown>();
+
+        const dynamicEntry = {
+            bar: "seen",
+
+            [Val.properties](endpoint: unknown, _session: ValueSupervisor.Session) {
+                ownersSeen.push(endpoint);
+                return { bar: "seen" };
+            },
+        };
+
+        class State {
+            entries = new Array<{ bar: string }>();
+        }
+
+        const supervisor = BehaviorSupervisor({
+            id: "test",
+            State,
+            schema: new DatatypeModel({
+                name: "MyState",
+                type: "struct",
+                children: [
+                    FieldElement({
+                        name: "entries",
+                        type: "list",
+                        children: [
+                            FieldElement({
+                                name: "entry",
+                                type: "struct",
+                                children: [FieldElement({ name: "bar", type: "string" })],
+                            }),
+                        ],
+                    }),
+                ],
+            }),
+        });
+
+        await withDatasourceAndReference({ type: State, supervisor, owner }, ({ state }) => {
+            state.entries[0] = dynamicEntry;
+        });
+
+        expect(ownersSeen).deep.equals([owner]);
+    });
+
     it("handles dynamic properties", async () => {
         const dynamic = {
             foo: "hello",
@@ -631,6 +798,34 @@ describe("Datasource", () => {
 
             expect(ds.view.foo).equals("!bar");
             expect(observed).true;
+        });
+
+        it("announce again after the write they refused was rolled back", async () => {
+            const events = { foo$Changing: Observable<any>() };
+            const ds = createDatasource({ events });
+
+            const announced = new Array<unknown>();
+            events.foo$Changing.on(newValue => {
+                announced.push(newValue);
+                throw new ImplementationError("refused");
+            });
+
+            await LocalActorContext.act("test-datasource", async context => {
+                const state = ds.reference(context);
+
+                // The second write must reach validation even though it repeats the value the first was refused for
+                for (let attempt = 0; attempt < 2; attempt++) {
+                    try {
+                        state.foo = "!bar";
+                        await context.transaction.commit();
+                    } catch (error) {
+                        expect(error instanceof Error ? error.message : String(error)).contains("refused");
+                    }
+                }
+            });
+
+            expect(announced).deep.equals(["!bar", "!bar"]);
+            expect(ds.view.foo).equals("bar");
         });
 
         it("handles mixed sync/async observers sequentially", async () => {

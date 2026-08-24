@@ -7,7 +7,9 @@
 import { Endpoint, ServerNode } from "@matter/main";
 import { IdentifyServer } from "@matter/main/behaviors/identify";
 import { OnOffServer } from "@matter/main/behaviors/on-off";
+import { OvenModeServer } from "@matter/main/behaviors/oven-mode";
 import { TemperatureControlServer } from "@matter/main/behaviors/temperature-control";
+import { OvenMode } from "@matter/main/clusters";
 import { CookSurfaceDevice } from "@matter/main/devices/cook-surface";
 import { OvenDevice } from "@matter/main/devices/oven";
 import { TemperatureControlledCabinetDevice } from "@matter/main/devices/temperature-controlled-cabinet";
@@ -18,6 +20,7 @@ import { registerDeviceType } from "./DeviceTypeRegistry.js";
 const Cavity = TemperatureControlledCabinetDevice.with(
     IdentifyServer,
     TemperatureControlServer.with("TemperatureNumber"),
+    OvenModeServer,
 );
 const Surface = CookSurfaceDevice.with(IdentifyServer, OnOffServer);
 
@@ -31,6 +34,13 @@ registerDeviceType({
             new Endpoint(Cavity, {
                 id: "cavity",
                 temperatureControl: { temperatureSetpoint: 18000, minTemperature: 5000, maxTemperature: 25000 },
+                ovenMode: {
+                    supportedModes: [
+                        { label: "Grill", mode: 1, modeTags: [{ value: OvenMode.ModeTag.Grill }] },
+                        { label: "Bake", mode: 2, modeTags: [{ value: OvenMode.ModeTag.Bake }] },
+                    ],
+                    currentMode: 2,
+                },
             }),
         );
         await ep.add(new Endpoint(Surface, { id: "surface" }));

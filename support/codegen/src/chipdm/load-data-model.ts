@@ -10,11 +10,12 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { ChipDataModel } from "./chip-data-model.js";
 import { DataModel, DmCluster, DmDeviceType, DmElement, DmSemanticNamespace } from "./data-model.js";
-import { DataModelSyntaxError } from "./errors.js";
+import { DataModelSourceError, DataModelSyntaxError } from "./errors.js";
 import { translateAccess, translateQuality } from "./translate-aspects.js";
 import { translateConformance } from "./translate-conformance.js";
 import { translateConstraint } from "./translate-constraint.js";
 import { translateValue } from "./values.js";
+import { CALIBRATED_FOR, compareVersions } from "./version.js";
 import { child, children, maybeNum, num, parseXml, str, type XmlElement } from "./xml.js";
 
 const logger = Logger.get("load-data-model");
@@ -25,10 +26,14 @@ export async function loadDataModel(source: ChipDataModel, version: string): Pro
 
     logger.info(`Loading CHIP data model ${version} from ${source.description}`);
 
+    // CHIP's layout varies across the versions we no longer compare in earnest, and an absent directory there is
+    // information rather than a defect
+    const required = compareVersions(version, CALIBRATED_FOR) >= 0;
+
     const clusters = new Array<DmCluster>();
     const baseClusters = new Array<DmCluster>();
 
-    for (const family of load(path, "clusters", loadCluster)) {
+    for (const family of load(path, "clusters", loadCluster, required)) {
         for (const cluster of family) {
             if (cluster.id === undefined) {
                 baseClusters.push(cluster);
@@ -38,26 +43,45 @@ export async function loadDataModel(source: ChipDataModel, version: string): Pro
         }
     }
 
-    const globals = load(path, "globals", loadGlobals).flat();
+    const globals = load(path, "globals", loadGlobals, required).flat();
 
     return {
         version,
         source: source.description,
         clusters,
         baseClusters,
-        deviceTypes: load(path, "device_types", loadDeviceType),
-        namespaces: load(path, "namespaces", loadNamespace),
+        deviceTypes: load(path, "device_types", loadDeviceType, required),
+        namespaces: load(path, "namespaces", loadNamespace, required),
         globals: globals.filter(element => element.tag !== ElementTag.Command),
         globalCommands: globals.filter(element => element.tag === ElementTag.Command),
     };
 }
 
-function load<T>(path: string, directory: string, loader: (root: XmlElement, filename: string) => T) {
+/**
+ * Load every XML file of one data model directory.
+ *
+ * A directory CHIP has renamed compares as an empty data model, and nothing reports the globals we then fail to
+ * compare at all, so for a version we validate in earnest an absent directory is fatal.
+ */
+function load<T>(
+    path: string,
+    directory: string,
+    loader: (root: XmlElement, filename: string) => T,
+    required: boolean,
+) {
     const dir = resolve(path, directory);
     if (!statSync(dir, { throwIfNoEntry: false })?.isDirectory()) {
+        if (required) {
+            throw new DataModelSourceError(`CHIP data model ${path} has no ${directory} directory`);
+        }
+        logger.info(`CHIP data model ${path} has no ${directory} directory`);
         return new Array<T>();
     }
 
+    return read(dir, loader);
+}
+
+function read<T>(dir: string, loader: (root: XmlElement, filename: string) => T) {
     return readdirSync(dir)
         .filter(filename => filename.endsWith(".xml"))
         .sort()

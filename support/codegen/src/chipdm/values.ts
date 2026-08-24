@@ -10,6 +10,19 @@ import { FieldValue } from "#model";
 const UNSPECIFIED = new Set(["ms", "desc", "empty"]);
 
 /**
+ * Reduce a name to the form used for comparison.
+ *
+ * CHIP and our scrape of the specification's prose differ in capitalization and punctuation, neither of which is a
+ * semantic difference.
+ */
+export function canonicalizeName(name: string): string;
+export function canonicalizeName(name: string | undefined): string | undefined;
+
+export function canonicalizeName(name?: string) {
+    return name === undefined ? undefined : name.toLowerCase().replace(/[^a-z\d]/g, "");
+}
+
+/**
  * Translate the textual value of a CHIP data model attribute into a {@link FieldValue}.
  *
  * Anything that is not a literal becomes a reference; the comparator normalizes references case-insensitively because

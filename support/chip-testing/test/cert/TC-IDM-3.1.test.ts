@@ -8,7 +8,14 @@ import { Status } from "@matter/main/types";
 import { Matter } from "@matter/model";
 import type { AttributePathSpec, CertNodeApi, CertNodeRef, CertStepContext, DeviceFlavor } from "@matter/testing";
 import { certTest } from "@matter/testing";
-import { CommissionedRefs, expectMessageWithPath, requireId, WRITE_REQUEST_MESSAGE } from "./tc-support.js";
+import {
+    CertCheckFailedError,
+    CommissionedRefs,
+    expectMessageWithPath,
+    LOG_TIMEOUT,
+    record,
+    requireId,
+} from "./tc-support.js";
 
 const LEVEL_CONTROL = Matter.clusters.require("LevelControl");
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
@@ -71,11 +78,8 @@ async function writeAndCheck(
         detail: `wrote ${JSON.stringify(value)} to ${JSON.stringify(path)}`,
     });
 
-    const logCheck = await expectMessageWithPath(th.log, th.flavor, WRITE_REQUEST_MESSAGE, path, from, 15_000);
-    cx.recorder.check(logCheck);
-    if (logCheck.verdict === "fail") {
-        throw new Error(`WriteRequestMessage log check failed for step ${label}: ${JSON.stringify(logCheck)}`);
-    }
+    const logCheck = await expectMessageWithPath(th.log, th.flavor, "write", path, from, LOG_TIMEOUT);
+    record(cx, logCheck, `WriteRequestMessage log for step ${label}`);
 }
 
 /**
@@ -90,7 +94,9 @@ async function clusterVersions(node: CertNodeApi, paths: AttributePathSpec[]): P
             entry => entry.endpoint === endpoint && entry.cluster === cluster && entry.version !== undefined,
         )?.version;
         if (version === undefined) {
-            throw new Error(`TH reported no data version for cluster ${cluster} on endpoint ${endpoint}`);
+            throw new CertCheckFailedError(
+                `TH reported no data version for cluster ${cluster} on endpoint ${endpoint}`,
+            );
         }
         return version;
     });
@@ -144,25 +150,28 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                     JSON.stringify(statuses),
             });
             if (written.length <= 1) {
-                throw new Error(`A wildcard write must reach more than one endpoint, got ${JSON.stringify(statuses)}`);
+                throw new CertCheckFailedError(
+                    `A wildcard write must reach more than one endpoint, got ${JSON.stringify(statuses)}`,
+                );
             }
 
-            const logCheck = await expectMessageWithPath(th.log, th.flavor, WRITE_REQUEST_MESSAGE, path, from, 15_000);
-            cx.recorder.check(logCheck);
-            if (logCheck.verdict === "fail") {
-                throw new Error(`WriteRequestMessage log check failed for step 2: ${JSON.stringify(logCheck)}`);
-            }
+            const logCheck = await expectMessageWithPath(th.log, th.flavor, "write", path, from, LOG_TIMEOUT);
+            record(cx, logCheck, "WriteRequestMessage log for step 2");
 
             for (const { endpoint } of written) {
                 const value = await dut
                     .node(ref)
                     .readAttribute({ endpoint, cluster: IDENTIFY_ID, attribute: IDENTIFY_TIME.id });
-                cx.recorder.check({
-                    type: "response",
-                    // identifyTime counts down from the written value, so the device may already report less
-                    verdict: typeof value === "number" ? "pass" : "fail",
-                    detail: `endpoint ${endpoint} reports identifyTime=${JSON.stringify(value)}`,
-                });
+                record(
+                    cx,
+                    {
+                        type: "response",
+                        // identifyTime counts down from the written value, so the device may already report less
+                        verdict: typeof value === "number" ? "pass" : "fail",
+                        detail: `endpoint ${endpoint} reports identifyTime=${JSON.stringify(value)}`,
+                    },
+                    `endpoint ${endpoint} identifyTime`,
+                );
             }
         }),
         {
@@ -347,21 +356,11 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 detail: `version-conditional write answered ${JSON.stringify(statuses)}`,
             });
             if (!allSucceeded) {
-                throw new Error(`Version-conditional write was rejected: ${JSON.stringify(statuses)}`);
+                throw new CertCheckFailedError(`Version-conditional write was rejected: ${JSON.stringify(statuses)}`);
             }
 
-            const logCheck = await expectMessageWithPath(
-                th.log,
-                th.flavor,
-                WRITE_REQUEST_MESSAGE,
-                labelPath,
-                from,
-                15_000,
-            );
-            cx.recorder.check(logCheck);
-            if (logCheck.verdict === "fail") {
-                throw new Error(`WriteRequestMessage log check failed for step 15: ${JSON.stringify(logCheck)}`);
-            }
+            const logCheck = await expectMessageWithPath(th.log, th.flavor, "write", labelPath, from, LOG_TIMEOUT);
+            record(cx, logCheck, "WriteRequestMessage log for step 15");
 
             const label = await node.readAttribute(labelPath);
             const level = await node.readAttribute(levelPath);
@@ -372,7 +371,7 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 detail: `read back nodeLabel=${JSON.stringify(label)}, onLevel=${JSON.stringify(level)}`,
             });
             if (!readBackOk) {
-                throw new Error(`Write did not take effect: nodeLabel=${label}, onLevel=${level}`);
+                throw new CertCheckFailedError(`Write did not take effect: nodeLabel=${label}, onLevel=${level}`);
             }
 
             // The plan stops at the successful write, which a device ignoring the version would also pass.
@@ -387,7 +386,7 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 detail: `write with the stale data version answered ${JSON.stringify(stale)}`,
             });
             if (!rejected) {
-                throw new Error(`A stale data version was accepted: ${JSON.stringify(stale)}`);
+                throw new CertCheckFailedError(`A stale data version was accepted: ${JSON.stringify(stale)}`);
             }
         }),
         {

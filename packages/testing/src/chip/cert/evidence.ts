@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { CertStepDefinition, CheckRecord, DeviceExitInfo, StepRecorder, StepVerdict } from "./cert-context.js";
 import type { LogLine } from "./log-follower.js";
@@ -26,7 +26,8 @@ export interface StepRecord {
 }
 
 /**
- * The evidence bundle for one cert-test run, written to `result.json` by {@link EvidenceRecorder.flush}.
+ * The evidence bundle for one cert-test run, written to `result.json` by {@link EvidenceRecorder.flush}
+ * and settled there by {@link EvidenceRecorder.concludeRun}.
  */
 export interface RunRecord {
     tc: string;
@@ -41,22 +42,49 @@ export interface RunRecord {
         chipToolRef?: string;
     };
     steps: StepRecord[];
-    verdict: "pass" | "fail" | "skipped";
+    /**
+     * `"incomplete"` until the run concludes. The record is written before teardown so a teardown
+     * hanging against an unreachable device still leaves a bundle behind, and a run that has not
+     * finished reporting has no verdict to state — so no hang, interruption or unwritable volume can
+     * leave a passing record standing for a run that failed.
+     */
+    verdict: "pass" | "fail" | "skipped" | "incomplete";
     deviceExit?: { code: number | null; signal?: string };
     /** Why the run's own cleanup failed, if it did (see {@link EvidenceRecorder.finalizationFailed}). */
     finalizationError?: string;
+    /** Why closing the run's controllers or devices failed, if it did (see {@link EvidenceRecorder.teardownFailed}). */
+    teardownError?: string;
+    /** Why the evidence this record's checks cite is incomplete, if it is (see {@link EvidenceRecorder.evidenceIncomplete}). */
+    evidenceError?: string;
+    /**
+     * How the run's own runner reported its failure, present for every failed run. The other fields
+     * here name particular mechanisms — a device that exited, cleanup that threw — and this names the
+     * outcome, so a failure none of them covers still reaches the record and still settles the verdict
+     * (see {@link EvidenceRecorder.concludeRun}). Expect it alongside them rather than instead of them.
+     */
+    runError?: string;
     /**
      * How many steps the controller under test could not express, absent if none. A run can reach a
      * "pass" verdict with most of its steps skipped this way, so a reader of this record alone needs
      * the count to know how much the run actually proved.
      */
     controllerUnsupportedSkips?: number;
+    /**
+     * How many checks reported `"unverified"`, absent if none. Such a check neither proves nor
+     * disproves what its step claims — a step made only of them still passes — so this is what tells a
+     * reader of this record alone how much of the run's claims rest on nothing observed.
+     */
+    unverifiedChecks?: number;
 }
 
 // Colons aren't valid in a Windows path segment; CI here targets macOS/Linux, but a dash-for-colon
 // directory name still reads as a timestamp on any filesystem, so there's no reason to special-case.
 function sanitizeTimestampForPath(timestamp: string): string {
     return timestamp.replace(/:/g, "-");
+}
+
+function errorText(e: unknown): string {
+    return e instanceof Error ? e.message : String(e);
 }
 
 /**
@@ -76,7 +104,12 @@ export class EvidenceRecorder implements StepRecorder {
     #current?: { def: CertStepDefinition; checks: CheckRecord[] };
     #deviceExit?: { code: number | null; signal?: string };
     #finalizationError?: string;
+    #teardownError?: string;
+    #evidenceError?: string;
+    #runError?: string;
     #controllerUnsupportedSkips?: number;
+    #unverifiedChecks?: number;
+    #concluded = false;
 
     constructor(outDir: string, meta: RunRecord["run"] & { tc: string; plan: string }) {
         this.#meta = meta;
@@ -146,6 +179,35 @@ export class EvidenceRecorder implements StepRecorder {
     }
 
     /**
+     * Records that closing the run's controllers or devices failed, which makes the run's verdict a
+     * failure: state left on the TH outlasts this run and can break the next one (see
+     * {@link RunRecord.teardownError}).
+     */
+    teardownFailed(detail: string): void {
+        this.#teardownError = detail;
+    }
+
+    /**
+     * Records that the evidence this record's checks cite could not be assembled, which makes the run's
+     * verdict a failure: a bundle missing the logs its checks index into cannot support them (see
+     * {@link RunRecord.evidenceError}).
+     */
+    evidenceIncomplete(detail: string): void {
+        // Accumulated: one gap often causes the next, and the first is usually the one that explains
+        // why the checks cite evidence the bundle lacks.
+        this.#evidenceError = this.#evidenceError === undefined ? detail : `${this.#evidenceError}; ${detail}`;
+    }
+
+    /**
+     * Records how many checks could not be evaluated (see {@link RunRecord.unverifiedChecks}). Unlike a
+     * failed step this never changes the verdict — such a check is a gap in what the run observed, not
+     * a defect in the device.
+     */
+    recordUnverifiedChecks(count: number): void {
+        this.#unverifiedChecks = count;
+    }
+
+    /**
      * Attaches a raw log dump under `<name>.log`, e.g. `attachLog("controller", ...)` or
      * `attachLog("device-app1", ...)`.
      */
@@ -154,6 +216,57 @@ export class EvidenceRecorder implements StepRecorder {
     }
 
     async flush(): Promise<string> {
+        await mkdir(this.#dir, { recursive: true });
+
+        // The record is written only after the logs its checks cite, so a reader that finds it finds
+        // them too, and a log that could not be written reaches it as an evidence gap before this call
+        // reports the failure.
+        let logFailure: unknown;
+        let logFailures = 0;
+        for (const [name, lines] of this.#logs) {
+            try {
+                await writeFile(join(this.#dir, `${name}.log`), lines.map(line => line.text).join("\n"));
+            } catch (e) {
+                logFailures++;
+                if (logFailure === undefined) {
+                    logFailure = e;
+                }
+            }
+        }
+        if (logFailure !== undefined) {
+            this.evidenceIncomplete(
+                `${logFailures} of ${this.#logs.size} attached log(s) could not be written: ${errorText(logFailure)}`,
+            );
+        }
+
+        await this.#writeRecord();
+
+        if (logFailure !== undefined) {
+            throw logFailure;
+        }
+
+        return this.#dir;
+    }
+
+    /**
+     * Settles the run's verdict and writes the record carrying it. Until this runs the record states no
+     * verdict, so a run that never gets here — a teardown that hangs, a volume that stopped accepting
+     * writes — leaves a bundle saying so rather than one claiming a pass.
+     *
+     * `outcome.failed` is the run's own outcome as its runner will report it, and a failed run cannot
+     * settle as a pass whatever the steps recorded. That is what keeps the two from diverging over a
+     * cause this recorder was never told about, and `outcome.detail` records that report as
+     * {@link RunRecord.runError} whether or not another field already names a mechanism for it.
+     */
+    async concludeRun(outcome: { failed: boolean; detail?: string }): Promise<void> {
+        this.#concluded = true;
+        if (outcome.failed && this.#runError === undefined) {
+            this.#runError = outcome.detail ?? "the run failed";
+        }
+        await this.#writeRecord();
+    }
+
+    async #writeRecord(): Promise<void> {
         await mkdir(this.#dir, { recursive: true });
 
         const record: RunRecord = {
@@ -172,16 +285,19 @@ export class EvidenceRecorder implements StepRecorder {
             verdict: this.#verdict(),
             deviceExit: this.#deviceExit,
             finalizationError: this.#finalizationError,
+            teardownError: this.#teardownError,
+            evidenceError: this.#evidenceError,
+            runError: this.#runError,
             controllerUnsupportedSkips: this.#controllerUnsupportedSkips,
+            unverifiedChecks: this.#unverifiedChecks,
         };
 
-        await writeFile(join(this.#dir, "result.json"), JSON.stringify(record, null, 4));
-
-        for (const [name, lines] of this.#logs) {
-            await writeFile(join(this.#dir, `${name}.log`), lines.map(line => line.text).join("\n"));
-        }
-
-        return this.#dir;
+        // Written beside the target and renamed over it, so a write interrupted partway cannot leave a
+        // torn record where a whole one stood.
+        const target = join(this.#dir, "result.json");
+        const pending = `${target}.pending`;
+        await writeFile(pending, JSON.stringify(record, null, 4));
+        await rename(pending, target);
     }
 
     /**
@@ -214,8 +330,17 @@ export class EvidenceRecorder implements StepRecorder {
      * neither a pass nor a fail: nothing was actually exercised, so reporting `"pass"` would overstate
      * what the run proved. Only a run with at least one non-skipped step can pass.
      */
-    #verdict(): "pass" | "fail" | "skipped" {
-        if (this.#deviceExit || this.#finalizationError !== undefined) {
+    #verdict(): RunRecord["verdict"] {
+        if (!this.#concluded) {
+            return "incomplete";
+        }
+        if (
+            this.#deviceExit ||
+            this.#finalizationError !== undefined ||
+            this.#teardownError !== undefined ||
+            this.#evidenceError !== undefined ||
+            this.#runError !== undefined
+        ) {
             return "fail";
         }
         if (this.#steps.some(step => step.verdict === "fail" || step.verdict === "aborted")) {

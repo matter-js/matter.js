@@ -193,6 +193,23 @@ export abstract class Behavior {
     }
 
     /**
+     * Report a change to an attribute this behavior computes on read.
+     *
+     * A behavior may serve an attribute from an accessor rather than a stored value (see `Val.properties`).  Change
+     * detection diffs stored values, so no `$Changed` event fires for such an attribute and nothing reports it on its
+     * own.  Call this where the behavior knows the value changed; a subscriber reads the value through the accessor
+     * when the report is generated, so none is passed here.
+     *
+     * Call this once the change is durable - from a reaction to the stored value behind the attribute, say.  Neither
+     * the report nor the version it advances is part of the calling transaction, so both stand even if that
+     * transaction goes on to fail.  The version advances whether or not the framework already saw a change, so naming
+     * a stored attribute here advances it a second time.
+     */
+    protected markChanged(...attributes: string[]) {
+        (this as unknown as Internal)[BACKING].markChanged(attributes);
+    }
+
+    /**
      * Install a {@link Reactor}.
      *
      * Important: The reactor MUST be a real JS function - arrow functions will not work!

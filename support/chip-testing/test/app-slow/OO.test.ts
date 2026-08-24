@@ -8,7 +8,7 @@ import { edit } from "@matter/testing";
 
 describe("OO", () => {
     before(async () => {
-        await chip.testFor("OO/2.3").edit(
+        await chip.testFor("OO/2.3/run1").edit(
             // CHIP enforces a maximal value on OffWaitTime of 215.  AFAICT this doesn't come from the specification,
             // so maybe is based on latency estimates?  For now we just rewrite
             edit.sed("s/maxValue: 215/maxValue: 300/"),
@@ -17,5 +17,5 @@ describe("OO", () => {
             edit.sed("s/value: 30000/value: 30500/"),
         );
     });
-    chip("OO/*");
+    chip("OO/*", "OO/2.1/*", "OO/2.2/*", "OO/2.3/*", "OO/2.4/*", "OO/2.6/*");
 });
