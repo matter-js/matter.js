@@ -579,6 +579,28 @@ function statusFor(statuses: ChipPathStatus[], path: { endpoint?: number; cluste
     );
 }
 
+/**
+ * {@link statusFor} for the concrete attribute paths of a request. A status on one of those is that
+ * path's read having failed, where a wildcard path's statuses are per-item results of the expansion.
+ */
+function attributeStatusFor(statuses: ChipPathStatus[], paths: AttributePathSpec[]) {
+    for (const path of paths) {
+        if (path.endpoint === undefined || path.cluster === undefined || path.attribute === undefined) {
+            continue;
+        }
+        const status = statuses.find(
+            entry =>
+                entry.endpoint === path.endpoint &&
+                entry.cluster === path.cluster &&
+                entry.attribute === path.attribute,
+        );
+        if (status !== undefined) {
+            return { path, status };
+        }
+    }
+    return undefined;
+}
+
 /** {@link statusFor} for the concrete event paths of a request; a wildcard path's statuses are per-item. */
 function eventStatusFor(statuses: ChipPathStatus[], paths: EventPathSpec[]) {
     for (const path of paths) {
@@ -779,6 +801,16 @@ class ChipToolCertNodeApi implements CertNodeApi {
 
         const reply = await this.#read(paths, options);
         assertNoFailure(reply, `read ${JSON.stringify(paths)}`);
+
+        const refused = attributeStatusFor(reply.statuses, paths);
+        if (refused !== undefined) {
+            throw new StatusResponseError(
+                `readAttributes ${JSON.stringify(refused.path)} failed`,
+                codeOf(refused.status.status, "readAttributes"),
+                refused.status.clusterStatus,
+            );
+        }
+
         return toReadEntries(reply.values);
     }
 

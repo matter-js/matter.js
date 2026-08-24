@@ -393,6 +393,53 @@ describe("InProcessControllerAdapter", () => {
         await node.decommission();
     });
 
+    it("rejects a multi-path read whose concrete path the device refused", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        const node = adapter.node(ref);
+
+        // The first path the device answers, so the read as a whole succeeds and only this one's status
+        // says the second went unanswered — endpoint 1 has no BasicInformation
+        const rejection = await rejectionOf(
+            node.readAttributes([
+                { endpoint: 1, cluster: ON_OFF.id, attribute: ON_OFF_ATTRIBUTE.id },
+                { endpoint: 1, cluster: BASIC_INFORMATION.id, attribute: VENDOR_ID_ATTRIBUTE.id },
+            ]),
+        );
+        expect(rejection).to.be.instanceOf(StatusResponseError);
+        expect(StatusResponseError.of(rejection)?.code).equal(Status.UnsupportedCluster);
+
+        await node.decommission();
+    });
+
+    it("rejects a multi-path event subscribe whose concrete path the device refused", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        const node = adapter.node(ref);
+
+        // The subscription the device did establish cannot be revoked, so its reports must not reach the
+        // step that already failed on this rejection — which is what chip-tool does as well
+        const updates = new Array<EventReadEntry>();
+        const rejection = await rejectionOf(
+            node.subscribeEvents(
+                [
+                    { endpoint: 1, cluster: BOOLEAN_STATE.id, event: STATE_CHANGE_EVENT.id },
+                    { endpoint: 1, cluster: BASIC_INFORMATION.id, event: START_UP_EVENT.id },
+                ],
+                { minIntervalFloorSeconds: 0, maxIntervalCeilingSeconds: 10, onUpdate: event => updates.push(event) },
+            ),
+        );
+        expect(rejection).to.be.instanceOf(StatusResponseError);
+
+        await device.backchannel({ name: "setBooleanState", endpointId: 1, newState: true });
+        await new Promise(resolve => setTimeout(resolve, 1_000));
+        expect(updates).to.be.empty;
+
+        await node.decommission();
+    });
+
     it("rejects a concrete-path event subscribe the device refused", async function () {
         this.timeout(30_000);
 

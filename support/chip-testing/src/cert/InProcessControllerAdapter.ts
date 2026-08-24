@@ -204,11 +204,44 @@ function eventFiltersFor(options?: ReadEventOptions) {
 }
 
 /**
+ * A concrete path the device answered with a status is a failed read of that path, the same way
+ * {@link CertNodeApi.readAttribute}'s is: the step asked for that attribute and got none, so reporting
+ * the read as successful would have it read as "the device has no value for it".
+ *
+ * A wildcard path's statuses are per-item results of the expansion instead (UNSUPPORTED_ATTRIBUTE for
+ * a path the expansion reached but that does not apply there), so those are dropped.
+ */
+function assertNoConcreteAttributeStatus(
+    paths: AttributePathSpec[],
+    statuses: ReadResult.AttributeStatus[],
+    operation: string,
+) {
+    for (const status of statuses) {
+        const { endpointId, clusterId, attributeId } = status.path;
+        const requested = paths.some(
+            path =>
+                isConcretePath(path) &&
+                path.endpoint === endpointId &&
+                path.cluster === clusterId &&
+                path.attribute === attributeId,
+        );
+        if (requested) {
+            throw new StatusResponseError(
+                `${operation} ${JSON.stringify({ endpoint: endpointId, cluster: clusterId, attribute: attributeId })} failed`,
+                status.status,
+                status.clusterStatus,
+            );
+        }
+    }
+}
+
+/**
  * A status for a path the step named concretely means it will never see that event; per-path statuses
  * of a wildcard expansion are results of the expansion instead (see {@link CertNodeApi.readEvents}).
  *
- * Reads only. A subscription the device refuses is already rejected by the interaction itself, before
- * its priming report reaches us.
+ * A subscribe whose every path the device refuses is rejected by the interaction itself, but one that
+ * also carries a path the device serves is established, and only the priming report's status says the
+ * other path went unanswered.
  */
 function assertNoConcreteEventStatus(paths: EventPathSpec[], statuses: ReadResult.EventStatus[], operation: string) {
     for (const status of statuses) {
@@ -482,6 +515,7 @@ class InProcessCertNodeApi implements CertNodeApi {
                 throw new ImplementationError("readAttributes requires at least one path");
             }
             const values = new Array<ReadResult.AttributeValue>();
+            const statuses = new Array<ReadResult.AttributeStatus>();
             const request: ClientRead = {
                 ...Read({ attributes: paths.map(toIds), fabricFilter: options?.fabricFiltered }),
                 includeKnownVersions: true,
@@ -490,9 +524,12 @@ class InProcessCertNodeApi implements CertNodeApi {
                 for await (const report of chunk) {
                     if (report.kind === "attr-value") {
                         values.push(report);
+                    } else if (report.kind === "attr-status") {
+                        statuses.push(report);
                     }
                 }
             }
+            assertNoConcreteAttributeStatus(paths, statuses, "readAttributes");
             return toWireValues(values);
         });
     }
@@ -613,7 +650,11 @@ class InProcessCertNodeApi implements CertNodeApi {
                 throw new ImplementationError("subscribeEvents requires at least one path");
             }
             const seed = new Array<ReadResult.EventValue>();
-            let seeding = true;
+            const seedStatuses = new Array<ReadResult.EventStatus>();
+            // A subscription this rejects stays established on the device and nothing here can revoke
+            // it; dropping its reports is what keeps them away from the `onUpdate` of a step that has
+            // already failed on the rejection, which is what the chip-tool adapter does too.
+            let phase: "seeding" | "live" | "refused" = "seeding";
             const request = Subscribe({
                 events: paths.map(toEventIds),
                 eventFilters: eventFiltersFor(opts),
@@ -625,10 +666,19 @@ class InProcessCertNodeApi implements CertNodeApi {
             request.updated = async data => {
                 for await (const chunk of data) {
                     for await (const report of chunk) {
+                        if (phase === "refused") {
+                            continue;
+                        }
+                        if (report.kind === "event-status") {
+                            if (phase === "seeding") {
+                                seedStatuses.push(report);
+                            }
+                            continue;
+                        }
                         if (report.kind !== "event-value") {
                             continue;
                         }
-                        if (seeding) {
+                        if (phase === "seeding") {
                             seed.push(report);
                         } else {
                             opts.onUpdate?.(toWireEvents([report])[0]);
@@ -637,7 +687,13 @@ class InProcessCertNodeApi implements CertNodeApi {
                 }
             };
             await this.#peer.interaction.subscribe(request);
-            seeding = false;
+            try {
+                assertNoConcreteEventStatus(paths, seedStatuses, "subscribeEvents");
+            } catch (e) {
+                phase = "refused";
+                throw e;
+            }
+            phase = "live";
             return toWireEvents(seed);
         });
     }

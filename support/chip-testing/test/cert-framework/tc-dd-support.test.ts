@@ -4,7 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError, InternalError, Millis, UnexpectedDataError } from "@matter/main";
+import {
+    DiscoveryAggregateError,
+    DiscoveryError,
+    ImplementationError,
+    InternalError,
+    Millis,
+    UnexpectedDataError,
+} from "@matter/main";
 import type { CertNodeApi, CertNodeRef, CertStepContext, CheckRecord, ControllerAdapter } from "@matter/testing";
 import { LogFollower } from "@matter/testing";
 import { expect } from "chai";
@@ -21,6 +28,7 @@ import {
     qrPayloadFields,
     qrPayloadWith,
     qrPayloadWithPrefix,
+    recordDiscoveryCapabilityAbsent,
     recordGeneratedManualCode,
     recordGeneratedPayload,
     recordVendorOutcome,
@@ -104,6 +112,13 @@ describe("qrPayloadWithPrefix", () => {
     });
 });
 
+/** What each context recorded, for a test judging the evidence rather than only the outcome. */
+const recordedChecks = new WeakMap<CertStepContext, CheckRecord[]>();
+
+function checksOf(cx: CertStepContext): CheckRecord[] {
+    return recordedChecks.get(cx) ?? [];
+}
+
 /** A step context whose DUT controller answers commissioning as the test says, and nothing else. */
 function contextWith(
     commission: () => Promise<CertNodeRef>,
@@ -139,12 +154,15 @@ function contextWith(
         node: nodeFor,
     } satisfies ControllerAdapter;
 
-    return {
+    const checks = new Array<CheckRecord>();
+    const cx: CertStepContext = {
         controllers: { dut },
         devices: {},
         recorder: {
             beginStep() {},
-            check() {},
+            check(record) {
+                checks.push(record);
+            },
             endStep() {
                 return [];
             },
@@ -153,6 +171,9 @@ function contextWith(
             },
         },
     };
+    recordedChecks.set(cx, checks);
+
+    return cx;
 }
 
 describe("CommissioningRefusals", () => {
@@ -284,22 +305,91 @@ describe("CommissioningRefusals", () => {
     });
 });
 
+describe("recordDiscoveryCapabilityAbsent", () => {
+    /** A DUT that reads a payload the way both real controllers do. */
+    function contextWithParser(): CertStepContext {
+        const cx = contextWith(() => Promise.reject(new InternalError("not used by these tests")));
+        cx.controllers.dut.parseQrPayload = async payload => {
+            const { version, vendorId, productId, flowType, discoveryCapabilities, discriminator, passcode } =
+                qrPayloadFields(payload);
+            return { version, vendorId, productId, flowType, discoveryCapabilities, discriminator, passcode };
+        };
+        return cx;
+    }
+
+    // chip-all-clusters-app's own payload, whose bitmask is BLE alone — the plan's own example payload
+    // is already OnNetwork-only, so substituting the capabilities into it changes nothing and the check
+    // would hold however the field were compared
+    const BLE_PAYLOAD = "MT:-24J042C00KA0648G00";
+
+    it("passes for a payload that changed nothing but the capabilities", async () => {
+        const cx = contextWithParser();
+
+        await recordDiscoveryCapabilityAbsent(
+            cx,
+            qrPayloadWith(BLE_PAYLOAD, { discoveryCapabilities: ON_NETWORK_ONLY }),
+            "ble",
+            "no BLE",
+            BLE_PAYLOAD,
+        );
+
+        expect(checksOf(cx).map(({ verdict }) => verdict)).deep.equal(["pass", "pass"]);
+    });
+
+    it("fails when the derivation moved a field the plan told it to keep", async () => {
+        const cx = contextWithParser();
+
+        await expect(
+            recordDiscoveryCapabilityAbsent(
+                cx,
+                qrPayloadWith(BLE_PAYLOAD, { discoveryCapabilities: ON_NETWORK_ONLY, passcode: 12345678 }),
+                "ble",
+                "no BLE",
+                BLE_PAYLOAD,
+            ),
+        ).rejectedWith(CertCheckFailedError, /passcode=20202021/);
+    });
+
+    it("fails when the payload still offers the capability", async () => {
+        const cx = contextWithParser();
+
+        await expect(recordDiscoveryCapabilityAbsent(cx, BLE_PAYLOAD, "ble", "no BLE", BLE_PAYLOAD)).rejectedWith(
+            CertCheckFailedError,
+            /ble is offered/,
+        );
+    });
+});
+
 describe("recordVendorOutcome", () => {
     const CODE = "34970112332";
+    const IDS = { vendorId: 0xfff2, thVendorId: 0xfff1 };
+    const BUDGET = { refusalTimeout: Millis(50), settleTimeout: Millis(50) };
+
+    /** The advertisement check the real helper makes, which these tests have no mDNS to answer. */
+    const observed = async () => {};
 
     it("fails, and leaves cleanup owning the attempt, when the DUT neither onboards nor gives up", async () => {
-        const refusals = new CommissioningRefusals({ refusalTimeout: Millis(50), settleTimeout: Millis(50) });
+        const refusals = new CommissioningRefusals(BUDGET);
         const cx = contextWith(() => new Promise<CertNodeRef>(() => {}));
 
         await expect(
-            recordVendorOutcome(cx, CODE, new CommissionedRefs(), refusals, "vendor outcome", Millis(50)),
+            recordVendorOutcome(
+                cx,
+                CODE,
+                new CommissionedRefs(),
+                refusals,
+                "vendor outcome",
+                Millis(50),
+                IDS,
+                observed,
+            ),
         ).rejectedWith(/neither onboarded the TH nor gave up/);
 
         await expect(refusals.settle(cx)).rejectedWith(/still running/);
     });
 
     it("records the DUT onboarding the TH, leaving the fabric to the step that owns it", async () => {
-        const refusals = new CommissioningRefusals({ refusalTimeout: Millis(50), settleTimeout: Millis(50) });
+        const refusals = new CommissioningRefusals(BUDGET);
         const decommissioned = new Array<CertNodeRef>();
         const cx = contextWith(
             async () => "peer1" as CertNodeRef,
@@ -309,7 +399,7 @@ describe("recordVendorOutcome", () => {
         );
         const commissioned = new CommissionedRefs();
 
-        await recordVendorOutcome(cx, CODE, commissioned, refusals, "vendor outcome", Millis(50));
+        await recordVendorOutcome(cx, CODE, commissioned, refusals, "vendor outcome", Millis(50), IDS, observed);
 
         expect(commissioned.get("dut")).equal("peer1");
 
@@ -319,16 +409,153 @@ describe("recordVendorOutcome", () => {
         expect(decommissioned).deep.equal([]);
     });
 
-    it("records the DUT terminating commissioning", async () => {
-        const refusals = new CommissioningRefusals({ refusalTimeout: Millis(50), settleTimeout: Millis(50) });
+    it("records the DUT giving up on the code, and which vendor id the code named", async () => {
+        const refusals = new CommissioningRefusals(BUDGET);
         const cx = contextWith(async () => {
-            throw new InternalError("code names a vendor this network does not carry");
+            throw new DiscoveryError("No commissionable device was discovered");
         });
         const commissioned = new CommissionedRefs();
 
-        await recordVendorOutcome(cx, CODE, commissioned, refusals, "vendor outcome", Millis(50));
+        await recordVendorOutcome(cx, CODE, commissioned, refusals, "vendor outcome", Millis(50), IDS, observed);
 
         expect(commissioned.get("dut")).equal(undefined);
+        const detail = checksOf(cx).at(-1)?.detail ?? "";
+        expect(detail).contains("DUT terminated commissioning");
+        expect(detail).contains("the code names vendor 0xfff2 where the TH's own payload names 0xfff1");
+        await refusals.settle(cx);
+    });
+
+    it("accepts a give-up that tried a candidate and failed on it", async () => {
+        const refusals = new CommissioningRefusals(BUDGET);
+        const cx = contextWith(async () => {
+            throw new DiscoveryAggregateError(
+                [new UnexpectedDataError("PASE failed for a candidate that matched the short discriminator")],
+                "discovery of node with discriminator 15 failed",
+            );
+        });
+
+        await recordVendorOutcome(
+            cx,
+            CODE,
+            new CommissionedRefs(),
+            refusals,
+            "vendor outcome",
+            Millis(50),
+            IDS,
+            observed,
+        );
+
+        expect(checksOf(cx).at(-1)?.detail).contains("DUT terminated commissioning");
+        await refusals.settle(cx);
+    });
+
+    it("does not accept a rejection that says nothing about the code", async () => {
+        const refusals = new CommissioningRefusals(BUDGET);
+        const cx = contextWith(async () => {
+            throw new InternalError("the controller would not start");
+        });
+
+        await expect(
+            recordVendorOutcome(
+                cx,
+                CODE,
+                new CommissionedRefs(),
+                refusals,
+                "vendor outcome",
+                Millis(50),
+                IDS,
+                observed,
+            ),
+        ).rejectedWith(CertCheckFailedError, /says nothing about the code/);
+
+        await refusals.settle(cx);
+    });
+
+    it("does not accept a payload refusal, which happens before the controller looks for the TH", async () => {
+        const refusals = new CommissioningRefusals(BUDGET);
+        const cx = contextWith(async () => {
+            throw new OnboardingPayloadRefusedError(`Refused manual pairing code ${CODE}`);
+        });
+
+        await expect(
+            recordVendorOutcome(
+                cx,
+                CODE,
+                new CommissionedRefs(),
+                refusals,
+                "vendor outcome",
+                Millis(50),
+                IDS,
+                observed,
+            ),
+        ).rejectedWith(CertCheckFailedError, /says nothing about the code/);
+
+        await refusals.settle(cx);
+    });
+
+    it("accepts chip-tool's own give-up, which its output cannot qualify", async () => {
+        const refusals = new CommissioningRefusals(BUDGET);
+        const cx = contextWith(async () => {
+            throw new ChipToolCommandError("chip-tool commissioning of node 4113 failed");
+        });
+
+        await recordVendorOutcome(
+            cx,
+            CODE,
+            new CommissionedRefs(),
+            refusals,
+            "vendor outcome",
+            Millis(50),
+            IDS,
+            observed,
+        );
+
+        await refusals.settle(cx);
+    });
+
+    it("does not drive the attempt when the TH was not observed advertising", async () => {
+        const refusals = new CommissioningRefusals(BUDGET);
+        let commissionCalled = false;
+        const cx = contextWith(async () => {
+            commissionCalled = true;
+            return "peer1" as CertNodeRef;
+        });
+
+        await expect(
+            recordVendorOutcome(
+                cx,
+                CODE,
+                new CommissionedRefs(),
+                refusals,
+                "vendor outcome",
+                Millis(50),
+                IDS,
+                async () => {
+                    throw new CertCheckFailedError("TH advertising before the attempt check failed");
+                },
+            ),
+        ).rejectedWith(CertCheckFailedError, /TH advertising before the attempt/);
+
+        expect(commissionCalled).equal(false);
+        await refusals.settle(cx);
+    });
+
+    it("says so when the code names the vendor the TH itself advertises", async () => {
+        const refusals = new CommissioningRefusals(BUDGET);
+        const cx = contextWith(async () => "peer1" as CertNodeRef);
+
+        await recordVendorOutcome(
+            cx,
+            CODE,
+            new CommissionedRefs(),
+            refusals,
+            "vendor outcome",
+            Millis(50),
+            { vendorId: 0xfff1, thVendorId: 0xfff1 },
+            observed,
+        );
+
+        expect(checksOf(cx).at(-1)?.detail).contains("substitutes nothing");
         await refusals.settle(cx);
     });
 });

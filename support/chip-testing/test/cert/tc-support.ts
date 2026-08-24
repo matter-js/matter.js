@@ -4,7 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, Duration, InternalError, MatterError, Millis, Seconds, Time } from "@matter/main";
+import {
+    camelize,
+    Duration,
+    InternalError,
+    MatterAggregateError,
+    MatterError,
+    Millis,
+    Seconds,
+    Time,
+} from "@matter/main";
 import { Matter } from "@matter/model";
 import type {
     AttributePathSpec,
@@ -65,6 +74,50 @@ export function recordAll(cx: CertStepContext, checks: readonly { check: () => C
     if (failed.length) {
         throw new CertCheckFailedError(`${failed.length} of ${checks.length} checks failed: ${failed.join("; ")}`);
     }
+}
+
+/**
+ * Several cleanups of one TC's finalizer having failed. The engine records a finalization failure as
+ * the error's `message` alone, so every failure has to be named there; the causes travel along for a
+ * reader who also has the console output.
+ */
+export class CertCleanupErrors extends MatterAggregateError {
+    constructor(causes: unknown[]) {
+        super(causes, causes.map(cause => describeError(cause)).join("; "));
+    }
+}
+
+/**
+ * Runs every cleanup a TC owes, in order, whatever any of them does.
+ *
+ * A `try { a() } finally { b() }` runs both but reports only `b`'s failure, and each of a TC's
+ * cleanups names different state the next run inherits — an outstanding commissioning attempt and a
+ * fabric on the TH are not substitutes for one another. A lone failure is rethrown as it arrived so
+ * its own type survives; several become one {@link CertCleanupErrors}.
+ *
+ * {@link MatterAggregateError.settleSeries} runs a series the same way but names it with a fixed
+ * message, and the message is all the evidence bundle keeps.
+ */
+export async function runCleanups(...cleanups: (() => Promise<void>)[]): Promise<void> {
+    const failures = new Array<unknown>();
+    for (const cleanup of cleanups) {
+        try {
+            await cleanup();
+        } catch (e) {
+            failures.push(e);
+        }
+    }
+
+    if (failures.length === 1) {
+        throw failures[0];
+    }
+    if (failures.length) {
+        throw new CertCleanupErrors(failures);
+    }
+}
+
+function describeError(e: unknown): string {
+    return e instanceof Error ? `${e.constructor.name}: ${e.message}` : String(e);
 }
 
 /**
@@ -885,6 +938,14 @@ interface ChunkedTransferDialect {
     /** An outbound report chunk. */
     chunk: RegExp;
 
+    /**
+     * Whether `chunk` is the transfer's own last message — `"unknown"` where the log stops before
+     * saying. A read's last report sets `SuppressResponse` and every earlier one
+     * `MoreChunkedMessages` (Matter Core § 8.4.3.3, § 10.7.3), so this is what tells the end of a
+     * transfer from a log that was cut inside one.
+     */
+    finality(log: LogFollower, chunk: LogLine): "final" | "more" | "unknown";
+
     /** The exchange `chunk` went out on, or `undefined` where the log does not say. */
     exchangeOf(log: LogFollower, chunk: LogLine): string | undefined;
 
@@ -899,10 +960,14 @@ interface ChunkedTransferDialect {
 }
 
 /**
- * Confirms a chunked read actually chunked and that the DUT acked every chunk but the last: at least
- * two report chunks, all on one exchange, with a `StatusResponse` received between every adjacent
- * pair. Missing evidence comes back as a `"fail"` record rather than a thrown timeout, so the step's
- * own reporting carries it.
+ * Confirms a chunked read actually chunked and that the DUT acked every chunk but the last, and only
+ * those: at least two report chunks, all on one exchange, with a `StatusResponse` received between
+ * every adjacent pair and none after the transfer's final message. A log that stops inside the transfer
+ * carries the first claim but not the second, and says so rather than failing. Missing evidence comes
+ * back as a `"fail"` record rather than a thrown timeout, so the step's own reporting carries it.
+ *
+ * A read only. A subscription's reports are answered including the last, so pointing this at one would
+ * fail a conforming device.
  *
  * Both flavors name the same three things, in different places — {@link ChunkedTransferDialect}.
  */
@@ -1001,13 +1066,47 @@ export async function expectChunkedTransfer(
         }
     }
 
+    // A read's report carries SuppressResponse (Matter Core § 8.4.3.3), which the wire encoding
+    // overrides to false only while MoreChunkedMessages is set (§ 10.7.3) — so the transfer's own last
+    // message is the one chunk the requester must not answer. A log that stops inside a transfer ends on
+    // an acked chunk by construction, so the search below is only evidence where the log says this chunk
+    // was the last; the loop above already waited CHUNK_QUIET past it, so the window an ack would have
+    // landed in is in the log by now.
+    const last = chunks[chunks.length - 1];
+    if (dialect.finality(log, last) !== "final") {
+        return {
+            type: "device-log",
+            verdict: "pass",
+            pattern: "ReportDataMessage, StatusResponse on the same Exchange between every adjacent pair",
+            detail:
+                `${chunks.length} report chunks, each but the last followed by a StatusResponse; the log stops ` +
+                "inside the transfer, so whether the DUT answered its final message is not claimed",
+            matched: last.text,
+            logLine: last.index,
+        };
+    }
+
+    const lateAck = lines.slice(last.index + 1).find(line => !line.synthetic && ackPattern.test(line.text));
+    if (lateAck !== undefined) {
+        return {
+            type: "device-log",
+            verdict: "fail",
+            pattern: String(ackPattern),
+            detail:
+                `The DUT sent a StatusResponse on Exchange ${exchange} after the final one of ${chunks.length} ` +
+                `report chunks (log line ${lateAck.index}), which a read's last chunk suppresses`,
+            logLine: lateAck.index,
+        };
+    }
+
     return {
         type: "device-log",
         verdict: "pass",
-        pattern: "ReportDataMessage, StatusResponse on the same Exchange between every adjacent pair",
-        detail: `${chunks.length} report chunks, each but the last followed by a StatusResponse`,
-        matched: chunks[chunks.length - 1].text,
-        logLine: chunks[chunks.length - 1].index,
+        pattern:
+            "ReportDataMessage, StatusResponse on the same Exchange between every adjacent pair and none after the last",
+        detail: `${chunks.length} report chunks, each but the last followed by a StatusResponse, and none after the last`,
+        matched: last.text,
+        logLine: last.index,
     };
 }
 
@@ -1192,9 +1291,37 @@ function exchangeIdBefore(log: LogFollower, beforeIndex: number): string | undef
 // chip's decode dump does not, and its exchange comes off the trace line preceding it.
 const MATTERJS_REPORT_CHUNK = /Message » for: I\/ReportData .*⇵([0-9a-f]+)✉/;
 
+// Both implementations say on which message a transfer ends, in their own place: matter.js renders the
+// report's own flags on the report line, chip prints them inside that message's decode dump.
+const MATTERJS_MORE_CHUNKS = /Message » for: I\/ReportData [^⇵]*\bmoreChunkedMessages\b/;
+const MATTERJS_SUPPRESSED_RESPONSE = /Message » for: I\/ReportData [^⇵]*\bsuppressResponse\b/;
+const CHIP_MORE_CHUNKS = /\[DMG\]\s+MoreChunkedMessages = true,\s*$/;
+const CHIP_SUPPRESSED_RESPONSE = /\[DMG\]\s+SuppressResponse = true,\s*$/;
+
+/**
+ * Which of the two flags chip printed first at or after `chunk`. They are fields of the message's own
+ * decode dump, so the first of either after the chunk line belongs to that chunk; a log cut inside the
+ * dump has neither.
+ */
+function chipChunkFinality(log: LogFollower, chunk: LogLine): "final" | "more" | "unknown" {
+    for (const line of log.lines.slice(chunk.index + 1)) {
+        if (line.synthetic) {
+            continue;
+        }
+        if (CHIP_SUPPRESSED_RESPONSE.test(line.text)) {
+            return "final";
+        }
+        if (CHIP_MORE_CHUNKS.test(line.text)) {
+            return "more";
+        }
+    }
+    return "unknown";
+}
+
 const CHUNKED_TRANSFER_DIALECTS: { chip: ChunkedTransferDialect; matterjs: ChunkedTransferDialect } = {
     chip: {
         chunk: REPORT_DATA_MESSAGE,
+        finality: (log, chunk) => chipChunkFinality(log, chunk),
         exchangeOf: (log, chunk) => exchangeIdBefore(log, chunk.index),
         ack: reportAckedOnExchange,
         attribution: String(REPORT_SENT_LINE),
@@ -1203,6 +1330,12 @@ const CHUNKED_TRANSFER_DIALECTS: { chip: ChunkedTransferDialect; matterjs: Chunk
 
     matterjs: {
         chunk: MATTERJS_REPORT_CHUNK,
+        finality: (_log, chunk) =>
+            MATTERJS_SUPPRESSED_RESPONSE.test(chunk.text)
+                ? "final"
+                : MATTERJS_MORE_CHUNKS.test(chunk.text)
+                  ? "more"
+                  : "unknown",
         exchangeOf: (_log, chunk) => MATTERJS_REPORT_CHUNK.exec(chunk.text)?.[1],
         ack: exchange => new RegExp(`Message « for: I/StatusResponse .*⇵${exchange}✉`),
         attribution: String(MATTERJS_REPORT_CHUNK),

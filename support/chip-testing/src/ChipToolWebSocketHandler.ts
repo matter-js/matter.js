@@ -58,7 +58,7 @@ import {
 import { NodeNotConnectedError } from "@project-chip/matter.js/device";
 import { WebSocketServer } from "ws";
 import { log } from "./GenericTestApp.js";
-import { AttributeResponseData, EventResponseData } from "./handler/CommandHandler.js";
+import { AttributeResponseData, DiscoveryResponse, EventResponseData } from "./handler/CommandHandler.js";
 import { LegacyControllerCommandHandler } from "./handler/LegacyControllerCommandHandler.js";
 
 const logger = new Logger("ChipToolWebSocketHandler");
@@ -161,6 +161,76 @@ function toChipJson(object: object, spaces?: number): string {
     }
 
     return result;
+}
+
+/**
+ * A discovery command's answer.
+ *
+ * `{results: []}` is the runner's success shape, and every `DiscoveryCommands` step of the corpus
+ * exists to prove a device was found, so a discovery that found nothing has to fail them instead.
+ */
+export function discoveryResponseFor(results: DiscoveryResponse, command: string): ChipWebSocketCommandResponse {
+    if (results.length === 0) {
+        logger.error(`Discovery for "${command}" found no device`);
+        return { results: [{ error: "FAILURE" }] };
+    }
+    return { results };
+}
+
+/**
+ * A write payload the step handed over, as the value to write.
+ *
+ * A payload nothing can read is refused rather than answered: `{results: []}` is the runner's success
+ * shape, so returning it would record a write the device never saw as one it accepted.
+ */
+export function parseWritePayload(value: string, what: string): unknown {
+    try {
+        return JSON.parse(value);
+    } catch (error) {
+        throw new ImplementationError(`Cannot read the payload of ${what}`, { cause: error });
+    }
+}
+
+/**
+ * Whether `error` can only be a fault of this shim or of the step that drove it, rather than an answer
+ * from the device: our own invariant, API misuse or unimplemented path (`NotImplementedError` extends
+ * {@link InternalError}), a JavaScript type error from a path the request never fit, or a `SyntaxError`
+ * from reading a step's own argument — `JSON.parse` in {@link parseChipJSON} and `BigInt` in
+ * {@link parseNumber} both raise one, and both run inside a command handler's `try`.
+ *
+ * The device cannot produce any of those, so reporting them as the failure the device gave lets a step
+ * that expects one pass on our bug. `RangeError` is deliberately absent: `DataReader` clamps its offset
+ * rather than failing, so a truncated device message reaches `DataView` and raises one.
+ *
+ * Cause chains are followed, as {@link StatusResponseError.of} and {@link causedBy} do for the two
+ * classifications beside this one — a wrapped {@link ImplementationError} is still ours.
+ */
+export function isOwnFailure(error: unknown) {
+    return causedBy(error, ImplementationError, InternalError, TypeError, SyntaxError);
+}
+
+/**
+ * How this shim answers a command that failed.
+ *
+ * A device that refuses gives a bare `FAILURE`, which steps of the corpus expect; a failure of this
+ * shim's own must not be spelled the same way (see {@link isOwnFailure}) or those steps pass on our bug.
+ * Every catch that answers a failure goes through here, so a handler cannot answer one way while
+ * another answers the other.
+ */
+export function failureResponseFor(error: unknown): ChipWebSocketCommandResponse {
+    return isOwnFailure(error) ? ownFailureResponse(error) : { results: [{ error: "FAILURE" }] };
+}
+
+/**
+ * How this shim reports a failure of its own to the runner.
+ *
+ * The message is never empty: the runner drops a trailing `FAILURE` from a multi-entry result and reads
+ * a falsy error as no error at all, so an error carrying no message would be recorded as a command that
+ * succeeded.
+ */
+export function ownFailureResponse(error: unknown): ChipWebSocketCommandResponse {
+    const message = error instanceof Error ? `${error.constructor.name}: ${error.message}` : String(error);
+    return { results: [{ error: `Test harness failure — ${message || "no message"}` }, { error: "FAILURE" }] };
 }
 
 /**
@@ -567,7 +637,7 @@ export class ChipToolWebSocketHandler {
                             return { results: [] };
                         } catch (error) {
                             logger.error("Error commissioning node", error);
-                            return { results: [{ error: "FAILURE" }] };
+                            return failureResponseFor(error);
                         }
                     default:
                         throw new NotImplementedError(`Pairing text command ${commandData[1]}`);
@@ -667,7 +737,7 @@ export class ChipToolWebSocketHandler {
                     return { results: [] };
                 } catch (error) {
                     logger.error("Error commissioning node", error);
-                    return { results: [{ error: "FAILURE" }] };
+                    return failureResponseFor(error);
                 }
             }
             case "code-paseonly": {
@@ -680,7 +750,7 @@ export class ChipToolWebSocketHandler {
                     return { results: [] };
                 } catch (error) {
                     logger.error("Error connecting to node via PASE", error);
-                    return { results: [{ error: "FAILURE" }] };
+                    return failureResponseFor(error);
                 }
             }
             case "get-commissioner-node-id":
@@ -842,13 +912,9 @@ export class ChipToolWebSocketHandler {
             throw new ImplementationError("Missing attribute name or value");
         }
 
-        let parsedValue: any = value;
-        try {
-            parsedValue = JSON.parse(value);
-        } catch (err) {
-            logger.error("Error parsing data for write-by-id", err);
-            return { results: [] };
-        }
+        // `{results: []}` is the runner's success shape, so answering it for a payload nothing can read
+        // records a write the device never saw as one it accepted
+        const parsedValue = parseWritePayload(value, "write-by-id");
 
         const nodeId = NodeId(parseNumber(destinationId));
         try {
@@ -943,10 +1009,10 @@ export class ChipToolWebSocketHandler {
             ).handleDiscovery({
                 findBy,
             });
-            return { results };
+            return discoveryResponseFor(results, command);
         } catch (error) {
             logger.error("Error on discovery", error);
-            return { results: [{ error: "FAILURE" }] };
+            return failureResponseFor(error);
         }
     }
 
@@ -1206,17 +1272,12 @@ export class ChipToolWebSocketHandler {
             throw new ImplementationError("Missing attribute name or value");
         }
         const attributeModel = clusterData.attributes[attributeName.toLowerCase()] ?? GlobalAttributes[attributeName];
-        let parsedValue: any = value;
+        let parsedValue: unknown = value;
         if (
             typeof value === "string" &&
             ((value.startsWith("[") && value.endsWith("]")) || (value.startsWith("{") && value.endsWith("}")))
         ) {
-            try {
-                parsedValue = JSON.parse(value);
-            } catch (err) {
-                logger.error("Error on parsing value for write", err);
-                return { results: [] };
-            }
+            parsedValue = parseWritePayload(value, `write of ${cluster}.${commandSpecifier}`);
         }
         const matterValue = convertWebsocketDataToMatter(parsedValue, attributeModel);
         const nodeId = NodeId(parseNumber(destinationId));
@@ -1322,7 +1383,7 @@ export class ChipToolWebSocketHandler {
             `Error for command "${command}" and cluster "${cluster}" and specifier "${commandSpecifier}"`,
             error,
         );
-        return { results: [{ error: "FAILURE" }] };
+        return failureResponseFor(error);
     }
 
     close() {

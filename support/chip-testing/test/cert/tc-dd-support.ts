@@ -4,10 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Duration, ImplementationError, InternalError, Millis, Seconds, Time, Verhoeff } from "@matter/main";
+import {
+    Bytes,
+    DiscoveryAggregateError,
+    DiscoveryError,
+    Duration,
+    ImplementationError,
+    InternalError,
+    Millis,
+    Seconds,
+    Time,
+    Verhoeff,
+} from "@matter/main";
 import { Base38, DiscoveryCapabilitiesBitmap, DiscoveryCapabilitiesSchema } from "@matter/main/types";
 import type { CertNodeRef, CertStepContext, CheckRecord, CommissioningTarget } from "@matter/testing";
 import type { CertDevice } from "@matter/testing";
+import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
 import { expectMdns } from "../../src/cert/mdns-check.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
 import {
@@ -136,13 +148,27 @@ export async function onNetworkOnlyPayload(cx: CertStepContext): Promise<string>
 /**
  * Records that `payload` does not offer `capability`, read back through the DUT so a controller that
  * cannot report a bitmask fails here rather than silently proving nothing.
+ *
+ * `unchangedFrom` is the payload the plan derived this one from ("using the QR code from Step 1"), and
+ * is what holds the derivation to changing only the discovery capabilities: a helper that also moved
+ * the discriminator or the passcode still offers no BLE, so the capability check alone cannot tell the
+ * plan's payload from a different device's. Required for that reason — a guard against a
+ * self-satisfying comparison is one an optional parameter loses by accident.
  */
 export async function recordDiscoveryCapabilityAbsent(
     cx: CertStepContext,
     payload: string,
     capability: keyof typeof DiscoveryCapabilitiesBitmap,
     what: string,
+    unchangedFrom: string,
 ): Promise<void> {
+    // Every field of the source but the capabilities, which is the one this derivation changes and the
+    // one the check below judges. Stating them from the source rather than through `unchangedFrom` is
+    // what keeps the capabilities out of the comparison without asserting the payload's own value
+    // against itself.
+    const { discoveryCapabilities: _capabilities, ...unchanged } = qrPayloadFields(unchangedFrom);
+    record(cx, checkGeneratedPayload(payload, unchanged), `${what}: derived from step 1's payload`);
+
     const parsed = await cx.controllers.dut.parseQrPayload(payload);
     const offered = DiscoveryCapabilitiesSchema.decode(parsed.discoveryCapabilities);
     const names = Object.entries(offered)
@@ -548,8 +574,14 @@ export async function thManualPairingCode(
 /**
  * What the TH's own setup code puts into a 21-digit manual code. Read once by a step that builds
  * several, so a dozen substitutions do not become a dozen concurrent requests to the DUT.
+ *
+ * The two ids are optional on {@link ManualPairingCodeParts} — a step generating a code may leave them
+ * out — but a TH that names neither is refused below, so a caller comparing against the TH's own ids
+ * gets them without a check of its own.
  */
-export async function thCodeParts(cx: CertStepContext): Promise<ManualPairingCodeParts> {
+export async function thCodeParts(
+    cx: CertStepContext,
+): Promise<ManualPairingCodeParts & { vendorId: number; productId: number }> {
     const th = cx.devices.th;
     const { vendorId, productId } = await cx.controllers.dut.parseQrPayload(await thQrPayload(th));
     if (vendorId === undefined || productId === undefined) {
@@ -618,13 +650,51 @@ export async function recordCommissionable(
 }
 
 /**
- * Records what the DUT made of a code naming a given vendor, where the plan accepts either outcome:
- * terminating commissioning, or onboarding anyway with the user aware of the risk.
+ * Whether `error` is a commissioner giving up on a code it read successfully, which is what the
+ * negative vendor and product plans mean by "the DUT terminates the commissioning process".
+ *
+ * The two controllers say it differently. In-process, a code no advertisement satisfies ends as a
+ * {@link DiscoveryError}, or as a {@link DiscoveryAggregateError} where a candidate was tried and
+ * failed — a manual code carries only the discriminator's 4 most significant bits, so one device in
+ * sixteen on the network is a candidate the scanner hands on. chip-tool's output cannot separate one
+ * command failure from another, so its give-up arrives as a {@link ChipToolCommandError} — on those
+ * legs this excludes a controller that would not start, and the probe the caller makes first excludes
+ * a TH that was not there.
+ *
+ * An {@link OnboardingPayloadRefusedError} is the opposite outcome — the controller rejected the code
+ * before it looked for anything, and these steps generate a well-formed one. It is not a subclass of
+ * either accepted error today, and the guard is what keeps that true if it becomes one.
+ */
+export function isCommissioningGiveUp(error: unknown): boolean {
+    if (error instanceof OnboardingPayloadRefusedError) {
+        return false;
+    }
+    return (
+        error instanceof DiscoveryError ||
+        error instanceof DiscoveryAggregateError ||
+        error instanceof ChipToolCommandError
+    );
+}
+
+/**
+ * Records what the DUT made of a code naming `vendorId` where the TH's own payload names `thVendorId`,
+ * and the plan accepts either outcome: terminating commissioning, or onboarding anyway with the user
+ * aware of the risk.
  *
  * The two controllers genuinely differ. chip-tool matches a code's vendor and product id against the
  * device it discovered (`SetUpCodePairer::NodeMatchesCurrentFilter`) and finds nothing; matter.js
- * discovers on the discriminator alone and onboards. A fabric that results is handed to
- * `commissioned`, whose next {@link commissionByManualCode} takes it off the TH again.
+ * filters its own discovery on the ids the code carries and finds nothing either. A fabric that
+ * results is handed to `commissioned`, whose next {@link commissionByManualCode} takes it off the TH
+ * again.
+ *
+ * Two things the evidence has to carry, because the verdict is `pass` either way:
+ *
+ * - Only a give-up counts as termination ({@link isCommissioningGiveUp}), and the TH has to be
+ *   observed advertising first: accepting any rejection would pass the step on a controller that would
+ *   not start, and on a TH that stopped advertising. The restore this runs first probes only for a code
+ *   that follows an onboarding, so a code after a refusal needs its own probe.
+ * - A code naming the vendor the TH itself advertises is step 1's code, so what the DUT did with it
+ *   says nothing about a substituted id. The detail says which of the two happened.
  */
 export async function recordVendorOutcome(
     cx: CertStepContext,
@@ -633,8 +703,25 @@ export async function recordVendorOutcome(
     refusals: CommissioningRefusals,
     what: string,
     timeout: Duration,
+    ids: { vendorId: number; thVendorId: number },
+    /** Overridden by the unit tests, which have no advertisement to observe. */
+    probeCommissionable: (cx: CertStepContext, what: string) => Promise<void> = recordCommissionable,
 ): Promise<void> {
-    await restoreCommissioningMode(cx, commissioned);
+    const restored = await restoreCommissioningMode(cx, commissioned);
+
+    // A rejection is evidence about the code only if the TH was there to be found; without this the
+    // step passes on a TH that stopped advertising after an earlier attempt. A restore that ran has
+    // just proven the same thing.
+    if (!restored) {
+        await probeCommissionable(cx, `${what}: TH advertising before the attempt`);
+    }
+
+    const substitution =
+        ids.vendorId === ids.thVendorId
+            ? `the code names the TH's own vendor 0x${ids.thVendorId.toString(16)}, so it is step 1's code and ` +
+              "substitutes nothing"
+            : `the code names vendor 0x${ids.vendorId.toString(16)} where the TH's own payload names ` +
+              `0x${ids.thVendorId.toString(16)}`;
 
     const label = `commissioning from ${code}`;
     const attempt = cx.controllers.dut.commission({ manualPairingCode: code, giveUpAfterMs: timeout });
@@ -644,12 +731,16 @@ export async function recordVendorOutcome(
         case "rejected": {
             const { error } = outcome;
             const message = error instanceof Error ? `${error.constructor.name}: ${error.message}` : String(error);
+            const gaveUp = isCommissioningGiveUp(error);
             record(
                 cx,
                 {
                     type: "response",
-                    verdict: "pass",
-                    detail: `DUT terminated commissioning after ${outcome.elapsed}: ${message}`,
+                    verdict: gaveUp ? "pass" : "fail",
+                    detail: gaveUp
+                        ? `DUT terminated commissioning after ${outcome.elapsed} (${substitution}): ${message}`
+                        : `${label} failed after ${outcome.elapsed} for a reason that says nothing about the code ` +
+                          `(${substitution}): ${message}`,
                 },
                 what,
             );
@@ -664,7 +755,9 @@ export async function recordVendorOutcome(
                 {
                     type: "response",
                     verdict: "pass",
-                    detail: `DUT onboarded the TH as node ${ref}, which the plan allows where the user accepts the risk`,
+                    detail:
+                        `DUT onboarded the TH as node ${ref} (${substitution}), which the plan allows where the ` +
+                        "user accepts the risk",
                 },
                 what,
             );
@@ -697,10 +790,10 @@ export async function recordVendorOutcome(
  * commissioning mode — removing its last fabric does not. A matter.js device is already there, and
  * erasing it would restart a TH that needs nothing.
  */
-async function restoreCommissioningMode(cx: CertStepContext, commissioned: CommissionedRefs): Promise<void> {
+async function restoreCommissioningMode(cx: CertStepContext, commissioned: CommissionedRefs): Promise<boolean> {
     const previous = commissioned.get("dut");
     if (previous === undefined) {
-        return;
+        return false;
     }
 
     const th = cx.devices.th;
@@ -731,6 +824,7 @@ async function restoreCommissioningMode(cx: CertStepContext, commissioned: Commi
     // The TH advertises itself commissionable on its own schedule, and a discovery started before
     // that finds only the devices this run is not looking for.
     await recordCommissionable(cx, "TH back in commissioning mode");
+    return true;
 }
 
 /** {@link commissionByQr} for a manual pairing code, which discovers by the short discriminator. */

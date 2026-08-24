@@ -11,7 +11,14 @@ import { StateType } from "#behavior/state/StateType.js";
 import { BehaviorSupervisor } from "#behavior/supervision/BehaviorSupervisor.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
-import { AsyncObservable, MaybePromise, MockCrypto, Observable, UnsettledStateError } from "@matter/general";
+import {
+    AsyncObservable,
+    ImplementationError,
+    MaybePromise,
+    MockCrypto,
+    Observable,
+    UnsettledStateError,
+} from "@matter/general";
 import { DataModelPath, DatatypeModel, FieldElement, FieldModel } from "@matter/model";
 import { AccessControl, Val } from "@matter/protocol";
 import { EndpointNumber, NodeId } from "@matter/types";
@@ -631,6 +638,34 @@ describe("Datasource", () => {
 
             expect(ds.view.foo).equals("!bar");
             expect(observed).true;
+        });
+
+        it("announce again after the write they refused was rolled back", async () => {
+            const events = { foo$Changing: Observable<any>() };
+            const ds = createDatasource({ events });
+
+            const announced = new Array<unknown>();
+            events.foo$Changing.on(newValue => {
+                announced.push(newValue);
+                throw new ImplementationError("refused");
+            });
+
+            await LocalActorContext.act("test-datasource", async context => {
+                const state = ds.reference(context);
+
+                // The second write must reach validation even though it repeats the value the first was refused for
+                for (let attempt = 0; attempt < 2; attempt++) {
+                    try {
+                        state.foo = "!bar";
+                        await context.transaction.commit();
+                    } catch (error) {
+                        expect(error instanceof Error ? error.message : String(error)).contains("refused");
+                    }
+                }
+            });
+
+            expect(announced).deep.equals(["!bar", "!bar"]);
+            expect(ds.view.foo).equals("bar");
         });
 
         it("handles mixed sync/async observers sequentially", async () => {
