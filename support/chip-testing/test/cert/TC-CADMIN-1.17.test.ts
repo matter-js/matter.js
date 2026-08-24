@@ -12,6 +12,8 @@ import { expectMdns } from "../../src/cert/mdns-check.js";
 import {
     COMMISSIONING_COMPLETE,
     fabricSessionsEnded,
+    isPostRemovalRefusal,
+    removeFabricResponseFailure,
     removeFabricSucceeded,
     WINDOW_OPEN,
 } from "./tc-cadmin-1.17-support.js";
@@ -23,6 +25,7 @@ import {
     LOG_TIMEOUT,
     PendingPairingCode,
     record,
+    recordAll,
 } from "./tc-support.js";
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
@@ -46,6 +49,9 @@ type Role = "dut" | "th_cr2" | "th_cr3";
 const commissioned = new CommissionedRefs<Role>();
 const pendingPairingCode = new PendingPairingCode();
 let cr2FabricIndex: number | undefined;
+// Captured in step 7 while TH_CR2 can still be asked: chip-tool derives the name from a live fabric
+// read, and the in-process controller deletes the peer once the device announces the removal.
+let cr2OperationalInstanceName: string | undefined;
 // Set only once step 7's log checks confirm TH_CE actually removed th_cr2's fabric — until then
 // `commissioned` keeps owning th_cr2, so an inconclusive check leaves the finalizer able to
 // decommission it. Step 8 needs this ref to reach the now-decommissioned node.
@@ -281,8 +287,24 @@ certTest("TC-CADMIN-1.17", {
                 );
             }
 
+            cr2OperationalInstanceName = await cx.controllers.th_cr2
+                .node(commissioned.require("th_cr2"))
+                .operationalMdnsInstanceName();
+
             const from = th.log.mark();
-            await dut.node(dutRef).invoke("OperationalCredentials", "removeFabric", { fabricIndex });
+            const response = await dut.node(dutRef).invoke("OperationalCredentials", "removeFabric", {
+                fabricIndex,
+            });
+
+            const responseFailure = removeFabricResponseFailure(response, fabricIndex);
+            cx.recorder.check({
+                type: "response",
+                verdict: responseFailure === undefined ? "pass" : "fail",
+                detail: responseFailure ?? `NOCResponse statusCode Ok for fabricIndex ${fabricIndex}`,
+            });
+            if (responseFailure !== undefined) {
+                throw new CertCheckFailedError(`RemoveFabric did not answer with success: ${responseFailure}`);
+            }
 
             const removed = await expectDeviceLog(
                 th.log,
@@ -305,10 +327,9 @@ certTest("TC-CADMIN-1.17", {
             );
             record(cx, expiring.check, '"Expiring all sessions" log');
 
-            // Only surrender th_cr2 to step 8 once both checks above confirm TH_CE actually removed
-            // it — invoke() resolving only means the peer accepted the interaction, not that
-            // NOCsResponse carried success. Clearing any earlier left `commissioned` with no owner
-            // for a fabric that (per an ambiguous or timed-out log check) might still be live.
+            // Only surrender th_cr2 to step 8 once every check above confirms TH_CE actually removed
+            // it. Clearing any earlier left `commissioned` with no owner for a fabric that (per an
+            // ambiguous or timed-out check) might still be live.
             removedCr2Ref = commissioned.require("th_cr2");
             commissioned.clear("th_cr2");
         },
@@ -332,6 +353,7 @@ certTest("TC-CADMIN-1.17", {
                 "writeAttribute(NodeLabel)",
                 node.writeAttribute(path, "post-removal"),
                 POST_REMOVAL_TIMEOUT,
+                isPostRemovalRefusal,
             );
             cx.recorder.check(writeCheck);
 
@@ -339,11 +361,13 @@ certTest("TC-CADMIN-1.17", {
                 "readAttribute(NodeLabel)",
                 node.readAttribute(path),
                 POST_REMOVAL_TIMEOUT,
+                isPostRemovalRefusal,
             );
             cx.recorder.check(readCheck);
 
             if (writeCheck.verdict !== "pass" || readCheck.verdict !== "pass") {
-                // A call that succeeded proves the fabric outlived RemoveFabric, so cleanup owns it again.
+                // A failed step can't vouch the fabric is gone — a call that succeeded even proves it
+                // outlived RemoveFabric — so cleanup owns it again.
                 commissioned.set("th_cr2", removedCr2Ref);
                 throw new CertCheckFailedError(
                     `Expected both write and read to fail post-removal: ${JSON.stringify({ writeCheck, readCheck })}`,
@@ -394,17 +418,33 @@ certTest("TC-CADMIN-1.17", {
             const dutRef = commissioned.require("dut");
             const cr3Ref = commissioned.require("th_cr3");
 
+            if (cr2OperationalInstanceName === undefined) {
+                throw new InternalError("Step ran before TH_CR2's operational instance name was captured");
+            }
+
             const [dutInstanceName, cr3InstanceName] = await Promise.all([
                 dut.node(dutRef).operationalMdnsInstanceName(),
                 th_cr3.node(cr3Ref).operationalMdnsInstanceName(),
             ]);
 
-            const result = await expectMdns(
-                th,
-                { operationalRecords: 2 },
-                { timeoutMs: 20_000, operationalInstanceName: [dutInstanceName, cr3InstanceName] },
-            );
-            record(cx, result, "Exactly 2 operational mDNS records (dut + th_cr3)");
+            // Counting only the survivors' records leaves the removed fabric's — the record this step
+            // exists to prove withdrawn — invisible, so its absence is checked by name alongside.
+            const [survivors, removedGone] = await Promise.all([
+                expectMdns(
+                    th,
+                    { operationalRecords: 2 },
+                    { timeoutMs: 20_000, operationalInstanceName: [dutInstanceName, cr3InstanceName] },
+                ),
+                expectMdns(
+                    th,
+                    { operationalRecords: 0 },
+                    { timeoutMs: 10_000, operationalInstanceName: cr2OperationalInstanceName },
+                ),
+            ]);
+            recordAll(cx, [
+                { check: () => survivors, what: "Exactly 2 operational mDNS records (dut + th_cr3)" },
+                { check: () => removedGone, what: "No operational mDNS record for the removed fabric (th_cr2)" },
+            ]);
         },
         {
             expected:
