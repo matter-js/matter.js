@@ -4,7 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes as ByteUtils, Duration, serialize as stringSerialize, UnexpectedDataError } from "@matter/general";
+import {
+    Bytes as ByteUtils,
+    Duration,
+    DurationFormatError,
+    serialize as stringSerialize,
+    UnexpectedDataError,
+} from "@matter/general";
 import type { Metatype } from "./Metatype.js";
 
 /**
@@ -490,6 +496,16 @@ export namespace FieldValue {
                     return FieldValue.Invalid;
                 }
                 return value;
+
+            case "duration":
+                try {
+                    return Duration(value);
+                } catch (e) {
+                    if (e instanceof DurationFormatError) {
+                        return FieldValue.Invalid;
+                    }
+                    throw e;
+                }
 
             case "object":
                 if (FieldValue.is(value, FieldValue.properties)) {

@@ -5,6 +5,7 @@
  */
 
 import { FieldValue, Metatype } from "#common/index.js";
+import { Seconds } from "@matter/general";
 
 describe("FieldValue", () => {
     describe("cast", () => {
@@ -33,6 +34,12 @@ describe("FieldValue", () => {
             ]) {
                 expect(FieldValue.cast(type, FieldValue.None)).undefined;
             }
+        });
+
+        it("reads a duration the way Duration does", () => {
+            expect(FieldValue.cast(Metatype.duration, 2000)).equals(Seconds(2));
+            expect(FieldValue.cast(Metatype.duration, "2s")).equals(Seconds(2));
+            expect(FieldValue.cast(Metatype.duration, "nonsense")).equals(FieldValue.Invalid);
         });
 
         it("retains the fraction of a temperature", () => {

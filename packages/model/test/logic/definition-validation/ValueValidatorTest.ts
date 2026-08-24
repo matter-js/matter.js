@@ -16,6 +16,7 @@ import {
     percent100ths,
     single,
     uint8,
+    duration,
     uint16,
     string,
     struct,
@@ -23,6 +24,7 @@ import {
     ValidateModel,
 } from "#index.js";
 import { AttributeModel, ClusterModel, DatatypeModel, FieldModel, MatterModel } from "#models/index.js";
+import { Seconds } from "@matter/general";
 
 const CODES = new Set(["UNIT_WITHOUT_SCALE", "FRACTION_ON_INTEGER_TYPE", "NEGATIVE_ON_UNSIGNED_TYPE", "INVALID_VALUE"]);
 
@@ -70,6 +72,7 @@ function modelWithDefault(type: string, dflt: FieldValue) {
         percent100ths.clone(),
         string.clone(),
         struct.clone(),
+        duration.clone(),
         bool.clone(),
         new DatatypeModel({ name: "UnsignedTemperature", type: "uint8" }),
         new ClusterModel({ name: "Test", id: 0xfff1 }, Attribute({ name: "Bounded", id: 1, type, default: dflt })),
@@ -400,6 +403,12 @@ describe("ValueValidator", () => {
 
         it("accepts a whole entry bound on a list whose own bound is whole", () => {
             expect(validateList("uint8", "max 4[0 to 10]")).deep.equals([]);
+        });
+
+        it("accepts a duration stated as a number of milliseconds or as text", () => {
+            expect(validateDefault("duration", Seconds(2))).deep.equals([]);
+            expect(validateDefault("duration", "2s")).deep.equals([]);
+            expect(validateDefault("duration", "nonsense").map(error => error.code)).deep.equals(["INVALID_VALUE"]);
         });
 
         it("accepts a fraction the unit scales to a whole number", () => {
