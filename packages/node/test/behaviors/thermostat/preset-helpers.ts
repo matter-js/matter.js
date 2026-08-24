@@ -63,6 +63,16 @@ export function presetsEndpoint(numberOfPresets?: number, presets?: Thermostat.P
 }
 
 /**
+ * An endpoint that selects the Presets feature but leaves the attribute's value to the cluster, which is the
+ * configuration the attribute must work in without the application knowing anything about presets.
+ */
+export function unconfiguredPresetsEndpoint() {
+    const { presets, ...thermostat } = thermostatConfig();
+    void presets;
+    return new Endpoint(PresetsThermostat, { id: "thermostat", number: 1, thermostat });
+}
+
+/**
  * Records the attribute IDs the device announces as changed for the thermostat cluster.  This is the only input a
  * server subscription has for attribute reports, so it decides what a subscribed controller learns.
  */

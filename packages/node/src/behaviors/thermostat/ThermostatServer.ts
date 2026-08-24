@@ -15,6 +15,7 @@ import { ServerNode } from "#node/ServerNode.js";
 import {
     Bytes,
     cropValueRange,
+    deepCopy,
     Entropy,
     ImplementationError,
     Logger,
@@ -30,6 +31,25 @@ import { AtomicWriteHandler } from "./AtomicWriteHandler.js";
 import { ThermostatBehavior } from "./ThermostatBehavior.js";
 
 const logger = Logger.get("ThermostatServer");
+
+/**
+ * The presets an application configured.  `defaultsFor` is the merged view: the endpoint's options with the
+ * environment's values applied over them, which is the precedence the framework uses everywhere else.
+ */
+function configuredPresets(endpoint: Endpoint) {
+    return presetsIn(endpoint.behaviors.defaultsFor(ThermostatBaseServer));
+}
+
+function presetsIn(values: Record<string, unknown> | undefined) {
+    const presets = values?.presets;
+    if (!Array.isArray(presets)) {
+        return undefined;
+    }
+
+    // A type's defaults and an endpoint's options are shared by every endpoint configured from them, and validation
+    // assigns handles to the presets it is given in place
+    return deepCopy(presets) as Thermostat.Preset[];
+}
 
 // Enable some features we need for implementation, they will be reset at the end again
 const ThermostatBehaviorLogicBase = ThermostatBehavior.with(
@@ -111,14 +131,9 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             this.atomicRequest = Behavior.unimplemented;
         }
 
-        // Initialize persisted presets from defaults if not already set
-        const options = this.endpoint.behaviors.optionsFor(ThermostatBaseServer) as
-            | {
-                  presets: Thermostat.Preset[] | undefined;
-              }
-            | undefined;
         if (this.features.presets && this.state.persistedPresets === undefined) {
-            this.state.persistedPresets = options?.presets ?? [];
+            // A behavior type carries its own configured value, which reaches neither of the endpoint's channels
+            this.state.persistedPresets = configuredPresets(this.endpoint) ?? presetsIn(this.type.defaults) ?? [];
         }
 
         if (this.features.presets) {
@@ -1590,11 +1605,11 @@ export namespace ThermostatBaseServer {
         [Val.properties](endpoint: Endpoint, session: ValueSupervisor.Session) {
             const state = this;
             const properties = {};
-            if (
-                (endpoint.behaviors.optionsFor(ThermostatBaseServer) as Record<string, unknown>)?.presets !==
-                    undefined ||
-                (endpoint.behaviors.defaultsFor(ThermostatBaseServer) as Record<string, unknown>)?.presets !== undefined
-            ) {
+
+            // This runs for every member of the struct on every access, so it must stay a lookup rather than derive
+            // anything
+            const thermostat = endpoint.behaviors.forCluster(Thermostat.Complete.id);
+            if (thermostat?.features.presets) {
                 Object.defineProperty(properties, "presets", {
                     /**
                      * Getter will return a pending atomic write state when there is one, otherwise the stored value or
@@ -1614,12 +1629,12 @@ export namespace ThermostatBaseServer {
                             return pendingValue as Thermostat.Preset[];
                         }
 
-                        let value = state.persistedPresets;
-                        if (value === undefined) {
-                            value = (endpoint.behaviors.optionsFor(ThermostatBaseServer) as Record<string, unknown>)
-                                ?.presets as Thermostat.Preset[] | undefined;
-                        }
-                        return value ?? [];
+                        return (
+                            state.persistedPresets ??
+                            configuredPresets(endpoint) ??
+                            presetsIn(thermostat.defaults) ??
+                            []
+                        );
                     },
 
                     set(value: Thermostat.Preset[]) {
