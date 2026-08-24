@@ -191,12 +191,13 @@ describe("Presets local write", () => {
         expect(storedPresets(deviceEp)).deep.equals(stored);
     });
 
-    it("keeps accepting writes after an observer stored a preset with no handle", async () => {
+    // Characterization: an observer that puts back exactly the value it was given leaves pre-commit nothing to
+    // announce, so the thermostat cannot see the change, let alone refuse it.  A preset stored this way carries no
+    // handle and violates the specification; what this pins is that the thermostat stays usable afterwards.
+    it("stays writable after an observer stored a preset with no handle", async () => {
         await using ctx = await thermostat();
         const { deviceEp } = ctx;
 
-        // An application observer registers after the behavior, so it runs after normalization, and reverting the
-        // value it was given produces no further change for pre-commit to announce
         const revert = (presets: Thermostat.Preset[]) => {
             presets[0].presetHandle = null;
         };
@@ -213,6 +214,24 @@ describe("Presets local write", () => {
         expect(stored.length).equals(1);
         expect(stored[0].heatingSetpoint).equals(2100);
         expect(stored[0].presetHandle?.byteLength).equals(16);
+    });
+
+    it("refuses a preset an observer marks built-in after the thermostat issued its handle", async () => {
+        await using ctx = await thermostat();
+        const { deviceEp } = ctx;
+
+        deviceEp.events.thermostat.persistedPresets$Changing.on(presets => {
+            if (presets[0].presetHandle !== null) {
+                presets[0].builtIn = true;
+            }
+        });
+
+        await expect(writePresets(deviceEp, [newPreset()])).rejectedWith(
+            StatusResponse.ConstraintErrorError,
+            "Can not add a new built-in preset",
+        );
+
+        expect(storedPresets(deviceEp)).deep.equals([]);
     });
 
     it("validates a change an observer makes after the thermostat normalized", async () => {

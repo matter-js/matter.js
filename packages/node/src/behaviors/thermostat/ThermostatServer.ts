@@ -1319,10 +1319,15 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
 
                 const oldPreset = oldPresetsMap.get(presetHex);
                 if (oldPreset === undefined) {
-                    if (oldPresets !== undefined && !issuedHandles.has(presetHex)) {
+                    if (oldPresets === undefined) {
+                        // Initial seeding, where the application states the presets the device ships with
+                    } else if (!issuedHandles.has(presetHex)) {
                         throw new StatusResponse.NotFoundError(
                             `Preset with presetHandle ${presetHex} does not exist in old Presets, cannot add new Presets with non-null presetHandle`,
                         );
+                    } else if (preset.builtIn) {
+                        // The handle is one this write asked for, so the preset is an addition whatever it now carries
+                        throw new StatusResponse.ConstraintErrorError(`Can not add a new built-in preset`);
                     }
                 } else if (preset.builtIn !== null && oldPreset.builtIn !== preset.builtIn) {
                     throw new StatusResponse.ConstraintErrorError(
