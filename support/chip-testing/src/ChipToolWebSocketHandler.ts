@@ -59,8 +59,12 @@ import {
 import { NodeNotConnectedError } from "@project-chip/matter.js/device";
 import { WebSocketServer } from "ws";
 import { log } from "./GenericTestApp.js";
-import { AttributeResponseData, DiscoveryResponse, EventResponseData } from "./handler/CommandHandler.js";
-import { LegacyControllerCommandHandler } from "./handler/LegacyControllerCommandHandler.js";
+import {
+    AttributeResponseData,
+    CommandHandler,
+    DiscoveryResponse,
+    EventResponseData,
+} from "./handler/CommandHandler.js";
 
 const logger = new Logger("ChipToolWebSocketHandler");
 
@@ -542,7 +546,7 @@ interface OutgoingChipWebSocketCommandResponse extends ChipWebSocketCommandRespo
 export class ChipToolWebSocketHandler {
     readonly #wsPort: number;
     #wsServer?: WebSocketServer;
-    #commandHandlers?: Map<string, LegacyControllerCommandHandler>;
+    #commandHandlers?: Map<string, CommandHandler>;
     #startRecording?: () => void;
     #stopRecording?: () => { module: string; category: string; message: string }[];
     readonly #subscriptionData = new Array<AttributeResponseData | EventResponseData>();
@@ -552,7 +556,7 @@ export class ChipToolWebSocketHandler {
         this.#wsPort = wsPort;
     }
 
-    initialize(commandHandlers: Map<string, LegacyControllerCommandHandler>) {
+    initialize(commandHandlers: Map<string, CommandHandler>) {
         logger.info(`Initialize with Command handlers for Identities ${Array.from(commandHandlers.keys()).join(", ")}`);
         this.#commandHandlers = commandHandlers;
 
@@ -581,11 +585,39 @@ export class ChipToolWebSocketHandler {
         return handler;
     }
 
-    start() {
-        this.#wsServer = new WebSocketServer({ host: "127.0.0.1", port: this.#wsPort }, () => {
-            logger.info(`WebSocketServer started on port ${this.#wsPort}`);
-            log.directive("== WebSocket Server Ready"); // Testrunner uses this to detect that WS server has been started
+    /**
+     * The port the server actually listens on, which is the configured one unless that was 0 — then the
+     * OS picks it and only the bound socket knows. `undefined` before {@link start} resolves.
+     */
+    get port(): number | undefined {
+        const address = this.#wsServer?.address();
+        if (address === undefined || address === null || typeof address === "string") {
+            return undefined;
+        }
+        return address.port;
+    }
+
+    /**
+     * Starts listening. Resolves once the socket is bound, so a caller that reports "started" says
+     * something true, and rejects where the port could not be taken rather than raising an
+     * unhandled error event.
+     */
+    async start(): Promise<void> {
+        const server = new WebSocketServer({ host: "127.0.0.1", port: this.#wsPort });
+        this.#wsServer = server;
+
+        await new Promise<void>((resolve, reject) => {
+            const failed = (error: Error) => reject(error);
+            server.once("listening", () => {
+                server.off("error", failed);
+                logger.info(`WebSocketServer started on port ${this.port}`);
+                log.directive("== WebSocket Server Ready"); // Testrunner uses this to detect that WS server has been started
+                resolve();
+            });
+            server.once("error", failed);
         });
+
+        server.on("error", error => logger.error("Testrunner WebSocket server error", error));
 
         this.#wsServer.on("connection", ws => {
             logger.info("Testrunner connected to WebSocket");
@@ -616,7 +648,10 @@ export class ChipToolWebSocketHandler {
             }
         } catch (error) {
             logger.error("WebSocket Message parsing error", error);
-            result = { results: [{ error: (error as Error).message }, { error: "FAILURE" }] };
+            // Only this shim's own faults reach here — every call to the device runs inside a handler's
+            // own try — and an error carrying no message would otherwise answer with an empty error
+            // entry, which the runner reads as a command that succeeded.
+            result = failureResponseFor(error);
         }
 
         // Grab logs and send response including logs

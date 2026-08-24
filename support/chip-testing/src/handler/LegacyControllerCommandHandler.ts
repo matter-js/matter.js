@@ -60,6 +60,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
     #identity: string;
     #controllerInstance: CommissioningController;
     #started = false;
+    #starting?: Promise<void>;
     #paseSession?: SecureSession;
 
     constructor(identity: string, controllerInstance: CommissioningController) {
@@ -74,8 +75,19 @@ export class LegacyControllerCommandHandler extends CommandHandler {
 
     async start() {
         if (this.#started) return;
-        this.#started = true;
 
+        // A start that threw must not leave the handler claiming to be started: every later command
+        // would then run against a controller that never came up.
+        this.#starting ??= this.#startController()
+            .then(() => {
+                this.#started = true;
+            })
+            .finally(() => (this.#starting = undefined));
+
+        return this.#starting;
+    }
+
+    async #startController() {
         try {
             await this.#controllerInstance.start();
             logger.info(`-----> Controller ${this.#identity} started`);
