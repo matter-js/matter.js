@@ -487,24 +487,23 @@ function buildCommissionableDevice(name: DnssdName): CommissionableDevice | unde
 }
 
 /**
- * The host the name's SRV record points at, without its domain.
+ * The host the name's SRV records agree on, without its domain, or nothing while they disagree.
  *
- * A record's key includes its target, so a device that moves host installs a second SRV rather than
- * replacing the first, and the superseded one outlives it — until the eviction delay for a record that
- * flushed the cache, and until its TTL for one that did not. The most recently installed record is
- * therefore the current host; the earliest is the one iteration reaches first.
+ * A record's key includes its target, so a device that moves host holds two SRV records until the
+ * superseded one is evicted — for the eviction delay where it flushed the cache, for its whole TTL
+ * where it did not. Which of them is current cannot be read off the record set: `installedAt` is a
+ * wall clock, so two records from the same millisecond, or a clock that steps between them, order
+ * wrongly. Reporting nothing while the set is ambiguous keeps the field from ever naming a host the
+ * device has left; the addresses stay authoritative for reaching it.
  */
 function hostnameOf(name: DnssdName): string | undefined {
-    let newest: { target: string; installedAt: Timestamp } | undefined;
+    const hosts = new Set<string>();
     for (const record of name.records) {
-        if (record.recordType !== DnsRecordType.SRV) {
-            continue;
-        }
-        if (newest === undefined || record.installedAt > newest.installedAt) {
-            newest = { target: record.value.target, installedAt: record.installedAt };
+        if (record.recordType === DnsRecordType.SRV) {
+            hosts.add(record.value.target.split(".")[0]);
         }
     }
-    return newest?.target.split(".")[0];
+    return hosts.size === 1 ? hosts.values().next().value : undefined;
 }
 
 /**
