@@ -847,6 +847,55 @@ describe("Transaction", () => {
             expect(caught).instanceOf(TransactionFlowError);
         });
 
+        test("reports the cycle that a nested commit did not", async () => {
+            let nested = false;
+
+            const p: TestParticipant = join({
+                postCommit: () => {
+                    if (nested) {
+                        return;
+                    }
+                    nested = true;
+
+                    // A cycle of its own, which must not stand in for the one reporting it
+                    transaction.beginSync();
+                    return transaction.commit();
+                },
+
+                finalized: outcome => {
+                    p.invoked.push(`finalized ${outcome}`);
+                },
+            });
+
+            await transaction.begin();
+            await transaction.commit();
+
+            // The nested cycle has no participants of its own, so this participant is reported exactly once -- by the
+            // cycle it belongs to, which a transaction-wide guard would have let the nested one consume
+            expect(p.invoked.filter(entry => entry === "finalized committed")).length(1);
+        });
+
+        test("does not report a participant that joined after phase two passed it", async () => {
+            const joiner: TestParticipant = TestParticipant({
+                finalized: outcome => {
+                    joiner.invoked.push(`finalized ${outcome}`);
+                },
+            });
+            joiner.toString = () => "joiner";
+
+            join({
+                commit2: async () => {
+                    await Promise.resolve();
+                    transaction.addParticipants(joiner);
+                },
+            });
+
+            await transaction.begin();
+            await transaction.commit();
+
+            joiner.expect();
+        });
+
         test("reports once per commit cycle when post-commit writes again", async () => {
             let written = false;
             const p: TestParticipant = join({

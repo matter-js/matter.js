@@ -24,6 +24,13 @@ import type { Transaction } from "./Transaction.js";
 
 const logger = Logger.get("Transaction");
 
+/**
+ * State of a single commit or rollback, which a post-commit handler may nest inside another.
+ */
+interface CommitCycle {
+    notified: boolean;
+}
+
 // Controls the number of times we will cycle pre-commit handlers waiting for state to settle
 const MAX_PRECOMMIT_CYCLES = 5;
 
@@ -57,7 +64,7 @@ class Tx implements Transaction, Transaction.Finalization {
     #closed?: Observable<[]>;
     #isAsync = false;
     #reportingLocks = false;
-    #finalizeNotified = false;
+    #dispatched?: Participant[];
 
     constructor(via: string, lifetime: Lifetime.Owner, isolation: Transaction.IsolationLevel) {
         this.#via = Diagnostic.via(via);
@@ -334,10 +341,7 @@ class Tx implements Transaction, Transaction.Finalization {
     rollback() {
         this.#assertAvailable();
 
-        return this.#finalize(Status.RollingBack, "rolled back", () => {
-            this.#finalizeNotified = false;
-            return this.#executeRollback();
-        });
+        return this.#finalize(Status.RollingBack, "rolled back", () => this.#executeRollback({ notified: false }));
     }
 
     reject(cause: unknown): MaybePromise<never> {
@@ -398,7 +402,11 @@ class Tx implements Transaction, Transaction.Finalization {
      */
     #executeCommitCycle(count: number): MaybePromise<void> {
         count++;
-        this.#finalizeNotified = false;
+        this.#dispatched = undefined;
+
+        // Notification is per cycle: a post-commit handler may commit again, and that cycle's notification must not
+        // stand in for this one
+        const cycle: CommitCycle = { notified: false };
 
         if (count > MAX_CHAINED_COMMITS) {
             throw new TransactionFlowError(
@@ -406,14 +414,20 @@ class Tx implements Transaction, Transaction.Finalization {
             );
         }
 
-        // Precommit first
-        let result = MaybePromise.then(this.#createPreCommitExecutor()(), this.#executeSettled.bind(this));
+        // Precommit, then the settled report, then the rest of a normal commit.  Chain these without adding a
+        // promise of our own: a commit's shape is observable in the timing of everything downstream
+        let result = this.#createPreCommitExecutor(cycle)();
 
-        // Then rest of normal commit
+        const commit = () =>
+            MaybePromise.then(
+                () => this.#executeSettled(cycle),
+                () => this.#executeCommit(cycle),
+            );
+
         if (MaybePromise.is(result)) {
-            result = result.then(this.#executeCommit.bind(this));
+            result = result.then(commit);
         } else {
-            result = this.#executeCommit();
+            result = commit();
         }
 
         // Then, if transaction is once again exclusive, recurse
@@ -528,7 +542,7 @@ class Tx implements Transaction, Transaction.Finalization {
     /**
      * Iteratively execute pre-commit until all participants "settle" and report no possible mutation.
      */
-    #createPreCommitExecutor(): () => MaybePromise<void> {
+    #createPreCommitExecutor(cycle: CommitCycle): () => MaybePromise<void> {
         let mayHaveMutated = false;
         let abortedDueToError = false;
         let iterator = this.participants[Symbol.iterator]();
@@ -542,7 +556,7 @@ class Tx implements Transaction, Transaction.Finalization {
                 Diagnostic.weak(error?.message || `${error}`),
             );
 
-            const result = this.#finalize(Status.RollingBack, "rolled back", () => this.#executeRollback());
+            const result = this.#finalize(Status.RollingBack, "rolled back", () => this.#executeRollback(cycle));
 
             if (MaybePromise.is(result)) {
                 return result.then(() => {
@@ -630,34 +644,35 @@ class Tx implements Transaction, Transaction.Finalization {
     /**
      * Handle actual commit and post-commit.
      */
-    #executeCommit() {
-        // Committing is itself what creates some participants -- a store joins as its values are written. Capture the
-        // roster once committing is done, whether or not it succeeded, and keep the earlier one for a failure that
-        // precedes it
-        let participants = [...this.#participants];
+    #executeCommit(cycle: CommitCycle) {
+        const participants = [...this.#participants];
 
         // Commit phases 1 & 2
         const executeCommit = (): MaybePromise =>
-            MaybePromise.finally(
-                () =>
-                    MaybePromise.then(
-                        () => this.#executeCommit1(),
-                        () => this.#executeCommit2(),
-                    ),
-                () => {
-                    participants = [...this.#participants];
-                },
+            MaybePromise.then(
+                () => this.#executeCommit1(cycle),
+                () => this.#executeCommit2(),
             );
 
-        const succeeded = () =>
-            MaybePromise.then(this.#createPostCommitExecutor(participants), () =>
-                this.#notifyFinalized(participants, "committed"),
-            );
+        // Committing is itself what creates some participants -- a store joins as its values are written -- so report
+        // to those phase two dispatched.  A participant that joined after its own iteration ran no phase at all
+        const reportTo = () => this.#dispatched ?? participants;
+
+        const succeeded = () => {
+            const reportees = reportTo();
+            const reported = this.#createPostCommitExecutor(reportees)();
+
+            if (!reportees.some(participant => participant.finalized)) {
+                return reported;
+            }
+
+            return MaybePromise.then(reported, () => this.#notifyFinalized(cycle, reportees, "committed"));
+        };
 
         // Every failure before phase two rolls back, and a rollback reports the outcome itself, so this call survives
         // the at-most-once guard only where writes are already canonical
         const failed = (error: unknown): MaybePromise<never> => {
-            const notified = this.#notifyFinalized(participants, "inconsistent");
+            const notified = this.#notifyFinalized(cycle, reportTo(), "inconsistent");
 
             if (MaybePromise.is(notified)) {
                 return Promise.resolve(notified).then(() => {
@@ -688,11 +703,11 @@ class Tx implements Transaction, Transaction.Finalization {
      * This is the only participant hook that runs on every path, so an error must not prevent the remaining
      * participants from releasing their state.
      */
-    #notifyFinalized(participants: Participant[], outcome: Participant.Outcome): MaybePromise {
-        if (this.#finalizeNotified) {
+    #notifyFinalized(cycle: CommitCycle, participants: Participant[], outcome: Participant.Outcome): MaybePromise {
+        if (cycle.notified) {
             return;
         }
-        this.#finalizeNotified = true;
+        cycle.notified = true;
 
         let i = 0;
 
@@ -728,14 +743,18 @@ class Tx implements Transaction, Transaction.Finalization {
      * A throw here rejects the commit, which is the point: this is the last moment at which a participant can refuse
      * the values the transaction is about to write.
      */
-    #executeSettled(): MaybePromise {
-        const participants = [...this.#participants];
+    #executeSettled(cycle: CommitCycle): MaybePromise {
+        const participants = [...this.#participants].filter(participant => participant.settled);
+        if (!participants.length) {
+            return;
+        }
+
         let i = 0;
 
         const rollbackAndThrow = (error: unknown): MaybePromise<never> => {
             logger.warn("Rolling back", this.via, "due to settled error:", Diagnostic.weak(asError(error).message));
 
-            const rollback = this.#finalize(Status.RollingBack, "rolled back", () => this.#executeRollback());
+            const rollback = this.#finalize(Status.RollingBack, "rolled back", () => this.#executeRollback(cycle));
 
             if (MaybePromise.is(rollback)) {
                 return Promise.resolve(rollback).then(() => {
@@ -765,7 +784,7 @@ class Tx implements Transaction, Transaction.Finalization {
         return notify();
     }
 
-    #executeCommit1(): MaybePromise {
+    #executeCommit1(cycle: CommitCycle): MaybePromise {
         // Commit phase 1
 
         let needRollback = false;
@@ -792,7 +811,7 @@ class Tx implements Transaction, Transaction.Finalization {
 
         const abortIfFailed = () => {
             if (needRollback) {
-                const result = this.#executeRollback();
+                const result = this.#executeRollback(cycle);
 
                 if (MaybePromise.is(result)) {
                     return result.then(() => {
@@ -814,9 +833,12 @@ class Tx implements Transaction, Transaction.Finalization {
     #executeCommit2() {
         // Commit phase 2
         this.#status = Status.CommittingPhaseTwo;
+        this.#dispatched = [];
         let errored: undefined | Array<ParticipantError>;
         let ongoing: undefined | Array<Promise<void>>;
         for (const participant of this.participants) {
+            this.#dispatched.push(participant);
+
             const promise = MaybePromise.then(
                 () => participant.commit2?.(),
                 undefined,
@@ -888,7 +910,7 @@ class Tx implements Transaction, Transaction.Finalization {
     /**
      * Rollback logic passed to #finish.
      */
-    #executeRollback() {
+    #executeRollback(cycle: CommitCycle) {
         this.#status = Status.RollingBack;
         const participants = [...this.#participants];
         let errored: undefined | Array<ParticipantError>;
@@ -925,7 +947,7 @@ class Tx implements Transaction, Transaction.Finalization {
         // starting a cycle this rollback's own reset would discard
         const finished = (): MaybePromise =>
             MaybePromise.then(
-                () => this.#notifyFinalized(participants, errored?.length ? "inconsistent" : "rolled back"),
+                () => this.#notifyFinalized(cycle, participants, errored?.length ? "inconsistent" : "rolled back"),
                 () => {
                     this.#status = Status.Shared;
                     throwIfErrored(errored, "during rollback");
