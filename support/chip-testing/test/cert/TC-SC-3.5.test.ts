@@ -5,7 +5,14 @@
  */
 
 import { Duration, InternalError, Seconds } from "@matter/main";
-import type { CertStepContext, CertStepDefinition, PromptHandler, StepVerdict, Subject } from "@matter/testing";
+import type {
+    CertStepContext,
+    CertStepDefinition,
+    CheckRecord,
+    PromptHandler,
+    StepVerdict,
+    Subject,
+} from "@matter/testing";
 import {
     chip,
     createControllerAdapter,
@@ -15,7 +22,8 @@ import {
 } from "@matter/testing";
 import { join } from "node:path";
 import { env } from "node:process";
-import { CertCleanupError, settleWithin } from "./tc-support.js";
+import { expectMdns } from "../../src/cert/mdns-check.js";
+import { CertCheckFailedError, CertCleanupError, settleWithin } from "./tc-support.js";
 
 // setup_class's th_server_discriminator — fixed for every OpenCommissioningWindow call in the script.
 // The passcode is NOT fixed the same way: only the initial precondition commission (TH_CLIENT pairing
@@ -93,6 +101,38 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
             };
             cx.recorder.beginStep(stepDef);
 
+            if (!expectSuccess) {
+                // A rejection alone doesn't implicate the DUT — commission() fails the same way when
+                // TH_SERVER is not there at all. So prove TH_SERVER is advertising its just-opened
+                // window BEFORE driving the attempt. Before, not after: once the DUT's PASE consumed
+                // the window the device stops commissionable advertising even though the window is
+                // still open (chip's TH_SERVER does; observed on the own-built CI leg), so a
+                // post-attempt check fails a conforming device. Presence evidence only — nothing here
+                // proves the handshake itself was reached.
+                let advertised: CheckRecord;
+                try {
+                    advertised = await expectMdns(
+                        { commissioning: { discriminator: TH_SERVER_DISCRIMINATOR } },
+                        { commissionable: true },
+                    );
+                } catch (e) {
+                    // The step must settle its recorder frame even when the check itself blows up
+                    advertised = {
+                        type: "network",
+                        verdict: "fail",
+                        detail: `commissionable mDNS check could not run: ${errorMessage(e)}`,
+                    };
+                }
+                cx.recorder.check(advertised);
+                if (advertised.verdict !== "pass") {
+                    cx.recorder.endStep(stepDef, "fail");
+                    throw new CertCheckFailedError(
+                        `attempt ${attempt} was not driven: TH_SERVER was not observed advertising, so a ` +
+                            `rejection would have proven nothing about the DUT (${advertised.detail})`,
+                    );
+                }
+            }
+
             const outcome = await settleWithin(
                 `TC-SC-3.5 commissioning attempt ${attempt}`,
                 dut.commission({
@@ -127,7 +167,7 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
                             console.warn(`TC-SC-3.5: ${detail}`);
                             cx.recorder.check({ type: "response", verdict: "fail", detail });
                         }
-                        failure = new Error(
+                        failure = new CertCheckFailedError(
                             `DUT commissioning unexpectedly succeeded on attempt ${attempt} against a ` +
                                 "Sigma2-fault-injected TH_SERVER, so either it accepted a corrupted Sigma2 or it " +
                                 "retried past the one the script corrupted",
@@ -140,14 +180,17 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
                     cx.recorder.check({
                         type: "response",
                         verdict,
-                        // Deliberately reports only that commissioning did not complete. What the DUT answered the
-                        // corrupted Sigma2 with is in the attached controller log, and TH_SERVER's own view of the
+                        // Reports only that commissioning did not complete against the TH_SERVER the
+                        // pre-attempt check proved present. What the DUT answered the corrupted Sigma2
+                        // with is in the attached controller log, and TH_SERVER's own view of the
                         // handshake plus its commissioning-window assertion are in the script's.
                         detail: `commission() did not complete on attempt ${attempt}: ${errorMessage(outcome.error)}`,
                     });
                     if (expectSuccess) {
                         failure =
-                            outcome.error instanceof Error ? outcome.error : new Error(errorMessage(outcome.error));
+                            outcome.error instanceof Error
+                                ? outcome.error
+                                : new CertCheckFailedError(errorMessage(outcome.error));
                     }
                     break;
 
@@ -160,7 +203,7 @@ function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
                             `commission() neither resolved nor rejected on attempt ${attempt} within ` +
                             Duration.format(COMMISSION_TIMEOUT),
                     });
-                    failure = new Error(`DUT commissioning attempt ${attempt} timed out`);
+                    failure = new CertCheckFailedError(`DUT commissioning attempt ${attempt} timed out`);
                     break;
             }
 
