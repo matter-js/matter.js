@@ -194,6 +194,24 @@ export type IssueNocChainResponse = {
 };
 
 export abstract class CommandHandler {
+    /**
+     * Whether {@link start} has completed. A consumer starts a handler on first use rather than up
+     * front, so a run that never addresses a controller never pays for starting it.
+     */
+    abstract get started(): boolean;
+
+    /** Brings the underlying controller up. Idempotent: starting an already-started handler is a no-op. */
+    abstract start(): Promise<void>;
+
+    /** Establishes a PASE session with the commissionee the request names, without commissioning it. */
+    abstract handlePaseConnection(data: InitialPairingRequest): Promise<void>;
+
+    /**
+     * Drops the session with `nodeId`. The YAML corpus expects a failed interaction to stay failed, so
+     * a caller uses this where an automatic reconnection would answer a step that must not succeed.
+     */
+    abstract disconnectNode(nodeId: NodeId): Promise<void>;
+
     abstract handleReadAttribute(data: ReadAttributeRequest): Promise<ReadAttributeResponse>;
     abstract handleSubscribeAttribute(data: SubscribeAttributeRequest): Promise<SubscribeAttributeResponse>;
     abstract handleWriteAttribute(data: WriteAttributeRequest): Promise<void>;

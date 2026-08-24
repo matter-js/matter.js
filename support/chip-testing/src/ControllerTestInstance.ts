@@ -189,7 +189,7 @@ export class ControllerTestInstance extends TestInstance {
         this.#env.vars.set("mdns.networkInterface", "en0");
         */
 
-        this.#commandHandler.start();
+        await this.#commandHandler.start();
 
         logger.info("STARTED");
     }

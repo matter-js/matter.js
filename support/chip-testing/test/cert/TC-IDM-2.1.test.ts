@@ -744,6 +744,9 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                     type: "response",
                     verdict: "unverified",
                     detail: "matter.js all-clusters app defines no manufacturer-specific cluster",
+                    accepted:
+                        "the matter.js all-clusters app defines no manufacturer-specific cluster, so this " +
+                        "device cannot answer the read the step asks for",
                 });
                 if (!sizePass) {
                     throw new CertCheckFailedError(

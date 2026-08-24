@@ -5,6 +5,7 @@
  */
 
 import { Duration, Millis, Seconds, Time } from "@matter/main";
+import { resolveControllerImplementation } from "@matter/testing";
 import type { AttributePathSpec, CertNodeRef, CertStepContext } from "@matter/testing";
 import {
     CertCheckFailedError,
@@ -201,12 +202,16 @@ export async function subscribeAndModify<Value>(
         // What the plan asks to verify is the TH's own view: it reported, and the DUT acked Success,
         // which the loop above took from the TH's log for every write. A value missing from the
         // controller's own callbacks is a gap in that controller's delivery rather than in the
-        // behaviour under test — chip-tool's interactive server hands over only the first result of a
-        // batch and discards the rest, so a report the TH coalesced with another attribute reaches no
-        // callback at all.
+        // behaviour under test — but only chip-tool is known to have one, so on any other controller
+        // this stays a gap to close.
         cx.recorder.check({
             type: "response",
             verdict: "unverified",
+            accepted:
+                resolveControllerImplementation() === "chip-tool"
+                    ? "chip-tool's interactive server hands over only the first result of a batch and discards " +
+                      "the rest, so a report the TH coalesced with another attribute reaches no callback at all"
+                    : undefined,
             detail:
                 `step ${step}: onUpdate delivered ${JSON.stringify(reported)} of the written values ` +
                 `${JSON.stringify(values)} (matched ${matched}/${values.length}); every write is confirmed by the ` +
