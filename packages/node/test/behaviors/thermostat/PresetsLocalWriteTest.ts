@@ -255,7 +255,7 @@ describe("Presets local write", () => {
                         await agent.context.transaction.commit();
                         rejections.push("accepted");
                     } catch (error) {
-                        rejections.push((error as Error).message);
+                        rejections.push(error instanceof Error ? error.message : String(error));
                     }
                 }
             }),
@@ -291,7 +291,7 @@ describe("Presets local write", () => {
                         await agent.context.transaction.commit();
                         outcomes.push("accepted");
                     } catch (error) {
-                        outcomes.push((error as Error).message);
+                        outcomes.push(error instanceof Error ? error.message : String(error));
                     }
                 }
             }),
