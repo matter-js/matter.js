@@ -19,7 +19,7 @@ import {
     expectInvokeCount,
     expectNoInjectedFault,
 } from "./tc-idm-1.3-support.js";
-import { CommissionedRefs, LOG_TIMEOUT, record, requireId, runCleanups } from "./tc-support.js";
+import { CommissionedRefs, LOG_TIMEOUT, record, requireId } from "./tc-support.js";
 
 const ON_OFF = Matter.clusters.require("OnOff");
 const ON_OFF_ID = requireId(ON_OFF.id, "OnOff cluster");
@@ -307,28 +307,26 @@ certTest("TC-IDM-1.3", {
             expected: "On the TH, the received request message has the same path as provided in the command",
         },
     )
-    .finalize(cx =>
-        runCleanups(
-            // Faults 12/13/14 fire for any invoke and kill the device unless it carries two commands,
-            // so the RemoveFabric below would take the TH down with it. They live in the app's memory
-            // and a reboot keeps the fabric, so restarting clears them and leaves the fabric to remove.
-            // Disarming cannot work: `failAtFault` is itself a single-command invoke.
-            () => rebootTh(cx),
-            () => commissioned.decommissionAll(cx),
-        ),
-    );
+    .finalize(async cx => {
+        // What cleanup owes is a TH with none of this test's fabrics and none of its faults. A
+        // decommission cannot deliver either: faults 12/13/14 fire for any invoke and stop the device
+        // unless it carries two commands, so the RemoveFabric would take the TH down, and disarming
+        // first cannot work because `failAtFault` is itself a single-command invoke. A factory reset
+        // drops the fabrics and the faults together — they live in the app's memory.
+        const th = cx.devices.th;
+        const from = th.log.mark();
 
-/** A chip app says it is up again on this line, once per generation. */
+        await th.backchannel({ name: "factoryReset" });
+
+        // start() returns when the process is up, not when the app is, and the next test activates its
+        // subject against whatever this leaves behind
+        await th.log.expect({ chip: SERVER_READY }, { flavor: th.flavor, from, timeoutMs: COMMISSIONING_LOG_TIMEOUT });
+
+        // The fabrics went with the reset, so nothing is left to remove — and a RemoveFabric sent to a
+        // device that has forgotten it waits out its own MRP budget before failing
+        commissioned.clear("dut");
+        commissioned.clear("th_client");
+    });
+
+/** A chip app says it is up on this line, once per generation. */
 const SERVER_READY = /\[SVR\] Server initialization complete/;
-
-async function rebootTh(cx: CertStepContext) {
-    const th = cx.devices.th;
-    const from = th.log.mark();
-
-    await th.backchannel({ name: "reboot" });
-
-    // start() returns when the process is up, not when the app is, and the decommission that follows
-    // needs a device that answers. A device coming up is what COMMISSIONING_LOG_TIMEOUT bounds;
-    // LOG_TIMEOUT covers a line the step itself just caused.
-    await th.log.expect({ chip: SERVER_READY }, { flavor: th.flavor, from, timeoutMs: COMMISSIONING_LOG_TIMEOUT });
-}
