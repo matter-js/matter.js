@@ -20,6 +20,7 @@ import {
 import { Status } from "@matter/types";
 import type { RootSupervisor } from "../../../supervision/RootSupervisor.js";
 import type { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
+import type { ValidationLocation } from "../../validation/location.js";
 import { Internal } from "../Internal.js";
 import { ManagedReference } from "../ManagedReference.js";
 import type { ValReference } from "../ValReference.js";
@@ -102,7 +103,7 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
     protected reference: ValReference<Val.List>;
     protected session: ValueSupervisor.Session;
     protected config: ListConfig;
-    #sublocation: AccessControl.Location;
+    #sublocation: AccessControl.Location & ValidationLocation;
 
     constructor(config: ListConfig, reference: ValReference<Val.List>, session: ValueSupervisor.Session) {
         this.reference = reference;
@@ -111,6 +112,7 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
         this.#sublocation = {
             ...reference.location,
             path: reference.location.path.at(-1),
+            owner: reference.rootOwner,
         };
     }
 

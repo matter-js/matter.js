@@ -459,6 +459,92 @@ describe("Datasource", () => {
         expect(ownersSeen).deep.equals([owner]);
     });
 
+    it("validates a dynamic struct assigned through managed state against the owner", async () => {
+        const owner = { id: "owner" };
+        const ownersSeen = new Array<unknown>();
+
+        const dynamicStruct = {
+            bar: "seen",
+
+            [Val.properties](endpoint: unknown, _session: ValueSupervisor.Session) {
+                ownersSeen.push(endpoint);
+                return { bar: "seen" };
+            },
+        };
+
+        class State {
+            member?: { bar: string };
+        }
+
+        const supervisor = BehaviorSupervisor({
+            id: "test",
+            State,
+            schema: new DatatypeModel({
+                name: "MyState",
+                type: "struct",
+                children: [
+                    FieldElement({
+                        name: "member",
+                        type: "struct",
+                        children: [FieldElement({ name: "bar", type: "string" })],
+                    }),
+                ],
+            }),
+        });
+
+        await withDatasourceAndReference({ type: State, supervisor, owner }, ({ state }) => {
+            state.member = dynamicStruct;
+        });
+
+        expect(ownersSeen).deep.equals([owner]);
+    });
+
+    it("validates a dynamic list entry assigned through managed state against the owner", async () => {
+        const owner = { id: "owner" };
+        const ownersSeen = new Array<unknown>();
+
+        const dynamicEntry = {
+            bar: "seen",
+
+            [Val.properties](endpoint: unknown, _session: ValueSupervisor.Session) {
+                ownersSeen.push(endpoint);
+                return { bar: "seen" };
+            },
+        };
+
+        class State {
+            entries = new Array<{ bar: string }>();
+        }
+
+        const supervisor = BehaviorSupervisor({
+            id: "test",
+            State,
+            schema: new DatatypeModel({
+                name: "MyState",
+                type: "struct",
+                children: [
+                    FieldElement({
+                        name: "entries",
+                        type: "list",
+                        children: [
+                            FieldElement({
+                                name: "entry",
+                                type: "struct",
+                                children: [FieldElement({ name: "bar", type: "string" })],
+                            }),
+                        ],
+                    }),
+                ],
+            }),
+        });
+
+        await withDatasourceAndReference({ type: State, supervisor, owner }, ({ state }) => {
+            state.entries[0] = dynamicEntry;
+        });
+
+        expect(ownersSeen).deep.equals([owner]);
+    });
+
     it("handles dynamic properties", async () => {
         const dynamic = {
             foo: "hello",
