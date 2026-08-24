@@ -4,71 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ThermostatClient, ThermostatServer } from "#behaviors/thermostat";
-import { ThermostatDevice } from "#devices/thermostat";
+import { ThermostatClient } from "#behaviors/thermostat";
 import { Endpoint } from "#endpoint/index.js";
-import { ServerNode } from "#node/ServerNode.js";
 import { Write } from "@matter/protocol";
-import { AttributeId, EndpointNumber } from "@matter/types";
+import { EndpointNumber } from "@matter/types";
 import { Thermostat } from "@matter/types/clusters/thermostat";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import { MockSite } from "../../node/mock-site.js";
 import { subscribedPeer } from "../../node/node-helpers.js";
-
-const PresetsThermostat = ThermostatDevice.with(ThermostatServer.with("Heating", "Cooling", "AutoMode", "Presets"));
-
-const PRESETS_ATTRIBUTE = Thermostat.attributes.presets.id;
-
-const NEW_PRESET = {
-    presetHandle: null,
-    presetScenario: Thermostat.PresetScenario.Occupied,
-    coolingSetpoint: 2600,
-    heatingSetpoint: 2000,
-    builtIn: false,
-};
-
-function deviceEndpoint() {
-    return new Endpoint(PresetsThermostat, {
-        number: 1,
-        thermostat: {
-            controlSequenceOfOperation: Thermostat.ControlSequenceOfOperation.CoolingAndHeating,
-            systemMode: Thermostat.SystemMode.Auto,
-            occupiedHeatingSetpoint: 2000,
-            occupiedCoolingSetpoint: 2600,
-            minSetpointDeadBand: 25,
-            numberOfPresets: 5,
-            presetTypes: [
-                {
-                    presetScenario: Thermostat.PresetScenario.Occupied,
-                    numberOfPresets: 5,
-
-                    // SupportsNames is absent, so a preset carrying "name" is refused
-                    presetTypeFeatures: {},
-                },
-            ],
-            activePresetHandle: null,
-            presets: [],
-        },
-    });
-}
-
-/**
- * Records the attribute IDs the device announces as changed for the thermostat cluster.  This is the only input a
- * server subscription has for attribute reports, so it decides what a subscribed controller learns.
- */
-function recordThermostatChanges(device: ServerNode) {
-    const announcements = new Array<AttributeId[]>();
-    device.protocol.attrsChanged.on((_endpointId, clusterId, attrs) => {
-        if (clusterId === Thermostat.id) {
-            announcements.push([...attrs]);
-        }
-    });
-    return announcements;
-}
+import { newPreset, PRESETS_ATTRIBUTE, presetsEndpoint, recordThermostatChanges } from "./preset-helpers.js";
 
 async function commissionedThermostat() {
     const site = new MockSite();
-    const deviceEp = deviceEndpoint();
+    const deviceEp = presetsEndpoint();
     const { controller, device } = await site.addCommissionedPair({
         device: { type: MockServerNode.RootEndpoint, device: deviceEp },
     });
@@ -122,7 +70,7 @@ describe("Presets atomic write", () => {
                 endpoint: EndpointNumber(1),
                 cluster: Thermostat,
                 attributes: "presets",
-                value: [NEW_PRESET],
+                value: [newPreset()],
             }),
         );
 
@@ -143,7 +91,7 @@ describe("Presets atomic write", () => {
             timeout: 5000,
         });
 
-        await writePresets(ep1, [NEW_PRESET]);
+        await writePresets(ep1, [newPreset()]);
 
         // The write is staged only; the device's stored value stays empty until commit
         expect(deviceEp.state.thermostat.persistedPresets).deep.equals([]);
@@ -176,7 +124,7 @@ describe("Presets atomic write", () => {
         await using ctx = await commissionedThermostat();
         const { deviceEp, ep1 } = ctx;
 
-        await expect(writePresets(ep1, [NEW_PRESET])).rejectedWith("Multiple writes failed");
+        await expect(writePresets(ep1, [newPreset()])).rejectedWith("Multiple writes failed");
 
         expect(deviceEp.state.thermostat.persistedPresets).deep.equals([]);
         expect(cachedPresets(ep1).length).equals(0);
@@ -188,12 +136,25 @@ describe("Presets atomic write", () => {
 
         await beginWrite(ep1);
 
-        await expect(writePresets(ep1, [{ ...NEW_PRESET, presetHandle: new Uint8Array([1, 2, 3, 4]) }])).rejectedWith(
+        await expect(writePresets(ep1, [newPreset({ presetHandle: new Uint8Array([1, 2, 3, 4]) })])).rejectedWith(
             "Not found",
         );
 
         expect(deviceEp.state.thermostat.persistedPresets).deep.equals([]);
         expect(cachedPresets(ep1).length).equals(0);
+    });
+
+    it("declines two presets that share a scenario and carry no name", async () => {
+        await using ctx = await commissionedThermostat();
+        const { deviceEp, ep1 } = ctx;
+
+        await beginWrite(ep1);
+
+        // The decoded payload omits an absent name where a locally written preset carries null, and the
+        // specification counts "no name" as a value that may not repeat within a scenario
+        await expect(writePresets(ep1, [newPreset(), newPreset()])).rejectedWith("Constraint error");
+
+        expect(deviceEp.state.thermostat.persistedPresets).deep.equals([]);
     });
 
     it("declines a named preset when the preset type does not support names", async () => {
@@ -202,7 +163,7 @@ describe("Presets atomic write", () => {
 
         await beginWrite(ep1);
 
-        await expect(writePresets(ep1, [{ ...NEW_PRESET, name: "Home" }])).rejectedWith("Constraint error");
+        await expect(writePresets(ep1, [newPreset({ name: "Home" })])).rejectedWith("Constraint error");
     });
 
     it("discards a staged write on RollbackWrite", async () => {
@@ -210,7 +171,7 @@ describe("Presets atomic write", () => {
         const { deviceEp, ep1 } = ctx;
 
         await beginWrite(ep1);
-        await writePresets(ep1, [NEW_PRESET]);
+        await writePresets(ep1, [newPreset()]);
 
         expect(
             await MockTime.resolve(
