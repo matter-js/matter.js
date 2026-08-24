@@ -21,7 +21,10 @@ import {
     ChipToolControllerAdapter,
     ChipToolUnmappedStatusError,
 } from "../../src/cert/ChipToolControllerAdapter.js";
+import { registerCertCustomCluster } from "../../src/cert/custom-clusters.js";
+import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
 import { ChipToolExitError } from "../../src/chip-tool/chip-tool-client.js";
+import { FaultInjectionCluster } from "../cert/fault-injection.js";
 import { delay, FakeChipTool, waitFor, writeStandInBinary } from "./fake-chip-tool.js";
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
@@ -200,6 +203,171 @@ describe("ChipToolControllerAdapter", function () {
         expect(fake.commands).deep.equal([`pairing onnetwork-long ${FIRST_NODE} 20202021 3840`]);
         expect(await started.commission({ manualPairingCode: "36217551633" })).equal("4098");
         expect(fake.commands[1]).equal("pairing code 4098 36217551633");
+    });
+
+    it("does not report a successful frame as a failure, which would hide a real one", async () => {
+        // ws hands its callback `null` on success rather than leaving the argument out
+        const started = await start();
+        await started.commission({ passcode: 20202021, discriminator: 3840 });
+
+        await new Promise(resolve => setImmediate(resolve));
+        expect(started.log.count(/failed to send/, 0)).equal(0);
+    });
+
+    it("pairs from a QR onboarding payload, which chip-tool reads with the same command", async () => {
+        const started = await start();
+
+        const ref = await started.commission({ qrPairingCode: "MT:-24J042C00KA0648G00" });
+
+        expect(ref).equal(FIRST_NODE);
+        expect(fake.commands).deep.equal([`pairing code ${FIRST_NODE} MT:-24J042C00KA0648G00`]);
+    });
+
+    it("reads an onboarding payload through chip-tool's own parser", async () => {
+        const started = await start();
+
+        // `SetupPayloadParseCommand::Print`'s own lines, as chip-tool logs them
+        fake.reply = () => ({
+            logs: [
+                "Version:             0",
+                "VendorID:            65521",
+                "ProductID:           32769",
+                "Custom flow:         0    (STANDARD)",
+                "Discovery Bitmask:   0x04 (On IP network)",
+                "Long discriminator:  3840   (0xf00)",
+                "Passcode:            20202021",
+            ],
+        });
+
+        expect(await started.parseQrPayload("MT:-24J042C00KA0648G00")).deep.equal({
+            version: 0,
+            vendorId: 65521,
+            productId: 32769,
+            flowType: 0,
+            discoveryCapabilities: 0x04,
+            discriminator: 3840,
+            passcode: 20202021,
+        });
+        expect(fake.commands).deep.equal(["payload parse-setup-payload MT:-24J042C00KA0648G00"]);
+    });
+
+    it("rejects a payload chip-tool parsed into something other than a QR code's fields", async () => {
+        const started = await start();
+
+        // A manual code parses to a short discriminator, which no caller of this can act on
+        fake.reply = () => ({
+            logs: [
+                "Version:             0",
+                "VendorID:            65521",
+                "ProductID:           32769",
+                "Custom flow:         0    (STANDARD)",
+                "Discovery Bitmask:   0x04 (On IP network)",
+                "Short discriminator: 15   (0xf)",
+                "Passcode:            20202021",
+            ],
+        });
+
+        expect(await rejectionOf(started.parseQrPayload("MT:-24J042C00KA0648G00"))).instanceOf(InternalError);
+    });
+
+    it("refuses a concatenated onboarding payload instead of letting chip-tool choose a device", async () => {
+        const started = await start();
+
+        await expect(started.commission({ qrPairingCode: "MT:-24J042C00KA0648G00*-24J042C00KA0648G00" })).rejectedWith(
+            ImplementationError,
+            /carries 2 payloads/,
+        );
+        expect(fake.commands).deep.equal([]);
+    });
+
+    it("leaves a payload chip-tool would refuse for chip-tool to refuse", async () => {
+        const started = await start();
+
+        // Version 2, which chip-tool's own `SetupPayload::FromStringRepresentation` rejects. A refusal
+        // raised here instead would put matter.js's verdict in a cert test's evidence in place of the
+        // controller's.
+        const ref = await started.commission({ qrPairingCode: "MT:034J042C00KA0648G00" });
+
+        expect(ref).equal(FIRST_NODE);
+        expect(fake.commands).deep.equal([`pairing code ${FIRST_NODE} MT:034J042C00KA0648G00`]);
+    });
+
+    it("reads a 21-digit manual pairing code through chip-tool's own parser", async () => {
+        const started = await start();
+
+        fake.reply = () => ({
+            logs: [
+                "Version:             0",
+                "VendorID:            65521",
+                "ProductID:           32769",
+                "Custom flow:         2    (CUSTOM)",
+                "Discovery Bitmask:   UNKNOWN",
+                "Short discriminator: 15   (0xf)",
+                "Passcode:            20202021",
+            ],
+        });
+
+        expect(await started.parseManualPairingCode("749701123365521327694")).deep.equal({
+            shortDiscriminator: 15,
+            passcode: 20202021,
+            vendorId: 65521,
+            productId: 32769,
+        });
+        expect(fake.commands).deep.equal(["payload parse-setup-payload 749701123365521327694"]);
+    });
+
+    it("reports no identity for an 11-digit code, which chip-tool prints as zeroes", async () => {
+        const started = await start();
+
+        fake.reply = () => ({
+            logs: [
+                "Version:             0",
+                "VendorID:            0",
+                "ProductID:           0",
+                "Custom flow:         0    (STANDARD)",
+                "Discovery Bitmask:   UNKNOWN",
+                "Short discriminator: 15   (0xf)",
+                "Passcode:            20202021",
+            ],
+        });
+
+        expect(await started.parseManualPairingCode("34970112332")).deep.equal({
+            shortDiscriminator: 15,
+            passcode: 20202021,
+            vendorId: undefined,
+            productId: undefined,
+        });
+    });
+
+    it("separates chip-tool refusing the payload from chip-tool failing later", async () => {
+        const started = await start();
+
+        // `SetupPayload::FromStringRepresentation`'s own refusal, as chip-tool renders a CHIP_ERROR
+        fake.reply = () => ({
+            status: 1,
+            logs: [
+                "Run command failure: src/setup_payload/SetupPayload.cpp:361: CHIP Error 0x0000002F: Invalid argument",
+            ],
+        });
+
+        const refusal = await rejectionOf(started.commission({ qrPairingCode: "MT:034J042C00KA0648G00" }));
+        expect(refusal).instanceOf(OnboardingPayloadRefusedError);
+    });
+
+    it("does not report a handshake failure as a refused payload", async () => {
+        const started = await start();
+
+        // A commissioner that took the code and only then failed reaching the device
+        fake.reply = () => ({
+            status: 1,
+            logs: [
+                "Run command failure: src/protocols/secure_channel/PASESession.cpp:610: CHIP Error 0x00000032: Timeout",
+            ],
+        });
+
+        const failure = await rejectionOf(started.commission({ qrPairingCode: "MT:-24J042C00KA0648G00" }));
+        expect(failure).instanceOf(ChipToolCommandError);
+        expect(failure).not.instanceOf(OnboardingPayloadRefusedError);
     });
 
     it("reads a concrete path and decodes the value through the model", async () => {
@@ -438,6 +606,65 @@ describe("ChipToolControllerAdapter", function () {
             { endpoint: 1, cluster: LEVEL_CONTROL.id, attribute: ON_LEVEL.id, value: 3, version: 12 },
         ]);
         expect(fake.commands).deep.equal([`any read-by-id 0x28,0x8 0x5,0x11 ${ref} 0,1`]);
+    });
+
+    it("rejects a multi-path read whose concrete path chip-tool answered with a status", async () => {
+        const { node } = await commissioned();
+
+        fake.reply = () => ({
+            results: [
+                {
+                    clusterId: BASIC_INFORMATION.id,
+                    endpointId: 0,
+                    attributeId: requireId(NODE_LABEL.id, "nodeLabel"),
+                    dataVersion: 11,
+                    value: "a-label",
+                },
+                {
+                    clusterId: LEVEL_CONTROL.id,
+                    endpointId: 1,
+                    attributeId: requireId(ON_LEVEL.id, "onLevel"),
+                    error: Status.UnsupportedAttribute,
+                },
+            ],
+            status: 1,
+        });
+
+        const rejection = await rejectionOf(
+            node.readAttributes([
+                { endpoint: 0, cluster: BASIC_INFORMATION.id, attribute: NODE_LABEL.id },
+                { endpoint: 1, cluster: LEVEL_CONTROL.id, attribute: ON_LEVEL.id },
+            ]),
+        );
+        expect(rejection).instanceOf(StatusResponseError);
+        expect(StatusResponseError.of(rejection)?.code).equal(Status.UnsupportedAttribute);
+    });
+
+    it("reads a wildcard path's own status as a per-item result of the expansion", async () => {
+        const { node } = await commissioned();
+
+        fake.reply = () => ({
+            results: [
+                {
+                    clusterId: LEVEL_CONTROL.id,
+                    endpointId: 2,
+                    attributeId: requireId(ON_LEVEL.id, "onLevel"),
+                    error: Status.UnsupportedAttribute,
+                },
+                {
+                    clusterId: LEVEL_CONTROL.id,
+                    endpointId: 1,
+                    attributeId: requireId(ON_LEVEL.id, "onLevel"),
+                    dataVersion: 12,
+                    value: 3,
+                },
+            ],
+            status: 1,
+        });
+
+        expect(await node.readAttributes([{ cluster: LEVEL_CONTROL.id, attribute: ON_LEVEL.id }])).deep.equal([
+            { endpoint: 1, cluster: LEVEL_CONTROL.id, attribute: ON_LEVEL.id, value: 3, version: 12 },
+        ]);
     });
 
     it("reports a read of more paths than chip-tool accepts as unsupported, without issuing it", async () => {
@@ -1078,6 +1305,48 @@ describe("ChipToolControllerAdapter", function () {
             await delay(50);
 
             expect(updates).deep.equal([]);
+        });
+    });
+
+    describe("batched invoke", () => {
+        it("refuses a batch, since chip-tool sends one command per request", async () => {
+            const { node } = await commissioned();
+
+            const rejection = await rejectionOf(
+                node.invokeBatch([
+                    { cluster: requireId(ON_OFF.id, "OnOff"), command: "on", endpoint: 1 },
+                    { cluster: requireId(ON_OFF.id, "OnOff"), command: "off", endpoint: 1 },
+                ]),
+            );
+
+            expect(rejection).instanceOf(UnsupportedByControllerError);
+            expect(fake.commands).deep.equal([]);
+        });
+    });
+
+    describe("custom clusters", () => {
+        it("invokes a command of a cluster outside the standard model", async () => {
+            registerCertCustomCluster(FaultInjectionCluster);
+            const { ref, node } = await commissioned();
+
+            fake.reply = () => ({ results: [] });
+            await node.invoke(
+                0xfff1fc06,
+                "failAtFault",
+                { type: 3, id: 12, numCallsToSkip: 3, numCallsToFail: 1, takeMutex: false },
+                0,
+            );
+
+            expect(fake.commands).deep.equal([
+                `any command-by-id 0xfff1fc06 0x0 {"0":3,"1":12,"2":3,"3":1,"4":false} ${ref} 0`,
+            ]);
+        });
+
+        it("refuses a command of a cluster nobody registered", async () => {
+            const { node } = await commissioned();
+
+            expect(await rejectionOf(node.invoke(0xfff1fc07, "failAtFault", {}, 0))).instanceOf(ImplementationError);
+            expect(fake.commands).deep.equal([]);
         });
     });
 

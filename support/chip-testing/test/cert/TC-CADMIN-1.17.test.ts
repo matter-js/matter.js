@@ -4,20 +4,29 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, InternalError, Millis, Time } from "@matter/main";
+import { InternalError, Seconds } from "@matter/main";
 import { Matter } from "@matter/model";
-import type {
-    CertNodeApi,
-    CertNodeRef,
-    CertStepContext,
-    CheckRecord,
-    ControllerAdapter,
-    LogExpectPatterns,
-    LogFollower,
-} from "@matter/testing";
-import { CertLogClosedError, CertLogTimeoutError, certTest } from "@matter/testing";
+import type { CertNodeApi, CertNodeRef, CertStepContext, ControllerAdapter } from "@matter/testing";
+import { certTest } from "@matter/testing";
 import { expectMdns } from "../../src/cert/mdns-check.js";
-import { CommissionedRefs, PendingPairingCode } from "./tc-support.js";
+import {
+    COMMISSIONING_COMPLETE,
+    fabricSessionsEnded,
+    isPostRemovalRefusal,
+    removeFabricResponseFailure,
+    removeFabricSucceeded,
+    WINDOW_OPEN,
+} from "./tc-cadmin-1.17-support.js";
+import {
+    CertCheckFailedError,
+    CommissionedRefs,
+    expectDeviceLog,
+    expectRejection,
+    LOG_TIMEOUT,
+    PendingPairingCode,
+    record,
+    recordAll,
+} from "./tc-support.js";
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
 const VENDOR_ID = BASIC_INFORMATION.attributes.require("vendorId");
@@ -33,17 +42,16 @@ const EXPECTED_CR2_FABRIC_INDEX = 2;
 // failing the command, which is longer than its 20s ModelCommand wait because the wait starts after
 // resolution. A budget under that reports "neither resolved nor rejected" for a controller that was
 // about to reject.
-const POST_REMOVAL_TIMEOUT_MS = 60_000;
-
-const WINDOW_OPEN_PATTERN = /Commissioning window is now open/;
-const COMMISSIONING_COMPLETE_PATTERN = /Commissioning completed successfully/;
-const REMOVE_FABRIC_SUCCESS_PATTERN = /OpCreds: RemoveFabric successful/;
+const POST_REMOVAL_TIMEOUT = Seconds(60);
 
 type Role = "dut" | "th_cr2" | "th_cr3";
 
 const commissioned = new CommissionedRefs<Role>();
 const pendingPairingCode = new PendingPairingCode();
 let cr2FabricIndex: number | undefined;
+// Captured in step 7 while TH_CR2 can still be asked: chip-tool derives the name from a live fabric
+// read, and the in-process controller deletes the peer once the device announces the removal.
+let cr2OperationalInstanceName: string | undefined;
 // Set only once step 7's log checks confirm TH_CE actually removed th_cr2's fabric — until then
 // `commissioned` keeps owning th_cr2, so an inconclusive check leaves the finalizer able to
 // decommission it. Step 8 needs this ref to reach the now-decommissioned node.
@@ -109,51 +117,6 @@ function describeFabrics(fabrics: unknown): string {
     return JSON.stringify(fabrics, (_key, value) => (typeof value === "bigint" ? value.toString() : value));
 }
 
-interface DeviceLogCheck {
-    check: CheckRecord;
-    /** Cursor a subsequent, causally-later log check should search from. */
-    from: number;
-}
-
-/**
- * Runs a single-pattern {@link LogFollower.expect} and converts every outcome (match, timeout, or a
- * closed follower) into a {@link CheckRecord} instead of letting the latter two propagate as thrown
- * errors — mirrors `TC-ACT-3.2.test.ts`'s identical `CertLogTimeoutError`/`CertLogClosedError` handling,
- * so a timed-out or closed-mid-wait check still lands in the evidence bundle rather than vanishing.
- */
-async function expectDeviceLog(
-    log: LogFollower,
-    flavor: string,
-    patterns: LogExpectPatterns,
-    from: number,
-    timeoutMs: number,
-): Promise<DeviceLogCheck> {
-    try {
-        const result = await log.expect(patterns, { flavor, timeoutMs, from });
-        if (result.verdict === "unverified") {
-            return { check: { type: "device-log", verdict: "unverified" }, from };
-        }
-        return {
-            check: {
-                type: "device-log",
-                verdict: "pass",
-                pattern: result.pattern,
-                matched: result.matched.text,
-                logLine: result.matched.index,
-            },
-            from: result.matched.index + 1,
-        };
-    } catch (e) {
-        if (e instanceof CertLogTimeoutError) {
-            return { check: { type: "device-log", verdict: "fail", pattern: e.pattern, detail: e.message }, from };
-        }
-        if (e instanceof CertLogClosedError) {
-            return { check: { type: "device-log", verdict: "fail", detail: e.message }, from };
-        }
-        throw e;
-    }
-}
-
 /** Reads VendorID back through `ref` as proof the just-commissioned CASE session actually works. */
 async function checkCommissioned(
     cx: CertStepContext,
@@ -174,20 +137,13 @@ async function checkCommissioned(
         detail: `${who} read VendorID = ${vendorId}`,
     });
     if (!pass) {
-        throw new Error(`${who}: expected VendorID 0xfff1 after commissioning, got ${JSON.stringify(vendorId)}`);
+        throw new CertCheckFailedError(
+            `${who}: expected VendorID 0xfff1 after commissioning, got ${JSON.stringify(vendorId)}`,
+        );
     }
 
-    const { check } = await expectDeviceLog(
-        th.log,
-        th.flavor,
-        { chip: COMMISSIONING_COMPLETE_PATTERN },
-        logFrom,
-        15_000,
-    );
-    cx.recorder.check(check);
-    if (check.verdict === "fail") {
-        throw new Error(`Commissioning-complete log check failed for ${who}: ${JSON.stringify(check)}`);
-    }
+    const { check } = await expectDeviceLog(th.log, th.flavor, COMMISSIONING_COMPLETE, logFrom, LOG_TIMEOUT);
+    record(cx, check, `Commissioning-complete log for ${who}`);
 }
 
 /** DUT_CR1 opens an enhanced commissioning window and stashes the manual pairing code for the next step. */
@@ -210,55 +166,8 @@ async function openWindowAndCheck(cx: CertStepContext): Promise<void> {
         detail: `manualPairingCode length=${manualPairingCode.length}`,
     });
 
-    const { check } = await expectDeviceLog(th.log, th.flavor, { chip: WINDOW_OPEN_PATTERN }, from, 15_000);
-    cx.recorder.check(check);
-    if (check.verdict === "fail") {
-        throw new Error(`Commissioning-window-open log check failed: ${JSON.stringify(check)}`);
-    }
-}
-
-type SettleOutcome = { kind: "resolved" } | { kind: "rejected"; error: unknown } | { kind: "timeout" };
-
-function settled(promise: Promise<unknown>): Promise<SettleOutcome> {
-    return promise.then(
-        (): SettleOutcome => ({ kind: "resolved" }),
-        (error: unknown): SettleOutcome => ({ kind: "rejected", error }),
-    );
-}
-
-/**
- * Asserts `op` rejects (the TH_CR2-post-removal expectation) rather than resolves, bounded by
- * {@link POST_REMOVAL_TIMEOUT_MS} so a session that neither errors nor times out at the transport layer
- * can't hang this step for the full mocha timeout. `settled()` attaches its handlers before the race
- * starts, so a late resolution/rejection after the timeout branch wins is still observed, just not
- * awaited — no unhandled-rejection risk.
- */
-async function expectRejection(label: string, op: Promise<unknown>): Promise<CheckRecord> {
-    const start = Time.nowMs;
-    const timeout = Time.sleep("TC-CADMIN-1.17 post-removal check timeout", Millis(POST_REMOVAL_TIMEOUT_MS));
-    let outcome: SettleOutcome;
-    try {
-        outcome = await Promise.race([settled(op), timeout.then((): SettleOutcome => ({ kind: "timeout" }))]);
-    } finally {
-        // A lost race leaves the sleep armed for its full duration, keeping the process alive past teardown
-        timeout.cancel();
-    }
-    const elapsed = Duration.format(Millis(Time.nowMs - start));
-
-    switch (outcome.kind) {
-        case "resolved":
-            return { type: "response", verdict: "fail", detail: `${label} unexpectedly succeeded after ${elapsed}` };
-        case "timeout":
-            return {
-                type: "response",
-                verdict: "fail",
-                detail: `${label} neither resolved nor rejected within ${Duration.format(Millis(POST_REMOVAL_TIMEOUT_MS))}`,
-            };
-        case "rejected": {
-            const message = outcome.error instanceof Error ? outcome.error.message : String(outcome.error);
-            return { type: "response", verdict: "pass", detail: `${label} rejected after ${elapsed}: ${message}` };
-        }
-    }
+    const { check } = await expectDeviceLog(th.log, th.flavor, WINDOW_OPEN, from, LOG_TIMEOUT);
+    record(cx, check, "Commissioning-window-open log");
 }
 
 certTest("TC-CADMIN-1.17", {
@@ -336,7 +245,7 @@ certTest("TC-CADMIN-1.17", {
             const fabrics = await readFabrics(dut.node(dutRef));
             cr2FabricIndex = await readOwnFabricIndex(cx.controllers.th_cr2.node(commissioned.require("th_cr2")));
             if (!fabrics.some(entry => entry.fabricIndex === cr2FabricIndex)) {
-                throw new Error(
+                throw new CertCheckFailedError(
                     `TH_CR2 reports fabric index ${cr2FabricIndex}, absent from DUT_CR1's own read: ` +
                         describeFabrics(fabrics),
                 );
@@ -349,7 +258,7 @@ certTest("TC-CADMIN-1.17", {
                 detail: `${fabrics.length} fabrics; th_cr2 fabricIndex=${cr2FabricIndex}`,
             });
             if (!pass) {
-                throw new Error(`Expected 3 fabrics (dut, th_cr2, th_cr3), got ${fabrics.length}`);
+                throw new CertCheckFailedError(`Expected 3 fabrics (dut, th_cr2, th_cr3), got ${fabrics.length}`);
             }
         },
         { pics: "OPCREDS.C.A0001", expected: "Verify TH_CE receives and processes the command successfully" },
@@ -373,37 +282,54 @@ certTest("TC-CADMIN-1.17", {
                 detail: `th_cr2 fabricIndex=${fabricIndex} (plan assumes ${EXPECTED_CR2_FABRIC_INDEX} for a dut→th_cr2→th_cr3 commissioning order)`,
             });
             if (fabricIndex !== EXPECTED_CR2_FABRIC_INDEX) {
-                throw new Error(
+                throw new CertCheckFailedError(
                     `th_cr2's fabricIndex was ${fabricIndex}, not the plan's assumed ${EXPECTED_CR2_FABRIC_INDEX}`,
                 );
             }
 
+            cr2OperationalInstanceName = await cx.controllers.th_cr2
+                .node(commissioned.require("th_cr2"))
+                .operationalMdnsInstanceName();
+
             const from = th.log.mark();
-            await dut.node(dutRef).invoke("OperationalCredentials", "removeFabric", { fabricIndex });
+            const response = await dut.node(dutRef).invoke("OperationalCredentials", "removeFabric", {
+                fabricIndex,
+            });
+
+            const responseFailure = removeFabricResponseFailure(response, fabricIndex);
+            cx.recorder.check({
+                type: "response",
+                verdict: responseFailure === undefined ? "pass" : "fail",
+                detail: responseFailure ?? `NOCResponse statusCode Ok for fabricIndex ${fabricIndex}`,
+            });
+            if (responseFailure !== undefined) {
+                throw new CertCheckFailedError(`RemoveFabric did not answer with success: ${responseFailure}`);
+            }
 
             const removed = await expectDeviceLog(
                 th.log,
                 th.flavor,
-                { chip: REMOVE_FABRIC_SUCCESS_PATTERN },
+                removeFabricSucceeded(fabricIndex),
                 from,
-                15_000,
+                LOG_TIMEOUT,
             );
-            cx.recorder.check(removed.check);
-            if (removed.check.verdict === "fail") {
-                throw new Error(`RemoveFabric-successful log check failed: ${JSON.stringify(removed.check)}`);
-            }
+            record(cx, removed.check, "RemoveFabric-successful log");
 
-            const expiringPattern = new RegExp(`Expiring all sessions for fabric 0x${fabricIndex.toString(16)}!!`);
-            const expiring = await expectDeviceLog(th.log, th.flavor, { chip: expiringPattern }, removed.from, 15_000);
-            cx.recorder.check(expiring.check);
-            if (expiring.check.verdict === "fail") {
-                throw new Error(`"Expiring all sessions" log check failed: ${JSON.stringify(expiring.check)}`);
-            }
+            // Searched from the step's own mark, not from the line above: matter.js closes the removed
+            // fabric's sessions before it answers the invoke, chip after. Both patterns name the fabric
+            // index, and the mark precedes this step's removal, so neither can match another removal's.
+            const expiring = await expectDeviceLog(
+                th.log,
+                th.flavor,
+                fabricSessionsEnded(fabricIndex),
+                from,
+                LOG_TIMEOUT,
+            );
+            record(cx, expiring.check, '"Expiring all sessions" log');
 
-            // Only surrender th_cr2 to step 8 once both checks above confirm TH_CE actually removed
-            // it — invoke() resolving only means the peer accepted the interaction, not that
-            // NOCsResponse carried success. Clearing any earlier left `commissioned` with no owner
-            // for a fabric that (per an ambiguous or timed-out log check) might still be live.
+            // Only surrender th_cr2 to step 8 once every check above confirms TH_CE actually removed
+            // it. Clearing any earlier left `commissioned` with no owner for a fabric that (per an
+            // ambiguous or timed-out check) might still be live.
             removedCr2Ref = commissioned.require("th_cr2");
             commissioned.clear("th_cr2");
         },
@@ -426,16 +352,24 @@ certTest("TC-CADMIN-1.17", {
             const writeCheck = await expectRejection(
                 "writeAttribute(NodeLabel)",
                 node.writeAttribute(path, "post-removal"),
+                POST_REMOVAL_TIMEOUT,
+                isPostRemovalRefusal,
             );
             cx.recorder.check(writeCheck);
 
-            const readCheck = await expectRejection("readAttribute(NodeLabel)", node.readAttribute(path));
+            const readCheck = await expectRejection(
+                "readAttribute(NodeLabel)",
+                node.readAttribute(path),
+                POST_REMOVAL_TIMEOUT,
+                isPostRemovalRefusal,
+            );
             cx.recorder.check(readCheck);
 
             if (writeCheck.verdict !== "pass" || readCheck.verdict !== "pass") {
-                // A call that succeeded proves the fabric outlived RemoveFabric, so cleanup owns it again.
+                // A failed step can't vouch the fabric is gone — a call that succeeded even proves it
+                // outlived RemoveFabric — so cleanup owns it again.
                 commissioned.set("th_cr2", removedCr2Ref);
-                throw new Error(
+                throw new CertCheckFailedError(
                     `Expected both write and read to fail post-removal: ${JSON.stringify({ writeCheck, readCheck })}`,
                 );
             }
@@ -452,19 +386,23 @@ certTest("TC-CADMIN-1.17", {
             const dut = cx.controllers.dut;
             const dutRef = commissioned.require("dut");
 
+            if (cr2FabricIndex === undefined) {
+                throw new InternalError("Step ran before TH_CR2's own fabric index was read");
+            }
+            const removedIndex = cr2FabricIndex;
+
             const fabrics = await readFabrics(dut.node(dutRef));
-            const stillHasCr2 = fabrics.some(entry => entry.fabricIndex === cr2FabricIndex);
-            const pass = fabrics.length === 2 && !stillHasCr2;
+            const pass = fabrics.length === 2 && !fabrics.some(entry => entry.fabricIndex === removedIndex);
             cx.recorder.check({
                 type: "response",
                 verdict: pass ? "pass" : "fail",
                 detail:
-                    `${fabrics.length} fabrics after removing index ${cr2FabricIndex}: ` +
+                    `${fabrics.length} fabrics after removing index ${removedIndex}: ` +
                     fabrics.map(entry => entry.fabricIndex).join(", "),
             });
             if (!pass) {
-                throw new Error(
-                    `Expected 2 fabrics with index ${cr2FabricIndex} (TH_CR2) removed, got ` + describeFabrics(fabrics),
+                throw new CertCheckFailedError(
+                    `Expected 2 fabrics with index ${removedIndex} (TH_CR2) removed, got ` + describeFabrics(fabrics),
                 );
             }
         },
@@ -480,22 +418,33 @@ certTest("TC-CADMIN-1.17", {
             const dutRef = commissioned.require("dut");
             const cr3Ref = commissioned.require("th_cr3");
 
+            if (cr2OperationalInstanceName === undefined) {
+                throw new InternalError("Step ran before TH_CR2's operational instance name was captured");
+            }
+
             const [dutInstanceName, cr3InstanceName] = await Promise.all([
                 dut.node(dutRef).operationalMdnsInstanceName(),
                 th_cr3.node(cr3Ref).operationalMdnsInstanceName(),
             ]);
 
-            const result = await expectMdns(
-                th,
-                { operationalRecords: 2 },
-                { timeoutMs: 20_000, operationalInstanceName: [dutInstanceName, cr3InstanceName] },
-            );
-            cx.recorder.check(result);
-            if (result.verdict !== "pass") {
-                throw new Error(
-                    `Expected exactly 2 operational mDNS records (dut + th_cr3), got ${JSON.stringify(result)}`,
-                );
-            }
+            // Counting only the survivors' records leaves the removed fabric's — the record this step
+            // exists to prove withdrawn — invisible, so its absence is checked by name alongside.
+            const [survivors, removedGone] = await Promise.all([
+                expectMdns(
+                    th,
+                    { operationalRecords: 2 },
+                    { timeoutMs: 20_000, operationalInstanceName: [dutInstanceName, cr3InstanceName] },
+                ),
+                expectMdns(
+                    th,
+                    { operationalRecords: 0 },
+                    { timeoutMs: 10_000, operationalInstanceName: cr2OperationalInstanceName },
+                ),
+            ]);
+            recordAll(cx, [
+                { check: () => survivors, what: "Exactly 2 operational mDNS records (dut + th_cr3)" },
+                { check: () => removedGone, what: "No operational mDNS record for the removed fabric (th_cr2)" },
+            ]);
         },
         {
             expected:
@@ -542,7 +491,9 @@ certTest("TC-CADMIN-1.17", {
                 detail: `${fabrics.length} fabrics: ${fabrics.map(entry => `${entry.label}#${entry.fabricIndex}`).join(", ")}`,
             });
             if (!pass) {
-                throw new Error(`Expected 3 fabrics after th_cr2 re-commissioned, got ${fabrics.length}`);
+                throw new CertCheckFailedError(
+                    `Expected 3 fabrics after th_cr2 re-commissioned, got ${fabrics.length}`,
+                );
             }
         },
         { pics: "OPCREDS.C.A0001", expected: "Verify TH_CE receives and processes the command successfully" },

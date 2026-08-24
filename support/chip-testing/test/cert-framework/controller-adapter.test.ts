@@ -4,10 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/main";
-import { Status, StatusResponseError } from "@matter/main/types";
+import { ImplementationError, InternalError } from "@matter/main";
+import { QrPairingCodeCodec, Status, StatusResponseError } from "@matter/main/types";
 import { Matter } from "@matter/model";
 import {
+    controllerPicsOverridesFor,
     createControllerAdapter,
     LineQueue,
     LogFollower,
@@ -18,8 +19,10 @@ import type { AttributePathSpec, CertNodeApi, ControllerAdapter, EventReadEntry 
 import { expect } from "chai";
 import { env } from "node:process";
 import { AllClustersTestInstance } from "../../src/AllClustersTestInstance.js";
-import { ChipToolControllerAdapter } from "../../src/cert/ChipToolControllerAdapter.js";
-import { InProcessControllerAdapter } from "../../src/cert/InProcessControllerAdapter.js";
+import { CHIP_TOOL_CONTROLLER_PICS, ChipToolControllerAdapter } from "../../src/cert/ChipToolControllerAdapter.js";
+import { InProcessControllerAdapter, MATTERJS_CONTROLLER_PICS } from "../../src/cert/InProcessControllerAdapter.js";
+import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
+import { manualPairingCode } from "../cert/tc-dd-support.js";
 
 function fakeControllerAdapter(id: string): ControllerAdapter {
     return {
@@ -28,6 +31,12 @@ function fakeControllerAdapter(id: string): ControllerAdapter {
         async start() {},
         async close() {},
         async commission() {
+            throw new InternalError("not used in this test");
+        },
+        async parseQrPayload() {
+            throw new InternalError("not used in this test");
+        },
+        async parseManualPairingCode(): Promise<never> {
             throw new InternalError("not used in this test");
         },
         node() {
@@ -122,6 +131,65 @@ describe("InProcessControllerAdapter", () => {
         });
 
         await adapter.node(ref).decommission();
+    });
+
+    it("commissions from the device's own QR onboarding payload", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ qrPairingCode: device.commissioning.qrPairingCode });
+
+        await adapter.node(ref).decommission();
+    });
+
+    it("reports the fields it reads out of a manual pairing code", async () => {
+        const code = manualPairingCode({
+            vidPidPresent: true,
+            discriminator: device.commissioning.discriminator,
+            passcode: device.commissioning.passcode,
+            vendorId: 0xfff1,
+            productId: 0x8001,
+        });
+
+        expect(await adapter.parseManualPairingCode(code)).deep.equal({
+            shortDiscriminator: device.commissioning.discriminator >> 8,
+            passcode: device.commissioning.passcode,
+            vendorId: 0xfff1,
+            productId: 0x8001,
+        });
+    });
+
+    it("marks its own refusal of an onboarding payload, so a later failure cannot pass for one", async () => {
+        // Version 2, which QrPairingCodeCodec rejects. matter.js raises UnexpectedDataError from the
+        // commissioning flow too, so the refusal has to carry its own marker.
+        const refusal = await rejectionOf(adapter.commission({ qrPairingCode: "MT:034J042C00KA0648G00" }));
+
+        expect(refusal).instanceOf(OnboardingPayloadRefusedError);
+        expect(await rejectionOf(adapter.parseQrPayload("MT:034J042C00KA0648G00"))).instanceOf(
+            OnboardingPayloadRefusedError,
+        );
+    });
+
+    it("reports the fields it reads out of an onboarding payload", async function () {
+        const parsed = await adapter.parseQrPayload(device.commissioning.qrPairingCode);
+
+        expect(parsed).deep.equal({
+            version: 0,
+            vendorId: 0xfff1,
+            productId: 0x8001,
+            flowType: 0,
+            discoveryCapabilities: 0b100,
+            discriminator: 3840,
+            passcode: 20202021,
+        });
+    });
+
+    it("refuses a concatenated onboarding payload, which names more than one device", async function () {
+        const [payload] = QrPairingCodeCodec.decode(device.commissioning.qrPairingCode);
+
+        await expect(adapter.commission({ qrPairingCode: QrPairingCodeCodec.encode([payload, payload]) })).rejectedWith(
+            ImplementationError,
+            /carries 2 payloads/,
+        );
     });
 
     it("commissions, reads an attribute, invokes a command, and decommissions", async function () {
@@ -325,6 +393,53 @@ describe("InProcessControllerAdapter", () => {
         await node.decommission();
     });
 
+    it("rejects a multi-path read whose concrete path the device refused", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        const node = adapter.node(ref);
+
+        // The first path the device answers, so the read as a whole succeeds and only this one's status
+        // says the second went unanswered — endpoint 1 has no BasicInformation
+        const rejection = await rejectionOf(
+            node.readAttributes([
+                { endpoint: 1, cluster: ON_OFF.id, attribute: ON_OFF_ATTRIBUTE.id },
+                { endpoint: 1, cluster: BASIC_INFORMATION.id, attribute: VENDOR_ID_ATTRIBUTE.id },
+            ]),
+        );
+        expect(rejection).to.be.instanceOf(StatusResponseError);
+        expect(StatusResponseError.of(rejection)?.code).equal(Status.UnsupportedCluster);
+
+        await node.decommission();
+    });
+
+    it("rejects a multi-path event subscribe whose concrete path the device refused", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        const node = adapter.node(ref);
+
+        // The subscription the device did establish cannot be revoked, so its reports must not reach the
+        // step that already failed on this rejection — which is what chip-tool does as well
+        const updates = new Array<EventReadEntry>();
+        const rejection = await rejectionOf(
+            node.subscribeEvents(
+                [
+                    { endpoint: 1, cluster: BOOLEAN_STATE.id, event: STATE_CHANGE_EVENT.id },
+                    { endpoint: 1, cluster: BASIC_INFORMATION.id, event: START_UP_EVENT.id },
+                ],
+                { minIntervalFloorSeconds: 0, maxIntervalCeilingSeconds: 10, onUpdate: event => updates.push(event) },
+            ),
+        );
+        expect(rejection).to.be.instanceOf(StatusResponseError);
+
+        await device.backchannel({ name: "setBooleanState", endpointId: 1, newState: true });
+        await new Promise(resolve => setTimeout(resolve, 1_000));
+        expect(updates).to.be.empty;
+
+        await node.decommission();
+    });
+
     it("rejects a concrete-path event subscribe the device refused", async function () {
         this.timeout(30_000);
 
@@ -416,6 +531,27 @@ describe("InProcessControllerAdapter", () => {
         await node.decommission();
     });
 
+    // Characterization: § 8.9.2.8.1 is enforced by matter.js's own write action, not by this adapter, so
+    // a guard added here would be dead code.
+    it("refuses a data version on a wildcard endpoint path, which the specification forbids", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        const node = adapter.node(ref);
+
+        await expect(
+            node.writeAttributes([
+                {
+                    path: { cluster: BASIC_INFORMATION.id, attribute: NODE_LABEL_ATTRIBUTE.id },
+                    value: "wildcard",
+                    dataVersion: 1,
+                },
+            ]),
+        ).rejectedWith(/must target a concrete endpoint/);
+
+        await node.decommission();
+    });
+
     it("throws when constructing a second adapter with an id already registered", () => {
         expect(() => new InProcessControllerAdapter("dut")).to.throw(InternalError, /already registered/);
     });
@@ -483,7 +619,42 @@ describe("ControllerAdapter registry", () => {
             // Restore what src/cert/index.ts registered at load time, for any later suite that
             // resolves "chip-tool" through the registry.
             resetControllerAdapterFactoryForTesting("chip-tool");
-            registerControllerAdapterFactory("chip-tool", id => new ChipToolControllerAdapter(id));
+            registerControllerAdapterFactory(
+                "chip-tool",
+                id => new ChipToolControllerAdapter(id),
+                CHIP_TOOL_CONTROLLER_PICS,
+            );
+        }
+    });
+
+    it("reports the PICS each controller declares about itself", () => {
+        expect(controllerPicsOverridesFor("matterjs")).deep.equal(MATTERJS_CONTROLLER_PICS);
+        expect(controllerPicsOverridesFor("chip-tool")).deep.equal(CHIP_TOOL_CONTROLLER_PICS);
+        expect(MATTERJS_CONTROLLER_PICS["MCORE.IDM.C.InvokeRequest.BatchCommands"]).equal(1);
+        expect(CHIP_TOOL_CONTROLLER_PICS["MCORE.IDM.C.InvokeRequest.BatchCommands"]).equal(0);
+
+        for (const pics of [MATTERJS_CONTROLLER_PICS, CHIP_TOOL_CONTROLLER_PICS]) {
+            expect(pics["MCORE.ROLE.COMMISSIONER"]).equal(1);
+            expect(pics["MCORE.DD.QR_COMMISSIONING"]).equal(1);
+            expect(pics["MCORE.DD.MANUAL_PC_COMMISSIONING"]).equal(1);
+            expect(pics["MCORE.DD.SCAN_QR_CODE"]).equal(1);
+            expect(pics["MCORE.DD.CTRL_CONCATENATED_QR_CODE_1"]).equal(0);
+        }
+    });
+
+    it("reports no declarations for an implementation registered without them", () => {
+        resetControllerAdapterFactoryForTesting("chip-tool");
+
+        try {
+            registerControllerAdapterFactory("chip-tool", fakeControllerAdapter);
+            expect(controllerPicsOverridesFor("chip-tool")).deep.equal({});
+        } finally {
+            resetControllerAdapterFactoryForTesting("chip-tool");
+            registerControllerAdapterFactory(
+                "chip-tool",
+                id => new ChipToolControllerAdapter(id),
+                CHIP_TOOL_CONTROLLER_PICS,
+            );
         }
     });
 });

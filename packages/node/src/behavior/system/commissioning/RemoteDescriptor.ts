@@ -55,6 +55,7 @@ export namespace RemoteDescriptor {
         const {
             addresses,
             discoveredAt,
+            hostname,
             ttl,
             deviceIdentifier,
             discriminator,
@@ -81,6 +82,10 @@ export namespace RemoteDescriptor {
 
         if (deviceIdentifier !== undefined) {
             result.deviceIdentifier = deviceIdentifier;
+        }
+
+        if (hostname !== undefined) {
+            result.hostname = hostname;
         }
 
         if (vendorId !== undefined) {
@@ -163,8 +168,24 @@ export namespace RemoteDescriptor {
             return long;
         }
 
-        const { addresses, discoveredAt, ttl, deviceIdentifier, VP, DT, DN, RI, PH, PI, SII, SAI, SAT, T, ICD } =
-            descriptor;
+        const {
+            addresses,
+            discoveredAt,
+            hostname,
+            ttl,
+            deviceIdentifier,
+            VP,
+            DT,
+            DN,
+            RI,
+            PH,
+            PI,
+            SII,
+            SAI,
+            SAT,
+            T,
+            ICD,
+        } = descriptor;
 
         if (discoveredAt !== undefined) {
             long.discoveredAt = discoveredAt;
@@ -182,11 +203,20 @@ export namespace RemoteDescriptor {
             long.deviceIdentifier = deviceIdentifier;
         }
 
+        // Present-but-undefined is a device whose SRV expired, and must clear the host on record; a
+        // descriptor without the key at all is a caller that knows nothing about the host — half of them
+        // pass a bare `DiscoveryData` — and must leave what discovery found alone
+        if ("hostname" in descriptor) {
+            long.hostname = hostname;
+        }
+
         if (VP !== undefined) {
             const [vendor, product] = VP.split("+").map(part => Number.parseInt(part, 10));
 
-            long.vendorId = Number.isFinite(vendor) ? VendorId(vendor, false) : undefined;
-            long.productId = Number.isFinite(product) ? product : undefined;
+            // § 2.5.2 / § 2.5.3 write "unspecified" as 0, which is an identity the device declines to
+            // state rather than one a caller can match against
+            long.vendorId = Number.isFinite(vendor) && vendor !== 0 ? VendorId(vendor, false) : undefined;
+            long.productId = Number.isFinite(product) && product !== 0 ? product : undefined;
         }
 
         // DNS-SD caps SII/SAI at 1 hour, so a value at the cap may be a clamped advertisement of a larger

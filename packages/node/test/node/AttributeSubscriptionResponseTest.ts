@@ -13,7 +13,7 @@ import { countAttrs } from "./read-helpers.js";
 import INTERACTION_MODEL_REVISION = Specification.INTERACTION_MODEL_REVISION;
 
 describe("AttributeSubscriptionResponse", () => {
-    it("reads concrete attribute when in filter", async () => {
+    it("reads wildcard endpoint attribute when in filter", async () => {
         const response = await readAttrSub(
             await MockServerNode.createOnline(),
             { [EndpointNumber(0)]: { [ClusterId(40)]: new Set([AttributeId(1)]) } },
@@ -41,7 +41,7 @@ describe("AttributeSubscriptionResponse", () => {
         expect(response.counts).deep.equals({ status: 0, success: 1, existent: 1 });
     });
 
-    it("reads no concrete attribute when not in filter", async () => {
+    it("reads no wildcard endpoint attribute when not in filter", async () => {
         const response = await readAttrSub(
             await MockServerNode.createOnline(),
             { [EndpointNumber(0)]: { [ClusterId(40)]: new Set([AttributeId(2)]) } },
@@ -53,6 +53,103 @@ describe("AttributeSubscriptionResponse", () => {
 
         expect(response.data).deep.equals([]);
         expect(response.counts).deep.equals({ status: 0, success: 0, existent: 0 });
+    });
+
+    it("reads concrete path when attribute is dirty", async () => {
+        const node = await MockServerNode.createOnline();
+        const response = await readAttrSub(
+            node,
+            { [EndpointNumber(0)]: { [ClusterId(40)]: new Set([AttributeId(1)]) } },
+            Read.Attribute({
+                endpoint: node,
+                cluster: BasicInformation,
+                attributes: "vendorName",
+            }),
+        );
+
+        expect(response.data).deep.equals([
+            [
+                {
+                    kind: "attr-value",
+                    path: {
+                        attributeId: 1,
+                        clusterId: 40,
+                        endpointId: 0,
+                    },
+                    tlv: {},
+                    value: "Matter.js Test Vendor",
+                    version: 0x80808081,
+                },
+            ],
+        ]);
+        expect(response.counts).deep.equals({ status: 0, success: 1, existent: 1 });
+    });
+
+    it("ignores concrete path when only a sibling attribute of the same cluster is dirty", async () => {
+        const node = await MockServerNode.createOnline();
+        const response = await readAttrSub(
+            node,
+            { [EndpointNumber(0)]: { [ClusterId(40)]: new Set([AttributeId(2)]) } },
+            Read.Attribute({
+                endpoint: node,
+                cluster: BasicInformation,
+                attributes: "vendorName",
+            }),
+        );
+
+        expect(response.data).deep.equals([]);
+        expect(response.counts).deep.equals({ status: 0, success: 0, existent: 0 });
+    });
+
+    it("ignores concrete path when the cluster has no dirty attributes", async () => {
+        const node = await MockServerNode.createOnline();
+        const response = await readAttrSub(
+            node,
+            { [EndpointNumber(0)]: { [ClusterId(41)]: new Set([AttributeId(1)]) } },
+            Read.Attribute({
+                endpoint: node,
+                cluster: BasicInformation,
+                attributes: "vendorName",
+            }),
+        );
+
+        expect(response.data).deep.equals([]);
+        expect(response.counts).deep.equals({ status: 0, success: 0, existent: 0 });
+    });
+
+    it("reads only the dirty attributes of a cluster with several concrete paths", async () => {
+        const node = await MockServerNode.createOnline();
+        const response = await readAttrSub(
+            node,
+            { [EndpointNumber(0)]: { [ClusterId(40)]: new Set([AttributeId(3)]) } },
+            Read.Attribute({
+                endpoint: node,
+                cluster: BasicInformation,
+                attributes: "vendorName",
+            }),
+            Read.Attribute({
+                endpoint: node,
+                cluster: BasicInformation,
+                attributes: "productName",
+            }),
+        );
+
+        expect(response.data).deep.equals([
+            [
+                {
+                    kind: "attr-value",
+                    path: {
+                        attributeId: 3,
+                        clusterId: 40,
+                        endpointId: 0,
+                    },
+                    tlv: {},
+                    value: "Matter.js Test Product",
+                    version: 0x80808081,
+                },
+            ],
+        ]);
+        expect(response.counts).deep.equals({ status: 0, success: 1, existent: 1 });
     });
 
     it("reads wildcard endpoint & attributes with 5 in Filter", async () => {

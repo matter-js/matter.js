@@ -183,6 +183,9 @@ export namespace FieldValue {
         if (is(value, percent)) {
             return `${(value as Percent).value}%`;
         }
+        if (is(value, bytes)) {
+            return (value as Bytes).value;
+        }
         if (is(value, properties)) {
             return stringSerialize((value as Properties).properties) ?? "?";
         }
@@ -224,10 +227,62 @@ export namespace FieldValue {
                 case "percent100ths":
                     return (value as Percent).value * 100;
 
-                default:
+                case "percent":
                     return (value as Percent).value;
             }
+
+            // Not sure how to interpret the value
+            return;
         }
+    }
+
+    /** Digits enough for any Matter numeric type, the widest of which needs twenty */
+    const MAX_STATED_DIGITS = 64;
+
+    /**
+     * The integer that decimal or exponential notation states exactly, or undefined where it states a fraction.
+     *
+     * The digits are shifted by hand because converting to a number first rounds a value too large to be one, and
+     * "18446744073709551614.5" would then look like the integer it is not.
+     */
+    function statedInteger(text: string) {
+        const stated = text.match(/^([+-]?)(\d*)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/);
+        if (stated === null) {
+            return undefined;
+        }
+
+        const [, sign, whole, fraction = "", exponent] = stated;
+        if (whole === "" && fraction === "") {
+            return undefined;
+        }
+
+        const digits = whole + fraction;
+        const point = whole.length + Number(exponent ?? 0);
+
+        // Zero is zero at every exponent
+        if (!/[1-9]/.test(digits)) {
+            return `${sign}0`;
+        }
+
+        if (point < 0) {
+            return undefined;
+        }
+
+        // An exponent states the width of the value, and one too wide for any Matter type is not worth building the
+        // digits of; "1e1000000000" would allocate a gigabyte of them
+        if (point > MAX_STATED_DIGITS) {
+            return undefined;
+        }
+
+        if (point >= digits.length) {
+            return `${sign}${digits}${"0".repeat(point - digits.length)}`;
+        }
+
+        if (/[1-9]/.test(digits.slice(point))) {
+            return undefined;
+        }
+
+        return `${sign}${digits.slice(0, point) || "0"}`;
     }
 
     /**
@@ -314,9 +369,19 @@ export namespace FieldValue {
 
             case "boolean":
                 if (typeof value === "string") {
-                    value = value.trim().toLowerCase();
+                    switch (value.trim().toLowerCase()) {
+                        case "":
+                        case "0":
+                        case "no":
+                        case "off":
+                        case "false":
+                            return false;
+
+                        default:
+                            return true;
+                    }
                 }
-                return value !== "false" && value !== "no" && !!value;
+                return !!value;
 
             case "bitmap":
             case "enum":
@@ -346,17 +411,31 @@ export namespace FieldValue {
                         type = FieldValue.percent;
                     }
                     if (type) {
-                        value = Number.parseInt(value);
+                        // Both units are fractional in the specification's notation ("25.5°C", "0.01%") and scale to
+                        // an integer only once the field's own unit is known
+                        const radix = value.match(/^\s*([+-]?0[xb][\da-f]+)/i);
+                        value = radix === null ? Number.parseFloat(value) : Number(radix[1]);
                         if (!Number.isFinite(value)) {
                             return FieldValue.Invalid;
                         }
                         return { type, value };
                     }
 
-                    // Strip off extra garbage like Number.parseInt would but BigInt doesn't
-                    const match = value.match(/^(0x[0-9a-f]+|0b[01]+|\d+)/i);
-                    if (match) {
-                        value = match[1];
+                    // Decimal and exponential notation state a value of their own, so read them exactly rather
+                    // than dropping the tail: "1e3" is 1000, while "1e-3" and "0.01" state no integer at all
+                    const stated = statedInteger(value);
+                    if (stated !== undefined) {
+                        value = stated;
+                    } else {
+                        // Strip off extra garbage like Number.parseInt would but BigInt doesn't
+                        const match = value.match(/^(0x[0-9a-f]+|0b[01]+|\d+)/i);
+                        if (match) {
+                            if (/^[.eE]/.test(value.slice(match[1].length))) {
+                                return FieldValue.Invalid;
+                            }
+
+                            value = match[1];
+                        }
                     }
                 }
 

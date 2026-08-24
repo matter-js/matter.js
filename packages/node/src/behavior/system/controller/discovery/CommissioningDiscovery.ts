@@ -7,9 +7,12 @@
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { ChannelType, Minutes } from "@matter/general";
+import { Logger, Minutes } from "@matter/general";
+import { VendorId } from "@matter/types";
 import { Discovery } from "./Discovery.js";
 import { ParallelPaseDiscovery } from "./ParallelPaseDiscovery.js";
+
+const logger = Logger.get("CommissioningDiscovery");
 
 /**
  * Discovers and commissions nodes.  All discovered candidates are commissioned in parallel; the first to establish
@@ -19,6 +22,12 @@ import { ParallelPaseDiscovery } from "./ParallelPaseDiscovery.js";
  */
 export class CommissioningDiscovery extends ParallelPaseDiscovery<ClientNode> {
     #options: CommissioningDiscovery.Options;
+
+    /**
+     * Resolved once: {@link CommissioningClient.PasscodeOptions} decodes a pairing code and validates
+     * its check digit, which is not work to repeat for every candidate discovery turns up.
+     */
+    #identity: CommissioningDiscovery.Identity;
 
     constructor(owner: ServerNode, options: CommissioningDiscovery.Options) {
         const opts = CommissioningClient.PasscodeOptions(options);
@@ -35,20 +44,10 @@ export class CommissioningDiscovery extends ParallelPaseDiscovery<ClientNode> {
             options = { ...options, timeout: Minutes(3) };
         }
 
-        // Map discoveryCapabilities to a scannerFilter so BLE scanners are included when requested.
-        // This ensures callers that pass discoveryCapabilities (e.g. MatterController) get the correct
-        // scanner selection without having to construct the filter themselves.
-        if (options.discoveryCapabilities !== undefined && options.scannerFilter === undefined) {
-            const caps = options.discoveryCapabilities;
-            options = {
-                ...options,
-                scannerFilter: s => s.type === ChannelType.UDP || (!!caps.ble && s.type === ChannelType.BLE),
-            };
-        }
-
         super(owner, options);
 
         this.#options = options;
+        this.#identity = { vendorId: opts.vendorId, productId: opts.productId };
     }
 
     protected override get cleanupLabel() {
@@ -61,6 +60,10 @@ export class CommissioningDiscovery extends ParallelPaseDiscovery<ClientNode> {
 
     protected override onDiscovered(node: ClientNode) {
         if (this.paseWon) return;
+
+        if (!this.#namesThisDevice(node)) {
+            return;
+        }
 
         const peers = this.owner.peers;
         this.registerAttempt(
@@ -77,8 +80,67 @@ export class CommissioningDiscovery extends ParallelPaseDiscovery<ClientNode> {
             () => node,
         );
     }
+
+    #namesThisDevice(node: ClientNode) {
+        const mismatch = CommissioningDiscovery.identityMismatch(this.#identity, node.state.commissioning);
+
+        if (mismatch !== undefined) {
+            logger.notice(
+                `Passing over ${node}: it advertises ${mismatch.facet} ${mismatch.advertised} where the onboarding payload names ${mismatch.payload}`,
+            );
+            return false;
+        }
+
+        return true;
+    }
 }
 
 export namespace CommissioningDiscovery {
     export type Options = Discovery.InstanceOptions & CommissioningClient.CommissioningOptions;
+
+    /** What an onboarding payload and a commissionable advertisement each say about a device's identity. */
+    export interface Identity {
+        vendorId?: VendorId;
+        productId?: number;
+    }
+
+    /** The one identifier on which an advertisement contradicts the payload. */
+    export interface IdentityMismatch {
+        facet: "vendor" | "product";
+        payload: number;
+        advertised: number;
+    }
+
+    /**
+     * Why `advertised` is not the device `payload` names, or `undefined` if it may be.
+     *
+     * Discovery browses one DNS-SD sub-service, so a discriminator is all it can narrow by; the vendor
+     * and product a payload names are checked against what the device advertises (§ 4.3.1's `VP`
+     * record) once it is found. Either side may say nothing — a manual pairing code carries no identity
+     * in its 11-digit form and the record is optional — and absence never rejects, so this only ever
+     * refuses a device that positively advertises something else.
+     *
+     * Mirrors CHIP's `SetUpCodePairer::NodeMatchesCurrentFilter`. Both codecs already report § 2.5.2 /
+     * § 2.5.3's "unspecified" as an absent identifier, so nothing here has to know that it is 0 on the
+     * wire.
+     */
+    export function identityMismatch(payload: Identity, advertised: Identity): IdentityMismatch | undefined {
+        if (
+            payload.vendorId !== undefined &&
+            advertised.vendorId !== undefined &&
+            payload.vendorId !== advertised.vendorId
+        ) {
+            return { facet: "vendor", payload: payload.vendorId, advertised: advertised.vendorId };
+        }
+
+        if (
+            payload.productId !== undefined &&
+            advertised.productId !== undefined &&
+            payload.productId !== advertised.productId
+        ) {
+            return { facet: "product", payload: payload.productId, advertised: advertised.productId };
+        }
+
+        return undefined;
+    }
 }

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { FieldElement } from "@matter/model";
 import { ConstraintError } from "@matter/protocol";
 import { Fields, Tests, testValidation } from "./validation-test-utils.js";
 
@@ -19,6 +20,37 @@ const AllTests = Tests({
             },
         },
     }),
+
+    "percentage bound": Tests(Fields({ type: "percent100ths", constraint: "0.01% to 100.00%" }), {
+        "accepts a value within the encoded range": { record: { test: 5000 } },
+        "rejects a value above the encoded range": {
+            record: { test: 10001 },
+            error: {
+                type: ConstraintError,
+                message:
+                    'Validating Test.test: Constraint "0.01% to 100%": Value 10001 is not within bounds defined by constraint',
+            },
+        },
+    }),
+
+    "percentage bound of a list entry": Tests(
+        Fields({
+            type: "list",
+            constraint: "max 4[0% to 100%]",
+            children: [FieldElement({ name: "entry", type: "percent100ths" })],
+        }),
+        {
+            "accepts an entry within the encoded range": { record: { test: [5000] } },
+            "rejects an entry above the encoded range": {
+                record: { test: [10001] },
+                error: {
+                    type: ConstraintError,
+                    message:
+                        'Validating Test.test.0: Constraint "all": Value 10001 is not within bounds defined by constraint',
+                },
+            },
+        },
+    ),
 
     "min with reference": Tests(Fields({ constraint: "min MinVal" }, { name: "MinVal", quality: "X" }), {
         "accepts if over": { record: { test: 5, minVal: 4 } },
