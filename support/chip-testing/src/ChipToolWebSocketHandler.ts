@@ -35,6 +35,7 @@ import {
     MATTER_EPOCH_OFFSET_US,
     Status,
     StatusResponseError,
+    VendorId,
 } from "@matter/main/types";
 import {
     AcceptedCommandList,
@@ -987,7 +988,9 @@ export class ChipToolWebSocketHandler {
             }
 
             case "find-commissionable-by-vendor-id": {
-                findBy = { vendorId: parseInt(value) };
+                // Unvalidated: this names the vendor a step asked for, and a step naming a reserved id
+                // must reach the answer below rather than throwing past this handler's own catch
+                findBy = { vendorId: VendorId(parseInt(value), false) };
                 break;
             }
             case "find-commissionable-by-device-type": {
