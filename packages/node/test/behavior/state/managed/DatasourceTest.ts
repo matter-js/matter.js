@@ -19,7 +19,15 @@ import {
     Observable,
     UnsettledStateError,
 } from "@matter/general";
-import { DataModelPath, DatatypeModel, FieldElement, FieldModel } from "@matter/model";
+import {
+    AttributeElement,
+    ClusterModel,
+    DataModelPath,
+    DatatypeModel,
+    FeatureSet,
+    FieldElement,
+    FieldModel,
+} from "@matter/model";
 import { AccessControl, Val } from "@matter/protocol";
 import { EndpointNumber, NodeId } from "@matter/types";
 import { rawValuesOf } from "./values/value-utils.js";
@@ -38,6 +46,27 @@ const persistentSupervisor = BehaviorSupervisor({
         type: "struct",
 
         children: [FieldElement({ name: "foo", type: "string", quality: "N" })],
+    }),
+});
+
+const featuredSupervisor = BehaviorSupervisor({
+    id: "myState",
+    State: MyState,
+
+    schema: new ClusterModel({
+        id: 0xfff1_fc98,
+        name: "MyState",
+        supportedFeatures: new FeatureSet(["MyFeature"]),
+
+        children: [
+            AttributeElement({
+                id: 0xfffc,
+                name: "FeatureMap",
+                type: "FeatureMap",
+                children: [FieldElement({ name: "MyFeature", constraint: "0" })],
+            }),
+            FieldElement({ name: "foo", type: "string", quality: "N" }),
+        ],
     }),
 });
 
@@ -616,6 +645,49 @@ describe("Datasource", () => {
         await withDatasourceAndReference({ type: State, supervisor }, ({ state }) => {
             expect(state.foo).equals("changed");
         });
+    });
+
+    it("persists the features key with the values it belongs to", async () => {
+        const store = createStore();
+        await withDatasourceAndReference({ store, supervisor: featuredSupervisor }, ({ state }) => (state.foo = "rab"));
+
+        expect(store.sets.length).equals(1);
+        expect("__features__" in store.sets[0]).true;
+    });
+
+    it("stages the features key again after a write the store refused", async () => {
+        const sets = new Array<Val.Struct>();
+        let refuse = true;
+        const store: Datasource.Store = {
+            initialValues: {},
+
+            async set(_transaction, values) {
+                if (refuse) {
+                    throw new Error("store is down");
+                }
+                sets.push(values);
+            },
+        };
+
+        const ds = createDatasource({ store, supervisor: featuredSupervisor });
+
+        await expect(
+            withReference(ds, async ({ state, context }) => {
+                state.foo = "rab";
+                await context.transaction.commit();
+            }),
+        ).rejected;
+
+        refuse = false;
+
+        // The refused write staged the key but nothing stored it, so this datasource must stage it again
+        await withReference(ds, async ({ state, context }) => {
+            state.foo = "woof";
+            await context.transaction.commit();
+        });
+
+        expect(sets.length).equals(1);
+        expect("__features__" in sets[0]).true;
     });
 
     it("auto-commits changes after initial load", async () => {

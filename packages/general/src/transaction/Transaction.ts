@@ -241,7 +241,7 @@ export namespace Transaction {
     export type Participant = ParticipantType;
 
     /**
-     * How a transaction ended, as reported to {@link Participant.finalized}.
+     * How a transaction ended, as reported to {@link Participant.conclusion}.
      */
     export type Outcome = ParticipantOutcome;
 

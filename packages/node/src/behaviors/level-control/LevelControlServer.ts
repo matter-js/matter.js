@@ -525,10 +525,10 @@ export class LevelControlBaseServer extends LevelControlBase {
                         result = this.handleOnOffChange(true);
                         this.internal.blockOnOffCouplingOnce = true; // But block the second call by listener
                         this.context.transaction.addParticipants({
-                            toString: () => `${this.endpoint} level on-off coupling block`,
+                            toString: () => `${this.endpoint} level/on-off coupling block`,
 
                             // The block covers one on/off reaction, so it must lift however the transaction ends
-                            finalized: () => {
+                            conclusion: () => {
                                 this.internal.blockOnOffCouplingOnce = false;
                             },
                         });

@@ -19,10 +19,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: `DnssdNames.Context.goodbyeProtectionWindow` and `DnssdNames.defaults.goodbyeProtectionWindow` are now `evictionDelay`, and `DnssdName.deleteRecord` no longer takes an `ifOlderThan` argument
     - Enhancement: New `MatterAggregateError.settleSeries()` runs tasks in order, continuing past a failure, and reports the accumulated errors
     - Enhancement: A storage driver states how long a consumer may buffer dirty values via `StorageDriver.writeCoalescingInterval`, defaulting to 20 minutes; `MemoryStorageDriver` reports `Instant`
-    - Enhancement: `Transaction.Participant` gains `settled()`, invoked once after every participant's pre-commit reports no further mutation and before any of them writes; throwing there rejects the commit
-    - Enhancement: `Transaction.Participant` gains `finalized(outcome)`, which runs once per commit cycle or rollback — including the commit phase two failure that skips both `postCommit` and `rollback` — and states whether the transaction committed, rolled back, or ended inconsistent
+    - Enhancement: `Transaction.Participant` gains `settled()`, invoked once after every participant's pre-commit reports no further mutation and before any of them writes; throwing there rejects the commit, and writes are refused while it runs
+    - Enhancement: `Transaction.Participant` gains `conclusion(outcome)`, which runs once per commit cycle or rollback — including the commit phase two failure that skips both `postCommit` and `rollback` — and states whether the transaction committed, rolled back, or ended inconsistent; it runs with the transaction's locks released and further writes refused
     - Fix: A post-commit handler that rejects no longer detaches the remaining participants' post-commit work from the transaction
     - Adjustment: A participant that joins a transaction while it commits, as a store does, now receives `postCommit` along with the participants that were present when the commit began
+    - Adjustment: A rollback completes once its participants have been told the outcome; where a participant reports asynchronously, a rollback that failed now rejects instead of throwing synchronously
     - Fix: Opening a namespace whose `driver.json` names an unregistered storage driver now throws `NoProviderError` instead of silently opening the existing data with a mismatched driver
     - Fix: DNS-SD ignores SRV records with port 0, an empty target or an out-of-range port
     - Fix: DNS-SD honors a goodbye that arrives shortly after the same record was re-announced
@@ -121,6 +122,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A peer that cannot be loaded, such as one whose fabric is missing locally, is reported with its actual cause instead of escaping as an unhandled rejection
     - Fix: Commissioning passes over a discovered device whose advertised vendor or product ID disagrees with the onboarding payload's
     - Fix: A level change that couples to On/Off no longer leaves the coupling blocked when its transaction rolls back
+    - Fix: A cluster's feature selection is recorded as persisted only once the store accepted the values it travels with, so a failed write no longer leaves a later feature change undetected
     - Fix: Validating a state class that serves properties dynamically passes it the endpoint, as every other caller does
 
 - @matter/matter.js

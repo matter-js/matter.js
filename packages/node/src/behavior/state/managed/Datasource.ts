@@ -759,6 +759,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
 
     #values: Val.Struct;
     #baseValues: Val.Struct | undefined;
+    #stagedFeaturesKey = false;
     #precommitValues: Val.Struct | undefined;
     #changes: CommitChanges | undefined;
     #expired = false;
@@ -1008,7 +1009,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
             !this.#internals.featuresKeyPersisted
         ) {
             stored[FEATURES_KEY] = this.#internals.featuresKey;
-            this.#internals.featuresKeyPersisted = true;
+            this.#stagedFeaturesKey = true;
         }
 
         return this.#internals.store?.set(this.#session.transaction, stored);
@@ -1020,6 +1021,13 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
     commit2() {
         if (!this.#changes) {
             return;
+        }
+
+        // The key is only persisted once the store accepted the values it travelled with; claiming it in phase one
+        // would leave a failed write believing it landed, and no later write would stage it again
+        if (this.#stagedFeaturesKey) {
+            this.#internals.featuresKeyPersisted = true;
+            this.#stagedFeaturesKey = false;
         }
 
         this.#adoptConcurrentChanges();

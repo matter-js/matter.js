@@ -37,6 +37,8 @@ describe("LevelControl on/off coupling", () => {
         await node.close();
     });
 
+    // Characterization: on this path the on/off reaction clears the block itself, so the hook's effect is not
+    // observable here.  It guards against clearing the block any earlier, which moves the level twice
     it("holds the on/off coupling block through a committed level change", async () => {
         const { node, endpoint } = await coupledLight();
 

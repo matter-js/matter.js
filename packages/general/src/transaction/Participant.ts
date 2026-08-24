@@ -13,18 +13,18 @@ import { MaybePromise } from "#util/Promises.js";
  *
  * | outcome                   | hooks that run                                                            |
  * | ------------------------- | ------------------------------------------------------------------------- |
- * | commit                    | `preCommit`\*, `settled`, `commit1`, `commit2`, `postCommit`, `finalized`  |
- * | pre-commit failure        | `preCommit`\*, `rollback`, `finalized`                                     |
- * | rejected by `settled`     | `preCommit`\*, `settled`, `rollback`, `finalized`                          |
- * | phase one failure         | `preCommit`\*, `settled`, `commit1`, `rollback`, `finalized`               |
- * | phase two failure         | `preCommit`\*, `settled`, `commit1`, `commit2`, `finalized`                |
- * | rollback                  | `rollback`, `finalized`                                                   |
+ * | commit                    | `preCommit`\*, `settled`, `commit1`, `commit2`, `postCommit`, `conclusion`  |
+ * | pre-commit failure        | `preCommit`\*, `rollback`, `conclusion`                                     |
+ * | rejected by `settled`     | `preCommit`\*, `settled`, `rollback`, `conclusion`                          |
+ * | phase one failure         | `preCommit`\*, `settled`, `commit1`, `rollback`, `conclusion`               |
+ * | phase two failure         | `preCommit`\*, `settled`, `commit1`, `commit2`, `conclusion`                |
+ * | rollback                  | `rollback`, `conclusion`                                                   |
  *
- * \* `preCommit` runs one or more times.
+ * \* `preCommit` runs one or more times.  A phase that throws is not reached by the participants after the thrower.
  *
  * Note the phase two row: values a participant made canonical in {@link commit2} stay canonical, no
  * {@link rollback} runs, and {@link postCommit} runs for nobody.  A participant that must react to its own write
- * regardless of a sibling's failure does so in {@link finalized}, which states the outcome.
+ * regardless of a sibling's failure does so in {@link conclusion}, which states the outcome.
  *
  * A commit runs the whole sequence again where {@link postCommit} writes, so a participant may see it more than once
  * for a single commit.  Every hook below therefore describes what happens per commit cycle rather than per commit.
@@ -62,14 +62,15 @@ export interface Participant {
      * Inspect the values the transaction is about to write.
      *
      * Invoked once per commit cycle, after every participant's {@link preCommit} reports no further mutation and
-     * before any participant's {@link commit1}.  This is the only point at which a participant sees what actually
-     * settled while refusing it is still free: a throw here rejects the commit and rolls back, and nothing has been
-     * written yet.
+     * before any participant's {@link commit1}.  A throw rejects the commit and rolls back.
+     *
+     * This is where a participant sees the values the transaction settled on before any of them is staged; by
+     * {@link commit1} a sibling may already have written.
      *
      * Skipped where pre-commit itself failed, which never reaches a settled state.
      *
-     * Must not mutate state: pre-commit has converged by the time this runs, so a mutation here reaches the store
-     * without any participant having had a chance to react to it.
+     * Writes are refused here: pre-commit has converged, so a mutation would reach the store with no participant
+     * having had a chance to react to it.
      */
     settled?: () => MaybePromise;
 
@@ -111,24 +112,21 @@ export interface Participant {
     /**
      * Release per-transaction state.
      *
-     * Runs once per commit cycle or rollback, told how the transaction ended, on every path a commit or rollback
-     * takes — including the phase two failure that skips both {@link postCommit} and {@link rollback}.  A participant
-     * that sets state in {@link commit1} or {@link commit2} clears it here rather than in {@link postCommit}.
+     * Runs once for a commit cycle or rollback that completes, told how it ended — including the phase two failure
+     * that skips both {@link postCommit} and {@link rollback}, which is the only outcome no other hook covers.  A
+     * transaction abandoned while exclusive completes neither, so this is not a participant's only means of releasing
+     * a resource.
      *
-     * Runs after {@link postCommit} where post-commit runs at all.  Do not depend on lock state: a commit reports
-     * after releasing its locks, a rollback while it still holds them.  A throw is logged and otherwise ignored: the
-     * transaction has already ended and nothing can be undone.
-     *
-     * A transaction that is neither committed nor rolled back does not report.  That means a transaction abandoned
-     * while exclusive, whether disposed directly or discarded because commits cascaded past their limit, so a
-     * participant must not treat this hook as its only means of releasing a resource.
+     * Runs after {@link postCommit} where post-commit runs at all, and after the transaction released its locks.
+     * Writes are refused: the transaction has ended, so there is nothing left to write to.  A throw is logged and
+     * otherwise ignored, for the same reason.
      */
-    finalized?: (outcome: Participant.Outcome) => MaybePromise;
+    conclusion?: (outcome: Participant.Outcome) => MaybePromise;
 }
 
 export namespace Participant {
     /**
-     * How a transaction ended, as reported to {@link Participant.finalized}.
+     * How a transaction ended, as reported to {@link Participant.conclusion}.
      *
      * - `committed` — every participant's {@link Participant.commit2} succeeded
      * - `rolled back` — nothing stands: the commit was refused before phase two, or phase one failed and every

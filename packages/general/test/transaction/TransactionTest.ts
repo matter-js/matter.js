@@ -57,7 +57,7 @@ function TestParticipant(options?: Partial<Transaction.Participant>) {
 
         postCommit: options?.postCommit,
 
-        finalized: options?.finalized,
+        conclusion: options?.conclusion,
 
         rollback(): MaybePromise {
             this.invoked.push("rollback");
@@ -83,7 +83,7 @@ function validateUnlocked(transaction: Transaction) {
 export interface JoinOptions extends Partial<Transaction.Participant> {
     transaction?: Transaction;
     postCommit?: () => MaybePromise;
-    finalized?: (outcome: Transaction.Outcome) => MaybePromise;
+    conclusion?: (outcome: Transaction.Outcome) => MaybePromise;
 }
 
 /**
@@ -458,6 +458,44 @@ describe("Transaction", () => {
             validateUnlocked(transaction);
         });
 
+        test("refuses a write, which nothing could react to", async () => {
+            let caught: unknown;
+
+            join({
+                settled: () => {
+                    try {
+                        transaction.beginSync();
+                    } catch (e) {
+                        caught = e;
+                    }
+                },
+            });
+
+            await transaction.begin();
+            await transaction.commit();
+
+            expect(caught).instanceOf(TransactionFlowError);
+        });
+
+        test("restores exclusive access for the commit that follows", async () => {
+            const observed = new Array<string>();
+
+            join({
+                settled: () => {
+                    observed.push(`settled ${transaction.status}`);
+                },
+
+                commit1: () => {
+                    observed.push(`commit1 ${transaction.status}`);
+                },
+            });
+
+            await transaction.begin();
+            await transaction.commit();
+
+            expect(observed).deep.equals(["settled settled", "commit1 committing phase one"]);
+        });
+
         test("rejects the commit and rolls back", async () => {
             const p: TestParticipant = join({
                 settled: () => {
@@ -541,35 +579,35 @@ describe("Transaction", () => {
         });
     });
 
-    describe("finalized", () => {
+    describe("conclusion", () => {
         test("reports a commit after post-commit", async () => {
             const p: TestParticipant = join({
                 postCommit: () => {
                     p.invoked.push("postCommit");
                 },
 
-                finalized: outcome => {
-                    p.invoked.push(`finalized ${outcome}`);
+                conclusion: outcome => {
+                    p.invoked.push(`concluded ${outcome}`);
                 },
             });
 
             await transaction.begin();
             await transaction.commit();
 
-            p.expect("commit1", "commit2", "postCommit", "finalized committed");
+            p.expect("commit1", "commit2", "postCommit", "concluded committed");
         });
 
         test("reports a rollback", async () => {
             const p: TestParticipant = join({
-                finalized: outcome => {
-                    p.invoked.push(`finalized ${outcome}`);
+                conclusion: outcome => {
+                    p.invoked.push(`concluded ${outcome}`);
                 },
             });
 
             await transaction.begin();
             await transaction.rollback();
 
-            p.expect("rollback", "finalized rolled back");
+            p.expect("rollback", "concluded rolled back");
             validateUnlocked(transaction);
         });
 
@@ -579,8 +617,8 @@ describe("Transaction", () => {
                     throw new SomeError("oops in commit1");
                 },
 
-                finalized: outcome => {
-                    p.invoked.push(`finalized ${outcome}`);
+                conclusion: outcome => {
+                    p.invoked.push(`concluded ${outcome}`);
                 },
             });
 
@@ -588,7 +626,7 @@ describe("Transaction", () => {
 
             await expect(committing()).rejectedWith(FinalizationError);
 
-            p.expect("commit1", "rollback", "finalized rolled back");
+            p.expect("commit1", "rollback", "concluded rolled back");
             validateUnlocked(transaction);
         });
 
@@ -598,8 +636,8 @@ describe("Transaction", () => {
                     throw new SomeError("oops in preCommit");
                 },
 
-                finalized: outcome => {
-                    p.invoked.push(`finalized ${outcome}`);
+                conclusion: outcome => {
+                    p.invoked.push(`concluded ${outcome}`);
                 },
             });
 
@@ -607,7 +645,7 @@ describe("Transaction", () => {
 
             await expect(committing()).rejectedWith(SomeError);
 
-            p.expect("rollback", "finalized rolled back");
+            p.expect("rollback", "concluded rolled back");
             validateUnlocked(transaction);
         });
 
@@ -618,9 +656,9 @@ describe("Transaction", () => {
                     throw new SomeError("oops in async preCommit");
                 },
 
-                finalized: async outcome => {
+                conclusion: async outcome => {
                     await Promise.resolve();
-                    p.invoked.push(`finalized ${outcome}`);
+                    p.invoked.push(`concluded ${outcome}`);
                 },
 
                 async rollback() {},
@@ -630,7 +668,7 @@ describe("Transaction", () => {
 
             await expect(committing()).rejectedWith(SomeError);
 
-            p.expect("rollback", "finalized rolled back");
+            p.expect("rollback", "concluded rolled back");
             validateUnlocked(transaction);
         });
 
@@ -644,8 +682,8 @@ describe("Transaction", () => {
                     p.invoked.push("postCommit");
                 },
 
-                finalized: outcome => {
-                    p.invoked.push(`finalized ${outcome}`);
+                conclusion: outcome => {
+                    p.invoked.push(`concluded ${outcome}`);
                 },
             });
 
@@ -653,7 +691,7 @@ describe("Transaction", () => {
 
             await expect(committing()).rejectedWith(SomeError);
 
-            p.expect("commit1", "commit2", "finalized inconsistent");
+            p.expect("commit1", "commit2", "concluded inconsistent");
             validateUnlocked(transaction);
         });
 
@@ -663,8 +701,8 @@ describe("Transaction", () => {
                     throw new SomeError("oops in settled");
                 },
 
-                finalized: outcome => {
-                    p.invoked.push(`finalized ${outcome}`);
+                conclusion: outcome => {
+                    p.invoked.push(`concluded ${outcome}`);
                 },
             });
 
@@ -672,7 +710,7 @@ describe("Transaction", () => {
 
             await expect(committing()).rejectedWith(SomeError);
 
-            p.expect("rollback", "finalized rolled back");
+            p.expect("rollback", "concluded rolled back");
         });
 
         test("runs when post-commit throws", async () => {
@@ -681,31 +719,31 @@ describe("Transaction", () => {
                     throw new SomeError("oops in postCommit");
                 },
 
-                finalized: outcome => {
-                    p.invoked.push(`finalized ${outcome}`);
+                conclusion: outcome => {
+                    p.invoked.push(`concluded ${outcome}`);
                 },
             });
 
             await transaction.begin();
             await transaction.commit();
 
-            p.expect("commit1", "commit2", "finalized committed");
+            p.expect("commit1", "commit2", "concluded committed");
         });
 
         test("runs for every participant when one throws", async () => {
             let firstRan = false;
 
             const p1 = TestParticipant({
-                finalized: () => {
+                conclusion: () => {
                     firstRan = true;
-                    throw new SomeError("oops in finalized");
+                    throw new SomeError("oops in conclusion");
                 },
             });
             p1.toString = () => "P1";
 
             const p2: TestParticipant = TestParticipant({
-                finalized: outcome => {
-                    p2.invoked.push(`finalized ${outcome}`);
+                conclusion: outcome => {
+                    p2.invoked.push(`concluded ${outcome}`);
                 },
             });
             p2.toString = () => "P2";
@@ -716,7 +754,7 @@ describe("Transaction", () => {
             await transaction.commit();
 
             expect(firstRan).equals(true);
-            p2.expect("commit1", "commit2", "finalized committed");
+            p2.expect("commit1", "commit2", "concluded committed");
         });
 
         test("runs after a post-commit rejection let the remaining participants finish", async () => {
@@ -738,9 +776,9 @@ describe("Transaction", () => {
                     order.push("postCommit P2");
                 },
 
-                finalized: () => {
+                conclusion: () => {
                     seenAtFinalize = [...order];
-                    order.push("finalized P2");
+                    order.push("concluded P2");
                 },
             });
             p2.toString = () => "P2";
@@ -752,24 +790,24 @@ describe("Transaction", () => {
 
             // What post-commit had completed by the time the transaction reported, which is the ordering at issue
             expect(seenAtFinalize).deep.equals(["postCommit P1", "postCommit P2"]);
-            expect(order).deep.equals(["postCommit P1", "postCommit P2", "finalized P2"]);
+            expect(order).deep.equals(["postCommit P1", "postCommit P2", "concluded P2"]);
         });
 
         test("awaits an asynchronous participant on the rollback path", async () => {
             const settled = new Array<string>();
             const p: TestParticipant = join({
-                finalized: async outcome => {
+                conclusion: async outcome => {
                     await Promise.resolve();
-                    p.invoked.push(`finalized ${outcome}`);
-                    settled.push("finalized");
+                    p.invoked.push(`concluded ${outcome}`);
+                    settled.push("conclusion");
                 },
             });
 
             await transaction.begin();
             await transaction.rollback();
 
-            expect(settled).deep.equals(["finalized"]);
-            p.expect("rollback", "finalized rolled back");
+            expect(settled).deep.equals(["conclusion"]);
+            p.expect("rollback", "concluded rolled back");
         });
 
         test("surfaces a rollback error after notifying", async () => {
@@ -778,9 +816,9 @@ describe("Transaction", () => {
                     throw new SomeError("oops in rollback");
                 },
 
-                finalized: async outcome => {
+                conclusion: async outcome => {
                     await Promise.resolve();
-                    p.invoked.push(`finalized ${outcome}`);
+                    p.invoked.push(`concluded ${outcome}`);
                 },
             });
 
@@ -788,22 +826,22 @@ describe("Transaction", () => {
 
             await expect(transaction.rollback()).rejectedWith(SomeError);
 
-            p.expect("rollback", "finalized inconsistent");
+            p.expect("rollback", "concluded inconsistent");
             validateUnlocked(transaction);
         });
 
         test("continues after an asynchronous participant rejects", async () => {
             const p1 = TestParticipant({
-                finalized: async () => {
+                conclusion: async () => {
                     await Promise.resolve();
-                    throw new SomeError("oops in async finalized");
+                    throw new SomeError("oops in async conclusion");
                 },
             });
             p1.toString = () => "P1";
 
             const p2: TestParticipant = TestParticipant({
-                finalized: outcome => {
-                    p2.invoked.push(`finalized ${outcome}`);
+                conclusion: outcome => {
+                    p2.invoked.push(`concluded ${outcome}`);
                 },
             });
             p2.toString = () => "P2";
@@ -813,13 +851,13 @@ describe("Transaction", () => {
             await transaction.begin();
             await transaction.commit();
 
-            p2.expect("commit1", "commit2", "finalized committed");
+            p2.expect("commit1", "commit2", "concluded committed");
         });
 
         test("reports a participant that joined during phase one", async () => {
             const joiner: TestParticipant = TestParticipant({
-                finalized: outcome => {
-                    joiner.invoked.push(`finalized ${outcome}`);
+                conclusion: outcome => {
+                    joiner.invoked.push(`concluded ${outcome}`);
                 },
             });
             joiner.toString = () => "joiner";
@@ -833,13 +871,13 @@ describe("Transaction", () => {
             await transaction.begin();
             await transaction.commit();
 
-            joiner.expect("commit1", "commit2", "finalized committed");
+            joiner.expect("commit1", "commit2", "concluded committed");
         });
 
         test("reports a participant that joined during phase two", async () => {
             const joiner: TestParticipant = TestParticipant({
-                finalized: outcome => {
-                    joiner.invoked.push(`finalized ${outcome}`);
+                conclusion: outcome => {
+                    joiner.invoked.push(`concluded ${outcome}`);
                 },
             });
             joiner.toString = () => "joiner";
@@ -853,26 +891,42 @@ describe("Transaction", () => {
             await transaction.begin();
             await transaction.commit();
 
-            joiner.expect("commit2", "finalized committed");
+            joiner.expect("commit2", "concluded committed");
         });
 
-        test("refuses a write from a participant reporting a rollback", async () => {
-            let caught: unknown;
+        test("reports with locks released and writes refused, whatever the outcome", async () => {
+            const observed = new Array<string>();
 
-            join({
-                finalized: () => {
+            function watch(resource: TestResource) {
+                return (outcome: Transaction.Outcome) => {
+                    observed.push(`${outcome} ${resource.lockedBy === undefined ? "unlocked" : "locked"}`);
                     try {
                         transaction.beginSync();
-                    } catch (e) {
-                        caught = e;
+                        observed.push("write allowed");
+                    } catch {
+                        observed.push("write refused");
                     }
-                },
-            });
+                };
+            }
 
+            const resource = new TestResource();
+
+            join({ conclusion: watch(resource) });
+            await transaction.addResources(resource);
             await transaction.begin();
             await transaction.rollback();
 
-            expect(caught).instanceOf(TransactionFlowError);
+            join({ conclusion: watch(resource) });
+            await transaction.addResources(resource);
+            await transaction.begin();
+            await transaction.commit();
+
+            expect(observed).deep.equals([
+                "rolled back unlocked",
+                "write refused",
+                "committed unlocked",
+                "write refused",
+            ]);
         });
 
         test("reports the cycle that a nested commit did not", async () => {
@@ -890,8 +944,8 @@ describe("Transaction", () => {
                     return transaction.commit();
                 },
 
-                finalized: outcome => {
-                    p.invoked.push(`finalized ${outcome}`);
+                conclusion: outcome => {
+                    p.invoked.push(`concluded ${outcome}`);
                 },
             });
 
@@ -900,13 +954,13 @@ describe("Transaction", () => {
 
             // The nested cycle has no participants of its own, so this participant is reported exactly once -- by the
             // cycle it belongs to, which a transaction-wide guard would have let the nested one consume
-            expect(p.invoked.filter(entry => entry === "finalized committed")).length(1);
+            expect(p.invoked.filter(entry => entry === "concluded committed")).length(1);
         });
 
         test("does not report a participant that joined after phase two passed it", async () => {
             const joiner: TestParticipant = TestParticipant({
-                finalized: outcome => {
-                    joiner.invoked.push(`finalized ${outcome}`);
+                conclusion: outcome => {
+                    joiner.invoked.push(`concluded ${outcome}`);
                 },
             });
             joiner.toString = () => "joiner";
@@ -936,29 +990,29 @@ describe("Transaction", () => {
                     transaction.addParticipants(p);
                 },
 
-                finalized: outcome => {
-                    p.invoked.push(`finalized ${outcome}`);
+                conclusion: outcome => {
+                    p.invoked.push(`concluded ${outcome}`);
                 },
             });
 
             await transaction.begin();
             await transaction.commit();
 
-            p.expect("commit1", "commit2", "finalized committed", "commit1", "commit2", "finalized committed");
+            p.expect("commit1", "commit2", "concluded committed", "commit1", "commit2", "concluded committed");
         });
 
         test("awaits an asynchronous participant", async () => {
             const p: TestParticipant = join({
-                finalized: async outcome => {
+                conclusion: async outcome => {
                     await Promise.resolve();
-                    p.invoked.push(`finalized ${outcome}`);
+                    p.invoked.push(`concluded ${outcome}`);
                 },
             });
 
             await transaction.begin();
             await transaction.commit();
 
-            p.expect("commit1", "commit2", "finalized committed");
+            p.expect("commit1", "commit2", "concluded committed");
         });
     });
 

@@ -28,10 +28,13 @@ const logger = Logger.get("Transaction");
  * State of a single commit or rollback, which a post-commit handler may nest inside another.
  */
 interface CommitCycle {
-    notified: boolean;
+    concluded: boolean;
 
-    /** The participants commit phase two dispatched, which is not the roster the cycle began with. */
-    dispatched?: Participant[];
+    /** Those the cycle reports to, recorded by the phase that dispatched them. */
+    reportees?: Participant[];
+
+    /** How the cycle ends, recorded by whoever determined it. */
+    outcome?: Participant.Outcome;
 }
 
 // Controls the number of times we will cycle pre-commit handlers waiting for state to settle
@@ -343,7 +346,9 @@ class Tx implements Transaction, Transaction.Finalization {
     rollback() {
         this.#assertAvailable();
 
-        return this.#finalize(Status.RollingBack, "rolled back", () => this.#executeRollback({ notified: false }));
+        const cycle: CommitCycle = { concluded: false };
+
+        return this.#rollbackAndConclude(cycle);
     }
 
     reject(cause: unknown): MaybePromise<never> {
@@ -405,18 +410,17 @@ class Tx implements Transaction, Transaction.Finalization {
     #executeCommitCycle(count: number): MaybePromise<void> {
         count++;
 
-        // Notification is per cycle: a post-commit handler may commit again, and that cycle's notification must not
-        // stand in for this one
-        const cycle: CommitCycle = { notified: false };
-
         if (count > MAX_CHAINED_COMMITS) {
             throw new TransactionFlowError(
                 `Transaction commits have cascaded ${count} times which likely indicates an infinite loop`,
             );
         }
 
-        // Precommit, then the settled report, then the rest of a normal commit.  Chain these without adding a
-        // promise of our own: a commit's shape is observable in the timing of everything downstream
+        // A post-commit handler may commit again, and that cycle's report must not stand in for this one
+        const cycle: CommitCycle = { concluded: false };
+
+        // Chain without adding a promise of our own: a commit's shape is observable in the timing of everything
+        // downstream of it
         let result = this.#createPreCommitExecutor(cycle)();
 
         const commit = () =>
@@ -557,7 +561,7 @@ class Tx implements Transaction, Transaction.Finalization {
                 Diagnostic.weak(error?.message || `${error}`),
             );
 
-            const result = this.#finalize(Status.RollingBack, "rolled back", () => this.#executeRollback(cycle));
+            const result = this.#rollbackAndConclude(cycle);
 
             if (MaybePromise.is(result)) {
                 return result.then(() => {
@@ -657,24 +661,26 @@ class Tx implements Transaction, Transaction.Finalization {
 
         // Committing is itself what creates some participants -- a store joins as its values are written -- so report
         // to those phase two dispatched.  A participant that joined after its own iteration ran no phase at all
-        const reportTo = () => cycle.dispatched ?? participants;
+        const reportTo = () => cycle.reportees ?? participants;
 
         const succeeded = () => {
             const reportees = reportTo();
             const reported = this.#createPostCommitExecutor(reportees)();
 
             // Chaining is observable in the timing of everything downstream, so add nothing where nobody listens
-            if (!reportees.some(participant => participant.finalized)) {
+            if (!reportees.some(participant => participant.conclusion)) {
                 return reported;
             }
 
-            return MaybePromise.finally(reported, () => this.#notifyFinalized(cycle, reportees, "committed"));
+            return MaybePromise.finally(reported, () => this.#conclude(cycle, reportees, "committed"));
         };
 
-        // Every failure before phase two rolls back, and a rollback reports the outcome itself, so this call survives
-        // the at-most-once guard only where writes are already canonical
+        // A rollback inside the commit -- a phase one failure -- already determined the outcome; anything else left
+        // writes canonical with nothing reverted
+        const concludeFailure = () => this.#conclude(cycle, reportTo(), cycle.outcome ?? "inconsistent");
+
         const failed = (error: unknown): MaybePromise<never> => {
-            const notified = this.#notifyFinalized(cycle, reportTo(), "inconsistent");
+            const notified = concludeFailure();
 
             if (MaybePromise.is(notified)) {
                 return Promise.resolve(notified).then(() => {
@@ -700,43 +706,115 @@ class Tx implements Transaction, Transaction.Finalization {
     }
 
     /**
-     * Notify participants that the transaction ended, at most once per commit or rollback.
+     * Revert, then report the outcome once the transaction has released its locks.
      *
-     * This is the only participant hook that runs on every path, so an error must not prevent the remaining
-     * participants from releasing their state.
+     * The report is awaited on every path, including a synchronous throw from reverting.
      */
-    #notifyFinalized(cycle: CommitCycle, participants: Participant[], outcome: Participant.Outcome): MaybePromise {
-        if (cycle.notified) {
-            return;
-        }
-        cycle.notified = true;
+    #rollbackAndConclude(cycle: CommitCycle): MaybePromise {
+        const conclude = () => {
+            const { reportees, outcome } = cycle;
+            if (reportees === undefined || outcome === undefined) {
+                return;
+            }
 
-        let i = 0;
+            // A rollback with nobody to tell keeps the promise shape the caller had
+            if (!reportees.some(participant => participant.conclusion)) {
+                return;
+            }
 
-        const report = (participant: Participant, error: unknown) => {
-            logger.error(`Error finalizing ${participant}:`, error);
+            return this.#conclude(cycle, reportees, outcome);
         };
+
+        const rethrow = (error: unknown): MaybePromise<never> => {
+            const concluded = conclude();
+
+            if (MaybePromise.is(concluded)) {
+                return Promise.resolve(concluded).then(() => {
+                    throw error;
+                });
+            }
+
+            throw error;
+        };
+
+        let reverted;
+        try {
+            reverted = this.#finalize(Status.RollingBack, "rolled back", () => this.#executeRollback(cycle));
+        } catch (e) {
+            return rethrow(e);
+        }
+
+        if (MaybePromise.is(reverted)) {
+            return reverted.then(conclude, rethrow);
+        }
+
+        return conclude();
+    }
+
+    /**
+     * Invoke a hook on each participant in turn, awaiting an asynchronous one before reaching the next.
+     */
+    #notifyInTurn(
+        participants: Participant[],
+        invoke: (participant: Participant) => MaybePromise,
+        onError: (participant: Participant, error: unknown) => MaybePromise,
+    ): MaybePromise {
+        let i = 0;
 
         const notify = (): MaybePromise => {
             for (; i < participants.length; i++) {
                 const participant = participants[i];
 
                 try {
-                    const result = participant.finalized?.(outcome);
+                    const result = invoke(participant);
                     if (MaybePromise.is(result)) {
                         i++;
-                        return Promise.resolve(result).then(notify, error => {
-                            report(participant, error);
-                            return notify();
-                        });
+                        return Promise.resolve(result).then(notify, error =>
+                            MaybePromise.then(
+                                () => onError(participant, error),
+                                () => notify(),
+                            ),
+                        );
                     }
                 } catch (e) {
-                    report(participant, e);
+                    const handled = onError(participant, e);
+                    if (MaybePromise.is(handled)) {
+                        return handled;
+                    }
                 }
             }
         };
 
         return notify();
+    }
+
+    #conclude(cycle: CommitCycle, participants: Participant[], outcome: Participant.Outcome): MaybePromise {
+        if (cycle.concluded) {
+            return;
+        }
+        cycle.concluded = true;
+
+        // A write has nothing to reach: the transaction has ended
+        const previous = this.#status;
+        this.#status = Status.Concluding;
+
+        const restore = () => {
+            if (this.#status === Status.Concluding) {
+                this.#status = previous;
+            }
+        };
+
+        return MaybePromise.finally(
+            () =>
+                this.#notifyInTurn(
+                    participants,
+                    participant => participant.conclusion?.(outcome),
+                    (participant, error) => {
+                        logger.error(`Error concluding ${participant}:`, error);
+                    },
+                ),
+            restore,
+        );
     }
 
     /**
@@ -746,14 +824,28 @@ class Tx implements Transaction, Transaction.Finalization {
      * the values the transaction is about to write.
      */
     #executeSettled(cycle: CommitCycle): MaybePromise {
-        const participants = [...this.#participants].filter(participant => participant.settled);
+        const participants = new Array<Participant>();
+        for (const participant of this.#participants) {
+            if (participant.settled) {
+                participants.push(participant);
+            }
+        }
         if (!participants.length) {
             return;
         }
 
-        let i = 0;
+        // Writes are refused: pre-commit has converged, so no participant would see one
+        this.#status = Status.Settled;
+
+        const restore = () => {
+            if (this.#status === Status.Settled) {
+                this.#status = Status.Exclusive;
+            }
+        };
 
         const rollbackAndThrow = (error: unknown): MaybePromise<never> => {
+            restore();
+
             logger.warn("Rolling back", this.via, "due to settled error:", Diagnostic.weak(asError(error).message));
 
             const rethrow = () => {
@@ -770,7 +862,7 @@ class Tx implements Transaction, Transaction.Finalization {
 
             let rollback;
             try {
-                rollback = this.#finalize(Status.RollingBack, "rolled back", () => this.#executeRollback(cycle));
+                rollback = this.#rollbackAndConclude(cycle);
             } catch (e) {
                 return secondary(e);
             }
@@ -782,23 +874,15 @@ class Tx implements Transaction, Transaction.Finalization {
             return rethrow();
         };
 
-        const notify = (): MaybePromise => {
-            for (; i < participants.length; i++) {
-                const participant = participants[i];
-
-                try {
-                    const result = participant.settled?.();
-                    if (MaybePromise.is(result)) {
-                        i++;
-                        return Promise.resolve(result).then(notify, rollbackAndThrow);
-                    }
-                } catch (e) {
-                    return rollbackAndThrow(e);
-                }
-            }
-        };
-
-        return notify();
+        return MaybePromise.then(
+            () =>
+                this.#notifyInTurn(
+                    participants,
+                    participant => participant.settled?.(),
+                    (_participant, error) => rollbackAndThrow(error),
+                ),
+            restore,
+        );
     }
 
     #executeCommit1(cycle: CommitCycle): MaybePromise {
@@ -850,11 +934,11 @@ class Tx implements Transaction, Transaction.Finalization {
     #executeCommit2(cycle: CommitCycle) {
         // Commit phase 2
         this.#status = Status.CommittingPhaseTwo;
-        cycle.dispatched = [];
+        cycle.reportees = [];
         let errored: undefined | Array<ParticipantError>;
         let ongoing: undefined | Array<Promise<void>>;
         for (const participant of this.participants) {
-            cycle.dispatched.push(participant);
+            cycle.reportees.push(participant);
 
             const promise = MaybePromise.then(
                 () => participant.commit2?.(),
@@ -929,11 +1013,15 @@ class Tx implements Transaction, Transaction.Finalization {
      */
     #executeRollback(cycle: CommitCycle) {
         this.#status = Status.RollingBack;
-        const participants = [...this.#participants];
+        const participants = new Array<Participant>();
         let errored: undefined | Array<ParticipantError>;
         let ongoing: undefined | Array<Promise<void>>;
 
         for (const participant of this.participants) {
+            // A participant may join while reverting, so report to those this loop reached rather than to a roster
+            // captured before it
+            participants.push(participant);
+
             // Perform rollback
             const promise = MaybePromise.then(
                 () => participant.rollback?.(),
@@ -959,24 +1047,19 @@ class Tx implements Transaction, Transaction.Finalization {
             }
         }
 
-        // A participant that failed to revert leaves state neither committed nor restored.  Remain in rolling back
-        // until every participant has been told, so one that writes from its notification is refused rather than
-        // starting a cycle this rollback's own reset would discard
-        const finished = (): MaybePromise =>
-            MaybePromise.then(
-                () => this.#notifyFinalized(cycle, participants, errored?.length ? "inconsistent" : "rolled back"),
-                () => {
-                    this.#status = Status.Shared;
-                    throwIfErrored(errored, "during rollback");
-                },
-            );
+        // A participant that failed to revert leaves state neither committed nor restored.  Record the outcome for the
+        // caller to report once locks are released; reporting from here would still hold them
+        const finished = () => {
+            this.#status = Status.Shared;
+            cycle.reportees = participants;
+            cycle.outcome = errored?.length ? "inconsistent" : "rolled back";
+            throwIfErrored(errored, "during rollback");
+        };
 
         if (ongoing) {
-            // Async commit
             return Promise.allSettled(ongoing).then(finished);
         }
 
-        // Synchronous rollback, though notification may still be asynchronous
         return finished();
     }
 
