@@ -20,6 +20,21 @@ describe("FieldValue", () => {
             expect(FieldValue.cast(Metatype.boolean, 1)).equal(true);
         });
 
+        // An override states no value to remove a default; casting it to the type would state a value of that type
+        it("reads no value as no value on every type", () => {
+            for (const type of [
+                Metatype.any,
+                Metatype.object,
+                Metatype.integer,
+                Metatype.string,
+                Metatype.boolean,
+                Metatype.bytes,
+                Metatype.array,
+            ]) {
+                expect(FieldValue.cast(type, FieldValue.None)).undefined;
+            }
+        });
+
         it("retains the fraction of a temperature", () => {
             expect(FieldValue.cast(Metatype.integer, "25.5°C")).deep.equal(FieldValue.Celsius(25.5));
             expect(FieldValue.numericValue(FieldValue.Celsius(25.5), "UnsignedTemperature")).equal(255);

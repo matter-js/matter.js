@@ -344,6 +344,11 @@ export namespace FieldValue {
      * @returns the cast value or FieldValue.Invalid if cast is not possible
      */
     export function cast<const T extends Metatype>(type: T, value: any): FieldValue | FieldValue.Invalid | undefined {
+        // "No value" is a value of every type, so an override may use it to remove a default the specification states
+        if (FieldValue.is(value, FieldValue.none)) {
+            return undefined;
+        }
+
         if (value === undefined || value === null || type === "any") {
             return value;
         }

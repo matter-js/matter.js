@@ -18,10 +18,11 @@ import {
     uint8,
     uint16,
     string,
+    struct,
     uint64,
     ValidateModel,
 } from "#index.js";
-import { ClusterModel, DatatypeModel, MatterModel } from "#models/index.js";
+import { AttributeModel, ClusterModel, DatatypeModel, MatterModel } from "#models/index.js";
 
 const CODES = new Set(["UNIT_WITHOUT_SCALE", "FRACTION_ON_INTEGER_TYPE", "NEGATIVE_ON_UNSIGNED_TYPE", "INVALID_VALUE"]);
 
@@ -59,8 +60,8 @@ function validateList(entryType: string, constraint: string) {
     return ValidateModel(Matter).errors.filter(e => CODES.has(e.code));
 }
 
-function validateDefault(type: string, dflt: FieldValue) {
-    const Matter = new MatterModel(
+function modelWithDefault(type: string, dflt: FieldValue) {
+    return new MatterModel(
         {},
         uint8.clone(),
         uint16.clone(),
@@ -68,13 +69,23 @@ function validateDefault(type: string, dflt: FieldValue) {
         int8.clone(),
         percent100ths.clone(),
         string.clone(),
+        struct.clone(),
         bool.clone(),
         new DatatypeModel({ name: "UnsignedTemperature", type: "uint8" }),
         new ClusterModel({ name: "Test", id: 0xfff1 }, Attribute({ name: "Bounded", id: 1, type, default: dflt })),
     );
+}
 
+function validateDefault(type: string, dflt: FieldValue) {
     // Not finalized: validation normalizes a default by writing it back, which a finalized model refuses
-    return ValidateModel(Matter).errors.filter(e => CODES.has(e.code));
+    return ValidateModel(modelWithDefault(type, dflt)).errors.filter(e => CODES.has(e.code));
+}
+
+/** The default validation leaves on the model, which is the value generation then emits */
+function normalizedDefault(type: string, dflt: FieldValue) {
+    const model = modelWithDefault(type, dflt);
+    ValidateModel(model);
+    return model.get(ClusterModel, "Test")?.get(AttributeModel, "Bounded")?.default;
 }
 
 /** An enum states no unit, so a percentage default on one has nowhere to go */
@@ -331,6 +342,53 @@ describe("ValueValidator", () => {
 
         it("accepts a fraction the unit scales to a whole number", () => {
             expect(validateConstraint("percent100ths", "min 0.01%")).deep.equals([]);
+        });
+    });
+
+    // An override states no value to remove a default the specification states
+    describe("a default of no value", () => {
+        it("leaves no default on a type no scalar could state", () => {
+            expect(validateDefault("struct", FieldValue.None)).deep.equals([]);
+            expect(normalizedDefault("struct", FieldValue.None)).undefined;
+        });
+
+        it("leaves no default on a scalar type", () => {
+            expect(validateDefault("uint16", FieldValue.None)).deep.equals([]);
+            expect(normalizedDefault("uint16", FieldValue.None)).undefined;
+        });
+
+        // Casting it to the type would state a value of that type: "[object Object]" on a string, true on a boolean
+        it("leaves no default on a type that could render it", () => {
+            for (const type of ["string", "bool"]) {
+                expect(validateDefault(type, FieldValue.None)).deep.equals([]);
+                expect(normalizedDefault(type, FieldValue.None)).undefined;
+            }
+        });
+    });
+
+    describe("a rejected default", () => {
+        it("names the value and the type it rejects", () => {
+            const errors = validateDefault("struct", "0");
+
+            expect(errors.length).equals(1);
+            expect(errors[0].code).equals("INVALID_VALUE");
+            expect(errors[0].message).equals('Default value "0" is not a valid object for type struct');
+        });
+
+        it("names a value stated with a unit", () => {
+            const errors = validateDefault("struct", { type: "percent", value: 0.01 });
+
+            expect(errors.map(error => error.message)).contains(
+                'Default value "0.01%" is not a valid object for type struct',
+            );
+        });
+
+        it("names a value stating properties", () => {
+            const errors = validateDefault("uint16", { type: FieldValue.properties, properties: { a: 1 } });
+
+            expect(errors.map(error => error.message)).contains(
+                'Default value "{ a: 1 }" is not a valid integer for type uint16',
+            );
         });
     });
 });
