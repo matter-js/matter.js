@@ -8,6 +8,7 @@ import { Logger, NodeId, Observable } from "@matter/main";
 import { Status, StatusResponseError } from "@matter/main/types";
 import { NodeNotConnectedError } from "@project-chip/matter.js/device";
 import { expect } from "chai";
+import { createServer, type Server } from "node:net";
 import { WebSocket } from "ws";
 import { ChipToolWebSocketHandler } from "../../src/ChipToolWebSocketHandler.js";
 import {
@@ -210,6 +211,29 @@ describe("ChipToolWebSocketHandler over the wire", () => {
     afterEach(() => {
         server.close();
         restoreLogWriter();
+    });
+
+    it("refuses to start on a port already taken, rather than reporting a server nobody can reach", async () => {
+        const occupier: Server = createServer();
+        await new Promise<void>((resolve, reject) => {
+            occupier.once("listening", resolve);
+            occupier.once("error", reject);
+            occupier.listen(0, "127.0.0.1");
+        });
+
+        const address = occupier.address();
+        expect(address !== null && typeof address !== "string").equal(true);
+        const taken = address !== null && typeof address !== "string" ? address.port : 0;
+
+        const blocked = new ChipToolWebSocketHandler(taken);
+        blocked.initialize(new Map([["alpha", new FakeCommandHandler()]]));
+        try {
+            await expect(blocked.start()).rejected;
+            expect(blocked.port).equal(undefined);
+        } finally {
+            blocked.close();
+            await new Promise<void>(resolve => occupier.close(() => resolve()));
+        }
     });
 
     it("answers a discovery that found nothing as a failure, not as a command that succeeded", async () => {
