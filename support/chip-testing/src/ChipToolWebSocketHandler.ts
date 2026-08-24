@@ -580,7 +580,16 @@ export class ChipToolWebSocketHandler {
         }
         // Do start the controllers just if needed
         if (!handler.started) {
-            await handler.start();
+            try {
+                await handler.start();
+            } catch (error) {
+                // A controller of ours that will not come up is not the device refusing: left as it
+                // arrives, a storage or socket error here answers the bare failure 40 steps of the
+                // corpus expect, and they would pass on it.
+                throw new InternalError(`Controller "${controllerName ?? "alpha"}" failed to start`, {
+                    cause: error,
+                });
+            }
         }
         return handler;
     }

@@ -57,8 +57,14 @@ class FakeCommandHandler extends CommandHandler {
         return this.#started;
     }
 
+    /** Thrown by `start()`, where set. */
+    startFailure?: unknown;
+
     async start() {
         this.startCalls++;
+        if (this.startFailure !== undefined) {
+            throw this.startFailure;
+        }
         this.#started = true;
     }
 
@@ -399,6 +405,29 @@ describe("ChipToolWebSocketHandler over the wire", () => {
         );
 
         expect(handler.startCalls).equal(1);
+    });
+
+    it("reports a controller of its own that would not start as its own fault", async () => {
+        // Plain Error, as a storage or socket failure arrives: the classification has to come from
+        // where the start was driven, not from the error's own type.
+        handler.startFailure = new Error("EADDRINUSE");
+
+        const reply = await send(
+            port,
+            jsonFrame({
+                cluster: "onoff",
+                command: "write",
+                command_specifier: "on-time",
+                arguments: {
+                    "destination-id": "0x12344321",
+                    "endpoint-id-ignored-for-group-commands": "1",
+                    "attribute-values": "5",
+                },
+            }),
+        );
+
+        expect(reply.results[0].error).match(/^Test harness failure — InternalError: Controller "alpha" failed/);
+        expect(reply.results[1]).deep.equal({ error: "FAILURE" });
     });
 
     it("reports a command addressed to a controller it does not have as its own fault", async () => {
