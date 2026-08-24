@@ -65,9 +65,11 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         this.#validateAspect("quality");
 
         // After the type is validated, which is where a default stated as text becomes the value it denotes.  A unit
-        // in particular is only a unit once cast; judging the text would see its digits and not its scale
+        // in particular is only a unit once cast; judging the text would see its digits and not its scale.  The cast
+        // discards what it cannot represent, so what was stated is kept to notice that
+        const stated = this.model.default;
         this.#validateType();
-        this.#validateNumericValues();
+        this.#validateNumericValues(stated);
         this.#validateEntries();
 
         super.validate();
@@ -86,7 +88,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
      * This reads what the model states rather than what it inherits, so one bad definition is reported once instead
      * of once per model deriving from it.
      */
-    #validateNumericValues() {
+    #validateNumericValues(stated?: FieldValue) {
         const encoded = new Array<EncodedConstraint.Bound<number | bigint>>();
         const unscaled = new Array<EncodedConstraint.Bound<FieldValue>>();
 
@@ -109,6 +111,12 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
             } else if (FieldValue.is(fallback, FieldValue.percent) || FieldValue.is(fallback, FieldValue.celsius)) {
                 unscaled.push({ value: fallback, model: this.model });
             }
+        } else if (
+            stated !== undefined &&
+            (FieldValue.is(stated, FieldValue.percent) || FieldValue.is(stated, FieldValue.celsius))
+        ) {
+            // The cast dropped a default stating a unit, which it does for a type the unit means nothing on
+            unscaled.push({ value: stated, model: this.model });
         }
 
         for (const [type, values] of groupBy(unscaled, model => model.effectiveType)) {

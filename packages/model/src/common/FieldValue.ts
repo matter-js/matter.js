@@ -375,6 +375,12 @@ export namespace FieldValue {
                     // Strip off extra garbage like Number.parseInt would but BigInt doesn't
                     const match = value.match(/^(0x[0-9a-f]+|0b[01]+|\d+)/i);
                     if (match) {
+                        // A fraction or an exponent states a different value than the digits before it, so dropping
+                        // it would not lose precision but invent a value: "1e-3" is not 1, and "0.01" is not 0
+                        if (/^[.eE]/.test(value.slice(match[1].length))) {
+                            return FieldValue.Invalid;
+                        }
+
                         value = match[1];
                     }
                 }

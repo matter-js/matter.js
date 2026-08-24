@@ -10,6 +10,7 @@ import {
     FieldElement,
     int8,
     double,
+    enum8,
     percent,
     percent100ths,
     single,
@@ -68,6 +69,21 @@ function validateDefault(type: string, dflt: FieldValue) {
     );
 
     // Not finalized: validation normalizes a default by writing it back, which a finalized model refuses
+    return ValidateModel(Matter).errors.filter(e => CODES.has(e.code));
+}
+
+/** An enum states no unit, so a percentage default on one has nowhere to go */
+function validateEnumDefault(dflt: FieldValue) {
+    const Matter = new MatterModel(
+        {},
+        uint8.clone(),
+        enum8.clone(),
+        new ClusterModel(
+            { name: "Test", id: 0xfff1 },
+            Attribute({ name: "Bounded", id: 1, type: "enum8", default: dflt }, FieldElement({ name: "A", id: 0 })),
+        ),
+    );
+
     return ValidateModel(Matter).errors.filter(e => CODES.has(e.code));
 }
 
@@ -208,6 +224,28 @@ describe("ValueValidator", () => {
         it("accepts a unit-bearing default stated as text", () => {
             expect(validateDefault("UnsignedTemperature", "25.5°C")).deep.equals([]);
             expect(validateDefault("percent100ths", "0.01%")).deep.equals([]);
+        });
+
+        // Dropping the tail of "1e-3" leaves 1, which is a value the specification never stated
+        it("rejects text stating a number no integer form matches", () => {
+            for (const text of ["1e-3", "0.01"]) {
+                const errors = validateDefault("uint16", text);
+
+                expect(errors.length).equals(1);
+                expect(errors[0].code).equals("INVALID_VALUE");
+            }
+        });
+
+        it("still ignores a trailing remark the specification adds", () => {
+            expect(validateDefault("uint16", "12 (deprecated)")).deep.equals([]);
+        });
+
+        // The cast drops a unit it cannot place, so the stated default is kept to notice it went
+        it("reports a unit-bearing default the cast discards", () => {
+            const errors = validateEnumDefault({ type: "percent", value: 0.01 });
+
+            expect(errors.length).equals(1);
+            expect(errors[0].code).equals("UNIT_WITHOUT_SCALE");
         });
 
         it("accepts a fraction on a floating point type", () => {
