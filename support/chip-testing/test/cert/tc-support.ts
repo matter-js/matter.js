@@ -4,24 +4,121 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError, MatterError, Time } from "@matter/main";
+import {
+    camelize,
+    Duration,
+    InternalError,
+    MatterAggregateError,
+    MatterError,
+    Millis,
+    Seconds,
+    Time,
+} from "@matter/main";
+import { Matter } from "@matter/model";
 import type {
     AttributePathSpec,
     CertNodeRef,
     CertStepContext,
     CheckRecord,
     EventPathSpec,
+    LogExpectPatterns,
     LogExpectResult,
+    LogExpectSequences,
     LogFollower,
     LogLine,
 } from "@matter/testing";
-import { CertLogClosedError, CertLogTimeoutError } from "@matter/testing";
+import { CertLogClosedError, CertLogTimeoutError, forFlavor } from "@matter/testing";
+
+/**
+ * Bounds a device-log check's wait for a line the step has already caused — one the device writes
+ * while answering the interaction the step drove, not one it writes after work of its own.
+ */
+export const LOG_TIMEOUT = Seconds(15);
 
 /** A cert run left a fabric (and whatever it carries) behind on the TH. */
 export class CertCleanupError extends MatterError {}
 
 /** A check inside a step failed; the evidence record carrying the detail is already recorded. */
 export class CertCheckFailedError extends MatterError {}
+
+/**
+ * Records `check` and fails the step on a `"fail"` verdict — `recorder.check()` only records, so a
+ * step whose evidence must gate it has to throw for itself, which is the single easiest thing to
+ * forget. `"unverified"` passes through: that is what a log check reports on a flavor nobody wrote a
+ * pattern for, and it is not a failure (see the flavor-pattern policy in this directory's AGENTS.md).
+ */
+export function record(cx: CertStepContext, check: CheckRecord, what: string) {
+    cx.recorder.check(check);
+    if (check.verdict === "fail") {
+        throw new CertCheckFailedError(`${what} check failed: ${JSON.stringify(check)}`);
+    }
+}
+
+/**
+ * Records every check and fails the step once at the end, so a step asserting several artifacts puts
+ * all of them in the evidence — {@link record} in a loop stops at the first failure and leaves the
+ * rest of the step's own claim unrecorded.
+ *
+ * Each check is built on demand rather than taken as a list, so a builder that throws on the fifth
+ * artifact leaves the first four recorded; its error carries the step, as {@link record}'s does.
+ */
+export function recordAll(cx: CertStepContext, checks: readonly { check: () => CheckRecord; what: string }[]): void {
+    const failed = new Array<string>();
+    for (const { check, what } of checks) {
+        const record = check();
+        cx.recorder.check(record);
+        if (record.verdict === "fail") {
+            failed.push(`${what}: ${JSON.stringify(record)}`);
+        }
+    }
+    if (failed.length) {
+        throw new CertCheckFailedError(`${failed.length} of ${checks.length} checks failed: ${failed.join("; ")}`);
+    }
+}
+
+/**
+ * Several cleanups of one TC's finalizer having failed. The engine records a finalization failure as
+ * the error's `message` alone, so every failure has to be named there; the causes travel along for a
+ * reader who also has the console output.
+ */
+export class CertCleanupErrors extends MatterAggregateError {
+    constructor(causes: unknown[]) {
+        super(causes, causes.map(cause => describeError(cause)).join("; "));
+    }
+}
+
+/**
+ * Runs every cleanup a TC owes, in order, whatever any of them does.
+ *
+ * A `try { a() } finally { b() }` runs both but reports only `b`'s failure, and each of a TC's
+ * cleanups names different state the next run inherits — an outstanding commissioning attempt and a
+ * fabric on the TH are not substitutes for one another. A lone failure is rethrown as it arrived so
+ * its own type survives; several become one {@link CertCleanupErrors}.
+ *
+ * {@link MatterAggregateError.settleSeries} runs a series the same way but names it with a fixed
+ * message, and the message is all the evidence bundle keeps.
+ */
+export async function runCleanups(...cleanups: (() => Promise<void>)[]): Promise<void> {
+    const failures = new Array<unknown>();
+    for (const cleanup of cleanups) {
+        try {
+            await cleanup();
+        } catch (e) {
+            failures.push(e);
+        }
+    }
+
+    if (failures.length === 1) {
+        throw failures[0];
+    }
+    if (failures.length) {
+        throw new CertCleanupErrors(failures);
+    }
+}
+
+function describeError(e: unknown): string {
+    return e instanceof Error ? `${e.constructor.name}: ${e.message}` : String(e);
+}
 
 /**
  * Tracks commissioned node refs by role for one cert-test run. Each controller's own
@@ -93,64 +190,84 @@ export class CommissionedRefs<Role extends string = "dut"> {
 }
 
 /**
- * Waits for `sequence` to match a run of CONSECUTIVE log lines anywhere at or after `from`.
+ * Waits for the sequence `sequences` holds for `flavor`'s implementation to match a run of
+ * CONSECUTIVE log lines anywhere at or after `from`. Resolves `"unverified"` where it holds none.
  *
- * A candidate that matches `sequence[0]` but whose following lines don't stay adjacent is some
- * *other* block sharing the same opening (e.g. a ReportData `AttributePathIB` carrying an extra
- * `Attribute =` line where the request's wildcard block has none, possibly still in flight from an
- * earlier step — the follower pumps the device stream asynchronously, so a previous step's response
- * can surface after this step's `mark()`). Such a candidate is skipped and the search resumes at
- * the next one; genuine absence of the block surfaces as `log.expect`'s own timeout error. The
- * whole search shares one `timeoutMs` budget.
+ * A candidate that matches the sequence's first pattern but whose following lines don't stay
+ * adjacent is some *other* block sharing the same opening (e.g. a ReportData `AttributePathIB`
+ * carrying an extra `Attribute =` line where the request's wildcard block has none, possibly still
+ * in flight from an earlier step — the follower pumps the device stream asynchronously, so a
+ * previous step's response can surface after this step's `mark()`). Such a candidate is skipped and
+ * the search resumes at the next one; genuine absence of the block surfaces as
+ * `log.expectPattern`'s own timeout error. The whole search shares one `timeout` budget.
  */
 export async function expectAdjacentLines(
     log: LogFollower,
     flavor: string,
-    sequence: RegExp[],
+    sequences: LogExpectSequences,
     from: number,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<{ verdict: "unverified" } | { verdict: "pass"; last: LogLine }> {
-    const deadline = Time.nowMs + timeoutMs;
-    const remaining = () => Math.max(1, deadline - Time.nowMs);
+    const sequence = forFlavor(sequences, flavor);
+    if (sequence === undefined) {
+        return { verdict: "unverified" };
+    }
+    return { verdict: "pass", last: await adjacentRun(log, sequence, from, timeout) };
+}
+
+async function adjacentRun(log: LogFollower, sequence: RegExp[], from: number, timeout: Duration): Promise<LogLine> {
+    const deadline = Time.nowUs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
 
     let cursor = from;
     for (;;) {
-        const anchor = await log.expect({ chip: sequence[0] }, { flavor, timeoutMs: remaining(), from: cursor });
-        if (anchor.verdict === "unverified") {
-            return { verdict: "unverified" };
-        }
+        const anchor = await log.expectPattern(sequence[0], { timeoutMs: remaining(), from: cursor });
 
-        let last = anchor.matched;
+        let last = anchor;
         let interleaved = false;
         for (const pattern of sequence.slice(1)) {
-            const result = await log.expect(
-                { chip: pattern },
-                { flavor, timeoutMs: remaining(), from: last.index + 1 },
-            );
-            if (result.verdict === "unverified") {
-                return { verdict: "unverified" };
-            }
-            if (result.matched.index !== last.index + 1) {
+            const matched = await log.expectPattern(pattern, { timeoutMs: remaining(), from: last.index + 1 });
+            if (matched.index !== last.index + 1) {
                 interleaved = true;
                 break;
             }
-            last = result.matched;
+            last = matched;
         }
 
         if (!interleaved) {
-            return { verdict: "pass", last };
+            return last;
         }
-        cursor = anchor.matched.index + 1;
+        cursor = anchor.index + 1;
     }
+}
+
+/**
+ * Waits for every pattern of `sequence` to match a line at or after `from`, in order, with anything at
+ * all allowed in between — for a claim its implementation states across lines its own handlers emit
+ * rather than in one block. Shares one `timeout` budget, as {@link adjacentRun} does.
+ */
+async function orderedRun(log: LogFollower, sequence: RegExp[], from: number, timeout: Duration): Promise<LogLine> {
+    const deadline = Time.nowUs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
+
+    let last: LogLine | undefined;
+    for (const pattern of sequence) {
+        last = await log.expectPattern(pattern, {
+            timeoutMs: remaining(),
+            from: last === undefined ? from : last.index + 1,
+        });
+    }
+    if (last === undefined) {
+        throw new InternalError("An ordered log expectation was given no patterns");
+    }
+    return last;
 }
 
 // chip's DMG log dumps a ReportDataMessage every time the read handler sends one chunk, and an
 // inbound StatusResponse every time it receives the DUT's per-chunk ack — verified against a real
 // chip-all-clusters-app's log for a >1-MTU wildcard read (repeated ReportDataMessage/StatusResponse
-// pairs). matter.js has no equivalent log line, so this is chip-only; see AGENTS.md's flavor-pattern
-// policy for the matterjs "unverified" fallback.
+// pairs).
 export const REPORT_DATA_MESSAGE = /\[DMG\] ReportDataMessage =\s*$/;
-const STATUS_RESPONSE_RECEIVED = /Msg RX from.*\(IM:StatusResponse\)/;
 
 // A subscription's own reports and its SubscribeResponse both carry the id the TH minted for it,
 // printed as the block's first field in chip's own unpadded lowercase hex — captured verbatim in
@@ -158,6 +275,35 @@ const STATUS_RESPONSE_RECEIVED = /Msg RX from.*\(IM:StatusResponse\)/;
 // several are live at once.
 export const SUBSCRIBE_RESPONSE_MESSAGE = /\[DMG\] SubscribeResponseMessage =\s*$/;
 export const SUBSCRIPTION_ID_LINE = /SubscriptionId = 0x([0-9a-f]+),\s*$/;
+
+/** matter.js names the subscription it just minted on the response that carries it. */
+const MATTERJS_SUBSCRIBE_RESPONSE = /Message » for: I\/SubscribeResponse sub#: ([0-9a-f]+)/;
+
+/**
+ * matter.js's own outgoing report, tagged with the subscription it belongs to and the message counter
+ * its ack will name. A report says how much it carries — `attr:` for attributes, `ev:` for events —
+ * where the keepalive an idle subscription sends at its maximum interval is marked `empty`, and a
+ * keepalive's ack must not stand in for a report's.
+ */
+function matterjsReportPattern(subscriptionId: number): RegExp {
+    return new RegExp(
+        `Message » for: I/ReportData sub#: ${matterjsSubscriptionIdOf(subscriptionId)} (?:attr|ev): \\d+.*?✉([0-9a-f]+)`,
+    );
+}
+
+/** As `Subscription.idStrOf` renders it (`hex.fixed(id, 8)`); an unpadded id matches no line at all. */
+function matterjsSubscriptionIdOf(subscriptionId: number): string {
+    return subscriptionId.toString(16).padStart(8, "0");
+}
+
+/**
+ * The DUT's answer to the report `counter` identifies, whose payload is a `StatusResponseMessage`:
+ * an anonymous structure whose context tag 0 holds the status, so `152400` opens it and the byte after
+ * is the status itself (Matter Core § 8.9.2.3, § A.7.3).
+ */
+function matterjsReportAckPattern(counter: string): RegExp {
+    return new RegExp(`Message « for: I/StatusResponse .*acked: ${counter} .*?payload: 152400([0-9a-f]{2})`);
+}
 
 export function subscriptionIdPattern(subscriptionId: number): RegExp {
     return new RegExp(`SubscriptionId = 0x${subscriptionId.toString(16)},\\s*$`);
@@ -247,7 +393,20 @@ function attributeHex(id: number): string {
 }
 
 /**
- * Records whether `sequence` matches consecutive log lines at or after `from` (see
+ * One implementation's lines for a claim: consecutive by default, or `{ ordered }` where that
+ * implementation prints lines of its own in between — matter.js states one subscribe across the flags
+ * of the request, the paths it carried and the intervals it accepted, with its own work logged
+ * between them.
+ */
+export type FlavorLines = RegExp[] | { ordered: RegExp[] };
+
+export interface LogExpectClaim {
+    chip?: FlavorLines;
+    matterjs?: FlavorLines;
+}
+
+/**
+ * Records whether the running flavor's sequence matches consecutive log lines at or after `from` (see
  * {@link expectAdjacentLines}) as a check, with `label` naming what the sequence stands for in the
  * evidence. A timeout or a source closing mid-wait is recorded `"fail"` rather than propagating, so a
  * step's own evidence carries the miss.
@@ -256,21 +415,25 @@ export async function expectSequence(
     log: LogFollower,
     flavor: string,
     label: string,
-    sequence: RegExp[],
+    claim: LogExpectClaim,
     from: number,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<CheckRecord> {
+    const lines = forFlavor(claim, flavor);
+    if (lines === undefined) {
+        return { type: "device-log", verdict: "unverified" };
+    }
+
     try {
-        const result = await expectAdjacentLines(log, flavor, sequence, from, timeoutMs);
-        if (result.verdict === "unverified") {
-            return { type: "device-log", verdict: "unverified" };
-        }
+        const last = Array.isArray(lines)
+            ? await adjacentRun(log, lines, from, timeout)
+            : await orderedRun(log, lines.ordered, from, timeout);
         return {
             type: "device-log",
             verdict: "pass",
             pattern: label,
-            matched: result.last.text,
-            logLine: result.last.index,
+            matched: last.text,
+            logLine: last.index,
         };
     } catch (e) {
         if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
@@ -280,54 +443,310 @@ export async function expectSequence(
     }
 }
 
+export interface DeviceLogCheck {
+    check: CheckRecord;
+    /** Cursor a subsequent, causally-later log check should search from. */
+    from: number;
+}
+
 /**
- * Confirms chip's log carries exactly the `AttributePathIB` shape `fields` describes as a
- * consecutive block at or after `from` (see {@link expectAdjacentLines} — a wildcard sequence is a
- * strict prefix of a concrete one, so a block with extra field lines is a different block, not a
- * match). Returns `"unverified"` for the matterjs flavor (see AGENTS.md's flavor-pattern policy):
- * matter.js doesn't emit this chip-specific log shape.
+ * Runs a single-pattern {@link LogFollower.expect} and converts every outcome (match, timeout, or a
+ * closed follower) into a {@link CheckRecord} instead of letting the latter two propagate as thrown
+ * errors, so a timed-out or closed-mid-wait check still lands in the evidence bundle rather than
+ * vanishing. {@link expectSequence} is the equivalent for an expectation spanning several lines.
+ */
+export async function expectDeviceLog(
+    log: LogFollower,
+    flavor: string,
+    patterns: LogExpectPatterns,
+    from: number,
+    timeout: Duration,
+): Promise<DeviceLogCheck> {
+    try {
+        const result = await log.expect(patterns, { flavor, timeoutMs: timeout, from });
+        if (result.verdict === "unverified") {
+            return { check: { type: "device-log", verdict: "unverified" }, from };
+        }
+        return {
+            check: {
+                type: "device-log",
+                verdict: "pass",
+                pattern: result.pattern,
+                matched: result.matched.text,
+                logLine: result.matched.index,
+            },
+            from: result.matched.index + 1,
+        };
+    } catch (e) {
+        if (e instanceof CertLogTimeoutError) {
+            return { check: { type: "device-log", verdict: "fail", pattern: e.pattern, detail: e.message }, from };
+        }
+        if (e instanceof CertLogClosedError) {
+            return { check: { type: "device-log", verdict: "fail", detail: e.message }, from };
+        }
+        throw e;
+    }
+}
+
+/**
+ * matter.js's own rendering of an attribute path, as its interaction log names every path an inbound
+ * read, write or subscribe carried: `<endpoint>.<cluster>.state.<attribute>`, with no
+ * `state.<attribute>` segment at all where the path names no attribute (`resolvePathForNode` in
+ * `ProtocolService.ts`). Each element is its name where the node the log speaks for has that element,
+ * and its bare lowercase hex id where a wildcard elsewhere in the path left it unresolved — the
+ * pattern accepts either, since both are derived from the ids the step asked for.
+ */
+function matterjsPath(fields: AttributePathSpec): string {
+    // matter.js resolves a name off the addressed endpoint's own cluster, so a path wildcarding
+    // either the endpoint or the cluster names nothing at all, whatever the model knows.
+    const resolvable = fields.endpoint !== undefined && fields.cluster !== undefined;
+    const cluster = fields.cluster === undefined ? undefined : Matter.clusters(fields.cluster);
+
+    const elements = [
+        fields.endpoint === undefined ? "\\*" : `${fields.endpoint}`,
+        matterjsElement(resolvable ? cluster?.name : undefined, fields.cluster),
+    ];
+    if (fields.attribute === undefined) {
+        elements.push("\\*");
+    } else {
+        const attribute = resolvable ? cluster?.attributes(fields.attribute) : undefined;
+        elements.push("state", matterjsElement(attribute?.name, fields.attribute));
+    }
+
+    return elements.join("\\.");
+}
+
+function matterjsElement(name: string | undefined, id: number | undefined): string {
+    const hex = id === undefined ? "\\*" : `0x${id.toString(16)}`;
+    return name === undefined ? hex : `(?:${camelize(name)}|${hex})`;
+}
+
+/**
+ * matter.js's own announcement that a commissioning completed, naming the fabric the CASE session
+ * that completed it belongs to — the equivalent of chip's "Commissioning completed successfully".
+ */
+export const MATTERJS_COMMISSIONED_FABRIC = /GeneralCommissioningClusterHandler Commissioned fabric:/;
+
+// A path is one entry of a comma-separated list, so a match needs both ends bounded: without this,
+// the path a step asked for matches as the tail of a longer endpoint number or the head of a longer
+// element name, attributing another path's line to this check.
+const MATTERJS_PATH_START = "(?<![\\w.*])";
+const MATTERJS_PATH_END = "(?![\\w.*])";
+
+// The read's own paths, not the event paths that follow them on the same line: a wildcard event path
+// renders exactly as a wildcard attribute path does, so an unbounded search finds one for a read that
+// asked for something else entirely.
+function matterjsReadPath(fields: AttributePathSpec): RegExp {
+    return new RegExp(
+        `InteractionServer Read «.*attributes: (?:(?! events:).)*?${MATTERJS_PATH_START}${matterjsPath(fields)}${MATTERJS_PATH_END}`,
+    );
+}
+
+// A write's paths are the whole tail of the line, with no list label of their own.
+function matterjsWritePath(fields: AttributePathSpec): RegExp {
+    return new RegExp(`InteractionServer Write «.*?${MATTERJS_PATH_START}${matterjsPath(fields)}${MATTERJS_PATH_END}`);
+}
+
+// The subscribe line that names paths is the DEBUG "request details" one; the INFO line above it
+// carries path counts only. Its attribute list is bounded by the data-version filters that may follow
+// it as well as by the event paths.
+function matterjsSubscribePath(fields: AttributePathSpec): RegExp {
+    return new RegExp(
+        `InteractionServer Subscribe request details «.*attributes: (?:(?! (?:dataVersionFilters|events):).)*?${MATTERJS_PATH_START}${matterjsPath(fields)}${MATTERJS_PATH_END}`,
+    );
+}
+
+/**
+ * As {@link matterjsPath}, for an event path: its last segment sits under `events` where an
+ * attribute's sits under `state`.
+ */
+function matterjsEventPath(fields: EventPathSpec): string {
+    const resolvable = fields.endpoint !== undefined && fields.cluster !== undefined;
+    const cluster = fields.cluster === undefined ? undefined : Matter.clusters(fields.cluster);
+
+    const elements = [
+        fields.endpoint === undefined ? "\\*" : `${fields.endpoint}`,
+        matterjsElement(resolvable ? cluster?.name : undefined, fields.cluster),
+    ];
+    if (fields.event === undefined) {
+        elements.push("\\*");
+    } else {
+        const event = resolvable ? cluster?.events(fields.event) : undefined;
+        elements.push("events", matterjsElement(event?.name, fields.event));
+    }
+
+    return elements.join("\\.");
+}
+
+/**
+ * matter.js's log of a read the TH received, naming `fields` among the event paths it asked for, and
+ * carrying every flag in `flags` — which are printed before the paths, and only when set.
+ *
+ * The flags belong on the same pattern because they are on the same line: a separate search starting
+ * past this one's match would be looking at the next read, not at this one's flags.
+ */
+export function matterjsReadEventPath(fields: EventPathSpec, flags: string[] = []): RegExp {
+    const set = flags.map(flag => `${flag} `).join("");
+    return new RegExp(
+        `InteractionServer Read «.*${set}.*events: (?:(?! eventFilters:).)*?${MATTERJS_PATH_START}${matterjsEventPath(fields)}${MATTERJS_PATH_END}`,
+    );
+}
+
+/** As {@link matterjsReadEventPath}, for the subscribe line that names paths. */
+export function matterjsSubscribeEventPath(fields: EventPathSpec): RegExp {
+    return new RegExp(
+        `InteractionServer Subscribe request details «.*events: (?:(?! eventFilters:).)*?${MATTERJS_PATH_START}${matterjsEventPath(fields)}${MATTERJS_PATH_END}`,
+    );
+}
+
+/** matter.js's line for the flags a subscribe request carried; only those actually set are printed. */
+export function matterjsSubscribeFlags(...flags: string[]): RegExp {
+    return new RegExp(`InteractionServer Subscribe «.*${flags.map(flag => `${flag} `).join(".*")}`);
+}
+
+/**
+ * matter.js's line for the subscription it accepted, naming the interval bounds it took from the
+ * request — a caller-supplied ceiling reaches the wire unchanged, so these are the requested values.
+ */
+export function matterjsSubscribeTiming(minIntervalSeconds: number, maxIntervalSeconds: number): RegExp {
+    const bounds = [minIntervalSeconds, maxIntervalSeconds]
+        .map(seconds => Duration.format(Seconds(seconds)).replace(/\./g, "\\."))
+        .join(" - ");
+    return new RegExp(`InteractionServer Subscribe successful ».*timing: ${bounds} `);
+}
+
+/**
+ * Where a check whose claim matter.js prints on a line an earlier check already matched must start
+ * searching. chip prints one message as a block of lines, so a further claim about that same message
+ * lies after the earlier match; matter.js prints the whole message on one line, so a search starting
+ * past that line would be reading the next message instead.
+ *
+ * On matterjs this hands back the step's own mark, which binds the two searches to the same message
+ * only as long as the step drove one interaction of that kind. A step driving two would need its
+ * checks correlated by the exchange each names instead.
+ */
+export function sameMessageFrom(flavor: string, earlier: CheckRecord, mark: number): number {
+    if (!flavor.startsWith("chip")) {
+        return mark;
+    }
+    return earlier.logLine === undefined ? mark : earlier.logLine + 1;
+}
+
+/**
+ * matter.js's line for a command an invoke carried, rendered like an attribute path but ending in the
+ * command itself — a command path has no `state.` segment (`resolvePathForNode`).
+ */
+function matterjsInvokePath(endpoint: number, cluster: number, command: number): RegExp {
+    const model = Matter.clusters(cluster);
+    const path = [
+        `${endpoint}`,
+        matterjsElement(model?.name, cluster),
+        matterjsElement(model?.commands(command)?.name, command),
+    ].join("\\.");
+    return new RegExp(`InteractionServer Invoke «.*invokes: .*?${MATTERJS_PATH_START}${path}${MATTERJS_PATH_END}`);
+}
+
+/**
+ * matter.js's line for the invoked command's own payload, which names each field rather than
+ * numbering it: `<name>: <value>`, in payload order, on the line that names the command.
+ */
+function matterjsCommandFields(cluster: number, command: number, fields: CommandFieldValue[]): RegExp {
+    const model = Matter.clusters(cluster)?.commands(command);
+    const named = fields.map(({ id, value }) => {
+        const name = model?.fields(id)?.name;
+        if (name === undefined) {
+            throw new InternalError(`Command 0x${command.toString(16)} has no field 0x${id.toString(16)}`);
+        }
+        return `${camelize(name)}: ${value}(?!\\d)`;
+    });
+    return new RegExp(`ProtocolService Invoke «.*${matterjsElement(model?.name, command)}\\b.*${named.join(".*")}`);
+}
+
+/**
+ * The kind of path-carrying request {@link expectMessageWithPath} looks for. Each names a different
+ * log line in either implementation, and the two implementations disagree on how much of it is one
+ * line — hence a discriminator rather than a caller-supplied pattern.
+ */
+export type PathInteraction = "write" | "subscribe";
+
+const PATH_INTERACTIONS = {
+    write: { chip: WRITE_REQUEST_MESSAGE, matterjs: matterjsWritePath },
+    subscribe: { chip: SUBSCRIBE_REQUEST_MESSAGE, matterjs: matterjsSubscribePath },
+} satisfies Record<PathInteraction, { chip: RegExp; matterjs: (fields: AttributePathSpec) => RegExp }>;
+
+/**
+ * Confirms the TH's log says it received a read for exactly the path `fields` describes, at or after
+ * `from`.
+ *
+ * chip prints the request's decoded `AttributePathIB` as a block of lines, one per present field, so
+ * the check walks the whole block (see {@link expectAdjacentLines}) rather than testing a single "does
+ * X appear" pattern — a wildcard sequence is a strict prefix of a concrete one, so a block with extra
+ * field lines is a different block, not a match. matter.js names every path of the read on one line
+ * instead (see {@link matterjsReadPath}).
+ *
+ * A timeout or a source closing mid-wait is recorded `"fail"` rather than propagating: a caller that
+ * records the result is the only thing putting this check in the evidence bundle at all.
  */
 export async function expectAttributePathIB(
     log: LogFollower,
     flavor: string,
     fields: AttributePathSpec,
     from: number,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<CheckRecord> {
-    const result = await expectAdjacentLines(log, flavor, attributePathIBSequence(fields), from, timeoutMs);
-    if (result.verdict === "unverified") {
-        return { type: "device-log", verdict: "unverified" };
-    }
+    const pattern = `AttributePathIB ${JSON.stringify(fields)}`;
+    try {
+        const result = await expectAdjacentLines(
+            log,
+            flavor,
+            { chip: attributePathIBSequence(fields), matterjs: [matterjsReadPath(fields)] },
+            from,
+            timeout,
+        );
+        if (result.verdict === "unverified") {
+            return { type: "device-log", verdict: "unverified" };
+        }
 
-    return {
-        type: "device-log",
-        verdict: "pass",
-        pattern: `AttributePathIB ${JSON.stringify(fields)}`,
-        matched: result.last.text,
-        logLine: result.last.index,
-    };
+        return {
+            type: "device-log",
+            verdict: "pass",
+            pattern,
+            matched: result.last.text,
+            logLine: result.last.index,
+        };
+    } catch (e) {
+        if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
+            return { type: "device-log", verdict: "fail", pattern, detail: e.message, logLine: from };
+        }
+        throw e;
+    }
 }
 
 /**
- * Confirms `message` (e.g. {@link WRITE_REQUEST_MESSAGE} or {@link SUBSCRIBE_REQUEST_MESSAGE} — a
- * request kind whose payload carries an `AttributePathIB`, not {@link INVOKE_REQUEST_MESSAGE}, whose
- * `CommandDataIB` needs a different matcher) appears at or after `from`, then that the
- * `AttributePathIB` block for `fields` follows it at or after that point (see
- * {@link expectAttributePathIB}). Anchoring on the request-message name first, not just the path
- * block on its own, rules out a differently-typed request landing at the same log position. Both
- * waits share `timeoutMs`'s deadline; a timeout or closed source from either stage is recorded as a
- * `"fail"` rather than propagating uncaught.
+ * Confirms the TH's log says an `interaction` request carrying the path `fields` describes arrived at
+ * or after `from`.
+ *
+ * Against chip this takes two waits: the request-message name first, then the `AttributePathIB` block
+ * for `fields` at or after it (see {@link expectAttributePathIB}) — anchoring on the message name,
+ * not the path block alone, rules out a differently-typed request landing at the same log position.
+ * Both waits share `timeout`'s deadline. Against matter.js the request and its paths are one line.
+ * Either way a timeout or a closed source is recorded as a `"fail"` rather than propagating uncaught.
  */
 export async function expectMessageWithPath(
     log: LogFollower,
     flavor: string,
-    message: RegExp,
+    interaction: PathInteraction,
     fields: AttributePathSpec,
     from: number,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<CheckRecord> {
-    const deadline = Time.nowMs + timeoutMs;
-    const remaining = () => Math.max(1, deadline - Time.nowMs);
+    const { chip: message, matterjs } = PATH_INTERACTIONS[interaction];
+    if (!flavor.startsWith("chip")) {
+        return (await expectDeviceLog(log, flavor, { matterjs: matterjs(fields) }, from, timeout)).check;
+    }
+
+    const deadline = Time.nowUs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
 
     let anchor: LogExpectResult;
     try {
@@ -342,20 +761,7 @@ export async function expectMessageWithPath(
         return { type: "device-log", verdict: "unverified" };
     }
 
-    try {
-        return await expectAttributePathIB(log, flavor, fields, anchor.matched.index + 1, remaining());
-    } catch (e) {
-        if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
-            return {
-                type: "device-log",
-                verdict: "fail",
-                pattern: `AttributePathIB ${JSON.stringify(fields)}`,
-                detail: e.message,
-                logLine: anchor.matched.index,
-            };
-        }
-        throw e;
-    }
+    return expectAttributePathIB(log, flavor, fields, anchor.matched.index + 1, remaining());
 }
 
 /** Throws if `id` is `undefined` — narrows a model element's optional numeric id for `.toString(16)`. */
@@ -397,14 +803,56 @@ export function commandPathIBSequence(endpoint: number, cluster: number, command
 }
 
 /**
+ * As {@link expectCommandInvoke} against a matter.js TH, which names every command one invoke carried
+ * on a single line, and the invoked command's own field values on the line that reports the command
+ * it dispatched.
+ */
+async function matterjsCommandInvoke(
+    log: LogFollower,
+    flavor: string,
+    endpoint: number,
+    cluster: number,
+    command: number,
+    fields: CommandFieldValue[],
+    from: number,
+    timeout: Duration,
+): Promise<CheckRecord> {
+    const deadline = Time.nowUs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
+
+    const invoke = await expectDeviceLog(
+        log,
+        flavor,
+        { matterjs: matterjsInvokePath(endpoint, cluster, command) },
+        from,
+        remaining(),
+    );
+    if (fields.length === 0 || invoke.check.verdict !== "pass") {
+        return invoke.check;
+    }
+
+    return (
+        await expectDeviceLog(
+            log,
+            flavor,
+            { matterjs: matterjsCommandFields(cluster, command, fields) },
+            invoke.from,
+            remaining(),
+        )
+    ).check;
+}
+
+/**
  * Confirms chip's `InvokeRequestMessage` log carries a `CommandPathIB` matching `endpoint`/`cluster`/
  * `command` as a consecutive block at or after `from` (see {@link expectAdjacentLines}), then that
  * every `fields` entry appears afterward, in order, as its own `0x<id> = <value>,` line inside
  * `CommandFields`. Field lines aren't required adjacent to the `CommandPathIB` block itself — chip
  * emits a blank `CHIP:DMG:` separator line in between that isn't part of what this check verifies. A
  * search always starts at or after the previous match's own index (`log.expect`'s `from`), so this
- * can't match a field line belonging to an earlier invoke. Returns `"unverified"` for the matterjs
- * flavor: matter.js's logger doesn't emit this chip-specific decode dump.
+ * can't match a field line belonging to an earlier invoke. matter.js names every command one invoke
+ * carried on one line, and its field values on the line reporting the command it dispatched, so
+ * against a matter.js TH this is two waits rather than one per field (see
+ * {@link matterjsCommandInvoke}).
  */
 export async function expectCommandInvoke(
     log: LogFollower,
@@ -414,18 +862,27 @@ export async function expectCommandInvoke(
     command: number,
     fields: CommandFieldValue[],
     from: number,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<CheckRecord> {
+    if (!flavor.startsWith("chip")) {
+        return matterjsCommandInvoke(log, flavor, endpoint, cluster, command, fields, from, timeout);
+    }
+
     let cursor = from;
     let last: { index: number; text: string } | undefined;
+
+    // One deadline for the whole check, not one per wait: a per-wait budget makes the worst case
+    // timeout × (1 + fields.length), where the caller asked for timeout
+    const deadline = Time.nowUs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
 
     try {
         const block = await expectAdjacentLines(
             log,
             flavor,
-            commandPathIBSequence(endpoint, cluster, command),
+            { chip: commandPathIBSequence(endpoint, cluster, command) },
             from,
-            timeoutMs,
+            remaining(),
         );
         if (block.verdict === "unverified") {
             return { type: "device-log", verdict: "unverified" };
@@ -438,7 +895,7 @@ export async function expectCommandInvoke(
             // chip's decode dump appends the TLV type name after the value (verified against a real
             // chip-bridge-app capture).
             const pattern = new RegExp(`0x${id.toString(16)} = ${value} \\(unsigned\\),\\s*$`);
-            const result = await log.expect({ chip: pattern }, { flavor, timeoutMs, from: cursor });
+            const result = await log.expect({ chip: pattern }, { flavor, timeoutMs: remaining(), from: cursor });
             if (result.verdict === "unverified") {
                 return { type: "device-log", verdict: "unverified" };
             }
@@ -468,55 +925,77 @@ export async function expectCommandInvoke(
     };
 }
 
-// A caller-supplied /g or /y pattern keeps lastIndex between calls; reused as-is across the repeated
-// test() calls below, that state silently skips matches. Stripping once yields a pattern countMatches
-// can test() against every line safely (mirrors LogFollower.expect's own private copy of this fix).
-function matchableCopy(pattern: RegExp): RegExp {
-    return new RegExp(pattern.source, pattern.flags.replace(/[gy]/g, ""));
-}
-
-/**
- * Synchronous count of lines at or after `from` matching `pattern`, skipping
- * {@link LogLine.synthetic} lines the same way {@link LogFollower.expect} does — for a "repeat N
- * times, expect N successes" check. `flavor` is currently unused; every pattern this module exports
- * is chip-only.
- */
-export function countMatches(log: LogFollower, _flavor: string, pattern: RegExp, from: number): number {
-    const matchable = matchableCopy(pattern);
-    return log.lines.slice(from).filter(line => !line.synthetic && matchable.test(line.text)).length;
-}
-
 // How long a further report chunk may take to surface before the transfer counts as finished. The
 // read has already returned by the time a step checks, so this covers the follower's pump lag only.
-const CHUNK_QUIET_MS = 2_000;
+const CHUNK_QUIET = Seconds(2);
 
 /**
- * Confirms a chunked read actually chunked and that the DUT acked every chunk but the last: at least
- * two report chunks, with a `StatusResponse` received between every adjacent pair. Missing evidence
- * comes back as a `"fail"` record rather than a thrown timeout, so the step's own reporting carries
- * it. Returns `"unverified"` for the matterjs flavor (see AGENTS.md's flavor-pattern policy) rather
- * than a `"pass"` a log-scrape can't back up.
+ * What {@link expectChunkedTransfer} needs one implementation's log to tell it: which lines are
+ * outbound report chunks, which exchange each went out on, and which line is the DUT's ack of a chunk
+ * on that exchange.
+ */
+interface ChunkedTransferDialect {
+    /** An outbound report chunk. */
+    chunk: RegExp;
+
+    /**
+     * Whether `chunk` is the transfer's own last message — `"unknown"` where the log stops before
+     * saying. A read's last report sets `SuppressResponse` and every earlier one
+     * `MoreChunkedMessages` (Matter Core § 8.4.3.3, § 10.7.3), so this is what tells the end of a
+     * transfer from a log that was cut inside one.
+     */
+    finality(log: LogFollower, chunk: LogLine): "final" | "more" | "unknown";
+
+    /** The exchange `chunk` went out on, or `undefined` where the log does not say. */
+    exchangeOf(log: LogFollower, chunk: LogLine): string | undefined;
+
+    /** The DUT's ack of a chunk sent on `exchange`. */
+    ack(exchange: string): RegExp;
+
+    /** What the evidence names as the pattern for the two attribution failures. */
+    attribution: string;
+
+    /** How the evidence says a chunk's own exchange could not be read. */
+    unattributed: string;
+}
+
+/**
+ * Confirms a chunked read actually chunked and that the DUT acked every chunk but the last, and only
+ * those: at least two report chunks, all on one exchange, with a `StatusResponse` received between
+ * every adjacent pair and none after the transfer's final message. A log that stops inside the transfer
+ * carries the first claim but not the second, and says so rather than failing. Missing evidence comes
+ * back as a `"fail"` record rather than a thrown timeout, so the step's own reporting carries it.
+ *
+ * A read only. A subscription's reports are answered including the last, so pointing this at one would
+ * fail a conforming device.
+ *
+ * Both flavors name the same three things, in different places — {@link ChunkedTransferDialect}.
  */
 export async function expectChunkedTransfer(
     log: LogFollower,
     flavor: string,
     from: number,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<CheckRecord> {
-    const deadline = Time.nowMs + timeoutMs;
-    const remaining = () => Math.max(1, deadline - Time.nowMs);
+    const dialect = forFlavor(CHUNKED_TRANSFER_DIALECTS, flavor);
+    if (dialect === undefined) {
+        return { type: "device-log", verdict: "unverified" };
+    }
+
+    const deadline = Time.nowUs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
 
     const chunks = new Array<LogLine>();
     for (;;) {
         // The second chunk is what proves the read chunked at all, so it gets the whole remaining
         // budget; every later one only has to outlast pump lag, and its absence ends the transfer.
-        const timeout = chunks.length > 1 ? Math.min(CHUNK_QUIET_MS, remaining()) : remaining();
-        let next: LogExpectResult;
+        const timeout = chunks.length > 1 ? Duration.min(CHUNK_QUIET, remaining()) : remaining();
+        let next: LogLine;
         try {
-            next = await log.expect(
-                { chip: REPORT_DATA_MESSAGE },
-                { flavor, timeoutMs: timeout, from: chunks.length ? chunks[chunks.length - 1].index + 1 : from },
-            );
+            next = await log.expectPattern(dialect.chunk, {
+                timeoutMs: timeout,
+                from: chunks.length ? chunks[chunks.length - 1].index + 1 : from,
+            });
         } catch (e) {
             // A source that ends mid-wait is as much an end of the transfer as a quiet period is;
             // whether the chunks seen so far are evidence enough is decided below, not here.
@@ -525,85 +1004,207 @@ export async function expectChunkedTransfer(
             }
             throw e;
         }
-        if (next.verdict === "unverified") {
-            return { type: "device-log", verdict: "unverified" };
-        }
-        chunks.push(next.matched);
+        chunks.push(next);
     }
 
     if (chunks.length < 2) {
         return {
             type: "device-log",
             verdict: "fail",
-            pattern: String(REPORT_DATA_MESSAGE),
+            pattern: String(dialect.chunk),
             detail: `${chunks.length} report chunks — the read did not chunk`,
             logLine: chunks[0]?.index,
         };
     }
 
+    // One transfer stays on one exchange, so this is what makes the chunks *one* read's rather than
+    // several reads' — and, like expectReportAck, what tells this read's acks from those of the node's
+    // own subscription, which stays live during these runs.
+    const exchange = dialect.exchangeOf(log, chunks[0]);
+    if (exchange === undefined) {
+        return {
+            type: "device-log",
+            verdict: "fail",
+            pattern: dialect.attribution,
+            detail: `${dialect.unattributed} for the report chunk at log line ${chunks[0].index}`,
+            logLine: chunks[0].index,
+        };
+    }
+
+    for (const [i, chunk] of chunks.entries()) {
+        const chunkExchange = dialect.exchangeOf(log, chunk);
+        if (chunkExchange !== exchange) {
+            return {
+                type: "device-log",
+                verdict: "fail",
+                pattern: dialect.attribution,
+                detail:
+                    `The report chunk at log line ${chunk.index} went out on Exchange ` +
+                    `${chunkExchange ?? "(none)"}, not ${exchange}, so chunk ${i + 1} of ${chunks.length} ` +
+                    "belongs to another read",
+                logLine: chunk.index,
+            };
+        }
+    }
+
+    const ackPattern = dialect.ack(exchange);
     const lines = log.lines;
     for (let i = 1; i < chunks.length; i++) {
         const acked = lines
             .slice(chunks[i - 1].index + 1, chunks[i].index)
-            .some(line => !line.synthetic && STATUS_RESPONSE_RECEIVED.test(line.text));
+            .some(line => !line.synthetic && ackPattern.test(line.text));
         if (!acked) {
             return {
                 type: "device-log",
                 verdict: "fail",
-                pattern: String(STATUS_RESPONSE_RECEIVED),
+                pattern: String(ackPattern),
                 detail:
-                    `No StatusResponse between the report chunks at log lines ${chunks[i - 1].index} and ` +
-                    `${chunks[i].index} (chunk ${i} of ${chunks.length} went unacked)`,
+                    `No StatusResponse on Exchange ${exchange} between the report chunks at log lines ` +
+                    `${chunks[i - 1].index} and ${chunks[i].index} (chunk ${i} of ${chunks.length} went unacked)`,
                 logLine: chunks[i].index,
             };
         }
     }
 
+    // A read's report carries SuppressResponse (Matter Core § 8.4.3.3), which the wire encoding
+    // overrides to false only while MoreChunkedMessages is set (§ 10.7.3) — so the transfer's own last
+    // message is the one chunk the requester must not answer. A log that stops inside a transfer ends on
+    // an acked chunk by construction, so the search below is only evidence where the log says this chunk
+    // was the last; the loop above already waited CHUNK_QUIET past it, so the window an ack would have
+    // landed in is in the log by now.
+    const last = chunks[chunks.length - 1];
+    if (dialect.finality(log, last) !== "final") {
+        return {
+            type: "device-log",
+            verdict: "pass",
+            pattern: "ReportDataMessage, StatusResponse on the same Exchange between every adjacent pair",
+            detail:
+                `${chunks.length} report chunks, each but the last followed by a StatusResponse; the log stops ` +
+                "inside the transfer, so whether the DUT answered its final message is not claimed",
+            matched: last.text,
+            logLine: last.index,
+        };
+    }
+
+    const lateAck = lines.slice(last.index + 1).find(line => !line.synthetic && ackPattern.test(line.text));
+    if (lateAck !== undefined) {
+        return {
+            type: "device-log",
+            verdict: "fail",
+            pattern: String(ackPattern),
+            detail:
+                `The DUT sent a StatusResponse on Exchange ${exchange} after the final one of ${chunks.length} ` +
+                `report chunks (log line ${lateAck.index}), which a read's last chunk suppresses`,
+            logLine: lateAck.index,
+        };
+    }
+
     return {
         type: "device-log",
         verdict: "pass",
-        pattern: "ReportDataMessage, StatusResponse between every adjacent pair",
-        detail: `${chunks.length} report chunks, each but the last followed by a StatusResponse`,
-        matched: chunks[chunks.length - 1].text,
-        logLine: chunks[chunks.length - 1].index,
+        pattern:
+            "ReportDataMessage, StatusResponse on the same Exchange between every adjacent pair and none after the last",
+        detail: `${chunks.length} report chunks, each but the last followed by a StatusResponse, and none after the last`,
+        matched: last.text,
+        logLine: last.index,
     };
 }
 
-// Bounds waiting for a StatusResponseMessage that should already have been sent by the time this
-// wait starts (the controller's own report-processing acks a report as part of handling it) — this
-// only needs to cover the log follower's own pump lag, not any protocol-level delay.
-export const ACK_WAIT_TIMEOUT_MS = 15_000;
+/**
+ * What reading a subscription id off a TH's log produced, as three outcomes rather than one optional
+ * field. Every caller gates on `check` before using the result, so a failed lookup already fails the
+ * step before any consumer sees it; the union is what keeps that true if one ever forgets, since a
+ * consumer cannot then treat a failure as a flavor that had nothing to say.
+ */
+export type SubscriptionIdLookup =
+    /** The TH named it. */
+    | { outcome: "found"; subscriptionId: number; check: CheckRecord }
+    /**
+     * No pattern for this flavor. Unreachable while the flavors are chip and matterjs — both name
+     * their subscriptions — and the handling exists for a flavor added without a pattern.
+     */
+    | { outcome: "unnamed"; check: CheckRecord }
+    /** The lookup itself failed; `check` carries why. */
+    | { outcome: "failed"; check: CheckRecord };
 
-/** What the TH's own SubscribeResponse says about the subscription a step just established. */
-export interface SubscriptionIdLookup {
-    check: CheckRecord;
-    /** Absent when the lookup failed, and for the matterjs flavor. */
-    subscriptionId?: number;
+async function matterjsSubscriptionId(
+    log: LogFollower,
+    flavor: string,
+    from: number,
+    timeout: Duration,
+): Promise<SubscriptionIdLookup> {
+    const pattern = String(MATTERJS_SUBSCRIBE_RESPONSE);
+    let response: LogExpectResult;
+    try {
+        response = await log.expect({ matterjs: MATTERJS_SUBSCRIBE_RESPONSE }, { flavor, timeoutMs: timeout, from });
+    } catch (e) {
+        if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
+            return {
+                outcome: "failed",
+                check: { type: "device-log", verdict: "fail", pattern, detail: e.message, logLine: from },
+            };
+        }
+        throw e;
+    }
+    if (response.verdict === "unverified") {
+        return { outcome: "unnamed", check: { type: "device-log", verdict: "unverified" } };
+    }
+
+    const id = MATTERJS_SUBSCRIBE_RESPONSE.exec(response.matched.text)?.[1];
+    if (id === undefined) {
+        return {
+            outcome: "failed",
+            check: {
+                type: "device-log",
+                verdict: "fail",
+                pattern,
+                detail: `SubscribeResponse carries no readable subscription id: ${response.matched.text}`,
+                logLine: response.matched.index,
+            },
+        };
+    }
+
+    return {
+        outcome: "found",
+        subscriptionId: parseInt(id, 16),
+        check: {
+            type: "device-log",
+            verdict: "pass",
+            pattern,
+            matched: response.matched.text,
+            logLine: response.matched.index,
+        },
+    };
 }
 
 /**
  * Reads back the id the TH minted for the subscription whose SubscribeResponse it sends at or after
  * `from`. Every step here keeps its subscriptions (`keepSubscriptions: true`) and their max interval
  * is shorter than the whole run, so several subscriptions report concurrently from step 3 onward —
- * the id is what tells one step's reports from another's. `"unverified"` for the matterjs flavor,
- * whose logger emits no decode dump to read an id out of.
+ * the id is what tells one step's reports from another's. Both flavors name it: chip in its decode
+ * dump, matter.js on the response itself.
  */
 export async function expectSubscriptionId(
     log: LogFollower,
     flavor: string,
     from: number,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<SubscriptionIdLookup> {
+    if (flavor === "matterjs") {
+        return matterjsSubscriptionId(log, flavor, from, timeout);
+    }
+
     const sequence = [SUBSCRIBE_RESPONSE_MESSAGE, /\{\s*$/, SUBSCRIPTION_ID_LINE];
     try {
-        const result = await expectAdjacentLines(log, flavor, sequence, from, timeoutMs);
+        const result = await expectAdjacentLines(log, flavor, { chip: sequence }, from, timeout);
         if (result.verdict === "unverified") {
-            return { check: { type: "device-log", verdict: "unverified" } };
+            return { outcome: "unnamed", check: { type: "device-log", verdict: "unverified" } };
         }
 
         const id = SUBSCRIPTION_ID_LINE.exec(result.last.text)?.[1];
         if (id === undefined) {
             return {
+                outcome: "failed",
                 check: {
                     type: "device-log",
                     verdict: "fail",
@@ -615,6 +1216,7 @@ export async function expectSubscriptionId(
         }
 
         return {
+            outcome: "found",
             subscriptionId: parseInt(id, 16),
             check: {
                 type: "device-log",
@@ -627,6 +1229,7 @@ export async function expectSubscriptionId(
     } catch (e) {
         if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
             return {
+                outcome: "failed",
                 check: {
                     type: "device-log",
                     verdict: "fail",
@@ -681,15 +1284,132 @@ const EXCHANGE_LOOKBACK_LINES = 1000;
  * message's payload size.
  */
 function exchangeIdBefore(log: LogFollower, beforeIndex: number): string | undefined {
-    const floor = Math.max(0, beforeIndex - EXCHANGE_LOOKBACK_LINES);
-    const lines = log.lines;
-    for (let i = beforeIndex - 1; i >= floor; i--) {
-        const match = REPORT_SENT_LINE.exec(lines[i].text);
-        if (match) {
-            return match[1];
+    return log.lastMatchBefore(REPORT_SENT_LINE, beforeIndex, EXCHANGE_LOOKBACK_LINES)?.match[1];
+}
+
+// matter.js names the exchange on the report line itself, so a chunk carries its own attribution;
+// chip's decode dump does not, and its exchange comes off the trace line preceding it.
+const MATTERJS_REPORT_CHUNK = /Message » for: I\/ReportData .*⇵([0-9a-f]+)✉/;
+
+// Both implementations say on which message a transfer ends, in their own place: matter.js renders the
+// report's own flags on the report line, chip prints them inside that message's decode dump.
+const MATTERJS_MORE_CHUNKS = /Message » for: I\/ReportData [^⇵]*\bmoreChunkedMessages\b/;
+const MATTERJS_SUPPRESSED_RESPONSE = /Message » for: I\/ReportData [^⇵]*\bsuppressResponse\b/;
+const CHIP_MORE_CHUNKS = /\[DMG\]\s+MoreChunkedMessages = true,\s*$/;
+const CHIP_SUPPRESSED_RESPONSE = /\[DMG\]\s+SuppressResponse = true,\s*$/;
+
+/**
+ * Which of the two flags chip printed first at or after `chunk`. They are fields of the message's own
+ * decode dump, so the first of either after the chunk line belongs to that chunk; a log cut inside the
+ * dump has neither.
+ */
+function chipChunkFinality(log: LogFollower, chunk: LogLine): "final" | "more" | "unknown" {
+    for (const line of log.lines.slice(chunk.index + 1)) {
+        if (line.synthetic) {
+            continue;
+        }
+        if (CHIP_SUPPRESSED_RESPONSE.test(line.text)) {
+            return "final";
+        }
+        if (CHIP_MORE_CHUNKS.test(line.text)) {
+            return "more";
         }
     }
-    return undefined;
+    return "unknown";
+}
+
+const CHUNKED_TRANSFER_DIALECTS: { chip: ChunkedTransferDialect; matterjs: ChunkedTransferDialect } = {
+    chip: {
+        chunk: REPORT_DATA_MESSAGE,
+        finality: (log, chunk) => chipChunkFinality(log, chunk),
+        exchangeOf: (log, chunk) => exchangeIdBefore(log, chunk.index),
+        ack: reportAckedOnExchange,
+        attribution: String(REPORT_SENT_LINE),
+        unattributed: "No outbound Report Data trace line (carrying an Exchange id) found",
+    },
+
+    matterjs: {
+        chunk: MATTERJS_REPORT_CHUNK,
+        finality: (_log, chunk) =>
+            MATTERJS_SUPPRESSED_RESPONSE.test(chunk.text)
+                ? "final"
+                : MATTERJS_MORE_CHUNKS.test(chunk.text)
+                  ? "more"
+                  : "unknown",
+        exchangeOf: (_log, chunk) => MATTERJS_REPORT_CHUNK.exec(chunk.text)?.[1],
+        ack: exchange => new RegExp(`Message « for: I/StatusResponse .*⇵${exchange}✉`),
+        attribution: String(MATTERJS_REPORT_CHUNK),
+        unattributed: "No exchange id on the report line",
+    },
+};
+
+/**
+ * As {@link expectReportAck} against a matter.js TH, which names both the subscription a report
+ * belongs to and the message counter its ack carries — so the ack is matched to this very report
+ * rather than to whatever answered on the same exchange next.
+ */
+async function matterjsReportAck(
+    log: LogFollower,
+    flavor: string,
+    subscriptionId: number,
+    from: number,
+    timeout: Duration,
+): Promise<CheckRecord> {
+    const deadline = Time.nowUs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
+    const reportPattern = matterjsReportPattern(subscriptionId);
+    const pattern = `${reportPattern} then its own Success StatusResponse`;
+
+    try {
+        const report = await log.expect({ matterjs: reportPattern }, { flavor, timeoutMs: remaining(), from });
+        if (report.verdict === "unverified") {
+            return { type: "device-log", verdict: "unverified" };
+        }
+
+        const counter = reportPattern.exec(report.matched.text)?.[1];
+        if (counter === undefined) {
+            return {
+                type: "device-log",
+                verdict: "fail",
+                pattern,
+                detail: `Report carries no readable message counter: ${report.matched.text}`,
+                logLine: report.matched.index,
+            };
+        }
+
+        const ackPattern = matterjsReportAckPattern(counter);
+        const ack = await log.expect(
+            { matterjs: ackPattern },
+            { flavor, timeoutMs: remaining(), from: report.matched.index + 1 },
+        );
+        if (ack.verdict === "unverified") {
+            return { type: "device-log", verdict: "unverified" };
+        }
+
+        const status = ackPattern.exec(ack.matched.text)?.[1];
+        if (status !== "00") {
+            return {
+                type: "device-log",
+                verdict: "fail",
+                pattern,
+                detail: `The DUT acked our report with status 0x${status}`,
+                logLine: ack.matched.index,
+            };
+        }
+
+        return {
+            type: "device-log",
+            verdict: "pass",
+            pattern,
+            matched: ack.matched.text,
+            logLine: ack.matched.index,
+        };
+    } catch (e) {
+        if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
+            return { type: "device-log", verdict: "fail", pattern, detail: e.message, logLine: from };
+        }
+        throw e;
+    }
 }
 
 /**
@@ -701,29 +1421,39 @@ function exchangeIdBefore(log: LogFollower, beforeIndex: number): string | undef
  * This closes that gap by reading the CHIP Exchange id our report was sent on (see
  * {@link REPORT_SENT_LINE}) and requiring the ack to arrive on that same exchange — a different
  * subscription's own report/ack pair carries its own, different exchange id, so it can no longer
- * stand in for ours. `"unverified"` for the matterjs flavor (no `subscriptionId`, no chip decode
- * dump to match).
+ * stand in for ours.
+ *
+ * Against a matter.js TH the correlation is tighter still: it names the message counter each ack
+ * carries, so the ack is matched to this very report rather than to whatever answered on the same
+ * exchange next.
  */
 export async function expectReportAck(
     log: LogFollower,
     flavor: string,
-    subscriptionId: number | undefined,
+    subscription: SubscriptionIdLookup,
     from: number,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<CheckRecord> {
-    if (subscriptionId === undefined) {
-        return { type: "device-log", verdict: "unverified" };
+    // Takes the lookup rather than its id so a failure cannot arrive here as an unverified nobody can
+    // explain. Callers gate on `check` first, so this is the second line of defence, not the first.
+    if (subscription.outcome !== "found") {
+        return subscription.check;
+    }
+    const { subscriptionId } = subscription;
+
+    if (flavor === "matterjs") {
+        return matterjsReportAck(log, flavor, subscriptionId, from, timeout);
     }
 
-    const deadline = Time.nowMs + timeoutMs;
-    const remaining = () => Math.max(1, deadline - Time.nowMs);
+    const deadline = Time.nowUs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
     const pattern = `ReportDataMessage(SubscriptionId = 0x${subscriptionId.toString(16)}) then its own ${STATUS_RESPONSE_SUCCESS} (matched by Exchange id)`;
 
     try {
         const report = await expectAdjacentLines(
             log,
             flavor,
-            [REPORT_DATA_MESSAGE, /\{\s*$/, subscriptionIdPattern(subscriptionId)],
+            { chip: [REPORT_DATA_MESSAGE, /\{\s*$/, subscriptionIdPattern(subscriptionId)] },
             from,
             remaining(),
         );
@@ -811,6 +1541,89 @@ export async function expectReportAck(
             return { type: "device-log", verdict: "fail", pattern, detail: e.message, logLine: from };
         }
         throw e;
+    }
+}
+
+/**
+ * How an operation a step was waiting for ended, and how long it took, formatted for the evidence.
+ * A `"timeout"` says only that the wait ended: the operation itself is still running.
+ */
+export type SettleReport<T = unknown> = { elapsed: string } & (
+    | { kind: "resolved"; value: T }
+    | { kind: "rejected"; error: unknown }
+    | { kind: "timeout" }
+);
+
+/**
+ * Waits for `op` to settle, bounded by `timeout` so an implementation that neither answers nor
+ * gives up cannot hang the step for the whole mocha timeout. Reports which way it went, for a step
+ * that has something to record either way; {@link expectRejection} is the form for a step that
+ * demands a refusal.
+ *
+ * A step that stops waiting is still responsible for what the operation does afterwards — a
+ * commissioning that succeeds late leaves a fabric on the device.
+ */
+export async function settleWithin<T>(label: string, op: Promise<T>, timeout: Duration): Promise<SettleReport<T>> {
+    // nowUs is the monotonic clock despite the name; nowMs tracks UTC and a step of it would put a
+    // negative elapsed into the evidence
+    const start = Time.nowUs;
+    const elapsed = () => Duration.format(Millis(Time.nowUs - start));
+    const timer = Time.sleep(`${label} settle timeout`, timeout);
+
+    try {
+        return await Promise.race([
+            op.then(
+                (value): SettleReport<T> => ({ kind: "resolved", value, elapsed: elapsed() }),
+                (error: unknown): SettleReport<T> => ({ kind: "rejected", error, elapsed: elapsed() }),
+            ),
+            timer.then((): SettleReport<T> => ({ kind: "timeout", elapsed: elapsed() })),
+        ]);
+    } finally {
+        // A lost race leaves the sleep armed for its full duration, keeping the process alive past teardown
+        timer.cancel();
+    }
+}
+
+/**
+ * Asserts `op` rejects rather than resolves, bounded by `timeout` so an implementation that
+ * neither errors nor gives up cannot hang the step for the whole mocha timeout — which is useless as
+ * either evidence or a fast local failure. A timeout is reported `"fail"`, same as an unexpected
+ * success, and the elapsed time reaches the evidence either way.
+ *
+ * `accept` narrows *which* rejection counts. Without it any error passes, including one that says
+ * nothing about the behaviour under test — a controller that crashed, timed out or was never asked.
+ * A step whose evidence is "it failed" rather than "it failed for this reason" should pass one.
+ */
+export async function expectRejection(
+    label: string,
+    op: Promise<unknown>,
+    timeout: Duration,
+    accept?: (error: unknown) => boolean,
+): Promise<CheckRecord> {
+    const outcome = await settleWithin(label, op, timeout);
+    const { elapsed } = outcome;
+
+    switch (outcome.kind) {
+        case "resolved":
+            return { type: "response", verdict: "fail", detail: `${label} unexpectedly succeeded after ${elapsed}` };
+        case "timeout":
+            return {
+                type: "response",
+                verdict: "fail",
+                detail: `${label} neither resolved nor rejected within ${Duration.format(timeout)}`,
+            };
+        case "rejected": {
+            const { error } = outcome;
+            const message = error instanceof Error ? `${error.constructor.name}: ${error.message}` : String(error);
+            if (accept !== undefined && !accept(error)) {
+                return {
+                    type: "response",
+                    verdict: "fail",
+                    detail: `${label} failed after ${elapsed} for an unrelated reason: ${message}`,
+                };
+            }
+            return { type: "response", verdict: "pass", detail: `${label} rejected after ${elapsed}: ${message}` };
+        }
     }
 }
 

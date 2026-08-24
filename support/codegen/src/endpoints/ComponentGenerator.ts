@@ -18,6 +18,7 @@ import {
     VarianceCondition,
 } from "#model";
 import type { ClusterFile } from "../clusters/ClusterFile.js";
+import { documentationOf } from "../util/documentation.js";
 import { asObjectKey, camelize, serialize } from "../util/string.js";
 import type { Block } from "../util/TsFile.js";
 import { TypeGenerator } from "./TypeGenerator.js";
@@ -516,7 +517,7 @@ export class ComponentGenerator {
                 fieldType += " | null";
             }
             const optional = !field.mandatory ? "?" : "";
-            struct.atom(`${field.propertyName}${optional}: ${fieldType}`).document(field);
+            struct.atom(`${field.propertyName}${optional}: ${fieldType}`).document(documentationOf(field));
         });
     }
 

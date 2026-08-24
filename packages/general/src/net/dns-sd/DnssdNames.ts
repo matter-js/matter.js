@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type DnsRecord, DnsRecordType } from "#codec/DnsCodec.js";
+import { type DnsRecord, DnsMessageType, DnsRecordType } from "#codec/DnsCodec.js";
 import { ImplementationError } from "#MatterError.js";
 import { Duration } from "#time/Duration.js";
 import { Time, Timer } from "#time/Time.js";
@@ -43,7 +43,7 @@ export class DnssdNames {
     readonly #names = new Map<string, DnssdName>();
     readonly #expiration: Scheduler<DnssdName.Record>;
     readonly #discovered = new Observable<[name: DnssdName]>();
-    readonly #goodbyeProtectionWindow: Duration;
+    readonly #evictionDelay: Duration;
     readonly #minTtl: Duration;
     readonly #ttlGraceFactor: number;
 
@@ -63,7 +63,7 @@ export class DnssdNames {
         entropy,
         filter,
         filterNames,
-        goodbyeProtectionWindow,
+        evictionDelay,
         minTtl,
         ttlGraceFactor,
     }: DnssdNames.Context) {
@@ -74,7 +74,7 @@ export class DnssdNames {
             this.#addFilter(filter, filterNames);
         }
         this.#solicitor = new QueryMulticaster(this);
-        this.#goodbyeProtectionWindow = goodbyeProtectionWindow ?? DnssdNames.defaults.goodbyeProtectionWindow;
+        this.#evictionDelay = evictionDelay ?? DnssdNames.defaults.evictionDelay;
         this.#minTtl = minTtl ?? DnssdNames.defaults.minTtl;
         const effectiveGraceFactor = ttlGraceFactor ?? DEFAULT_TTL_GRACE_FACTOR;
         if (!(effectiveGraceFactor >= 1)) {
@@ -105,6 +105,7 @@ export class DnssdNames {
             unregisterForExpiration: record => this.#expiration.delete(record),
             get: qname => this.get(qname),
             ttlGraceFactor: this.#ttlGraceFactor,
+            evictionDelay: this.#evictionDelay,
         };
         this.#observers.on(this.#socket.receipt, this.#handleMessage.bind(this));
 
@@ -156,7 +157,6 @@ export class DnssdNames {
             this.#currentBatch = undefined;
         }
 
-        // Same-message goodbyes may have reverted discovery
         for (const name of newlyDiscovered ?? []) {
             if (name.isDiscovered) {
                 this.#discovered.emit(name);
@@ -168,7 +168,11 @@ export class DnssdNames {
         const records = [...message.answers, ...message.additionalRecords];
         const filtered = new Set(records);
         const sourceIntf = message.sourceIntf;
-        let goodbyesBefore: undefined | Timestamp;
+        const packetAt = Time.nowMs;
+
+        // The top rrclass bit is the cache-flush bit only in a response; in a query's known-answer list it is
+        // reserved and must be ignored (RFC 6762 §18.12)
+        const isResponse = DnsMessageType.isResponse(message.messageType);
 
         // Collect newly discovered names so we can emit after all records in the message are processed.  This ensures
         // that observers see the complete record set (e.g. both SRV and TXT) rather than partial state mid-message.
@@ -190,8 +194,11 @@ export class DnssdNames {
                 if (record.ttl < this.#minTtl) {
                     record = { ...record, ttl: this.#minTtl };
                 }
+                if (!isResponse) {
+                    record = { ...record, flushCache: false };
+                }
                 const wasDiscovered = name.isDiscovered;
-                if (name.installRecord(record, { sourceIntf })) {
+                if (name.installRecord(record, { sourceIntf, installedAt: packetAt })) {
                     packetRelevant = true;
                 }
                 if (!wasDiscovered && name.isDiscovered) {
@@ -199,10 +206,9 @@ export class DnssdNames {
                 }
             } else {
                 packetRelevant = true;
-                if (goodbyesBefore === undefined) {
-                    goodbyesBefore = Timestamp(Time.nowMs - this.#goodbyeProtectionWindow);
-                }
-                name.deleteRecord(record, goodbyesBefore);
+                // A goodbye takes effect a second out so a host that reboots and re-announces immediately keeps its
+                // records (RFC 6762 §10.1)
+                name.expireRecord(record);
             }
         };
 
@@ -283,14 +289,24 @@ export class DnssdNames {
                 if (record.ttl < this.#minTtl) {
                     record = { ...record, ttl: this.#minTtl };
                 }
-                const staged = this.#stagedIpRecords.get(key) ?? [];
+                if (!isResponse && record.flushCache) {
+                    record = { ...record, flushCache: false };
+                }
+                let staged = this.#stagedIpRecords.get(key) ?? [];
+                if (record.flushCache) {
+                    // Same window the installed records use, so a set split across packets survives here too
+                    const supersededBefore = packetAt - this.#evictionDelay;
+                    staged = staged.filter(
+                        s => s.record.recordType !== record.recordType || s.receivedAt >= supersededBefore,
+                    );
+                }
                 const existing = staged.findIndex(
                     s => s.record.recordType === record.recordType && s.record.value === record.value,
                 );
                 if (existing === -1) {
-                    staged.push({ record, receivedAt: Time.nowMs, sourceIntf });
+                    staged.push({ record, receivedAt: packetAt, sourceIntf });
                 } else {
-                    staged[existing] = { record, receivedAt: Time.nowMs, sourceIntf };
+                    staged[existing] = { record, receivedAt: packetAt, sourceIntf };
                 }
                 // Delete + set moves the key to the tail of the Map so prune evicts least-recently-touched first
                 this.#stagedIpRecords.delete(key);
@@ -327,8 +343,8 @@ export class DnssdNames {
                 this.#stagedIpRecords.delete(key);
                 const now = Time.nowMs;
                 for (const { record, receivedAt, sourceIntf } of staged) {
-                    // Preserve original TTL and receivedAt so expiry math and goodbye-protection recovery both
-                    // reference the real discovery time rather than the replay moment
+                    // Preserve original TTL and receivedAt so expiry references the real discovery time rather
+                    // than the replay moment
                     if (now - receivedAt < record.ttl * this.#ttlGraceFactor) {
                         name.installRecord(record, { sourceIntf, installedAt: receivedAt });
                     }
@@ -498,12 +514,9 @@ export namespace DnssdNames {
         filterNames?: Iterable<string> | "all";
 
         /**
-         * The interval after discovering a record for which we ignore goodbyes.
-         *
-         * This serves as protection for out-of-order messages when a device expires then broadcasts the same record
-         * in a very short amount of time.
+         * How long a record survives once something supersedes it rather than replaces it (RFC 6762 §10.1).
          */
-        goodbyeProtectionWindow?: Duration;
+        evictionDelay?: Duration;
 
         /**
          * Minimum TTL for PTR records.
@@ -538,7 +551,7 @@ export namespace DnssdNames {
     }
 
     export const defaults = {
-        goodbyeProtectionWindow: Seconds(1),
+        evictionDelay: Seconds(1),
         minTtl: Seconds(15), // This is the value that Apple uses
     };
 }

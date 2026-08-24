@@ -11,11 +11,18 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/testing
+    - Fix: A certification run's `result.json` no longer reports a passing verdict for a run that failed
+    - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
+
 - @matter/general
+    - Breaking: `DnssdNames.Context.goodbyeProtectionWindow` and `DnssdNames.defaults.goodbyeProtectionWindow` are now `evictionDelay`, and `DnssdName.deleteRecord` no longer takes an `ifOlderThan` argument
     - Enhancement: New `MatterAggregateError.settleSeries()` runs tasks in order, continuing past a failure, and reports the accumulated errors
     - Enhancement: A storage driver states how long a consumer may buffer dirty values via `StorageDriver.writeCoalescingInterval`, defaulting to 20 minutes; `MemoryStorageDriver` reports `Instant`
     - Fix: Opening a namespace whose `driver.json` names an unregistered storage driver now throws `NoProviderError` instead of silently opening the existing data with a mismatched driver
     - Fix: DNS-SD ignores SRV records with port 0, an empty target or an out-of-range port
+    - Fix: DNS-SD honors a goodbye that arrives shortly after the same record was re-announced
+    - Fix: DNS-SD honors the mDNS cache-flush bit
     - Fix: DNS-SD resolution queries A/AAAA for the SRV target host instead of the service instance name
     - Fix: The `Symbol.metadata` polyfill no longer conflicts with `lib.esnext.decorators` in the published declarations
 
@@ -23,6 +30,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: A provisional element is no longer mandatory; conformance following a `P` describes the conformance intended once the element leaves provisional state
     - Enhancement: `FeatureSelectionErrors()` assesses a cluster's selected features against the combinations its FeatureMap conformance disallows
     - Enhancement: `FeatureSet.resolve()` resolves a feature short code, title or camelized title to a short code
+    - Enhancement: New `EncodedConstraint()` restates every bound of a constraint in the units the value is encoded in
+    - Enhancement: New `EncodedConstraint.bounds()` reports which of a constraint's bounds state a number in encoding units and which state a unit with no known scale
+    - Fix: The model build rejects a value stating a unit with no known scale, a fraction an integer type cannot hold, or a negative an unsigned type cannot hold
+    - Fix: A default stating a number no integer form matches, such as `1e-3`, is rejected instead of stored as the digits preceding the exponent
+    - Fix: A percentage on a type other than `percent` or `percent100ths` no longer resolves to the printed number as though it were already encoded
+    - Fix: A constraint bound's unit takes its scale from the types the value derives from, not from its own type name alone
     - Enhancement: New `Scope.isMandatory()` tells whether a member is mandatory under a schema's supported features, and the new `MandatoryDefaultValue()` computes the value such a member assumes when no real value exists (schema default, else the specification's fallback value, recursing into structs) — the basis for what an unreported client node attribute reads, usable wherever schema-derived fallback values are needed; `SelectDefaultValue()` exposes the shallow variant used for server state seeding
     - Fix: A cluster's feature table no longer selects features; a feature the specification makes unconditionally mandatory is always selected
     - Fix: Feature selection records against `operationalIsSupported` so a feature's `default` conveys only the specification's fallback value
@@ -31,13 +44,21 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A choice set whose members are gated on a conformance expression, such as `[!PA].a` or `[PS].b`, requires a selection only where the gate admits a member, and rejects a member the gate excludes
     - Fix: An entry of an otherwise conformance applies only where the entries preceding it do not, and a feature is disallowed where no entry applies
     - Fix: A choice set whose members are all provisional, such as the `Groupcast` and `AmbientContextSensing` feature sets, no longer requires a selection
+    - Fix: A boolean whose specification default is `0` now defaults to false instead of true
+    - Fix: A fractional temperature or percentage default keeps its fraction
+    - Fix: The bits of a bitmap carry the conformance the specification states for them
+    - Fix: An event of a derived cluster takes the priority of the event it derives from
+    - Fix: A derived cluster's changes to the fields of an inherited struct now apply correctly
+    - Fix: An element whose access states a privilege but neither read nor write, such as `JointFabricAdministrator.AdministratorFabricIndex`, is read-only (but formally Spec-incompliant)
+    - Fix: A constraint that bounds a value by a field named like a constraint keyword, such as the `Min` of ClosureDimension's range structs, survives serialization
 
 - @matter/node
-    - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding how long it waits for the operational CASE connection that follows it
     - Breaking: Default server exports no longer inherit the features their base implementation enables internally.
         - `ColorControlServer`, `DoorLockServer`, `ElectricalEnergyMeasurementServer`, `LevelControlServer`, `ModeSelectServer`, `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer` and `WindowCoveringServer` now select no features. Select the features your device supports with `.with(...)` or use the DeviceType specific Requirement definitions of these clusters which automatically enable the needed features for the device type
         - `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer`, `WindowCoveringServer` and `ElectricalEnergyMeasurementServer` now require a selection to be added to an endpoint at all. The `DoorLockDevice`, `SpeakerDevice` and `ModeSelectDevice` device types alias these exports, so their clusters also select no features and advertise a different FeatureMap.
         - Verify the feature set of every device you compose. Persisted cluster state resets once for affected devices because it is keyed by feature selection
+    - Breaking: `Discovery.Options.scannerFilter` is removed; state the transports to discover on with `discoveryCapabilities`
+    - Breaking: `discoveryCapabilities` moved from `CommissioningClient.CommissioningOptions` to `Discovery.Options`; it reaches discovery through `ServerNode.peers.commission()` and `peers.discover()`, and never had an effect on `ClientNode.commission()`. Code that declares its commissioning options as `CommissioningClient.CommissioningOptions` and sets `discoveryCapabilities` no longer compiles - declare them as `CommissioningDiscovery.Options` instead
     - Breaking: A LongIdleTimeSupport ICD must select CheckInProtocolSupport and UserActiveModeTrigger
     - Breaking: A node that accepts more than one path per invoke must select the General Diagnostics DataModelTest feature
     - Breaking: An unreported client node attribute reads its schema default, else the specification's fallback value for its type, when the attribute is mandatory under the peer's supported features, and `undefined` otherwise — regardless of the peer's AttributeList (an enum attribute reads `undefined`, as the specification defines its fallback as manufacturer-specific). The value is a detached copy, so mutating a struct or list read from an unreported attribute does not write through
@@ -46,6 +67,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: Provisional elements are no longer implemented by default; supply a state value or use `ClusterBehavior.enable()` to implement one
     - Breaking: `SoftwareUpdateManager.addUpdateConsent()` and `forceUpdate()` take the update as an object instead of three positional arguments, so it can carry per-update options
     - Breaking: Ensure that changing any attribute of a client node sends a write to the peer; an attribute the peer's cluster type cannot express, including the global attributes, is declined locally with `UnsupportedWrite` or `UnsupportedAttribute`
+    - Breaking: A commissionable advertisement stating vendor or product ID 0 now reports it absent (undefined)
     - Removed: `StructManager.assertDirectReadAuthorized()` and the direct-read authorization it backed, unused since the legacy cluster API was dropped
     - Deprecation: `ClientNodeInteraction.localStateFor()` is scheduled for removal in 0.19 together with the legacy controller API
     - Feature: Added `ServerNode.peers.commissioned` returning the commissioned `ClientNode`s
@@ -53,17 +75,36 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Added a `ClientNode` connection-state engine — `lifecycle.connectionState`/`connectionStateChanged`/`isConnected` and the `NodeConnectionState` enum
     - Feature: Added `ClientNodeLifecycle.isSeeded` and the `seeded` event, indicating a peer node's structure has been read from the device at least once
     - Feature: Added `Behaviors.forCluster(clusterId)` to resolve a cluster behavior type by numeric cluster id
+    - Feature: A behavior reports an attribute it computes on read via the new protected `Behavior.markChanged()`
     - Feature: Added `openBasicCommissioningWindow`/`openEnhancedCommissioningWindow` on `CommissioningClient`/`ClientNode` to open a commissioning window on a commissioned peer
     - Feature: Added split/delegated commissioning — `CommissioningClient.CommissioningOptions.finalizeCommissioning` plus `ServerNode.peers.completeCommissioning(nodeId, discoveryData?, options?)`
     - Feature: Added `NetworkServer.autoStartCommissionedPeers` (default true) to opt out of auto-starting commissioned peers when the node goes online
+    - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding how long it waits for the operational CASE connection that follows it
     - Enhancement: `SoftwareUpdateManager` caps the BDX block size for OTA transfers via `maxBdxBlockSize` and overrides their MRP retransmission margin via `bdxAdditionalMrpDelay`, either generally in its state or per update when giving consent
     - Enhancement: `network.profiles` accepts `bdxAdditionalMrpDelay`
+    - Enhancement: A node's commissioning state records the `hostname` the device's SRV record names, alongside its addresses
+    - Enhancement: Discovery reports at notice level, naming an installed BLE scanner it was not asked to use, and reports a discovery that asks for BLE where BLE is not enabled
+    - Enhancement: Discovery warns where no scanner takes part in it at all
+    - Enhancement: `Discovery.Options` accepts `discoveryCapabilities` to select the transports to discover on, so a caller no longer builds a `scannerFilter` for it
     - Adjustment: A node with commissioning disabled (e.g. a controller) now binds an ephemeral operational port instead of the standard Matter port (5540) when `NetworkServer.port` is unset; commissionable nodes still default to 5540 and an explicit port is always honored
+    - Adjustment: A device commissioning passes over because its advertised vendor or product contradicts the onboarding payload is reported at notice level
     - Adjustment: A commissioned peer's fabric label is new reconciled to the controller's once after its subscription is first established on start by `ClientNode`
     - Adjustment: `NetworkServer.State.clientCacheFlushInterval` defaults to the storage driver's `writeCoalescingInterval` instead of a fixed 20 minutes; set it to `Instant` to persist every change immediately
     - Adjustment: A `SoftwareUpdateManager.State.announcementInterval` of `Instant` disables OTA provider announcements
+    - Fix: A constraint whose bound carries a unit, such as the `0.01% to 100.00%` of a `percent100ths` value, is enforced in the units the value is encoded in
     - Fix: Struct validation resolves a member stored under its TLV tag number, so a constraint violation there is caught and a mandatory member present only at its id no longer raises a conformance error
+    - Fix: `Thermostat.Presets` reports to subscribers and advances the cluster's data version when the presets change
+    - Fix: A local write of `Thermostat.Presets` is stored instead of silently discarded, and an invalid one rejects the caller's write
+    - Fix: `Thermostat.Presets` is validated and staged for an atomic write on every endpoint that selects the Presets feature, not only where the application passed a `presets` value; presets such an endpoint stored before are ignored
+    - Fix: A preset write is refused for referencing the active preset only when it removes that preset; a thermostat starting with an `ActivePresetHandle` that names no preset stores null instead of refusing to start
+    - Fix: A preset handle the thermostat generates is persisted, so it still addresses the preset after a restart
+    - Fix: Two presets sharing a scenario and carrying no name are refused on an atomic write, as they already were on a local one
+    - Fix: A state class serving an attribute from an accessor sees the values of the writing transaction
+    - Fix: A write refused by pre-commit validation is announced again when the same value is written a second time on one transaction
+    - Fix: A report for a quieter attribute a behavior computes on read carries an advanced cluster data version, so a subscription no longer discards it as one it already has
+    - Fix: `LevelControl.RemainingTime` and `ColorControl.RemainingTime` report the time left in a transition; the attribute read 0 on any endpoint whose application did not itself pass a `remainingTime` value
     - Fix: `endpoints.size` no longer double-counts the root endpoint
+    - Fix: The log line for an opened commissioning window states the timeout as a duration, not as a millisecond count labelled seconds
     - Fix: A commissioned peer's connection state leaves `Connected` as soon as its last operational session is lost
     - Fix: `ChangeNotificationService` event occurrences carry a `timestampKind` naming which of the four wire variants the timestamp is (`epoch`, `system`, `epoch-delta`, `system-delta`), so a consumer forwarding an event no longer has to guess its clock or whether it is absolute or a delta from the previous event
     - Fix: `IdentifyServer` no longer offers the optional `TriggerEffect` command unless the device type requires it, an own command implementation has been added via an override or suppression is disabled; `IdentifyServer.enable({ commands: { triggerEffect: true } })`, `IdentifyServer.alter({ commands: { triggerEffect: { optional: false } } })` and an override of `suppressTriggerEffect()` also offer it
@@ -73,6 +114,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A rejected write to an attribute served by dynamic properties restores the previous value instead of deleting the property, and a rejected write to a previously absent attribute leaves no slot behind instead of one holding `undefined`
     - Fix: Factory reset removes commissioned peers and the certificate authority's key material; a peer that cannot be torn down no longer blocks the reset
     - Fix: A client node's storage metadata no longer surfaces as state: a peer report that only bumps the data version emits no change notification, and `__version__` no longer appears among the changed properties or in cluster state
+    - Fix: A peer that cannot be loaded, such as one whose fabric is missing locally, is reported with its actual cause instead of escaping as an unhandled rejection
+    - Fix: Commissioning passes over a discovered device whose advertised vendor or product ID disagrees with the onboarding payload's
+    - Fix: Validating a state class that serves properties dynamically passes it the endpoint, as every other caller does
+
+- @matter/matter.js
+    - Adjustment: The duplicate "BLE is not enabled" log lines are gone; a node reports missing BLE support once, where it decides on it
 
 - @matter/nodejs
     - Breaking: `FileStorageDriver`'s constructor no longer accepts a `clear` argument; clearing is handled by `StorageService`
@@ -80,11 +127,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensure that `--storage-clear`/`MATTER_STORAGE_CLEAR` is honored again and clears the storage on start
 
 - @matter/nodejs-ble
+    - Enhancement: Waiting for the Bluetooth adapter to power on before scanning or advertising is reported at notice level, naming what to check, and its start is reported once the adapter is up
     - Fix: A connection attempt that BLE reports as failed is retried instead of failing commissioning on the first try
     - Fix: A peripheral whose connection attempt failed is no longer rejected as unusable for the lifetime of the process
     - Fix: Giving up on a peripheral reports the last connection failure as cause
     - Fix: A disconnect that never completes no longer leaves the channel request pending forever
     - Fix: Aborting a BLE connection attempt now stops its retries and releases a link the attempt already established
+    - Fix: Stopping an advertisement that was still waiting for the Bluetooth adapter retracts it, so the adapter powering on no longer starts an advertisement that was already given up on
 
 - @matter/nodejs-shell
     - Feature: Added `--cleanup-legacy-storage` to irreversibly remove the leftover pre-0.16 storage artifacts once they have been migrated to the current format
@@ -96,19 +145,30 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Deprecation: The legacy `ClusterType` command request surface (`Invoke.LegacyCommandRequest`, `Specifier.ClusterTypeCommand`) and `SessionManager.owner` are scheduled for removal in 0.19
     - Enhancement: Network profiles accept a separate `bdxAdditionalMrpDelay` for bulk transfer, defaulting to the profile's messaging margin
     - Enhancement: New `CertificateAuthority.erase()` discards the authority's key material, persisted and in memory
+    - Enhancement: A discovered commissionable device reports the `hostname` its SRV record names
     - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding how long it waits for the operational CASE connection that follows it; defaults to the previous fixed 4m15s
     - Fix: Cancelling BLE commissioning aborts the in-flight channel open
+    - Fix: A concrete subscription path is reported only when that attribute changed; it was previously reported whenever any other attribute of the same cluster changed
     - Fix: A subscription's `maxIntervalCeiling` is transmitted exactly as requested; jitter now applies only when we derive the ceiling ourselves
+    - Fix: mDNS advertisements set the cache-flush bit on the SRV, TXT and address records unique to the node
+    - Fix: mDNS known-answer suppression compares what identifies a record
+    - Fix: mDNS known-answer suppression only applies while more than half the known answer's lifetime remains
+    - Fix: an mDNS response drops the cache-flush bit where it no longer carries the whole record set
+    - Fix: a unicast mDNS response does not carry the cache-flush bit
 
 - @matter/react-native
     - Fix: The `storage.clear` variable now clears the storage on start as it does on Node.js
 
 - @matter/types
     - Breaking: Provisional cluster elements are now typed as optional rather than always present
+    - Breaking: An onboarding payload's vendor and product ID are reported absent (undefined) where it states none instead of 0
     - Feature: Added the `ClusterLookup` namespace for cluster/attribute/command/event name↔id resolution (optional `MatterModel` for custom clusters)
     - Deprecation: The `ClusterType()` factory compat layer (`RetiredClusterType`, `RetiredElements`, the TLV `element` reverse mapping) is scheduled for removal in 0.19
     - Deprecation: The generated `Cluster`, `Complete` and `<Name>Cluster` aliases and the `ClusterType.WithCompat` `with()` shim are scheduled for removal in 0.19
     - Fix: `Cluster.with()` rejects a feature the cluster does not define and returns one frozen namespace per selection
+    - Fix: An onboarding payload carrying a vendor ID past the last test vendor, or a product ID of 0 beside a real vendor ID, is now rejected
+    - Fix: Fixes Base38 decoding which rejected payloads whose length was a multiple of three bytes
+    - Fix: A manual pairing code whose `VID_PID_PRESENT` bit disagrees with its length is now rejected
 
 - @matter/testing
     - Enhancement: `certTest()` defines controller-side certification tests with per-step PICS gating, device-log expectations, and evidence recording; devices run as chip apps (docker or local binary) or matter.js test apps, selected via `MATTER_CERT_DEVICE`
@@ -126,6 +186,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: TC-SC-3.5 turns off `PICS_SDK_CI_ONLY` so the script prompts for commissioning instead of acting as its own commissioner, and drives whichever controller `MATTER_CERT_CONTROLLER` selects
     - Enhancement: A cert test's controller reads and subscribes to events via `CertNodeApi.readEvents()`/`subscribeEvents()`, on both the matter.js and the chip-tool controller
     - Enhancement: A cert test's controller sends an invoke or attribute write as a timed interaction via `CertNodeApi`'s `timedInteractionTimeoutMs`, on both the matter.js and the chip-tool controller
+    - Enhancement: A cert test's controller invokes several commands in one request via `CertNodeApi.invokeBatch()`, which reports each answer in arrival order
+    - Enhancement: `certTest()` accepts `appVariant` to run a variant of the device app CHIP builds as its own binary, such as `nlfaultinject`
+    - Enhancement: A cert test declares a cluster outside the Matter specification with the model annotations and `registerCertCustomCluster()`, and both controllers then address it
+    - Fix: A cert test's own PICS expression now gates the test, which previously only tinted its label in the report; a controller declares the client capabilities the device's PICS file cannot, and those overlay it
+    - Enhancement: `certTest()` accepts test-level `flavors`, skipping a test whose device cannot exist on the run's flavor before the device starts
+    - Enhancement: A cert test's controller commissions from a QR onboarding payload via `CommissioningTarget.qrPairingCode`, on both the matter.js and the chip-tool controller
 
 - @project-chip/matter.js
     - Deprecation: Every class, type, and function of the legacy controller API is now marked deprecated and scheduled for removal in 0.19; use the `ServerNode.peers` / `ClientNode` API of `@matter/node` instead

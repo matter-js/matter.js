@@ -8,6 +8,7 @@ import { Bytes, Duration, NotImplementedError } from "@matter/general";
 import { FieldValue, Metatype } from "../common/index.js";
 import type { ValueModel } from "../models/ValueModel.js";
 import { DecodedBitmap } from "./DecodedBitmap.js";
+import { EncodedValue } from "./EncodedValue.js";
 import { Scope } from "./Scope.js";
 
 /**
@@ -52,7 +53,9 @@ function castValue(model: ValueModel, modelDefault?: FieldValue): unknown {
 
         case Metatype.integer:
         case Metatype.float:
-            return FieldValue.numericValue(modelDefault, model.type);
+            // Restated in encoding units the same way a constraint's bounds are, or a unit would mean one thing in a
+            // bound and another in a default
+            return EncodedValue(model, modelDefault);
 
         case Metatype.enum:
             let enumValueModel;

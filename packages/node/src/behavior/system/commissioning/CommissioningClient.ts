@@ -80,7 +80,6 @@ import {
     CaseAuthenticatedTag,
     CommissioningFlowType,
     DeviceTypeId,
-    DiscoveryCapabilitiesBitmap,
     DiscoveryCapabilitiesSchema,
     FabricIndex,
     ManualPairingCodeCodec,
@@ -88,7 +87,6 @@ import {
     QrPairingCodeCodec,
     Status,
     StatusResponseError,
-    TypeFromPartialBitSchema,
     VendorId,
 } from "@matter/types";
 import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
@@ -852,6 +850,18 @@ export namespace CommissioningClient {
         addresses?: ServerAddress[];
 
         /**
+         * The host named by the SRV record of the device's commissionable advertisement, as the
+         * responder wrote it.
+         *
+         * Operational discovery does not report a host, so this stays what commissioning found while
+         * {@link addresses} goes on being refreshed.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 4.3.1
+         */
+        @field(string, nonvolatile)
+        hostname?: string;
+
+        /**
          * Time at which the device was discovered.
          */
         @field(systimeMs, nonvolatile)
@@ -1033,12 +1043,6 @@ export namespace CommissioningClient {
         timeout?: Duration;
 
         /**
-         * Discovery capabilities to use for discovery. These are included in the QR code normally and defined if BLE
-         * is supported for initial commissioning.
-         */
-        discoveryCapabilities?: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap>;
-
-        /**
          * The initial read/subscription used to populate node data.
          *
          * By default, matter.js reads all attributes on the node.  This allows us to efficiently initialize the complete
@@ -1170,6 +1174,19 @@ export namespace CommissioningClient {
          * The device's long discriminator.
          */
         discriminator?: number;
+
+        /**
+         * The vendor the onboarding payload names, if it names one.
+         *
+         * A commissionable advertisement may state its own vendor and product (§ 4.3.1's `VP` record).
+         * Where both the payload and the advertisement name one, a device that disagrees is not the
+         * device the payload describes and is passed over — otherwise a code for one device silently
+         * onboards another sharing its discriminator.
+         */
+        vendorId?: VendorId;
+
+        /** The product the onboarding payload names, matched as {@link vendorId} is. */
+        productId?: number;
     }
 
     export interface PairingCodeOptions extends BaseCommissioningOptions {
