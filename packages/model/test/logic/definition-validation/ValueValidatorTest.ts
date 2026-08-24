@@ -218,14 +218,6 @@ describe("ValueValidator", () => {
         });
 
         // An operand of an arithmetic bound is a scalar of the expression, not a value the type must hold
-        // A bound computed from constants states a number; one computed from another value states none
-        it("judges a bound computed from constants", () => {
-            const errors = validateConstraint("uint16", "max 1 / 2");
-
-            expect(errors.length).equals(1);
-            expect(errors[0].code).equals("FRACTION_ON_INTEGER_TYPE");
-        });
-
         it("accepts a scalar operand a type could not hold", () => {
             expect(validateConstraint("uint16", "max Other * 0.5")).deep.equals([]);
             expect(validateConstraint("uint16", "max Other / 2")).deep.equals([]);
@@ -250,6 +242,15 @@ describe("ValueValidator", () => {
 
         it("still ignores a trailing remark the specification adds", () => {
             expect(validateDefault("uint16", "12 (deprecated)")).deep.equals([]);
+        });
+
+        // These state integers, and the same cast reads command line arguments
+        it("accepts notation stating an integer exactly", () => {
+            for (const text of ["5.0", "1e3", "18446744073709551615"]) {
+                expect(validateDefault("uint64", text)).deep.equals([]);
+            }
+
+            expect(validateDefault("int8", "-5.0")).deep.equals([]);
         });
 
         // The cast drops a unit it cannot place, so the stated default is kept to notice it went

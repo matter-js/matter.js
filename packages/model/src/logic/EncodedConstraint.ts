@@ -43,10 +43,10 @@ export namespace EncodedConstraint {
     /** What the bounds of a constraint amount to once restated in the units the value is encoded in */
     export interface Bounds {
         /**
-         * Every bound that states a number, in encoding units.
+         * Every bound stating a number outright, in encoding units.
          *
-         * A bound computed from another value states none of its own and is absent; one computed from constants
-         * states the number they compute to.
+         * A bound the specification computes is absent, whether from another value or from constants.  Evaluating one
+         * belongs to {@link Constraint}, which alone knows what an expression means.
          */
         encoded: Bound<number | bigint>[];
 
@@ -85,14 +85,6 @@ function convertAst(ast: Constraint.Ast, model: ValueModel, bounds?: EncodedCons
             for (const member of Array.isArray(bound) ? bound : [bound]) {
                 if (typeof member === "number" || typeof member === "bigint") {
                     bounds.encoded.push({ value: member, model });
-                    continue;
-                }
-
-                // A bound the specification computes states a number of its own only where every operand is a
-                // constant.  Computed from another value it states none, which is why the operands are not read
-                const constant = constantValue(member);
-                if (constant !== undefined) {
-                    bounds.encoded.push({ value: constant, model });
                 }
             }
         }
@@ -107,63 +99,6 @@ function convertAst(ast: Constraint.Ast, model: ValueModel, bounds?: EncodedCons
         entry: ast.entry === undefined ? undefined : convertAst(ast.entry, model.listEntry ?? model, bounds),
         parts: ast.parts?.map(part => convertAst(part, model, bounds)),
     };
-}
-
-/** The number a computed bound states outright, or undefined where it depends on another value */
-function constantValue(expression: Constraint.Expression | undefined): number | undefined {
-    if (typeof expression === "number") {
-        return expression;
-    }
-
-    if (expression === null || typeof expression !== "object") {
-        return undefined;
-    }
-
-    if ("args" in expression) {
-        const args = expression.args.map(constantValue);
-        if (args.some(arg => arg === undefined)) {
-            return undefined;
-        }
-
-        switch (expression.type) {
-            case "maxOf":
-                return Math.max(...(args as number[]));
-
-            case "minOf":
-                return Math.min(...(args as number[]));
-        }
-
-        return undefined;
-    }
-
-    if (!("lhs" in expression)) {
-        return undefined;
-    }
-
-    const lhs = constantValue(expression.lhs);
-    const rhs = constantValue(expression.rhs);
-    if (lhs === undefined || rhs === undefined) {
-        return undefined;
-    }
-
-    switch (expression.type) {
-        case "+":
-            return lhs + rhs;
-
-        case "-":
-            return lhs - rhs;
-
-        case "*":
-            return lhs * rhs;
-
-        case "/":
-            return rhs === 0 ? undefined : lhs / rhs;
-
-        case "^":
-            return lhs ** rhs;
-    }
-
-    return undefined;
 }
 
 function convertExpression(

@@ -237,6 +237,41 @@ export namespace FieldValue {
     }
 
     /**
+     * The integer that decimal or exponential notation states exactly, or undefined where it states a fraction.
+     *
+     * The digits are shifted by hand because converting to a number first rounds a value too large to be one, and
+     * "18446744073709551614.5" would then look like the integer it is not.
+     */
+    function statedInteger(text: string) {
+        const stated = text.match(/^([+-]?)(\d*)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/);
+        if (stated === null) {
+            return undefined;
+        }
+
+        const [, sign, whole, fraction = "", exponent] = stated;
+        if (whole === "" && fraction === "") {
+            return undefined;
+        }
+
+        const digits = whole + fraction;
+        const point = whole.length + Number(exponent ?? 0);
+
+        if (point < 0) {
+            return undefined;
+        }
+
+        if (point >= digits.length) {
+            return `${sign}${digits}${"0".repeat(point - digits.length)}`;
+        }
+
+        if (/[1-9]/.test(digits.slice(point))) {
+            return undefined;
+        }
+
+        return `${sign}${digits.slice(0, point) || "0"}`;
+    }
+
+    /**
      * Extract object properties from the value.
      */
     export function objectValue(value: FieldValue | undefined) {
@@ -372,16 +407,21 @@ export namespace FieldValue {
                         return { type, value };
                     }
 
-                    // Strip off extra garbage like Number.parseInt would but BigInt doesn't
-                    const match = value.match(/^(0x[0-9a-f]+|0b[01]+|\d+)/i);
-                    if (match) {
-                        // A fraction or an exponent states a different value than the digits before it, so dropping
-                        // it would not lose precision but invent a value: "1e-3" is not 1, and "0.01" is not 0
-                        if (/^[.eE]/.test(value.slice(match[1].length))) {
-                            return FieldValue.Invalid;
-                        }
+                    // Decimal and exponential notation state a value of their own, so read them exactly rather
+                    // than dropping the tail: "1e3" is 1000, while "1e-3" and "0.01" state no integer at all
+                    const stated = statedInteger(value);
+                    if (stated !== undefined) {
+                        value = stated;
+                    } else {
+                        // Strip off extra garbage like Number.parseInt would but BigInt doesn't
+                        const match = value.match(/^(0x[0-9a-f]+|0b[01]+|\d+)/i);
+                        if (match) {
+                            if (/^[.eE]/.test(value.slice(match[1].length))) {
+                                return FieldValue.Invalid;
+                            }
 
-                        value = match[1];
+                            value = match[1];
+                        }
                     }
                 }
 
