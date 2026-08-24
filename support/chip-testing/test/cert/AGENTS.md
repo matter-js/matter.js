@@ -305,6 +305,16 @@ displace an earlier step failure — that stays the run's outcome, with the clea
 it in the evidence. A cleanup failure this suite swallowed into a `console.warn` once already went
 unnoticed across passing runs, which is why it is loud now.
 
+**A TC owing more than one cleanup uses `runCleanups`, not a `try`/`finally`.** `finally` runs both
+but reports only the last one's failure, and the two name different state the next run inherits — an
+outstanding commissioning attempt is not a substitute for a fabric left on the TH. `runCleanups` runs
+each in order, rethrows a lone failure unchanged so its own type survives, and joins several into one
+`CertCleanupError`:
+
+```ts
+    .finalize(cx => runCleanups(() => refusals.settle(cx), () => commissioned.decommissionAll(cx)));
+```
+
 `CommissionedRefs.withRef(role, run)` only requires the role's ref up front and threads it in; the
 old `guarded()` wrapper, which decommissioned on a step's own failure, is gone — the finalizer covers
 that case, and a cleanup failure raised from inside a step's `catch` would have masked the step's own
@@ -1501,16 +1511,24 @@ it did until `CommissioningTarget.giveUpAfterMs` was added. matter.js maps it to
 timeout; chip-tool cannot be bounded and says so, stopping on its own after ~30s, so the step's own
 budget has to outlast chip-tool rather than matter.js.
 
-**Step 6 records a real disagreement between the two controllers, and this one cost a review round.**
-The obvious reading — "a manual code's vendor id is informational, no commissioner matches it against
-the device it found" — is **false for chip-tool**:
-`SetUpCodePairer::NodeMatchesCurrentFilter` (`src/controller/SetUpCodePairer.cpp`) skips a discovered
-device whose advertised vendor or product id disagrees with the code's, so a code naming another
-vendor finds nothing and chip-tool gives up after its 30s discovery budget. matter.js discovers on
-the discriminator alone (`resolveCommissioningTarget` passes only `shortDiscriminator`/`passcode`)
-and onboards. **The plan's expected outcome admits both** — terminate, "unless the user is made fully
-aware of the security risks" — so the step records which happened instead of asserting one. Both
-outcomes appear in the evidence, one per controller.
+**Step 6: a manual code's vendor id is not informational, and both controllers act on it.** The
+obvious reading — "no commissioner matches a code's vendor id against the device it found" — is false
+for chip-tool: `SetUpCodePairer::NodeMatchesCurrentFilter` (`src/controller/SetUpCodePairer.cpp`)
+skips a discovered device whose advertised vendor or product id disagrees with the code's, so a code
+naming another vendor finds nothing and chip-tool gives up after its 30s discovery budget. It is
+false for matter.js too: `resolveCommissioningTarget` hands the code's `vendorId`/`productId` to
+`peers.commission`, whose discovery passes over a device whose advertisement disagrees, and the attempt
+ends in `DiscoveryError` after `giveUpAfterMs`. **The plan's expected outcome admits both
+outcomes** — terminate, "unless the user is made fully aware of the security risks" — so the step
+records which happened instead of asserting one.
+
+Two things the step's evidence has to say, and did not until it was made to. A `DiscoveryError` or a
+chip-tool command failure is what termination looks like, but so is a TH that stopped advertising, so
+`recordVendorOutcome` proves the TH is advertising commissionable immediately before each attempt (the
+`restoreCommissioningMode` that precedes it only does so for a code that follows an onboarding). And
+one of `TEST_VENDOR_IDS` is the vendor id a harness TH advertises for itself, so that code is step 1's
+code and its outcome says nothing about a substituted id — the detail now says which of the two the
+attempt was.
 
 **All four codes go to the DUT, which needs the TH restored between them.** The plan says "provide
 each", and an attempt that onboards leaves the TH out of commissioning mode for the next one — so
