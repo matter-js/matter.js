@@ -16,6 +16,7 @@ import {
     LogDestination,
     LogFormat,
     Logger,
+    MatterError,
     Millis,
     MockStorageService,
     ObserverGroup,
@@ -317,6 +318,14 @@ function resolveCommissioningTarget(target: CommissioningTarget): ResolvedCommis
     return { identifierData: { longDiscriminator: target.discriminator }, passcode: target.passcode };
 }
 
+/**
+ * The adapter's controller holds no {@link ClientNode} for the ref a step handed in. Besides a step
+ * naming a node it never commissioned, this is what every node operation reports once the device
+ * removed the controller's fabric: the controller reacts to the device's Leave event by deleting the
+ * peer ("Peer ... has left the fabric"), so the refusal is derived from the device's own notice.
+ */
+export class NoCommissionedPeerError extends MatterError {}
+
 class InProcessCertNodeApi implements CertNodeApi {
     readonly #adapterId: string;
     readonly #controller: ServerNode;
@@ -333,7 +342,7 @@ class InProcessCertNodeApi implements CertNodeApi {
     get #peer(): ClientNode {
         const peer = this.#controller.peers.get(this.#fabric.addressOf(this.#nodeId));
         if (peer === undefined) {
-            throw new ImplementationError(
+            throw new NoCommissionedPeerError(
                 `Controller "${this.#adapterId}" has no commissioned peer with node id ${this.#nodeId}`,
             );
         }
