@@ -659,7 +659,7 @@ describe("Datasource", () => {
                         state.foo = "!bar";
                         await context.transaction.commit();
                     } catch (error) {
-                        expect((error as Error).message).contains("refused");
+                        expect(error instanceof Error ? error.message : String(error)).contains("refused");
                     }
                 }
             });
