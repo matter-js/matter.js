@@ -64,9 +64,11 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         this.#validateAspect("access");
         this.#validateAspect("quality");
 
-        // After the type is validated, because that is where a default stated as text becomes the value it denotes
-        this.#validateType();
+        // Before the type is validated: normalizing a default to an integer truncates a fraction, and throws on one
+        // it cannot convert at all, so what the specification stated is the only form that can be judged
         this.#validateNumericValues();
+
+        this.#validateType();
         this.#validateEntries();
 
         super.validate();
@@ -101,6 +103,12 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         const fallback = this.model.default;
         if (typeof fallback === "number" || typeof fallback === "bigint") {
             encoded.push({ value: fallback, model: this.model });
+        } else if (typeof fallback === "string") {
+            // A default stated as text denotes a number, and states it before anything casts it to the type
+            const numeric = Number(fallback);
+            if (Number.isFinite(numeric)) {
+                encoded.push({ value: numeric, model: this.model });
+            }
         } else if (fallback !== undefined) {
             const value = EncodedValue(this.model, fallback);
             if (value !== undefined) {
@@ -247,6 +255,12 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
             // In this case though the data likely comes from the spec so we're going to take a flyer and say you can
             // never have "empty" as a default value
             delete this.model.default;
+            return;
+        }
+
+        // A fraction has no integer form, and casting it throws rather than saying so.  The numeric validation above
+        // has already reported it, so leave the default as stated
+        if (metatype === Metatype.integer && typeof defaultValue === "number" && !Number.isInteger(defaultValue)) {
             return;
         }
 

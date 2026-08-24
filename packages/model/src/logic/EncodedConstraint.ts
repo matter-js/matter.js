@@ -68,12 +68,29 @@ export namespace EncodedConstraint {
 }
 
 function convertAst(ast: Constraint.Ast, model: ValueModel, bounds?: EncodedConstraint.Bounds): Constraint.Ast {
+    const value = convertExpression(ast.value, model, bounds);
+    const min = convertExpression(ast.min, model, bounds);
+    const max = convertExpression(ast.max, model, bounds);
+    const set = convertValue(ast.in, model, bounds);
+
+    // Only what the constraint states as a bound in its own right.  An operand of an arithmetic bound is a scalar of
+    // the expression, not a value the type must hold: "max Duration / 2" says nothing about holding 2
+    if (bounds !== undefined) {
+        for (const bound of [value, min, max, set]) {
+            for (const member of Array.isArray(bound) ? bound : [bound]) {
+                if (typeof member === "number" || typeof member === "bigint") {
+                    bounds.encoded.push({ value: member, model });
+                }
+            }
+        }
+    }
+
     return {
         ...ast,
-        value: convertExpression(ast.value, model, bounds),
-        min: convertExpression(ast.min, model, bounds),
-        max: convertExpression(ast.max, model, bounds),
-        in: convertValue(ast.in, model, bounds),
+        value,
+        min,
+        max,
+        in: set,
         entry: ast.entry === undefined ? undefined : convertAst(ast.entry, model.listEntry ?? model, bounds),
         parts: ast.parts?.map(part => convertAst(part, model, bounds)),
     };
@@ -96,9 +113,6 @@ function convertExpression(
     bounds?: EncodedConstraint.Bounds,
 ): Constraint.Expression | undefined {
     if (expression === undefined || typeof expression !== "object" || expression === null) {
-        if (typeof expression === "number" || typeof expression === "bigint") {
-            bounds?.encoded.push({ value: expression, model });
-        }
         return expression;
     }
 
@@ -134,9 +148,6 @@ function convertValue(value: FieldValue | undefined, model: ValueModel, bounds?:
         value === undefined ||
         !(FieldValue.is(value, FieldValue.percent) || FieldValue.is(value, FieldValue.celsius))
     ) {
-        if (typeof value === "number" || typeof value === "bigint") {
-            bounds?.encoded.push({ value, model });
-        }
         return value;
     }
 
@@ -146,6 +157,5 @@ function convertValue(value: FieldValue | undefined, model: ValueModel, bounds?:
         return value;
     }
 
-    bounds?.encoded.push({ value: encoded, model });
     return encoded;
 }

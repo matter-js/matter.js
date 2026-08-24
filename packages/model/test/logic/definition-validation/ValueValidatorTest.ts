@@ -170,6 +170,28 @@ describe("ValueValidator", () => {
             expect(validateDefault("uint64", 18446744073709551615n)).deep.equals([]);
         });
 
+        // Casting a fraction to an integer throws rather than reporting, so the stated value is judged first
+        it("reports a fractional default rather than failing to cast it", () => {
+            const errors = validateDefault("uint16", 0.01);
+
+            expect(errors.length).equals(1);
+            expect(errors[0].code).equals("FRACTION_ON_INTEGER_TYPE");
+        });
+
+        // The integer cast truncates this to zero, so it too must be judged as stated
+        it("reports a fractional default stated as text", () => {
+            const errors = validateDefault("uint16", "0.01");
+
+            expect(errors.length).equals(1);
+            expect(errors[0].code).equals("FRACTION_ON_INTEGER_TYPE");
+        });
+
+        // An operand of an arithmetic bound is a scalar of the expression, not a value the type must hold
+        it("accepts a scalar operand a type could not hold", () => {
+            expect(validateConstraint("uint16", "max Other * 0.5")).deep.equals([]);
+            expect(validateConstraint("uint16", "max Other / 2")).deep.equals([]);
+        });
+
         it("accepts a fraction on a floating point type", () => {
             expect(validateConstraint("single", "0.5 to 100")).deep.equals([]);
             expect(validateConstraint("double", "0.5 to 100")).deep.equals([]);
