@@ -18,7 +18,7 @@ import {
     expectInvokeCount,
     expectNoInjectedFault,
 } from "./tc-idm-1.3-support.js";
-import { CommissionedRefs, LOG_TIMEOUT, record, requireId } from "./tc-support.js";
+import { CommissionedRefs, LOG_TIMEOUT, record, requireId, runCleanups } from "./tc-support.js";
 
 const ON_OFF = Matter.clusters.require("OnOff");
 const ON_OFF_ID = requireId(ON_OFF.id, "OnOff cluster");
@@ -306,4 +306,27 @@ certTest("TC-IDM-1.3", {
             expected: "On the TH, the received request message has the same path as provided in the command",
         },
     )
-    .finalize(cx => commissioned.decommissionAll(cx));
+    .finalize(cx =>
+        runCleanups(
+            // Faults 12/13/14 fire for any invoke and kill the device unless it carries two commands,
+            // so the RemoveFabric below would take the TH down with it. They live in the app's memory
+            // and a reboot keeps the fabric, so restarting clears them and leaves the fabric to remove.
+            // Disarming cannot work: `failAtFault` is itself a single-command invoke.
+            () => rebootTh(cx),
+            () => commissioned.decommissionAll(cx),
+        ),
+    );
+
+/** A chip app says it is up again on this line, once per generation. */
+const SERVER_READY = /\[SVR\] Server initialization complete/;
+
+async function rebootTh(cx: CertStepContext) {
+    const th = cx.devices.th;
+    const from = th.log.mark();
+
+    await th.backchannel({ name: "reboot" });
+
+    // start() returns when the process is up, not when the app is, and the decommission that follows
+    // needs a device that answers
+    await th.log.expect({ chip: SERVER_READY }, { flavor: th.flavor, from, timeoutMs: LOG_TIMEOUT });
+}
