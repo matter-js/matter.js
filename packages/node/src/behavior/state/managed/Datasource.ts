@@ -517,6 +517,7 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
         validate(values ?? this.#values, session, {
             path: this.location.path,
             config: this.supervisionConfig,
+            owner: this.owner,
         });
     }
 
