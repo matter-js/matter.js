@@ -309,7 +309,8 @@ unnoticed across passing runs, which is why it is loud now.
 but reports only the last one's failure, and the two name different state the next run inherits — an
 outstanding commissioning attempt is not a substitute for a fabric left on the TH. `runCleanups` runs
 each in order, rethrows a lone failure unchanged so its own type survives, and joins several into one
-`CertCleanupError`:
+`CertCleanupErrors` — a `MatterAggregateError` whose message names every failure, because the message
+is all the engine keeps of a finalization failure, with the originals as its causes:
 
 ```ts
     .finalize(cx => runCleanups(() => refusals.settle(cx), () => commissioned.decommissionAll(cx)));
