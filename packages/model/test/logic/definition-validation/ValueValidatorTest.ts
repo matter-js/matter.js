@@ -244,6 +244,27 @@ describe("ValueValidator", () => {
             expect(validateDefault("uint16", "12 (deprecated)")).deep.equals([]);
         });
 
+        it("accepts zero at any exponent", () => {
+            for (const text of ["0e-2", "0.0e-5", "-0.0"]) {
+                expect(validateDefault("uint16", text)).deep.equals([]);
+            }
+        });
+
+        // Building the digits of "1e1000000000" would allocate a gigabyte of them
+        it("rejects an exponent no type could be that wide", () => {
+            const errors = validateDefault("uint16", "1e1000000000");
+
+            expect(errors.length).equals(1);
+            expect(errors[0].code).equals("INVALID_VALUE");
+        });
+
+        // Snapped to zero it would read as neither a fraction nor a negative
+        it("reports a scaled value that merely lands near zero", () => {
+            const errors = validateDefault("percent100ths", { type: "percent", value: -1e-18 });
+
+            expect(errors.map(error => error.code)).contains("FRACTION_ON_INTEGER_TYPE");
+        });
+
         // These state integers, and the same cast reads command line arguments
         it("accepts notation stating an integer exactly", () => {
             for (const text of ["5.0", "1e3", "18446744073709551615"]) {

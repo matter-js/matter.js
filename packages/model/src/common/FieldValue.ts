@@ -236,6 +236,9 @@ export namespace FieldValue {
         }
     }
 
+    /** Digits enough for any Matter numeric type, the widest of which needs twenty */
+    const MAX_STATED_DIGITS = 64;
+
     /**
      * The integer that decimal or exponential notation states exactly, or undefined where it states a fraction.
      *
@@ -256,7 +259,18 @@ export namespace FieldValue {
         const digits = whole + fraction;
         const point = whole.length + Number(exponent ?? 0);
 
+        // Zero is zero at every exponent
+        if (!/[1-9]/.test(digits)) {
+            return `${sign}0`;
+        }
+
         if (point < 0) {
+            return undefined;
+        }
+
+        // An exponent states the width of the value, and one too wide for any Matter type is not worth building the
+        // digits of; "1e1000000000" would allocate a gigabyte of them
+        if (point > MAX_STATED_DIGITS) {
             return undefined;
         }
 

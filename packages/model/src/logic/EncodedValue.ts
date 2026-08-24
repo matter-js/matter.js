@@ -31,7 +31,10 @@ export function EncodedValue(model: ValueModel, value: FieldValue.Open | undefin
         !Number.isInteger(encoded)
     ) {
         const rounded = Math.round(encoded);
-        if (Math.abs(encoded - rounded) < Math.max(1, Math.abs(rounded)) * Number.EPSILON * 8) {
+
+        // Scaling a zero yields a zero exactly, so a value that merely lands near zero counts no units and must stay
+        // as it is — snapped, it reads as neither a fraction nor a negative
+        if (rounded !== 0 && Math.abs(encoded - rounded) < Math.max(1, Math.abs(rounded)) * Number.EPSILON * 8) {
             return rounded;
         }
     }
