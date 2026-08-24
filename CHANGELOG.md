@@ -112,6 +112,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A client node's storage metadata no longer surfaces as state: a peer report that only bumps the data version emits no change notification, and `__version__` no longer appears among the changed properties or in cluster state
     - Fix: A peer that cannot be loaded, such as one whose fabric is missing locally, is reported with its actual cause instead of escaping as an unhandled rejection
     - Fix: Commissioning passes over a discovered device whose advertised vendor or product ID disagrees with the onboarding payload's
+    - Fix: Validating a state class that serves properties dynamically passes it the endpoint, as every other caller does
 
 - @matter/matter.js
     - Adjustment: The duplicate "BLE is not enabled" log lines are gone; a node reports missing BLE support once, where it decides on it
