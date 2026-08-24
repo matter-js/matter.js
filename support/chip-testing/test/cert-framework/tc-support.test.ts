@@ -30,7 +30,9 @@ import {
     matterjsSubscribeTiming,
     READ_REQUEST_MESSAGE,
     recordAll,
+    CertCleanupErrors,
     requireId,
+    runCleanups,
     WRITE_REQUEST_MESSAGE,
 } from "../cert/tc-support.js";
 
@@ -45,8 +47,20 @@ const sentLine = (exchange = EXCHANGE) =>
 const ackLine = (exchange = EXCHANGE) =>
     `[DMG] << from UDP:[fe80::1%eth0]:58253 | 208635799 | [Interaction Model  (1) / Status Response (0x01) / Session = 13606 / Exchange = ${exchange}]`;
 
-/** One chunk as chip logs it: its own trace line, then the decode dump the check matches. */
-const chunkLines = (exchange = EXCHANGE) => [sentLine(exchange), CHUNK];
+// A report's own flags, which chip prints as fields of its decode dump: every chunk but the last says
+// there is more to come, the last one says the requester must not answer it.
+const MORE_CHUNKS = "[DMG] \tMoreChunkedMessages = true,";
+const SUPPRESSED = "[DMG] \tSuppressResponse = true,";
+
+/**
+ * One chunk as chip logs it: its own trace line, the decode dump the check matches, and the flag that
+ * says whether the transfer ends here.
+ */
+const chunkLines = (exchange = EXCHANGE, finality: "more" | "final" = "more") => [
+    sentLine(exchange),
+    CHUNK,
+    finality === "final" ? SUPPRESSED : MORE_CHUNKS,
+];
 
 /**
  * A log source the test feeds by hand and never ends — a source that finishes closes the follower,
@@ -127,12 +141,14 @@ describe("expectChunkedTransfer", () => {
             ackLine(),
             ...chunkLines(),
             ackLine(),
-            ...chunkLines(),
+            ...chunkLines(EXCHANGE, "final"),
             NOISE,
         ]);
 
         expect(record.verdict).equal("pass");
-        expect(record.detail).equal("3 report chunks, each but the last followed by a StatusResponse");
+        expect(record.detail).equal(
+            "3 report chunks, each but the last followed by a StatusResponse, and none after the last",
+        );
     });
 
     it("fails when a later chunk pair has no StatusResponse between it", async () => {
@@ -185,6 +201,25 @@ describe("expectChunkedTransfer", () => {
         expect(record.detail).match(/did not chunk/);
     });
 
+    it("fails when the DUT acked the final chunk as well, which a read suppresses", async () => {
+        const record = await check([...chunkLines(), ackLine(), ...chunkLines(EXCHANGE, "final"), ackLine(), NOISE]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).match(/after the final one of 2 report chunks/);
+    });
+
+    it("ignores an ack of another exchange after the final chunk", async () => {
+        const record = await check([
+            ...chunkLines(),
+            ackLine(),
+            ...chunkLines(EXCHANGE, "final"),
+            ackLine(EXCHANGE + 1),
+        ]);
+
+        expect(record.verdict).equal("pass");
+        expect(record.detail).match(/none after the last/);
+    });
+
     it("treats a log source that ends mid-transfer as the end of the transfer", async () => {
         const record = await check(
             [...chunkLines(), ackLine(), ...chunkLines(), ackLine(), ...chunkLines()],
@@ -193,7 +228,16 @@ describe("expectChunkedTransfer", () => {
         );
 
         expect(record.verdict).equal("pass");
-        expect(record.detail).equal("3 report chunks, each but the last followed by a StatusResponse");
+        expect(record.detail).match(/3 report chunks, each but the last followed by a StatusResponse; the log stops/);
+    });
+
+    it("does not read a truncated transfer's trailing ack as an answer to a final chunk", async () => {
+        // A log cut inside a transfer ends on an acked chunk by construction — the ack of chunk N
+        // precedes chunk N+1 — so this must not be the same finding as an answered final chunk
+        const record = await check([...chunkLines(), ackLine(), ...chunkLines(), ackLine()], "chip-docker", true);
+
+        expect(record.verdict).equal("pass");
+        expect(record.detail).match(/the log stops inside the transfer/);
     });
 
     it("records a fail instead of throwing when no report chunk ever appears", async () => {
@@ -532,8 +576,10 @@ describe("expectChunkedTransfer against a matter.js TH", () => {
     // matter.js names the exchange on the report line itself (`⇵<exchange>✉<counter>`), so a chunk
     // carries its own attribution. Lines captured from a matterjs-vs-matterjs run's device log.
     const MATTERJS_EXCHANGE = "50c9";
-    const mjsChunk = (exchange = MATTERJS_EXCHANGE) =>
-        `2026-08-22 16:54:44.382 DEBUG MessageChannel Message » for: I/ReportData moreChunkedMessages attr: 36 backOff: 371ms id: @1:f8b164969e6633a1•678b⇵${exchange}✉02ca1953 type: 0x1/0x5 acked: 0fcef3be reqAck size: 1139 payload: 1536`;
+    const mjsChunk = (exchange = MATTERJS_EXCHANGE, finality: "more" | "final" = "more") =>
+        `2026-08-22 16:54:44.382 DEBUG MessageChannel Message » for: I/ReportData ` +
+        `${finality === "final" ? "suppressResponse" : "moreChunkedMessages"} attr: 36 backOff: 371ms ` +
+        `id: @1:f8b164969e6633a1•678b⇵${exchange}✉02ca1953 type: 0x1/0x5 acked: 0fcef3be reqAck size: 1139 payload: 1536`;
     const mjsAck = (exchange = MATTERJS_EXCHANGE) =>
         `2026-08-22 16:54:44.385 DEBUG MessageExchange Message « for: I/StatusResponse id: @1:f8b164969e6633a1•678b⇵${exchange}✉0fcef3bf type: 0x1/0x1 acked: 02ca1953 reqAck size: 8 payload: 0000000000000000`;
 
@@ -542,10 +588,18 @@ describe("expectChunkedTransfer against a matter.js TH", () => {
     }
 
     it("passes when every chunk but the last is acked", async () => {
-        const record = await transfer([mjsChunk(), mjsAck(), mjsChunk(), mjsAck(), mjsChunk()]);
+        const record = await transfer([
+            mjsChunk(),
+            mjsAck(),
+            mjsChunk(),
+            mjsAck(),
+            mjsChunk(MATTERJS_EXCHANGE, "final"),
+        ]);
 
         expect(record.verdict).equal("pass");
-        expect(record.detail).equal("3 report chunks, each but the last followed by a StatusResponse");
+        expect(record.detail).equal(
+            "3 report chunks, each but the last followed by a StatusResponse, and none after the last",
+        );
     });
 
     it("fails when a chunk pair has no StatusResponse between it", async () => {
@@ -574,6 +628,20 @@ describe("expectChunkedTransfer against a matter.js TH", () => {
 
         expect(record.verdict).equal("fail");
         expect(record.detail).match(/did not chunk/);
+    });
+
+    it("fails when the DUT acked the final chunk as well", async () => {
+        const record = await transfer([mjsChunk(), mjsAck(), mjsChunk(MATTERJS_EXCHANGE, "final"), mjsAck()]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).match(/after the final one of 2 report chunks/);
+    });
+
+    it("does not claim the final message was unanswered where the log stops inside the transfer", async () => {
+        const record = await transfer([mjsChunk(), mjsAck(), mjsChunk(), mjsAck()]);
+
+        expect(record.verdict).equal("pass");
+        expect(record.detail).match(/the log stops inside the transfer/);
     });
 });
 
@@ -974,6 +1042,62 @@ describe("expectCommandInvoke", () => {
         );
 
         expect(record.verdict).equal("unverified");
+    });
+});
+
+describe("runCleanups", () => {
+    it("runs every cleanup even after one fails, and reports both failures", async () => {
+        const ran = new Array<string>();
+
+        const failure = await expect(
+            runCleanups(
+                async () => {
+                    ran.push("settle");
+                    throw new CertCleanupError("an attempt is still running");
+                },
+                async () => {
+                    ran.push("decommission");
+                    throw new CertCleanupError("the fabric is still on the TH");
+                },
+            ),
+        ).rejectedWith(CertCleanupErrors);
+
+        expect(ran).deep.equal(["settle", "decommission"]);
+        // The engine records a finalization failure as the message alone, so both have to be named there
+        expect(failure.message).contains("an attempt is still running");
+        expect(failure.message).contains("the fabric is still on the TH");
+        expect(failure.errors.map((e: Error) => e.message)).deep.equal([
+            "an attempt is still running",
+            "the fabric is still on the TH",
+        ]);
+    });
+
+    it("rethrows a lone failure as it arrived, so its own type survives", async () => {
+        class OwnError extends CertCleanupError {}
+
+        await expect(
+            runCleanups(
+                async () => {
+                    throw new OwnError("only this one failed");
+                },
+                async () => {},
+            ),
+        ).rejectedWith(OwnError, /only this one failed/);
+    });
+
+    it("resolves when every cleanup does", async () => {
+        const ran = new Array<string>();
+
+        await runCleanups(
+            async () => {
+                ran.push("first");
+            },
+            async () => {
+                ran.push("second");
+            },
+        );
+
+        expect(ran).deep.equal(["first", "second"]);
     });
 });
 
