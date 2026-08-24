@@ -65,6 +65,7 @@ function validateDefault(type: string, dflt: FieldValue) {
         uint8.clone(),
         uint16.clone(),
         uint64.clone(),
+        int8.clone(),
         percent100ths.clone(),
         string.clone(),
         bool.clone(),
@@ -272,6 +273,9 @@ describe("ValueValidator", () => {
             }
 
             expect(validateDefault("int8", "-5.0")).deep.equals([]);
+
+            // Notation stating a fraction is refused by the cast, whatever the sign of the type
+            expect(validateDefault("int8", "-5.5").map(error => error.code)).deep.equals(["INVALID_VALUE"]);
         });
 
         // The cast drops a unit it cannot place, so the stated default is kept to notice it went
