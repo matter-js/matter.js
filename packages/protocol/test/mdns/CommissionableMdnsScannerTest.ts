@@ -668,6 +668,65 @@ describe("CommissionableMdnsScanner", () => {
         }
     });
 
+    it("reports the host of the SRV that replaced an earlier one, not the superseded target", async () => {
+        const simulator = new NetworkSimulator();
+        const serverNetwork = new MockNetwork(simulator, SERVER_MAC, [SERVER_IPv4, SERVER_IPv6]);
+        const clientNetwork = new MockNetwork(simulator, CLIENT_MAC, [CLIENT_IPv4, CLIENT_IPv6]);
+
+        const serverSocket = await MdnsSocket.create(serverNetwork);
+        const clientSocket = await MdnsSocket.create(clientNetwork);
+        const clientNames = new DnssdNames({ socket: clientSocket, entropy: MockCrypto(0x05) });
+        const scanner = new CommissionableMdnsScanner(clientNames);
+
+        const NEW_HOSTNAME = "0011223344551111.local";
+
+        async function announce(target: string) {
+            await serverSocket.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: `${INSTANCE_ID}._matterc._udp.local`,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: [`D=3840`, `CM=1`],
+                    },
+                    {
+                        name: `${INSTANCE_ID}._matterc._udp.local`,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: { priority: 0, weight: 0, port: PORT, target },
+                    },
+                    {
+                        name: target,
+                        recordType: DnsRecordType.A,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: SERVER_IPv4,
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+        }
+
+        try {
+            // An SRV's key carries its target, so the device moving host installs a second record and
+            // the superseded one is still there — first in iteration order
+            await announce(HOSTNAME);
+            await announce(NEW_HOSTNAME);
+
+            const [device] = scanner.getDiscoveredCommissionableDevices({});
+            expect(device.hostname).equals("0011223344551111");
+        } finally {
+            await scanner.close();
+            await clientNames.close();
+            await serverSocket.close();
+            await clientSocket.close();
+        }
+    });
+
     it("defers delivery until A/AAAA records arrive", async () => {
         const simulator = new NetworkSimulator();
         const serverNetwork = new MockNetwork(simulator, SERVER_MAC, [SERVER_IPv4, SERVER_IPv6]);

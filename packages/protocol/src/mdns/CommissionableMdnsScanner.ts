@@ -489,16 +489,22 @@ function buildCommissionableDevice(name: DnssdName): CommissionableDevice | unde
 /**
  * The host the name's SRV record points at, without its domain.
  *
- * A name may hold several SRV records, which {@link DnssdName} keys by target and port; this reports
- * the first, as the addresses do.
+ * A record's key includes its target, so a device that moves host installs a second SRV rather than
+ * replacing the first, and the superseded one outlives it — until the eviction delay for a record that
+ * flushed the cache, and until its TTL for one that did not. The most recently installed record is
+ * therefore the current host; the earliest is the one iteration reaches first.
  */
 function hostnameOf(name: DnssdName): string | undefined {
+    let newest: { target: string; installedAt: Timestamp } | undefined;
     for (const record of name.records) {
-        if (record.recordType === DnsRecordType.SRV) {
-            return record.value.target.split(".")[0];
+        if (record.recordType !== DnsRecordType.SRV) {
+            continue;
+        }
+        if (newest === undefined || record.installedAt > newest.installedAt) {
+            newest = { target: record.value.target, installedAt: record.installedAt };
         }
     }
-    return undefined;
+    return newest?.target.split(".")[0];
 }
 
 /**
