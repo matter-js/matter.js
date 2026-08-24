@@ -165,6 +165,36 @@ function toChipJson(object: object, spaces?: number): string {
 }
 
 /**
+ * What a `find-commissionable-by-*` command asks discovery to look for.
+ *
+ * A vendor id arrives as the step wrote it and is taken unvalidated: a step naming an id the
+ * specification reserves is asking this shim what discovery answers for it, and validating here would
+ * throw before the command handler can answer at all.
+ */
+export function discoveryIdentifierFor(command: string, value: string): CommissionableDeviceIdentifiers {
+    switch (command) {
+        case "find-commissionable-by-long-discriminator":
+            return { longDiscriminator: parseInt(value) };
+
+        case "find-commissionable-by-short-discriminator":
+            return { shortDiscriminator: parseInt(value) };
+
+        case "find-commissionable-by-vendor-id":
+            return { vendorId: VendorId(parseInt(value), false) };
+
+        case "find-commissionable-by-device-type":
+            return { deviceType: parseInt(value) };
+
+        case "find-commissionable-by-commissioning-mode":
+        case "commissionables":
+            return {};
+
+        default:
+            throw new ImplementationError(`Missing find by details for discovery command "${command}"`);
+    }
+}
+
+/**
  * A discovery command's answer.
  *
  * `{results: []}` is the runner's success shape, and every `DiscoveryCommands` step of the corpus
@@ -976,35 +1006,7 @@ export class ChipToolWebSocketHandler {
             arguments: { value, "commissioner-name": commissionerName },
         } = data;
 
-        let findBy: CommissionableDeviceIdentifiers | undefined;
-        switch (command) {
-            case "find-commissionable-by-long-discriminator": {
-                findBy = { longDiscriminator: parseInt(value) };
-                break;
-            }
-            case "find-commissionable-by-short-discriminator": {
-                findBy = { shortDiscriminator: parseInt(value) };
-                break;
-            }
-
-            case "find-commissionable-by-vendor-id": {
-                // Unvalidated: this names the vendor a step asked for, and a step naming a reserved id
-                // must reach the answer below rather than throwing past this handler's own catch
-                findBy = { vendorId: VendorId(parseInt(value), false) };
-                break;
-            }
-            case "find-commissionable-by-device-type": {
-                findBy = { deviceType: parseInt(value) };
-                break;
-            }
-            case "find-commissionable-by-commissioning-mode":
-            case "commissionables": {
-                findBy = {};
-            }
-        }
-        if (findBy === undefined) {
-            throw new ImplementationError("Missing find by details");
-        }
+        const findBy = discoveryIdentifierFor(command, value);
 
         try {
             const results = await (
