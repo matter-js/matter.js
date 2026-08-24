@@ -385,6 +385,35 @@ describe("Datasource", () => {
         });
     });
 
+    it("validates dynamic properties against the datasource's owner", async () => {
+        const owner = { id: "owner" };
+        let ownerSeen: unknown;
+
+        class State {
+            foo = "";
+
+            [Val.properties](endpoint: unknown, _session: ValueSupervisor.Session) {
+                ownerSeen = endpoint;
+                return { foo: 42 };
+            }
+        }
+
+        const supervisor = BehaviorSupervisor({
+            id: "test",
+            State,
+            schema: new DatatypeModel({
+                name: "MyState",
+                type: "struct",
+                children: [FieldElement({ name: "foo", type: "string" })],
+            }),
+        });
+        const datasource = createDatasource({ type: State, supervisor, owner });
+
+        expect(() => LocalActorContext.act("test-validate", context => datasource.validate(context))).throws(/foo/);
+
+        expect(ownerSeen).equals(owner);
+    });
+
     it("handles dynamic properties", async () => {
         const dynamic = {
             foo: "hello",
