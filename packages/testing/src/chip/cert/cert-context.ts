@@ -60,8 +60,14 @@ export interface CertDeviceFactory extends Subject.Factory {
 
 /**
  * Outcome of a single cert-test step.
+ *
+ * `"unverified"` means the step ran and nothing in it threw, but at least one of its checks could not
+ * be evaluated, so the step observed less than its claim needs. It fails the run — unlike `"skipped"`,
+ * which states the step never ran at all — because a gap in what was observed must not read as proof.
+ * A check whose claim the run genuinely cannot observe says so with {@link CheckRecord.accepted} and
+ * leaves the step at `"pass"`.
  */
-export type StepVerdict = "pass" | "fail" | "skipped" | "aborted";
+export type StepVerdict = "pass" | "fail" | "unverified" | "skipped" | "aborted";
 
 /**
  * A single piece of evidence a step recorded while running.
@@ -73,6 +79,13 @@ export interface CheckRecord {
     pattern?: string;
     matched?: string;
     logLine?: number;
+    /**
+     * Why an `"unverified"` verdict here is expected rather than a gap to close — a claim this device
+     * or controller cannot exhibit at all, as against a pattern nobody has written yet. Such a check
+     * leaves its step at `"pass"`; every other unverified check makes the step `"unverified"` and fails
+     * the run. Ignored for a `"pass"`/`"fail"` verdict, which state what was observed.
+     */
+    accepted?: string;
 }
 
 /**
@@ -82,8 +95,10 @@ export interface CheckRecord {
 export interface StepRecorder {
     beginStep(step: CertStepDefinition): void;
     /**
-     * Records evidence only; a failed check does not itself change the step's {@link StepVerdict}.
-     * A step signals failure by having its `run` throw, not by calling `check` with a failing verdict.
+     * A step signals failure by having its `run` throw, not by calling `check` with a failing verdict:
+     * a `"fail"` here is recorded, not acted on. An `"unverified"` verdict does reach the step's own
+     * {@link StepVerdict} unless the check carries {@link CheckRecord.accepted}, since a step whose
+     * claim went unobserved has not passed.
      */
     check(record: CheckRecord): void;
     /** Returns the checks recorded for `step` (empty if it never began), for the caller's own end-of-step reporting. */
@@ -115,9 +130,9 @@ export interface StepRecorder {
     recordControllerUnsupportedSkips?(count: number): void;
     /**
      * Records how many of the run's checks reported `"unverified"` — a check whose claim could not be
-     * evaluated at all, which the step engine treats as neither proof nor failure. A step made
-     * entirely of unverified checks still ends with a "pass" verdict, so without this the persisted
-     * record alone would not say how much of what the steps claim was actually observed.
+     * evaluated at all. Counts the checks that declared their gap ({@link CheckRecord.accepted})
+     * alongside those that did not, so this says how much the run left unobserved whatever the
+     * verdicts say.
      */
     recordUnverifiedChecks?(count: number): void;
     /**
@@ -145,9 +160,11 @@ export interface StepRecorder {
      * record states no verdict, so a run that never reaches it cannot leave one behind. `outcome` is
      * the run's own result as its runner will report it — recorded for every failed run, whatever else
      * the record already names — so a failed run cannot settle as a pass over a cause this recorder was
-     * never told about (see {@link EvidenceRecorder.concludeRun}).
+     * never told about (see {@link EvidenceRecorder.concludeRun}). `outcome.unproven` says the run's
+     * only failure is that some step ended `"unverified"`, which the record states as its own verdict
+     * rather than as a failure of the device.
      */
-    concludeRun?(outcome: { failed: boolean; detail?: string }): Promise<void>;
+    concludeRun?(outcome: { failed: boolean; detail?: string; unproven?: boolean }): Promise<void>;
 }
 
 /**

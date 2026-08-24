@@ -1307,7 +1307,7 @@ describe("CertTest", () => {
             steps: [{ number: 1, text: "A step that never runs", run: async () => {} }],
         };
 
-        const outcomes = new Array<{ failed: boolean; detail?: string }>();
+        const outcomes = new Array<{ failed: boolean; detail?: string; unproven?: boolean }>();
         const cx: CertStepContext = {
             controllers: {},
             devices: {},
@@ -1327,7 +1327,7 @@ describe("CertTest", () => {
 
         // The throw came from outside every step, so only the run's own outcome can keep the record
         // from settling as though nothing went wrong.
-        expect(outcomes).deep.equal([{ failed: true, detail: "PICS accessor exploded" }]);
+        expect(outcomes).deep.equal([{ failed: true, detail: "PICS accessor exploded", unproven: false }]);
     });
 
     it("reports a device that died rather than a controller that would not close", async () => {
@@ -2278,6 +2278,70 @@ describe("CertTest", () => {
         }
     });
 
+    it("writes a record that says unverified for a run whose step observed nothing", async () => {
+        const outDir = await mkdtemp(join(tmpdir(), "matter-cert-test-evidence-"));
+        try {
+            const definition: CertTestDefinition = {
+                tc: "TC-CADMIN-1.17",
+                plan: "multiplefabrics.adoc",
+                pics: [],
+                app: "all-clusters",
+                steps: [
+                    {
+                        number: 1,
+                        text: "Step whose log check names no pattern for this flavor",
+                        run: async cx => {
+                            cx.recorder.check({ type: "response", verdict: "pass" });
+                            cx.recorder.check({ type: "device-log", verdict: "unverified" });
+                        },
+                    },
+                    {
+                        number: 2,
+                        text: "Step whose one gap it can explain",
+                        run: async cx => {
+                            cx.recorder.check({
+                                type: "response",
+                                verdict: "unverified",
+                                accepted: "the app defines no manufacturer-specific cluster",
+                            });
+                        },
+                    },
+                ],
+            };
+
+            const recorder = new EvidenceRecorder(outDir, {
+                tc: "TC-CADMIN-1.17",
+                plan: "multiplefabrics.adoc",
+                timestamp: "2026-08-07T00:00:00.000Z",
+                controller: "dut",
+                controllerImplementation: "matterjs",
+                device: "matterjs:all-clusters",
+                matterJsCommit: "abc1234",
+            });
+            const resultPath = join(outDir, "2026-08-07T00-00-00.000Z-TC-CADMIN-1.17", "result.json");
+            const cx: CertStepContext = { controllers: {}, devices: {}, recorder };
+
+            const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+            await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+                "1 step ended with a check that could not be evaluated",
+            );
+
+            const resultJson = JSON.parse(await readFile(resultPath, "utf8"));
+            expect(resultJson.verdict).equal("unverified");
+            expect(resultJson.steps.map((step: { verdict: string }) => step.verdict)).deep.equal([
+                "unverified",
+                "pass",
+            ]);
+
+            // Both gaps counted, the accepted one included.
+            expect(resultJson.unverifiedChecks).equal(2);
+            expect(resultJson.runError).match(/could not be evaluated/);
+        } finally {
+            await rm(outDir, { recursive: true, force: true });
+        }
+    });
+
     it("persists the log-attachment failure, so the written record does not report a pass", async () => {
         const outDir = await mkdtemp(join(tmpdir(), "matter-cert-test-evidence-"));
         try {
@@ -2367,7 +2431,7 @@ describe("CertTest", () => {
         await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith("boom");
     });
 
-    it("counts the checks that could not be verified, and reports them at run level", async () => {
+    it("counts the checks that could not be verified, fails the run and reports them at run level", async () => {
         const definition: CertTestDefinition = {
             tc: "TC-CADMIN-1.17",
             plan: "multiplefabrics.adoc",
@@ -2394,10 +2458,78 @@ describe("CertTest", () => {
 
         const deviceLog = new LogFollower(noLines(), "device");
         const unverified = new Array<number>();
+        const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
+        const outcomes = new Array<{ failed: boolean; detail?: string; unproven?: boolean }>();
         const cx: CertStepContext = {
             controllers: {},
             devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
             recorder: stubRecorder({
+                endStep(step, verdict) {
+                    endStepVerdicts.push({ number: step.number, verdict });
+                    return [];
+                },
+                recordUnverifiedChecks(count) {
+                    unverified.push(count);
+                },
+                async concludeRun(outcome) {
+                    outcomes.push(outcome);
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        // A step that observed nothing must not read as one that proved something, so the run itself
+        // fails rather than leaving the gap to whoever reads the bundle.
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            "2 steps ended with a check that could not be evaluated",
+        );
+
+        expect(endStepVerdicts).deep.equal([
+            { number: 1, verdict: "unverified" },
+            { number: 2, verdict: "unverified" },
+        ]);
+        expect(unverified).deep.equal([2]);
+        expect(outcomes.length).equal(1);
+        expect(outcomes[0].failed).equal(true);
+        expect(outcomes[0].unproven).equal(true);
+
+        const banners = deviceLog.lines.filter(line => line.synthetic).map(line => line.text);
+        expect(banners).to.include("TC-CADMIN-1.17 — 2 checks could not be verified");
+        expect(banners).to.include("TC-CADMIN-1.17 — Test Step 1: UNVERIFIED");
+    });
+
+    it("keeps a step whose check declares why it could not be evaluated at pass, and the run with it", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step whose claim this device cannot exhibit at all",
+                    run: async cx => {
+                        cx.recorder.check({
+                            type: "response",
+                            verdict: "unverified",
+                            accepted: "the matter.js app defines no manufacturer-specific cluster",
+                        });
+                    },
+                },
+            ],
+        };
+
+        const unverified = new Array<number>();
+        const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                endStep(step, verdict) {
+                    endStepVerdicts.push({ number: step.number, verdict });
+                    return [];
+                },
                 recordUnverifiedChecks(count) {
                     unverified.push(count);
                 },
@@ -2407,10 +2539,232 @@ describe("CertTest", () => {
         const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
         await test.invoke(stubSubject(new PicsFile([])), () => {}, [], false);
 
-        expect(unverified).deep.equal([2]);
+        expect(endStepVerdicts).deep.equal([{ number: 1, verdict: "pass" }]);
 
-        const banners = deviceLog.lines.filter(line => line.synthetic).map(line => line.text);
-        expect(banners).to.include("TC-CADMIN-1.17 — 2 checks could not be verified");
+        // Still counted: the declaration says the gap is expected, not that the run observed the claim.
+        expect(unverified).deep.equal([1]);
+    });
+
+    it("fails a run whose later step went unverified even where an earlier one passed", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step that observed what it claims",
+                    run: async cx => {
+                        cx.recorder.check({ type: "response", verdict: "pass" });
+                    },
+                },
+                {
+                    number: 2,
+                    text: "Step whose log check names no pattern for this flavor",
+                    run: async cx => {
+                        cx.recorder.check({ type: "response", verdict: "pass" });
+                        cx.recorder.check({ type: "device-log", verdict: "unverified" });
+                    },
+                },
+            ],
+        };
+
+        const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                endStep(step, verdict) {
+                    endStepVerdicts.push({ number: step.number, verdict });
+                    return [];
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            "1 step ended with a check that could not be evaluated",
+        );
+
+        expect(endStepVerdicts).deep.equal([
+            { number: 1, verdict: "pass" },
+            { number: 2, verdict: "unverified" },
+        ]);
+    });
+
+    it("fails a step whose second check went unverified although the first one stated its own gap", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step with one gap it can explain and one it cannot",
+                    run: async cx => {
+                        cx.recorder.check({
+                            type: "response",
+                            verdict: "unverified",
+                            accepted: "the app defines no manufacturer-specific cluster",
+                        });
+                        cx.recorder.check({ type: "device-log", verdict: "unverified" });
+                    },
+                },
+            ],
+        };
+
+        const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                endStep(step, verdict) {
+                    endStepVerdicts.push({ number: step.number, verdict });
+                    return [];
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            "1 step ended with a check that could not be evaluated",
+        );
+
+        expect(endStepVerdicts).deep.equal([{ number: 1, verdict: "unverified" }]);
+    });
+
+    it("keeps a step's unverified count across a recorder frame the step itself opened", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step that opens a recorder frame of its own",
+                    run: async cx => {
+                        cx.recorder.check({ type: "device-log", verdict: "unverified" });
+                        cx.recorder.beginStep({ number: 1, text: "inner", run: async () => {} });
+                        cx.recorder.check({ type: "response", verdict: "pass" });
+                    },
+                },
+            ],
+        };
+
+        const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                endStep(step, verdict) {
+                    endStepVerdicts.push({ number: step.number, verdict });
+                    return [];
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            "1 step ended with a check that could not be evaluated",
+        );
+
+        expect(endStepVerdicts).deep.equal([{ number: 1, verdict: "unverified" }]);
+    });
+
+    it("reports a device that died rather than the unverified step it died after", async () => {
+        let exit!: (info: DeviceExitInfo) => void;
+        const exitPromise = new Promise<DeviceExitInfo>(resolve => {
+            exit = resolve;
+        });
+
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step whose log check names no pattern for this flavor",
+                    run: async cx => {
+                        cx.recorder.check({ type: "device-log", verdict: "unverified" });
+                        // Settles too late for any step's own race, so the run's teardown finds it.
+                        exit({ code: 134, signal: null });
+                    },
+                },
+            ],
+        };
+
+        const outcomes = new Array<{ failed: boolean; detail?: string; unproven?: boolean }>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: { th: stubCertDevice(exitPromise) },
+            recorder: stubRecorder({
+                async concludeRun(outcome) {
+                    outcomes.push(outcome);
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            "exited unexpectedly",
+        );
+
+        expect(outcomes.length).equal(1);
+        expect(outcomes[0].unproven).equal(false);
+    });
+
+    it("reports a step failure rather than the unverified check of an earlier step", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step whose log check names no pattern for this flavor",
+                    run: async cx => {
+                        cx.recorder.check({ type: "device-log", verdict: "unverified" });
+                    },
+                },
+                {
+                    number: 2,
+                    text: "Step that failed",
+                    run: async () => {
+                        throw new Error("the device answered UNSUPPORTED_ACCESS");
+                    },
+                },
+            ],
+        };
+
+        const outcomes = new Array<{ failed: boolean; detail?: string; unproven?: boolean }>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                async concludeRun(outcome) {
+                    outcomes.push(outcome);
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            "the device answered UNSUPPORTED_ACCESS",
+        );
+
+        expect(outcomes.length).equal(1);
+        expect(outcomes[0].unproven).equal(false);
     });
 
     it("reports no unverified-check count for a run where every check was evaluated", async () => {

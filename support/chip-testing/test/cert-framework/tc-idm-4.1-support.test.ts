@@ -16,6 +16,7 @@ import type {
     Subject,
 } from "@matter/testing";
 import { LineQueue, LogFollower, PicsFile } from "@matter/testing";
+import { env } from "node:process";
 import type { SubscribeAndModifyTimeouts } from "../cert/tc-idm-4.1-support.js";
 import { subscribeAndModify } from "../cert/tc-idm-4.1-support.js";
 import { CertCheckFailedError } from "../cert/tc-support.js";
@@ -285,6 +286,46 @@ describe("subscribeAndModify", () => {
             const unverified = f.checks.filter(check => check.verdict === "unverified");
             expect(unverified).to.have.lengthOf(1);
             expect(unverified[0].detail).match(/matched 1\/3/);
+        });
+    });
+
+    it("accepts the shortfall under chip-tool, whose server drops all but the first result of a batch", async () => {
+        const originalController = env.MATTER_CERT_CONTROLLER;
+        env.MATTER_CERT_CONTROLLER = "chip-tool";
+        try {
+            const fixture = new Fixture("chip-local", (f, _index) => {
+                f.pushReport(SUBSCRIPTION_ID);
+                f.report(true);
+            });
+
+            await withFixture(fixture, async f => {
+                await f.run(VALUES, IMPATIENT);
+
+                const unverified = f.checks.filter(check => check.verdict === "unverified");
+                expect(unverified).to.have.lengthOf(1);
+                expect(unverified[0].accepted).match(/only the first result of a batch/);
+            });
+        } finally {
+            if (originalController === undefined) {
+                delete env.MATTER_CERT_CONTROLLER;
+            } else {
+                env.MATTER_CERT_CONTROLLER = originalController;
+            }
+        }
+    });
+
+    it("leaves the shortfall a gap to close on any other controller", async () => {
+        const fixture = new Fixture("chip-local", (f, _index) => {
+            f.pushReport(SUBSCRIPTION_ID);
+            f.report(true);
+        });
+
+        await withFixture(fixture, async f => {
+            await f.run(VALUES, IMPATIENT);
+
+            const unverified = f.checks.filter(check => check.verdict === "unverified");
+            expect(unverified).to.have.lengthOf(1);
+            expect(unverified[0].accepted).equal(undefined);
         });
     });
 
