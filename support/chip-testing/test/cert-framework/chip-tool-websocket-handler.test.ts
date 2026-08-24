@@ -10,6 +10,7 @@ import { Matter } from "@matter/model";
 import { expect } from "chai";
 import {
     convertWebsocketDataToMatter,
+    discoveryIdentifierFor,
     discoveryResponseFor,
     failureResponseFor,
     isOwnFailure,
@@ -41,6 +42,37 @@ describe("ChipToolWebSocketHandler convertWebsocketDataToMatter octet strings", 
     it("leaves a non-empty unprefixed string unchanged", () => {
         const decoded = convertWebsocketDataToMatter("not-a-prefix-abcd", LAST_NETWORK_ID_ATTRIBUTE);
         expect(decoded).to.equal("not-a-prefix-abcd");
+    });
+});
+
+describe("discoveryIdentifierFor", () => {
+    it("asks for the device each command names", () => {
+        expect(discoveryIdentifierFor("find-commissionable-by-long-discriminator", "3840")).deep.equal({
+            longDiscriminator: 3840,
+        });
+        expect(discoveryIdentifierFor("find-commissionable-by-short-discriminator", "15")).deep.equal({
+            shortDiscriminator: 15,
+        });
+        expect(discoveryIdentifierFor("find-commissionable-by-device-type", "257")).deep.equal({ deviceType: 257 });
+        expect(discoveryIdentifierFor("find-commissionable-by-vendor-id", "65521")).deep.equal({ vendorId: 65521 });
+    });
+
+    it("asks for any device where the command names none", () => {
+        expect(discoveryIdentifierFor("find-commissionable-by-commissioning-mode", "")).deep.equal({});
+        expect(discoveryIdentifierFor("commissionables", "")).deep.equal({});
+    });
+
+    it("takes a vendor id the specification reserves, rather than throwing before the command is answered", () => {
+        // The step is asking what discovery answers for such an id; validating here would escape the
+        // handler's own error path
+        expect(discoveryIdentifierFor("find-commissionable-by-vendor-id", "65535")).deep.equal({ vendorId: 65535 });
+        expect(discoveryIdentifierFor("find-commissionable-by-vendor-id", "not-a-number")).deep.equal({
+            vendorId: NaN,
+        });
+    });
+
+    it("refuses a discovery command it does not know", () => {
+        expect(() => discoveryIdentifierFor("find-commissionable-by-nothing", "1")).throw(ImplementationError);
     });
 });
 

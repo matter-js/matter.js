@@ -598,7 +598,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
         if (latestDiscovery === undefined) {
             return [];
         }
-        return [latestDiscovery].map(({ DT, DN, CM, D, RI, PH, PI, T, VP, deviceIdentifier, addresses }) => {
+        return [latestDiscovery].map(({ DT, DN, CM, D, RI, PH, PI, T, VP, deviceIdentifier, addresses, hostname }) => {
             const { tcpClient: supportsTcpClient, tcpServer: supportsTcpServer } = T ?? {
                 tcpClient: false,
                 tcpServer: false,
@@ -612,7 +612,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
                     commissioningMode: CM,
                     deviceName: DN ?? "",
                     deviceType: DT ?? 0,
-                    hostName: "000000000000", // Right now we do not return real hostname, only used internally
+                    hostName: hostname ?? "",
                     instanceName: deviceIdentifier,
                     longDiscriminator: D,
                     numIPs,

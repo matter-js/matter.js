@@ -31,7 +31,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `FeatureSelectionErrors()` assesses a cluster's selected features against the combinations its FeatureMap conformance disallows
     - Enhancement: `FeatureSet.resolve()` resolves a feature short code, title or camelized title to a short code
     - Enhancement: New `EncodedConstraint()` restates every bound of a constraint in the units the value is encoded in
-    - Enhancement: New `UnscaledConstraintBounds()` reports constraint bounds stating a temperature with no known scale, which the model build now rejects
+    - Enhancement: New `EncodedConstraint.bounds()` reports which of a constraint's bounds state a number in encoding units and which state a unit with no known scale
+    - Fix: The model build rejects a value stating a unit with no known scale, a fraction an integer type cannot hold, or a negative an unsigned type cannot hold
+    - Fix: A default stating a number no integer form matches, such as `1e-3`, is rejected instead of stored as the digits preceding the exponent
+    - Fix: A percentage on a type other than `percent` or `percent100ths` no longer resolves to the printed number as though it were already encoded
     - Fix: A constraint bound's unit takes its scale from the types the value derives from, not from its own type name alone
     - Enhancement: New `Scope.isMandatory()` tells whether a member is mandatory under a schema's supported features, and the new `MandatoryDefaultValue()` computes the value such a member assumes when no real value exists (schema default, else the specification's fallback value, recursing into structs) — the basis for what an unreported client node attribute reads, usable wherever schema-derived fallback values are needed; `SelectDefaultValue()` exposes the shallow variant used for server state seeding
     - Fix: A cluster's feature table no longer selects features; a feature the specification makes unconditionally mandatory is always selected
@@ -79,6 +82,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding how long it waits for the operational CASE connection that follows it
     - Enhancement: `SoftwareUpdateManager` caps the BDX block size for OTA transfers via `maxBdxBlockSize` and overrides their MRP retransmission margin via `bdxAdditionalMrpDelay`, either generally in its state or per update when giving consent
     - Enhancement: `network.profiles` accepts `bdxAdditionalMrpDelay`
+    - Enhancement: A node's commissioning state records the `hostname` the device's SRV record names, alongside its addresses
     - Enhancement: Discovery reports at notice level, naming an installed BLE scanner it was not asked to use, and reports a discovery that asks for BLE where BLE is not enabled
     - Enhancement: Discovery warns where no scanner takes part in it at all
     - Enhancement: `Discovery.Options` accepts `discoveryCapabilities` to select the transports to discover on, so a caller no longer builds a `scannerFilter` for it
@@ -141,6 +145,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Deprecation: The legacy `ClusterType` command request surface (`Invoke.LegacyCommandRequest`, `Specifier.ClusterTypeCommand`) and `SessionManager.owner` are scheduled for removal in 0.19
     - Enhancement: Network profiles accept a separate `bdxAdditionalMrpDelay` for bulk transfer, defaulting to the profile's messaging margin
     - Enhancement: New `CertificateAuthority.erase()` discards the authority's key material, persisted and in memory
+    - Enhancement: A discovered commissionable device reports the `hostname` its SRV record names
     - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding how long it waits for the operational CASE connection that follows it; defaults to the previous fixed 4m15s
     - Fix: Cancelling BLE commissioning aborts the in-flight channel open
     - Fix: A concrete subscription path is reported only when that attribute changed; it was previously reported whenever any other attribute of the same cluster changed

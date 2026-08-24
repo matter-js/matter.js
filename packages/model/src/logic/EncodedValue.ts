@@ -5,7 +5,7 @@
  */
 
 import { FieldValue } from "../common/FieldValue.js";
-import { ElementTag } from "../common/index.js";
+import { ElementTag, Metatype } from "../common/index.js";
 import type { ValueModel } from "../models/ValueModel.js";
 import { ModelTraversal } from "./ModelTraversal.js";
 
@@ -22,10 +22,19 @@ export function EncodedValue(model: ValueModel, value: FieldValue.Open | undefin
     const encoded = scaled(model, value);
 
     // Scaling a fraction to its encoding units is a binary multiplication, so it lands next to the integer the units
-    // count rather than on it; 0.07% of a percent100ths is 7.000000000000001
-    if (typeof encoded === "number" && Number.isFinite(encoded) && !Number.isInteger(encoded)) {
+    // count rather than on it; 0.07% of a percent100ths is 7.000000000000001.  Only an integer encoding counts units:
+    // on a floating point type the fraction is the value, and rounding it away would be a different value
+    if (
+        model.effectiveMetatype === Metatype.integer &&
+        typeof encoded === "number" &&
+        Number.isFinite(encoded) &&
+        !Number.isInteger(encoded)
+    ) {
         const rounded = Math.round(encoded);
-        if (Math.abs(encoded - rounded) < Math.max(1, Math.abs(rounded)) * Number.EPSILON * 8) {
+
+        // Scaling a zero yields a zero exactly, so a value that merely lands near zero counts no units and must stay
+        // as it is — snapped, it reads as neither a fraction nor a negative
+        if (rounded !== 0 && Math.abs(encoded - rounded) < Math.max(1, Math.abs(rounded)) * Number.EPSILON * 8) {
             return rounded;
         }
     }
