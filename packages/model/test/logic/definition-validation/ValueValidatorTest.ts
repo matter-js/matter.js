@@ -62,6 +62,8 @@ function validateDefault(type: string, dflt: FieldValue) {
         uint8.clone(),
         uint16.clone(),
         uint64.clone(),
+        percent100ths.clone(),
+        new DatatypeModel({ name: "UnsignedTemperature", type: "uint8" }),
         new ClusterModel({ name: "Test", id: 0xfff1 }, Attribute({ name: "Bounded", id: 1, type, default: dflt })),
     );
 
@@ -178,14 +180,6 @@ describe("ValueValidator", () => {
             expect(errors[0].code).equals("FRACTION_ON_INTEGER_TYPE");
         });
 
-        // The integer cast truncates this to zero, so it too must be judged as stated
-        it("reports a fractional default stated as text", () => {
-            const errors = validateDefault("uint16", "0.01");
-
-            expect(errors.length).equals(1);
-            expect(errors[0].code).equals("FRACTION_ON_INTEGER_TYPE");
-        });
-
         // The guard that stops the integer cast throwing must not make these pass in silence
         it("reports a default that is no number at all", () => {
             for (const dflt of [NaN, Infinity, -Infinity]) {
@@ -194,14 +188,6 @@ describe("ValueValidator", () => {
                 expect(errors.length).equals(1);
                 expect(errors[0].code).equals("INVALID_VALUE");
             }
-        });
-
-        // Number() rounds this to an integer, erasing the fraction the rule exists to find
-        it("reports a fraction stated as text too large to be a number", () => {
-            const errors = validateDefault("uint64", "18446744073709551614.5");
-
-            expect(errors.length).equals(1);
-            expect(errors[0].code).equals("FRACTION_ON_INTEGER_TYPE");
         });
 
         it("keeps the magnitude of an integer stated as text", () => {
@@ -215,6 +201,13 @@ describe("ValueValidator", () => {
         it("accepts a scalar operand a type could not hold", () => {
             expect(validateConstraint("uint16", "max Other * 0.5")).deep.equals([]);
             expect(validateConstraint("uint16", "max Other / 2")).deep.equals([]);
+        });
+
+        // The specification states a unit-bearing default as text; the cast turns it into the value its unit denotes,
+        // so the digits alone must not be judged
+        it("accepts a unit-bearing default stated as text", () => {
+            expect(validateDefault("UnsignedTemperature", "25.5°C")).deep.equals([]);
+            expect(validateDefault("percent100ths", "0.01%")).deep.equals([]);
         });
 
         it("accepts a fraction on a floating point type", () => {

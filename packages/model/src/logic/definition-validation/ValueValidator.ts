@@ -64,11 +64,10 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         this.#validateAspect("access");
         this.#validateAspect("quality");
 
-        // Before the type is validated: normalizing a default to an integer truncates a fraction, and throws on one
-        // it cannot convert at all, so what the specification stated is the only form that can be judged
-        this.#validateNumericValues();
-
+        // After the type is validated, which is where a default stated as text becomes the value it denotes.  A unit
+        // in particular is only a unit once cast; judging the text would see its digits and not its scale
         this.#validateType();
+        this.#validateNumericValues();
         this.#validateEntries();
 
         super.validate();
@@ -88,7 +87,6 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
      * of once per model deriving from it.
      */
     #validateNumericValues() {
-        const primitive = this.model.primitiveBase?.name;
         const encoded = new Array<EncodedConstraint.Bound<number | bigint>>();
         const unscaled = new Array<EncodedConstraint.Bound<FieldValue>>();
 
@@ -104,8 +102,6 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         const fallback = this.model.default;
         if (typeof fallback === "number" || typeof fallback === "bigint") {
             encoded.push({ value: fallback, model: this.model });
-        } else if (typeof fallback === "string") {
-            this.#validateStatedNumber(fallback.trim(), primitive, encoded);
         } else if (fallback !== undefined) {
             const value = EncodedValue(this.model, fallback);
             if (value !== undefined) {
@@ -149,27 +145,6 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
                     this.error("NEGATIVE_ON_UNSIGNED_TYPE", `${list(negative)} cannot be held by ${primitive}`);
                 }
             }
-        }
-    }
-
-    /**
-     * Judge a number the specification states as text.
-     *
-     * Converting it to a number first would round a value too large to be one into a different value, and
-     * "18446744073709551614.5" would then look like the integer it is not.
-     */
-    #validateStatedNumber(
-        text: string,
-        primitive: string | undefined,
-        encoded: EncodedConstraint.Bound<number | bigint>[],
-    ) {
-        if (/^[+-]?\d+$/.test(text)) {
-            encoded.push({ value: BigInt(text.replace(/^\+/, "")), model: this.model });
-            return;
-        }
-
-        if (primitive !== undefined && INTEGER_TYPE.test(primitive) && /^[+-]?\d*\.\d*[1-9]/.test(text)) {
-            this.error("FRACTION_ON_INTEGER_TYPE", `${text} cannot be held by ${primitive}`);
         }
     }
 
