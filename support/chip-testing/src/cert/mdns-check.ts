@@ -27,6 +27,11 @@ export interface MdnsExpectations {
     commissionable?: boolean;
 }
 
+/** What the `commissionable` expectation needs from a {@link CertDevice}. */
+export interface CommissionableIdentity {
+    commissioning: { discriminator: number };
+}
+
 interface ExpectationResult {
     matched: boolean;
     detail: string;
@@ -51,11 +56,16 @@ interface ExpectationResult {
  * `operationalRecords: n` then means exactly `n` of the given instance names currently carry a live SRV
  * record, not "any single one of them does".
  *
+ * `operationalRecords: 0` asserts withdrawal, which only the whole window can prove: a cache that
+ * merely hasn't heard a name yet is indistinguishable from a withdrawn one, so the check holds the
+ * full `timeoutMs` (soliciting names it holds no live record for) and settles on what is live at
+ * its end.
+ *
  * Never throws for a mismatch — returns a `"fail"` {@link CheckRecord} instead, so a step decides whether
  * the mismatch aborts the step (by asserting on the result) or is itself the condition under test.
  */
 export async function expectMdns(
-    device: CertDevice,
+    device: CommissionableIdentity,
     expectations: MdnsExpectations,
     options?: { timeoutMs?: number; operationalInstanceName?: string | string[] },
 ): Promise<CheckRecord> {
@@ -110,7 +120,7 @@ export async function expectMdns(
  */
 async function checkCommissionable(
     names: DnssdNames,
-    device: CertDevice,
+    device: CommissionableIdentity,
     expected: boolean,
     timeoutMs: number,
 ): Promise<ExpectationResult> {
@@ -142,9 +152,15 @@ async function checkCommissionable(
 
 /**
  * Polls (up to `timeoutMs`) how many of `instanceNames` currently carry a live SRV record, until that
- * count equals `expected`, re-soliciting every name each tick in case its periodic re-announcement hasn't
- * reached us yet. A single-name call (`instanceNames.length === 1`) degenerates to "is this one instance's
- * presence, as 0 or 1, what `expected` says" — the original single-fabric check.
+ * count equals `expected`, re-soliciting each tick every name we hold no live SRV for, in case its
+ * periodic re-announcement hasn't reached us yet. A single-name call (`instanceNames.length === 1`)
+ * degenerates to "is this one instance's presence, as 0 or 1, what `expected` says" — the original
+ * single-fabric check.
+ *
+ * `expected` live records settle the check as soon as all are observed — a live record answers the
+ * question directly. Absence never does: an `expected: 0` call holds the whole window (a withdrawal's
+ * goodbye may still be in flight, and a device that only answers when asked needs the solicitations)
+ * and settles on what is live at its end.
  */
 async function checkOperationalRecords(
     names: DnssdNames,
@@ -153,23 +169,27 @@ async function checkOperationalRecords(
     timeoutMs: number,
 ): Promise<ExpectationResult> {
     const deadline = Timestamp(Time.nowUs + Millis(timeoutMs));
-    const resolved = instanceNames.map(instanceName => names.get(instanceName));
 
     for (;;) {
+        // Re-resolved every tick: a name whose last record expired deletes itself from the cache,
+        // taking its socket relevance registration with it — a reference held across the window
+        // would go blind to a mid-window re-announcement.
+        const resolved = instanceNames.map(instanceName => names.get(instanceName));
         const observed = resolved.filter(hasLiveSrv).length;
-        if (observed === expected) {
-            return {
-                matched: true,
-                detail: `operationalRecords (${instanceNames.join(", ")}): expected ${expected}, observed ${observed}`,
-            };
+        const detail = `operationalRecords (${instanceNames.join(", ")}): expected ${expected}, observed ${observed}`;
+        if (expected > 0 && observed === expected) {
+            return { matched: true, detail };
         }
         if (Time.nowUs >= deadline) {
-            return {
-                matched: false,
-                detail: `operationalRecords (${instanceNames.join(", ")}): expected ${expected}, observed ${observed}`,
-            };
+            return { matched: observed === expected, detail };
         }
         for (const name of resolved) {
+            // Never solicit a name whose SRV is already live: a query carries the name's records as
+            // known answers, which this very listener re-ingests as fresh — an absence check would
+            // keep the record it is waiting out alive itself.
+            if (hasLiveSrv(name)) {
+                continue;
+            }
             names.solicitor.solicit({ name, recordTypes: [DnsRecordType.SRV, DnsRecordType.PTR] });
         }
         await Time.sleep("mdns-check operational-records poll", OPERATIONAL_POLL_INTERVAL);
