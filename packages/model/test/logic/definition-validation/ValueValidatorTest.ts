@@ -20,7 +20,7 @@ import {
 } from "#index.js";
 import { ClusterModel, DatatypeModel, MatterModel } from "#models/index.js";
 
-const CODES = new Set(["UNIT_WITHOUT_SCALE", "FRACTION_ON_INTEGER_TYPE", "NEGATIVE_ON_UNSIGNED_TYPE"]);
+const CODES = new Set(["UNIT_WITHOUT_SCALE", "FRACTION_ON_INTEGER_TYPE", "NEGATIVE_ON_UNSIGNED_TYPE", "INVALID_VALUE"]);
 
 /** A constraint stated on the datatype that names the scale, rather than on a value of that type */
 function validateDatatype(constraint: string) {
@@ -184,6 +184,31 @@ describe("ValueValidator", () => {
 
             expect(errors.length).equals(1);
             expect(errors[0].code).equals("FRACTION_ON_INTEGER_TYPE");
+        });
+
+        // The guard that stops the integer cast throwing must not make these pass in silence
+        it("reports a default that is no number at all", () => {
+            for (const dflt of [NaN, Infinity, -Infinity]) {
+                const errors = validateDefault("uint16", dflt);
+
+                expect(errors.length).equals(1);
+                expect(errors[0].code).equals("INVALID_VALUE");
+            }
+        });
+
+        // Number() rounds this to an integer, erasing the fraction the rule exists to find
+        it("reports a fraction stated as text too large to be a number", () => {
+            const errors = validateDefault("uint64", "18446744073709551614.5");
+
+            expect(errors.length).equals(1);
+            expect(errors[0].code).equals("FRACTION_ON_INTEGER_TYPE");
+        });
+
+        it("keeps the magnitude of an integer stated as text", () => {
+            expect(validateDefault("uint64", "18446744073709551615")).deep.equals([]);
+            expect(validateDefault("uint64", "-18446744073709551615").map(e => e.code)).deep.equals([
+                "NEGATIVE_ON_UNSIGNED_TYPE",
+            ]);
         });
 
         // An operand of an arithmetic bound is a scalar of the expression, not a value the type must hold

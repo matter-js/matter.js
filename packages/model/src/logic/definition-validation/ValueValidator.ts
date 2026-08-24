@@ -88,6 +88,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
      * of once per model deriving from it.
      */
     #validateNumericValues() {
+        const primitive = this.model.primitiveBase?.name;
         const encoded = new Array<EncodedConstraint.Bound<number | bigint>>();
         const unscaled = new Array<EncodedConstraint.Bound<FieldValue>>();
 
@@ -104,11 +105,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         if (typeof fallback === "number" || typeof fallback === "bigint") {
             encoded.push({ value: fallback, model: this.model });
         } else if (typeof fallback === "string") {
-            // A default stated as text denotes a number, and states it before anything casts it to the type
-            const numeric = Number(fallback);
-            if (Number.isFinite(numeric)) {
-                encoded.push({ value: numeric, model: this.model });
-            }
+            this.#validateStatedNumber(fallback.trim(), primitive, encoded);
         } else if (fallback !== undefined) {
             const value = EncodedValue(this.model, fallback);
             if (value !== undefined) {
@@ -128,6 +125,13 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
 
         for (const [primitive, values] of groupBy(encoded, model => model.primitiveBase?.name)) {
             if (INTEGER_TYPE.test(primitive)) {
+                // Casting one of these to an integer throws, so the guard in #validateType leaves it alone; without a
+                // word here it would pass silently
+                const unrepresentable = values.filter(value => typeof value === "number" && !Number.isFinite(value));
+                if (unrepresentable.length) {
+                    this.error("INVALID_VALUE", `${list(unrepresentable)} is not a number ${primitive} can hold`);
+                }
+
                 const fractional = values.filter(
                     value => typeof value === "number" && Number.isFinite(value) && !Number.isInteger(value),
                 );
@@ -137,11 +141,35 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
             }
 
             if (UNSIGNED_TYPE.test(primitive)) {
-                const negative = values.filter(value => value < 0);
+                // A value that is no number at all is reported above; reporting it again as negative says nothing
+                const negative = values.filter(
+                    value => (typeof value === "bigint" || Number.isFinite(value)) && value < 0,
+                );
                 if (negative.length) {
                     this.error("NEGATIVE_ON_UNSIGNED_TYPE", `${list(negative)} cannot be held by ${primitive}`);
                 }
             }
+        }
+    }
+
+    /**
+     * Judge a number the specification states as text.
+     *
+     * Converting it to a number first would round a value too large to be one into a different value, and
+     * "18446744073709551614.5" would then look like the integer it is not.
+     */
+    #validateStatedNumber(
+        text: string,
+        primitive: string | undefined,
+        encoded: EncodedConstraint.Bound<number | bigint>[],
+    ) {
+        if (/^[+-]?\d+$/.test(text)) {
+            encoded.push({ value: BigInt(text.replace(/^\+/, "")), model: this.model });
+            return;
+        }
+
+        if (primitive !== undefined && INTEGER_TYPE.test(primitive) && /^[+-]?\d*\.\d*[1-9]/.test(text)) {
+            this.error("FRACTION_ON_INTEGER_TYPE", `${text} cannot be held by ${primitive}`);
         }
     }
 
