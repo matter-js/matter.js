@@ -631,18 +631,21 @@ class Tx implements Transaction, Transaction.Finalization {
      * Handle actual commit and post-commit.
      */
     #executeCommit() {
-        // Phase one is where a participant joins that only the act of committing creates -- a store, for instance.
-        // Capture the roster after it so such a participant is notified too, and keep the earlier one for a failure
-        // that precedes phase one
+        // Committing is itself what creates some participants -- a store joins as its values are written. Capture the
+        // roster once committing is done, whether or not it succeeded, and keep the earlier one for a failure that
+        // precedes it
         let participants = [...this.#participants];
 
         // Commit phases 1 & 2
         const executeCommit = (): MaybePromise =>
-            MaybePromise.then(
-                () => this.#executeCommit1(),
+            MaybePromise.finally(
+                () =>
+                    MaybePromise.then(
+                        () => this.#executeCommit1(),
+                        () => this.#executeCommit2(),
+                    ),
                 () => {
                     participants = [...this.#participants];
-                    return this.#executeCommit2();
                 },
             );
 
@@ -917,15 +920,17 @@ class Tx implements Transaction, Transaction.Finalization {
             }
         }
 
-        const finished = (): MaybePromise => {
-            this.#status = Status.Shared;
-
-            // A participant that failed to revert leaves state neither committed nor restored
-            return MaybePromise.then(
+        // A participant that failed to revert leaves state neither committed nor restored.  Remain in rolling back
+        // until every participant has been told, so one that writes from its notification is refused rather than
+        // starting a cycle this rollback's own reset would discard
+        const finished = (): MaybePromise =>
+            MaybePromise.then(
                 () => this.#notifyFinalized(participants, errored?.length ? "inconsistent" : "rolled back"),
-                () => throwIfErrored(errored, "during rollback"),
+                () => {
+                    this.#status = Status.Shared;
+                    throwIfErrored(errored, "during rollback");
+                },
             );
-        };
 
         if (ongoing) {
             // Async commit

@@ -10,6 +10,7 @@ import {
     FinalizationError,
     SynchronousTransactionConflictError,
     TransactionDeadlockError,
+    TransactionFlowError,
 } from "#transaction/errors.js";
 import { Transaction } from "#transaction/Transaction.js";
 import { MaybePromise } from "#util/Promises.js";
@@ -805,6 +806,45 @@ describe("Transaction", () => {
             await transaction.commit();
 
             joiner.expect("commit1", "commit2", "finalized committed");
+        });
+
+        test("reports a participant that joined during phase two", async () => {
+            const joiner: TestParticipant = TestParticipant({
+                finalized: outcome => {
+                    joiner.invoked.push(`finalized ${outcome}`);
+                },
+            });
+            joiner.toString = () => "joiner";
+
+            join({
+                commit2: () => {
+                    transaction.addParticipants(joiner);
+                },
+            });
+
+            await transaction.begin();
+            await transaction.commit();
+
+            joiner.expect("commit2", "finalized committed");
+        });
+
+        test("refuses a write from a participant reporting a rollback", async () => {
+            let caught: unknown;
+
+            join({
+                finalized: () => {
+                    try {
+                        transaction.beginSync();
+                    } catch (e) {
+                        caught = e;
+                    }
+                },
+            });
+
+            await transaction.begin();
+            await transaction.rollback();
+
+            expect(caught).instanceOf(TransactionFlowError);
         });
 
         test("reports once per commit cycle when post-commit writes again", async () => {
