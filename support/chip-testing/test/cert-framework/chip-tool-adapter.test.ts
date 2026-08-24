@@ -608,6 +608,65 @@ describe("ChipToolControllerAdapter", function () {
         expect(fake.commands).deep.equal([`any read-by-id 0x28,0x8 0x5,0x11 ${ref} 0,1`]);
     });
 
+    it("rejects a multi-path read whose concrete path chip-tool answered with a status", async () => {
+        const { node } = await commissioned();
+
+        fake.reply = () => ({
+            results: [
+                {
+                    clusterId: BASIC_INFORMATION.id,
+                    endpointId: 0,
+                    attributeId: requireId(NODE_LABEL.id, "nodeLabel"),
+                    dataVersion: 11,
+                    value: "a-label",
+                },
+                {
+                    clusterId: LEVEL_CONTROL.id,
+                    endpointId: 1,
+                    attributeId: requireId(ON_LEVEL.id, "onLevel"),
+                    error: Status.UnsupportedAttribute,
+                },
+            ],
+            status: 1,
+        });
+
+        const rejection = await rejectionOf(
+            node.readAttributes([
+                { endpoint: 0, cluster: BASIC_INFORMATION.id, attribute: NODE_LABEL.id },
+                { endpoint: 1, cluster: LEVEL_CONTROL.id, attribute: ON_LEVEL.id },
+            ]),
+        );
+        expect(rejection).instanceOf(StatusResponseError);
+        expect(StatusResponseError.of(rejection)?.code).equal(Status.UnsupportedAttribute);
+    });
+
+    it("reads a wildcard path's own status as a per-item result of the expansion", async () => {
+        const { node } = await commissioned();
+
+        fake.reply = () => ({
+            results: [
+                {
+                    clusterId: LEVEL_CONTROL.id,
+                    endpointId: 2,
+                    attributeId: requireId(ON_LEVEL.id, "onLevel"),
+                    error: Status.UnsupportedAttribute,
+                },
+                {
+                    clusterId: LEVEL_CONTROL.id,
+                    endpointId: 1,
+                    attributeId: requireId(ON_LEVEL.id, "onLevel"),
+                    dataVersion: 12,
+                    value: 3,
+                },
+            ],
+            status: 1,
+        });
+
+        expect(await node.readAttributes([{ cluster: LEVEL_CONTROL.id, attribute: ON_LEVEL.id }])).deep.equal([
+            { endpoint: 1, cluster: LEVEL_CONTROL.id, attribute: ON_LEVEL.id, value: 3, version: 12 },
+        ]);
+    });
+
     it("reports a read of more paths than chip-tool accepts as unsupported, without issuing it", async () => {
         const { node } = await commissioned();
 

@@ -20,7 +20,7 @@ import {
     thCodeParts,
     thManualPairingCode,
 } from "./tc-dd-support.js";
-import { CommissionedRefs, recordAll } from "./tc-support.js";
+import { CertCheckFailedError, CommissionedRefs, recordAll, runCleanups } from "./tc-support.js";
 
 /**
  * Flips a bit the plan requires to change: § 5.1.4.1 Table 62 carries only the discriminator's 4 most
@@ -246,19 +246,35 @@ certTest("TC-DD-3.17", {
             "supported by the DUT",
         async cx => {
             // The plan's own "unless" branch: a cert harness commissions uncertified devices on
-            // purpose, and its operator is the user the clause speaks of. A code naming a vendor the TH
-            // is not is where the two commissioners part: chip-tool refuses to pair with a device whose
-            // advertisement disagrees, matter.js discovers on the discriminator alone. Both are outcomes
-            // the plan admits, so the step records which happened for each of the four codes.
+            // purpose, and its operator is the user the clause speaks of. Both controllers pass over a
+            // device whose advertised vendor id the code does not name, and one of the four codes names
+            // the TH's own, so the step records which outcome each code produced rather than asserting
+            // one (see recordVendorOutcome).
             const parts = await thCodeParts(cx);
+            const failures = new Array<CertCheckFailedError>();
             for (const vendorId of TEST_VENDOR_IDS) {
-                await recordVendorOutcome(
-                    cx,
-                    manualPairingCode({ ...parts, vendorId }),
-                    commissioned,
-                    refusals,
-                    `Code naming vendor 0x${vendorId.toString(16)}`,
-                    VENDOR_OUTCOME_TIMEOUT,
+                try {
+                    await recordVendorOutcome(
+                        cx,
+                        manualPairingCode({ ...parts, vendorId }),
+                        commissioned,
+                        refusals,
+                        `Code naming vendor 0x${vendorId.toString(16)}`,
+                        VENDOR_OUTCOME_TIMEOUT,
+                        { vendorId, thVendorId: parts.vendorId },
+                    );
+                } catch (e) {
+                    // The plan hands over every code, so one the DUT answered unexpectedly must not
+                    // leave the rest unrecorded — the step fails once, after all four are in the bundle
+                    if (!(e instanceof CertCheckFailedError)) {
+                        throw e;
+                    }
+                    failures.push(e);
+                }
+            }
+            if (failures.length) {
+                throw new CertCheckFailedError(
+                    `${failures.length} of ${TEST_VENDOR_IDS.length} codes: ${failures.map(e => e.message).join("; ")}`,
                 );
             }
         },
@@ -326,13 +342,12 @@ certTest("TC-DD-3.17", {
                 "DUT-specific manner according to the DUT manufacturer's instructions.",
         },
     )
-    .finalize(async cx => {
-        try {
-            await refusals.settle(cx);
-        } finally {
-            await commissioned.decommissionAll(cx);
-        }
-    });
+    .finalize(cx =>
+        runCleanups(
+            () => refusals.settle(cx),
+            () => commissioned.decommissionAll(cx),
+        ),
+    );
 
 async function checkDigitCodes(cx: CertStepContext): Promise<{ correct: string; wrong: string }> {
     const parts = await thCodeParts(cx);

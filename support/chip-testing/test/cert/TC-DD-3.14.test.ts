@@ -18,7 +18,7 @@ import {
     recordParse,
     thQrPayload,
 } from "./tc-dd-support.js";
-import { CommissionedRefs, recordAll } from "./tc-support.js";
+import { CommissionedRefs, recordAll, runCleanups } from "./tc-support.js";
 
 /** The plan's own substitute for the specification's `000`; any non-zero 3-bit value works. */
 const INVALID_VERSION = 0b010;
@@ -75,7 +75,13 @@ certTest("TC-DD-3.14", {
         "Using the QR code from Step 1, ensure the TH's Discovery Capability bit string is NOT set to BLE for " +
             "discovery (i.e. set to OnNetwork discovery capability)",
         async cx =>
-            recordDiscoveryCapabilityAbsent(cx, await onNetworkOnlyPayload(cx), "ble", "Payload does not offer BLE"),
+            recordDiscoveryCapabilityAbsent(
+                cx,
+                await onNetworkOnlyPayload(cx),
+                "ble",
+                "Payload does not offer BLE",
+                await thQrPayload(cx.devices.th),
+            ),
         {
             pics: "MCORE.DD.DISCOVERY_BLE",
             expected: "User has a QR code generated to pass into DUT.",
@@ -104,6 +110,7 @@ certTest("TC-DD-3.14", {
                 await onNetworkOnlyPayload(cx),
                 "wifiPublicActionFrame",
                 "Payload does not offer Wi-Fi PAF",
+                await thQrPayload(cx.devices.th),
             ),
         {
             pics: "MCORE.DD.DISCOVERY_PAF",
@@ -198,10 +205,9 @@ certTest("TC-DD-3.14", {
                 "commissioning process in a DUT-specific manner according to the DUT manufacturer's instructions.",
         },
     )
-    .finalize(async cx => {
-        try {
-            await refusals.settle(cx);
-        } finally {
-            await commissioned.decommissionAll(cx);
-        }
-    });
+    .finalize(cx =>
+        runCleanups(
+            () => refusals.settle(cx),
+            () => commissioned.decommissionAll(cx),
+        ),
+    );
