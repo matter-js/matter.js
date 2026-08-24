@@ -22,6 +22,27 @@ function list(values: FieldValue[]) {
     return values.map(value => FieldValue.serialize(value)).join(" and ");
 }
 
+/** Group bounds by the type that decides what they may state, which for a list entry is not the type of the list */
+function groupBy<T>(bounds: EncodedConstraint.Bound<T>[], keyOf: (model: ValueModel) => string | undefined) {
+    const groups = new Map<string, T[]>();
+
+    for (const { value, model } of bounds) {
+        const key = keyOf(model);
+        if (key === undefined) {
+            continue;
+        }
+
+        const group = groups.get(key);
+        if (group === undefined) {
+            groups.set(key, [value]);
+        } else {
+            group.push(value);
+        }
+    }
+
+    return groups;
+}
+
 /**
  * Validates models that extend DataModel.
  */
@@ -64,8 +85,8 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
      * of once per model deriving from it.
      */
     #validateNumericValues() {
-        const encoded = new Array<number | bigint>();
-        const unscaled = new Array<FieldValue>();
+        const encoded = new Array<EncodedConstraint.Bound<number | bigint>>();
+        const unscaled = new Array<EncodedConstraint.Bound<FieldValue>>();
 
         const constraint = this.model.constraint;
         if (!constraint.isEmpty) {
@@ -78,38 +99,35 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         if (fallback !== undefined) {
             const value = EncodedValue(this.model, fallback);
             if (value !== undefined) {
-                encoded.push(value);
+                encoded.push({ value, model: this.model });
             } else if (FieldValue.is(fallback, FieldValue.percent) || FieldValue.is(fallback, FieldValue.celsius)) {
-                unscaled.push(fallback);
+                unscaled.push({ value: fallback, model: this.model });
             }
         }
 
-        if (unscaled.length) {
+        for (const [type, values] of groupBy(unscaled, model => model.effectiveType)) {
             this.error(
                 "UNIT_WITHOUT_SCALE",
-                `${list(unscaled)} state${unscaled.length === 1 ? "s" : ""} a unit that type ` +
-                    `${this.model.effectiveType} gives no scale for, so the value has no numeric meaning`,
+                `${list(values)} state${values.length === 1 ? "s" : ""} a unit that type ${type} gives no scale ` +
+                    `for, so the value has no numeric meaning`,
             );
         }
 
-        const primitive = this.model.primitiveBase?.name;
-        if (primitive === undefined) {
-            return;
-        }
-
-        if (INTEGER_TYPE.test(primitive)) {
-            const fractional = encoded.filter(
-                value => typeof value === "number" && Number.isFinite(value) && !Number.isInteger(value),
-            );
-            if (fractional.length) {
-                this.error("FRACTION_ON_INTEGER_TYPE", `${list(fractional)} cannot be held by ${primitive}`);
+        for (const [primitive, values] of groupBy(encoded, model => model.primitiveBase?.name)) {
+            if (INTEGER_TYPE.test(primitive)) {
+                const fractional = values.filter(
+                    value => typeof value === "number" && Number.isFinite(value) && !Number.isInteger(value),
+                );
+                if (fractional.length) {
+                    this.error("FRACTION_ON_INTEGER_TYPE", `${list(fractional)} cannot be held by ${primitive}`);
+                }
             }
-        }
 
-        if (UNSIGNED_TYPE.test(primitive)) {
-            const negative = encoded.filter(value => value < 0);
-            if (negative.length) {
-                this.error("NEGATIVE_ON_UNSIGNED_TYPE", `${list(negative)} cannot be held by ${primitive}`);
+            if (UNSIGNED_TYPE.test(primitive)) {
+                const negative = values.filter(value => value < 0);
+                if (negative.length) {
+                    this.error("NEGATIVE_ON_UNSIGNED_TYPE", `${list(negative)} cannot be held by ${primitive}`);
+                }
             }
         }
     }

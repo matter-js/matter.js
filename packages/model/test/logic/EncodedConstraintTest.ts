@@ -20,6 +20,15 @@ const temperature = field("UnsignedTemperature");
 /** A numeric type the unit conversion knows no scale for */
 const unscaled = field("uint16");
 
+/** The bounds without the model each belongs to, for the cases that do not turn on it */
+function valuesOf(constraint: Constraint, model: FieldModel) {
+    const bounds = EncodedConstraint.bounds(constraint, model);
+    return {
+        encoded: bounds.encoded.map(bound => bound.value),
+        unscaled: bounds.unscaled.map(bound => bound.value),
+    };
+}
+
 describe("EncodedConstraint", () => {
     it("counts the units of the type", () => {
         expect(`${EncodedConstraint(new Constraint("0% to 100%"), percent100ths)}`).equal("0 to 10000");
@@ -45,31 +54,42 @@ describe("EncodedConstraint", () => {
 
 describe("EncodedConstraint.bounds", () => {
     it("states nothing unscaled where every bound converts", () => {
-        expect(EncodedConstraint.bounds(new Constraint("0°C to 25.5°C"), temperature)).deep.equal({
-            encoded: [0, 255],
-            unscaled: [],
-        });
-        expect(EncodedConstraint.bounds(new Constraint("max 100%"), percent100ths)).deep.equal({
-            encoded: [10000],
-            unscaled: [],
-        });
+        expect(valuesOf(new Constraint("0°C to 25.5°C"), temperature)).deep.equal({ encoded: [0, 255], unscaled: [] });
+        expect(valuesOf(new Constraint("max 100%"), percent100ths)).deep.equal({ encoded: [10000], unscaled: [] });
     });
 
     it("reports every bound the type gives no scale for", () => {
-        expect(EncodedConstraint.bounds(new Constraint("0°C to 25.5°C"), unscaled)).deep.equal({
+        expect(valuesOf(new Constraint("0°C to 25.5°C"), unscaled)).deep.equal({
             encoded: [],
             unscaled: [FieldValue.Celsius(0), FieldValue.Celsius(25.5)],
         });
     });
 
     it("reports a bound of each alternative", () => {
-        expect(EncodedConstraint.bounds(new Constraint("12.7°C, 25.5°C"), unscaled).unscaled).deep.equal([
+        expect(valuesOf(new Constraint("12.7°C, 25.5°C"), unscaled).unscaled).deep.equal([
             FieldValue.Celsius(12.7),
             FieldValue.Celsius(25.5),
         ]);
     });
 
     it("reports the numbers a bound with no unit states", () => {
-        expect(EncodedConstraint.bounds(new Constraint("1 to 254"), unscaled).encoded).deep.equal([1, 254]);
+        expect(valuesOf(new Constraint("1 to 254"), unscaled).encoded).deep.equal([1, 254]);
+    });
+
+    // The entry constraint of a list bounds the entries, so its bounds belong to the entry
+    it("states an entry bound against the type of the entry", () => {
+        const list = new FieldModel(
+            FieldElement({
+                name: "Test",
+                type: "list",
+                children: [FieldElement({ name: "entry", type: "percent100ths" })],
+            }),
+        );
+
+        const bounds = EncodedConstraint.bounds(new Constraint("max 4[max 100%]"), list);
+        expect(bounds.encoded.map(bound => [bound.value, bound.model.name])).deep.equal([
+            [4, "Test"],
+            [10000, "entry"],
+        ]);
     });
 });

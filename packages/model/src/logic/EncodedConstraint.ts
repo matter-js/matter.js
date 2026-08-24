@@ -29,10 +29,21 @@ export function EncodedConstraint(constraint: Constraint, model: ValueModel): Co
 }
 
 export namespace EncodedConstraint {
+    /**
+     * One bound of a constraint, with the model whose units it is in.
+     *
+     * The bounds of a constraint do not all belong to the same type: the entry constraint of a list bounds the
+     * entries, so its units and the values it can hold are those of the entry rather than of the list.
+     */
+    export interface Bound<T> {
+        value: T;
+        model: ValueModel;
+    }
+
     /** What the bounds of a constraint amount to once restated in the units the value is encoded in */
     export interface Bounds {
         /** Every bound with a numeric form, in encoding units */
-        encoded: (number | bigint)[];
+        encoded: Bound<number | bigint>[];
 
         /**
          * Bounds stating a unit no scale is known for, which therefore have none.
@@ -40,7 +51,7 @@ export namespace EncodedConstraint {
          * Such a bound survives conversion unconverted, and comparing an encoded value against it has no numeric
          * meaning: as a range it admits every value, and as an exact value it admits none.
          */
-        unscaled: FieldValue[];
+        unscaled: Bound<FieldValue>[];
     }
 
     /**
@@ -85,7 +96,7 @@ function convertExpression(
 ): Constraint.Expression | undefined {
     if (expression === undefined || typeof expression !== "object" || expression === null) {
         if (typeof expression === "number" || typeof expression === "bigint") {
-            bounds?.encoded.push(expression);
+            bounds?.encoded.push({ value: expression, model });
         }
         return expression;
     }
@@ -118,17 +129,17 @@ function convertValue(value: FieldValue | undefined, model: ValueModel, bounds?:
         !(FieldValue.is(value, FieldValue.percent) || FieldValue.is(value, FieldValue.celsius))
     ) {
         if (typeof value === "number" || typeof value === "bigint") {
-            bounds?.encoded.push(value);
+            bounds?.encoded.push({ value, model });
         }
         return value;
     }
 
     const encoded = EncodedValue(model, value);
     if (encoded === undefined) {
-        bounds?.unscaled.push(value);
+        bounds?.unscaled.push({ value, model });
         return value;
     }
 
-    bounds?.encoded.push(encoded);
+    bounds?.encoded.push({ value: encoded, model });
     return encoded;
 }

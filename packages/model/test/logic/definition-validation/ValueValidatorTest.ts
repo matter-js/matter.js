@@ -4,7 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AttributeElement as Attribute, int8, percent, percent100ths, uint8, uint16, ValidateModel } from "#index.js";
+import {
+    AttributeElement as Attribute,
+    FieldElement,
+    int8,
+    percent,
+    percent100ths,
+    uint8,
+    uint16,
+    ValidateModel,
+} from "#index.js";
 import { ClusterModel, DatatypeModel, MatterModel } from "#models/index.js";
 
 const CODES = new Set(["UNIT_WITHOUT_SCALE", "FRACTION_ON_INTEGER_TYPE", "NEGATIVE_ON_UNSIGNED_TYPE"]);
@@ -17,6 +26,25 @@ function validateDatatype(constraint: string) {
         new ClusterModel(
             { name: "Test", id: 0xfff1 },
             new DatatypeModel({ name: "UnsignedTemperature", type: "uint8", constraint }),
+        ),
+    );
+    Matter.finalize();
+
+    return ValidateModel(Matter).errors.filter(e => CODES.has(e.code));
+}
+
+/** A list whose entries are of the given type, with a constraint bounding both the list and its entries */
+function validateList(entryType: string, constraint: string) {
+    const Matter = new MatterModel(
+        {},
+        uint8.clone(),
+        uint16.clone(),
+        new ClusterModel(
+            { name: "Test", id: 0xfff1 },
+            Attribute(
+                { name: "Bounded", id: 1, type: "list", constraint },
+                FieldElement({ name: "entry", type: entryType }),
+            ),
         ),
     );
     Matter.finalize();
@@ -105,6 +133,26 @@ describe("ValueValidator", () => {
 
         it("accepts a negative on a signed type", () => {
             expect(validateConstraint("int8", "-1 to 100")).deep.equals([]);
+        });
+
+        // The entry constraint of a list bounds the entries, so the entry's type decides what it may state
+        it("rejects a fraction on the entry of a list", () => {
+            const errors = validateList("uint8", "max 4[0.5]");
+
+            expect(errors.length).equals(1);
+            expect(errors[0].code).equals("FRACTION_ON_INTEGER_TYPE");
+            expect(errors[0].message).match(/0.5 cannot be held by uint8/);
+        });
+
+        it("rejects a negative on the entry of a list", () => {
+            const errors = validateList("uint8", "max 4[-1 to 10]");
+
+            expect(errors.length).equals(1);
+            expect(errors[0].code).equals("NEGATIVE_ON_UNSIGNED_TYPE");
+        });
+
+        it("accepts a whole entry bound on a list whose own bound is whole", () => {
+            expect(validateList("uint8", "max 4[0 to 10]")).deep.equals([]);
         });
 
         it("accepts a fraction the unit scales to a whole number", () => {
