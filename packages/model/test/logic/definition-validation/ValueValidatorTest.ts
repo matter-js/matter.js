@@ -4,8 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AttributeElement as Attribute, uint8, uint16, ValidateModel } from "#index.js";
+import { AttributeElement as Attribute, int8, percent, percent100ths, uint8, uint16, ValidateModel } from "#index.js";
 import { ClusterModel, DatatypeModel, MatterModel } from "#models/index.js";
+
+const CODES = new Set(["UNIT_WITHOUT_SCALE", "FRACTION_ON_INTEGER_TYPE", "NEGATIVE_ON_UNSIGNED_TYPE"]);
 
 /** A constraint stated on the datatype that names the scale, rather than on a value of that type */
 function validateDatatype(constraint: string) {
@@ -19,7 +21,7 @@ function validateDatatype(constraint: string) {
     );
     Matter.finalize();
 
-    return ValidateModel(Matter).errors.filter(e => e.code === "CONSTRAINT_UNIT_WITHOUT_SCALE");
+    return ValidateModel(Matter).errors.filter(e => CODES.has(e.code));
 }
 
 function validateConstraint(type: string, constraint: string) {
@@ -27,6 +29,9 @@ function validateConstraint(type: string, constraint: string) {
         {},
         uint8.clone(),
         uint16.clone(),
+        int8.clone(),
+        percent.clone(),
+        percent100ths.clone(),
 
         // The scale of a unit comes from the type name, so the test needs a type the conversion knows
         new DatatypeModel({ name: "UnsignedTemperature", type: "uint8" }),
@@ -37,7 +42,7 @@ function validateConstraint(type: string, constraint: string) {
     );
     Matter.finalize();
 
-    return ValidateModel(Matter).errors.filter(e => e.code === "CONSTRAINT_UNIT_WITHOUT_SCALE");
+    return ValidateModel(Matter).errors.filter(e => CODES.has(e.code));
 }
 
 describe("ValueValidator", () => {
@@ -64,7 +69,46 @@ describe("ValueValidator", () => {
             const errors = validateConstraint("uint16", "0°C to 25.5°C");
 
             expect(errors.length).equals(1);
-            expect(errors[0].message).match(/states 0°C and 25.5°C in a unit that type uint16 gives no scale for/);
+            expect(errors[0].code).equals("UNIT_WITHOUT_SCALE");
+            expect(errors[0].message).match(/0°C and 25.5°C state a unit that type uint16 gives no scale for/);
+        });
+
+        // A percentage used to fall back to the number the specification prints, which is only right for percent
+        it("reports a percentage on a type with no scale", () => {
+            const errors = validateConstraint("uint16", "min 0.01%");
+
+            expect(errors.length).equals(1);
+            expect(errors[0].code).equals("UNIT_WITHOUT_SCALE");
+        });
+
+        it("accepts a percentage on the types that state a scale", () => {
+            expect(validateConstraint("percent", "0% to 100%")).deep.equals([]);
+            expect(validateConstraint("percent100ths", "min 0.01%")).deep.equals([]);
+        });
+    });
+
+    describe("numbers a type cannot hold", () => {
+        it("rejects a fraction on an integer type", () => {
+            const errors = validateConstraint("uint16", "0.01 to 100");
+
+            expect(errors.length).equals(1);
+            expect(errors[0].code).equals("FRACTION_ON_INTEGER_TYPE");
+            expect(errors[0].message).match(/0.01 cannot be held by uint16/);
+        });
+
+        it("rejects a negative on an unsigned type", () => {
+            const errors = validateConstraint("uint16", "-1 to 100");
+
+            expect(errors.length).equals(1);
+            expect(errors[0].code).equals("NEGATIVE_ON_UNSIGNED_TYPE");
+        });
+
+        it("accepts a negative on a signed type", () => {
+            expect(validateConstraint("int8", "-1 to 100")).deep.equals([]);
+        });
+
+        it("accepts a fraction the unit scales to a whole number", () => {
+            expect(validateConstraint("percent100ths", "min 0.01%")).deep.equals([]);
         });
     });
 });

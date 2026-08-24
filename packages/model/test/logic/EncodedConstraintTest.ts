@@ -7,7 +7,7 @@
 import { Constraint } from "#aspects/index.js";
 import { FieldValue } from "#common/index.js";
 import { FieldElement } from "#elements/index.js";
-import { EncodedConstraint, UnscaledConstraintBounds } from "#logic/EncodedConstraint.js";
+import { EncodedConstraint } from "#logic/EncodedConstraint.js";
 import { FieldModel } from "#models/index.js";
 
 function field(type: string) {
@@ -43,23 +43,33 @@ describe("EncodedConstraint", () => {
     });
 });
 
-describe("UnscaledConstraintBounds", () => {
-    it("states nothing where every bound converts", () => {
-        expect(UnscaledConstraintBounds(new Constraint("0°C to 25.5°C"), temperature)).deep.equal([]);
-        expect(UnscaledConstraintBounds(new Constraint("max 100%"), percent100ths)).deep.equal([]);
+describe("EncodedConstraint.bounds", () => {
+    it("states nothing unscaled where every bound converts", () => {
+        expect(EncodedConstraint.bounds(new Constraint("0°C to 25.5°C"), temperature)).deep.equal({
+            encoded: [0, 255],
+            unscaled: [],
+        });
+        expect(EncodedConstraint.bounds(new Constraint("max 100%"), percent100ths)).deep.equal({
+            encoded: [10000],
+            unscaled: [],
+        });
     });
 
     it("reports every bound the type gives no scale for", () => {
-        expect(UnscaledConstraintBounds(new Constraint("0°C to 25.5°C"), unscaled)).deep.equal([
-            FieldValue.Celsius(0),
+        expect(EncodedConstraint.bounds(new Constraint("0°C to 25.5°C"), unscaled)).deep.equal({
+            encoded: [],
+            unscaled: [FieldValue.Celsius(0), FieldValue.Celsius(25.5)],
+        });
+    });
+
+    it("reports a bound of each alternative", () => {
+        expect(EncodedConstraint.bounds(new Constraint("12.7°C, 25.5°C"), unscaled).unscaled).deep.equal([
+            FieldValue.Celsius(12.7),
             FieldValue.Celsius(25.5),
         ]);
     });
 
-    it("reports a bound of each alternative", () => {
-        expect(UnscaledConstraintBounds(new Constraint("12.7°C, 25.5°C"), unscaled)).deep.equal([
-            FieldValue.Celsius(12.7),
-            FieldValue.Celsius(25.5),
-        ]);
+    it("reports the numbers a bound with no unit states", () => {
+        expect(EncodedConstraint.bounds(new Constraint("1 to 254"), unscaled).encoded).deep.equal([1, 254]);
     });
 });

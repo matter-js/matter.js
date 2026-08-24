@@ -227,9 +227,12 @@ export namespace FieldValue {
                 case "percent100ths":
                     return (value as Percent).value * 100;
 
-                default:
+                case "percent":
                     return (value as Percent).value;
             }
+
+            // Not sure how to interpret the value
+            return;
         }
     }
 

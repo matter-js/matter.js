@@ -28,91 +28,107 @@ export function EncodedConstraint(constraint: Constraint, model: ValueModel): Co
     return new Constraint(convertAst(constraint, model));
 }
 
-/**
- * Bounds of a constraint that state a unit no scale is known for.
- *
- * Such a bound survives {@link EncodedConstraint} unconverted, and comparing an encoded value against it has no
- * numeric meaning: as a range it admits every value, and as an exact value it admits none.
- *
- * This reports temperatures only.  A percentage falls back to the number the specification prints, which is right for
- * `percent` and wrong by a factor of 100 for anything encoded as `percent100ths` under another name, and nothing here
- * can tell the two apart.
- *
- * @see {@link MatterSpecification.v16.Core} § 7.19.2
- */
-export function UnscaledConstraintBounds(constraint: Constraint, model: ValueModel) {
-    const unscaled = new Array<FieldValue>();
-    convertAst(constraint, model, unscaled);
-    return unscaled;
+export namespace EncodedConstraint {
+    /** What the bounds of a constraint amount to once restated in the units the value is encoded in */
+    export interface Bounds {
+        /** Every bound with a numeric form, in encoding units */
+        encoded: (number | bigint)[];
+
+        /**
+         * Bounds stating a unit no scale is known for, which therefore have none.
+         *
+         * Such a bound survives conversion unconverted, and comparing an encoded value against it has no numeric
+         * meaning: as a range it admits every value, and as an exact value it admits none.
+         */
+        unscaled: FieldValue[];
+    }
+
+    /**
+     * Reduce the bounds of a constraint to the numbers they state in encoding units.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 7.19.2
+     */
+    export function bounds(constraint: Constraint, model: ValueModel): Bounds {
+        const bounds: Bounds = { encoded: [], unscaled: [] };
+        convertAst(constraint, model, bounds);
+        return bounds;
+    }
 }
 
-function convertAst(ast: Constraint.Ast, model: ValueModel, unscaled?: FieldValue[]): Constraint.Ast {
+function convertAst(ast: Constraint.Ast, model: ValueModel, bounds?: EncodedConstraint.Bounds): Constraint.Ast {
     return {
         ...ast,
-        value: convertExpression(ast.value, model, unscaled),
-        min: convertExpression(ast.min, model, unscaled),
-        max: convertExpression(ast.max, model, unscaled),
-        in: convertValue(ast.in, model, unscaled),
-        entry: ast.entry === undefined ? undefined : convertAst(ast.entry, model.listEntry ?? model, unscaled),
-        parts: ast.parts?.map(part => convertAst(part, model, unscaled)),
+        value: convertExpression(ast.value, model, bounds),
+        min: convertExpression(ast.min, model, bounds),
+        max: convertExpression(ast.max, model, bounds),
+        in: convertValue(ast.in, model, bounds),
+        entry: ast.entry === undefined ? undefined : convertAst(ast.entry, model.listEntry ?? model, bounds),
+        parts: ast.parts?.map(part => convertAst(part, model, bounds)),
     };
 }
 
 function convertExpression(
     expression: Constraint.Expression,
     model: ValueModel,
-    unscaled?: FieldValue[],
+    bounds?: EncodedConstraint.Bounds,
 ): Constraint.Expression;
 function convertExpression(
     expression: Constraint.Expression | undefined,
     model: ValueModel,
-    unscaled?: FieldValue[],
+    bounds?: EncodedConstraint.Bounds,
 ): Constraint.Expression | undefined;
 
 function convertExpression(
     expression: Constraint.Expression | undefined,
     model: ValueModel,
-    unscaled?: FieldValue[],
+    bounds?: EncodedConstraint.Bounds,
 ): Constraint.Expression | undefined {
     if (expression === undefined || typeof expression !== "object" || expression === null) {
+        if (typeof expression === "number" || typeof expression === "bigint") {
+            bounds?.encoded.push(expression);
+        }
         return expression;
     }
 
     if ("args" in expression) {
-        return { ...expression, args: expression.args.map(arg => convertExpression(arg, model, unscaled)) };
+        return { ...expression, args: expression.args.map(arg => convertExpression(arg, model, bounds)) };
     }
 
     if ("lhs" in expression) {
         return {
             ...expression,
-            lhs: convertExpression(expression.lhs, model, unscaled),
-            rhs: convertExpression(expression.rhs, model, unscaled),
+            lhs: convertExpression(expression.lhs, model, bounds),
+            rhs: convertExpression(expression.rhs, model, bounds),
         };
     }
 
-    return convertValue(expression, model, unscaled);
+    return convertValue(expression, model, bounds);
 }
 
-function convertValue(value: FieldValue, model: ValueModel, unscaled?: FieldValue[]): FieldValue;
+function convertValue(value: FieldValue, model: ValueModel, bounds?: EncodedConstraint.Bounds): FieldValue;
 function convertValue(
     value: FieldValue | undefined,
     model: ValueModel,
-    unscaled?: FieldValue[],
+    bounds?: EncodedConstraint.Bounds,
 ): FieldValue | undefined;
 
-function convertValue(value: FieldValue | undefined, model: ValueModel, unscaled?: FieldValue[]) {
+function convertValue(value: FieldValue | undefined, model: ValueModel, bounds?: EncodedConstraint.Bounds) {
     if (
         value === undefined ||
         !(FieldValue.is(value, FieldValue.percent) || FieldValue.is(value, FieldValue.celsius))
     ) {
+        if (typeof value === "number" || typeof value === "bigint") {
+            bounds?.encoded.push(value);
+        }
         return value;
     }
 
     const encoded = EncodedValue(model, value);
     if (encoded === undefined) {
-        unscaled?.push(value);
+        bounds?.unscaled.push(value);
         return value;
     }
 
+    bounds?.encoded.push(encoded);
     return encoded;
 }

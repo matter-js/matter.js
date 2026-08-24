@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { UnscaledConstraintBounds } from "#logic/EncodedConstraint.js";
+import { EncodedConstraint } from "#logic/EncodedConstraint.js";
+import { EncodedValue } from "#logic/EncodedValue.js";
 import { ModelTraversal } from "#logic/ModelTraversal.js";
 import { camelize } from "@matter/general";
 import { Access, Aspect, Conformance, Constraint, Quality } from "../../aspects/index.js";
@@ -13,6 +14,13 @@ import { CommandElement } from "../../elements/index.js";
 import { ClusterModel, CommandModel, Globals, Model, ValueModel } from "../../models/index.js";
 import { ModelValidator } from "./ModelValidator.js";
 import { ValidationExceptions } from "./ValidationExceptions.js";
+
+const INTEGER_TYPE = /^u?int(8|16|24|32|40|48|56|64)$/;
+const UNSIGNED_TYPE = /^uint(8|16|24|32|40|48|56|64)$/;
+
+function list(values: FieldValue[]) {
+    return values.map(value => FieldValue.serialize(value)).join(" and ");
+}
 
 /**
  * Validates models that extend DataModel.
@@ -32,7 +40,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         this.model.conformance.validateComputation(this, this.model.owner(ClusterModel)?.definedFeatures);
 
         this.#validateAspect("constraint");
-        this.#validateConstraintUnits();
+        this.#validateNumericValues();
         this.#validateAspect("access");
         this.#validateAspect("quality");
 
@@ -43,30 +51,67 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
     }
 
     /**
+     * Every number a value states — the bounds of its constraint and its default — must mean something for the type
+     * that carries it.
+     *
      * A bound the specification writes with a unit, such as the "0 to 12.7°C" of a `SignedTemperature`, only
      * constrains once restated in the units the value is encoded in.  A unit left in place does not fail closed: as a
-     * range it admits every value, and as an exact value it admits none.
+     * range it admits every value, and as an exact value it admits none.  Nor can an integer hold a fraction or an
+     * unsigned integer a negative, so a specification that states either is describing something the encoding cannot
+     * represent.
      *
-     * This reads the constraint the model states rather than the one it inherits, so one bad definition is reported
-     * once instead of once per model deriving from it.
+     * This reads what the model states rather than what it inherits, so one bad definition is reported once instead
+     * of once per model deriving from it.
      */
-    #validateConstraintUnits() {
+    #validateNumericValues() {
+        const encoded = new Array<number | bigint>();
+        const unscaled = new Array<FieldValue>();
+
         const constraint = this.model.constraint;
-        if (constraint.isEmpty) {
+        if (!constraint.isEmpty) {
+            const bounds = EncodedConstraint.bounds(constraint, this.model);
+            encoded.push(...bounds.encoded);
+            unscaled.push(...bounds.unscaled);
+        }
+
+        const fallback = this.model.default;
+        if (fallback !== undefined) {
+            const value = EncodedValue(this.model, fallback);
+            if (value !== undefined) {
+                encoded.push(value);
+            } else if (FieldValue.is(fallback, FieldValue.percent) || FieldValue.is(fallback, FieldValue.celsius)) {
+                unscaled.push(fallback);
+            }
+        }
+
+        if (unscaled.length) {
+            this.error(
+                "UNIT_WITHOUT_SCALE",
+                `${list(unscaled)} state${unscaled.length === 1 ? "s" : ""} a unit that type ` +
+                    `${this.model.effectiveType} gives no scale for, so the value has no numeric meaning`,
+            );
+        }
+
+        const primitive = this.model.primitiveBase?.name;
+        if (primitive === undefined) {
             return;
         }
 
-        const unscaled = UnscaledConstraintBounds(constraint, this.model);
-        if (!unscaled.length) {
-            return;
+        if (INTEGER_TYPE.test(primitive)) {
+            const fractional = encoded.filter(
+                value => typeof value === "number" && Number.isFinite(value) && !Number.isInteger(value),
+            );
+            if (fractional.length) {
+                this.error("FRACTION_ON_INTEGER_TYPE", `${list(fractional)} cannot be held by ${primitive}`);
+            }
         }
 
-        this.error(
-            "CONSTRAINT_UNIT_WITHOUT_SCALE",
-            `Constraint "${constraint}" states ${unscaled.map(bound => FieldValue.serialize(bound)).join(" and ")} ` +
-                `in a unit that type ${this.model.effectiveType} gives no scale for, so the bound admits every ` +
-                `value as a range and none as an exact value`,
-        );
+        if (UNSIGNED_TYPE.test(primitive)) {
+            const negative = encoded.filter(value => value < 0);
+            if (negative.length) {
+                this.error("NEGATIVE_ON_UNSIGNED_TYPE", `${list(negative)} cannot be held by ${primitive}`);
+            }
+        }
     }
 
     /**
