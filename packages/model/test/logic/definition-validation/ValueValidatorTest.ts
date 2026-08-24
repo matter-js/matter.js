@@ -9,6 +9,7 @@ import {
     AttributeElement as Attribute,
     FieldElement,
     int8,
+    bool,
     double,
     enum8,
     percent,
@@ -16,6 +17,7 @@ import {
     single,
     uint8,
     uint16,
+    string,
     uint64,
     ValidateModel,
 } from "#index.js";
@@ -64,6 +66,8 @@ function validateDefault(type: string, dflt: FieldValue) {
         uint16.clone(),
         uint64.clone(),
         percent100ths.clone(),
+        string.clone(),
+        bool.clone(),
         new DatatypeModel({ name: "UnsignedTemperature", type: "uint8" }),
         new ClusterModel({ name: "Test", id: 0xfff1 }, Attribute({ name: "Bounded", id: 1, type, default: dflt })),
     );
@@ -214,6 +218,14 @@ describe("ValueValidator", () => {
         });
 
         // An operand of an arithmetic bound is a scalar of the expression, not a value the type must hold
+        // A bound computed from constants states a number; one computed from another value states none
+        it("judges a bound computed from constants", () => {
+            const errors = validateConstraint("uint16", "max 1 / 2");
+
+            expect(errors.length).equals(1);
+            expect(errors[0].code).equals("FRACTION_ON_INTEGER_TYPE");
+        });
+
         it("accepts a scalar operand a type could not hold", () => {
             expect(validateConstraint("uint16", "max Other * 0.5")).deep.equals([]);
             expect(validateConstraint("uint16", "max Other / 2")).deep.equals([]);
@@ -246,6 +258,20 @@ describe("ValueValidator", () => {
 
             expect(errors.length).equals(1);
             expect(errors[0].code).equals("UNIT_WITHOUT_SCALE");
+        });
+
+        // The cast renders a unit it cannot scale as the type it could not scale to, leaving no unit to notice
+        it("reports a unit-bearing default the cast renders as another type", () => {
+            for (const type of ["string", "bool"]) {
+                const errors = validateDefault(type, { type: "percent", value: 0.01 });
+
+                expect(errors.length).equals(1);
+                expect(errors[0].code).equals("UNIT_WITHOUT_SCALE");
+            }
+        });
+
+        it("reports a unit the type does scale only once", () => {
+            expect(validateDefault("percent100ths", { type: "percent", value: 0.01 })).deep.equals([]);
         });
 
         it("accepts a fraction on a floating point type", () => {

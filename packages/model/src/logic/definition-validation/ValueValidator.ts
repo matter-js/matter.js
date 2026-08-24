@@ -102,6 +102,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         // A number states itself; only a unit needs converting.  Asking for the encoded form of every default would
         // lose one too large to be a number, which is where the values of a 64 bit type live
         const fallback = this.model.default;
+        let reportedUnit = false;
         if (typeof fallback === "number" || typeof fallback === "bigint") {
             encoded.push({ value: fallback, model: this.model });
         } else if (fallback !== undefined) {
@@ -110,12 +111,18 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
                 encoded.push({ value, model: this.model });
             } else if (FieldValue.is(fallback, FieldValue.percent) || FieldValue.is(fallback, FieldValue.celsius)) {
                 unscaled.push({ value: fallback, model: this.model });
+                reportedUnit = true;
             }
-        } else if (
+        }
+
+        // The cast erases a unit it cannot place, whether by dropping the default or by rendering it as the type it
+        // could not scale to — a percentage on a string leaves "[object Object]" behind
+        if (
+            !reportedUnit &&
             stated !== undefined &&
-            (FieldValue.is(stated, FieldValue.percent) || FieldValue.is(stated, FieldValue.celsius))
+            (FieldValue.is(stated, FieldValue.percent) || FieldValue.is(stated, FieldValue.celsius)) &&
+            EncodedValue(this.model, stated) === undefined
         ) {
-            // The cast dropped a default stating a unit, which it does for a type the unit means nothing on
             unscaled.push({ value: stated, model: this.model });
         }
 
