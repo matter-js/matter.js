@@ -592,6 +592,48 @@ describe("Transaction", () => {
             validateUnlocked(transaction);
         });
 
+        test("reports a rollback when pre-commit throws", async () => {
+            const p: TestParticipant = join({
+                preCommit: () => {
+                    throw new SomeError("oops in preCommit");
+                },
+
+                finalized: outcome => {
+                    p.invoked.push(`finalized ${outcome}`);
+                },
+            });
+
+            await transaction.begin();
+
+            await expect(committing()).rejectedWith(SomeError);
+
+            p.expect("rollback", "finalized rolled back");
+            validateUnlocked(transaction);
+        });
+
+        test("reports a rollback when pre-commit throws asynchronously", async () => {
+            const p: TestParticipant = join({
+                preCommit: async () => {
+                    await Promise.resolve();
+                    throw new SomeError("oops in async preCommit");
+                },
+
+                finalized: async outcome => {
+                    await Promise.resolve();
+                    p.invoked.push(`finalized ${outcome}`);
+                },
+
+                async rollback() {},
+            });
+
+            await transaction.begin();
+
+            await expect(committing()).rejectedWith(SomeError);
+
+            p.expect("rollback", "finalized rolled back");
+            validateUnlocked(transaction);
+        });
+
         test("reports an inconsistent commit when phase two throws", async () => {
             const p: TestParticipant = join({
                 commit2() {
