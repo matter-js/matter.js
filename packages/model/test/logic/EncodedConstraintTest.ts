@@ -72,6 +72,13 @@ describe("EncodedConstraint.bounds", () => {
         ]);
     });
 
+    // A membership set states one bound per member, which only programmatic construction produces today
+    it("states each member of a membership set", () => {
+        expect(
+            EncodedConstraint.bounds(new Constraint({ in: [-1, 1] }), unscaled).encoded.map(b => b.value),
+        ).deep.equal([-1, 1]);
+    });
+
     it("reports the numbers a bound with no unit states", () => {
         expect(valuesOf(new Constraint("1 to 254"), unscaled).encoded).deep.equal([1, 254]);
     });

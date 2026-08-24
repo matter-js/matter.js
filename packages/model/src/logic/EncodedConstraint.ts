@@ -124,6 +124,11 @@ function convertValue(
 ): FieldValue | undefined;
 
 function convertValue(value: FieldValue | undefined, model: ValueModel, bounds?: EncodedConstraint.Bounds) {
+    // A membership set states one bound per member
+    if (Array.isArray(value)) {
+        return value.map(member => convertValue(member, model, bounds));
+    }
+
     if (
         value === undefined ||
         !(FieldValue.is(value, FieldValue.percent) || FieldValue.is(value, FieldValue.celsius))

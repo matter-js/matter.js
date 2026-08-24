@@ -61,11 +61,12 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         this.model.conformance.validateComputation(this, this.model.owner(ClusterModel)?.definedFeatures);
 
         this.#validateAspect("constraint");
-        this.#validateNumericValues();
         this.#validateAspect("access");
         this.#validateAspect("quality");
 
+        // After the type is validated, because that is where a default stated as text becomes the value it denotes
         this.#validateType();
+        this.#validateNumericValues();
         this.#validateEntries();
 
         super.validate();

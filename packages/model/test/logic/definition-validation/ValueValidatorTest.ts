@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { FieldValue } from "#common/index.js";
 import {
     AttributeElement as Attribute,
     FieldElement,
@@ -49,6 +50,18 @@ function validateList(entryType: string, constraint: string) {
     );
     Matter.finalize();
 
+    return ValidateModel(Matter).errors.filter(e => CODES.has(e.code));
+}
+
+function validateDefault(type: string, dflt: FieldValue) {
+    const Matter = new MatterModel(
+        {},
+        uint8.clone(),
+        uint16.clone(),
+        new ClusterModel({ name: "Test", id: 0xfff1 }, Attribute({ name: "Bounded", id: 1, type, default: dflt })),
+    );
+
+    // Not finalized: validation normalizes a default by writing it back, which a finalized model refuses
     return ValidateModel(Matter).errors.filter(e => CODES.has(e.code));
 }
 
@@ -101,7 +114,7 @@ describe("ValueValidator", () => {
             expect(errors[0].message).match(/0°C and 25.5°C state a unit that type uint16 gives no scale for/);
         });
 
-        // A percentage used to fall back to the number the specification prints, which is only right for percent
+        // Only percent and percent100ths state what a percentage means; on any other type it is unscaled
         it("reports a percentage on a type with no scale", () => {
             const errors = validateConstraint("uint16", "min 0.01%");
 
@@ -126,6 +139,14 @@ describe("ValueValidator", () => {
 
         it("rejects a negative on an unsigned type", () => {
             const errors = validateConstraint("uint16", "-1 to 100");
+
+            expect(errors.length).equals(1);
+            expect(errors[0].code).equals("NEGATIVE_ON_UNSIGNED_TYPE");
+        });
+
+        // A default stated as text becomes the value it denotes only once the type is validated
+        it("rejects a negative stated as the text of a default", () => {
+            const errors = validateDefault("uint16", "-1");
 
             expect(errors.length).equals(1);
             expect(errors[0].code).equals("NEGATIVE_ON_UNSIGNED_TYPE");
