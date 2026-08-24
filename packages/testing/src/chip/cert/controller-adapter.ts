@@ -269,6 +269,9 @@ export interface CertNodeApi {
      * A step needing the data versions of two clusters (TC-IDM-3.1 step 15) must obtain them from a
      * single `ReadRequest`, which is what the plan's procedure describes; issuing one read per cluster
      * would exercise a different interaction.
+     *
+     * A concrete path the device answers with a status **rejects**, matching {@link readAttribute}; a
+     * wildcard path's statuses are per-item results of the expansion and are dropped.
      */
     readAttributes(paths: AttributePathSpec[], options?: ReadAttributeOptions): Promise<AttributeReadEntry[]>;
     writeAttribute(path: AttributePathSpec, value: unknown, options?: TimedInteractionOptions): Promise<void>;
