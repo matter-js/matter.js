@@ -55,7 +55,8 @@ export namespace EncodedConstraint {
     }
 
     /**
-     * Reduce the bounds of a constraint to the numbers they state in encoding units.
+     * Report which of a constraint's bounds state a number in encoding units, and which state a unit no scale is
+     * known for and so state no number at all.
      *
      * @see {@link MatterSpecification.v16.Core} § 7.19.2
      */

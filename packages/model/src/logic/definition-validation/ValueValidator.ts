@@ -96,8 +96,12 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
             unscaled.push(...bounds.unscaled);
         }
 
+        // A number states itself; only a unit needs converting.  Asking for the encoded form of every default would
+        // lose one too large to be a number, which is where the values of a 64 bit type live
         const fallback = this.model.default;
-        if (fallback !== undefined) {
+        if (typeof fallback === "number" || typeof fallback === "bigint") {
+            encoded.push({ value: fallback, model: this.model });
+        } else if (fallback !== undefined) {
             const value = EncodedValue(this.model, fallback);
             if (value !== undefined) {
                 encoded.push({ value, model: this.model });

@@ -9,10 +9,13 @@ import {
     AttributeElement as Attribute,
     FieldElement,
     int8,
+    double,
     percent,
     percent100ths,
+    single,
     uint8,
     uint16,
+    uint64,
     ValidateModel,
 } from "#index.js";
 import { ClusterModel, DatatypeModel, MatterModel } from "#models/index.js";
@@ -58,6 +61,7 @@ function validateDefault(type: string, dflt: FieldValue) {
         {},
         uint8.clone(),
         uint16.clone(),
+        uint64.clone(),
         new ClusterModel({ name: "Test", id: 0xfff1 }, Attribute({ name: "Bounded", id: 1, type, default: dflt })),
     );
 
@@ -73,6 +77,8 @@ function validateConstraint(type: string, constraint: string) {
         int8.clone(),
         percent.clone(),
         percent100ths.clone(),
+        single.clone(),
+        double.clone(),
 
         // The scale of a unit comes from the type name, so the test needs a type the conversion knows
         new DatatypeModel({ name: "UnsignedTemperature", type: "uint8" }),
@@ -150,6 +156,23 @@ describe("ValueValidator", () => {
 
             expect(errors.length).equals(1);
             expect(errors[0].code).equals("NEGATIVE_ON_UNSIGNED_TYPE");
+        });
+
+        // A 64 bit value is stated as a bigint, which has no numeric form to convert to
+        it("rejects a negative default too large to be a number", () => {
+            const errors = validateDefault("uint64", -18446744073709551615n);
+
+            expect(errors.length).equals(1);
+            expect(errors[0].code).equals("NEGATIVE_ON_UNSIGNED_TYPE");
+        });
+
+        it("accepts the largest value a 64 bit type holds", () => {
+            expect(validateDefault("uint64", 18446744073709551615n)).deep.equals([]);
+        });
+
+        it("accepts a fraction on a floating point type", () => {
+            expect(validateConstraint("single", "0.5 to 100")).deep.equals([]);
+            expect(validateConstraint("double", "0.5 to 100")).deep.equals([]);
         });
 
         it("accepts a negative on a signed type", () => {
