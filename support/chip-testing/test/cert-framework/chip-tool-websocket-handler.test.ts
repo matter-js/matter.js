@@ -11,6 +11,7 @@ import { expect } from "chai";
 import {
     convertWebsocketDataToMatter,
     discoveryResponseFor,
+    failureResponseFor,
     isOwnFailure,
     ownFailureResponse,
     parseWritePayload,
@@ -86,8 +87,18 @@ describe("parseWritePayload", () => {
         expect(parseWritePayload('{"a":1}', "write of x.y")).deep.equal({ a: 1 });
     });
 
-    it("refuses a payload it cannot read rather than answering the success shape", () => {
-        expect(() => parseWritePayload("{not json", "write of x.y")).throw(ImplementationError, /write of x\.y/);
+    it("refuses a payload it cannot read rather than answering the success shape, keeping the cause", () => {
+        let raised: unknown;
+        try {
+            parseWritePayload("{not json", "write of x.y");
+        } catch (e) {
+            raised = e;
+        }
+        if (!(raised instanceof ImplementationError)) {
+            throw new InternalError(`Expected an ImplementationError, got ${raised}`);
+        }
+        expect(raised.message).contains("write of x.y");
+        expect(raised.cause).instanceOf(SyntaxError);
     });
 });
 
@@ -123,6 +134,20 @@ describe("isOwnFailure", () => {
 
     it("leaves a RangeError alone, which a truncated device message raises through DataReader", () => {
         expect(isOwnFailure(new RangeError("Offset is outside the bounds of the DataView"))).equal(false);
+    });
+});
+
+describe("failureResponseFor", () => {
+    it("gives the bare failure a refusing device gives, which the corpus expects", () => {
+        expect(failureResponseFor(new UnexpectedDataError("the device answered something else"))).deep.equal({
+            results: [{ error: "FAILURE" }],
+        });
+    });
+
+    it("does not spell a fault of this shim the same way", () => {
+        expect(failureResponseFor(new ImplementationError("missing argument")).results[0].error).contains(
+            "Test harness failure",
+        );
     });
 });
 

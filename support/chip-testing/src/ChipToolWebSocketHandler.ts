@@ -187,7 +187,7 @@ export function parseWritePayload(value: string, what: string): unknown {
     try {
         return JSON.parse(value);
     } catch (error) {
-        throw new ImplementationError(`Cannot read the payload of ${what}: ${(error as Error).message}`);
+        throw new ImplementationError(`Cannot read the payload of ${what}`, { cause: error });
     }
 }
 
@@ -207,6 +207,18 @@ export function parseWritePayload(value: string, what: string): unknown {
  */
 export function isOwnFailure(error: unknown) {
     return causedBy(error, ImplementationError, InternalError, TypeError, SyntaxError);
+}
+
+/**
+ * How this shim answers a command that failed.
+ *
+ * A device that refuses gives a bare `FAILURE`, which steps of the corpus expect; a failure of this
+ * shim's own must not be spelled the same way (see {@link isOwnFailure}) or those steps pass on our bug.
+ * Every catch that answers a failure goes through here, so a handler cannot answer one way while
+ * another answers the other.
+ */
+export function failureResponseFor(error: unknown): ChipWebSocketCommandResponse {
+    return isOwnFailure(error) ? ownFailureResponse(error) : { results: [{ error: "FAILURE" }] };
 }
 
 /**
@@ -625,7 +637,7 @@ export class ChipToolWebSocketHandler {
                             return { results: [] };
                         } catch (error) {
                             logger.error("Error commissioning node", error);
-                            return { results: [{ error: "FAILURE" }] };
+                            return failureResponseFor(error);
                         }
                     default:
                         throw new NotImplementedError(`Pairing text command ${commandData[1]}`);
@@ -725,7 +737,7 @@ export class ChipToolWebSocketHandler {
                     return { results: [] };
                 } catch (error) {
                     logger.error("Error commissioning node", error);
-                    return { results: [{ error: "FAILURE" }] };
+                    return failureResponseFor(error);
                 }
             }
             case "code-paseonly": {
@@ -738,7 +750,7 @@ export class ChipToolWebSocketHandler {
                     return { results: [] };
                 } catch (error) {
                     logger.error("Error connecting to node via PASE", error);
-                    return { results: [{ error: "FAILURE" }] };
+                    return failureResponseFor(error);
                 }
             }
             case "get-commissioner-node-id":
@@ -1000,7 +1012,7 @@ export class ChipToolWebSocketHandler {
             return discoveryResponseFor(results, command);
         } catch (error) {
             logger.error("Error on discovery", error);
-            return { results: [{ error: "FAILURE" }] };
+            return failureResponseFor(error);
         }
     }
 
@@ -1371,12 +1383,7 @@ export class ChipToolWebSocketHandler {
             `Error for command "${command}" and cluster "${cluster}" and specifier "${commandSpecifier}"`,
             error,
         );
-        if (isOwnFailure(error)) {
-            // A step that expects a bare FAILURE would otherwise pass on a bug of this shim, on evidence
-            // the device never produced
-            return ownFailureResponse(error);
-        }
-        return { results: [{ error: "FAILURE" }] };
+        return failureResponseFor(error);
     }
 
     close() {
