@@ -529,9 +529,7 @@ export class LevelControlBaseServer extends LevelControlBase {
 
                             // The block covers one on/off reaction, so it must lift however the transaction ends
                             finalized: () => {
-                                if (this.internal.blockOnOffCouplingOnce) {
-                                    this.internal.blockOnOffCouplingOnce = false;
-                                }
+                                this.internal.blockOnOffCouplingOnce = false;
                             },
                         });
                     }

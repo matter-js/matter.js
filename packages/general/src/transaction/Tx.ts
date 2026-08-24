@@ -29,6 +29,9 @@ const logger = Logger.get("Transaction");
  */
 interface CommitCycle {
     notified: boolean;
+
+    /** The participants commit phase two dispatched, which is not the roster the cycle began with. */
+    dispatched?: Participant[];
 }
 
 // Controls the number of times we will cycle pre-commit handlers waiting for state to settle
@@ -64,7 +67,6 @@ class Tx implements Transaction, Transaction.Finalization {
     #closed?: Observable<[]>;
     #isAsync = false;
     #reportingLocks = false;
-    #dispatched?: Participant[];
 
     constructor(via: string, lifetime: Lifetime.Owner, isolation: Transaction.IsolationLevel) {
         this.#via = Diagnostic.via(via);
@@ -402,7 +404,6 @@ class Tx implements Transaction, Transaction.Finalization {
      */
     #executeCommitCycle(count: number): MaybePromise<void> {
         count++;
-        this.#dispatched = undefined;
 
         // Notification is per cycle: a post-commit handler may commit again, and that cycle's notification must not
         // stand in for this one
@@ -651,22 +652,23 @@ class Tx implements Transaction, Transaction.Finalization {
         const executeCommit = (): MaybePromise =>
             MaybePromise.then(
                 () => this.#executeCommit1(cycle),
-                () => this.#executeCommit2(),
+                () => this.#executeCommit2(cycle),
             );
 
         // Committing is itself what creates some participants -- a store joins as its values are written -- so report
         // to those phase two dispatched.  A participant that joined after its own iteration ran no phase at all
-        const reportTo = () => this.#dispatched ?? participants;
+        const reportTo = () => cycle.dispatched ?? participants;
 
         const succeeded = () => {
             const reportees = reportTo();
             const reported = this.#createPostCommitExecutor(reportees)();
 
+            // Chaining is observable in the timing of everything downstream, so add nothing where nobody listens
             if (!reportees.some(participant => participant.finalized)) {
                 return reported;
             }
 
-            return MaybePromise.then(reported, () => this.#notifyFinalized(cycle, reportees, "committed"));
+            return MaybePromise.finally(reported, () => this.#notifyFinalized(cycle, reportees, "committed"));
         };
 
         // Every failure before phase two rolls back, and a rollback reports the outcome itself, so this call survives
@@ -754,15 +756,30 @@ class Tx implements Transaction, Transaction.Finalization {
         const rollbackAndThrow = (error: unknown): MaybePromise<never> => {
             logger.warn("Rolling back", this.via, "due to settled error:", Diagnostic.weak(asError(error).message));
 
-            const rollback = this.#finalize(Status.RollingBack, "rolled back", () => this.#executeRollback(cycle));
+            const rethrow = () => {
+                throw error;
+            };
 
-            if (MaybePromise.is(rollback)) {
-                return Promise.resolve(rollback).then(() => {
-                    throw error;
-                });
+            // The settled report is the cause; a rollback that fails on top of it is secondary
+            const secondary = (cause: unknown) => {
+                if (cause !== error) {
+                    logger.error("Secondary error in", this.via, "rollback:", cause);
+                }
+                throw error;
+            };
+
+            let rollback;
+            try {
+                rollback = this.#finalize(Status.RollingBack, "rolled back", () => this.#executeRollback(cycle));
+            } catch (e) {
+                return secondary(e);
             }
 
-            throw error;
+            if (MaybePromise.is(rollback)) {
+                return Promise.resolve(rollback).then(rethrow, secondary);
+            }
+
+            return rethrow();
         };
 
         const notify = (): MaybePromise => {
@@ -830,14 +847,14 @@ class Tx implements Transaction, Transaction.Finalization {
         return abortIfFailed();
     }
 
-    #executeCommit2() {
+    #executeCommit2(cycle: CommitCycle) {
         // Commit phase 2
         this.#status = Status.CommittingPhaseTwo;
-        this.#dispatched = [];
+        cycle.dispatched = [];
         let errored: undefined | Array<ParticipantError>;
         let ongoing: undefined | Array<Promise<void>>;
         for (const participant of this.participants) {
-            this.#dispatched.push(participant);
+            cycle.dispatched.push(participant);
 
             const promise = MaybePromise.then(
                 () => participant.commit2?.(),

@@ -21,8 +21,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: A storage driver states how long a consumer may buffer dirty values via `StorageDriver.writeCoalescingInterval`, defaulting to 20 minutes; `MemoryStorageDriver` reports `Instant`
     - Enhancement: `Transaction.Participant` gains `settled()`, invoked once after every participant's pre-commit reports no further mutation and before any of them writes; throwing there rejects the commit
     - Enhancement: `Transaction.Participant` gains `finalized(outcome)`, which runs once per commit cycle or rollback — including the commit phase two failure that skips both `postCommit` and `rollback` — and states whether the transaction committed, rolled back, or ended inconsistent
-    - Fix: A rollback whose participants revert synchronously no longer reports completion before its notifications finish, which discarded the error raised by a participant that failed to revert
     - Fix: A post-commit handler that rejects no longer detaches the remaining participants' post-commit work from the transaction
+    - Adjustment: A participant that joins a transaction while it commits, as a store does, now receives `postCommit` along with the participants that were present when the commit began
     - Fix: Opening a namespace whose `driver.json` names an unregistered storage driver now throws `NoProviderError` instead of silently opening the existing data with a mismatched driver
     - Fix: DNS-SD ignores SRV records with port 0, an empty target or an out-of-range port
     - Fix: DNS-SD honors a goodbye that arrives shortly after the same record was re-announced

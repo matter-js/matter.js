@@ -68,11 +68,8 @@ export interface Participant {
      *
      * Skipped where pre-commit itself failed, which never reaches a settled state.
      *
-     * Only the transaction knows that pre-commit has converged, which is why a participant cannot do this in its own
-     * {@link preCommit} — returning `false` says nothing about whether another participant will mutate afterwards.
-     *
-     * Must not mutate state.  Pre-commit has settled by definition, so a mutation here bypasses every participant's
-     * chance to react to it.
+     * Must not mutate state: pre-commit has converged by the time this runs, so a mutation here reaches the store
+     * without any participant having had a chance to react to it.
      */
     settled?: () => MaybePromise;
 

@@ -570,6 +570,7 @@ describe("Transaction", () => {
             await transaction.rollback();
 
             p.expect("rollback", "finalized rolled back");
+            validateUnlocked(transaction);
         });
 
         test("reports a rollback once when phase one throws", async () => {
@@ -588,6 +589,7 @@ describe("Transaction", () => {
             await expect(committing()).rejectedWith(FinalizationError);
 
             p.expect("commit1", "rollback", "finalized rolled back");
+            validateUnlocked(transaction);
         });
 
         test("reports an inconsistent commit when phase two throws", async () => {
@@ -610,6 +612,7 @@ describe("Transaction", () => {
             await expect(committing()).rejectedWith(SomeError);
 
             p.expect("commit1", "commit2", "finalized inconsistent");
+            validateUnlocked(transaction);
         });
 
         test("reports a rollback when settled throws", async () => {
@@ -744,6 +747,7 @@ describe("Transaction", () => {
             await expect(transaction.rollback()).rejectedWith(SomeError);
 
             p.expect("rollback", "finalized inconsistent");
+            validateUnlocked(transaction);
         });
 
         test("continues after an asynchronous participant rejects", async () => {
@@ -768,24 +772,6 @@ describe("Transaction", () => {
             await transaction.commit();
 
             p2.expect("commit1", "commit2", "finalized committed");
-        });
-
-        test("reports a rollback where the commit failed before phase two", async () => {
-            const p: TestParticipant = join({
-                commit1() {
-                    throw new SomeError("oops in commit1");
-                },
-
-                finalized: outcome => {
-                    p.invoked.push(`finalized ${outcome}`);
-                },
-            });
-
-            await transaction.begin();
-
-            await expect(committing()).rejectedWith(FinalizationError);
-
-            p.expect("commit1", "rollback", "finalized rolled back");
         });
 
         test("reports a participant that joined during phase one", async () => {

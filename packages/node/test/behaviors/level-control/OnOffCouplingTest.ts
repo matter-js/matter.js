@@ -7,7 +7,9 @@
 import { DimmableLightDevice } from "#devices/dimmable-light";
 import { MockServerNode } from "../../node/mock-server-node.js";
 
-describe("LevelControlServer on/off coupling", () => {
+describe("LevelControl on/off coupling", () => {
+    before(MockTime.enable);
+
     it("lifts the on/off coupling block when its transaction rolls back", async () => {
         const { node, endpoint } = await coupledLight();
 
@@ -31,6 +33,25 @@ describe("LevelControlServer on/off coupling", () => {
         await endpoint.set({ onOff: { onOff: true } });
 
         expect(endpoint.state.levelControl.currentLevel).equals(100);
+
+        await node.close();
+    });
+
+    it("holds the on/off coupling block through a committed level change", async () => {
+        const { node, endpoint } = await coupledLight();
+
+        await node.online({ command: true }, async agent => {
+            await endpoint.agentFor(agent.context).levelControl.moveToLevelWithOnOff({
+                level: 50,
+                transitionTime: null,
+                optionsMask: {},
+                optionsOverride: {},
+            });
+        });
+
+        // The block exists so the on/off reaction does not move the level a second time, to onLevel
+        expect(endpoint.state.onOff.onOff).equals(true);
+        expect(endpoint.state.levelControl.currentLevel).equals(50);
 
         await node.close();
     });
