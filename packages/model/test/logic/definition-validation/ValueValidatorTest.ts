@@ -16,12 +16,15 @@ import {
     percent100ths,
     single,
     uint8,
+    duration,
     uint16,
     string,
+    struct,
     uint64,
     ValidateModel,
 } from "#index.js";
-import { ClusterModel, DatatypeModel, MatterModel } from "#models/index.js";
+import { AttributeModel, ClusterModel, DatatypeModel, FieldModel, MatterModel } from "#models/index.js";
+import { Seconds } from "@matter/general";
 
 const CODES = new Set(["UNIT_WITHOUT_SCALE", "FRACTION_ON_INTEGER_TYPE", "NEGATIVE_ON_UNSIGNED_TYPE", "INVALID_VALUE"]);
 
@@ -59,8 +62,8 @@ function validateList(entryType: string, constraint: string) {
     return ValidateModel(Matter).errors.filter(e => CODES.has(e.code));
 }
 
-function validateDefault(type: string, dflt: FieldValue) {
-    const Matter = new MatterModel(
+function modelWithDefault(type: string, dflt: FieldValue) {
+    return new MatterModel(
         {},
         uint8.clone(),
         uint16.clone(),
@@ -68,13 +71,86 @@ function validateDefault(type: string, dflt: FieldValue) {
         int8.clone(),
         percent100ths.clone(),
         string.clone(),
+        struct.clone(),
+        duration.clone(),
         bool.clone(),
         new DatatypeModel({ name: "UnsignedTemperature", type: "uint8" }),
         new ClusterModel({ name: "Test", id: 0xfff1 }, Attribute({ name: "Bounded", id: 1, type, default: dflt })),
     );
+}
 
-    // Not finalized: validation normalizes a default by writing it back, which a finalized model refuses
-    return ValidateModel(Matter).errors.filter(e => CODES.has(e.code));
+function validateDefault(type: string, dflt: FieldValue) {
+    return ValidateModel(modelWithDefault(type, dflt)).errors.filter(e => CODES.has(e.code));
+}
+
+/** Validation of a final model, which is frozen and so cannot be normalized */
+function validateFinalDefault(type: string, dflt: FieldValue) {
+    const model = modelWithDefault(type, dflt);
+    model.finalize();
+
+    return {
+        errors: ValidateModel(model).errors,
+        default: model.get(ClusterModel, "Test")?.get(AttributeModel, "Bounded")?.default,
+    };
+}
+
+/** Every error validation reports, not only those of the numeric rules */
+function allErrors(type: string, dflt: FieldValue) {
+    return ValidateModel(modelWithDefault(type, dflt)).errors;
+}
+
+/** A default naming a sibling field, which normalization turns into a reference to it */
+function modelWithReferenceDefault() {
+    return new MatterModel(
+        {},
+        uint8.clone(),
+        new ClusterModel(
+            { name: "Test", id: 0xfff1 },
+            Attribute({ name: "Bounded", id: 1, type: "uint8", default: "Other" }),
+            Attribute({ name: "Other", id: 2, type: "uint8" }),
+        ),
+    );
+}
+
+/** A default naming a cluster attribute, which the struct that carries the default does not shadow */
+function modelWithClusterReferenceDefault() {
+    return new MatterModel(
+        {},
+        uint8.clone(),
+        struct.clone(),
+        new ClusterModel(
+            { name: "Test", id: 0xfff1 },
+            Attribute({ name: "Limit", id: 1, type: "uint8" }),
+            new DatatypeModel(
+                { name: "Holder", type: "struct" },
+                FieldElement({ name: "Bounded", type: "uint8", default: "Limit" }),
+            ),
+        ),
+    );
+}
+
+/** A member whose type resolves only once its name is corrected to the case its definition uses */
+function modelWithCaseMismatch() {
+    return new MatterModel(
+        {},
+        uint8.clone(),
+        new ClusterModel({ name: "Base", id: 0xfff0 }, Attribute({ name: "Foo", id: 1, type: "uint8" })),
+        new ClusterModel({ name: "Derived", id: 0xfff1, type: "Base" }, Attribute({ name: "foo", id: 1 })),
+    );
+}
+
+function validate(model: MatterModel, final: boolean) {
+    if (final) {
+        model.finalize();
+    }
+    return ValidateModel(model).errors;
+}
+
+/** The default validation leaves on the model, which is the value generation then emits */
+function normalizedDefault(type: string, dflt: FieldValue) {
+    const model = modelWithDefault(type, dflt);
+    ValidateModel(model);
+    return model.get(ClusterModel, "Test")?.get(AttributeModel, "Bounded")?.default;
 }
 
 /** An enum states no unit, so a percentage default on one has nowhere to go */
@@ -329,8 +405,143 @@ describe("ValueValidator", () => {
             expect(validateList("uint8", "max 4[0 to 10]")).deep.equals([]);
         });
 
+        it("accepts a duration stated as a number of milliseconds or as text", () => {
+            expect(validateDefault("duration", Seconds(2))).deep.equals([]);
+            expect(validateDefault("duration", "2s")).deep.equals([]);
+            expect(validateDefault("duration", "nonsense").map(error => error.code)).deep.equals(["INVALID_VALUE"]);
+        });
+
         it("accepts a fraction the unit scales to a whole number", () => {
             expect(validateConstraint("percent100ths", "min 0.01%")).deep.equals([]);
+        });
+    });
+
+    // An override states no value to remove a default the specification states
+    describe("a default of no value", () => {
+        it("leaves no default on a type no scalar could state", () => {
+            expect(validateDefault("struct", FieldValue.None)).deep.equals([]);
+            expect(normalizedDefault("struct", FieldValue.None)).undefined;
+        });
+
+        it("leaves no default on a scalar type", () => {
+            expect(validateDefault("uint16", FieldValue.None)).deep.equals([]);
+            expect(normalizedDefault("uint16", FieldValue.None)).undefined;
+        });
+
+        // Casting it to the type would state a value of that type: "[object Object]" on a string, true on a boolean
+        it("leaves no default on a type that could render it", () => {
+            for (const type of ["string", "bool"]) {
+                expect(validateDefault(type, FieldValue.None)).deep.equals([]);
+                expect(normalizedDefault(type, FieldValue.None)).undefined;
+            }
+        });
+    });
+
+    describe("a final model", () => {
+        it("reports what the same model reports unfrozen", () => {
+            for (const [type, dflt] of [
+                ["uint16", "5"],
+                ["uint16", "-1"],
+                ["uint16", 0.01],
+                ["struct", "0"],
+                ["string", "empty"],
+                ["UnsignedTemperature", "25.5°C"],
+                ["percent100ths", { type: "percent", value: 0.01 }],
+            ] as [string, FieldValue][]) {
+                expect(validateFinalDefault(type, dflt).errors).deep.equals(allErrors(type, dflt));
+            }
+        });
+
+        it("leaves the default it cannot normalize as stated", () => {
+            expect(validateFinalDefault("uint16", "5").default).equals("5");
+            expect(normalizedDefault("uint16", "5")).equals(5);
+
+            // The specification's way of stating that a string has no default
+            expect(validateFinalDefault("string", "empty").default).equals("empty");
+            expect(normalizedDefault("string", "empty")).undefined;
+        });
+
+        it("leaves a default naming a sibling as the name it states", () => {
+            const final = modelWithReferenceDefault();
+            expect(validate(final, true)).deep.equals(validate(modelWithReferenceDefault(), false));
+            expect(final.get(ClusterModel, "Test")?.get(AttributeModel, "Bounded")?.default).equals("Other");
+
+            const normalized = modelWithReferenceDefault();
+            ValidateModel(normalized);
+            expect(normalized.get(ClusterModel, "Test")?.get(AttributeModel, "Bounded")?.default).deep.equals(
+                FieldValue.Reference("Other"),
+            );
+        });
+
+        it("leaves a default naming a cluster member as the name it states", () => {
+            const final = modelWithClusterReferenceDefault();
+            expect(validate(final, true)).deep.equals(validate(modelWithClusterReferenceDefault(), false));
+
+            const holder = (model: MatterModel) =>
+                model.get(ClusterModel, "Test")?.get(DatatypeModel, "Holder")?.get(FieldModel, "Bounded")?.default;
+            expect(holder(final)).equals("Limit");
+
+            const normalized = modelWithClusterReferenceDefault();
+            ValidateModel(normalized);
+            expect(holder(normalized)).deep.equals(FieldValue.Reference("Limit"));
+        });
+
+        // Correcting the case is a write, so a final model reports the type as absent instead of resolving it
+        it("reports a type it cannot correct the case of", () => {
+            const final = modelWithCaseMismatch();
+            expect(validate(final, true).map(error => error.code)).deep.equals(["NO_TYPE"]);
+            expect(final.get(ClusterModel, "Derived")?.get(AttributeModel, "foo")?.name).equals("foo");
+
+            const corrected = modelWithCaseMismatch();
+            expect(validate(corrected, false)).deep.equals([]);
+            expect(corrected.get(ClusterModel, "Derived")?.get(AttributeModel, "Foo")?.effectiveType).equals("Foo");
+        });
+
+        // Characterization: a cross-reference redundant with the parent's survives validation, final or not.  The
+        // generator drops these itself
+        it("keeps a cross-reference redundant with its parent", () => {
+            const xref = { document: "cluster", section: "1.2.3" } as const;
+            const build = () =>
+                new MatterModel(
+                    {},
+                    uint8.clone(),
+                    new ClusterModel(
+                        { name: "Test", id: 0xfff1, xref },
+                        Attribute({ name: "Bounded", id: 1, type: "uint8", xref }),
+                    ),
+                );
+
+            for (const final of [true, false]) {
+                const model = build();
+                expect(() => validate(model, final)).not.throws();
+                expect(model.get(ClusterModel, "Test")?.get(AttributeModel, "Bounded")?.xref?.section).equals("1.2.3");
+            }
+        });
+    });
+
+    describe("a rejected default", () => {
+        it("names the value and the type it rejects", () => {
+            const errors = validateDefault("struct", "0");
+
+            expect(errors.length).equals(1);
+            expect(errors[0].code).equals("INVALID_VALUE");
+            expect(errors[0].message).equals('Default value "0" is not a valid object for type struct');
+        });
+
+        it("names a value stated with a unit", () => {
+            const errors = validateDefault("struct", { type: "percent", value: 0.01 });
+
+            expect(errors.map(error => error.message)).contains(
+                'Default value "0.01%" is not a valid object for type struct',
+            );
+        });
+
+        it("names a value stating properties", () => {
+            const errors = validateDefault("uint16", { type: FieldValue.properties, properties: { a: 1 } });
+
+            expect(errors.map(error => error.message)).contains(
+                'Default value "{ a: 1 }" is not a valid integer for type uint16',
+            );
         });
     });
 });
