@@ -4,22 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, InternalError, Seconds } from "@matter/main";
+import { InternalError, Seconds } from "@matter/main";
 import { Matter } from "@matter/model";
-import type {
-    CertNodeApi,
-    CertNodeRef,
-    CertStepContext,
-    CheckRecord,
-    ControllerAdapter,
-    LogExpectPatterns,
-    LogFollower,
-} from "@matter/testing";
-import { CertLogClosedError, CertLogTimeoutError, certTest } from "@matter/testing";
+import type { CertNodeApi, CertNodeRef, CertStepContext, ControllerAdapter } from "@matter/testing";
+import { certTest } from "@matter/testing";
 import { expectMdns } from "../../src/cert/mdns-check.js";
+import {
+    COMMISSIONING_COMPLETE,
+    fabricSessionsEnded,
+    removeFabricSucceeded,
+    WINDOW_OPEN,
+} from "./tc-cadmin-1.17-support.js";
 import {
     CertCheckFailedError,
     CommissionedRefs,
+    expectDeviceLog,
     expectRejection,
     LOG_TIMEOUT,
     PendingPairingCode,
@@ -41,10 +40,6 @@ const EXPECTED_CR2_FABRIC_INDEX = 2;
 // resolution. A budget under that reports "neither resolved nor rejected" for a controller that was
 // about to reject.
 const POST_REMOVAL_TIMEOUT = Seconds(60);
-
-const WINDOW_OPEN_PATTERN = /Commissioning window is now open/;
-const COMMISSIONING_COMPLETE_PATTERN = /Commissioning completed successfully/;
-const REMOVE_FABRIC_SUCCESS_PATTERN = /OpCreds: RemoveFabric successful/;
 
 type Role = "dut" | "th_cr2" | "th_cr3";
 
@@ -116,51 +111,6 @@ function describeFabrics(fabrics: unknown): string {
     return JSON.stringify(fabrics, (_key, value) => (typeof value === "bigint" ? value.toString() : value));
 }
 
-interface DeviceLogCheck {
-    check: CheckRecord;
-    /** Cursor a subsequent, causally-later log check should search from. */
-    from: number;
-}
-
-/**
- * Runs a single-pattern {@link LogFollower.expect} and converts every outcome (match, timeout, or a
- * closed follower) into a {@link CheckRecord} instead of letting the latter two propagate as thrown
- * errors — mirrors `TC-ACT-3.2.test.ts`'s identical `CertLogTimeoutError`/`CertLogClosedError` handling,
- * so a timed-out or closed-mid-wait check still lands in the evidence bundle rather than vanishing.
- */
-async function expectDeviceLog(
-    log: LogFollower,
-    flavor: string,
-    patterns: LogExpectPatterns,
-    from: number,
-    timeout: Duration,
-): Promise<DeviceLogCheck> {
-    try {
-        const result = await log.expect(patterns, { flavor, timeoutMs: timeout, from });
-        if (result.verdict === "unverified") {
-            return { check: { type: "device-log", verdict: "unverified" }, from };
-        }
-        return {
-            check: {
-                type: "device-log",
-                verdict: "pass",
-                pattern: result.pattern,
-                matched: result.matched.text,
-                logLine: result.matched.index,
-            },
-            from: result.matched.index + 1,
-        };
-    } catch (e) {
-        if (e instanceof CertLogTimeoutError) {
-            return { check: { type: "device-log", verdict: "fail", pattern: e.pattern, detail: e.message }, from };
-        }
-        if (e instanceof CertLogClosedError) {
-            return { check: { type: "device-log", verdict: "fail", detail: e.message }, from };
-        }
-        throw e;
-    }
-}
-
 /** Reads VendorID back through `ref` as proof the just-commissioned CASE session actually works. */
 async function checkCommissioned(
     cx: CertStepContext,
@@ -186,13 +136,7 @@ async function checkCommissioned(
         );
     }
 
-    const { check } = await expectDeviceLog(
-        th.log,
-        th.flavor,
-        { chip: COMMISSIONING_COMPLETE_PATTERN },
-        logFrom,
-        LOG_TIMEOUT,
-    );
+    const { check } = await expectDeviceLog(th.log, th.flavor, COMMISSIONING_COMPLETE, logFrom, LOG_TIMEOUT);
     record(cx, check, `Commissioning-complete log for ${who}`);
 }
 
@@ -216,7 +160,7 @@ async function openWindowAndCheck(cx: CertStepContext): Promise<void> {
         detail: `manualPairingCode length=${manualPairingCode.length}`,
     });
 
-    const { check } = await expectDeviceLog(th.log, th.flavor, { chip: WINDOW_OPEN_PATTERN }, from, LOG_TIMEOUT);
+    const { check } = await expectDeviceLog(th.log, th.flavor, WINDOW_OPEN, from, LOG_TIMEOUT);
     record(cx, check, "Commissioning-window-open log");
 }
 
@@ -343,18 +287,20 @@ certTest("TC-CADMIN-1.17", {
             const removed = await expectDeviceLog(
                 th.log,
                 th.flavor,
-                { chip: REMOVE_FABRIC_SUCCESS_PATTERN },
+                removeFabricSucceeded(fabricIndex),
                 from,
                 LOG_TIMEOUT,
             );
             record(cx, removed.check, "RemoveFabric-successful log");
 
-            const expiringPattern = new RegExp(`Expiring all sessions for fabric 0x${fabricIndex.toString(16)}!!`);
+            // Searched from the step's own mark, not from the line above: matter.js closes the removed
+            // fabric's sessions before it answers the invoke, chip after. Both patterns name the fabric
+            // index, and the mark precedes this step's removal, so neither can match another removal's.
             const expiring = await expectDeviceLog(
                 th.log,
                 th.flavor,
-                { chip: expiringPattern },
-                removed.from,
+                fabricSessionsEnded(fabricIndex),
+                from,
                 LOG_TIMEOUT,
             );
             record(cx, expiring.check, '"Expiring all sessions" log');

@@ -15,6 +15,7 @@ import {
     CommissionedRefs,
     expectRejection,
     expectSequence,
+    MATTERJS_COMMISSIONED_FABRIC,
     record,
     settleWithin,
 } from "./tc-support.js";
@@ -52,7 +53,7 @@ export const TEST_VENDOR_IDS: readonly number[] = [0xfff1, 0xfff2, 0xfff3, 0xfff
 /** Both device flavors print the payload they publish on this line; chip prints one per commissioning flow. */
 const SETUP_QR_CODE = /SetupQRCode: \[(MT:[^\]]+)\]/;
 
-/** chip-all-clusters-app announces a completed commissioning; matter.js has no equivalent line. */
+/** chip-all-clusters-app announces a completed commissioning. */
 const COMMISSIONING_COMPLETE = /Commissioning completed successfully/;
 
 /**
@@ -715,7 +716,14 @@ async function restoreCommissioningMode(cx: CertStepContext, commissioned: Commi
         // by a cached advertisement from the generation that just went down.
         record(
             cx,
-            await expectSequence(th.log, th.flavor, "TH restarted", [SETUP_QR_CODE], from, COMMISSIONING_LOG_TIMEOUT),
+            await expectSequence(
+                th.log,
+                th.flavor,
+                "TH restarted",
+                { chip: [SETUP_QR_CODE] },
+                from,
+                COMMISSIONING_LOG_TIMEOUT,
+            ),
             "TH factory reset",
         );
     }
@@ -777,7 +785,7 @@ async function commissionByTarget(
             th.log,
             th.flavor,
             "commissioning complete",
-            [COMMISSIONING_COMPLETE],
+            { chip: [COMMISSIONING_COMPLETE], matterjs: [MATTERJS_COMMISSIONED_FABRIC] },
             from,
             COMMISSIONING_LOG_TIMEOUT,
         ),

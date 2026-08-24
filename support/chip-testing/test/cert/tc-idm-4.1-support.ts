@@ -13,7 +13,6 @@ import {
     expectSubscriptionId,
     LOG_TIMEOUT,
     record,
-    SUBSCRIBE_REQUEST_MESSAGE,
 } from "./tc-support.js";
 
 // TC-IDM-4.1's subscription machinery lives beside the test case rather than inside it because a
@@ -43,9 +42,9 @@ async function waitForReport(
     setNotify: (fn: (() => void) | undefined) => void,
     timeout: Duration,
 ): Promise<boolean> {
-    const deadline = Time.nowMs + timeout;
+    const deadline = Time.nowUs + timeout;
     while (!satisfied()) {
-        const remaining = deadline - Time.nowMs;
+        const remaining = deadline - Time.nowUs;
         if (remaining <= 0) {
             return false;
         }
@@ -133,14 +132,7 @@ export async function subscribeAndModify<Value>(
         },
     });
 
-    const subscribeCheck = await expectMessageWithPath(
-        th.log,
-        th.flavor,
-        SUBSCRIBE_REQUEST_MESSAGE,
-        path,
-        from,
-        establish,
-    );
+    const subscribeCheck = await expectMessageWithPath(th.log, th.flavor, "subscribe", path, from, establish);
     record(cx, subscribeCheck, `SubscribeRequestMessage log for step ${step}`);
 
     // The follower pumps the device stream asynchronously, so a previous step's SubscribeResponse
