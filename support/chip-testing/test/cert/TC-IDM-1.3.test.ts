@@ -11,6 +11,7 @@ import type { BatchCommandResult, BatchCommandSpec, CertStepContext, DeviceFlavo
 import { certTest } from "@matter/testing";
 import { registerCertCustomCluster } from "../../src/cert/custom-clusters.js";
 import { ChipFault, FAULT_TYPE_CHIP, FaultInjectionCluster } from "./fault-injection.js";
+import { COMMISSIONING_LOG_TIMEOUT } from "./tc-dd-support.js";
 import type { BatchPath } from "./tc-idm-1.3-support.js";
 import {
     expectBatchRequestPaths,
@@ -306,4 +307,26 @@ certTest("TC-IDM-1.3", {
             expected: "On the TH, the received request message has the same path as provided in the command",
         },
     )
-    .finalize(cx => commissioned.decommissionAll(cx));
+    .finalize(async cx => {
+        // What cleanup owes is a TH with none of this test's fabrics and none of its faults. A
+        // decommission cannot deliver either: faults 12/13/14 fire for any invoke and stop the device
+        // unless it carries two commands, so the RemoveFabric would take the TH down, and disarming
+        // first cannot work because `failAtFault` is itself a single-command invoke. A factory reset
+        // drops the fabrics and the faults together — they live in the app's memory.
+        const th = cx.devices.th;
+        const from = th.log.mark();
+
+        await th.backchannel({ name: "factoryReset" });
+
+        // start() returns when the process is up, not when the app is, and the next test activates its
+        // subject against whatever this leaves behind
+        await th.log.expect({ chip: SERVER_READY }, { flavor: th.flavor, from, timeoutMs: COMMISSIONING_LOG_TIMEOUT });
+
+        // The fabrics went with the reset, so nothing is left to remove — and a RemoveFabric sent to a
+        // device that has forgotten it waits out its own MRP budget before failing
+        commissioned.clear("dut");
+        commissioned.clear("th_client");
+    });
+
+/** A chip app says it is up on this line, once per generation. */
+const SERVER_READY = /\[SVR\] Server initialization complete/;
