@@ -22,6 +22,21 @@ function list(values: FieldValue[]) {
     return values.map(value => FieldValue.serialize(value)).join(" and ");
 }
 
+/** The values a primitive integer type holds, in the units the type is encoded in */
+function rangeOf(primitive: string) {
+    const width = primitive.match(INTEGER_TYPE)?.[1];
+    if (width === undefined) {
+        return;
+    }
+
+    const bits = BigInt(width);
+    if (UNSIGNED_TYPE.test(primitive)) {
+        return { min: 0n, max: 2n ** bits - 1n };
+    }
+
+    return { min: -(2n ** (bits - 1n)), max: 2n ** (bits - 1n) - 1n };
+}
+
 /** Group bounds by the type that decides what they may state, which for a list entry is not the type of the list */
 function groupBy<T>(bounds: EncodedConstraint.Bound<T>[], keyOf: (model: ValueModel) => string | undefined) {
     const groups = new Map<string, T[]>();
@@ -176,6 +191,40 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
                 );
                 if (negative.length) {
                     this.error("NEGATIVE_ON_UNSIGNED_TYPE", `${list(negative)} cannot be held by ${primitive}`);
+                }
+            }
+
+            const range = rangeOf(primitive);
+            if (range !== undefined) {
+                const exceeding = values.filter(value => {
+                    // A fraction and a negative on an unsigned type are reported above, and a value that is no number
+                    // at all has no magnitude to judge
+                    if (typeof value === "number" && !Number.isInteger(value)) {
+                        return false;
+                    }
+                    if (value < 0 && UNSIGNED_TYPE.test(primitive)) {
+                        return false;
+                    }
+
+                    if (typeof value === "bigint") {
+                        return value > range.max || value < range.min;
+                    }
+
+                    // A number states an integer exactly only below 2^53.  A bound states its magnitude as a bigint
+                    // where a number would lose it, but a default the cast could express as a number arrives as one,
+                    // so such a magnitude is judged only where the type is too narrow to hold any of it
+                    if (Number.isSafeInteger(value)) {
+                        return value > range.max || value < range.min;
+                    }
+                    return range.max < Number.MAX_SAFE_INTEGER;
+                });
+
+                if (exceeding.length) {
+                    this.error(
+                        "VALUE_EXCEEDS_TYPE",
+                        `${list(exceeding)} ${exceeding.length === 1 ? "is" : "are"} outside the range ` +
+                            `${range.min} to ${range.max} of ${primitive}`,
+                    );
                 }
             }
         }

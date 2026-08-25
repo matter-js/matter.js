@@ -9,6 +9,7 @@ import {
     AttributeElement as Attribute,
     FieldElement,
     int8,
+    int64,
     bool,
     double,
     enum8,
@@ -17,7 +18,10 @@ import {
     single,
     uint8,
     duration,
+    map8,
     uint16,
+    uint24,
+    uint56,
     string,
     struct,
     uint64,
@@ -26,7 +30,13 @@ import {
 import { AttributeModel, ClusterModel, DatatypeModel, FieldModel, MatterModel } from "#models/index.js";
 import { Seconds } from "@matter/general";
 
-const CODES = new Set(["UNIT_WITHOUT_SCALE", "FRACTION_ON_INTEGER_TYPE", "NEGATIVE_ON_UNSIGNED_TYPE", "INVALID_VALUE"]);
+const CODES = new Set([
+    "UNIT_WITHOUT_SCALE",
+    "FRACTION_ON_INTEGER_TYPE",
+    "NEGATIVE_ON_UNSIGNED_TYPE",
+    "VALUE_EXCEEDS_TYPE",
+    "INVALID_VALUE",
+]);
 
 /** A constraint stated on the datatype that names the scale, rather than on a value of that type */
 function validateDatatype(constraint: string) {
@@ -68,6 +78,10 @@ function modelWithDefault(type: string, dflt: FieldValue) {
         uint8.clone(),
         uint16.clone(),
         uint64.clone(),
+        uint56.clone(),
+        uint24.clone(),
+        int64.clone(),
+        map8.clone(),
         int8.clone(),
         percent100ths.clone(),
         string.clone(),
@@ -174,6 +188,8 @@ function validateConstraint(type: string, constraint: string) {
         uint8.clone(),
         uint16.clone(),
         int8.clone(),
+        int64.clone(),
+        uint64.clone(),
         percent.clone(),
         percent100ths.clone(),
         single.clone(),
@@ -409,6 +425,109 @@ describe("ValueValidator", () => {
             expect(validateDefault("duration", Seconds(2))).deep.equals([]);
             expect(validateDefault("duration", "2s")).deep.equals([]);
             expect(validateDefault("duration", "nonsense").map(error => error.code)).deep.equals(["INVALID_VALUE"]);
+        });
+
+        it("rejects a bound the type is too narrow to hold", () => {
+            const errors = validateConstraint("uint8", "0 to 300");
+
+            expect(errors.length).equals(1);
+            expect(errors[0].code).equals("VALUE_EXCEEDS_TYPE");
+            expect(errors[0].message).equals("300 is outside the range 0 to 255 of uint8");
+        });
+
+        it("accepts the widest value a type holds", () => {
+            expect(validateConstraint("uint8", "0 to 255")).deep.equals([]);
+            expect(validateConstraint("int8", "-128 to 127")).deep.equals([]);
+            expect(validateConstraint("uint16", "0 to 65535")).deep.equals([]);
+        });
+
+        // A signed type holds half the magnitude of the unsigned type of the same width
+        it("rejects a bound above the most a signed type holds", () => {
+            expect(validateConstraint("int8", "0 to 200").map(error => error.code)).deep.equals(["VALUE_EXCEEDS_TYPE"]);
+            expect(validateConstraint("int8", "0 to 127")).deep.equals([]);
+        });
+
+        it("judges a width the specification uses for a byte count", () => {
+            expect(validateDefault("uint24", 16777215)).deep.equals([]);
+            expect(validateDefault("uint24", 16777216).map(error => error.code)).deep.equals(["VALUE_EXCEEDS_TYPE"]);
+        });
+
+        it("accepts the least a 64 bit signed type holds", () => {
+            expect(validateDefault("int64", -9223372036854775808n)).deep.equals([]);
+        });
+
+        // A bitmap resolves to its integer type by name rather than by derivation, so it is its own path
+        it("rejects a value wider than the type a bitmap encodes to", () => {
+            expect(validateDefault("map8", 300).map(error => error.code)).deep.equals(["VALUE_EXCEEDS_TYPE"]);
+        });
+
+        it("rejects a bound the entry of a list is too narrow to hold", () => {
+            const errors = validateList("uint8", "max 4[0 to 300]");
+
+            expect(errors.length).equals(1);
+            expect(errors[0].code).equals("VALUE_EXCEEDS_TYPE");
+            expect(errors[0].message).equals("300 is outside the range 0 to 255 of uint8");
+        });
+
+        it("rejects a bound below the least a signed type holds", () => {
+            expect(validateConstraint("int8", "-129 to 0").map(error => error.code)).deep.equals([
+                "VALUE_EXCEEDS_TYPE",
+            ]);
+        });
+
+        // The sign is the fault a reader acts on; the magnitude adds nothing
+        it("reports a negative on an unsigned type as a negative alone", () => {
+            expect(validateConstraint("uint16", "-1 to 100").map(error => error.code)).deep.equals([
+                "NEGATIVE_ON_UNSIGNED_TYPE",
+            ]);
+        });
+
+        // An enum or bitmap is judged by the integer type carrying it
+        it("rejects a value wider than the type an enum encodes to", () => {
+            expect(validateEnumDefault(300).map(error => error.code)).deep.equals(["VALUE_EXCEEDS_TYPE"]);
+        });
+
+        it("judges a default by the width of its type", () => {
+            expect(validateDefault("uint8", 255)).deep.equals([]);
+            expect(validateDefault("uint8", 256).map(error => error.code)).deep.equals(["VALUE_EXCEEDS_TYPE"]);
+            expect(validateDefault("uint64", 18446744073709551615n)).deep.equals([]);
+            expect(validateDefault("uint64", 18446744073709551617n).map(error => error.code)).deep.equals([
+                "VALUE_EXCEEDS_TYPE",
+            ]);
+        });
+
+        // A bound keeps its magnitude exactly, so a type's own range is judged and admitted
+        it("accepts the range a 56 or 64 bit type states for itself", () => {
+            expect(validateConstraint("uint64", "max 18446744073709551615")).deep.equals([]);
+            expect(validateConstraint("int64", "-9223372036854775808 to 9223372036854775807")).deep.equals([]);
+
+            // The cast expresses a bigint as a number where one holds the magnitude, so these arrive as numbers too
+            // large to judge rather than as the bigints they were written as
+            expect(validateDefault("uint64", 18446744073709551616n)).deep.equals([]);
+            expect(validateDefault("uint56", 72057594037927936n)).deep.equals([]);
+
+            // A magnitude no number holds stays a bigint, which states it exactly
+            expect(validateDefault("int64", 9223372036854775809n).map(error => error.code)).deep.equals([
+                "VALUE_EXCEEDS_TYPE",
+            ]);
+        });
+
+        // A narrow type holds none of a magnitude that large, so the precision it lost changes nothing
+        it("rejects a magnitude no narrow type could hold", () => {
+            expect(validateConstraint("uint8", "max 99999999999999999999999999").map(error => error.code)).deep.equals([
+                "VALUE_EXCEEDS_TYPE",
+            ]);
+        });
+
+        // A default states its magnitude as text, which the cast reads exactly
+        it("accepts the largest magnitude a 64 bit type holds", () => {
+            expect(validateDefault("uint64", "18446744073709551615")).deep.equals([]);
+        });
+
+        // A bound the specification computes stays an expression, and the rules read numbers.  Judging what an
+        // expression amounts to belongs to Constraint, which alone knows what one means
+        it("does not judge a bound stated as an expression", () => {
+            expect(validateConstraint("uint8", "max 2^16")).deep.equals([]);
         });
 
         it("accepts a fraction the unit scales to a whole number", () => {
