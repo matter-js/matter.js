@@ -179,6 +179,8 @@ type ResourceType = Resource;
 type ResourceSetType = ResourceSet;
 type ParticipantType = Participant;
 
+type ParticipantOutcome = Participant.Outcome;
+
 export const Transaction = {
     /**
      * Perform a transactional operation.
@@ -237,6 +239,11 @@ export namespace Transaction {
     export type ResourceSet = ResourceSetType;
 
     export type Participant = ParticipantType;
+
+    /**
+     * How a transaction ended, as reported to {@link Participant.conclusion}.
+     */
+    export type Outcome = ParticipantOutcome;
 
     export interface Disposable extends Transaction, AsyncDisposable {
         close(): MaybePromise<void>;

@@ -500,6 +500,8 @@ export class LevelControlBaseServer extends LevelControlBase {
             if (targetLevel === this.minLevel) {
                 // When moving to off, coupling occurs at end of transaction
                 this.context.transaction.addParticipants({
+                    toString: () => `${this.endpoint} level/on-off coupling`,
+
                     preCommit: () => {
                         if (this.currentLevel === this.minLevel) {
                             const onOff = this.agent.get(OnOffServer);
@@ -523,10 +525,11 @@ export class LevelControlBaseServer extends LevelControlBase {
                         result = this.handleOnOffChange(true);
                         this.internal.blockOnOffCouplingOnce = true; // But block the second call by listener
                         this.context.transaction.addParticipants({
-                            postCommit: () => {
-                                if (this.internal.blockOnOffCouplingOnce) {
-                                    this.internal.blockOnOffCouplingOnce = false;
-                                }
+                            toString: () => `${this.endpoint} level/on-off coupling block`,
+
+                            // The block covers one on/off reaction, so it must lift however the transaction ends
+                            conclusion: () => {
+                                this.internal.blockOnOffCouplingOnce = false;
                             },
                         });
                     }
@@ -537,6 +540,8 @@ export class LevelControlBaseServer extends LevelControlBase {
         // Couple with ColorControl temp
         if (this.features.lighting && options.coupleColorTempToLevel && this.agent.has(ColorControlServer)) {
             this.context.transaction.addParticipants({
+                toString: () => `${this.endpoint} level/color temperature coupling`,
+
                 preCommit: () => {
                     const colorControl = this.agent.get(ColorControlServer);
                     const prevTemp = colorControl.mireds;
