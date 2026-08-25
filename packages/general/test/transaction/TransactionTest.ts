@@ -477,6 +477,27 @@ describe("Transaction", () => {
             expect(caught).instanceOf(TransactionFlowError);
         });
 
+        test("refuses a participant, which would not have converged", async () => {
+            let caught: unknown;
+
+            join({
+                settled: () => {
+                    try {
+                        const late = TestParticipant();
+                        late.toString = () => "late";
+                        transaction.addParticipants(late);
+                    } catch (e) {
+                        caught = e;
+                    }
+                },
+            });
+
+            await transaction.begin();
+            await transaction.commit();
+
+            expect(caught).instanceOf(TransactionFlowError);
+        });
+
         test("restores exclusive access for the commit that follows", async () => {
             const observed = new Array<string>();
 
@@ -595,6 +616,27 @@ describe("Transaction", () => {
             await transaction.commit();
 
             p.expect("commit1", "commit2", "postCommit", "concluded committed");
+        });
+
+        test("refuses a participant that could no longer be told", async () => {
+            let caught: unknown;
+
+            join({
+                conclusion: () => {
+                    try {
+                        const late = TestParticipant();
+                        late.toString = () => "late";
+                        transaction.addParticipants(late);
+                    } catch (e) {
+                        caught = e;
+                    }
+                },
+            });
+
+            await transaction.begin();
+            await transaction.commit();
+
+            expect(caught).instanceOf(TransactionFlowError);
         });
 
         test("reports a rollback", async () => {
@@ -979,7 +1021,10 @@ describe("Transaction", () => {
         });
 
         test("reports once per commit cycle when post-commit writes again", async () => {
+            const resource = new TestResource();
+            const observed = new Array<string>();
             let written = false;
+
             const p: TestParticipant = join({
                 postCommit: () => {
                     if (written) {
@@ -990,15 +1035,21 @@ describe("Transaction", () => {
                     transaction.addParticipants(p);
                 },
 
+                commit2: () => {
+                    observed.push("commit2");
+                },
+
                 conclusion: outcome => {
-                    p.invoked.push(`concluded ${outcome}`);
+                    // A cascaded cycle holds locks of its own, so neither report may land until both cycles are done
+                    observed.push(`${outcome} ${resource.lockedBy === undefined ? "unlocked" : "locked"}`);
                 },
             });
 
+            await transaction.addResources(resource);
             await transaction.begin();
             await transaction.commit();
 
-            p.expect("commit1", "commit2", "concluded committed", "commit1", "commit2", "concluded committed");
+            expect(observed).deep.equals(["commit2", "commit2", "committed unlocked", "committed unlocked"]);
         });
 
         test("awaits an asynchronous participant", async () => {

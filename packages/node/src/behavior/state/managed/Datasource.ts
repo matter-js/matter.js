@@ -996,6 +996,9 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
      * For commit phase one we pass values to the store if present.  For a mirror the store is the remote node.
      */
     commit1() {
+        // Staging is per commit: a claim from a cycle the store refused must not be honoured by a later one
+        this.#stagedFeaturesKey = false;
+
         this.#computePostCommitChanges();
 
         const stored = this.#changes?.stored;

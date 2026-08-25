@@ -265,6 +265,13 @@ class Tx implements Transaction, Transaction.Finalization {
     addParticipants(...participants: Participant[]) {
         this.#assertAvailable();
 
+        // Convergence and the outcome report are both claims about a known set of participants
+        if (this.#status === Status.Settled || this.#status === Status.Concluding) {
+            throw new TransactionFlowError(
+                `Cannot add a participant to transaction ${this.#via} because it is ${this.#status}`,
+            );
+        }
+
         for (const participant of participants) {
             if (this.#participants.has(participant)) {
                 continue;
@@ -435,16 +442,22 @@ class Tx implements Transaction, Transaction.Finalization {
             result = commit();
         }
 
-        // Then, if transaction is once again exclusive, recurse
+        // A post-commit handler may leave the transaction exclusive.  Recurse first, then report: the cycle it started
+        // holds locks of its own, and this cycle's report promises none are held.  A failed commit has already
+        // reported, so only the path that got here reports
+        const reportOutcome = (): MaybePromise => {
+            if (this.#status !== Status.Exclusive) {
+                return this.#concludeCycle(cycle);
+            }
+
+            return this.#thenConclude(() => this.#executeCommitCycle(count), cycle);
+        };
+
         if (MaybePromise.is(result)) {
-            return result.then(() => {
-                if (this.#status === Status.Exclusive) {
-                    return this.#executeCommitCycle(count);
-                }
-            });
-        } else if (this.#status === Status.Exclusive) {
-            return this.#executeCommitCycle(count);
+            return result.then(reportOutcome);
         }
+
+        return reportOutcome();
     }
 
     waitFor(others: Set<Transaction>) {
@@ -663,21 +676,23 @@ class Tx implements Transaction, Transaction.Finalization {
         // to those phase two dispatched.  A participant that joined after its own iteration ran no phase at all
         const reportTo = () => cycle.reportees ?? participants;
 
+        // Post-commit may commit again, and the report waits for that cycle to release its locks, so record the
+        // outcome here and leave reporting to whoever owns the cascade
         const succeeded = () => {
-            const reportees = reportTo();
-            const reported = this.#createPostCommitExecutor(reportees)();
+            cycle.reportees = reportTo();
+            cycle.outcome = "committed";
 
-            // Chaining is observable in the timing of everything downstream, so add nothing where nobody listens
-            if (!reportees.some(participant => participant.conclusion)) {
-                return reported;
-            }
-
-            return MaybePromise.finally(reported, () => this.#conclude(cycle, reportees, "committed"));
+            return this.#createPostCommitExecutor(cycle.reportees)();
         };
 
         // A rollback inside the commit -- a phase one failure -- already determined the outcome; anything else left
         // writes canonical with nothing reverted
-        const concludeFailure = () => this.#conclude(cycle, reportTo(), cycle.outcome ?? "inconsistent");
+        const concludeFailure = () => {
+            cycle.reportees ??= reportTo();
+            cycle.outcome ??= "inconsistent";
+
+            return this.#concludeCycle(cycle);
+        };
 
         const failed = (error: unknown): MaybePromise<never> => {
             const notified = concludeFailure();
@@ -706,24 +721,31 @@ class Tx implements Transaction, Transaction.Finalization {
     }
 
     /**
-     * Revert, then report the outcome once the transaction has released its locks.
+     * Report the outcome a cycle recorded, once nothing it started is still running.
      *
-     * The report is awaited on every path, including a synchronous throw from reverting.
+     * Reports nothing where no participant asked to be told, so the caller keeps the promise shape it had.
      */
-    #rollbackAndConclude(cycle: CommitCycle): MaybePromise {
-        const conclude = () => {
-            const { reportees, outcome } = cycle;
-            if (reportees === undefined || outcome === undefined) {
-                return;
-            }
+    #concludeCycle(cycle: CommitCycle): MaybePromise {
+        const { reportees, outcome } = cycle;
+        if (reportees === undefined || outcome === undefined) {
+            return;
+        }
 
-            // A rollback with nobody to tell keeps the promise shape the caller had
-            if (!reportees.some(participant => participant.conclusion)) {
-                return;
-            }
+        if (!reportees.some(participant => participant.conclusion)) {
+            return;
+        }
 
-            return this.#conclude(cycle, reportees, outcome);
-        };
+        return this.#conclude(cycle, reportees, outcome);
+    }
+
+    /**
+     * Run work, then report the cycle's outcome, whether or not the work threw.
+     *
+     * The report is awaited on every path.  A `finally` would start it without awaiting it where the work throws
+     * synchronously.
+     */
+    #thenConclude(work: () => MaybePromise, cycle: CommitCycle): MaybePromise {
+        const conclude = () => this.#concludeCycle(cycle);
 
         const rethrow = (error: unknown): MaybePromise<never> => {
             const concluded = conclude();
@@ -737,18 +759,25 @@ class Tx implements Transaction, Transaction.Finalization {
             throw error;
         };
 
-        let reverted;
+        let result;
         try {
-            reverted = this.#finalize(Status.RollingBack, "rolled back", () => this.#executeRollback(cycle));
+            result = work();
         } catch (e) {
             return rethrow(e);
         }
 
-        if (MaybePromise.is(reverted)) {
-            return reverted.then(conclude, rethrow);
+        if (MaybePromise.is(result)) {
+            return result.then(conclude, rethrow);
         }
 
         return conclude();
+    }
+
+    #rollbackAndConclude(cycle: CommitCycle): MaybePromise {
+        return this.#thenConclude(
+            () => this.#finalize(Status.RollingBack, "rolled back", () => this.#executeRollback(cycle)),
+            cycle,
+        );
     }
 
     /**

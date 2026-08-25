@@ -49,9 +49,14 @@ const persistentSupervisor = BehaviorSupervisor({
     }),
 });
 
+class FeaturedState {
+    foo = "bar";
+    volatile = "loud";
+}
+
 const featuredSupervisor = BehaviorSupervisor({
     id: "myState",
-    State: MyState,
+    State: FeaturedState,
 
     schema: new ClusterModel({
         id: 0xfff1_fc98,
@@ -66,6 +71,7 @@ const featuredSupervisor = BehaviorSupervisor({
                 children: [FieldElement({ name: "MyFeature", constraint: "0" })],
             }),
             FieldElement({ name: "foo", type: "string", quality: "N" }),
+            FieldElement({ name: "volatile", type: "string" }),
         ],
     }),
 });
@@ -682,6 +688,41 @@ describe("Datasource", () => {
 
         // The refused write staged the key but nothing stored it, so this datasource must stage it again
         await withReference(ds, async ({ state, context }) => {
+            state.foo = "woof";
+            await context.transaction.commit();
+        });
+
+        expect(sets.length).equals(1);
+        expect("__features__" in sets[0]).true;
+    });
+
+    it("does not claim the features key for a cycle that stored nothing", async () => {
+        const sets = new Array<Val.Struct>();
+        let refuse = true;
+        const store: Datasource.Store = {
+            initialValues: {},
+
+            async set(_transaction, values) {
+                if (refuse) {
+                    throw new Error("store is down");
+                }
+                sets.push(values);
+            },
+        };
+
+        const ds = createDatasource({ type: FeaturedState, store, supervisor: featuredSupervisor });
+
+        // One reference across every cycle: the staging record lives on the reference, not the datasource
+        await withReference(ds, async ({ state, context }) => {
+            state.foo = "rab";
+            await expect(context.transaction.commit()).rejected;
+
+            refuse = false;
+
+            // Stores nothing, so it cannot have stored the key either
+            state.volatile = "quiet";
+            await context.transaction.commit();
+
             state.foo = "woof";
             await context.transaction.commit();
         });

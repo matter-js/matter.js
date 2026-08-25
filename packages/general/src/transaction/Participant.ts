@@ -22,10 +22,10 @@ import { MaybePromise } from "#util/Promises.js";
  *
  * \* `preCommit` runs one or more times.
  *
- * A phase reaches every participant even where one of them fails, with one exception: a {@link commit1} that throws
- * synchronously stops its own loop, so the participants after the thrower never stage their writes.  An asynchronous
- * {@link commit1} rejection and any {@link commit2} failure are collected and reported once the phase has run to the
- * end.
+ * A phase that rejects the commit stops at the participant that failed, so the ones after it are not reached:
+ * {@link preCommit}, {@link settled}, and a {@link commit1} that throws synchronously.  A phase that cannot reject
+ * runs to the end and reports afterwards: an asynchronous {@link commit1} rejection, {@link commit2},
+ * {@link postCommit} and {@link conclusion}.
  *
  * Note the phase two row: values a participant made canonical in {@link commit2} stay canonical, no
  * {@link rollback} runs, and {@link postCommit} runs for nobody.  A participant that must react to its own write
@@ -74,8 +74,8 @@ export interface Participant {
      *
      * Skipped where pre-commit itself failed, which never reaches a settled state.
      *
-     * Writes are refused here: pre-commit has converged, so a mutation would reach the store with no participant
-     * having had a chance to react to it.
+     * Writes are refused here, and so is adding a participant: pre-commit has converged, so anything that arrived
+     * now would reach the store with no participant having had a chance to react to it.
      */
     settled?: () => MaybePromise;
 
