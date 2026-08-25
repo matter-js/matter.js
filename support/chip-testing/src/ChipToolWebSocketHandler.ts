@@ -308,11 +308,11 @@ function convertMatterToWebSocketTagBased(value: unknown, model: ValueModel, clu
                 throw new ImplementationError(`Invalid bitmap value ${JSON.stringify(memberValue)}`);
             }
 
-            const constraintValue = FieldValue.numericValue(member.constraint.value);
+            const constraintValue = FieldValue.countValue(member.constraint.value);
             if (constraintValue !== undefined) {
                 numberValue |= 1 << constraintValue;
             } else {
-                const minBit = FieldValue.numericValue(member.constraint.min) ?? 0;
+                const minBit = FieldValue.countValue(member.constraint.min) ?? 0;
                 numberValue |= (typeof memberValue === "boolean" ? 1 : memberValue) << minBit;
             }
         }

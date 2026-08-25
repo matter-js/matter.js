@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ModelBounds } from "#common/ModelBounds.js";
 import { MATTER_EPOCH_OFFSET_S, MATTER_EPOCH_OFFSET_US } from "#tlv/TlvNumber.js";
 import { TlvOfModel } from "#tlv/TlvOfModel.js";
 import { AttributeModel, ClusterModel, Matter, ValueModel } from "@matter/model";
@@ -123,6 +124,33 @@ describe("TlvOfModel", () => {
                 groupKeySet: ReturnType<typeof groupKeySet>;
             };
             expect(decoded.groupKeySet.epochStartTime0).equal(MATTER_EPOCH_OFFSET_US + 1n);
+        });
+    });
+
+    describe("a bound wider than a number states exactly", () => {
+        // A bound just inside the type's own range, so the bound is the only thing that can refuse a value
+        const big = new AttributeModel({ id: 1, name: "Big", type: "uint64", constraint: "0 to 18446744073709551614" });
+        new ClusterModel({ name: "Test", id: 0xfff1 }, big);
+
+        it("admits the widest value the bound states", () => {
+            expect(() => TlvOfModel(big).validate(18446744073709551614n)).not.throws();
+        });
+
+        // A length counts bytes, which the size of a message bounds, so it states itself as a number
+        it("states a length bound as a number", () => {
+            const long = new AttributeModel({
+                id: 2,
+                name: "Long",
+                type: "string",
+                constraint: "max 18446744073709551615",
+            });
+            new ClusterModel({ name: "Test2", id: 0xfff2 }, long);
+
+            expect(ModelBounds.createLengthBounds(long)).deep.equals({ maxLength: 18446744073709552000 });
+        });
+
+        it("refuses the value above it", () => {
+            expect(() => TlvOfModel(big).validate(18446744073709551615n)).throws();
         });
     });
 });

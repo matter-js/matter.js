@@ -199,12 +199,12 @@ export function chipJsonToMatter(value: unknown, model: ValueModel, clusterModel
                 const memberName = bitmapMemberName(member, model);
                 if (memberName === undefined) continue;
 
-                const constraintValue = FieldValue.numericValue(member.constraint.value);
+                const constraintValue = FieldValue.countValue(member.constraint.value);
                 if (constraintValue !== undefined) {
                     bitmapValue[memberName] = (value & (1 << constraintValue)) !== 0;
                 } else {
-                    const minBit = FieldValue.numericValue(member.constraint.min) ?? 0;
-                    const maxBit = FieldValue.numericValue(member.constraint.max);
+                    const minBit = FieldValue.countValue(member.constraint.min) ?? 0;
+                    const maxBit = FieldValue.countValue(member.constraint.max);
                     if (maxBit !== undefined) {
                         bitmapValue[memberName] = (value & bitFieldMask(minBit, maxBit)) >> minBit;
                     } else {
@@ -275,12 +275,12 @@ export function matterToChipJson(
                     );
                 }
 
-                const constraintValue = FieldValue.numericValue(member.constraint.value);
+                const constraintValue = FieldValue.countValue(member.constraint.value);
                 if (constraintValue !== undefined) {
                     numberValue |= 1 << constraintValue;
                 } else {
-                    const minBit = FieldValue.numericValue(member.constraint.min) ?? 0;
-                    const maxBit = FieldValue.numericValue(member.constraint.max);
+                    const minBit = FieldValue.countValue(member.constraint.min) ?? 0;
+                    const maxBit = FieldValue.countValue(member.constraint.max);
                     const raw = typeof memberValue === "boolean" ? 1 : memberValue;
                     numberValue |=
                         maxBit !== undefined ? (raw << minBit) & bitFieldMask(minBit, maxBit) : raw << minBit;

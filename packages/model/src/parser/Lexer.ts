@@ -119,21 +119,29 @@ function* lex(
 
     function tokenizeDigits(base: number, valueOf: (digit: string[1] | undefined) => number | undefined): BasicToken {
         // The first digit may not actually be a digit if number is hexadecimal or binary
-        let num = valueOf(current.value);
-        if (num === undefined) {
+        const first = valueOf(current.value);
+        if (first === undefined) {
             error("INVALID_NUMBER", `Expected digit following numeric prefix`);
             return { type: "value", value: 0, startLine, startChar };
         }
 
-        // Add subsequent digits
+        // Digits accumulate as a bigint because a number states an integer exactly only below 2^53, and the widest
+        // values of the 64 bit types are what the specification writes for their bounds
+        let exact = BigInt(first);
+        const bigBase = BigInt(base);
         while (true) {
             const digitValue = valueOf(peeked.value);
             if (digitValue === undefined) {
                 break;
             }
             next();
-            num = num * base + digitValue;
+            exact = exact * bigBase + BigInt(digitValue);
         }
+
+        // Below the integers a number states without rounding, a bound is a number, which is the shape every reader
+        // already handles.  Above them it is a bigint, including where the magnitude happens to be a power of two that
+        // a number would state exactly
+        let num: number | bigint = exact <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(exact) : exact;
 
         if (base === 10 && peeked.value === ".") {
             next();
@@ -146,19 +154,19 @@ function* lex(
                 fraction += peeked.value;
                 next();
             }
-            num = Number.parseFloat(`${num}.${fraction}`);
+            num = Number.parseFloat(`${exact}.${fraction}`);
         }
 
         // Handle specialized suffices for percents and temperatures
         if (peeked.value === "%") {
             next();
-            return { type: "value", value: FieldValue.Percent(num), startLine, startChar };
+            return { type: "value", value: FieldValue.Percent(Number(num)), startLine, startChar };
         } else if (peeked.value === "°") {
             next();
             if (peeked.value?.toLowerCase() === "c") {
                 next();
             }
-            return { type: "value", value: FieldValue.Celsius(num), startLine, startChar };
+            return { type: "value", value: FieldValue.Celsius(Number(num)), startLine, startChar };
         }
 
         // No special suffix; return raw value

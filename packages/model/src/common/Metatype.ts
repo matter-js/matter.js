@@ -243,7 +243,9 @@ export namespace Metatype {
                     }
                     return big;
                 } catch (e) {
-                    if (!(e instanceof SyntaxError)) {
+                    // BigInt refuses text stating no integer with a SyntaxError and a value it cannot hold with a
+                    // RangeError, and neither is an integer this can state
+                    if (!(e instanceof SyntaxError) && !(e instanceof RangeError)) {
                         throw e;
                     }
                 }
@@ -261,9 +263,13 @@ export namespace Metatype {
                 return value.getTime();
             }
 
-            const number = Number(value);
-            if (Number.isFinite(value)) {
-                return number;
+            // Only text states a number here; a boolean or an empty array is not a value of this type, whatever
+            // Number() makes of it
+            if (typeof value === "string" && value.trim() !== "") {
+                const number = Number(value);
+                if (Number.isFinite(number)) {
+                    return number;
+                }
             }
 
             throw new UnsupportedCastError(`Cannot convert "${value}" to a float`);

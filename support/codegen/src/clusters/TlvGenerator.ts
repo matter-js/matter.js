@@ -28,6 +28,15 @@ import { SpecializedNumbers, specializedNumberTypeFor } from "./NumberConstants.
 /**
  * Adds TLV structures for ValueModels to a ClusterFile
  **/
+/** A bound a number cannot state needs its bigint literal suffix, or the generated code states a different bound */
+function serializeBounds(bounds: { min?: number | bigint; max?: number | bigint }) {
+    const stated = Object.entries(bounds)
+        .filter(([, value]) => value !== undefined)
+        .map(([key, value]) => `${key}: ${value}${typeof value === "bigint" ? "n" : ""}`);
+
+    return `{ ${stated.join(", ")} }`;
+}
+
 export class TlvGenerator {
     #scope: GeneratorScope;
     #file: ScopeFile;
@@ -233,7 +242,7 @@ export class TlvGenerator {
         if (globalMapping?.category !== "datatype") {
             const bounds = ModelBounds.createNumberBounds(model);
             if (bounds) {
-                tlv = `${tlv}.bound(${serialize(bounds)})`;
+                tlv = `${tlv}.bound(${serializeBounds(bounds)})`;
             }
         }
 

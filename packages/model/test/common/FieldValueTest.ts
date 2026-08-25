@@ -8,6 +8,20 @@ import { FieldValue, Metatype } from "#common/index.js";
 import { Seconds } from "@matter/general";
 
 describe("FieldValue", () => {
+    describe("countValue", () => {
+        // A length, a bit position and a count are bounded by what a message carries
+        it("states a magnitude only a bigint holds as a number", () => {
+            expect(FieldValue.countValue(18446744073709551615n)).equal(18446744073709552000);
+            expect(FieldValue.numericValue(18446744073709551615n)).equal(18446744073709551615n);
+        });
+
+        it("leaves everything else as numericValue reads it", () => {
+            expect(FieldValue.countValue(5)).equal(5);
+            expect(FieldValue.countValue(undefined)).undefined;
+            expect(FieldValue.countValue(true)).equal(1);
+        });
+    });
+
     describe("cast", () => {
         it("reads the boolean the specification writes", () => {
             expect(FieldValue.cast(Metatype.boolean, "0")).equal(false);
@@ -40,6 +54,32 @@ describe("FieldValue", () => {
             expect(FieldValue.cast(Metatype.duration, 2000)).equals(Seconds(2));
             expect(FieldValue.cast(Metatype.duration, "2s")).equals(Seconds(2));
             expect(FieldValue.cast(Metatype.duration, "nonsense")).equals(FieldValue.Invalid);
+        });
+
+        // A map64 states values a number cannot hold
+        it("keeps the magnitude of a bitmap value", () => {
+            expect(FieldValue.cast(Metatype.bitmap, "18446744073709551615")).equal(18446744073709551615n);
+            expect(FieldValue.cast(Metatype.bitmap, "0xFFFFFFFFFFFFFFFF")).equal(18446744073709551615n);
+            expect(FieldValue.cast(Metatype.bitmap, "5")).equal(5);
+        });
+
+        // A fraction is not the name of a member, so refusing it says what is wrong
+        it("refuses a number a bitmap cannot hold", () => {
+            for (const value of ["5.5", 1.5, NaN, Infinity]) {
+                expect(FieldValue.cast(Metatype.bitmap, value), String(value)).equal(FieldValue.Invalid);
+                expect(FieldValue.cast(Metatype.enum, value), String(value)).equal(FieldValue.Invalid);
+            }
+        });
+
+        // The value of a bitmap or enum is a number of the type it encodes to, so it reads the way that type reads
+        it("reads a bitmap value the way an integer reads", () => {
+            expect(FieldValue.cast(Metatype.bitmap, "1e3")).equal(1000);
+            expect(FieldValue.cast(Metatype.integer, "1e3")).equal(1000);
+        });
+
+        it("still reads the name of an enum value", () => {
+            expect(FieldValue.cast(Metatype.enum, "SomeName")).equal("SomeName");
+            expect(FieldValue.cast(Metatype.enum, 3)).equal(3);
         });
 
         it("retains the fraction of a temperature", () => {
