@@ -210,13 +210,14 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
                         return value > range.max || value < range.min;
                     }
 
-                    // A number states an integer exactly only below 2^53.  A bound states its magnitude as a bigint
-                    // where a number would lose it, but a default the cast could express as a number arrives as one,
-                    // so such a magnitude is judged only where the type is too narrow to hold any of it
                     if (Number.isSafeInteger(value)) {
                         return value > range.max || value < range.min;
                     }
-                    return range.max < Number.MAX_SAFE_INTEGER;
+
+                    // A magnitude this large states itself only as the number it rounded to, so it is judged against
+                    // the bound rounded the same way: the widest uint64 and the value above it are one number, and
+                    // only a magnitude no rounding explains is refused
+                    return value > Number(range.max) || value < Number(range.min);
                 });
 
                 if (exceeding.length) {

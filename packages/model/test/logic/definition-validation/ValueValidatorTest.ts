@@ -515,9 +515,10 @@ describe("ValueValidator", () => {
         });
 
         // A number states its magnitude as it arrived, having lost whatever it lost, so a wide type cannot tell one
-        // from the bound it exceeds
-        it("accepts a magnitude a number cannot tell from the widest the type holds", () => {
+        // from the bound it exceeds — but a magnitude no rounding explains is still refused
+        it("judges a magnitude a number states only as what it rounded to", () => {
             expect(validateDefault("uint64", 18446744073709551616)).deep.equals([]);
+            expect(validateDefault("uint64", 1e100).map(error => error.code)).deep.equals(["VALUE_EXCEEDS_TYPE"]);
         });
 
         // A narrow type holds none of a magnitude that large, so the precision it lost changes nothing

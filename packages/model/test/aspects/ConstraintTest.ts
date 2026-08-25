@@ -473,6 +473,15 @@ describe("Constraint", () => {
             expect(constraint.test(18446744073709551615n)).false;
         });
 
+        // The number rounds to an integer and the integer is not the value, so neither form states what was written
+        it("reports a fraction of a magnitude no number holds", () => {
+            expect(new Constraint("max 18446744073709551614.5").errors?.map(error => error.code)).contains(
+                "INVALID_NUMBER",
+            );
+            expect(new Constraint("max 18446744073709551614.0").errors).equal(undefined);
+            expect(new Constraint("max 12.5").errors).equal(undefined);
+        });
+
         it("survives serialization", () => {
             const constraint = new Constraint("0 to 18446744073709551615");
 

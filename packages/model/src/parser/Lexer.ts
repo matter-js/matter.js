@@ -156,6 +156,12 @@ function* lex(
             }
             // "…614.0" states the integer before the point, which a fraction's number would round away
             if (fraction.match(/[1-9]/)) {
+                // Above the integers a number states exactly, a fraction has no form at all: the number rounds to an
+                // integer, and the integer the bigint would state is not the value
+                if (typeof num === "bigint") {
+                    error("INVALID_NUMBER", `Fraction of ${exact}.${fraction} states a value no number holds`);
+                }
+
                 num = Number.parseFloat(`${exact}.${fraction}`);
             }
         }
