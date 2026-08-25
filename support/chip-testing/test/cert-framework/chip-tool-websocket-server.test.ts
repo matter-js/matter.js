@@ -46,6 +46,7 @@ class FakeCommandHandler extends CommandHandler {
     disconnectedNodes = new Array<NodeId>();
     writes = new Array<WriteAttributeRequest>();
     discoveries = new Array<DiscoveryRequest>();
+    invokes = new Array<InvokeRequest>();
     paseConnections = new Array<NodeId>();
 
     /** Answer for the next discovery; empty means "found nothing". */
@@ -153,7 +154,9 @@ class FakeCommandHandler extends CommandHandler {
         return { values: [], updated: Observable<[void]>() };
     }
 
-    async handleInvoke(_data: InvokeRequest) {
+    async handleInvoke(data: InvokeRequest) {
+        this.invokes.push(data);
+        this.signals.push(data.abort);
         this.#throwIfFailing();
         return undefined;
     }
@@ -610,6 +613,31 @@ describe("ChipToolWebSocketHandler over the wire", () => {
 
         expect(reply.results).deep.equal([{ error: "FAILURE" }]);
         expect(handler.discoveryCancellations).deep.equal([{ longDiscriminator: 3840 }]);
+    });
+
+    it("keeps a command's own Timeout field while reading the step's timeout beside it", async () => {
+        // The runner sends a command field under its specification name and the step's own deadline in
+        // lower case, so the two never collide — Door Lock's UnlockWithTimeout carries both at once.
+        await send(
+            port,
+            jsonFrame({
+                cluster: "doorlock",
+                command: "UnlockWithTimeout",
+                arguments: {
+                    "destination-id": "0x12344321",
+                    "endpoint-id-ignored-for-group-commands": "1",
+                    Timeout: 10,
+                    PINCode: "123456",
+                    timeout: "30",
+                },
+            }),
+        );
+
+        expect(handler.invokes.length).equal(1);
+        expect(handler.invokes[0].data).deep.equal({ timeout: 10, pinCode: 123456 });
+
+        // The step's deadline reached the operation, and did not become a command field.
+        expect(handler.invokes[0].abort).not.equal(undefined);
     });
 
     it("refuses a deadline on an operation it cannot bound, rather than dropping it", async () => {

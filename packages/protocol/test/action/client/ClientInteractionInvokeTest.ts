@@ -447,6 +447,43 @@ describe("ClientInteraction invoke commandRef wire handling", () => {
         await client.close();
     });
 
+    it("stops a batch whose two commands share one abort signal", async () => {
+        const provider = new HangingDeviceExchangeProvider();
+        const client = new ClientInteraction({
+            environment: Environment.default,
+            exchangeProvider: provider,
+        });
+
+        const controller = new AbortController();
+        const invokeOne = (async () => {
+            const request = Invoke(
+                Invoke.ConcreteCommandRequest({ endpoint: EndpointNumber(1), cluster: OnOff, command: "off" }),
+            );
+            request.abort = controller.signal;
+            for await (const _chunk of client.invoke(request));
+        })();
+        const invokeTwo = (async () => {
+            const request = Invoke(
+                Invoke.ConcreteCommandRequest({ endpoint: EndpointNumber(2), cluster: OnOff, command: "on" }),
+            );
+            request.abort = controller.signal;
+            for await (const _chunk of client.invoke(request));
+        })();
+        const rejections = Promise.all([
+            expect(invokeOne).rejectedWith(AbortedError),
+            expect(invokeTwo).rejectedWith(AbortedError),
+        ]);
+
+        await MockTime.resolve(Promise.race([provider.sendObserved, invokeOne, invokeTwo]));
+        controller.abort();
+        await MockTime.resolve(rejections);
+
+        // Both commands are gone, so nothing is left waiting for the peer.
+        expect(provider.receiveAborted).equal(true);
+
+        await client.close();
+    });
+
     it("abandons a read whose request signal aborts, not only an invoke", async () => {
         const provider = new HangingDeviceExchangeProvider();
         const client = new ClientInteraction({

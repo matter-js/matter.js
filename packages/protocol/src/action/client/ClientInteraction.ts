@@ -869,24 +869,28 @@ export class ClientInteraction<
             const batchAbort = new AbortController();
             const commandSignals = commandList.map(({ abort }) => abort);
             const abandonable = commandSignals.every(signal => signal !== undefined);
-            let unabandoned = abandonable ? commandSignals.filter(signal => !signal.aborted).length : Infinity;
-            const onCommandAbort = () => {
-                if (--unabandoned === 0) {
-                    batchAbort.abort(new AbortedError());
-                }
-            };
             if (abandonable) {
-                if (unabandoned === 0) {
-                    batchAbort.abort(new AbortedError());
-                } else {
-                    for (const signal of commandSignals) {
-                        signal.addEventListener("abort", onCommandAbort, { once: true });
+                // Per command, not per signal: two commands may share one signal, and a listener
+                // registered twice with the same callback counts once, which would strand the batch
+                // one abandonment short of stopping.
+                let unabandoned = commandSignals.filter(signal => !signal.aborted).length;
+                const releases = new Array<() => void>();
+                for (const signal of commandSignals) {
+                    if (signal.aborted) {
+                        continue;
                     }
-                    releaseAbortListeners = () => {
-                        for (const signal of commandSignals) {
-                            signal.removeEventListener("abort", onCommandAbort);
+                    const onCommandAbort = () => {
+                        if (--unabandoned === 0) {
+                            batchAbort.abort(new AbortedError());
                         }
                     };
+                    signal.addEventListener("abort", onCommandAbort, { once: true });
+                    releases.push(() => signal.removeEventListener("abort", onCommandAbort));
+                }
+                releaseAbortListeners = () => releases.forEach(release => release());
+
+                if (unabandoned === 0) {
+                    batchAbort.abort(new AbortedError());
                 }
             }
 
