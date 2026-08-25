@@ -644,15 +644,22 @@ describe("ControllerAdapter registry", () => {
     });
 
     it("declares the client-side capabilities the device's own PICS file answers for a device", () => {
+        // Every command TC-ACT-3.2 gates a step on, since a declaration missing from the middle of the
+        // range skips that step as quietly as one missing from either end.
+        const actionCommands = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "0a", "0b"].map(
+            id => `ACT.C.C${id}.Tx`,
+        );
+
         // The CHIP file describes a device, which is not an Actions client, so it answers 0 for every
         // Actions command. The DUT of those steps is the controller, so its own declaration has to win.
-        const asDevice = new PicsFile(["ACT.C.C00.Tx=0", "ACT.C.C0b.Tx=0", "MCORE.DD.DISCOVERY_PAF=1"]);
+        const asDevice = new PicsFile([...actionCommands.map(key => `${key}=0`), "MCORE.DD.DISCOVERY_PAF=1"]);
 
         for (const implementation of ["matterjs", "chip-tool"] as const) {
             const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
 
-            expect(new PicsExpression("ACT.C.C00.Tx").evaluate(forRun)).equal(true);
-            expect(new PicsExpression("ACT.C.C0b.Tx").evaluate(forRun)).equal(true);
+            for (const key of actionCommands) {
+                expect(new PicsExpression(key).evaluate(forRun), `${implementation} ${key}`).equal(true);
+            }
 
             // Neither controller discovers over Wi-Fi Public Action Frame, whatever the device says.
             expect(new PicsExpression("MCORE.DD.DISCOVERY_PAF").evaluate(forRun)).equal(false);
