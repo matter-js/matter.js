@@ -2107,6 +2107,76 @@ describe("CertTest", () => {
         expect(banners).to.include("TC-CADMIN-1.17 — 2 steps skipped as unsupported by the controller");
     });
 
+    it("counts the steps their own PICS excluded, and reports them at run level", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                { number: 1, text: "Step the device does not declare", pics: "CADMIN.C.C00.Tx", run: async () => {} },
+                { number: 2, text: "Another such step", pics: "CADMIN.C.C00.Tx", run: async () => {} },
+                { number: 3, text: "Step the device declares", pics: "CADMIN.C", run: async () => {} },
+            ],
+        };
+
+        const deviceLog = new LogFollower(noLines(), "device");
+        const picsSkips = new Array<number>();
+        const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
+            recorder: stubRecorder({
+                endStep(step, verdict) {
+                    endStepVerdicts.push({ number: step.number, verdict });
+                    return [];
+                },
+                recordPicsSkips(count) {
+                    picsSkips.push(count);
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+        await test.invoke(stubSubject(new PicsFile(["CADMIN.C=1", "CADMIN.C.C00.Tx=0"])), () => {}, [], false);
+
+        expect(endStepVerdicts).deep.equal([
+            { number: 1, verdict: "skipped" },
+            { number: 2, verdict: "skipped" },
+            { number: 3, verdict: "pass" },
+        ]);
+        expect(picsSkips).deep.equal([2]);
+
+        const banners = deviceLog.lines.filter(line => line.synthetic).map(line => line.text);
+        expect(banners).to.include("TC-CADMIN-1.17 — 2 steps skipped by their own PICS");
+    });
+
+    it("reports no PICS-skip count for a run whose steps all ran", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [{ number: 1, text: "Step the device declares", pics: "CADMIN.C", run: async () => {} }],
+        };
+
+        const picsSkips = new Array<number>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                recordPicsSkips(count) {
+                    picsSkips.push(count);
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+        await test.invoke(stubSubject(new PicsFile(["CADMIN.C=1"])), () => {}, [], false);
+
+        expect(picsSkips).deep.equal([]);
+    });
+
     it("records a close failure, then settles the record that carries it", async () => {
         const definition: CertTestDefinition = {
             tc: "TC-CADMIN-1.17",

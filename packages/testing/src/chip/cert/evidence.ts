@@ -70,6 +70,12 @@ export interface RunRecord {
      */
     controllerUnsupportedSkips?: number;
     /**
+     * How many steps their own PICS excluded, absent if none. Such a step is meant to skip where the
+     * device or controller does not declare what it needs — but a PICS value that is simply wrong skips
+     * it the same way, so this is what makes a run that tested less visible as such.
+     */
+    picsSkips?: number;
+    /**
      * How many checks reported `"unverified"`, absent if none. Such a check neither proves nor
      * disproves what its step claims, so this is what tells a reader of this record alone how much of
      * the run's claims rest on nothing observed. A step carrying one ends `"unverified"` unless the
@@ -111,6 +117,7 @@ export class EvidenceRecorder implements StepRecorder {
     #runError?: string;
     #unproven = false;
     #controllerUnsupportedSkips?: number;
+    #picsSkips?: number;
     #unverifiedChecks?: number;
     #concluded = false;
 
@@ -179,6 +186,14 @@ export class EvidenceRecorder implements StepRecorder {
      */
     recordControllerUnsupportedSkips(count: number): void {
         this.#controllerUnsupportedSkips = count;
+    }
+
+    /**
+     * Records how many steps their own PICS excluded (see {@link RunRecord.picsSkips}). Like a
+     * controller-unsupported skip this never changes the verdict: the step was not meant to run.
+     */
+    recordPicsSkips(count: number): void {
+        this.#picsSkips = count;
     }
 
     /**
@@ -297,6 +312,7 @@ export class EvidenceRecorder implements StepRecorder {
             evidenceError: this.#evidenceError,
             runError: this.#runError,
             controllerUnsupportedSkips: this.#controllerUnsupportedSkips,
+            picsSkips: this.#picsSkips,
             unverifiedChecks: this.#unverifiedChecks,
         };
 

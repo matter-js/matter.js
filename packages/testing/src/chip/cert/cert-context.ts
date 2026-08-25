@@ -130,6 +130,13 @@ export interface StepRecorder {
      */
     recordControllerUnsupportedSkips?(count: number): void;
     /**
+     * Records how many steps their own PICS excluded. A step gated on a capability the device or
+     * controller does not declare is meant to skip, but a wrong PICS value skips it just as quietly —
+     * so a bundle that does not carry the count cannot tell a run that tested less from one that had
+     * less to test.
+     */
+    recordPicsSkips?(count: number): void;
+    /**
      * Records how many of the run's checks reported `"unverified"` — a check whose claim could not be
      * evaluated at all. Counts the checks that declared their gap ({@link CheckRecord.accepted})
      * alongside those that did not, so this says how much the run left unobserved whatever the
