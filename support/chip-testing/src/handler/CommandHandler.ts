@@ -19,11 +19,14 @@ import { CommissionableDeviceIdentifiers } from "@matter/main/protocol";
 import { EndpointNumber, Status } from "@matter/main/types";
 
 /**
- * What every operation a step drives accepts: the step's own deadline, where it declared one.
+ * The step's own deadline, for the operations that can honour one.
  *
  * A YAML step may carry `timeout: <seconds>`, which real chip-tool honours by giving up and tearing its
  * command down. The operation is abandoned when this aborts — see `ClientRequest.abort` for what that
  * does and does not tell the device.
+ *
+ * An operation whose underlying API takes no signal does not accept this, so a deadline is never handed
+ * to something that would ignore it: `DelayRequest` and `InitialPairingRequest` say why.
  */
 export type AbandonableRequest = {
     abort?: AbortSignal;
@@ -152,12 +155,21 @@ export type InvokeByIdRequest = AbandonableRequest & {
     timedInteractionTimeout?: Duration;
 };
 
-export type DelayRequest = AbandonableRequest & {
+/**
+ * Waiting for a commissionee is bounded by its own discovery timeout and by nothing else: the
+ * controller API this drives takes no signal, so this request deliberately does not accept one — see
+ * {@link AbandonableRequest}.
+ */
+export type DelayRequest = {
     nodeId?: NodeId;
     expireExistingSession?: boolean;
 };
 
-export type InitialPairingRequest = AbandonableRequest & {
+/**
+ * Commissioning runs to its own conclusion: `CommissioningController.commissionNode` takes no signal,
+ * so this request deliberately does not accept one — see {@link AbandonableRequest}.
+ */
+export type InitialPairingRequest = {
     nodeId: NodeId;
     knownAddress?: { ip: string; port: number };
 } & ({ qrCode: string } | { manualCode: string } | { passcode: number; vendorId: number; productId: number });

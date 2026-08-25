@@ -854,6 +854,15 @@ export class ChipToolWebSocketHandler {
             return await this.#dispatchJsonCommand(data);
         }
 
+        // Commissioning and waiting for a commissionee run to their own conclusion, so a deadline on
+        // one of those would be a promise this shim cannot keep.
+        if (data.cluster === "delay" || data.cluster === "pairing") {
+            throw new ImplementationError(
+                `A "${data.cluster}" step declared a timeout of ${Duration.format(deadline)}, which this shim ` +
+                    "cannot bound: the controller API it drives takes no abort signal",
+            );
+        }
+
         // The operation itself observes the signal, so it stops rather than running on unobserved, and
         // the abort reaches the runner as the failure chip-tool gives when its own timeout expires.
         const abort = new AbortController();
@@ -905,7 +914,6 @@ export class ChipToolWebSocketHandler {
         await (
             await this.#commandHandlerFor(commissionerName)
         ).handleDelay({
-            abort: data.abort,
             nodeId: NodeId(parseNumber(nodeId)),
             expireExistingSession: expireExistingSession !== "false",
         });
@@ -924,7 +932,6 @@ export class ChipToolWebSocketHandler {
                 const { "node-id": nodeId, payload } = commandArguments;
                 try {
                     await handler.handleInitialPairing({
-                        abort: data.abort,
                         nodeId: NodeId(parseNumber(nodeId)),
                         qrCode: payload,
                     });
@@ -938,7 +945,6 @@ export class ChipToolWebSocketHandler {
                 const { "node-id": nodeId, payload } = commandArguments;
                 try {
                     await handler.handlePaseConnection({
-                        abort: data.abort,
                         nodeId: NodeId(parseNumber(nodeId)),
                         qrCode: payload,
                     });
@@ -1482,7 +1488,8 @@ export class ChipToolWebSocketHandler {
                 key !== "destination-id" &&
                 key !== "commissioner-name" &&
                 key !== "endpoint-id-ignored-for-group-commands" &&
-                key !== "timedInteractionTimeoutMs"
+                key !== "timedInteractionTimeoutMs" &&
+                key !== "timeout"
             ) {
                 commandData[camelize(key)] = commandArguments[key];
             }

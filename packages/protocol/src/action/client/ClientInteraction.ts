@@ -675,10 +675,17 @@ export class ClientInteraction<
             throw new ImplementationError("Client interaction unavailable after close");
         }
 
-        // Validate peer connectivity before queuing — respects connectionTimeout and abort
+        if (request.abort?.aborted) {
+            throw new AbortedError();
+        }
+
+        // Validate peer connectivity before queuing — respects connectionTimeout and abort. The
+        // caller's signal has to reach this too: establishing the connection is where a command
+        // addressed to an unreachable peer spends its time.
+        using connectAbort = Abort.any(session?.abort, request.abort);
         await this.#exchangeProvider.connect({
             connectionTimeout: session?.connectionTimeout,
-            abort: session?.abort,
+            abort: connectAbort.signal,
         });
 
         const cmd = [...request.commands.values()][0];
@@ -1029,7 +1036,9 @@ export class ClientInteraction<
                 peer,
                 closed: () => this.subscriptions.delete(subscription),
                 request,
-                abort: session?.abort,
+                // Both, or an abort by the caller would end only the attempt in flight while the
+                // sustainer treats that as a failure to retry
+                abort: [session?.abort, request.abort],
                 retries: this.#sustainRetries,
                 read,
                 probe: abort =>

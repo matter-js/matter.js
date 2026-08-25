@@ -606,13 +606,26 @@ export class LegacyControllerCommandHandler extends CommandHandler {
     }
 
     /** Discover commissionable devices */
-    async handleDiscovery({ findBy }: DiscoveryRequest): Promise<DiscoveryResponse> {
-        const result = await this.#controllerInstance.discoverCommissionableDevices(
-            findBy,
-            { onIpNetwork: true },
-            undefined,
-            Seconds(3),
-        );
+    async handleDiscovery({ findBy, abort }: DiscoveryRequest): Promise<DiscoveryResponse> {
+        // Discovery resolves when its own window closes or when cancelled, so the step's deadline is
+        // honoured by cancelling rather than by abandoning the wait.
+        const onAbort = () =>
+            this.#controllerInstance.cancelCommissionableDeviceDiscovery(findBy, { onIpNetwork: true });
+        abort?.addEventListener("abort", onAbort, { once: true });
+
+        let result;
+        try {
+            result = await this.#controllerInstance.discoverCommissionableDevices(
+                findBy,
+                { onIpNetwork: true },
+                undefined,
+                Seconds(3),
+            );
+        } finally {
+            abort?.removeEventListener("abort", onAbort);
+        }
+
+        abort?.throwIfAborted();
         logger.info("Discovered result", result);
         // Chip is not removing old discoveries when being stopped, so we still have old and new devices in the result
         // but the expectation is that it was reset and only new devices are in the result

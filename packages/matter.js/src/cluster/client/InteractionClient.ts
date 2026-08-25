@@ -331,6 +331,9 @@ export class InteractionClient {
                 valueChanged?: boolean,
                 oldValue?: any,
             ) => void;
+
+            /** Abandon the read when this aborts (see {@link ClientRequest.abort}). */
+            abort?: AbortSignal;
         } = {},
     ): Promise<DecodedAttributeReportValue<any>[]> {
         return (
@@ -345,6 +348,9 @@ export class InteractionClient {
         options: {
             eventFilters?: TypeFromSchema<typeof TlvEventFilter>[];
             isFabricFiltered?: boolean;
+
+            /** Abandon the read when this aborts (see {@link ClientRequest.abort}). */
+            abort?: AbortSignal;
         } = {},
     ): Promise<DecodedEventReportValue<any>[]> {
         return (
@@ -369,6 +375,9 @@ export class InteractionClient {
                 valueChanged?: boolean,
                 oldValue?: any,
             ) => void;
+
+            /** Abandon the read when this aborts (see {@link ClientRequest.abort}). */
+            abort?: AbortSignal;
         } = {},
     ): Promise<{
         attributeReports: DecodedAttributeReportValue<any>[];
@@ -391,6 +400,9 @@ export class InteractionClient {
                 valueChanged?: boolean,
                 oldValue?: any,
             ) => void;
+
+            /** Abandon the read when this aborts (see {@link ClientRequest.abort}). */
+            abort?: AbortSignal;
         } = {},
     ): Promise<DecodedAttributeReportValue<any>[]> {
         return (await this.getMultipleAttributesAndEvents(options)).attributeReports;
@@ -423,6 +435,9 @@ export class InteractionClient {
             events?: { endpointId?: EndpointNumber; clusterId?: ClusterId; eventId?: EventId }[];
             eventFilters?: TypeFromSchema<typeof TlvEventFilter>[];
             isFabricFiltered?: boolean;
+
+            /** Abandon the read when this aborts (see {@link ClientRequest.abort}). */
+            abort?: AbortSignal;
         } = {},
     ): Promise<DecodedEventReportValue<any>[]> {
         return (await this.getMultipleAttributesAndEvents(options)).eventReports;

@@ -577,6 +577,29 @@ describe("ChipToolWebSocketHandler over the wire", () => {
         expect(handler.signals).deep.equal([]);
     });
 
+    it("refuses a deadline on an operation it cannot bound, rather than dropping it", async () => {
+        for (const frame of [
+            jsonFrame({
+                cluster: "delay",
+                command: "wait-for-commissionee",
+                arguments: { nodeId: "0x12344321", timeout: "5" },
+            }),
+            jsonFrame({
+                cluster: "pairing",
+                command: "code",
+                arguments: { "node-id": "0x12344321", payload: "MT:-24J042C00KA0648G00", timeout: "5" },
+            }),
+        ]) {
+            const reply = await send(port, frame);
+
+            expect(reply.results[0].error).match(/^Test harness failure — ImplementationError: A ".*" step declared/);
+            expect(reply.results[1]).deep.equal({ error: "FAILURE" });
+        }
+
+        // Neither operation was driven at all, so neither was handed a deadline it would ignore.
+        expect(handler.paseConnections).deep.equal([]);
+    });
+
     it("reports a controller of its own that would not start as its own fault", async () => {
         // Plain Error, as a storage or socket failure arrives: the classification has to come from
         // where the start was driven, not from the error's own type.
