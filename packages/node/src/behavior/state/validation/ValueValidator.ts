@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { asError, camelize, Diagnostic, InternalError, Logger } from "@matter/general";
+import { camelize, Diagnostic, InternalError, Logger } from "@matter/general";
 import type { Schema } from "@matter/model";
 import { AttributeModel, ClusterModel, DataModelPath, FeatureMap, Metatype, ValueModel } from "@matter/model";
 import { ConformanceError, DatatypeError, hasLocalActor, SchemaImplementationError, Val } from "@matter/protocol";
@@ -225,7 +225,10 @@ function createBitmapValidator(schema: ValueModel, supervisor: RootSupervisor): 
             } catch (e) {
                 // A conformance the compiler cannot read is one we cannot enforce; refusing to supervise the cluster at
                 // all would be worse than leaving the bit unjudged
-                logger.debug(`Cannot enforce conformance of ${field.path}:`, Diagnostic.errorMessage(asError(e)));
+                if (!(e instanceof SchemaImplementationError)) {
+                    throw e;
+                }
+                logger.debug(`Cannot enforce conformance of ${field.path}:`, Diagnostic.errorMessage(e));
             }
         }
         fields[name] = {

@@ -397,6 +397,11 @@ export function astToFunction(
             reduced.push(member);
         }
 
+        // One surviving member that needs no record is the group's answer, so state it rather than deferring
+        if (reduced.length === 1 && isStatic(reduced[0])) {
+            return reduced[0];
+        }
+
         // We must further reduce at runtime
         return {
             code: Code.Evaluate,
@@ -721,7 +726,13 @@ export function astToFunction(
 
     function disallowValue(value: Val, _session: AccessControl.Session, location: ValidationLocation) {
         if (value !== undefined) {
-            throw new ConformanceError(schema, location, "Matter does not allow you to set this attribute");
+            throw new ConformanceError(
+                schema,
+                location,
+                options?.refusalOnly
+                    ? "Matter does not allow you to set this value"
+                    : "Matter does not allow you to set this attribute",
+            );
         }
     }
 
