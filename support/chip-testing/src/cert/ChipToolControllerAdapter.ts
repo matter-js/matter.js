@@ -72,6 +72,21 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
 
     // A concatenated payload names several commissionees and is refused; the caller is told to split it.
     "MCORE.DD.CTRL_CONCATENATED_QR_CODE_1": 0,
+
+    // Every Actions command has its own `actions <command>`. The CHIP PICS file answers 0 for these
+    // because it describes a device, which is not an Actions client; here the client is the controller.
+    "ACT.C.C00.Tx": 1,
+    "ACT.C.C01.Tx": 1,
+    "ACT.C.C02.Tx": 1,
+    "ACT.C.C03.Tx": 1,
+    "ACT.C.C04.Tx": 1,
+    "ACT.C.C05.Tx": 1,
+    "ACT.C.C06.Tx": 1,
+    "ACT.C.C07.Tx": 1,
+    "ACT.C.C08.Tx": 1,
+    "ACT.C.C09.Tx": 1,
+    "ACT.C.C0a.Tx": 1,
+    "ACT.C.C0b.Tx": 1,
 };
 
 const WILDCARD_CLUSTER = 0xffffffff;

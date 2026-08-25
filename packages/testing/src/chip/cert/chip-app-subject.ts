@@ -19,8 +19,9 @@ import { Volume } from "../../docker/volume.js";
 import { delay, LineQueue } from "../../util/async.js";
 import { asyncLinesOf } from "../../util/text.js";
 import { CERT_BINS_PLATFORM, prepareChipBins, resolveChipBinsSource } from "../chip-bins.js";
+import { chip } from "../chip.js";
 import { HARNESS_DBUS_CONTAINER } from "../config.js";
-import { PicsUnavailableError, type PicsFile } from "../pics/file.js";
+import type { PicsFile, PicsUnavailableError } from "../pics/file.js";
 import type { CertDevice, CertDeviceFactory, DeviceExitInfo, DeviceFlavor } from "./cert-context.js";
 import { LogFollower } from "./log-follower.js";
 
@@ -174,8 +175,13 @@ class ChipLocalDevice implements CertDevice {
         this.#appArgs = options?.appArgs ?? [];
     }
 
+    /**
+     * A chip app's PICS is the certification file the harness container carries, the same one the
+     * run-level gate evaluates (`cert-dsl.ts`'s `certPicsFile`). Throws {@link PicsUnavailableError}
+     * until the container is up, as `chip.defaultPics` does.
+     */
     get pics(): PicsFile {
-        throw new PicsUnavailableError("No active PICS file for this device");
+        return chip.defaultPics;
     }
 
     get exit(): Promise<DeviceExitInfo> {
@@ -498,8 +504,13 @@ export class ChipDockerDevice implements CertDevice {
         this.#docker = docker;
     }
 
+    /**
+     * A chip app's PICS is the certification file the harness container carries, the same one the
+     * run-level gate evaluates (`cert-dsl.ts`'s `certPicsFile`). Throws {@link PicsUnavailableError}
+     * until the container is up, as `chip.defaultPics` does.
+     */
     get pics(): PicsFile {
-        throw new PicsUnavailableError("No active PICS file for this device");
+        return chip.defaultPics;
     }
 
     get exit(): Promise<DeviceExitInfo> {

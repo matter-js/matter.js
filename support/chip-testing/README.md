@@ -255,8 +255,10 @@ and, where they apply, `deviceExit`, `finalizationError` (cleanup threw), `teard
 controller or device would not close) and `evidenceError` (evidence the checks cite could not be
 assembled). `unverifiedChecks` counts checks whose claim could not be evaluated at all, those that
 stated a reason in `accepted` included, so it says how much the run left unobserved whatever the
-verdicts say; `controllerUnsupportedSkips` counts steps the controller could not express, a gap in
-what a passing run proved rather than a failure.
+verdicts say; `controllerUnsupportedSkips` counts steps the controller could not express and
+`picsSkips` counts steps their own PICS excluded — both gaps in what a passing run proved rather than
+failures. A `picsSkips` figure that changes without the plan changing is worth reading as a PICS value
+gone wrong: the step skips just as quietly either way.
 
 Every attached `.log` file also carries a step-boundary banner (chip python/yaml style) at the point
 a step starts and again when it ends, e.g.:

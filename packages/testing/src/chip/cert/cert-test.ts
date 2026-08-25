@@ -100,6 +100,8 @@ export class CertTest extends BaseTest {
                 recorded.recordControllerUnsupportedSkips === undefined
                     ? undefined
                     : count => recorded.recordControllerUnsupportedSkips?.(count),
+            recordPicsSkips:
+                recorded.recordPicsSkips === undefined ? undefined : count => recorded.recordPicsSkips?.(count),
             recordUnverifiedChecks:
                 recorded.recordUnverifiedChecks === undefined
                     ? undefined
@@ -125,6 +127,7 @@ export class CertTest extends BaseTest {
         let failure: unknown;
         let failed = false;
         let controllerUnsupportedSkips = 0;
+        let picsSkips = 0;
         let unverifiedSteps = 0;
         let unproven = false;
         let reportingFailure: unknown;
@@ -186,6 +189,7 @@ export class CertTest extends BaseTest {
                     }
 
                     if (!stepPicsMet(stepDef, picsFile)) {
+                        picsSkips++;
                         report(stepDef, "skipped", `PICS "${stepDef.pics}" not met`);
                         continue;
                     }
@@ -252,6 +256,14 @@ export class CertTest extends BaseTest {
                     () => recorder.recordControllerUnsupportedSkips?.(controllerUnsupportedSkips),
                     () => announceControllerSkipSummary(cx, tc, controllerUnsupportedSkips),
                     "controller-skip",
+                );
+            }
+
+            if (picsSkips > 0) {
+                recordSummary(
+                    () => recorder.recordPicsSkips?.(picsSkips),
+                    () => announcePicsSkipSummary(cx, tc, picsSkips),
+                    "PICS-skip",
                 );
             }
 
@@ -534,6 +546,14 @@ function announceControllerSkipSummary(cx: CertStepContext, tc: string, count: n
     announceStep(cx, [
         STEP_BANNER_RULE,
         `${tc} — ${count} step${count === 1 ? "" : "s"} skipped as unsupported by the controller`,
+        STEP_BANNER_RULE,
+    ]);
+}
+
+function announcePicsSkipSummary(cx: CertStepContext, tc: string, count: number): void {
+    announceStep(cx, [
+        STEP_BANNER_RULE,
+        `${tc} — ${count} step${count === 1 ? "" : "s"} skipped by their own PICS`,
         STEP_BANNER_RULE,
     ]);
 }
