@@ -896,8 +896,12 @@ describe("Transaction", () => {
             p2.expect("commit1", "commit2", "concluded committed");
         });
 
-        test("reports a participant that joined during phase one", async () => {
+        test("reports a participant that joined during phase one, which never settled", async () => {
             const joiner: TestParticipant = TestParticipant({
+                settled: () => {
+                    joiner.invoked.push("settled");
+                },
+
                 conclusion: outcome => {
                     joiner.invoked.push(`concluded ${outcome}`);
                 },
@@ -913,6 +917,8 @@ describe("Transaction", () => {
             await transaction.begin();
             await transaction.commit();
 
+            // Nothing snapshots this: settling simply precedes phase one.  The assertion pins that ordering, so
+            // moving the settled report after a participant can join would fail here
             joiner.expect("commit1", "commit2", "concluded committed");
         });
 

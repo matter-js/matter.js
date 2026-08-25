@@ -72,7 +72,9 @@ export interface Participant {
      * This is where a participant sees the values the transaction settled on before any of them is staged; by
      * {@link commit1} a sibling may already have written.
      *
-     * Skipped where pre-commit itself failed, which never reaches a settled state.
+     * Reaches the participants present when pre-commit converged.  A participant that joins later — during
+     * {@link commit1} or {@link commit2}, as a store does — has no say in a set that already settled, so it does not
+     * receive this for the cycle it joined.  Skipped altogether where pre-commit itself failed, which never settles.
      *
      * Writes are refused here, and so is adding a participant: pre-commit has converged, so anything that arrived
      * now would reach the store with no participant having had a chance to react to it.
@@ -118,9 +120,12 @@ export interface Participant {
      * Release per-transaction state.
      *
      * Runs once for a commit cycle or rollback that completes, told how it ended — including the phase two failure
-     * that skips both {@link postCommit} and {@link rollback}, which is the only outcome no other hook covers.  A
-     * transaction abandoned while exclusive completes neither, so this is not a participant's only means of releasing
-     * a resource.
+     * that skips both {@link postCommit} and {@link rollback}, which is the only outcome no other hook covers.
+     *
+     * Reaches the participants the cycle dispatched: those {@link commit2} reached, or those a rollback reverted.  A
+     * participant that joins after the phase iterating them has passed it ran no hook of that cycle and does not
+     * receive this either.  A transaction abandoned while exclusive completes no cycle at all, so this is not a
+     * participant's only means of releasing a resource.
      *
      * Runs after {@link postCommit} where post-commit runs at all, and after the transaction released its locks.
      * Writes are refused: the transaction has ended, so there is nothing left to write to.  A throw is logged and
