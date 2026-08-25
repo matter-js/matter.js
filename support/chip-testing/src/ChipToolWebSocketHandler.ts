@@ -213,6 +213,50 @@ export function discoveryResponseFor(results: DiscoveryResponse, command: string
 }
 
 /**
+ * The model of a cluster a step named, by the name the runner sends.
+ *
+ * A step naming something this shim has no model for is a fault of the step or of this shim — real
+ * chip-tool refuses such a step client-side too, and no device answered anything — so it is reported as
+ * ours (see {@link isOwnFailure}) rather than as an interaction status the device never sent. Left
+ * unchecked, these lookups reach the runner as a `TypeError` naming nothing.
+ */
+export function clusterModelFor(cluster: string): ClusterMapEntry {
+    const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
+    if (clusterData === undefined) {
+        throw new ImplementationError(`No model for cluster "${cluster}", which a step named`);
+    }
+    return clusterData;
+}
+
+/** The model of `cluster`'s attribute `name`, global attributes included (see {@link clusterModelFor}). */
+export function attributeModelFor(clusterData: ClusterMapEntry, cluster: string, name: string): AttributeModel {
+    const attributeName = camelize(name);
+    const attributeModel = clusterData.attributes[attributeName.toLowerCase()] ?? GlobalAttributes[attributeName];
+    if (attributeModel === undefined) {
+        throw new ImplementationError(`Cluster "${cluster}" has no attribute "${name}", which a step named`);
+    }
+    return attributeModel;
+}
+
+/** The model of `cluster`'s command `name` (see {@link clusterModelFor}). */
+export function commandModelFor(clusterData: ClusterMapEntry, cluster: string, name: string): CommandModel {
+    const commandModel = clusterData.commands[camelize(name).toLowerCase()];
+    if (commandModel === undefined) {
+        throw new ImplementationError(`Cluster "${cluster}" has no command "${name}", which a step named`);
+    }
+    return commandModel;
+}
+
+/** The model of `cluster`'s event `name` (see {@link clusterModelFor}). */
+export function eventModelFor(clusterData: ClusterMapEntry, cluster: string, name: string): EventModel {
+    const eventModel = clusterData.events[camelize(name).toLowerCase()];
+    if (eventModel === undefined) {
+        throw new ImplementationError(`Cluster "${cluster}" has no event "${name}", which a step named`);
+    }
+    return eventModel;
+}
+
+/**
  * A write payload the step handed over, as the value to write.
  *
  * A payload nothing can read is refused rather than answered: `{results: []}` is the runner's success
@@ -1104,13 +1148,12 @@ export class ChipToolWebSocketHandler {
         } = data;
         const handler = await this.#commandHandlerFor(commissionerName);
 
-        const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
+        const clusterData = clusterModelFor(cluster);
 
         if (commandSpecifier === undefined) {
             throw new ImplementationError("Missing attribute name");
         }
-        const attributeName = camelize(commandSpecifier);
-        const attributeModel = clusterData.attributes[attributeName.toLowerCase()] ?? GlobalAttributes[attributeName];
+        const attributeModel = attributeModelFor(clusterData, cluster, commandSpecifier);
 
         try {
             const { values, status } = await handler.handleReadAttribute({
@@ -1156,14 +1199,12 @@ export class ChipToolWebSocketHandler {
         } = data;
         const handler = await this.#commandHandlerFor(commissionerName);
 
-        const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
+        const clusterData = clusterModelFor(cluster);
 
         if (commandSpecifier === undefined) {
             throw new ImplementationError("Missing event name");
         }
-        const eventName = camelize(commandSpecifier);
-
-        const eventModel = clusterData.events[eventName.toLowerCase()];
+        const eventModel = eventModelFor(clusterData, cluster, commandSpecifier);
         try {
             const { values, status } = await handler.handleReadEvent({
                 nodeId: NodeId(parseNumber(destinationId)),
@@ -1208,16 +1249,12 @@ export class ChipToolWebSocketHandler {
         } = data;
         const handler = await this.#commandHandlerFor(commissionerName);
 
-        const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
+        const clusterData = clusterModelFor(cluster);
 
         if (commandSpecifier === undefined) {
             throw new ImplementationError("Missing attribute name");
         }
-        const attributeName = camelize(commandSpecifier);
-        if (attributeName === undefined) {
-            throw new ImplementationError("Missing attribute name");
-        }
-        const attributeModel = clusterData.attributes[attributeName.toLowerCase()] ?? GlobalAttributes[attributeName];
+        const attributeModel = attributeModelFor(clusterData, cluster, commandSpecifier);
         try {
             const { values, updated } = await handler.handleSubscribeAttribute({
                 nodeId: NodeId(parseNumber(destinationId)),
@@ -1261,14 +1298,12 @@ export class ChipToolWebSocketHandler {
         } = data;
         const handler = await this.#commandHandlerFor(commissionerName);
 
-        const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
+        const clusterData = clusterModelFor(cluster);
 
         if (commandSpecifier === undefined) {
             throw new ImplementationError("Missing event name");
         }
-        const eventName = camelize(commandSpecifier);
-
-        const eventModel = clusterData.events[eventName.toLowerCase()];
+        const eventModel = eventModelFor(clusterData, cluster, commandSpecifier);
         try {
             const { values, updated } = await handler.handleSubscribeEvent({
                 nodeId: NodeId(parseNumber(destinationId)),
@@ -1311,16 +1346,15 @@ export class ChipToolWebSocketHandler {
         } = data;
         const handler = await this.#commandHandlerFor(commissionerName);
 
-        const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
+        const clusterData = clusterModelFor(cluster);
 
         if (commandSpecifier === undefined) {
             throw new ImplementationError("Missing attribute name");
         }
-        const attributeName = camelize(commandSpecifier);
         if (value === undefined) {
-            throw new ImplementationError("Missing attribute name or value");
+            throw new ImplementationError(`Missing value for the write of ${cluster}.${commandSpecifier}`);
         }
-        const attributeModel = clusterData.attributes[attributeName.toLowerCase()] ?? GlobalAttributes[attributeName];
+        const attributeModel = attributeModelFor(clusterData, cluster, commandSpecifier);
         let parsedValue: unknown = value;
         if (
             typeof value === "string" &&
@@ -1354,7 +1388,7 @@ export class ChipToolWebSocketHandler {
         } = commandArguments;
         const handler = await this.#commandHandlerFor(commissionerName);
 
-        const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
+        const clusterData = clusterModelFor(cluster);
 
         const commandData = {} as any;
         Object.keys(commandArguments).forEach(key => {
@@ -1367,8 +1401,7 @@ export class ChipToolWebSocketHandler {
                 commandData[camelize(key)] = commandArguments[key];
             }
         });
-        const commandName = camelize(command);
-        const commandModel = clusterData.commands[commandName.toLowerCase()];
+        const commandModel = commandModelFor(clusterData, cluster, command);
         const nodeId = NodeId(parseNumber(destinationId));
         const isGroupNode = GroupId.isGroupNodeId(nodeId);
         try {

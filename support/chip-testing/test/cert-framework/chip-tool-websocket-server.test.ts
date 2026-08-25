@@ -431,6 +431,69 @@ describe("ChipToolWebSocketHandler over the wire", () => {
         expect(handler.startCalls).equal(1);
     });
 
+    it("names the cluster a step asked for that it has no model of", async () => {
+        const reply = await send(
+            port,
+            jsonFrame({
+                cluster: "notacluster",
+                command: "read",
+                command_specifier: "some-attribute",
+                arguments: { "destination-id": "0x12344321", "endpoint-ids": "1" },
+            }),
+        );
+
+        expect(reply.results[0].error).match(/^Test harness failure — ImplementationError: No model for cluster/);
+        expect(reply.results[0].error).match(/notacluster/);
+        expect(reply.results[1]).deep.equal({ error: "FAILURE" });
+    });
+
+    it("names the attribute a step asked for that its cluster does not have", async () => {
+        const reply = await send(
+            port,
+            jsonFrame({
+                cluster: "onoff",
+                command: "read",
+                command_specifier: "not-an-attribute",
+                arguments: { "destination-id": "0x12344321", "endpoint-ids": "1" },
+            }),
+        );
+
+        expect(reply.results[0].error).match(/has no attribute "not-an-attribute"/);
+        expect(reply.results[1]).deep.equal({ error: "FAILURE" });
+    });
+
+    it("names the command a step asked for that its cluster does not have", async () => {
+        const reply = await send(
+            port,
+            jsonFrame({
+                cluster: "onoff",
+                command: "not-a-command",
+                arguments: {
+                    "destination-id": "0x12344321",
+                    "endpoint-id-ignored-for-group-commands": "1",
+                },
+            }),
+        );
+
+        expect(reply.results[0].error).match(/has no command "not-a-command"/);
+        expect(reply.results[1]).deep.equal({ error: "FAILURE" });
+    });
+
+    it("names the event a step asked for that its cluster does not have", async () => {
+        const reply = await send(
+            port,
+            jsonFrame({
+                cluster: "onoff",
+                command: "read-event",
+                command_specifier: "not-an-event",
+                arguments: { "destination-id": "0x12344321", "endpoint-ids": "1" },
+            }),
+        );
+
+        expect(reply.results[0].error).match(/has no event "not-an-event"/);
+        expect(reply.results[1]).deep.equal({ error: "FAILURE" });
+    });
+
     it("reports a controller of its own that would not start as its own fault", async () => {
         // Plain Error, as a storage or socket failure arrives: the classification has to come from
         // where the start was driven, not from the error's own type.
