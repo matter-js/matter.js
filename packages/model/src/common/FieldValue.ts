@@ -210,7 +210,10 @@ export namespace FieldValue {
     }
 
     /**
-     * Given a type name as a hint, do our best to convert a field value to a number.
+     * Given a type name as a hint, do our best to convert a field value to the number it states.
+     *
+     * States a `bigint` for a magnitude a number does not state exactly, which is where the values of a 64 bit type
+     * live, so arithmetic on the result must accept either.  {@link countValue} is the number-valued form.
      */
     export function numericValue(value: Open | undefined, typeName?: string) {
         if (typeof value === "boolean") {
@@ -321,8 +324,15 @@ export namespace FieldValue {
                     return FieldValue.Invalid;
             }
             const i = BigInt(value);
+
+            // A number the caller stated stays a number, having already lost whatever it lost.  A magnitude stated as
+            // text or as a bigint keeps its exact form above the integers a number states without rounding, so
+            // whatever reads it can judge it
+            if (typeof value === "number") {
+                return value;
+            }
             const n = Number(i);
-            if (BigInt(n) === i) {
+            if (Number.isSafeInteger(n)) {
                 return n;
             }
             return i;

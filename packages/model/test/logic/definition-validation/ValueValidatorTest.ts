@@ -501,15 +501,23 @@ describe("ValueValidator", () => {
             expect(validateConstraint("uint64", "max 18446744073709551615")).deep.equals([]);
             expect(validateConstraint("int64", "-9223372036854775808 to 9223372036854775807")).deep.equals([]);
 
-            // The cast expresses a bigint as a number where one holds the magnitude, so these arrive as numbers too
-            // large to judge rather than as the bigints they were written as
-            expect(validateDefault("uint64", 18446744073709551616n)).deep.equals([]);
-            expect(validateDefault("uint56", 72057594037927936n)).deep.equals([]);
+            // A magnitude stated as a bigint keeps its exact form, so the width judges it
+            for (const [type, dflt] of [
+                ["uint64", 18446744073709551616n],
+                ["int64", 9223372036854775808n],
+                ["uint56", 72057594037927936n],
+            ] as [string, FieldValue][]) {
+                expect(
+                    validateDefault(type, dflt).map(error => error.code),
+                    `${type} ${dflt}`,
+                ).deep.equals(["VALUE_EXCEEDS_TYPE"]);
+            }
+        });
 
-            // A magnitude no number holds stays a bigint, which states it exactly
-            expect(validateDefault("int64", 9223372036854775809n).map(error => error.code)).deep.equals([
-                "VALUE_EXCEEDS_TYPE",
-            ]);
+        // A number states its magnitude as it arrived, having lost whatever it lost, so a wide type cannot tell one
+        // from the bound it exceeds
+        it("accepts a magnitude a number cannot tell from the widest the type holds", () => {
+            expect(validateDefault("uint64", 18446744073709551616)).deep.equals([]);
         });
 
         // A narrow type holds none of a magnitude that large, so the precision it lost changes nothing

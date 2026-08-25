@@ -154,7 +154,10 @@ function* lex(
                 fraction += peeked.value;
                 next();
             }
-            num = Number.parseFloat(`${exact}.${fraction}`);
+            // "…614.0" states the integer before the point, which a fraction's number would round away
+            if (fraction.match(/[1-9]/)) {
+                num = Number.parseFloat(`${exact}.${fraction}`);
+            }
         }
 
         // Handle specialized suffices for percents and temperatures
