@@ -60,6 +60,9 @@ class FakeCommandHandler extends CommandHandler {
     /** Where true, a read waits for its own signal instead of answering. */
     readWaitsForAbort = false;
 
+    /** Discoveries this handler was asked to cancel, by the identifier they named. */
+    discoveryCancellations = new Array<DiscoveryRequest["findBy"]>();
+
     get started() {
         return this.#started;
     }
@@ -90,9 +93,25 @@ class FakeCommandHandler extends CommandHandler {
 
     async handleDiscovery(data: DiscoveryRequest): Promise<DiscoveryResponse> {
         this.discoveries.push(data);
+        this.signals.push(data.abort);
         this.#throwIfFailing();
+
+        // As the real handler does: a signal that already aborted never fires, so it is read rather
+        // than waited on.
+        data.abort?.throwIfAborted();
+        data.abort?.addEventListener("abort", () => this.discoveryCancellations.push(data.findBy), { once: true });
+
+        if (this.discoveryWaitsForAbort) {
+            await new Promise<void>((_resolve, reject) => {
+                data.abort?.addEventListener("abort", () => reject(data.abort?.reason));
+            });
+        }
+
         return this.discoveryResult;
     }
+
+    /** Where true, a discovery waits for its own signal instead of answering. */
+    discoveryWaitsForAbort = false;
 
     async handleWriteAttribute(data: WriteAttributeRequest) {
         this.writes.push(data);
@@ -575,6 +594,22 @@ describe("ChipToolWebSocketHandler over the wire", () => {
             /^Test harness failure — ImplementationError: A step declared the unusable/,
         );
         expect(handler.signals).deep.equal([]);
+    });
+
+    it("cancels a discovery whose step deadline expired, rather than waiting out its window", async () => {
+        handler.discoveryWaitsForAbort = true;
+
+        const reply = await send(
+            port,
+            jsonFrame({
+                cluster: "discover",
+                command: "find-commissionable-by-long-discriminator",
+                arguments: { value: "3840", timeout: "1" },
+            }),
+        );
+
+        expect(reply.results).deep.equal([{ error: "FAILURE" }]);
+        expect(handler.discoveryCancellations).deep.equal([{ longDiscriminator: 3840 }]);
     });
 
     it("refuses a deadline on an operation it cannot bound, rather than dropping it", async () => {

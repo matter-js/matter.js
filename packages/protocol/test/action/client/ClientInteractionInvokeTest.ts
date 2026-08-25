@@ -242,9 +242,15 @@ class HangingDeviceExchangeProvider extends ExchangeProvider {
     readonly peerAddress = undefined;
 
     #sendObserved = createPromise<void>();
+    #receiveAborted = false;
 
     get sendObserved() {
         return this.#sendObserved.promise;
+    }
+
+    /** Whether the exchange stopped waiting for the peer, rather than only the caller giving up. */
+    get receiveAborted() {
+        return this.#receiveAborted;
     }
 
     constructor() {
@@ -264,10 +270,18 @@ class HangingDeviceExchangeProvider extends ExchangeProvider {
             new Promise((_, reject) => {
                 const abort = options?.abort;
                 if (abort?.aborted) {
+                    this.#receiveAborted = true;
                     reject(new AbortedError());
                     return;
                 }
-                abort?.addEventListener("abort", () => reject(new AbortedError()), { once: true });
+                abort?.addEventListener(
+                    "abort",
+                    () => {
+                        this.#receiveAborted = true;
+                        reject(new AbortedError());
+                    },
+                    { once: true },
+                );
             });
         return exchange;
     }
@@ -402,6 +416,35 @@ describe("ClientInteraction invoke commandRef wire handling", () => {
         } finally {
             await client.close();
         }
+    });
+
+    it("stops a batch's own exchange once every command in it has been abandoned", async () => {
+        const provider = new HangingDeviceExchangeProvider();
+        const client = new ClientInteraction({
+            environment: Environment.default,
+            exchangeProvider: provider,
+        });
+
+        const controller = new AbortController();
+        const request = Invoke(
+            Invoke.ConcreteCommandRequest({ endpoint: EndpointNumber(1), cluster: OnOff, command: "off" }),
+        );
+        request.abort = controller.signal;
+
+        const invokePromise = (async () => {
+            for await (const _chunk of client.invoke(request));
+        })();
+        const rejection = expect(invokePromise).rejectedWith(AbortedError);
+
+        await MockTime.resolve(Promise.race([provider.sendObserved, invokePromise]));
+        controller.abort();
+        await MockTime.resolve(rejection);
+
+        // The exchange the batch sent on is what keeps retransmitting, so abandoning the batch's last
+        // live command has to reach it rather than only the caller.
+        expect(provider.receiveAborted).equal(true);
+
+        await client.close();
     });
 
     it("abandons a read whose request signal aborts, not only an invoke", async () => {

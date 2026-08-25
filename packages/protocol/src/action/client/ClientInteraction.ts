@@ -112,6 +112,7 @@ interface PendingCommand {
     pathKey: string;
     network?: string;
     additionalMrpDelay?: Duration;
+    abort?: AbortSignal;
     resolve: (entry: InvokeResult.DecodedData | undefined) => void;
     reject: (error: Error) => void;
     aborted?: boolean;
@@ -699,6 +700,7 @@ export class ClientInteraction<
             pathKey,
             network: request.network,
             additionalMrpDelay: request.additionalMrpDelay,
+            abort: request.abort,
             resolve: resolver,
             reject: rejecter,
         };
@@ -833,6 +835,7 @@ export class ClientInteraction<
     }
 
     async #executeBatch(commands: Map<number, PendingCommand>) {
+        let releaseAbortListeners: (() => void) | undefined;
         try {
             // Filter out commands aborted between snapshot and send
             for (const [ref, pending] of commands) {
@@ -860,10 +863,38 @@ export class ClientInteraction<
             // Use #invokeSingle directly to avoid re-entering the batching path in invoke()
             // Skip validation: already validated on submit. timed=false: only non-timed commands
             // reach this path (gate in invoke()); prevents Invoke() spec-based auto-promotion.
+            // A batch outlives the caller of any one of its commands, so it stops sending only once
+            // every command in it has been abandoned — until then the others still want the peer's
+            // answer. A batch holding even one command without a deadline can never reach that point.
+            const batchAbort = new AbortController();
+            const commandSignals = commandList.map(({ abort }) => abort);
+            const abandonable = commandSignals.every(signal => signal !== undefined);
+            let unabandoned = abandonable ? commandSignals.filter(signal => !signal.aborted).length : Infinity;
+            const onCommandAbort = () => {
+                if (--unabandoned === 0) {
+                    batchAbort.abort(new AbortedError());
+                }
+            };
+            if (abandonable) {
+                if (unabandoned === 0) {
+                    batchAbort.abort(new AbortedError());
+                } else {
+                    for (const signal of commandSignals) {
+                        signal.addEventListener("abort", onCommandAbort, { once: true });
+                    }
+                    releaseAbortListeners = () => {
+                        for (const signal of commandSignals) {
+                            signal.removeEventListener("abort", onCommandAbort);
+                        }
+                    };
+                }
+            }
+
             const batchRequest = {
                 ...Invoke({ commands: invokeRequests, skipValidation: true, timed: false }),
                 network: batchNetwork,
                 additionalMrpDelay: batchAdditionalMrpDelay,
+                abort: abandonable ? batchAbort.signal : undefined,
             } as ClientInvoke;
             const maxPathsPerInvoke = this.#exchangeProvider.maxPathsPerInvoke ?? 1;
             const chunks =
@@ -905,6 +936,8 @@ export class ClientInteraction<
                     pending.reject(asError(error));
                 }
             }
+        } finally {
+            releaseAbortListeners?.();
         }
     }
 

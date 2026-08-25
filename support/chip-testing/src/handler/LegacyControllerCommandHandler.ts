@@ -607,6 +607,10 @@ export class LegacyControllerCommandHandler extends CommandHandler {
 
     /** Discover commissionable devices */
     async handleDiscovery({ findBy, abort }: DiscoveryRequest): Promise<DiscoveryResponse> {
+        // A signal that already aborted never fires an event, so the window would run in full before
+        // anyone noticed.
+        abort?.throwIfAborted();
+
         // Discovery resolves when its own window closes or when cancelled, so the step's deadline is
         // honoured by cancelling rather than by abandoning the wait.
         const onAbort = () =>
