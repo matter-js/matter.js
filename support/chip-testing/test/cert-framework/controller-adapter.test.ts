@@ -7,6 +7,7 @@
 import { ImplementationError, InternalError } from "@matter/main";
 import { QrPairingCodeCodec, Status, StatusResponseError } from "@matter/main/types";
 import { Matter } from "@matter/model";
+import { PicsExpression, PicsFile } from "@matter/testing";
 import {
     controllerPicsOverridesFor,
     createControllerAdapter,
@@ -639,6 +640,22 @@ describe("ControllerAdapter registry", () => {
             expect(pics["MCORE.DD.MANUAL_PC_COMMISSIONING"]).equal(1);
             expect(pics["MCORE.DD.SCAN_QR_CODE"]).equal(1);
             expect(pics["MCORE.DD.CTRL_CONCATENATED_QR_CODE_1"]).equal(0);
+        }
+    });
+
+    it("declares the client-side capabilities the device's own PICS file answers for a device", () => {
+        // The CHIP file describes a device, which is not an Actions client, so it answers 0 for every
+        // Actions command. The DUT of those steps is the controller, so its own declaration has to win.
+        const asDevice = new PicsFile(["ACT.C.C00.Tx=0", "ACT.C.C0b.Tx=0", "MCORE.DD.DISCOVERY_PAF=1"]);
+
+        for (const implementation of ["matterjs", "chip-tool"] as const) {
+            const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
+
+            expect(new PicsExpression("ACT.C.C00.Tx").evaluate(forRun)).equal(true);
+            expect(new PicsExpression("ACT.C.C0b.Tx").evaluate(forRun)).equal(true);
+
+            // Neither controller discovers over Wi-Fi Public Action Frame, whatever the device says.
+            expect(new PicsExpression("MCORE.DD.DISCOVERY_PAF").evaluate(forRun)).equal(false);
         }
     });
 

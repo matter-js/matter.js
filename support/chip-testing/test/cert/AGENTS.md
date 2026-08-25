@@ -136,18 +136,19 @@ Two independent PICS mechanisms exist, and only one of them is live against toda
   against `subject.pics` (a `PicsFile`, via `PicsExpression.evaluate`) once per run, before that
   step executes (`cert-test.ts`'s `stepPicsMet`). A step whose PICS expression evaluates false is
   recorded `"skipped"` with a reason, same treatment a `flavors` mismatch gets.
-- **On `chip-local`/`chip-docker`, per-step PICS is inert.** `ChipLocalDevice.pics`/
-  `ChipDockerDevice.pics` both throw ("No active PICS file for this device" —
-  `chip-app-subject.ts`); `resolvePicsFile` catches that and returns `undefined`, and `stepPicsMet`
-  treats "no PICS file available" as "met" unconditionally. Every per-step `pics` value transcribed
-  from a plan onto a chip-flavor TC today documents intent for a future reader, not a live gate — see
-  `TC-IDM-2.1`/`TC-ACT-3.2`'s own notes below for the concrete case.
-- **On `matterjs`, a real `PicsFile` is available** (the underlying `NodeTestInstance`/
-  `GenericTestApp`'s own `pics` getter, the same ci-pics-values mechanism the py/yaml harness uses),
-  so per-step PICS *is* live under that flavor. If a step's expected outcome genuinely depends on a
-  PICS-gated capability, verify the behavior under `matterjs` at least once to confirm the gate
-  actually does something, rather than assuming it's decorative everywhere just because it is on
-  chip.
+- **Every flavor has a real `PicsFile`.** `matterjs` gets it from the underlying `NodeTestInstance`,
+  the chip subjects from the harness container's own certification file (`chip.defaultPics`), so the
+  per-step gate is live everywhere. `stepPicsMet` still treats an unavailable file as "met", but that
+  only happens before the container is up.
+- **A key naming the client side describes the controller, not the TH.** The container's file
+  describes a device, so it answers 0 for `ACT.C.C00.Tx` and for `MCORE.ROLE.COMMISSIONER` — the
+  capabilities the DUT of those steps needs are the *controller's*, and each adapter declares them
+  (`MATTERJS_CONTROLLER_PICS`/`CHIP_TOOL_CONTROLLER_PICS`, overlaid by `controllerPicsOverridesFor`).
+  Gating a step on a `.C` key the adapter has not declared is how a step comes to skip on every leg
+  without anyone noticing, so declare it there rather than expecting the device file to carry it.
+- **`RunRecord.picsSkips` counts what the gate excluded**, which is the instrument for exactly that
+  mistake: a count that moves without the plan moving means a PICS value is wrong, not that the run
+  had less to test.
 
 ## Running these tests locally
 
@@ -589,11 +590,10 @@ here rather than silently dropped, for whoever picks up the next cert TC or a fr
   invocation of the same test file's steps in one process (a mocha retry) could read a stale ref left over
   from an aborted run — the `.finalize()` cleanup clears every ref it visits, so this needs a run that never
   reached its own finalizer.
-- **Per-step PICS is inert on `chip-local`/`chip-docker`.** `ChipLocalDevice.pics`/`ChipDockerDevice.pics`
-  both throw (`chip-app-subject.ts`), so `resolvePicsFile` always returns `undefined` for these flavors
-  and every step's PICS is treated as met (see `cert-test.ts`'s `stepPicsMet`). The `pics: "ACT.C.C0x.Tx"`
-  on every `TC-ACT-3.2` step is therefore transcription for the record, not a live gate, on either chip
-  flavor — same as every per-step PICS in `TC-IDM-2.1`.
+- **`pics: "ACT.C.C0x.Tx"` on every step of this TC is a live gate on every flavor**, and it passes
+  only because both controller adapters declare those commands: the container's certification file
+  answers 0 for them, since it describes a device and a device is no Actions client. Adding a step here
+  gated on a client-side key means adding that key to the adapters too (see "PICS handling").
 
 ## chip's `CommandFields` values are suffixed with their TLV type name
 

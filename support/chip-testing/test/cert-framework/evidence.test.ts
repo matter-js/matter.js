@@ -340,6 +340,49 @@ describe("EvidenceRecorder", () => {
         expect(resultJson.controllerUnsupportedSkips).equal(2);
     });
 
+    it("persists the PICS-skip count, so a bundle says a run tested less than the plan asks", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-ACT-3.2",
+            plan: "actions.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "chip-tool",
+            device: "chip-local:bridge",
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.endStep(step1, "pass");
+        recorder.endStep(step2, "skipped", 'PICS "ACT.C.C00.Tx" not met');
+        recorder.recordPicsSkips(1);
+
+        const dir = await publish(recorder);
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+
+        expect(resultJson.verdict).equal("pass");
+        expect(resultJson.picsSkips).equal(1);
+    });
+
+    it("omits the PICS-skip count when every step's PICS was met", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-ACT-3.2",
+            plan: "actions.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "chip-tool",
+            device: "chip-local:bridge",
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.endStep(step1, "pass");
+
+        const dir = await publish(recorder);
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+
+        expect("picsSkips" in resultJson).equal(false);
+    });
+
     it("omits the skip count from the persisted metadata when nothing was skipped that way", async () => {
         const recorder = new EvidenceRecorder(outDir, {
             tc: "TC-IDM-3.1",
