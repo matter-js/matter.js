@@ -157,10 +157,11 @@ export class LegacyControllerCommandHandler extends CommandHandler {
     }
 
     async handleReadAttribute(data: ReadAttributeRequest): Promise<ReadAttributeResponse> {
-        const { nodeId, endpointId, clusterId, attributeId, fabricFiltered = true } = data;
+        const { nodeId, endpointId, clusterId, attributeId, fabricFiltered = true, abort } = data;
         const client = await (await this.#controllerInstance.getNode(nodeId)).getInteractionClient();
 
         const { attributeData, attributeStatus } = await client.getMultipleAttributesAndStatus({
+            abort,
             attributes: [
                 {
                     endpointId,
@@ -192,9 +193,10 @@ export class LegacyControllerCommandHandler extends CommandHandler {
     }
 
     async handleReadEvent(data: ReadEventRequest): Promise<ReadEventResponse> {
-        const { nodeId, endpointId, clusterId, eventId, eventMin } = data;
+        const { nodeId, endpointId, clusterId, eventId, eventMin, abort } = data;
         const client = await (await this.#controllerInstance.getNode(nodeId)).getInteractionClient();
         const { eventData, eventStatus } = await client.getMultipleEventsAndStatus({
+            abort,
             events: [
                 {
                     endpointId,
@@ -226,11 +228,12 @@ export class LegacyControllerCommandHandler extends CommandHandler {
     }
 
     async handleSubscribeAttribute(data: SubscribeAttributeRequest): Promise<SubscribeAttributeResponse> {
-        const { nodeId, endpointId, clusterId, attributeId, minInterval, maxInterval, changeListener } = data;
+        const { nodeId, endpointId, clusterId, attributeId, minInterval, maxInterval, changeListener, abort } = data;
         const client = await (await this.#controllerInstance.getNode(nodeId)).getInteractionClient();
         const updated = Observable<[void]>();
         let ignoreData = true; // We ignore data coming in during initial seeding
         const { attributeReports = [] } = await client.subscribeMultipleAttributesAndEvents({
+            abort,
             attributes: [
                 {
                     endpointId,
@@ -272,11 +275,12 @@ export class LegacyControllerCommandHandler extends CommandHandler {
     }
 
     async handleSubscribeEvent(data: SubscribeEventRequest): Promise<SubscribeEventResponse> {
-        const { nodeId, endpointId, clusterId, eventId, minInterval, maxInterval, changeListener } = data;
+        const { nodeId, endpointId, clusterId, eventId, minInterval, maxInterval, changeListener, abort } = data;
         const client = await (await this.#controllerInstance.getNode(nodeId)).getInteractionClient();
         const updated = Observable<[void]>();
         let ignoreData = true; // We ignore data coming in during initial seeding
         const { eventReports = [] } = await client.subscribeMultipleAttributesAndEvents({
+            abort,
             events: [
                 {
                     endpointId,
@@ -320,7 +324,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
     }
 
     async handleWriteAttribute(data: WriteAttributeRequest): Promise<void> {
-        const { nodeId, endpointId, clusterId, attributeName, value } = data;
+        const { nodeId, endpointId, clusterId, attributeName, value, abort } = data;
 
         const client = await (await this.#controllerInstance.getNode(nodeId)).getInteractionClient();
         const clusterModel = Matter.clusters(clusterId);
@@ -335,6 +339,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
 
         logger.info("Writing attribute", attributeName, "with value", value);
         await client.setAttribute({
+            abort,
             attributeData: {
                 endpointId,
                 clusterId,
@@ -353,6 +358,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
             data: commandData,
             timedInteractionTimeout,
             suppressResponse,
+            abort,
         } = data;
         let client: InteractionClient;
         if (this.#paseSession) {
@@ -397,6 +403,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
         // intentionally sends invalid values to test server-side error handling
         if (suppressResponse) {
             return await client.invokeWithSuppressedResponse({
+                abort,
                 endpointId,
                 clusterId,
                 command: nsCmd,
@@ -405,6 +412,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
             });
         }
         return await client.invoke({
+            abort,
             endpointId,
             clusterId,
             command: nsCmd,
@@ -417,7 +425,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
 
     /** InvokeById minimalistic handler because only used for error testing */
     async handleInvokeById(data: InvokeByIdRequest): Promise<void> {
-        const { nodeId, endpointId, clusterId, commandId, data: commandData, timedInteractionTimeout } = data;
+        const { nodeId, endpointId, clusterId, commandId, data: commandData, timedInteractionTimeout, abort } = data;
         const client = await (await this.#controllerInstance.getNode(nodeId)).getInteractionClient();
 
         // Try to look up the real model for proper encoding
@@ -432,6 +440,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
             });
 
         await client.invoke({
+            abort,
             endpointId,
             clusterId: clusterId,
             command: { id: commandId, name: cmdModel.name, schema: cmdModel },
@@ -442,7 +451,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
     }
 
     async handleWriteAttributeById(data: WriteAttributeByIdRequest): Promise<void> {
-        const { nodeId, endpointId, clusterId, attributeId, value } = data;
+        const { nodeId, endpointId, clusterId, attributeId, value, abort } = data;
 
         const client = await (await this.#controllerInstance.getNode(nodeId)).getInteractionClient();
 
@@ -452,6 +461,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
         const attrModel = realAttr ?? inferAttrModel(attributeId, value);
 
         await client.setAttribute({
+            abort,
             attributeData: {
                 endpointId,
                 clusterId,

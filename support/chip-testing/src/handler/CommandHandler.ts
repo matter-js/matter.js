@@ -18,7 +18,18 @@ import {
 import { CommissionableDeviceIdentifiers } from "@matter/main/protocol";
 import { EndpointNumber, Status } from "@matter/main/types";
 
-export type ReadAttributeRequest = {
+/**
+ * What every operation a step drives accepts: the step's own deadline, where it declared one.
+ *
+ * A YAML step may carry `timeout: <seconds>`, which real chip-tool honours by giving up and tearing its
+ * command down. The operation is abandoned when this aborts — see `ClientRequest.abort` for what that
+ * does and does not tell the device.
+ */
+export type AbandonableRequest = {
+    abort?: AbortSignal;
+};
+
+export type ReadAttributeRequest = AbandonableRequest & {
     nodeId: NodeId;
     endpointId: EndpointNumber;
     clusterId: ClusterId;
@@ -41,7 +52,7 @@ export type AttributeResponseStatus = {
 };
 export type ReadAttributeResponse = { values: AttributeResponseData[]; status?: AttributeResponseStatus[] };
 
-export type ReadByIdRequest = {
+export type ReadByIdRequest = AbandonableRequest & {
     nodeId: NodeId;
     endpointId: EndpointNumber;
     clusterId: ClusterId;
@@ -67,7 +78,7 @@ export type SubscribeAttributeResponse = {
     updated: Observable<[void]>;
 };
 
-export type WriteAttributeRequest = {
+export type WriteAttributeRequest = AbandonableRequest & {
     nodeId: NodeId;
     endpointId?: EndpointNumber;
     clusterId: ClusterId;
@@ -75,7 +86,7 @@ export type WriteAttributeRequest = {
     value: unknown;
 };
 
-export type WriteAttributeByIdRequest = {
+export type WriteAttributeByIdRequest = AbandonableRequest & {
     nodeId: NodeId;
     endpointId?: EndpointNumber;
     clusterId: ClusterId;
@@ -83,7 +94,7 @@ export type WriteAttributeByIdRequest = {
     value: unknown;
 };
 
-export type ReadEventRequest = {
+export type ReadEventRequest = AbandonableRequest & {
     nodeId: NodeId;
     endpointId: EndpointNumber;
     clusterId: ClusterId;
@@ -116,7 +127,7 @@ export type SubscribeEventResponse = {
     updated: Observable<[void]>;
 };
 
-export type InvokeRequest = {
+export type InvokeRequest = AbandonableRequest & {
     nodeId: NodeId;
     endpointId?: EndpointNumber;
     clusterId: ClusterId;
@@ -132,7 +143,7 @@ export type InvokeResponse = {
     value?: unknown;
 };
 
-export type InvokeByIdRequest = {
+export type InvokeByIdRequest = AbandonableRequest & {
     nodeId: NodeId;
     endpointId: EndpointNumber;
     clusterId: ClusterId;
@@ -141,17 +152,17 @@ export type InvokeByIdRequest = {
     timedInteractionTimeout?: Duration;
 };
 
-export type DelayRequest = {
+export type DelayRequest = AbandonableRequest & {
     nodeId?: NodeId;
     expireExistingSession?: boolean;
 };
 
-export type InitialPairingRequest = {
+export type InitialPairingRequest = AbandonableRequest & {
     nodeId: NodeId;
     knownAddress?: { ip: string; port: number };
 } & ({ qrCode: string } | { manualCode: string } | { passcode: number; vendorId: number; productId: number });
 
-export type DiscoveryRequest = {
+export type DiscoveryRequest = AbandonableRequest & {
     findBy: CommissionableDeviceIdentifiers;
 };
 
