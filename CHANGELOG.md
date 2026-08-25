@@ -17,6 +17,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A certification run's `result.json` no longer reports a passing verdict for a run that failed
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
 
+- @matter/protocol
+    - Enhancement: An interaction can be abandoned by the caller: `ClientRequest.abort` takes an `AbortSignal`, honored for read, write, invoke and subscribe
+
+- @project-chip/matter.js
+    - Enhancement: `InteractionClient`'s read, write, invoke and subscribe options take an `abort` signal, forwarded to the interaction
+
 - @matter/general
     - Breaking: `DnssdNames.Context.goodbyeProtectionWindow` and `DnssdNames.defaults.goodbyeProtectionWindow` are now `evictionDelay`, and `DnssdName.deleteRecord` no longer takes an `ifOlderThan` argument
     - Enhancement: New `MatterAggregateError.settleSeries()` runs tasks in order, continuing past a failure, and reports the accumulated errors

@@ -698,10 +698,11 @@ export class ClientInteraction<
 
         this.#pendingCommands.set(commandRef, pending);
 
-        // Register per-command abort listener
-        const abortSignal = session?.abort;
-        if (abortSignal) {
-            if (abortSignal.aborted) {
+        // Register per-command abort listeners. A batch carries commands of several callers, so an
+        // abort belongs to its own command: it rejects that one and leaves the batch to the others.
+        const abortSignals = [session?.abort, request.abort].filter(signal => signal !== undefined);
+        if (abortSignals.length) {
+            if (abortSignals.some(signal => signal.aborted)) {
                 this.#pendingCommands.delete(commandRef);
                 throw new AbortedError();
             }
@@ -711,8 +712,14 @@ export class ClientInteraction<
                 this.#pendingCommands.delete(commandRef);
                 pending.reject(new AbortedError());
             };
-            abortSignal.addEventListener("abort", onAbort, { once: true });
-            pending.cleanup = () => abortSignal.removeEventListener("abort", onAbort);
+            for (const signal of abortSignals) {
+                signal.addEventListener("abort", onAbort, { once: true });
+            }
+            pending.cleanup = () => {
+                for (const signal of abortSignals) {
+                    signal.removeEventListener("abort", onAbort);
+                }
+            };
         }
 
         const duration = request.batchDuration || Instant;
@@ -1107,7 +1114,7 @@ export class ClientInteraction<
                 );
             }
 
-            abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort] });
+            abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort, request.abort] });
 
             try {
                 messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {

@@ -6,6 +6,7 @@
 
 import { ClientInteraction } from "#action/client/ClientInteraction.js";
 import { Invoke } from "#action/request/Invoke.js";
+import { Read } from "#action/request/Read.js";
 import { InvokeResult } from "#action/response/InvokeResult.js";
 import { MessageType } from "#interaction/InteractionMessenger.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
@@ -372,6 +373,88 @@ describe("ClientInteraction invoke commandRef wire handling", () => {
         await MockTime.resolve(Promise.race([provider.sendObserved, invokePromise]));
         await MockTime.resolve(client.close());
         await rejection;
+    });
+
+    it("abandons an in-flight command when the caller's own request signal aborts", async () => {
+        const provider = new HangingDeviceExchangeProvider();
+        const client = new ClientInteraction({
+            environment: Environment.default,
+            exchangeProvider: provider,
+        });
+
+        const controller = new AbortController();
+        const request = Invoke(
+            Invoke.ConcreteCommandRequest({ endpoint: EndpointNumber(1), cluster: OnOff, command: "off" }),
+        );
+        request.abort = controller.signal;
+
+        const invokePromise = (async () => {
+            for await (const _chunk of client.invoke(request));
+        })();
+        const rejection = expect(invokePromise).rejectedWith(AbortedError);
+
+        // Race so a premature rejection surfaces instead of hanging the send wait
+        await MockTime.resolve(Promise.race([provider.sendObserved, invokePromise]));
+        controller.abort();
+
+        try {
+            await MockTime.resolve(rejection);
+        } finally {
+            await client.close();
+        }
+    });
+
+    it("abandons a read whose request signal aborts, not only an invoke", async () => {
+        const provider = new HangingDeviceExchangeProvider();
+        const client = new ClientInteraction({
+            environment: Environment.default,
+            exchangeProvider: provider,
+        });
+
+        const controller = new AbortController();
+        const readPromise = (async () => {
+            for await (const _chunk of client.read({
+                ...Read({ attributes: [{ endpointId: EndpointNumber(1), clusterId: OnOff.id }] }),
+                abort: controller.signal,
+            }));
+        })();
+        const rejection = expect(readPromise).rejectedWith(AbortedError);
+
+        await MockTime.resolve(Promise.race([provider.sendObserved, readPromise]));
+        controller.abort();
+
+        try {
+            await MockTime.resolve(rejection);
+        } finally {
+            await client.close();
+        }
+    });
+
+    it("throws when a request carries an already-aborted signal, before sending anything", async () => {
+        const sentRequests = new Array<InvokeRequest>();
+        const client = new ClientInteraction({
+            environment: Environment.default,
+            exchangeProvider: new RefLessDeviceExchangeProvider(10, sentRequests),
+        });
+
+        const controller = new AbortController();
+        controller.abort();
+
+        const request = Invoke(
+            Invoke.ConcreteCommandRequest({ endpoint: EndpointNumber(1), cluster: OnOff, command: "off" }),
+        );
+        request.abort = controller.signal;
+
+        const invokePromise = (async () => {
+            for await (const _chunk of client.invoke(request));
+        })();
+
+        try {
+            await expect(MockTime.resolve(invokePromise)).rejectedWith(AbortedError);
+            expect(sentRequests.length).equals(0);
+        } finally {
+            await client.close();
+        }
     });
 
     it("throws when invoked with an already-aborted session signal", async () => {
