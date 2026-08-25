@@ -103,9 +103,6 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     // A concatenated payload names several commissionees and is refused; the caller is told to split it.
     "MCORE.DD.CTRL_CONCATENATED_QR_CODE_1": 0,
 
-    // No Wi-Fi Public Action Frame discovery.
-    "MCORE.DD.DISCOVERY_PAF": 0,
-
     // Every Actions command, invoked by id. The CHIP PICS file answers 0 for these because it
     // describes a device, which is not an Actions client; here the client is the controller.
     "ACT.C.C00.Tx": 1,

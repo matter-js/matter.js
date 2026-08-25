@@ -146,6 +146,10 @@ Two independent PICS mechanisms exist, and only one of them is live against toda
   (`MATTERJS_CONTROLLER_PICS`/`CHIP_TOOL_CONTROLLER_PICS`, overlaid by `controllerPicsOverridesFor`).
   Gating a step on a `.C` key the adapter has not declared is how a step comes to skip on every leg
   without anyone noticing, so declare it there rather than expecting the device file to carry it.
+  The overlay is for what the *controller* is, never for what the TH advertises: `certPicsFile()` feeds
+  every cert test's report, so a device-scoped key declared there would make every run's evidence claim
+  something about its TH that the TH never said. `MCORE.DD.DISCOVERY_BLE`/`DISCOVERY_PAF` are the
+  device's, and a test in `controller-adapter.test.ts` holds the adapters to it.
 - **`RunRecord.picsSkips` counts what the gate excluded**, which is the instrument for exactly that
   mistake: a count that moves without the plan moving means a PICS value is wrong, not that the run
   had less to test.
@@ -1479,10 +1483,11 @@ publishes a **BLE-only** bitmask (`0b00000010`), so on that TH the precondition 
 and an unsubstituted step 3.a fails. With the OnNetwork form both steps commission for real and
 record the DUT onboarding the TH over IP, which is the plan's own expected outcome.
 
-Their `pics` (`MCORE.DD.DISCOVERY_BLE`, `MCORE.DD.DISCOVERY_PAF`) stays as transcription and gates
-only under `matterjs`, where CHIP's `ci-pics-values` answers `DISCOVERY_PAF=0` and step 4 records a
-PICS skip. Do **not** answer these from a controller overlay to force a skip: `certPicsFile()` feeds
-every cert test's report, so a device-scoped key set there makes every other run's evidence claim
+Their `pics` (`MCORE.DD.DISCOVERY_BLE`, `MCORE.DD.DISCOVERY_PAF`) gates on every flavor, and every
+flavor answers it from the same file: CHIP's `ci-pics-values` says `DISCOVERY_PAF=0`, so step 4 is a
+PICS skip everywhere and the run reports `picsSkips: 2`. Do **not** answer these from a controller
+overlay to force a skip — a test asserts that neither adapter declares them, because `certPicsFile()`
+feeds every cert test's report, so a device-scoped key set there makes every other run's evidence claim
 something false about its TH. And note `notApplicable` is evaluated *before* both the `flavors` and
 the PICS gate in `cert-test.ts`, so a step carrying both never evaluates its PICS on any flavor —
 combining them documents nothing and hides the gate that would otherwise fire.

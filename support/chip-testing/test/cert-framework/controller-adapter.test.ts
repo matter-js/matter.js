@@ -652,7 +652,7 @@ describe("ControllerAdapter registry", () => {
 
         // The CHIP file describes a device, which is not an Actions client, so it answers 0 for every
         // Actions command. The DUT of those steps is the controller, so its own declaration has to win.
-        const asDevice = new PicsFile([...actionCommands.map(key => `${key}=0`), "MCORE.DD.DISCOVERY_PAF=1"]);
+        const asDevice = new PicsFile(actionCommands.map(key => `${key}=0`));
 
         for (const implementation of ["matterjs", "chip-tool"] as const) {
             const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
@@ -660,9 +660,17 @@ describe("ControllerAdapter registry", () => {
             for (const key of actionCommands) {
                 expect(new PicsExpression(key).evaluate(forRun), `${implementation} ${key}`).equal(true);
             }
+        }
+    });
 
-            // Neither controller discovers over Wi-Fi Public Action Frame, whatever the device says.
-            expect(new PicsExpression("MCORE.DD.DISCOVERY_PAF").evaluate(forRun)).equal(false);
+    it("declares nothing about what the device advertises, which every run's report would inherit", () => {
+        // certPicsFile() feeds every cert test's report, so a key describing the TH — what it
+        // advertises, above all — has to come from the device's own file and never from an overlay.
+        for (const implementation of ["matterjs", "chip-tool"] as const) {
+            const declared = controllerPicsOverridesFor(implementation);
+
+            expect("MCORE.DD.DISCOVERY_BLE" in declared, implementation).equal(false);
+            expect("MCORE.DD.DISCOVERY_PAF" in declared, implementation).equal(false);
         }
     });
 

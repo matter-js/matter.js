@@ -73,9 +73,6 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     // A concatenated payload names several commissionees and is refused; the caller is told to split it.
     "MCORE.DD.CTRL_CONCATENATED_QR_CODE_1": 0,
 
-    // `pairing` offers no Wi-Fi Public Action Frame discovery.
-    "MCORE.DD.DISCOVERY_PAF": 0,
-
     // Every Actions command has its own `actions <command>`. The CHIP PICS file answers 0 for these
     // because it describes a device, which is not an Actions client; here the client is the controller.
     "ACT.C.C00.Tx": 1,
