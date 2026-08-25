@@ -184,11 +184,27 @@ async function probeFreePort(): Promise<number> {
 }
 
 /**
- * chip-tool's `strlen(msg) <= 5` numeric sniff in `OnWebSocketMessageReceived` reads a short command
- * starting with a digit as an async-report arming frame, so the command would silently never run.
+ * Whether chip-tool reads a frame as an async-report arming frame rather than as a command to run.
+ *
+ * Mirrors `InteractiveServerCommand::OnWebSocketMessageReceived`
+ * (`examples/chip-tool/commands/interactive/InteractiveCommands.cpp`): empty, or at most five
+ * characters whose leading text a `uint16_t` stream extraction accepts. That extraction skips leading
+ * whitespace, takes an optional sign, and stops at the first non-digit without failing — so `"5abc"`
+ * arms reports while `"abc"` does not.
+ *
+ * Anything this returns true for is never run as a command, whoever sent it, which is why the test
+ * double for chip-tool decides with this same function rather than a copy of it.
+ */
+export function isAsyncReportFrame(frame: string) {
+    return frame.length === 0 || (frame.length <= 5 && /^\s*[-+]?\d/.test(frame));
+}
+
+/**
+ * chip-tool's numeric sniff reads a short command starting with a digit as an async-report arming
+ * frame, so the command would silently never run.
  */
 function assertCommandFrame(command: string) {
-    if (command.length === 0 || (command.length <= 5 && /^\s*[-+]?\d/.test(command))) {
+    if (isAsyncReportFrame(command)) {
         throw new ImplementationError(
             `chip-tool would read the command ${JSON.stringify(command)} as an async-report arming frame ` +
                 "rather than running it (empty, or at most five characters parsing as a number)",

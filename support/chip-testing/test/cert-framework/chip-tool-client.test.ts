@@ -24,6 +24,7 @@ import {
     ChipToolClient,
     ChipToolExitError,
     CHIP_TOOL_READY_MESSAGE,
+    isAsyncReportFrame,
     resolveChipToolBinary,
 } from "../../src/chip-tool/chip-tool-client.js";
 import {
@@ -57,6 +58,34 @@ async function isRunning(pidFile: string) {
         return false;
     }
 }
+
+describe("isAsyncReportFrame", () => {
+    // Each case states what chip-tool's own `OnWebSocketMessageReceived` does with the frame:
+    // `strlen(msg) == 0`, or `strlen(msg) <= 5` with a `uint16_t` stream extraction that skips leading
+    // whitespace, takes an optional sign, stops at the first non-digit, and fails only when it consumed
+    // no digit at all.
+    const cases: [frame: string, armsReports: boolean, why: string][] = [
+        ["", true, "strlen == 0"],
+        ["5", true, "one digit, extraction succeeds"],
+        ["65535", true, "five digits, the largest uint16"],
+        ["100000", false, "six characters, past the strlen <= 5 gate"],
+        [" 5", true, "extraction skips leading whitespace"],
+        ["+5", true, "extraction takes a leading sign"],
+        ["-5", true, "extraction takes a leading sign here too"],
+        ["5abc", true, "extraction stops at the first non-digit without failing"],
+        ["abc", false, "no digit consumed, extraction fails"],
+        ["   ", false, "whitespace only, no digit consumed"],
+        ["+", false, "sign without a digit, extraction fails"],
+        ["any read", false, "a real command, past the strlen gate"],
+        ["read", false, "a four-character command with no digit"],
+    ];
+
+    for (const [frame, armsReports, why] of cases) {
+        it(`${armsReports ? "arms reports for" : "runs"} ${JSON.stringify(frame)} — ${why}`, () => {
+            expect(isAsyncReportFrame(frame)).equal(armsReports);
+        });
+    }
+});
 
 describe("ChipToolClient", function () {
     // Every test here spawns a process and opens a socket; the default 2s budget is not enough for
