@@ -96,13 +96,18 @@ The convention this series has followed, worth stating explicitly for the next T
   matter.js names a whole interaction, and every path it carried, on one line. So a matterjs pattern
   is a separate authoring job, not a translation of the chip one — which is why
   `expectAdjacentLines`/`expectSequence` take a `{chip, matterjs}` pair of sequences whose lengths
-  differ. A check with no pattern for the running flavor resolves `"unverified"`: not a failure, but
-  a gap in that step's device-side evidence, with the accompanying `type: "response"` check the only
-  thing left proving controller behavior. `RunRecord.unverifiedChecks` counts them, so a bundle says
-  how much of a passing run rests on nothing observed — bring the count down, don't add to it. As of
-  this writing every device-log check in this directory carries both flavors' patterns, and the whole
-  matterjs leg reports one unverified check: TC-IDM-2.1 step 21's honest "matter.js's all-clusters app
-  defines no manufacturer-specific cluster".
+  differ. A check with no pattern for the running flavor resolves `"unverified"`, which leaves that
+  step's device-side claim resting on nothing observed — so the step's verdict becomes
+  `"unverified"` and the run fails over it. Write the missing pattern; where this run genuinely cannot
+  observe the claim, say why in the check's own `accepted: "<why>"`, which keeps its step at `"pass"`.
+  That field is for a claim no pattern could ever match here — the app has no such cluster, the
+  controller has no such callback — not for a pattern nobody has written yet, and it belongs on the one
+  check that cannot be settled rather than on the step, so a second gap in the same step still fails
+  the run. `RunRecord.unverifiedChecks` counts every unverified check, accepted or not, so a bundle
+  says how much of the run rests on nothing observed. As of this writing every device-log check in this
+  directory carries both flavors' patterns, and the whole matterjs leg reports one unverified check,
+  accepted: TC-IDM-2.1 step 21's "matter.js's all-clusters app defines no manufacturer-specific
+  cluster".
 
   Two things bite when writing the matterjs half:
 
@@ -131,18 +136,23 @@ Two independent PICS mechanisms exist, and only one of them is live against toda
   against `subject.pics` (a `PicsFile`, via `PicsExpression.evaluate`) once per run, before that
   step executes (`cert-test.ts`'s `stepPicsMet`). A step whose PICS expression evaluates false is
   recorded `"skipped"` with a reason, same treatment a `flavors` mismatch gets.
-- **On `chip-local`/`chip-docker`, per-step PICS is inert.** `ChipLocalDevice.pics`/
-  `ChipDockerDevice.pics` both throw ("No active PICS file for this device" —
-  `chip-app-subject.ts`); `resolvePicsFile` catches that and returns `undefined`, and `stepPicsMet`
-  treats "no PICS file available" as "met" unconditionally. Every per-step `pics` value transcribed
-  from a plan onto a chip-flavor TC today documents intent for a future reader, not a live gate — see
-  `TC-IDM-2.1`/`TC-ACT-3.2`'s own notes below for the concrete case.
-- **On `matterjs`, a real `PicsFile` is available** (the underlying `NodeTestInstance`/
-  `GenericTestApp`'s own `pics` getter, the same ci-pics-values mechanism the py/yaml harness uses),
-  so per-step PICS *is* live under that flavor. If a step's expected outcome genuinely depends on a
-  PICS-gated capability, verify the behavior under `matterjs` at least once to confirm the gate
-  actually does something, rather than assuming it's decorative everywhere just because it is on
-  chip.
+- **Every flavor has a real `PicsFile`.** `matterjs` gets it from the underlying `NodeTestInstance`,
+  the chip subjects from the harness container's own certification file (`chip.defaultPics`), so the
+  per-step gate is live everywhere. `stepPicsMet` still treats an unavailable file as "met", but that
+  only happens before the container is up.
+- **A key naming the client side describes the controller, not the TH.** The container's file
+  describes a device, so it answers 0 for `ACT.C.C00.Tx` and for `MCORE.ROLE.COMMISSIONER` — the
+  capabilities the DUT of those steps needs are the *controller's*, and each adapter declares them
+  (`MATTERJS_CONTROLLER_PICS`/`CHIP_TOOL_CONTROLLER_PICS`, overlaid by `controllerPicsOverridesFor`).
+  Gating a step on a `.C` key the adapter has not declared is how a step comes to skip on every leg
+  without anyone noticing, so declare it there rather than expecting the device file to carry it.
+  The overlay is for what the *controller* is, never for what the TH advertises: `certPicsFile()` feeds
+  every cert test's report, so a device-scoped key declared there would make every run's evidence claim
+  something about its TH that the TH never said. `MCORE.DD.DISCOVERY_BLE`/`DISCOVERY_PAF` are the
+  device's, and a test in `controller-adapter.test.ts` holds the adapters to it.
+- **`RunRecord.picsSkips` counts what the gate excluded**, which is the instrument for exactly that
+  mistake: a count that moves without the plan moving means a PICS value is wrong, not that the run
+  had less to test.
 
 ## Running these tests locally
 
@@ -191,7 +201,7 @@ verdict; shape: `RunRecord` in `evidence.ts`) plus one `<name>.log` per `attachL
 `${MATTER_CERT_EVIDENCE_DIR}/<timestamp>-<tc>/`. A step's own evidence lives in `RunRecord.steps[]`
 as `{ step, text, expected, checks: CheckRecord[], verdict, skipReason? }`; `CheckRecord` is
 `{ type: "response" | "device-log" | "network", verdict: "pass" | "fail" | "unverified", detail?,
-pattern?, matched?, logLine? }`.
+pattern?, matched?, logLine?, accepted? }`.
 
 What a check's `type` should be:
 
@@ -203,18 +213,21 @@ What a check's `type` should be:
   usually wrapped so a timeout/close error becomes a recorded `"fail"` rather than propagating
   uncaught — see `TC-ACT-3.2`'s `recordInvokeStatus`/adversarial-review fix below for why an
   uncaught log-check error is a real evidence gap, not just noise). `"unverified"` means no pattern
-  was supplied for the running flavor (see "Flavor policy" above) — an evidence gap to close by
-  writing that pattern, not a failure and not a bug in the run.
+  was supplied for the running flavor (see "Flavor policy" above) — an evidence gap that fails the
+  run until the pattern is written or the check states why it cannot be settled here, rather than a
+  claim about the device.
 - **`"network"`** — `expectMdns`'s own check kind (mDNS record presence/absence).
 
-A step passing means its `run` callback didn't throw — `recorder.check(...)` only records evidence,
-it never fails the step by itself (see "Shape of a cert test" above; this is worth repeating because
-it's the single easiest mistake to make writing a new step). `RunRecord.verdict` is computed by
-`EvidenceRecorder`, not hand-set: until `concludeRun` runs ⇒ `"incomplete"`; then the run's own
-reported failure (`runError`), or `deviceExit`/`finalizationError`/`teardownError`/`evidenceError`
-set, or any step `"fail"`/`"aborted"` ⇒ `"fail"`; else any step `"pass"` ⇒ `"pass"`; else (every step
-skipped, or zero steps ran, e.g. `TC-ACT-3.2` under `matterjs` or `TC-SC-3.5` when its prerequisite is
-missing) ⇒ `"skipped"`.
+A step passing means its `run` callback didn't throw *and* every check it recorded was settled — a
+`"fail"` check is recorded rather than acted on, so a check that must gate the step still has to
+throw (see "Shape of a cert test" above; this is the single easiest mistake to make writing a new
+step), while an `"unverified"` check that did not state why makes the step `"unverified"` on its own.
+`RunRecord.verdict` is computed by `EvidenceRecorder`, not hand-set: until `concludeRun` runs ⇒
+`"incomplete"`; then `deviceExit`/`finalizationError`/`teardownError`/`evidenceError` set, the run's
+own reported failure (`runError`) where that failure is not merely an unverified step, or any step
+`"fail"`/`"aborted"` ⇒ `"fail"`; else any step `"unverified"` ⇒ `"unverified"`, which fails the run;
+else any step `"pass"` ⇒ `"pass"`; else (every step skipped, or zero steps ran, e.g. `TC-ACT-3.2`
+under `matterjs` or `TC-SC-3.5` when its prerequisite is missing) ⇒ `"skipped"`.
 
 A `"skipped"` run-level verdict is a legitimate, expected outcome for a flavor-gapped or
 prerequisite-blocked TC — it is not the same as `"fail"`, and shouldn't be treated as a failure when
@@ -223,7 +236,7 @@ treat it as a failed run whose cause is outside the record.
 
 Every attached `.log` also carries a step-boundary banner (chip python/yaml style) at the point a
 step starts and again when it ends (`<tc> — Test Step <number>: <text>` / `<tc> — Test Step
-<number>: PASS|FAIL|SKIPPED|ABORTED`, each between a rule of dashes). `CertTest.invoke()`
+<number>: PASS|FAIL|UNVERIFIED|SKIPPED|ABORTED`, each between a rule of dashes). `CertTest.invoke()`
 (`cert-test.ts`) injects these via `LogFollower.annotate()` into every device's and controller's log
 buffer; they're flagged synthetic so a step's own `log.expect()` never matches one, even against a
 catch-all pattern. This is purely for log readability — it doesn't change `RunRecord`'s shape.
@@ -244,8 +257,9 @@ certTest("TC-XXX-0.0", { plan: "n/a" | "<plan doc id>", pics: [], app: "all-clus
   throwing from `run`. So a check that should gate the step goes through `record(cx, check, what)`
   (`tc-support.ts`), which records it and throws `CertCheckFailedError` on `"fail"` — hand-rolling
   the `if (verdict === "fail") throw` after a `check()` is how one such gate came to be missing.
-  `"unverified"` passes through: that is what a log check reports on a flavor nobody wrote a pattern
-  for. Use `cx.recorder.check` directly only for a record that is provenance rather than a gate — the
+  `"unverified"` passes through rather than throwing: that is what a log check reports on a flavor
+  nobody wrote a pattern for, and the engine turns it into the step's verdict instead.
+  Use `cx.recorder.check` directly only for a record that is provenance rather than a gate — the
   unconditional "this is what the DUT answered" line beside an `await` that would have thrown.
 - Never throw a plain `Error` from a step: `CertCheckFailedError` is the step-assertion type, and
   `InternalError` is for a harness invariant that cannot hold.
@@ -580,11 +594,10 @@ here rather than silently dropped, for whoever picks up the next cert TC or a fr
   invocation of the same test file's steps in one process (a mocha retry) could read a stale ref left over
   from an aborted run — the `.finalize()` cleanup clears every ref it visits, so this needs a run that never
   reached its own finalizer.
-- **Per-step PICS is inert on `chip-local`/`chip-docker`.** `ChipLocalDevice.pics`/`ChipDockerDevice.pics`
-  both throw (`chip-app-subject.ts`), so `resolvePicsFile` always returns `undefined` for these flavors
-  and every step's PICS is treated as met (see `cert-test.ts`'s `stepPicsMet`). The `pics: "ACT.C.C0x.Tx"`
-  on every `TC-ACT-3.2` step is therefore transcription for the record, not a live gate, on either chip
-  flavor — same as every per-step PICS in `TC-IDM-2.1`.
+- **`pics: "ACT.C.C0x.Tx"` on every step of this TC is a live gate on every flavor**, and it passes
+  only because both controller adapters declare those commands: the container's certification file
+  answers 0 for them, since it describes a device and a device is no Actions client. Adding a step here
+  gated on a client-side key means adding that key to the adapters too (see "PICS handling").
 
 ## chip's `CommandFields` values are suffixed with their TLV type name
 
@@ -1470,10 +1483,11 @@ publishes a **BLE-only** bitmask (`0b00000010`), so on that TH the precondition 
 and an unsubstituted step 3.a fails. With the OnNetwork form both steps commission for real and
 record the DUT onboarding the TH over IP, which is the plan's own expected outcome.
 
-Their `pics` (`MCORE.DD.DISCOVERY_BLE`, `MCORE.DD.DISCOVERY_PAF`) stays as transcription and gates
-only under `matterjs`, where CHIP's `ci-pics-values` answers `DISCOVERY_PAF=0` and step 4 records a
-PICS skip. Do **not** answer these from a controller overlay to force a skip: `certPicsFile()` feeds
-every cert test's report, so a device-scoped key set there makes every other run's evidence claim
+Their `pics` (`MCORE.DD.DISCOVERY_BLE`, `MCORE.DD.DISCOVERY_PAF`) gates on every flavor, and every
+flavor answers it from the same file: CHIP's `ci-pics-values` says `DISCOVERY_PAF=0`, so step 4 is a
+PICS skip everywhere and the run reports `picsSkips: 2`. Do **not** answer these from a controller
+overlay to force a skip — a test asserts that neither adapter declares them, because `certPicsFile()`
+feeds every cert test's report, so a device-scoped key set there makes every other run's evidence claim
 something false about its TH. And note `notApplicable` is evaluated *before* both the `flavors` and
 the PICS gate in `cert-test.ts`, so a step carrying both never evaluates its PICS on any flavor —
 combining them documents nothing and hides the gate that would otherwise fire.
@@ -1587,7 +1601,10 @@ Two traps in those lines. matter.js renders a subscription id through `Subscript
 fewer than eight significant digits. And an event report says `ev:` where an attribute report says
 `attr:`, which TC-IDM-6.4 needs.
 
-With the device's own log carrying every write, `subscribeAndModify` no longer fails a step when the
-controller's `onUpdate` callbacks come up short — it records that as `"unverified"` with the counts.
-A report carrying a value nobody wrote is still a failure. What this gives up: a controller that
-delivered the values out of order is no longer caught, which the plan never asked about anyway.
+With the device's own log carrying every write, `subscribeAndModify` does not fail a step outright when
+the controller's `onUpdate` callbacks come up short — it records that as `"unverified"` with the
+counts, and states the gap as `accepted` only under chip-tool, whose interactive server is known to
+hand over just the first result of a batch. On any other controller the shortfall is that controller's
+own defect, so the check stands unaccepted and fails the run. A report carrying a value nobody wrote is
+still a failure. What this gives up: a controller that delivered the values out of order is no longer
+caught, which the plan never asked about anyway.

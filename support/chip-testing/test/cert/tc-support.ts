@@ -44,8 +44,9 @@ export class CertCheckFailedError extends MatterError {}
 /**
  * Records `check` and fails the step on a `"fail"` verdict — `recorder.check()` only records, so a
  * step whose evidence must gate it has to throw for itself, which is the single easiest thing to
- * forget. `"unverified"` passes through: that is what a log check reports on a flavor nobody wrote a
- * pattern for, and it is not a failure (see the flavor-pattern policy in this directory's AGENTS.md).
+ * forget. `"unverified"` passes through rather than throwing: that is what a log check reports on a
+ * flavor nobody wrote a pattern for, and the engine makes it the step's verdict (see the
+ * flavor-pattern policy in this directory's AGENTS.md).
  */
 export function record(cx: CertStepContext, check: CheckRecord, what: string) {
     cx.recorder.check(check);

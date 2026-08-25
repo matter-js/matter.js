@@ -5,6 +5,7 @@
  */
 
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
+import { GlobalConfig } from "#behavior/supervision/SupervisionConfig.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import {
     AttributeModel,
@@ -13,6 +14,8 @@ import {
     FeatureMap,
     FieldElement as Field,
     FieldModel,
+    Matter,
+    MatterModel,
 } from "@matter/model";
 import {
     ConformanceError,
@@ -20,10 +23,11 @@ import {
     DatatypeError,
     EnumValueConformanceError,
     IntegerRangeError,
+    Subject,
     UnknownEnumValueError,
     Val,
 } from "@matter/protocol";
-import { BitmapEncodedValue, FabricIndex } from "@matter/types";
+import { BitmapEncodedValue, FabricIndex, NodeId } from "@matter/types";
 
 describe("ValueValidator", () => {
     implementInt("uint8", 0, 0xff);
@@ -123,6 +127,183 @@ describe("ValueValidator", () => {
             validator(struct, peerSession(FabricIndex(3)), memberPath);
             expect(struct.fabricIndex).equals(3);
             expect(254 in struct).is.false;
+        });
+    });
+
+    describe("bitmap bit conformance", () => {
+        // A bit gated on a feature, mirroring ClosureControl.LatchControlModesBitmap.RemoteLatching (conformance "LT")
+        function bitmapCluster(supports?: string[]) {
+            const featureMap = FeatureMap.clone();
+            featureMap.children = [new FieldModel({ name: "LT", title: "Latching", constraint: "0" })];
+
+            const cluster = new ClusterModel({
+                name: "Test",
+                children: [
+                    featureMap,
+                    new AttributeModel(
+                        { id: 0, name: "Modes", type: "map16" },
+                        Field({ name: "ifFeature", constraint: "0", conformance: "LT" }),
+                        Field({ name: "always", constraint: "1", conformance: "O" }),
+                        Field({ name: "deprecated", constraint: "2", conformance: "D" }),
+                        Field({ name: "choice", constraint: "3", conformance: "[LT].b+" }),
+                        Field({ name: "named", constraint: "4", conformance: "Other" }),
+                        Field({ name: "range", constraint: "5 to 6", conformance: "LT" }),
+                        Field({ name: "never", constraint: "7", conformance: "X" }),
+                        Field({ name: "unreadable", constraint: "8", conformance: "LT > 4" }),
+                        Field({ name: "grouped", constraint: "9", conformance: "LT, X" }),
+                    ),
+                ],
+            });
+            cluster.supportedFeatures = supports;
+
+            return {
+                validate: RootSupervisor.for(cluster).get(cluster).validate!,
+                path: { path: new DataModelPath(cluster.path) },
+            };
+        }
+
+        const local = {} as ValueSupervisor.Session;
+        const wire = { subject: Subject.Node({ id: NodeId(1) }) } as ValueSupervisor.Session;
+        const peer = { clientPeerContext: {} } as ValueSupervisor.Session;
+
+        it("rejects a bit gated on an unsupported feature on a local write", () => {
+            const { validate, path } = bitmapCluster();
+
+            expect(() => validate({ modes: { ifFeature: true } }, local, path)).throws(
+                ConformanceError,
+                // The refused value is a bit, which may sit in a command or struct field rather than an attribute
+                'Validating Test.modes.ifFeature: Conformance "LT": Matter does not allow you to set this value',
+            );
+        });
+
+        it("accepts the bit when the feature is supported", () => {
+            const { validate, path } = bitmapCluster(["LT"]);
+
+            expect(() => validate({ modes: { ifFeature: true } }, local, path)).not.throws();
+        });
+
+        it("accepts a bit the value leaves clear", () => {
+            const { validate, path } = bitmapCluster();
+
+            expect(() => validate({ modes: { ifFeature: false } }, local, path)).not.throws();
+        });
+
+        it("accepts a bit that states no gate", () => {
+            const { validate, path } = bitmapCluster();
+
+            expect(() => validate({ modes: { always: true } }, local, path)).not.throws();
+        });
+
+        // The runtime conformance compiler reads a lone "D" as optional for a field, so a bit reads the same way
+        it("accepts a deprecated bit", () => {
+            const { validate, path } = bitmapCluster();
+
+            expect(() => validate({ modes: { deprecated: true } }, local, path)).not.throws();
+        });
+
+        it("rejects a bit whose choice is gated on an unsupported feature", () => {
+            const { validate, path } = bitmapCluster();
+
+            expect(() => validate({ modes: { choice: true } }, local, path)).throws(ConformanceError);
+        });
+
+        // Every alternative of the group resolves without a record, so the group does too
+        it("rejects a bit a group disallows once its gate fails", () => {
+            const { validate, path } = bitmapCluster();
+
+            expect(() => validate({ modes: { grouped: true } }, local, path)).throws(ConformanceError);
+        });
+
+        it("rejects a bit the specification disallows", () => {
+            const { validate, path } = bitmapCluster(["LT"]);
+
+            expect(() => validate({ modes: { never: true } }, local, path)).throws(ConformanceError);
+        });
+
+        // Thermostat's RemoteSensingBitmap.OutdoorTemperature states the name of an attribute, which only a record
+        // decides.  A bit has no record around it, so there is nothing to enforce
+        it("accepts a bit whose conformance names something a value would decide", () => {
+            const { validate, path } = bitmapCluster();
+
+            expect(() => validate({ modes: { named: true } }, local, path)).not.throws();
+        });
+
+        // Refusing to supervise the cluster because one bit states conformance we cannot read would be worse
+        it("accepts a bit whose conformance the compiler cannot read", () => {
+            const { validate, path } = bitmapCluster();
+
+            expect(() => validate({ modes: { unreadable: true } }, local, path)).not.throws();
+        });
+
+        it("judges a range of bits by whether the write sets any of them", () => {
+            const { validate, path } = bitmapCluster();
+
+            expect(() => validate({ modes: { range: 0 } }, local, path)).not.throws();
+            expect(() => validate({ modes: { range: 1 } }, local, path)).throws(ConformanceError);
+        });
+
+        // OperationalStatus.Lift is an enum over two bits.  The feature gate applies to the range; the membership of
+        // the enum is not a conformance and stays with the validation of the value itself
+        it("judges a range of a shipped cluster by its feature alone", () => {
+            const cluster = new MatterModel(Matter).get(ClusterModel, "WindowCovering")!.clone();
+            cluster.supportedFeatures = ["LF", "PA_LF"];
+            const attr = cluster.get(AttributeModel, "OperationalStatus")!;
+            const validate = RootSupervisor.for(cluster).get(attr).validate!;
+            const path = { path: new DataModelPath(attr.path) };
+
+            expect(() => validate({ lift: 3 }, local, path)).not.throws();
+            expect(() => validate({ tilt: 1 }, local, path)).throws(ConformanceError);
+        });
+
+        // A feature map states the features a conformance is judged against, so judging its own bits against them says
+        // nothing.  Validated directly, because struct validation skips a global attribute
+        it("does not judge the bits of a feature map", () => {
+            const featureMap = FeatureMap.clone();
+            featureMap.children = [
+                new FieldModel({ name: "LT", title: "Latching", constraint: "0" }),
+                new FieldModel({ name: "RL", title: "RemoteLatching", constraint: "1", conformance: "LT" }),
+            ];
+            const cluster = new ClusterModel({ name: "Test", children: [featureMap] });
+            cluster.supportedFeatures = ["RL"];
+
+            const validate = RootSupervisor.for(cluster).get(featureMap).validate!;
+            const path = { path: new DataModelPath(featureMap.path) };
+
+            expect(() => validate({ remoteLatching: true }, local, path)).not.throws();
+        });
+
+        // A child config is what the attribute's own supervision reaches, per Supervision.Config
+        it("is suppressed where conformance validation is turned off for the attribute", () => {
+            const { validate, path } = bitmapCluster();
+            const config = new GlobalConfig();
+            config.child("modes").supervision = { conformance: false };
+
+            expect(() => validate({ modes: { ifFeature: true } }, local, { ...path, config })).not.throws();
+        });
+
+        // A peer states its own capabilities, and a controller in the field predates our reading of the conformance
+        // column
+        it("ignores the bit on a write from the wire", () => {
+            const { validate, path } = bitmapCluster();
+
+            expect(() => validate({ modes: { ifFeature: true } }, wire, path)).not.throws();
+        });
+
+        it("forwards the bit on a client peer write", () => {
+            const { validate, path } = bitmapCluster();
+
+            expect(() => validate({ modes: { ifFeature: true } }, peer, path)).not.throws();
+        });
+
+        // A conformance failure is forwarded for a peer write, which unwinds the validator, so the structural checks
+        // must have run already
+        it("still rejects a structurally invalid bit alongside a non-conformant one on a peer write", () => {
+            const { validate, path } = bitmapCluster();
+
+            expect(() => validate({ modes: { ifFeature: true, range: 99 } }, peer, path)).throws(
+                DatatypeError,
+                "in range of bit field",
+            );
         });
     });
 

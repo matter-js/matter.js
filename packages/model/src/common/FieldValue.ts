@@ -4,7 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes as ByteUtils, Duration, serialize as stringSerialize, UnexpectedDataError } from "@matter/general";
+import {
+    Bytes as ByteUtils,
+    Duration,
+    DurationFormatError,
+    serialize as stringSerialize,
+    UnexpectedDataError,
+} from "@matter/general";
 import type { Metatype } from "./Metatype.js";
 
 /**
@@ -344,6 +350,11 @@ export namespace FieldValue {
      * @returns the cast value or FieldValue.Invalid if cast is not possible
      */
     export function cast<const T extends Metatype>(type: T, value: any): FieldValue | FieldValue.Invalid | undefined {
+        // "No value" is a value of every type, so an override may use it to remove a default the specification states
+        if (FieldValue.is(value, FieldValue.none)) {
+            return undefined;
+        }
+
         if (value === undefined || value === null || type === "any") {
             return value;
         }
@@ -485,6 +496,16 @@ export namespace FieldValue {
                     return FieldValue.Invalid;
                 }
                 return value;
+
+            case "duration":
+                try {
+                    return Duration(value);
+                } catch (e) {
+                    if (e instanceof DurationFormatError) {
+                        return FieldValue.Invalid;
+                    }
+                    throw e;
+                }
 
             case "object":
                 if (FieldValue.is(value, FieldValue.properties)) {

@@ -5,6 +5,7 @@
  */
 
 import { FieldValue, Metatype } from "#common/index.js";
+import { Seconds } from "@matter/general";
 
 describe("FieldValue", () => {
     describe("cast", () => {
@@ -18,6 +19,27 @@ describe("FieldValue", () => {
             expect(FieldValue.cast(Metatype.boolean, "off")).equal(false);
             expect(FieldValue.cast(Metatype.boolean, 0)).equal(false);
             expect(FieldValue.cast(Metatype.boolean, 1)).equal(true);
+        });
+
+        // An override states no value to remove a default; casting it to the type would state a value of that type
+        it("reads no value as no value on every type", () => {
+            for (const type of [
+                Metatype.any,
+                Metatype.object,
+                Metatype.integer,
+                Metatype.string,
+                Metatype.boolean,
+                Metatype.bytes,
+                Metatype.array,
+            ]) {
+                expect(FieldValue.cast(type, FieldValue.None)).undefined;
+            }
+        });
+
+        it("reads a duration the way Duration does", () => {
+            expect(FieldValue.cast(Metatype.duration, 2000)).equals(Seconds(2));
+            expect(FieldValue.cast(Metatype.duration, "2s")).equals(Seconds(2));
+            expect(FieldValue.cast(Metatype.duration, "nonsense")).equals(FieldValue.Invalid);
         });
 
         it("retains the fraction of a temperature", () => {

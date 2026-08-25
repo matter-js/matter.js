@@ -47,6 +47,8 @@ function groupBy<T>(bounds: EncodedConstraint.Bound<T>[], keyOf: (model: ValueMo
  * Validates models that extend DataModel.
  */
 export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
+    #normalizedDefault?: { value: FieldValue | undefined };
+
     override validate() {
         this.validateProperty({ name: "type", type: "string" });
         this.validateProperty({ name: "byteSize", type: "number" });
@@ -69,10 +71,27 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         // discards what it cannot represent, so what was stated is kept to notice that
         const stated = this.model.default;
         this.#validateType();
-        this.#validateNumericValues(stated);
+        this.#validateNumericValues(stated, this.#effectiveDefault);
         this.#validateEntries();
 
         super.validate();
+    }
+
+    /**
+     * The default the model carries once validation has normalized it, which is the value the remaining checks judge.
+     *
+     * A final model is frozen so normalization cannot write to it; the value it would have written is recorded here so
+     * validating a final model reports exactly what validating the same model unfrozen does.
+     */
+    get #effectiveDefault() {
+        return this.#normalizedDefault === undefined ? this.model.default : this.#normalizedDefault.value;
+    }
+
+    #normalizeDefault(value: FieldValue | undefined) {
+        this.#normalizedDefault = { value };
+        if (!this.model.isFinal) {
+            this.model.default = value;
+        }
     }
 
     /**
@@ -88,7 +107,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
      * This reads what the model states rather than what it inherits, so one bad definition is reported once instead
      * of once per model deriving from it.
      */
-    #validateNumericValues(stated?: FieldValue) {
+    #validateNumericValues(stated: FieldValue | undefined, effective: FieldValue | undefined) {
         const encoded = new Array<EncodedConstraint.Bound<number | bigint>>();
         const unscaled = new Array<EncodedConstraint.Bound<FieldValue>>();
 
@@ -101,16 +120,15 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
 
         // A number states itself; only a unit needs converting.  Asking for the encoded form of every default would
         // lose one too large to be a number, which is where the values of a 64 bit type live
-        const fallback = this.model.default;
         let reportedUnit = false;
-        if (typeof fallback === "number" || typeof fallback === "bigint") {
-            encoded.push({ value: fallback, model: this.model });
-        } else if (fallback !== undefined) {
-            const value = EncodedValue(this.model, fallback);
+        if (typeof effective === "number" || typeof effective === "bigint") {
+            encoded.push({ value: effective, model: this.model });
+        } else if (effective !== undefined) {
+            const value = EncodedValue(this.model, effective);
             if (value !== undefined) {
                 encoded.push({ value, model: this.model });
-            } else if (FieldValue.is(fallback, FieldValue.percent) || FieldValue.is(fallback, FieldValue.celsius)) {
-                unscaled.push({ value: fallback, model: this.model });
+            } else if (FieldValue.is(effective, FieldValue.percent) || FieldValue.is(effective, FieldValue.celsius)) {
+                unscaled.push({ value: effective, model: this.model });
                 reportedUnit = true;
             }
         }
@@ -272,7 +290,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
             // Metatype doesn't handle this case because otherwise you'd never be able to have a string called "empty".
             // In this case though the data likely comes from the spec so we're going to take a flyer and say you can
             // never have "empty" as a default value
-            delete this.model.default;
+            this.#normalizeDefault(undefined);
             return;
         }
 
@@ -295,13 +313,16 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
                 referenced = this.model.owner(ClusterModel)?.member(defaultValue);
             }
             if (referenced instanceof ValueModel && referenced.effectiveType === this.model.effectiveType) {
-                this.model.default = FieldValue.Reference(referenced.name);
+                this.#normalizeDefault(FieldValue.Reference(referenced.name));
                 return;
             }
         }
 
         if (cast === FieldValue.Invalid) {
-            this.error("INVALID_VALUE", `Value "${defaultValue}" is not a ${metatype}`);
+            this.error(
+                "INVALID_VALUE",
+                `Default value "${FieldValue.serialize(defaultValue)}" is not a valid ${metatype} for type ${this.model.effectiveType}`,
+            );
             return;
         }
         defaultValue = cast;
@@ -326,7 +347,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
             }
         }
 
-        this.model.default = defaultValue;
+        this.#normalizeDefault(defaultValue);
     }
 
     #validateEntries() {
@@ -450,7 +471,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         if (typeof def === "string") {
             const other = this.model.parent?.member(def);
             if (other) {
-                this.model.default = FieldValue.Reference(other.name);
+                this.#normalizeDefault(FieldValue.Reference(other.name));
                 return true;
             }
         }
@@ -471,6 +492,12 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
     }
 
     #correctCaseFromShadow() {
+        // The correction is a write, which a final model cannot take.  Claiming it succeeded would suppress the error
+        // that says the type does not resolve, so a final model reports rather than repairs
+        if (this.model.isFinal) {
+            return false;
+        }
+
         const tag = this.model.tag;
         const name = this.model.name.toLowerCase();
         return (

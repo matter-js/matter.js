@@ -12,6 +12,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/testing
+    - Enhancement: A certification step whose check could not be evaluated ends `"unverified"` and fails the run, unless the check states why the claim cannot be observed
+    - Enhancement: Per-step certification PICS is evaluated on chip device flavors too, and `result.json` reports how many steps their PICS excluded
     - Fix: A certification run's `result.json` no longer reports a passing verdict for a run that failed
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
 
@@ -39,6 +41,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: New `EncodedConstraint.bounds()` reports which of a constraint's bounds state a number in encoding units and which state a unit with no known scale
     - Fix: The model build rejects a value stating a unit with no known scale, a fraction an integer type cannot hold, or a negative an unsigned type cannot hold
     - Fix: A default stating a number no integer form matches, such as `1e-3`, is rejected instead of stored as the digits preceding the exponent
+    - Fix: `FieldValue.cast()` treats "no value" as a value of every type, so an override removes a default rather than making the value invalid
+    - Fix: A rejected default is reported as the value it states and the type that rejected it
+    - Fix: `FieldValue.cast()` reads a duration, which it previously rejected whatever the value stated
+    - Fix: `ValidateModel()` no longer writes a normalized default to a final model, which threw because a final model is frozen; it reports on such a model without normalizing it
     - Fix: A percentage on a type other than `percent` or `percent100ths` no longer resolves to the printed number as though it were already encoded
     - Fix: A constraint bound's unit takes its scale from the types the value derives from, not from its own type name alone
     - Enhancement: New `Scope.isMandatory()` tells whether a member is mandatory under a schema's supported features, and the new `MandatoryDefaultValue()` computes the value such a member assumes when no real value exists (schema default, else the specification's fallback value, recursing into structs) — the basis for what an unreported client node attribute reads, usable wherever schema-derived fallback values are needed; `SelectDefaultValue()` exposes the shallow variant used for server state seeding
@@ -69,6 +75,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: An unreported client node attribute reads its schema default, else the specification's fallback value for its type, when the attribute is mandatory under the peer's supported features, and `undefined` otherwise — regardless of the peer's AttributeList (an enum attribute reads `undefined`, as the specification defines its fallback as manufacturer-specific). The value is a detached copy, so mutating a struct or list read from an unreported attribute does not write through
     - Breaking: Configured options, environment variables, and state-class field initializers no longer seed a client node's cluster state; the peer's reports are the only source of values
     - Breaking: Adding a server cluster to an endpoint fails when its selected features violate the conformance of its FeatureMap
+    - Breaking: A local write or invoke rejects a bitmap bit whose conformance the cluster's selected features do not satisfy, wherever the bitmap appears — an attribute, a command field, a struct member or an event field. So `LevelControl.Options.ExecuteIfOff` (also as the `optionsMask` or `optionsOverride` of `MoveToLevel`, `Move`, `Step` and `Stop`) needs Lighting or OnOff, a `ColorControl.ColorCapabilities` bit needs its color feature, a `WindowCovering.ConfigStatus` position or encoder bit needs the matching position-aware feature, `Thermostat.RemoteSensing.Occupancy` needs Occupancy, a closure's latch control mode needs Latching, and a `Messages.MessageControl` bit needs its messaging feature. Only a bit the value sets is judged, only what the conformance decides without a record around it, and a write or invoke carrying a remote subject stays permissive
     - Breaking: Provisional elements are no longer implemented by default; supply a state value or use `ClusterBehavior.enable()` to implement one
     - Breaking: `SoftwareUpdateManager.addUpdateConsent()` and `forceUpdate()` take the update as an object instead of three positional arguments, so it can carry per-update options
     - Breaking: Ensure that changing any attribute of a client node sends a write to the peer; an attribute the peer's cluster type cannot express, including the global attributes, is declined locally with `UnsupportedWrite` or `UnsupportedAttribute`
@@ -97,6 +104,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: `NetworkServer.State.clientCacheFlushInterval` defaults to the storage driver's `writeCoalescingInterval` instead of a fixed 20 minutes; set it to `Instant` to persist every change immediately
     - Adjustment: A `SoftwareUpdateManager.State.announcementInterval` of `Instant` disables OTA provider announcements
     - Fix: A constraint whose bound carries a unit, such as the `0.01% to 100.00%` of a `percent100ths` value, is enforced in the units the value is encoded in
+    - Fix: A window covering with no Lift feature no longer states a lift movement direction in `ConfigStatus`
     - Fix: Struct validation resolves a member stored under its TLV tag number, so a constraint violation there is caught and a mandatory member present only at its id no longer raises a conformance error
     - Fix: `Thermostat.Presets` reports to subscribers and advances the cluster's data version when the presets change
     - Fix: A local write of `Thermostat.Presets` is stored instead of silently discarded, and an invalid one rejects the caller's write

@@ -59,8 +59,12 @@ import {
 import { NodeNotConnectedError } from "@project-chip/matter.js/device";
 import { WebSocketServer } from "ws";
 import { log } from "./GenericTestApp.js";
-import { AttributeResponseData, DiscoveryResponse, EventResponseData } from "./handler/CommandHandler.js";
-import { LegacyControllerCommandHandler } from "./handler/LegacyControllerCommandHandler.js";
+import {
+    AttributeResponseData,
+    CommandHandler,
+    DiscoveryResponse,
+    EventResponseData,
+} from "./handler/CommandHandler.js";
 
 const logger = new Logger("ChipToolWebSocketHandler");
 
@@ -206,6 +210,50 @@ export function discoveryResponseFor(results: DiscoveryResponse, command: string
         return { results: [{ error: "FAILURE" }] };
     }
     return { results };
+}
+
+/**
+ * The model of a cluster a step named, by the name the runner sends.
+ *
+ * A step naming something this shim has no model for is a fault of the step or of this shim — real
+ * chip-tool refuses such a step client-side too, and no device answered anything — so it is reported as
+ * ours (see {@link isOwnFailure}) rather than as an interaction status the device never sent. Left
+ * unchecked, these lookups reach the runner as a `TypeError` naming nothing.
+ */
+export function clusterModelFor(cluster: string): ClusterMapEntry {
+    const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
+    if (clusterData === undefined) {
+        throw new ImplementationError(`No model for cluster "${cluster}", which a step named`);
+    }
+    return clusterData;
+}
+
+/** The model of `cluster`'s attribute `name`, global attributes included (see {@link clusterModelFor}). */
+export function attributeModelFor(clusterData: ClusterMapEntry, cluster: string, name: string): AttributeModel {
+    const attributeName = camelize(name);
+    const attributeModel = clusterData.attributes[attributeName.toLowerCase()] ?? GlobalAttributes[attributeName];
+    if (attributeModel === undefined) {
+        throw new ImplementationError(`Cluster "${cluster}" has no attribute "${name}", which a step named`);
+    }
+    return attributeModel;
+}
+
+/** The model of `cluster`'s command `name` (see {@link clusterModelFor}). */
+export function commandModelFor(clusterData: ClusterMapEntry, cluster: string, name: string): CommandModel {
+    const commandModel = clusterData.commands[camelize(name).toLowerCase()];
+    if (commandModel === undefined) {
+        throw new ImplementationError(`Cluster "${cluster}" has no command "${name}", which a step named`);
+    }
+    return commandModel;
+}
+
+/** The model of `cluster`'s event `name` (see {@link clusterModelFor}). */
+export function eventModelFor(clusterData: ClusterMapEntry, cluster: string, name: string): EventModel {
+    const eventModel = clusterData.events[camelize(name).toLowerCase()];
+    if (eventModel === undefined) {
+        throw new ImplementationError(`Cluster "${cluster}" has no event "${name}", which a step named`);
+    }
+    return eventModel;
 }
 
 /**
@@ -542,7 +590,7 @@ interface OutgoingChipWebSocketCommandResponse extends ChipWebSocketCommandRespo
 export class ChipToolWebSocketHandler {
     readonly #wsPort: number;
     #wsServer?: WebSocketServer;
-    #commandHandlers?: Map<string, LegacyControllerCommandHandler>;
+    #commandHandlers?: Map<string, CommandHandler>;
     #startRecording?: () => void;
     #stopRecording?: () => { module: string; category: string; message: string }[];
     readonly #subscriptionData = new Array<AttributeResponseData | EventResponseData>();
@@ -552,7 +600,7 @@ export class ChipToolWebSocketHandler {
         this.#wsPort = wsPort;
     }
 
-    initialize(commandHandlers: Map<string, LegacyControllerCommandHandler>) {
+    initialize(commandHandlers: Map<string, CommandHandler>) {
         logger.info(`Initialize with Command handlers for Identities ${Array.from(commandHandlers.keys()).join(", ")}`);
         this.#commandHandlers = commandHandlers;
 
@@ -576,16 +624,53 @@ export class ChipToolWebSocketHandler {
         }
         // Do start the controllers just if needed
         if (!handler.started) {
-            await handler.start();
+            try {
+                await handler.start();
+            } catch (error) {
+                // A controller of ours that will not come up is not the device refusing: left as it
+                // arrives, a storage or socket error here answers the bare failure 40 steps of the
+                // corpus expect, and they would pass on it.
+                throw new InternalError(`Controller "${controllerName ?? "alpha"}" failed to start`, {
+                    cause: error,
+                });
+            }
         }
         return handler;
     }
 
-    start() {
-        this.#wsServer = new WebSocketServer({ host: "127.0.0.1", port: this.#wsPort }, () => {
-            logger.info(`WebSocketServer started on port ${this.#wsPort}`);
-            log.directive("== WebSocket Server Ready"); // Testrunner uses this to detect that WS server has been started
+    /**
+     * The port the server actually listens on, which is the configured one unless that was 0 — then the
+     * OS picks it and only the bound socket knows. `undefined` before {@link start} resolves.
+     */
+    get port(): number | undefined {
+        const address = this.#wsServer?.address();
+        if (address === undefined || address === null || typeof address === "string") {
+            return undefined;
+        }
+        return address.port;
+    }
+
+    /**
+     * Starts listening. Resolves once the socket is bound, so a caller that reports "started" says
+     * something true, and rejects where the port could not be taken rather than raising an
+     * unhandled error event.
+     */
+    async start(): Promise<void> {
+        const server = new WebSocketServer({ host: "127.0.0.1", port: this.#wsPort });
+        this.#wsServer = server;
+
+        await new Promise<void>((resolve, reject) => {
+            const failed = (error: Error) => reject(error);
+            server.once("listening", () => {
+                server.off("error", failed);
+                logger.info(`WebSocketServer started on port ${this.port}`);
+                log.directive("== WebSocket Server Ready"); // Testrunner uses this to detect that WS server has been started
+                resolve();
+            });
+            server.once("error", failed);
         });
+
+        server.on("error", error => logger.error("Testrunner WebSocket server error", error));
 
         this.#wsServer.on("connection", ws => {
             logger.info("Testrunner connected to WebSocket");
@@ -616,7 +701,10 @@ export class ChipToolWebSocketHandler {
             }
         } catch (error) {
             logger.error("WebSocket Message parsing error", error);
-            result = { results: [{ error: (error as Error).message }, { error: "FAILURE" }] };
+            // Only this shim's own faults reach here — every call to the device runs inside a handler's
+            // own try — and an error carrying no message would otherwise answer with an empty error
+            // entry, which the runner reads as a command that succeeded.
+            result = failureResponseFor(error);
         }
 
         // Grab logs and send response including logs
@@ -1060,13 +1148,12 @@ export class ChipToolWebSocketHandler {
         } = data;
         const handler = await this.#commandHandlerFor(commissionerName);
 
-        const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
+        const clusterData = clusterModelFor(cluster);
 
         if (commandSpecifier === undefined) {
             throw new ImplementationError("Missing attribute name");
         }
-        const attributeName = camelize(commandSpecifier);
-        const attributeModel = clusterData.attributes[attributeName.toLowerCase()] ?? GlobalAttributes[attributeName];
+        const attributeModel = attributeModelFor(clusterData, cluster, commandSpecifier);
 
         try {
             const { values, status } = await handler.handleReadAttribute({
@@ -1112,14 +1199,12 @@ export class ChipToolWebSocketHandler {
         } = data;
         const handler = await this.#commandHandlerFor(commissionerName);
 
-        const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
+        const clusterData = clusterModelFor(cluster);
 
         if (commandSpecifier === undefined) {
             throw new ImplementationError("Missing event name");
         }
-        const eventName = camelize(commandSpecifier);
-
-        const eventModel = clusterData.events[eventName.toLowerCase()];
+        const eventModel = eventModelFor(clusterData, cluster, commandSpecifier);
         try {
             const { values, status } = await handler.handleReadEvent({
                 nodeId: NodeId(parseNumber(destinationId)),
@@ -1164,16 +1249,12 @@ export class ChipToolWebSocketHandler {
         } = data;
         const handler = await this.#commandHandlerFor(commissionerName);
 
-        const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
+        const clusterData = clusterModelFor(cluster);
 
         if (commandSpecifier === undefined) {
             throw new ImplementationError("Missing attribute name");
         }
-        const attributeName = camelize(commandSpecifier);
-        if (attributeName === undefined) {
-            throw new ImplementationError("Missing attribute name");
-        }
-        const attributeModel = clusterData.attributes[attributeName.toLowerCase()] ?? GlobalAttributes[attributeName];
+        const attributeModel = attributeModelFor(clusterData, cluster, commandSpecifier);
         try {
             const { values, updated } = await handler.handleSubscribeAttribute({
                 nodeId: NodeId(parseNumber(destinationId)),
@@ -1217,14 +1298,12 @@ export class ChipToolWebSocketHandler {
         } = data;
         const handler = await this.#commandHandlerFor(commissionerName);
 
-        const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
+        const clusterData = clusterModelFor(cluster);
 
         if (commandSpecifier === undefined) {
             throw new ImplementationError("Missing event name");
         }
-        const eventName = camelize(commandSpecifier);
-
-        const eventModel = clusterData.events[eventName.toLowerCase()];
+        const eventModel = eventModelFor(clusterData, cluster, commandSpecifier);
         try {
             const { values, updated } = await handler.handleSubscribeEvent({
                 nodeId: NodeId(parseNumber(destinationId)),
@@ -1267,16 +1346,15 @@ export class ChipToolWebSocketHandler {
         } = data;
         const handler = await this.#commandHandlerFor(commissionerName);
 
-        const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
+        const clusterData = clusterModelFor(cluster);
 
         if (commandSpecifier === undefined) {
             throw new ImplementationError("Missing attribute name");
         }
-        const attributeName = camelize(commandSpecifier);
         if (value === undefined) {
-            throw new ImplementationError("Missing attribute name or value");
+            throw new ImplementationError(`Missing value for the write of ${cluster}.${commandSpecifier}`);
         }
-        const attributeModel = clusterData.attributes[attributeName.toLowerCase()] ?? GlobalAttributes[attributeName];
+        const attributeModel = attributeModelFor(clusterData, cluster, commandSpecifier);
         let parsedValue: unknown = value;
         if (
             typeof value === "string" &&
@@ -1310,7 +1388,7 @@ export class ChipToolWebSocketHandler {
         } = commandArguments;
         const handler = await this.#commandHandlerFor(commissionerName);
 
-        const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
+        const clusterData = clusterModelFor(cluster);
 
         const commandData = {} as any;
         Object.keys(commandArguments).forEach(key => {
@@ -1323,8 +1401,7 @@ export class ChipToolWebSocketHandler {
                 commandData[camelize(key)] = commandArguments[key];
             }
         });
-        const commandName = camelize(command);
-        const commandModel = clusterData.commands[commandName.toLowerCase()];
+        const commandModel = commandModelFor(clusterData, cluster, command);
         const nodeId = NodeId(parseNumber(destinationId));
         const isGroupNode = GroupId.isGroupNodeId(nodeId);
         try {
