@@ -20,7 +20,12 @@ import { MaybePromise } from "#util/Promises.js";
  * | phase two failure         | `preCommit`\*, `settled`, `commit1`, `commit2`, `conclusion`                |
  * | rollback                  | `rollback`, `conclusion`                                                   |
  *
- * \* `preCommit` runs one or more times.  A phase that throws is not reached by the participants after the thrower.
+ * \* `preCommit` runs one or more times.
+ *
+ * A phase reaches every participant even where one of them fails, with one exception: a {@link commit1} that throws
+ * synchronously stops its own loop, so the participants after the thrower never stage their writes.  An asynchronous
+ * {@link commit1} rejection and any {@link commit2} failure are collected and reported once the phase has run to the
+ * end.
  *
  * Note the phase two row: values a participant made canonical in {@link commit2} stay canonical, no
  * {@link rollback} runs, and {@link postCommit} runs for nobody.  A participant that must react to its own write
