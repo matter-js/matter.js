@@ -238,10 +238,16 @@ export namespace Metatype {
                 try {
                     const big = BigInt(value);
                     const little = Number.parseInt(value);
-                    if (big === BigInt(little)) {
-                        return little;
+
+                    // Text stating no digits at all, which BigInt reads as zero
+                    if (!Number.isNaN(little)) {
+                        // A magnitude beyond the integers a number states exactly stays a bigint, since parseInt
+                        // states it as Infinity and that is no integer to compare against
+                        if (Number.isSafeInteger(little) && big === BigInt(little)) {
+                            return little;
+                        }
+                        return big;
                     }
-                    return big;
                 } catch (e) {
                     // BigInt refuses text stating no integer with a SyntaxError and a value it cannot hold with a
                     // RangeError, and neither is an integer this can state

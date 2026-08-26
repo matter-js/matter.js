@@ -33,6 +33,13 @@ describe("Metatype", () => {
             expect(Metatype.cast(Metatype.integer, "5")).equal(5);
         });
 
+        // parseInt states a magnitude this large as Infinity, so the bigint stands rather than being compared to it
+        it("keeps a magnitude beyond every number", () => {
+            const huge = "9".repeat(400);
+
+            expect(Metatype.cast(Metatype.integer, huge)).equal(BigInt(huge));
+        });
+
         // BigInt refuses these with a RangeError, which is not an error a caller of this can act on
         it("refuses text stating no integer with the error it states elsewhere", () => {
             for (const value of ["", "abc"]) {
