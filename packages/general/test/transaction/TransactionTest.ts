@@ -575,6 +575,41 @@ describe("Transaction", () => {
             expect(notified).deep.equals(["P1", "P2"]);
         });
 
+        test("reaches a participant another participant's precommit added", async () => {
+            const notified = new Array<string>();
+
+            const joiner = TestParticipant({
+                settled: () => {
+                    notified.push("joiner");
+                },
+            });
+            joiner.toString = () => "joiner";
+
+            let joined = false;
+            const p = TestParticipant({
+                preCommit: () => {
+                    if (joined) {
+                        return false;
+                    }
+                    joined = true;
+                    transaction.addParticipants(joiner);
+                    return true;
+                },
+
+                settled: () => {
+                    notified.push("precommit adder");
+                },
+            });
+            p.toString = () => "precommit adder";
+
+            transaction.addParticipants(p);
+
+            await transaction.begin();
+            await transaction.commit();
+
+            expect(notified).deep.equals(["precommit adder", "joiner"]);
+        });
+
         test("sees the state the final precommit cycle produced", async () => {
             const state = { value: 0 };
             let seen;

@@ -291,13 +291,10 @@ export class AtomicWriteHandler {
                     Diagnostic.errorMessage(asError(error)),
                 );
                 statusCode = StatusResponseError.of(error)?.code ?? Status.Failure;
-                // If one fails with ConstraintError, the whole command should return ConstraintError, otherwise Failure
-                commandStatusCode =
-                    commandStatusCode === Status.Failure
-                        ? Status.Failure
-                        : commandStatusCode === Status.ConstraintError
-                          ? Status.ConstraintError
-                          : Status.Failure;
+
+                // The command reports a generic failure whatever went wrong; the attribute's own status carries the
+                // reason, and certification reads them that way
+                commandStatusCode = Status.Failure;
             }
             attributeStatus.push({
                 attributeId: AttributeId(Number(attr)),

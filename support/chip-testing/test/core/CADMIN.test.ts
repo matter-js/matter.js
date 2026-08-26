@@ -53,19 +53,6 @@ describe("CADMIN", () => {
         ),
     );
 
-    // CADMIN/1.16 waits for timeouts for two operations on BasicInformation NodeLabel which ends up being roughly
-    // fourty seconds.  Attempted to reduce to 4 since we know that 2s. per is more than generous for local comms.  But
-    // this causes test to fail at step 12 with an error even though no error occurs.  Reducing to 5s. per works, any
-    // whole integer less does not.
-    before(() =>
-        chip.testFor("CADMIN/1.16").edit(
-            edit.insert({
-                after: "      PICS: BINFO.S.A0005",
-                lines: "      timeout: 5",
-            }),
-        ),
-    );
-
     // CHIP expects general error code 0xb when the proper response is NodeOperationalCertStatus.TableFull
     //
     // For now we just patch the test to convert 0xb (whatever that is) to 0x587, which appears to be an internal
