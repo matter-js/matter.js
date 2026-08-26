@@ -1593,9 +1593,11 @@ and `expectReportAck` now have matterjs branches:
   keepalive an idle subscription sends at its maximum interval is marked `empty` and must not stand in
   for one. chip draws the same line differently: a report prints `AttributeReportIBs` (or
   `EventReportIBs`) right after its subscription id, where a keepalive prints
-  `InteractionModelRevision`, so `expectReportAck` requires that data line on both flavors. A
-  chip-local TC-IDM-4.1 run's device log carries six keepalives on the subscriptions the steps use, so
-  this is a window that really opens, not a theoretical one.
+  `InteractionModelRevision`. `expectReportAck` requires that data line by default — a chip-local
+  TC-IDM-4.1 run's device log carries six keepalives on the subscriptions the steps use, so this is a
+  window that really opens — and takes `{ carriesData: false }` for the one case where an empty report
+  is a legitimate answer: a priming report, since a subscription can be established with nothing to
+  report yet, which is ordinary for an event subscription (`TC-IDM-6.4`).
 - `Message « for: I/StatusResponse … acked: <that report's counter> … payload: 152400 00` is the DUT's
   answer to **that** report — matter.js names the acked message counter, which is a tighter correlation
   than the chip path's exchange id — and the byte after `152400` is the status, `00` being Success.

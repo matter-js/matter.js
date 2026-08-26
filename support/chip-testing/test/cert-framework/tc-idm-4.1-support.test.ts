@@ -109,7 +109,11 @@ class Fixture {
             subscribe: async (_path, opts) => {
                 this.#onUpdate = opts.onUpdate;
                 this.push(...subscribeRequestLines(PATH), ...subscribeResponseLines(SUBSCRIPTION_ID));
-                this.pushReport(SUBSCRIPTION_ID);
+                if (this.primingCarriesData) {
+                    this.pushReport(SUBSCRIPTION_ID);
+                } else {
+                    this.pushKeepalive(SUBSCRIPTION_ID);
+                }
                 this.onSubscribe(this);
                 // Every line pushed so far is in the log before the helper takes its first per-write
                 // mark, which is what makes "this report predates the write" deterministic here.
@@ -162,6 +166,12 @@ class Fixture {
             this.#source.push(line);
         }
     }
+
+    /**
+     * Whether the priming report carries data. A subscription can be established with nothing to report
+     * yet — ordinary for an event subscription — so the priming check must accept a report without any.
+     */
+    primingCarriesData = true;
 
     /**
      * One report on `subscriptionId` carrying attribute data, plus the DUT's ack on the same CHIP
@@ -285,6 +295,20 @@ describe("subscribeAndModify", () => {
                 CertCheckFailedError,
                 /ack check failed for step 3, write 1\/1/,
             );
+        });
+    });
+
+    it("accepts a priming report that carries nothing, which an event subscription may well send", async () => {
+        const fixture = new Fixture("chip-local", (f, _index, value) => {
+            f.pushReport(SUBSCRIPTION_ID);
+            f.report(value);
+        });
+        fixture.primingCarriesData = false;
+
+        await withFixture(fixture, async f => {
+            await f.run([true], IMPATIENT);
+
+            expect(f.failures).deep.equal([]);
         });
     });
 

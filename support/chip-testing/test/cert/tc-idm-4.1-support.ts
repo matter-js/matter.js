@@ -92,8 +92,10 @@ export interface SubscribeAndModifyTimeouts {
  *
  * What the log confirmation does not prove: that the report it matched carried this write's data
  * rather than another change on the same subscription. A report carrying no data at all — the
- * keepalive an idle subscription sends — is excluded on both flavors, each by requiring the line on
- * which its own log says what the report carried.
+ * keepalive an idle subscription sends — is excluded for the per-write confirmations, on both flavors,
+ * each by requiring the line on which its own log says what the report carried. Only the priming report
+ * is checked without that requirement, since a subscription can legitimately be established with
+ * nothing to report yet.
  */
 export async function subscribeAndModify<Value>(
     cx: CertStepContext,
@@ -155,7 +157,12 @@ export async function subscribeAndModify<Value>(
         );
     }
 
-    const primingAckCheck = await expectReportAck(th.log, th.flavor, idLookup, established, establish);
+    // A subscription can be established with nothing to report yet, so this one report is allowed to
+    // carry no data; every later check in this step requires data, which is what tells a report of this
+    // write from a keepalive on the same subscription.
+    const primingAckCheck = await expectReportAck(th.log, th.flavor, idLookup, established, establish, {
+        carriesData: false,
+    });
     record(cx, primingAckCheck, `Priming-report status for step ${step}`);
 
     let ackCursor = primingAckCheck.logLine !== undefined ? primingAckCheck.logLine + 1 : th.log.mark();
