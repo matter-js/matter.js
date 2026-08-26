@@ -187,16 +187,35 @@ async function probeFreePort(): Promise<number> {
  * Whether chip-tool reads a frame as an async-report arming frame rather than as a command to run.
  *
  * Mirrors `InteractiveServerCommand::OnWebSocketMessageReceived`
- * (`examples/chip-tool/commands/interactive/InteractiveCommands.cpp`): empty, or at most five
- * characters whose leading text a `uint16_t` stream extraction accepts. That extraction skips leading
- * whitespace, takes an optional sign, and stops at the first non-digit without failing — so `"5abc"`
- * arms reports while `"abc"` does not.
+ * (`examples/chip-tool/commands/interactive/InteractiveCommands.cpp`): the frame is empty, or its C
+ * string is at most five bytes and a `uint16_t` stream extraction of it does not fail. Every rule below
+ * was measured by compiling that C++ against libstdc++, which is what CI runs:
+ *
+ * - the length is `strlen`, so bytes rather than characters: `"1ééé"` is seven bytes and runs
+ * - the extraction skips leading whitespace and takes a sign, and stops at the first non-digit without
+ *   failing, so `" 5"`, `"+5"` and `"5abc"` all arm reports while `"abc"` and `"+"` do not
+ * - a value the type cannot hold fails, so `"65536"` runs as a command even though `"65535"` does not
+ * - a negative wraps into the type instead of failing, so `"-1"` arms reports with a timeout of 65535
  *
  * Anything this returns true for is never run as a command, whoever sent it, which is why the test
  * double for chip-tool decides with this same function rather than a copy of it.
  */
 export function isAsyncReportFrame(frame: string) {
-    return frame.length === 0 || (frame.length <= 5 && /^\s*[-+]?\d/.test(frame));
+    const length = Buffer.byteLength(frame, "utf8");
+    if (length === 0) {
+        return true;
+    }
+    if (length > 5) {
+        return false;
+    }
+
+    const parsed = frame.match(/^\s*([-+]?)(\d+)/);
+    if (parsed === null) {
+        return false;
+    }
+
+    const [, sign, digits] = parsed;
+    return sign === "-" || Number(digits) <= 0xffff;
 }
 
 /**

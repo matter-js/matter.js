@@ -60,24 +60,34 @@ async function isRunning(pidFile: string) {
 }
 
 describe("isAsyncReportFrame", () => {
-    // Each case states what chip-tool's own `OnWebSocketMessageReceived` does with the frame:
-    // `strlen(msg) == 0`, or `strlen(msg) <= 5` with a `uint16_t` stream extraction that skips leading
-    // whitespace, takes an optional sign, stops at the first non-digit, and fails only when it consumed
-    // no digit at all.
+    // Every case was measured by compiling chip-tool's own `OnWebSocketMessageReceived` against
+    // libstdc++, which is what CI runs, rather than reasoned about: `strlen(msg) == 0`, or
+    // `strlen(msg) <= 5` with a `uint16_t` stream extraction that does not set failbit.
     const cases: [frame: string, armsReports: boolean, why: string][] = [
         ["", true, "strlen == 0"],
         ["5", true, "one digit, extraction succeeds"],
-        ["65535", true, "five digits, the largest uint16"],
-        ["100000", false, "six characters, past the strlen <= 5 gate"],
+        ["0", true, "zero is a value like any other"],
+        ["00000", true, "five digits, still zero"],
+        ["65535", true, "the largest value the uint16 holds"],
+        ["65536", false, "past the uint16, so the extraction fails and the frame runs"],
+        ["99999", false, "five digits, still past the uint16"],
+        ["100000", false, "six bytes, past the strlen <= 5 gate"],
+        ["+65535", false, "six bytes with the sign, past the gate"],
         [" 5", true, "extraction skips leading whitespace"],
+        ["\t5", true, "a tab is whitespace to the extraction as well"],
         ["+5", true, "extraction takes a leading sign"],
-        ["-5", true, "extraction takes a leading sign here too"],
+        ["-5", true, "a negative wraps into the uint16 rather than failing (timeout 65531)"],
+        ["-1", true, "the same wrap, to 65535"],
+        ["-9999", true, "and again, to 55537"],
         ["5abc", true, "extraction stops at the first non-digit without failing"],
+        ["5 ", true, "trailing whitespace does not fail it either"],
+        ["12 34", true, "extraction takes 12 and stops"],
         ["abc", false, "no digit consumed, extraction fails"],
         ["   ", false, "whitespace only, no digit consumed"],
         ["+", false, "sign without a digit, extraction fails"],
+        ["1ééé", false, "four characters but seven bytes, and strlen counts bytes"],
         ["any read", false, "a real command, past the strlen gate"],
-        ["read", false, "a four-character command with no digit"],
+        ["read", false, "a four-byte command with no digit"],
     ];
 
     for (const [frame, armsReports, why] of cases) {
