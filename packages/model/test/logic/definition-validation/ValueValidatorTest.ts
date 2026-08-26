@@ -182,6 +182,25 @@ function validateEnumDefault(dflt: FieldValue) {
     return ValidateModel(Matter).errors.filter(e => CODES.has(e.code));
 }
 
+/** A value of a type that states an enum of an enum, which is how the specification states a status code */
+function validateDerivedEnumDefault(dflt: FieldValue) {
+    const Matter = new MatterModel(
+        {},
+        uint8.clone(),
+        enum8.clone(),
+        new DatatypeModel({ name: "StatusLike", type: "enum8", metatype: "enum" }),
+        new ClusterModel(
+            { name: "Test", id: 0xfff1 },
+            Attribute(
+                { name: "Bounded", id: 1, type: "StatusLike", default: dflt },
+                FieldElement({ name: "A", id: 0 }),
+            ),
+        ),
+    );
+
+    return ValidateModel(Matter).errors.filter(e => CODES.has(e.code));
+}
+
 function validateConstraint(type: string, constraint: string) {
     const Matter = new MatterModel(
         {},
@@ -246,6 +265,19 @@ describe("ValueValidator", () => {
         it("accepts a percentage on the types that state a scale", () => {
             expect(validateConstraint("percent", "0% to 100%")).deep.equals([]);
             expect(validateConstraint("percent100ths", "min 0.01%")).deep.equals([]);
+        });
+    });
+
+    // The status codes state an enum of enum8, so the integer holding the value is two definitions down.  Judging only
+    // the first left every such value unjudged
+    describe("a type that derives from an enum", () => {
+        it("judges a value by the integer that holds it", () => {
+            expect(validateDerivedEnumDefault(-1).map(error => error.code)).deep.equals(["NEGATIVE_ON_UNSIGNED_TYPE"]);
+            expect(validateDerivedEnumDefault(1.5).map(error => error.code)).deep.equals(["FRACTION_ON_INTEGER_TYPE"]);
+        });
+
+        it("accepts a value it holds", () => {
+            expect(validateDerivedEnumDefault(0)).deep.equals([]);
         });
     });
 
