@@ -40,6 +40,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The `Symbol.metadata` polyfill no longer conflicts with `lib.esnext.decorators` in the published declarations
 
 - @matter/model
+    - Fix: A value whose type derives from an enum, as a status code does, is judged by the integer type that holds it, so the numeric definition rules no longer skip it and a scene-capable attribute of such a type is no longer refused
     - Breaking: A provisional element is no longer mandatory; conformance following a `P` describes the conformance intended once the element leaves provisional state
     - Enhancement: `FeatureSelectionErrors()` assesses a cluster's selected features against the combinations its FeatureMap conformance disallows
     - Enhancement: `FeatureSet.resolve()` resolves a feature short code, title or camelized title to a short code
