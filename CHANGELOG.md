@@ -24,6 +24,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `InteractionClient`'s read, write, invoke and subscribe options take an `abort` signal, forwarded to the interaction
 
 - @matter/general
+    - Enhancement: `Transaction.lock()` takes an exclusive lock on resources without a promise where they are free, and waits instead of throwing where another transaction holds them
     - Breaking: `DnssdNames.Context.goodbyeProtectionWindow` and `DnssdNames.defaults.goodbyeProtectionWindow` are now `evictionDelay`, and `DnssdName.deleteRecord` no longer takes an `ifOlderThan` argument
     - Enhancement: New `MatterAggregateError.settleSeries()` runs tasks in order, continuing past a failure, and reports the accumulated errors
     - Enhancement: A storage driver states how long a consumer may buffer dirty values via `StorageDriver.writeCoalescingInterval`, defaulting to 20 minutes; `MemoryStorageDriver` reports `Instant`
@@ -71,6 +72,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A constraint that bounds a value by a field named like a constraint keyword, such as the `Min` of ClosureDimension's range structs, survives serialization
 
 - @matter/node
+    - Fix: `MoveToLevelWithOnOff`, `MoveWithOnOff` and `StepWithOnOff` build their options from the Options attribute and the request's mask and override, so `CoupleColorTempToLevel` couples color temperature to the level for them as it already did for `MoveToLevel`, `Move` and `Step`
+    - Fix: `StopWithOnOff` stops a transition on a device that is off; the ExecuteIfOff option gates the commands without On/Off only
+    - Fix: `MoveWithOnOff` and `StepWithOnOff` turn the device off when the level they reach is the minimum, and leave a device that is off alone when the level moves down
+    - Fix: A level change that couples On/Off or color temperature waits for a transaction holding those clusters instead of failing
+    - Behavior: `LevelControlServer.couple()` takes the target level as a third argument, which is what decides whether the device turns off; an override that omits it loses that decision
     - Breaking: Default server exports no longer inherit the features their base implementation enables internally.
         - `ColorControlServer`, `DoorLockServer`, `ElectricalEnergyMeasurementServer`, `LevelControlServer`, `ModeSelectServer`, `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer` and `WindowCoveringServer` now select no features. Select the features your device supports with `.with(...)` or use the DeviceType specific Requirement definitions of these clusters which automatically enable the needed features for the device type
         - `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer`, `WindowCoveringServer` and `ElectricalEnergyMeasurementServer` now require a selection to be added to an endpoint at all. The `DoorLockDevice`, `SpeakerDevice` and `ModeSelectDevice` device types alias these exports, so their clusters also select no features and advertise a different FeatureMap.
