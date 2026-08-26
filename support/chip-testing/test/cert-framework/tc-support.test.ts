@@ -47,6 +47,13 @@ const sentLine = (exchange = EXCHANGE) =>
 const ackLine = (exchange = EXCHANGE) =>
     `[DMG] << from UDP:[fe80::1%eth0]:58253 | 208635799 | [Interaction Model  (1) / Status Response (0x01) / Session = 13606 / Exchange = ${exchange}]`;
 
+// The read whose reports follow, as chip logs it: the inbound trace line naming the exchange it
+// arrived on, then the request's own decode dump. Shapes verified against a real chip TH log.
+const READ_REQUEST = "[DMG] ReadRequestMessage =";
+const receivedLine = (exchange = EXCHANGE) =>
+    `[DMG] << from UDP:[fe80::1%eth0]:58253 | 225728306 | [Interaction Model  (1) / Read Request (0x02) / Session = 13606 / Exchange = ${exchange}]`;
+const readLines = (exchange = EXCHANGE) => [receivedLine(exchange), READ_REQUEST];
+
 // A report's own flags, which chip prints as fields of its decode dump: every chunk but the last says
 // there is more to come, the last one says the requester must not answer it.
 const MORE_CHUNKS = "[DMG] \tMoreChunkedMessages = true,";
@@ -129,8 +136,24 @@ async function withFollower<T>(
     }
 }
 
+// The step hands the transfer the check that already matched its own read request; here that check
+// names a line the test pushed itself.
+const requestCheck = (logLine?: number): CheckRecord =>
+    logLine === undefined
+        ? { type: "device-log", verdict: "unverified" }
+        : { type: "device-log", verdict: "pass", logLine };
+
+async function checkFrom(lines: string[], request: CheckRecord, flavor = "chip-docker", endSource = false) {
+    return withFollower(lines, follower => expectChunkedTransfer(follower, flavor, request, Seconds(1)), {
+        endSource,
+        drain: true,
+    });
+}
+
+// Every case about the reports themselves gets the read request in front of them, anchored where the
+// step's own path check leaves its match: inside the request's decode dump.
 async function check(lines: string[], flavor = "chip-docker", endSource = false) {
-    return withFollower(lines, follower => expectChunkedTransfer(follower, flavor, 0, Seconds(1)), { endSource });
+    return checkFrom([...readLines(), ...lines], requestCheck(1), flavor, endSource);
 }
 
 describe("expectChunkedTransfer", () => {
@@ -180,11 +203,107 @@ describe("expectChunkedTransfer", () => {
         expect(record.detail).contains(`Exchange ${EXCHANGE}`);
     });
 
-    it("fails when two one-chunk reads, each acked on its own exchange, look like a chunked one", async () => {
+    it("fails when a one-chunk read is followed by another read's own report", async () => {
         const record = await check([...chunkLines(), ackLine(), ...chunkLines(EXCHANGE + 1), ackLine(EXCHANGE + 1)]);
 
         expect(record.verdict).equal("fail");
-        expect(record.detail).match(/belongs to another read/);
+        expect(record.detail).equal(
+            `1 report chunks on Exchange ${EXCHANGE} — the read did not chunk; 1 on Exchange ${EXCHANGE + 1} ` +
+                "belonged elsewhere",
+        );
+    });
+
+    it("ignores a report of another exchange that lands before this read's first chunk", async () => {
+        const record = await check([
+            ...chunkLines(EXCHANGE + 1),
+            ackLine(EXCHANGE + 1),
+            ...chunkLines(),
+            ackLine(),
+            ...chunkLines(EXCHANGE, "final"),
+        ]);
+
+        expect(record.verdict).equal("pass");
+        expect(record.detail).equal(
+            "2 report chunks, each but the last followed by a StatusResponse, and none after the last",
+        );
+    });
+
+    it("ignores a report of another exchange interleaved with this read's chunks", async () => {
+        const record = await check([
+            ...chunkLines(),
+            ackLine(),
+            ...chunkLines(EXCHANGE + 1),
+            ackLine(EXCHANGE + 1),
+            ...chunkLines(EXCHANGE, "final"),
+        ]);
+
+        expect(record.verdict).equal("pass");
+        expect(record.detail).equal(
+            "2 report chunks, each but the last followed by a StatusResponse, and none after the last",
+        );
+    });
+
+    it("claims nothing when the step could not settle the read's own request", async () => {
+        const record = await checkFrom(
+            [...readLines(), ...chunkLines(), ackLine(), ...chunkLines(EXCHANGE, "final")],
+            requestCheck(),
+        );
+
+        expect(record.verdict).equal("unverified");
+    });
+
+    it("fails when the transfer stops on a chunk that announced another", async () => {
+        const record = await check([...chunkLines(), ackLine(), ...chunkLines()]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).match(/announces a further chunk that never arrived/);
+    });
+
+    it("concludes a quiet transfer while another exchange keeps reporting", async function () {
+        this.timeout(15_000);
+
+        // The quiet period that ends collection is measured from the last chunk of *ours*, so a
+        // concurrent subscription reporting into the same window cannot hold the check open until its
+        // whole budget is gone. The budget here has to exceed CHUNK_QUIET for the two to differ.
+        const source = new OpenSource();
+        const follower = new LogFollower(source, "th");
+        source.push(...readLines(), ...chunkLines(), ackLine(), ...chunkLines(EXCHANGE, "final"));
+        // The anchor is a line the check reads out of the buffer, so the pump has to have taken it
+        await new Promise(resolve => setImmediate(resolve));
+
+        let reporting = true;
+        const foreign = (async () => {
+            while (reporting) {
+                await new Promise(resolve => setTimeout(resolve, 250));
+                source.push(...chunkLines(EXCHANGE + 1), ackLine(EXCHANGE + 1));
+            }
+        })();
+
+        const started = Time.nowUs;
+        try {
+            const record = await expectChunkedTransfer(follower, "chip-docker", requestCheck(1), Seconds(5));
+            const elapsed = Time.nowUs - started;
+
+            expect(record.verdict).equal("pass");
+            expect(record.detail).equal(
+                "2 report chunks, each but the last followed by a StatusResponse, and none after the last",
+            );
+            expect(elapsed).lessThan(4000);
+        } finally {
+            reporting = false;
+            await foreign;
+            await follower.close();
+        }
+    });
+
+    it("fails when the read request has no inbound trace line to take an exchange from", async () => {
+        const record = await checkFrom(
+            [READ_REQUEST, ...chunkLines(), ackLine(), ...chunkLines(EXCHANGE, "final")],
+            requestCheck(0),
+        );
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).match(/No inbound Read Request trace line/);
     });
 
     it("fails when a chunk has no outbound trace line to take an exchange from", async () => {
@@ -228,7 +347,7 @@ describe("expectChunkedTransfer", () => {
         );
 
         expect(record.verdict).equal("pass");
-        expect(record.detail).match(/3 report chunks, each but the last followed by a StatusResponse; the log stops/);
+        expect(record.detail).match(/3 report chunks, each but the last followed by a StatusResponse; the log ends/);
     });
 
     it("does not read a truncated transfer's trailing ack as an answer to a final chunk", async () => {
@@ -237,14 +356,14 @@ describe("expectChunkedTransfer", () => {
         const record = await check([...chunkLines(), ackLine(), ...chunkLines(), ackLine()], "chip-docker", true);
 
         expect(record.verdict).equal("pass");
-        expect(record.detail).match(/the log stops inside the transfer/);
+        expect(record.detail).match(/the log ends inside the transfer/);
     });
 
     it("records a fail instead of throwing when no report chunk ever appears", async () => {
         const record = await check([NOISE]);
 
         expect(record.verdict).equal("fail");
-        expect(record.detail).equal("0 report chunks — the read did not chunk");
+        expect(record.detail).equal(`0 report chunks on Exchange ${EXCHANGE} — the read did not chunk`);
     });
 
     it("reports unverified for a flavor neither implementation's patterns speak for", async () => {
@@ -582,9 +701,16 @@ describe("expectChunkedTransfer against a matter.js TH", () => {
         `id: @1:f8b164969e6633a1•678b⇵${exchange}✉02ca1953 type: 0x1/0x5 acked: 0fcef3be reqAck size: 1139 payload: 1536`;
     const mjsAck = (exchange = MATTERJS_EXCHANGE) =>
         `2026-08-22 16:54:44.385 DEBUG MessageExchange Message « for: I/StatusResponse id: @1:f8b164969e6633a1•678b⇵${exchange}✉0fcef3bf type: 0x1/0x1 acked: 02ca1953 reqAck size: 8 payload: 0000000000000000`;
+    // matter.js names the exchange on the read line itself, so the request needs no trace line of its own.
+    const mjsRead = (exchange = MATTERJS_EXCHANGE) =>
+        `2026-08-22 16:54:44.301 DEBUG InteractionServer Read « @1:f8b164969e6633a1•678b⇵${exchange} fabricFiltered attributes: *.*.*`;
 
-    async function transfer(lines: string[]) {
-        return withFollower(lines, follower => expectChunkedTransfer(follower, "matterjs", 0, Seconds(1)));
+    async function transfer(lines: string[], endSource = false) {
+        return withFollower(
+            [mjsRead(), ...lines],
+            follower => expectChunkedTransfer(follower, "matterjs", requestCheck(0), Seconds(1)),
+            { endSource, drain: true },
+        );
     }
 
     it("passes when every chunk but the last is acked", async () => {
@@ -616,11 +742,36 @@ describe("expectChunkedTransfer against a matter.js TH", () => {
         expect(record.detail).match(/chunk 1 of 3 went unacked/);
     });
 
-    it("fails when two separate reports look like one chunked transfer", async () => {
+    it("fails when a one-chunk read is followed by another read's own report", async () => {
         const record = await transfer([mjsChunk(), mjsAck(), mjsChunk("50ca"), mjsAck("50ca")]);
 
         expect(record.verdict).equal("fail");
-        expect(record.detail).match(/belongs to another read/);
+        expect(record.detail).equal(
+            `1 report chunks on Exchange ${MATTERJS_EXCHANGE} — the read did not chunk; 1 on Exchange 50ca ` +
+                "belonged elsewhere",
+        );
+    });
+
+    it("ignores a report of another exchange that lands before this read's first chunk", async () => {
+        const record = await transfer([
+            mjsChunk("50ca"),
+            mjsAck("50ca"),
+            mjsChunk(),
+            mjsAck(),
+            mjsChunk(MATTERJS_EXCHANGE, "final"),
+        ]);
+
+        expect(record.verdict).equal("pass");
+        expect(record.detail).equal(
+            "2 report chunks, each but the last followed by a StatusResponse, and none after the last",
+        );
+    });
+
+    it("fails when the transfer stops on a chunk that announced another", async () => {
+        const record = await transfer([mjsChunk(), mjsAck(), mjsChunk()]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).match(/announces a further chunk that never arrived/);
     });
 
     it("fails when the read never chunked", async () => {
@@ -637,11 +788,11 @@ describe("expectChunkedTransfer against a matter.js TH", () => {
         expect(record.detail).match(/after the final one of 2 report chunks/);
     });
 
-    it("does not claim the final message was unanswered where the log stops inside the transfer", async () => {
-        const record = await transfer([mjsChunk(), mjsAck(), mjsChunk(), mjsAck()]);
+    it("does not claim the final message was unanswered where the log ends inside the transfer", async () => {
+        const record = await transfer([mjsChunk(), mjsAck(), mjsChunk(), mjsAck()], true);
 
         expect(record.verdict).equal("pass");
-        expect(record.detail).match(/the log stops inside the transfer/);
+        expect(record.detail).match(/the log ends inside the transfer/);
     });
 });
 

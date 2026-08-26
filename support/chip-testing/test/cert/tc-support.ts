@@ -945,14 +945,29 @@ export async function expectCommandInvoke(
 // read has already returned by the time a step checks, so this covers the follower's pump lag only.
 const CHUNK_QUIET = Seconds(2);
 
+/** How one implementation's log names the exchange a message used. */
+interface ExchangeSource {
+    /** The exchange the message used, or `undefined` where the log does not say. */
+    exchangeOf(log: LogFollower, line: LogLine): string | undefined;
+
+    /** What the evidence names as the pattern when the exchange cannot be read. */
+    attribution: string;
+
+    /** How the evidence says the exchange could not be read. */
+    unattributed: string;
+}
+
 /**
- * What {@link expectChunkedTransfer} needs one implementation's log to tell it: which lines are
- * outbound report chunks, which exchange each went out on, and which line is the DUT's ack of a chunk
- * on that exchange.
+ * What {@link expectChunkedTransfer} needs one implementation's log to tell it: which exchange the
+ * DUT's read request arrived on, which lines are outbound report chunks and which exchange each went
+ * out on, and which line is the DUT's ack of a chunk on that exchange.
  */
 interface ChunkedTransferDialect {
+    /** The DUT's read request, read off the line the step's own path check matched. */
+    request: ExchangeSource;
+
     /** An outbound report chunk. */
-    chunk: RegExp;
+    chunk: ExchangeSource & { line: RegExp };
 
     /**
      * Whether `chunk` is the transfer's own last message — `"unknown"` where the log stops before
@@ -962,105 +977,124 @@ interface ChunkedTransferDialect {
      */
     finality(log: LogFollower, chunk: LogLine): "final" | "more" | "unknown";
 
-    /** The exchange `chunk` went out on, or `undefined` where the log does not say. */
-    exchangeOf(log: LogFollower, chunk: LogLine): string | undefined;
-
     /** The DUT's ack of a chunk sent on `exchange`. */
     ack(exchange: string): RegExp;
-
-    /** What the evidence names as the pattern for the two attribution failures. */
-    attribution: string;
-
-    /** How the evidence says a chunk's own exchange could not be read. */
-    unattributed: string;
 }
 
 /**
  * Confirms a chunked read actually chunked and that the DUT acked every chunk but the last, and only
- * those: at least two report chunks, all on one exchange, with a `StatusResponse` received between
- * every adjacent pair and none after the transfer's final message. A log that stops inside the transfer
- * carries the first claim but not the second, and says so rather than failing. Missing evidence comes
- * back as a `"fail"` record rather than a thrown timeout, so the step's own reporting carries it.
+ * those: at least two report chunks on the exchange the read's own request arrived on, with a
+ * `StatusResponse` received between every adjacent pair and none after the transfer's final message.
+ * Missing evidence comes back as a `"fail"` record rather than a thrown timeout, so the step's own
+ * reporting carries it.
+ *
+ * `request` is the check that already matched this read's own request on the TH log — the paths it
+ * asked for identify it, which is what keeps a second read reaching the TH in the same window from
+ * standing in for it. A request the caller could not settle leaves this unverified rather than
+ * anchored on something else.
+ *
+ * A log that ends inside the transfer carries the first claim but not the second, and says so. A
+ * transfer that simply stops — the last chunk announcing more to come and nothing following — is a
+ * failure, and is told from the truncated log by which of the two ended the wait.
  *
  * A read only. A subscription's reports are answered including the last, so pointing this at one would
  * fail a conforming device.
  *
- * Both flavors name the same three things, in different places — {@link ChunkedTransferDialect}.
+ * What this cannot tell apart: exchange ids are allocated per initiator and neither implementation
+ * logs the initiator, so a TH-initiated exchange whose id collides with this read's would be read as
+ * part of the transfer.
  */
 export async function expectChunkedTransfer(
     log: LogFollower,
     flavor: string,
-    from: number,
+    request: CheckRecord,
     timeout: Duration,
 ): Promise<CheckRecord> {
     const dialect = forFlavor(CHUNKED_TRANSFER_DIALECTS, flavor);
-    if (dialect === undefined) {
+    const requestLine =
+        dialect === undefined || request.verdict !== "pass" || request.logLine === undefined
+            ? undefined
+            : log.lines[request.logLine];
+    if (dialect === undefined || requestLine === undefined) {
         return { type: "device-log", verdict: "unverified" };
+    }
+
+    const exchange = dialect.request.exchangeOf(log, requestLine);
+    if (exchange === undefined) {
+        return {
+            type: "device-log",
+            verdict: "fail",
+            pattern: dialect.request.attribution,
+            detail: `${dialect.request.unattributed} for the read request at log line ${requestLine.index}`,
+            logLine: requestLine.index,
+        };
     }
 
     const deadline = Time.nowUs + timeout;
     const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
 
     const chunks = new Array<LogLine>();
+    const skipped = new Map<string, number>();
+    let cursor = requestLine.index + 1;
+    let quietUntil: number | undefined;
+    let closed = false;
     for (;;) {
         // The second chunk is what proves the read chunked at all, so it gets the whole remaining
-        // budget; every later one only has to outlast pump lag, and its absence ends the transfer.
-        const timeout = chunks.length > 1 ? Duration.min(CHUNK_QUIET, remaining()) : remaining();
+        // budget; every later one only has to outlast pump lag. That quiet period must stay an
+        // absolute deadline: another exchange's reports match this same pattern, so a per-wait
+        // timeout would restart for as long as that exchange keeps reporting.
+        const wait =
+            quietUntil === undefined ? remaining() : Millis(Math.max(1, Math.min(quietUntil, deadline) - Time.nowUs));
         let next: LogLine;
         try {
-            next = await log.expectPattern(dialect.chunk, {
-                timeoutMs: timeout,
-                from: chunks.length ? chunks[chunks.length - 1].index + 1 : from,
-            });
+            next = await log.expectPattern(dialect.chunk.line, { timeoutMs: wait, from: cursor });
         } catch (e) {
-            // A source that ends mid-wait is as much an end of the transfer as a quiet period is;
-            // whether the chunks seen so far are evidence enough is decided below, not here.
-            if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
+            if (e instanceof CertLogClosedError) {
+                closed = true;
+                break;
+            }
+            if (e instanceof CertLogTimeoutError) {
                 break;
             }
             throw e;
         }
+        cursor = next.index + 1;
+
+        const chunkExchange = dialect.chunk.exchangeOf(log, next);
+        if (chunkExchange === undefined) {
+            return {
+                type: "device-log",
+                verdict: "fail",
+                pattern: dialect.chunk.attribution,
+                detail: `${dialect.chunk.unattributed} for the report chunk at log line ${next.index}`,
+                logLine: next.index,
+            };
+        }
+        if (chunkExchange !== exchange) {
+            skipped.set(chunkExchange, (skipped.get(chunkExchange) ?? 0) + 1);
+            continue;
+        }
+
         chunks.push(next);
+        if (chunks.length > 1) {
+            quietUntil = Time.nowUs + CHUNK_QUIET;
+        }
     }
+
+    // Every failure below names what was left out: a verdict of "no chunks on this exchange" is
+    // unreadable in the evidence without the reports that were there instead.
+    const alsoSeen = skipped.size
+        ? `; ${[...skipped].map(([id, count]) => `${count} on Exchange ${id}`).join(", ")} belonged elsewhere`
+        : "";
 
     if (chunks.length < 2) {
         return {
             type: "device-log",
             verdict: "fail",
-            pattern: String(dialect.chunk),
-            detail: `${chunks.length} report chunks — the read did not chunk`,
-            logLine: chunks[0]?.index,
+            pattern: String(dialect.chunk.line),
+            detail: `${chunks.length} report chunks on Exchange ${exchange} — the read did not chunk${alsoSeen}`,
+            logLine: chunks[0]?.index ?? requestLine.index,
         };
-    }
-
-    // One transfer stays on one exchange, so this is what makes the chunks *one* read's rather than
-    // several reads' — and, like expectReportAck, what tells this read's acks from those of the node's
-    // own subscription, which stays live during these runs.
-    const exchange = dialect.exchangeOf(log, chunks[0]);
-    if (exchange === undefined) {
-        return {
-            type: "device-log",
-            verdict: "fail",
-            pattern: dialect.attribution,
-            detail: `${dialect.unattributed} for the report chunk at log line ${chunks[0].index}`,
-            logLine: chunks[0].index,
-        };
-    }
-
-    for (const [i, chunk] of chunks.entries()) {
-        const chunkExchange = dialect.exchangeOf(log, chunk);
-        if (chunkExchange !== exchange) {
-            return {
-                type: "device-log",
-                verdict: "fail",
-                pattern: dialect.attribution,
-                detail:
-                    `The report chunk at log line ${chunk.index} went out on Exchange ` +
-                    `${chunkExchange ?? "(none)"}, not ${exchange}, so chunk ${i + 1} of ${chunks.length} ` +
-                    "belongs to another read",
-                logLine: chunk.index,
-            };
-        }
     }
 
     const ackPattern = dialect.ack(exchange);
@@ -1084,24 +1118,37 @@ export async function expectChunkedTransfer(
 
     // A read's report carries SuppressResponse (Matter Core § 8.4.3.3), which the wire encoding
     // overrides to false only while MoreChunkedMessages is set (§ 10.7.3) — so the transfer's own last
-    // message is the one chunk the requester must not answer. A log that stops inside a transfer ends on
-    // an acked chunk by construction, so the search below is only evidence where the log says this chunk
-    // was the last; the loop above already waited CHUNK_QUIET past it, so the window an ack would have
-    // landed in is in the log by now.
+    // message is the one chunk the requester must not answer.
     const last = chunks[chunks.length - 1];
-    if (dialect.finality(log, last) !== "final") {
+    const finality = dialect.finality(log, last);
+    if (finality !== "final") {
+        if (!closed) {
+            return {
+                type: "device-log",
+                verdict: "fail",
+                pattern: "a report chunk carrying SuppressResponse",
+                detail:
+                    `${chunks.length} report chunks on Exchange ${exchange}, and the last of them ` +
+                    `${finality === "more" ? "announces a further chunk that never arrived" : "carries neither MoreChunkedMessages nor SuppressResponse"}` +
+                    alsoSeen,
+                matched: last.text,
+                logLine: last.index,
+            };
+        }
         return {
             type: "device-log",
             verdict: "pass",
             pattern: "ReportDataMessage, StatusResponse on the same Exchange between every adjacent pair",
             detail:
-                `${chunks.length} report chunks, each but the last followed by a StatusResponse; the log stops ` +
+                `${chunks.length} report chunks, each but the last followed by a StatusResponse; the log ends ` +
                 "inside the transfer, so whether the DUT answered its final message is not claimed",
             matched: last.text,
             logLine: last.index,
         };
     }
 
+    // The loop waited past the last chunk for as long as this check's budget allowed, so an ack the
+    // DUT sent within that window is in the log by now.
     const lateAck = lines.slice(last.index + 1).find(line => !line.synthetic && ackPattern.test(line.text));
     if (lateAck !== undefined) {
         return {
@@ -1269,6 +1316,13 @@ export async function expectSubscriptionId(
 // name line, depending on payload size).
 const REPORT_SENT_LINE = /\[DMG\] >> to UDP:.*\/ Report Data \(0x05\) \/ Session = \d+ \/ Exchange = (\d+)\]\s*$/;
 
+// Every message of an exchange carries its id, which is how a responder's messages are matched to the
+// request that caused them (Matter Core, "Message Exchanges"). A subscription's reports are a different
+// exchange either way — the SubscribeRequest's on a chip TH, a freshly initiated one per report round
+// on a matter.js TH — but the id is all the log prints, so a collision is possible and unnoticeable.
+const READ_REQUEST_RECEIVED_LINE =
+    /\[DMG\] << from UDP:.*\/ Read Request \(0x02\) \/ Session = \d+ \/ Exchange = (\d+)\]\s*$/;
+
 function reportAckedOnExchange(exchange: string): RegExp {
     return new RegExp(
         `\\[DMG\\] << from UDP:.*/ Status Response \\(0x01\\) / Session = \\d+ / Exchange = ${exchange}\\]\\s*$`,
@@ -1299,13 +1353,17 @@ const EXCHANGE_LOOKBACK_LINES = 1000;
  * makes this correct regardless of how many raw-frame lines chip printed for this particular
  * message's payload size.
  */
-function exchangeIdBefore(log: LogFollower, beforeIndex: number): string | undefined {
-    return log.lastMatchBefore(REPORT_SENT_LINE, beforeIndex, EXCHANGE_LOOKBACK_LINES)?.match[1];
+function exchangeIdBefore(log: LogFollower, trace: RegExp, beforeIndex: number): string | undefined {
+    return log.lastMatchBefore(trace, beforeIndex, EXCHANGE_LOOKBACK_LINES)?.match[1];
 }
 
 // matter.js names the exchange on the report line itself, so a chunk carries its own attribution;
 // chip's decode dump does not, and its exchange comes off the trace line preceding it.
 const MATTERJS_REPORT_CHUNK = /Message » for: I\/ReportData .*⇵([0-9a-f]+)✉/;
+
+// matter.js names the exchange on the read line itself; the bound stops the match from running past
+// this line's own session into a later message's id.
+const MATTERJS_READ_EXCHANGE = /InteractionServer Read « [^⇵]*⇵([0-9a-f]+)/;
 
 // Both implementations say on which message a transfer ends, in their own place: matter.js renders the
 // report's own flags on the report line, chip prints them inside that message's decode dump.
@@ -1336,26 +1394,40 @@ function chipChunkFinality(log: LogFollower, chunk: LogLine): "final" | "more" |
 
 const CHUNKED_TRANSFER_DIALECTS: { chip: ChunkedTransferDialect; matterjs: ChunkedTransferDialect } = {
     chip: {
-        chunk: REPORT_DATA_MESSAGE,
+        request: {
+            exchangeOf: (log, line) => exchangeIdBefore(log, READ_REQUEST_RECEIVED_LINE, line.index),
+            attribution: String(READ_REQUEST_RECEIVED_LINE),
+            unattributed: "No inbound Read Request trace line (carrying an Exchange id) found",
+        },
+        chunk: {
+            line: REPORT_DATA_MESSAGE,
+            exchangeOf: (log, line) => exchangeIdBefore(log, REPORT_SENT_LINE, line.index),
+            attribution: String(REPORT_SENT_LINE),
+            unattributed: "No outbound Report Data trace line (carrying an Exchange id) found",
+        },
         finality: (log, chunk) => chipChunkFinality(log, chunk),
-        exchangeOf: (log, chunk) => exchangeIdBefore(log, chunk.index),
         ack: reportAckedOnExchange,
-        attribution: String(REPORT_SENT_LINE),
-        unattributed: "No outbound Report Data trace line (carrying an Exchange id) found",
     },
 
     matterjs: {
-        chunk: MATTERJS_REPORT_CHUNK,
+        request: {
+            exchangeOf: (_log, line) => MATTERJS_READ_EXCHANGE.exec(line.text)?.[1],
+            attribution: String(MATTERJS_READ_EXCHANGE),
+            unattributed: "No exchange id on the read line",
+        },
+        chunk: {
+            line: MATTERJS_REPORT_CHUNK,
+            exchangeOf: (_log, line) => MATTERJS_REPORT_CHUNK.exec(line.text)?.[1],
+            attribution: String(MATTERJS_REPORT_CHUNK),
+            unattributed: "No exchange id on the report line",
+        },
         finality: (_log, chunk) =>
             MATTERJS_SUPPRESSED_RESPONSE.test(chunk.text)
                 ? "final"
                 : MATTERJS_MORE_CHUNKS.test(chunk.text)
                   ? "more"
                   : "unknown",
-        exchangeOf: (_log, chunk) => MATTERJS_REPORT_CHUNK.exec(chunk.text)?.[1],
         ack: exchange => new RegExp(`Message « for: I/StatusResponse .*⇵${exchange}✉`),
-        attribution: String(MATTERJS_REPORT_CHUNK),
-        unattributed: "No exchange id on the report line",
     },
 };
 
@@ -1489,7 +1561,7 @@ export async function expectReportAck(
             return { type: "device-log", verdict: "unverified" };
         }
 
-        const exchange = exchangeIdBefore(log, report.last.index);
+        const exchange = exchangeIdBefore(log, REPORT_SENT_LINE, report.last.index);
         if (exchange === undefined) {
             return {
                 type: "device-log",
