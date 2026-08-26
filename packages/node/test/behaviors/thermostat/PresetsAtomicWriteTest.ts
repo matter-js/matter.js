@@ -7,7 +7,7 @@
 import { ThermostatClient } from "#behaviors/thermostat";
 import { Endpoint } from "#endpoint/index.js";
 import { Write } from "@matter/protocol";
-import { EndpointNumber } from "@matter/types";
+import { EndpointNumber, Status } from "@matter/types";
 import { Thermostat } from "@matter/types/clusters/thermostat";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import { MockSite } from "../../node/mock-site.js";
@@ -164,6 +164,33 @@ describe("Presets atomic write", () => {
         await beginWrite(ep1);
 
         await expect(writePresets(ep1, [newPreset({ name: "Home" })])).rejectedWith("Constraint error");
+    });
+
+    it("refuses a commit whose settled presets an observer stripped the handle from", async () => {
+        await using ctx = await commissionedThermostat();
+        const { device, deviceEp, ep1 } = ctx;
+
+        deviceEp.events.thermostat.persistedPresets$Changing.on((presets: Thermostat.Preset[]) => {
+            for (const preset of presets) {
+                preset.presetHandle = null;
+            }
+        });
+
+        const deviceAnnouncements = recordThermostatChanges(device);
+
+        await beginWrite(ep1);
+        await writePresets(ep1, [newPreset()]);
+
+        // The command reports a generic failure; the reason travels in the attribute's status
+        expect(await commitWrite(ep1)).deep.equals({
+            statusCode: Status.Failure,
+            attributeStatus: [{ attributeId: PRESETS_ATTRIBUTE, statusCode: Status.ConstraintError }],
+        });
+
+        await MockTime.resolve(MockTime.yield(), { macrotasks: true });
+
+        expect(deviceEp.state.thermostat.persistedPresets).deep.equals([]);
+        expect(deviceAnnouncements.filter(attrs => attrs.includes(PRESETS_ATTRIBUTE))).length(0);
     });
 
     it("discards a staged write on RollbackWrite", async () => {
