@@ -191,9 +191,12 @@ async function probeFreePort(): Promise<number> {
  * string is at most five bytes and a `uint16_t` stream extraction of it does not fail. Every rule below
  * was measured by compiling that C++ against libstdc++, which is what CI runs:
  *
- * - the length is `strlen`, so bytes rather than characters: `"1ééé"` is seven bytes and runs
+ * - the length is `strlen`, so bytes rather than characters, and it stops at the first NUL: `"1ééé"` is
+ *   seven bytes and runs, while `"12345\0"` is five bytes and parks
  * - the extraction skips leading whitespace and takes a sign, and stops at the first non-digit without
  *   failing, so `" 5"`, `"+5"` and `"5abc"` all arm reports while `"abc"` and `"+"` do not
+ * - the whitespace it skips is the C locale's, so a tab or a newline skips while a non-breaking space
+ *   does not: `"\u00a05"` runs as a command
  * - a value the type cannot hold fails, so `"65536"` runs as a command even though `"65535"` does not
  * - a negative wraps into the type instead of failing, so `"-1"` arms reports with a timeout of 65535
  *
@@ -201,7 +204,10 @@ async function probeFreePort(): Promise<number> {
  * double for chip-tool decides with this same function rather than a copy of it.
  */
 export function isAsyncReportFrame(frame: string) {
-    const length = Buffer.byteLength(frame, "utf8");
+    // chip-tool reads a C string, so nothing from the first NUL onward is part of the frame it sees.
+    const cString = frame.split("\0")[0];
+
+    const length = Buffer.byteLength(cString, "utf8");
     if (length === 0) {
         return true;
     }
@@ -209,7 +215,7 @@ export function isAsyncReportFrame(frame: string) {
         return false;
     }
 
-    const parsed = frame.match(/^\s*([-+]?)(\d+)/);
+    const parsed = cString.match(/^[ \t\n\v\f\r]*([-+]?)(\d+)/);
     if (parsed === null) {
         return false;
     }
