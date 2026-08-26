@@ -225,14 +225,16 @@ export function isAsyncReportFrame(frame: string) {
 }
 
 /**
- * chip-tool's numeric sniff reads a short command starting with a digit as an async-report arming
- * frame, so the command would silently never run.
+ * chip-tool reads some frames as a request to park and wait for reports rather than as a command, and
+ * then the command never runs (see {@link isAsyncReportFrame} for the rule and where it comes from).
  */
 function assertCommandFrame(command: string) {
     if (isAsyncReportFrame(command)) {
         throw new ImplementationError(
             `chip-tool would read the command ${JSON.stringify(command)} as an async-report arming frame ` +
-                "rather than running it (empty, or at most five characters parsing as a number)",
+                "rather than running it: its C string — everything before a NUL, measured in bytes — is " +
+                "empty, or is at most five bytes that a uint16 extraction accepts after skipping ASCII " +
+                "whitespace and a sign",
         );
     }
 }

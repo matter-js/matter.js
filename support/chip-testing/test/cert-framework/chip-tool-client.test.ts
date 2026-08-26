@@ -92,6 +92,7 @@ describe("isAsyncReportFrame", () => {
         ["\0read", true, "strlen stops at the NUL before the command"],
         ["\n5", true, "a newline is whitespace to the C locale extraction"],
         ["\v5", true, "so is a vertical tab"],
+        ["\f5", true, "and a form feed"],
         ["\r5", true, "and a carriage return"],
         ["\u00a05", false, "a non-breaking space is not whitespace to the C locale, so the frame runs"],
         ["\u20095", false, "nor is a thin space"],
