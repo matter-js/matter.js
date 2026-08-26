@@ -275,6 +275,17 @@ export const REPORT_DATA_MESSAGE = /\[DMG\] ReportDataMessage =\s*$/;
 // Test_TC_IDM_4_4.yaml. Correlating on it is what attributes a report to one subscription when
 // several are live at once.
 export const SUBSCRIBE_RESPONSE_MESSAGE = /\[DMG\] SubscribeResponseMessage =\s*$/;
+
+/**
+ * What a report carries, on the line chip prints right after the subscription id.
+ *
+ * A report with neither is the keepalive an idle subscription sends at its maximum interval, which
+ * prints `InteractionModelRevision` here instead — captured in a chip-local TC-IDM-4.1 run, whose
+ * device log holds six of them. It is acked like any report, so nothing downstream of the ack can tell
+ * the two apart; requiring this line is what keeps a keepalive from standing in for the report a step
+ * asked for.
+ */
+export const REPORT_DATA_IBS = /(?:Attribute|Event)ReportIBs =\s*$/;
 export const SUBSCRIPTION_ID_LINE = /SubscriptionId = 0x([0-9a-f]+),\s*$/;
 
 /** matter.js names the subscription it just minted on the response that carries it. */
@@ -1454,7 +1465,7 @@ export async function expectReportAck(
         const report = await expectAdjacentLines(
             log,
             flavor,
-            { chip: [REPORT_DATA_MESSAGE, /\{\s*$/, subscriptionIdPattern(subscriptionId)] },
+            { chip: [REPORT_DATA_MESSAGE, /\{\s*$/, subscriptionIdPattern(subscriptionId), REPORT_DATA_IBS] },
             from,
             remaining(),
         );

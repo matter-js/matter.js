@@ -92,7 +92,8 @@ export interface SubscribeAndModifyTimeouts {
  *
  * What the log confirmation does not prove: that the report it matched carried this write's data
  * rather than another change on the same subscription. A report carrying no data at all — the
- * keepalive an idle subscription sends — is excluded on both flavors.
+ * keepalive an idle subscription sends — is excluded on both flavors, each by requiring the line on
+ * which its own log says what the report carried.
  */
 export async function subscribeAndModify<Value>(
     cx: CertStepContext,
