@@ -858,7 +858,7 @@ describe("expectSubscriptionId and expectReportAck against a matter.js TH", () =
         "DEBUG MessageExchange Message « for: I/StatusResponse id: @1:1b669•2d86⇵7689✉082f5518 type: 0x1/0x1 " +
         "acked: 05ab904b reqAck size: 8 payload: 1524000024ff0c18";
 
-    async function ack(lines: string[], subscriptionId = 0x54c99e7e) {
+    async function ack(lines: string[], subscriptionId = 0x54c99e7e, options?: { carriesData?: boolean }) {
         return withFollower(
             lines,
             follower =>
@@ -868,6 +868,7 @@ describe("expectSubscriptionId and expectReportAck against a matter.js TH", () =
                     { outcome: "found", subscriptionId, check: { type: "device-log", verdict: "pass" } },
                     0,
                     Millis(200),
+                    options,
                 ),
             { endSource: true },
         );
@@ -947,6 +948,25 @@ describe("expectSubscriptionId and expectReportAck against a matter.js TH", () =
 
         expect((await ack([keepalive, keepaliveAck])).verdict).equal("fail");
         expect((await ack([keepalive, keepaliveAck, REPORT, ACK])).verdict).equal("pass");
+    });
+
+    it("accepts a report carrying nothing where the caller allows one, with its own ack", async () => {
+        const empty = REPORT.replace("attr: 1", "empty").replace("✉05ab904b", "✉05ab9052");
+        const emptyAck = ACK.replace("acked: 05ab904b", "acked: 05ab9052");
+
+        // The priming report of a subscription established with nothing to report yet — the case
+        // TC-IDM-6.4 relies on.
+        const record = await ack([empty, emptyAck], 0x54c99e7e, { carriesData: false });
+
+        expect(record.verdict).equal("pass");
+        expect(record.matched).equal(emptyAck);
+    });
+
+    it("still refuses a report carrying nothing whose ack never arrives", async () => {
+        const empty = REPORT.replace("attr: 1", "empty").replace("✉05ab904b", "✉05ab9052");
+
+        // Permissive about the data, not about the ack: the DUT must still answer that report.
+        expect((await ack([empty], 0x54c99e7e, { carriesData: false })).verdict).equal("fail");
     });
 
     it("matches an id of fewer digits, which the TH pads to eight", async () => {

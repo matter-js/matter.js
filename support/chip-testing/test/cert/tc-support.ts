@@ -279,11 +279,12 @@ export const SUBSCRIBE_RESPONSE_MESSAGE = /\[DMG\] SubscribeResponseMessage =\s*
 /**
  * What a report carries, on the line chip prints right after the subscription id.
  *
- * A report with neither is the keepalive an idle subscription sends at its maximum interval, which
- * prints `InteractionModelRevision` here instead — captured in a chip-local TC-IDM-4.1 run, whose
- * device log holds six of them. It is acked like any report, so nothing downstream of the ack can tell
- * the two apart; requiring this line is what keeps a keepalive from standing in for the report a step
- * asked for.
+ * A report carrying neither prints `InteractionModelRevision` here instead, and two very different
+ * reports have that shape: the keepalive an idle subscription sends at its maximum interval, and the
+ * priming report of a subscription established with nothing to report yet. Both are acked like any
+ * report, so nothing downstream of the ack tells them from a report either — which is why requiring
+ * this line is the caller's choice (`expectReportAck`'s `carriesData`) rather than always on. A
+ * chip-local TC-IDM-4.1 run's device log holds six of the first kind.
  */
 export const REPORT_DATA_IBS = /(?:Attribute|Event)ReportIBs =\s*$/;
 export const SUBSCRIPTION_ID_LINE = /SubscriptionId = 0x([0-9a-f]+),\s*$/;
@@ -1443,10 +1444,10 @@ async function matterjsReportAck(
  * carries, so the ack is matched to this very report rather than to whatever answered on the same
  * exchange next.
  *
- * A report carrying no data — the keepalive an idle subscription sends — is not accepted, because it is
- * acked exactly like a report and so could stand in for one the step asked for. Pass
- * `{ carriesData: false }` where an empty report is a legitimate answer: a subscription can be
- * established with nothing to report yet, which is ordinary for events.
+ * A report carrying no data is not accepted by default, because it is acked exactly like a report and so
+ * could stand in for one the step asked for — that is the keepalive an idle subscription sends. Pass
+ * `{ carriesData: false }` where a report carrying nothing is itself a legitimate answer: the priming
+ * report of a subscription established with nothing to report yet, which is ordinary for events.
  */
 export async function expectReportAck(
     log: LogFollower,
