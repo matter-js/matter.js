@@ -10,6 +10,7 @@ import {
     FinalizationError,
     SynchronousTransactionConflictError,
     TransactionDeadlockError,
+    TransactionFlowError,
 } from "#transaction/errors.js";
 import { Transaction } from "#transaction/Transaction.js";
 import { MaybePromise } from "#util/Promises.js";
@@ -52,7 +53,11 @@ function TestParticipant(options?: Partial<Transaction.Participant>) {
             return options?.commit2?.();
         },
 
+        settled: options?.settled,
+
         postCommit: options?.postCommit,
+
+        conclusion: options?.conclusion,
 
         rollback(): MaybePromise {
             this.invoked.push("rollback");
@@ -78,6 +83,7 @@ function validateUnlocked(transaction: Transaction) {
 export interface JoinOptions extends Partial<Transaction.Participant> {
     transaction?: Transaction;
     postCommit?: () => MaybePromise;
+    conclusion?: (outcome: Transaction.Outcome) => MaybePromise;
 }
 
 /**
@@ -110,6 +116,13 @@ function join3(options?: JoinOptions) {
         ...options,
         transaction: transaction3,
     });
+}
+
+/**
+ * Commit {@link transaction} as a promise.  A commit may fail synchronously, which `rejectedWith` cannot observe.
+ */
+async function committing() {
+    return transaction.commit();
 }
 
 /**
@@ -421,6 +434,677 @@ describe("Transaction", () => {
             p1.expect("commit1", "commit2");
             p2.expect("commit1", "commit2");
             validateUnlocked(transaction);
+        });
+    });
+
+    describe("settled", () => {
+        test("runs once after precommit settles, before commit1", async () => {
+            let cycles = 0;
+            const p: TestParticipant = join({
+                preCommit: () => {
+                    p.invoked.push("preCommit");
+                    return ++cycles < 2;
+                },
+
+                settled: () => {
+                    p.invoked.push("settled");
+                },
+            });
+
+            await transaction.begin();
+            await transaction.commit();
+
+            p.expect("preCommit", "preCommit", "settled", "commit1", "commit2");
+            validateUnlocked(transaction);
+        });
+
+        test("refuses a write, which nothing could react to", async () => {
+            let caught: unknown;
+
+            join({
+                settled: () => {
+                    try {
+                        transaction.beginSync();
+                    } catch (e) {
+                        caught = e;
+                    }
+                },
+            });
+
+            await transaction.begin();
+            await transaction.commit();
+
+            expect(caught).instanceOf(TransactionFlowError);
+        });
+
+        test("refuses a participant, which would not have converged", async () => {
+            let caught: unknown;
+
+            join({
+                settled: () => {
+                    try {
+                        const late = TestParticipant();
+                        late.toString = () => "late";
+                        transaction.addParticipants(late);
+                    } catch (e) {
+                        caught = e;
+                    }
+                },
+            });
+
+            await transaction.begin();
+            await transaction.commit();
+
+            expect(caught).instanceOf(TransactionFlowError);
+        });
+
+        test("restores exclusive access for the commit that follows", async () => {
+            const observed = new Array<string>();
+
+            join({
+                settled: () => {
+                    observed.push(`settled ${transaction.status}`);
+                },
+
+                commit1: () => {
+                    observed.push(`commit1 ${transaction.status}`);
+                },
+            });
+
+            await transaction.begin();
+            await transaction.commit();
+
+            expect(observed).deep.equals(["settled settled", "commit1 committing phase one"]);
+        });
+
+        test("rejects the commit and rolls back", async () => {
+            const p: TestParticipant = join({
+                settled: () => {
+                    throw new SomeError("oops in settled");
+                },
+            });
+
+            await transaction.begin();
+
+            await expect(committing()).rejectedWith(SomeError);
+
+            p.expect("rollback");
+            validateUnlocked(transaction);
+        });
+
+        test("rejects the commit and rolls back asynchronously", async () => {
+            const p: TestParticipant = join({
+                settled: async () => {
+                    throw new SomeError("oops in async settled");
+                },
+
+                async rollback() {},
+            });
+
+            await transaction.begin();
+
+            await expect(transaction.commit()).rejectedWith(SomeError);
+
+            p.expect("rollback");
+            validateUnlocked(transaction);
+        });
+
+        test("notifies every participant, awaiting an asynchronous one", async () => {
+            const notified = new Array<string>();
+
+            const p1 = TestParticipant({
+                settled: async () => {
+                    await Promise.resolve();
+                    notified.push("P1");
+                },
+            });
+            p1.toString = () => "P1";
+
+            const p2 = TestParticipant({
+                settled: () => {
+                    notified.push("P2");
+                },
+            });
+            p2.toString = () => "P2";
+
+            transaction.addParticipants(p1, p2);
+
+            await transaction.begin();
+            await transaction.commit();
+
+            expect(notified).deep.equals(["P1", "P2"]);
+        });
+
+        test("reaches a participant another participant's precommit added", async () => {
+            const notified = new Array<string>();
+
+            const joiner = TestParticipant({
+                settled: () => {
+                    notified.push("joiner");
+                },
+            });
+            joiner.toString = () => "joiner";
+
+            let joined = false;
+            const p = TestParticipant({
+                preCommit: () => {
+                    if (joined) {
+                        return false;
+                    }
+                    joined = true;
+                    transaction.addParticipants(joiner);
+                    return true;
+                },
+
+                settled: () => {
+                    notified.push("precommit adder");
+                },
+            });
+            p.toString = () => "precommit adder";
+
+            transaction.addParticipants(p);
+
+            await transaction.begin();
+            await transaction.commit();
+
+            expect(notified).deep.equals(["precommit adder", "joiner"]);
+        });
+
+        test("sees the state the final precommit cycle produced", async () => {
+            const state = { value: 0 };
+            let seen;
+
+            join({
+                preCommit: () => {
+                    if (state.value === 2) {
+                        return false;
+                    }
+                    state.value++;
+                    return true;
+                },
+
+                settled: () => {
+                    seen = state.value;
+                },
+            });
+
+            await transaction.begin();
+            await transaction.commit();
+
+            expect(seen).equals(2);
+        });
+    });
+
+    describe("conclusion", () => {
+        test("reports a commit after post-commit", async () => {
+            const p: TestParticipant = join({
+                postCommit: () => {
+                    p.invoked.push("postCommit");
+                },
+
+                conclusion: outcome => {
+                    p.invoked.push(`concluded ${outcome}`);
+                },
+            });
+
+            await transaction.begin();
+            await transaction.commit();
+
+            p.expect("commit1", "commit2", "postCommit", "concluded committed");
+        });
+
+        test("refuses a participant that could no longer be told", async () => {
+            let caught: unknown;
+
+            join({
+                conclusion: () => {
+                    try {
+                        const late = TestParticipant();
+                        late.toString = () => "late";
+                        transaction.addParticipants(late);
+                    } catch (e) {
+                        caught = e;
+                    }
+                },
+            });
+
+            await transaction.begin();
+            await transaction.commit();
+
+            expect(caught).instanceOf(TransactionFlowError);
+        });
+
+        test("reports a rollback", async () => {
+            const p: TestParticipant = join({
+                conclusion: outcome => {
+                    p.invoked.push(`concluded ${outcome}`);
+                },
+            });
+
+            await transaction.begin();
+            await transaction.rollback();
+
+            p.expect("rollback", "concluded rolled back");
+            validateUnlocked(transaction);
+        });
+
+        test("reports a rollback once when phase one throws", async () => {
+            const p: TestParticipant = join({
+                commit1() {
+                    throw new SomeError("oops in commit1");
+                },
+
+                conclusion: outcome => {
+                    p.invoked.push(`concluded ${outcome}`);
+                },
+            });
+
+            await transaction.begin();
+
+            await expect(committing()).rejectedWith(FinalizationError);
+
+            p.expect("commit1", "rollback", "concluded rolled back");
+            validateUnlocked(transaction);
+        });
+
+        test("reports a rollback when pre-commit throws", async () => {
+            const p: TestParticipant = join({
+                preCommit: () => {
+                    throw new SomeError("oops in preCommit");
+                },
+
+                conclusion: outcome => {
+                    p.invoked.push(`concluded ${outcome}`);
+                },
+            });
+
+            await transaction.begin();
+
+            await expect(committing()).rejectedWith(SomeError);
+
+            p.expect("rollback", "concluded rolled back");
+            validateUnlocked(transaction);
+        });
+
+        test("reports a rollback when pre-commit throws asynchronously", async () => {
+            const p: TestParticipant = join({
+                preCommit: async () => {
+                    await Promise.resolve();
+                    throw new SomeError("oops in async preCommit");
+                },
+
+                conclusion: async outcome => {
+                    await Promise.resolve();
+                    p.invoked.push(`concluded ${outcome}`);
+                },
+
+                async rollback() {},
+            });
+
+            await transaction.begin();
+
+            await expect(committing()).rejectedWith(SomeError);
+
+            p.expect("rollback", "concluded rolled back");
+            validateUnlocked(transaction);
+        });
+
+        test("reports an inconsistent commit when phase two throws", async () => {
+            const p: TestParticipant = join({
+                commit2() {
+                    throw new SomeError("oops in commit2");
+                },
+
+                postCommit: () => {
+                    p.invoked.push("postCommit");
+                },
+
+                conclusion: outcome => {
+                    p.invoked.push(`concluded ${outcome}`);
+                },
+            });
+
+            await transaction.begin();
+
+            await expect(committing()).rejectedWith(SomeError);
+
+            p.expect("commit1", "commit2", "concluded inconsistent");
+            validateUnlocked(transaction);
+        });
+
+        test("reports a rollback when settled throws", async () => {
+            const p: TestParticipant = join({
+                settled: () => {
+                    throw new SomeError("oops in settled");
+                },
+
+                conclusion: outcome => {
+                    p.invoked.push(`concluded ${outcome}`);
+                },
+            });
+
+            await transaction.begin();
+
+            await expect(committing()).rejectedWith(SomeError);
+
+            p.expect("rollback", "concluded rolled back");
+        });
+
+        test("runs when post-commit throws", async () => {
+            const p: TestParticipant = join({
+                postCommit: () => {
+                    throw new SomeError("oops in postCommit");
+                },
+
+                conclusion: outcome => {
+                    p.invoked.push(`concluded ${outcome}`);
+                },
+            });
+
+            await transaction.begin();
+            await transaction.commit();
+
+            p.expect("commit1", "commit2", "concluded committed");
+        });
+
+        test("runs for every participant when one throws", async () => {
+            let firstRan = false;
+
+            const p1 = TestParticipant({
+                conclusion: () => {
+                    firstRan = true;
+                    throw new SomeError("oops in conclusion");
+                },
+            });
+            p1.toString = () => "P1";
+
+            const p2: TestParticipant = TestParticipant({
+                conclusion: outcome => {
+                    p2.invoked.push(`concluded ${outcome}`);
+                },
+            });
+            p2.toString = () => "P2";
+
+            transaction.addParticipants(p1, p2);
+
+            await transaction.begin();
+            await transaction.commit();
+
+            expect(firstRan).equals(true);
+            p2.expect("commit1", "commit2", "concluded committed");
+        });
+
+        test("runs after a post-commit rejection let the remaining participants finish", async () => {
+            const order = new Array<string>();
+            let seenAtFinalize: string[] | undefined;
+
+            const p1 = TestParticipant({
+                postCommit: async () => {
+                    await Promise.resolve();
+                    order.push("postCommit P1");
+                    throw new SomeError("oops in postCommit");
+                },
+            });
+            p1.toString = () => "P1";
+
+            const p2 = TestParticipant({
+                postCommit: async () => {
+                    await Promise.resolve();
+                    order.push("postCommit P2");
+                },
+
+                conclusion: () => {
+                    seenAtFinalize = [...order];
+                    order.push("concluded P2");
+                },
+            });
+            p2.toString = () => "P2";
+
+            transaction.addParticipants(p1, p2);
+
+            await transaction.begin();
+            await transaction.commit();
+
+            // What post-commit had completed by the time the transaction reported, which is the ordering at issue
+            expect(seenAtFinalize).deep.equals(["postCommit P1", "postCommit P2"]);
+            expect(order).deep.equals(["postCommit P1", "postCommit P2", "concluded P2"]);
+        });
+
+        test("awaits an asynchronous participant on the rollback path", async () => {
+            const settled = new Array<string>();
+            const p: TestParticipant = join({
+                conclusion: async outcome => {
+                    await Promise.resolve();
+                    p.invoked.push(`concluded ${outcome}`);
+                    settled.push("conclusion");
+                },
+            });
+
+            await transaction.begin();
+            await transaction.rollback();
+
+            expect(settled).deep.equals(["conclusion"]);
+            p.expect("rollback", "concluded rolled back");
+        });
+
+        test("surfaces a rollback error after notifying", async () => {
+            const p: TestParticipant = join({
+                rollback() {
+                    throw new SomeError("oops in rollback");
+                },
+
+                conclusion: async outcome => {
+                    await Promise.resolve();
+                    p.invoked.push(`concluded ${outcome}`);
+                },
+            });
+
+            await transaction.begin();
+
+            await expect(transaction.rollback()).rejectedWith(SomeError);
+
+            p.expect("rollback", "concluded inconsistent");
+            validateUnlocked(transaction);
+        });
+
+        test("continues after an asynchronous participant rejects", async () => {
+            const p1 = TestParticipant({
+                conclusion: async () => {
+                    await Promise.resolve();
+                    throw new SomeError("oops in async conclusion");
+                },
+            });
+            p1.toString = () => "P1";
+
+            const p2: TestParticipant = TestParticipant({
+                conclusion: outcome => {
+                    p2.invoked.push(`concluded ${outcome}`);
+                },
+            });
+            p2.toString = () => "P2";
+
+            transaction.addParticipants(p1, p2);
+
+            await transaction.begin();
+            await transaction.commit();
+
+            p2.expect("commit1", "commit2", "concluded committed");
+        });
+
+        test("reports a participant that joined during phase one, which never settled", async () => {
+            const joiner: TestParticipant = TestParticipant({
+                settled: () => {
+                    joiner.invoked.push("settled");
+                },
+
+                conclusion: outcome => {
+                    joiner.invoked.push(`concluded ${outcome}`);
+                },
+            });
+            joiner.toString = () => "joiner";
+
+            join({
+                commit1: () => {
+                    transaction.addParticipants(joiner);
+                },
+            });
+
+            await transaction.begin();
+            await transaction.commit();
+
+            // Nothing snapshots this: settling simply precedes phase one.  The assertion pins that ordering, so
+            // moving the settled report after a participant can join would fail here
+            joiner.expect("commit1", "commit2", "concluded committed");
+        });
+
+        test("reports a participant that joined during phase two", async () => {
+            const joiner: TestParticipant = TestParticipant({
+                conclusion: outcome => {
+                    joiner.invoked.push(`concluded ${outcome}`);
+                },
+            });
+            joiner.toString = () => "joiner";
+
+            join({
+                commit2: () => {
+                    transaction.addParticipants(joiner);
+                },
+            });
+
+            await transaction.begin();
+            await transaction.commit();
+
+            joiner.expect("commit2", "concluded committed");
+        });
+
+        test("reports with locks released and writes refused, whatever the outcome", async () => {
+            const observed = new Array<string>();
+
+            function watch(resource: TestResource) {
+                return (outcome: Transaction.Outcome) => {
+                    observed.push(`${outcome} ${resource.lockedBy === undefined ? "unlocked" : "locked"}`);
+                    try {
+                        transaction.beginSync();
+                        observed.push("write allowed");
+                    } catch {
+                        observed.push("write refused");
+                    }
+                };
+            }
+
+            const resource = new TestResource();
+
+            join({ conclusion: watch(resource) });
+            await transaction.addResources(resource);
+            await transaction.begin();
+            await transaction.rollback();
+
+            join({ conclusion: watch(resource) });
+            await transaction.addResources(resource);
+            await transaction.begin();
+            await transaction.commit();
+
+            expect(observed).deep.equals([
+                "rolled back unlocked",
+                "write refused",
+                "committed unlocked",
+                "write refused",
+            ]);
+        });
+
+        test("reports the cycle that a nested commit did not", async () => {
+            let nested = false;
+
+            const p: TestParticipant = join({
+                postCommit: () => {
+                    if (nested) {
+                        return;
+                    }
+                    nested = true;
+
+                    // A cycle of its own, which must not stand in for the one reporting it
+                    transaction.beginSync();
+                    return transaction.commit();
+                },
+
+                conclusion: outcome => {
+                    p.invoked.push(`concluded ${outcome}`);
+                },
+            });
+
+            await transaction.begin();
+            await transaction.commit();
+
+            // The nested cycle has no participants of its own, so this participant is reported exactly once -- by the
+            // cycle it belongs to, which a transaction-wide guard would have let the nested one consume
+            expect(p.invoked.filter(entry => entry === "concluded committed")).length(1);
+        });
+
+        test("does not report a participant that joined after phase two passed it", async () => {
+            const joiner: TestParticipant = TestParticipant({
+                conclusion: outcome => {
+                    joiner.invoked.push(`concluded ${outcome}`);
+                },
+            });
+            joiner.toString = () => "joiner";
+
+            join({
+                commit2: async () => {
+                    await Promise.resolve();
+                    transaction.addParticipants(joiner);
+                },
+            });
+
+            await transaction.begin();
+            await transaction.commit();
+
+            joiner.expect();
+        });
+
+        test("reports once per commit cycle when post-commit writes again", async () => {
+            const resource = new TestResource();
+            const observed = new Array<string>();
+            let written = false;
+
+            const p: TestParticipant = join({
+                postCommit: () => {
+                    if (written) {
+                        return;
+                    }
+                    written = true;
+                    transaction.beginSync();
+                    transaction.addParticipants(p);
+                },
+
+                commit2: () => {
+                    observed.push("commit2");
+                },
+
+                conclusion: outcome => {
+                    // A cascaded cycle holds locks of its own, so neither report may land until both cycles are done
+                    observed.push(`${outcome} ${resource.lockedBy === undefined ? "unlocked" : "locked"}`);
+                },
+            });
+
+            await transaction.addResources(resource);
+            await transaction.begin();
+            await transaction.commit();
+
+            expect(observed).deep.equals(["commit2", "commit2", "committed unlocked", "committed unlocked"]);
+        });
+
+        test("awaits an asynchronous participant", async () => {
+            const p: TestParticipant = join({
+                conclusion: async outcome => {
+                    await Promise.resolve();
+                    p.invoked.push(`concluded ${outcome}`);
+                },
+            });
+
+            await transaction.begin();
+            await transaction.commit();
+
+            p.expect("commit1", "commit2", "concluded committed");
         });
     });
 

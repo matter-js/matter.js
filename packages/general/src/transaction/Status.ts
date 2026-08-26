@@ -35,6 +35,12 @@ export enum Status {
     Exclusive = "exclusive",
 
     /**
+     * Participants are inspecting the values pre-commit produced.  Writes are refused: every participant has already
+     * reported that it will not mutate further.
+     */
+    Settled = "settled",
+
+    /**
      * Transaction is in the process of committing, phase one.
      */
     CommittingPhaseOne = "committing phase one",
@@ -48,6 +54,12 @@ export enum Status {
      * Transaction is in the process of rolling back.
      */
     RollingBack = "rolling back",
+
+    /**
+     * Transaction has ended and its participants are being told the outcome.  Locks are released and writes are
+     * refused: there is no longer a transaction to write to.
+     */
+    Concluding = "concluding",
 
     /**
      * Transaction is destroyed, no further operations permitted.

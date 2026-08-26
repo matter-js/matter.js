@@ -17,10 +17,21 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A certification run's `result.json` no longer reports a passing verdict for a run that failed
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
 
+- @matter/protocol
+    - Enhancement: An interaction can be abandoned by the caller: `ClientRequest.abort` takes an `AbortSignal`, honored for read, write, invoke and subscribe
+
+- @project-chip/matter.js
+    - Enhancement: `InteractionClient`'s read, write, invoke and subscribe options take an `abort` signal, forwarded to the interaction
+
 - @matter/general
     - Breaking: `DnssdNames.Context.goodbyeProtectionWindow` and `DnssdNames.defaults.goodbyeProtectionWindow` are now `evictionDelay`, and `DnssdName.deleteRecord` no longer takes an `ifOlderThan` argument
     - Enhancement: New `MatterAggregateError.settleSeries()` runs tasks in order, continuing past a failure, and reports the accumulated errors
     - Enhancement: A storage driver states how long a consumer may buffer dirty values via `StorageDriver.writeCoalescingInterval`, defaulting to 20 minutes; `MemoryStorageDriver` reports `Instant`
+    - Enhancement: `Transaction.Participant` gains `settled()`, invoked once after every participant's pre-commit reports no further mutation and before any of them writes; throwing there rejects the commit, and writes and further participants are refused while it runs
+    - Enhancement: `Transaction.Participant` gains `conclusion(outcome)`, which runs once per commit cycle or rollback — including the commit phase two failure that skips both `postCommit` and `rollback` — and states whether the transaction committed, rolled back, or ended inconsistent; it runs with the transaction's locks released and further writes refused
+    - Fix: A post-commit handler that rejects no longer detaches the remaining participants' post-commit work from the transaction
+    - Adjustment: `postCommit` and the new `conclusion` reach the participants commit phase two dispatched, so a participant that joins while its values are written — as a store does — is now told the outcome; one that joins after phase two has passed it is not, having run no phase at all
+    - Adjustment: A rollback completes once its participants have been told the outcome; where a participant reports asynchronously, a rollback that failed now rejects instead of throwing synchronously
     - Fix: Opening a namespace whose `driver.json` names an unregistered storage driver now throws `NoProviderError` instead of silently opening the existing data with a mismatched driver
     - Fix: DNS-SD ignores SRV records with port 0, an empty target or an out-of-range port
     - Fix: DNS-SD honors a goodbye that arrives shortly after the same record was re-announced
@@ -75,6 +86,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: An unreported client node attribute reads its schema default, else the specification's fallback value for its type, when the attribute is mandatory under the peer's supported features, and `undefined` otherwise — regardless of the peer's AttributeList (an enum attribute reads `undefined`, as the specification defines its fallback as manufacturer-specific). The value is a detached copy, so mutating a struct or list read from an unreported attribute does not write through
     - Breaking: Configured options, environment variables, and state-class field initializers no longer seed a client node's cluster state; the peer's reports are the only source of values
     - Breaking: Adding a server cluster to an endpoint fails when its selected features violate the conformance of its FeatureMap
+    - Breaking: A local write or invoke rejects a bitmap bit whose conformance the cluster's selected features do not satisfy, wherever the bitmap appears — an attribute, a command field, a struct member or an event field. So `LevelControl.Options.ExecuteIfOff` (also as the `optionsMask` or `optionsOverride` of `MoveToLevel`, `Move`, `Step` and `Stop`) needs Lighting or OnOff, a `ColorControl.ColorCapabilities` bit needs its color feature, a `WindowCovering.ConfigStatus` position or encoder bit needs the matching position-aware feature, `Thermostat.RemoteSensing.Occupancy` needs Occupancy, a closure's latch control mode needs Latching, and a `Messages.MessageControl` bit needs its messaging feature. Only a bit the value sets is judged, only what the conformance decides without a record around it, and a write or invoke carrying a remote subject stays permissive
     - Breaking: Provisional elements are no longer implemented by default; supply a state value or use `ClusterBehavior.enable()` to implement one
     - Breaking: `SoftwareUpdateManager.addUpdateConsent()` and `forceUpdate()` take the update as an object instead of three positional arguments, so it can carry per-update options
     - Breaking: Ensure that changing any attribute of a client node sends a write to the peer; an attribute the peer's cluster type cannot express, including the global attributes, is declined locally with `UnsupportedWrite` or `UnsupportedAttribute`
@@ -103,11 +115,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: `NetworkServer.State.clientCacheFlushInterval` defaults to the storage driver's `writeCoalescingInterval` instead of a fixed 20 minutes; set it to `Instant` to persist every change immediately
     - Adjustment: A `SoftwareUpdateManager.State.announcementInterval` of `Instant` disables OTA provider announcements
     - Fix: A constraint whose bound carries a unit, such as the `0.01% to 100.00%` of a `percent100ths` value, is enforced in the units the value is encoded in
+    - Fix: A window covering with no Lift feature no longer states a lift movement direction in `ConfigStatus`
     - Fix: Struct validation resolves a member stored under its TLV tag number, so a constraint violation there is caught and a mandatory member present only at its id no longer raises a conformance error
     - Fix: `Thermostat.Presets` reports to subscribers and advances the cluster's data version when the presets change
     - Fix: A local write of `Thermostat.Presets` is stored instead of silently discarded, and an invalid one rejects the caller's write
     - Fix: `Thermostat.Presets` is validated and staged for an atomic write on every endpoint that selects the Presets feature, not only where the application passed a `presets` value; presets such an endpoint stored before are ignored
     - Fix: A preset write is refused for referencing the active preset only when it removes that preset; a thermostat starting with an `ActivePresetHandle` that names no preset stores null instead of refusing to start
+    - Fix: A preset write that would store a preset without a handle is refused, including where an application observer removed the handle the thermostat issued
     - Fix: A preset handle the thermostat generates is persisted, so it still addresses the preset after a restart
     - Fix: Two presets sharing a scenario and carrying no name are refused on an atomic write, as they already were on a local one
     - Fix: A state class serving an attribute from an accessor sees the values of the writing transaction
@@ -127,6 +141,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A client node's storage metadata no longer surfaces as state: a peer report that only bumps the data version emits no change notification, and `__version__` no longer appears among the changed properties or in cluster state
     - Fix: A peer that cannot be loaded, such as one whose fabric is missing locally, is reported with its actual cause instead of escaping as an unhandled rejection
     - Fix: Commissioning passes over a discovered device whose advertised vendor or product ID disagrees with the onboarding payload's
+    - Fix: A level change that couples to On/Off no longer leaves the coupling blocked when its transaction rolls back
+    - Fix: A cluster's feature selection is recorded as persisted only once the store accepted the values it travels with, so a failed write no longer leaves a later feature change undetected
     - Fix: Validating a state class that serves properties dynamically passes it the endpoint, as every other caller does
 
 - @matter/matter.js
