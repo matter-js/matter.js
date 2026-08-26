@@ -97,9 +97,13 @@ export abstract class ValueModel<T extends ValueElement = ValueElement>
     get primitiveBase(): ValueModel | undefined {
         let base = this.metabase;
 
-        // An enum states another type as its base, and that type may stated an enum in turn — the status codes are an
-        // enum of enum8 — so the primitive is however many definitions down it takes to reach one
-        for (let depth = 0; base !== undefined && depth < 8; depth++) {
+        // An enum states another type as its base, and that type may state an enum in turn — the status codes are an
+        // enum of enum8 — so the primitive is however many definitions down it takes to reach one.  A definition that
+        // states itself, directly or through others, states no primitive at all
+        const visited = new Set<ValueModel>();
+        while (base !== undefined && !visited.has(base)) {
+            visited.add(base);
+
             switch (base.metatype) {
                 case Metatype.enum:
                     base = base.base as ValueModel | undefined;
