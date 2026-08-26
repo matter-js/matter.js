@@ -112,6 +112,7 @@ interface PendingCommand {
     pathKey: string;
     network?: string;
     additionalMrpDelay?: Duration;
+    abort?: AbortSignal;
     resolve: (entry: InvokeResult.DecodedData | undefined) => void;
     reject: (error: Error) => void;
     aborted?: boolean;
@@ -675,10 +676,17 @@ export class ClientInteraction<
             throw new ImplementationError("Client interaction unavailable after close");
         }
 
-        // Validate peer connectivity before queuing — respects connectionTimeout and abort
+        if (request.abort?.aborted) {
+            throw new AbortedError();
+        }
+
+        // Validate peer connectivity before queuing — respects connectionTimeout and abort. The
+        // caller's signal has to reach this too: establishing the connection is where a command
+        // addressed to an unreachable peer spends its time.
+        using connectAbort = Abort.any(session?.abort, request.abort);
         await this.#exchangeProvider.connect({
             connectionTimeout: session?.connectionTimeout,
-            abort: session?.abort,
+            abort: connectAbort.signal,
         });
 
         const cmd = [...request.commands.values()][0];
@@ -692,16 +700,18 @@ export class ClientInteraction<
             pathKey,
             network: request.network,
             additionalMrpDelay: request.additionalMrpDelay,
+            abort: request.abort,
             resolve: resolver,
             reject: rejecter,
         };
 
         this.#pendingCommands.set(commandRef, pending);
 
-        // Register per-command abort listener
-        const abortSignal = session?.abort;
-        if (abortSignal) {
-            if (abortSignal.aborted) {
+        // Register per-command abort listeners. A batch carries commands of several callers, so an
+        // abort belongs to its own command: it rejects that one and leaves the batch to the others.
+        const abortSignals = [session?.abort, request.abort].filter(signal => signal !== undefined);
+        if (abortSignals.length) {
+            if (abortSignals.some(signal => signal.aborted)) {
                 this.#pendingCommands.delete(commandRef);
                 throw new AbortedError();
             }
@@ -711,8 +721,14 @@ export class ClientInteraction<
                 this.#pendingCommands.delete(commandRef);
                 pending.reject(new AbortedError());
             };
-            abortSignal.addEventListener("abort", onAbort, { once: true });
-            pending.cleanup = () => abortSignal.removeEventListener("abort", onAbort);
+            for (const signal of abortSignals) {
+                signal.addEventListener("abort", onAbort, { once: true });
+            }
+            pending.cleanup = () => {
+                for (const signal of abortSignals) {
+                    signal.removeEventListener("abort", onAbort);
+                }
+            };
         }
 
         const duration = request.batchDuration || Instant;
@@ -819,6 +835,7 @@ export class ClientInteraction<
     }
 
     async #executeBatch(commands: Map<number, PendingCommand>) {
+        let releaseAbortListeners: (() => void) | undefined;
         try {
             // Filter out commands aborted between snapshot and send
             for (const [ref, pending] of commands) {
@@ -846,10 +863,42 @@ export class ClientInteraction<
             // Use #invokeSingle directly to avoid re-entering the batching path in invoke()
             // Skip validation: already validated on submit. timed=false: only non-timed commands
             // reach this path (gate in invoke()); prevents Invoke() spec-based auto-promotion.
+            // A batch outlives the caller of any one of its commands, so it stops sending only once
+            // every command in it has been abandoned — until then the others still want the peer's
+            // answer. A batch holding even one command without a deadline can never reach that point.
+            const batchAbort = new AbortController();
+            const commandSignals = commandList.map(({ abort }) => abort);
+            const abandonable = commandSignals.every(signal => signal !== undefined);
+            if (abandonable) {
+                // Per command, not per signal: two commands may share one signal, and a listener
+                // registered twice with the same callback counts once, which would strand the batch
+                // one abandonment short of stopping.
+                let unabandoned = commandSignals.filter(signal => !signal.aborted).length;
+                const releases = new Array<() => void>();
+                for (const signal of commandSignals) {
+                    if (signal.aborted) {
+                        continue;
+                    }
+                    const onCommandAbort = () => {
+                        if (--unabandoned === 0) {
+                            batchAbort.abort(new AbortedError());
+                        }
+                    };
+                    signal.addEventListener("abort", onCommandAbort, { once: true });
+                    releases.push(() => signal.removeEventListener("abort", onCommandAbort));
+                }
+                releaseAbortListeners = () => releases.forEach(release => release());
+
+                if (unabandoned === 0) {
+                    batchAbort.abort(new AbortedError());
+                }
+            }
+
             const batchRequest = {
                 ...Invoke({ commands: invokeRequests, skipValidation: true, timed: false }),
                 network: batchNetwork,
                 additionalMrpDelay: batchAdditionalMrpDelay,
+                abort: abandonable ? batchAbort.signal : undefined,
             } as ClientInvoke;
             const maxPathsPerInvoke = this.#exchangeProvider.maxPathsPerInvoke ?? 1;
             const chunks =
@@ -891,6 +940,8 @@ export class ClientInteraction<
                     pending.reject(asError(error));
                 }
             }
+        } finally {
+            releaseAbortListeners?.();
         }
     }
 
@@ -1022,7 +1073,9 @@ export class ClientInteraction<
                 peer,
                 closed: () => this.subscriptions.delete(subscription),
                 request,
-                abort: session?.abort,
+                // Both, or an abort by the caller would end only the attempt in flight while the
+                // sustainer treats that as a failure to retry
+                abort: [session?.abort, request.abort],
                 retries: this.#sustainRetries,
                 read,
                 probe: abort =>
@@ -1107,7 +1160,7 @@ export class ClientInteraction<
                 );
             }
 
-            abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort] });
+            abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort, request.abort] });
 
             try {
                 messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {

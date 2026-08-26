@@ -46,6 +46,7 @@ class FakeCommandHandler extends CommandHandler {
     disconnectedNodes = new Array<NodeId>();
     writes = new Array<WriteAttributeRequest>();
     discoveries = new Array<DiscoveryRequest>();
+    invokes = new Array<InvokeRequest>();
     paseConnections = new Array<NodeId>();
 
     /** Answer for the next discovery; empty means "found nothing". */
@@ -53,6 +54,15 @@ class FakeCommandHandler extends CommandHandler {
 
     /** Thrown by whichever operation a test drives, where set. */
     failure?: unknown;
+
+    /** Signals a test handed to the operation it drove, in order. */
+    signals = new Array<AbortSignal | undefined>();
+
+    /** Where true, a read waits for its own signal instead of answering. */
+    readWaitsForAbort = false;
+
+    /** Discoveries this handler was asked to cancel, by the identifier they named. */
+    discoveryCancellations = new Array<DiscoveryRequest["findBy"]>();
 
     get started() {
         return this.#started;
@@ -84,12 +94,29 @@ class FakeCommandHandler extends CommandHandler {
 
     async handleDiscovery(data: DiscoveryRequest): Promise<DiscoveryResponse> {
         this.discoveries.push(data);
+        this.signals.push(data.abort);
         this.#throwIfFailing();
+
+        // As the real handler does: a signal that already aborted never fires, so it is read rather
+        // than waited on.
+        data.abort?.throwIfAborted();
+        data.abort?.addEventListener("abort", () => this.discoveryCancellations.push(data.findBy), { once: true });
+
+        if (this.discoveryWaitsForAbort) {
+            await new Promise<void>((_resolve, reject) => {
+                data.abort?.addEventListener("abort", () => reject(data.abort?.reason));
+            });
+        }
+
         return this.discoveryResult;
     }
 
+    /** Where true, a discovery waits for its own signal instead of answering. */
+    discoveryWaitsForAbort = false;
+
     async handleWriteAttribute(data: WriteAttributeRequest) {
         this.writes.push(data);
+        this.signals.push(data.abort);
         this.#throwIfFailing();
     }
 
@@ -97,8 +124,18 @@ class FakeCommandHandler extends CommandHandler {
         this.#throwIfFailing();
     }
 
-    async handleReadAttribute(_data: ReadAttributeRequest): Promise<ReadAttributeResponse> {
+    async handleReadAttribute(data: ReadAttributeRequest): Promise<ReadAttributeResponse> {
+        this.signals.push(data.abort);
         this.#throwIfFailing();
+
+        if (this.readWaitsForAbort) {
+            // What an operation that outlives its step's deadline does: it observes the signal rather
+            // than answering, exactly as a real interaction abandoned mid-flight does.
+            await new Promise<void>((_resolve, reject) => {
+                data.abort?.addEventListener("abort", () => reject(data.abort?.reason));
+            });
+        }
+
         return { values: new Array<AttributeResponseData>() };
     }
 
@@ -117,7 +154,9 @@ class FakeCommandHandler extends CommandHandler {
         return { values: [], updated: Observable<[void]>() };
     }
 
-    async handleInvoke(_data: InvokeRequest) {
+    async handleInvoke(data: InvokeRequest) {
+        this.invokes.push(data);
+        this.signals.push(data.abort);
         this.#throwIfFailing();
         return undefined;
     }
@@ -249,7 +288,7 @@ describe("ChipToolWebSocketHandler over the wire", () => {
         );
 
         expect(reply.results).deep.equal([{ error: "FAILURE" }]);
-        expect(handler.discoveries).deep.equal([{ findBy: { longDiscriminator: 3840 } }]);
+        expect(handler.discoveries.map(({ findBy }) => findBy)).deep.equal([{ longDiscriminator: 3840 }]);
     });
 
     it("answers a discovery that found a device with what it found", async () => {
@@ -492,6 +531,136 @@ describe("ChipToolWebSocketHandler over the wire", () => {
 
         expect(reply.results[0].error).match(/has no event "not-an-event"/);
         expect(reply.results[1]).deep.equal({ error: "FAILURE" });
+    });
+
+    it("gives up on an operation that outlives the timeout its step declared", async () => {
+        handler.readWaitsForAbort = true;
+
+        const reply = await send(
+            port,
+            jsonFrame({
+                cluster: "onoff",
+                command: "read",
+                command_specifier: "on-off",
+                arguments: { "destination-id": "0x12344321", "endpoint-ids": "1", timeout: "1" },
+            }),
+        );
+
+        // The failure a device that did not answer gives, which is what the step expects — not a fault
+        // of the harness.
+        expect(reply.results).deep.equal([{ error: "FAILURE" }]);
+
+        expect(handler.signals.length).equal(1);
+        expect(handler.signals[0]?.aborted).equal(true);
+    });
+
+    it("hands the operation its step's deadline, and nothing where the step declared none", async () => {
+        await send(
+            port,
+            jsonFrame({
+                cluster: "onoff",
+                command: "read",
+                command_specifier: "on-off",
+                arguments: { "destination-id": "0x12344321", "endpoint-ids": "1", timeout: "30" },
+            }),
+        );
+        await send(
+            port,
+            jsonFrame({
+                cluster: "onoff",
+                command: "read",
+                command_specifier: "on-off",
+                arguments: { "destination-id": "0x12344321", "endpoint-ids": "1" },
+            }),
+        );
+
+        expect(handler.signals.length).equal(2);
+        expect(handler.signals[0]).not.equal(undefined);
+
+        // A deadline that has not expired must not reach the operation as one that has.
+        expect(handler.signals[0]?.aborted).equal(false);
+        expect(handler.signals[1]).equal(undefined);
+    });
+
+    it("refuses a timeout it cannot read rather than running the step unbounded", async () => {
+        const reply = await send(
+            port,
+            jsonFrame({
+                cluster: "onoff",
+                command: "read",
+                command_specifier: "on-off",
+                arguments: { "destination-id": "0x12344321", "endpoint-ids": "1", timeout: "soon" },
+            }),
+        );
+
+        expect(reply.results[0].error).match(
+            /^Test harness failure — ImplementationError: A step declared the unusable/,
+        );
+        expect(handler.signals).deep.equal([]);
+    });
+
+    it("cancels a discovery whose step deadline expired, rather than waiting out its window", async () => {
+        handler.discoveryWaitsForAbort = true;
+
+        const reply = await send(
+            port,
+            jsonFrame({
+                cluster: "discover",
+                command: "find-commissionable-by-long-discriminator",
+                arguments: { value: "3840", timeout: "1" },
+            }),
+        );
+
+        expect(reply.results).deep.equal([{ error: "FAILURE" }]);
+        expect(handler.discoveryCancellations).deep.equal([{ longDiscriminator: 3840 }]);
+    });
+
+    it("keeps a command's own Timeout field while reading the step's timeout beside it", async () => {
+        // The runner sends a command field under its specification name and the step's own deadline in
+        // lower case, so the two never collide — Door Lock's UnlockWithTimeout carries both at once.
+        await send(
+            port,
+            jsonFrame({
+                cluster: "doorlock",
+                command: "UnlockWithTimeout",
+                arguments: {
+                    "destination-id": "0x12344321",
+                    "endpoint-id-ignored-for-group-commands": "1",
+                    Timeout: 10,
+                    PINCode: "123456",
+                    timeout: "30",
+                },
+            }),
+        );
+
+        expect(handler.invokes.length).equal(1);
+        expect(handler.invokes[0].data).deep.equal({ timeout: 10, pinCode: 123456 });
+
+        // The step's deadline reached the operation, and did not become a command field.
+        expect(handler.invokes[0].abort).not.equal(undefined);
+    });
+
+    it("refuses a deadline on an operation it cannot bound, rather than dropping it", async () => {
+        for (const frame of [
+            jsonFrame({
+                cluster: "delay",
+                command: "wait-for-commissionee",
+                arguments: { nodeId: "0x12344321", timeout: "5" },
+            }),
+            jsonFrame({
+                cluster: "pairing",
+                command: "code",
+                arguments: { "node-id": "0x12344321", payload: "MT:-24J042C00KA0648G00", timeout: "5" },
+            }),
+        ]) {
+            const reply = await send(port, frame);
+
+            expect(reply.results[0].error).match(/^Test harness failure — ImplementationError: A ".*" step declared/);
+            expect(reply.results[1]).deep.equal({ error: "FAILURE" });
+        }
+
+        // Neither operation was driven at all, so neither was handed a deadline it would ignore.
+        expect(handler.paseConnections).deep.equal([]);
     });
 
     it("reports a controller of its own that would not start as its own fault", async () => {
