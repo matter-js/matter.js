@@ -106,7 +106,7 @@ export abstract class ValueModel<T extends ValueElement = ValueElement>
 
             switch (base.metatype) {
                 case Metatype.enum:
-                    base = base.base as ValueModel | undefined;
+                    base = base.base;
                     break;
 
                 // Bitmaps are not derived types so we have to map manually
