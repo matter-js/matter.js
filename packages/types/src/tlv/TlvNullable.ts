@@ -5,6 +5,7 @@
  */
 
 import { BitmapWrapper, TlvNumericSchema } from "#tlv/TlvNumber.js";
+import { Quality } from "@matter/model";
 import { ArraySchema } from "./TlvArray.js";
 import { TlvTag, TlvType, TlvTypeLength } from "./TlvCodec.js";
 import { TlvEncodingOptions, TlvReader, TlvSchema, TlvWriter } from "./TlvSchema.js";
@@ -54,14 +55,9 @@ export class NullableSchema<T> extends TlvSchema<T | null> {
             return undefined;
         }
 
-        const quality =
-            inner.quality === undefined
-                ? "X"
-                : typeof inner.quality === "string"
-                  ? inner.quality.includes("X")
-                      ? inner.quality
-                      : `${inner.quality} X`
-                  : inner.quality;
+        // The wrapper is what makes the value nullable, so its X wins over a schema that removes the quality.  A flag
+        // the schema states that is not a quality survives the merge, so validation still reports it.
+        const quality = new Quality(inner.quality).extend(new Quality(["X"])).toString();
 
         return { ...inner, quality };
     }
