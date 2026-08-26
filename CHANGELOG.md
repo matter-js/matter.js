@@ -116,6 +116,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A local write of `Thermostat.Presets` is stored instead of silently discarded, and an invalid one rejects the caller's write
     - Fix: `Thermostat.Presets` is validated and staged for an atomic write on every endpoint that selects the Presets feature, not only where the application passed a `presets` value; presets such an endpoint stored before are ignored
     - Fix: A preset write is refused for referencing the active preset only when it removes that preset; a thermostat starting with an `ActivePresetHandle` that names no preset stores null instead of refusing to start
+    - Fix: A preset write that would store a preset without a handle is refused, including where an application observer removed the handle the thermostat issued
     - Fix: A preset handle the thermostat generates is persisted, so it still addresses the preset after a restart
     - Fix: Two presets sharing a scenario and carrying no name are refused on an atomic write, as they already were on a local one
     - Fix: A state class serving an attribute from an accessor sees the values of the writing transaction
