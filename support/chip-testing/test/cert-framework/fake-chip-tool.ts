@@ -9,7 +9,7 @@ import { writeFile } from "node:fs/promises";
 import { createServer, type Socket } from "node:net";
 import { join } from "node:path";
 import { WebSocket, WebSocketServer } from "ws";
-import { CHIP_TOOL_READY_MESSAGE } from "../../src/chip-tool/chip-tool-client.js";
+import { CHIP_TOOL_READY_MESSAGE, isAsyncReportFrame } from "../../src/chip-tool/chip-tool-client.js";
 
 export function delay(ms: number) {
     return new Promise<void>(resolve => setTimeout(resolve, ms));
@@ -179,7 +179,9 @@ export class FakeChipTool {
     }
 
     async #serve(frame: string) {
-        const isAsyncReport = frame.length === 0 || (frame.length <= 5 && /^\s*[-+]?\d/.test(frame));
+        // The production rule, not a copy of it: a copy would agree with the client by construction and
+        // could not catch the client sending something real chip-tool never runs.
+        const isAsyncReport = isAsyncReportFrame(frame);
 
         this.#enabled = true;
         this.#async = isAsyncReport;

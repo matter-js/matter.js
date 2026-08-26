@@ -109,7 +109,11 @@ class Fixture {
             subscribe: async (_path, opts) => {
                 this.#onUpdate = opts.onUpdate;
                 this.push(...subscribeRequestLines(PATH), ...subscribeResponseLines(SUBSCRIPTION_ID));
-                this.pushReport(SUBSCRIPTION_ID);
+                if (this.primingCarriesData) {
+                    this.pushReport(SUBSCRIPTION_ID);
+                } else {
+                    this.pushKeepalive(SUBSCRIPTION_ID);
+                }
                 this.onSubscribe(this);
                 // Every line pushed so far is in the log before the helper takes its first per-write
                 // mark, which is what makes "this report predates the write" deterministic here.
@@ -164,16 +168,37 @@ class Fixture {
     }
 
     /**
-     * One report on `subscriptionId`, plus the DUT's ack on the same CHIP exchange unless `acked` is
-     * false. `status` is the ack's own status line, so a caller can hand back a rejection.
+     * Whether the priming report carries data. A subscription can be established with nothing to report
+     * yet — ordinary for an event subscription — so the priming check must accept a report without any.
+     */
+    primingCarriesData = true;
+
+    /**
+     * One report on `subscriptionId` carrying attribute data, plus the DUT's ack on the same CHIP
+     * exchange unless `acked` is false. `status` is the ack's own status line, so a caller can hand back
+     * a rejection.
      */
     pushReport(subscriptionId: number, acked = true, status = "Status = 0x00 (SUCCESS),"): void {
+        this.#pushReportData(subscriptionId, ["[DMG] AttributeReportIBs =", "[DMG] ["], acked, status);
+    }
+
+    /**
+     * One keepalive on `subscriptionId`: the report an idle subscription sends at its maximum interval,
+     * which carries no data and prints `InteractionModelRevision` where a report prints its data — the
+     * shape a chip-local TC-IDM-4.1 run's device log holds six of. It is acked like any other report.
+     */
+    pushKeepalive(subscriptionId: number, acked = true, status = "Status = 0x00 (SUCCESS),"): void {
+        this.#pushReportData(subscriptionId, ["[DMG] InteractionModelRevision = 12"], acked, status);
+    }
+
+    #pushReportData(subscriptionId: number, body: string[], acked: boolean, status: string): void {
         const exchange = ++this.#exchange;
         this.push(
             `[DMG] >> to UDP:[fe80::1%en0]:5540 | 1234${exchange} | [Interaction Model  (1) / Report Data (0x05) / Session = 1 / Exchange = ${exchange}]`,
             "[DMG] ReportDataMessage =",
             "[DMG] {",
             `[DMG] SubscriptionId = 0x${subscriptionId.toString(16)},`,
+            ...body,
         );
         if (acked) {
             this.push(
@@ -270,6 +295,50 @@ describe("subscribeAndModify", () => {
                 CertCheckFailedError,
                 /ack check failed for step 3, write 1\/1/,
             );
+        });
+    });
+
+    it("accepts a priming report that carries nothing, which an event subscription may well send", async () => {
+        const fixture = new Fixture("chip-local", (f, _index, value) => {
+            f.pushReport(SUBSCRIPTION_ID);
+            f.report(value);
+        });
+        fixture.primingCarriesData = false;
+
+        await withFixture(fixture, async f => {
+            await f.run([true], IMPATIENT);
+
+            expect(f.failures).deep.equal([]);
+        });
+    });
+
+    it("does not let a keepalive stand in for the report a write asked for", async () => {
+        const fixture = new Fixture("chip-local", (f, _index, value) => {
+            // What an idle subscription sends at its maximum interval: acked like a report, and on the
+            // same subscription, but carrying nothing the write could have caused.
+            f.pushKeepalive(SUBSCRIPTION_ID);
+            f.report(value);
+        });
+
+        await withFixture(fixture, async f => {
+            await expect(f.run([true], IMPATIENT)).rejectedWith(
+                CertCheckFailedError,
+                /ack check failed for step 3, write 1\/1/,
+            );
+        });
+    });
+
+    it("accepts the report that follows a keepalive on the same subscription", async () => {
+        const fixture = new Fixture("chip-local", (f, _index, value) => {
+            f.pushKeepalive(SUBSCRIPTION_ID);
+            f.pushReport(SUBSCRIPTION_ID);
+            f.report(value);
+        });
+
+        await withFixture(fixture, async f => {
+            await f.run([true], IMPATIENT);
+
+            expect(f.failures).deep.equal([]);
         });
     });
 

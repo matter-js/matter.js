@@ -24,6 +24,7 @@ import {
     ChipToolClient,
     ChipToolExitError,
     CHIP_TOOL_READY_MESSAGE,
+    isAsyncReportFrame,
     resolveChipToolBinary,
 } from "../../src/chip-tool/chip-tool-client.js";
 import {
@@ -57,6 +58,54 @@ async function isRunning(pidFile: string) {
         return false;
     }
 }
+
+describe("isAsyncReportFrame", () => {
+    // Every case was measured by compiling chip-tool's own `OnWebSocketMessageReceived` against
+    // libstdc++, which is what CI runs, rather than reasoned about: `strlen(msg) == 0`, or
+    // `strlen(msg) <= 5` with a `uint16_t` stream extraction that does not set failbit.
+    const cases: [frame: string, armsReports: boolean, why: string][] = [
+        ["", true, "strlen == 0"],
+        ["5", true, "one digit, extraction succeeds"],
+        ["0", true, "zero is a value like any other"],
+        ["00000", true, "five digits, still zero"],
+        ["65535", true, "the largest value the uint16 holds"],
+        ["65536", false, "past the uint16, so the extraction fails and the frame runs"],
+        ["99999", false, "five digits, still past the uint16"],
+        ["100000", false, "six bytes, past the strlen <= 5 gate"],
+        ["+65535", false, "six bytes with the sign, past the gate"],
+        [" 5", true, "extraction skips leading whitespace"],
+        ["\t5", true, "a tab is whitespace to the extraction as well"],
+        ["+5", true, "extraction takes a leading sign"],
+        ["-5", true, "a negative wraps into the uint16 rather than failing (timeout 65531)"],
+        ["-1", true, "the same wrap, to 65535"],
+        ["-9999", true, "and again, to 55537"],
+        ["5abc", true, "extraction stops at the first non-digit without failing"],
+        ["5 ", true, "trailing whitespace does not fail it either"],
+        ["12 34", true, "extraction takes 12 and stops"],
+        ["abc", false, "no digit consumed, extraction fails"],
+        ["   ", false, "whitespace only, no digit consumed"],
+        ["+", false, "sign without a digit, extraction fails"],
+        ["1ééé", false, "four characters but seven bytes, and strlen counts bytes"],
+        ["\0", true, "strlen stops at the NUL, so the frame is empty"],
+        ["12345\0", true, "five bytes before the NUL, parsed as 12345"],
+        ["5\0abc", true, "one byte before the NUL"],
+        ["\0read", true, "strlen stops at the NUL before the command"],
+        ["\n5", true, "a newline is whitespace to the C locale extraction"],
+        ["\v5", true, "so is a vertical tab"],
+        ["\f5", true, "and a form feed"],
+        ["\r5", true, "and a carriage return"],
+        ["\u00a05", false, "a non-breaking space is not whitespace to the C locale, so the frame runs"],
+        ["\u20095", false, "nor is a thin space"],
+        ["any read", false, "a real command, past the strlen gate"],
+        ["read", false, "a four-byte command with no digit"],
+    ];
+
+    for (const [frame, armsReports, why] of cases) {
+        it(`${armsReports ? "arms reports for" : "runs"} ${JSON.stringify(frame)} — ${why}`, () => {
+            expect(isAsyncReportFrame(frame)).equal(armsReports);
+        });
+    }
+});
 
 describe("ChipToolClient", function () {
     // Every test here spawns a process and opens a socket; the default 2s budget is not enough for
