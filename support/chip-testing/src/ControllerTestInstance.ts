@@ -23,18 +23,48 @@ import { StorageBackendAsyncJsonFile } from "./storage/StorageBackendAsyncJsonFi
 
 const logger = Logger.get("ControllerTestInstance");
 
+/**
+ * The controller identities the YAML corpus addresses. Each keeps its own fabrics, in its own file.
+ */
+export const CONTROLLER_IDENTITIES = ["alpha", "beta", "gamma"] as const;
+
+/** Where an identity's fabrics live, given the prefix its run was configured with. */
+export function controllerIdentityStorage(prefix: string, identity: string) {
+    return `${prefix}-${identity}`;
+}
+
+/** The prefix a containerized run uses, from the same parameters chip-tool's own storage honors. */
+export function configuredControllerStoragePrefix() {
+    return `${getParameter("storage-directory") ?? "/tmp"}${getParameter("KVS") ?? "/chip_tool_kvs"}`;
+}
+
+/**
+ * Discards every identity's fabrics.
+ *
+ * Each identity stores under its own name, so a reset that removes only the prefix removes nothing a
+ * controller ever wrote and leaves every commissioned fabric in place for the next run.
+ */
+export async function resetControllerStorage(prefix: string) {
+    for (const identity of CONTROLLER_IDENTITIES) {
+        await rm(controllerIdentityStorage(prefix, identity), { recursive: true, force: true });
+    }
+}
+
 export interface ControllerTestInstanceConfig extends TestInstanceConfig {
     websocketPort: number;
+
+    /**
+     * Where the identities keep their fabrics, as a filename prefix. Defaults to what the run's own
+     * parameters name (see {@link configuredControllerStoragePrefix}).
+     */
+    storagePrefix?: string;
 }
 
 export interface ControllerTestInstanceConstructor<T extends TestInstance = TestInstance> {
     new (config: ControllerTestInstanceConfig): T;
 }
 
-export async function startControllerTestApp(
-    testInstanceClass: ControllerTestInstanceConstructor,
-    storageType: typeof StorageBackendAsyncJsonFile = StorageBackendAsyncJsonFile,
-) {
+export async function startControllerTestApp(testInstanceClass: ControllerTestInstanceConstructor) {
     const storageDir = getParameter("storage-directory") ?? "/tmp";
     try {
         mkdirSync(storageDir);
@@ -43,17 +73,15 @@ export async function startControllerTestApp(
             logger.error(`Failed to create storage directory: ${storageDir}`, error);
         }
     }
-    const storageName = `${storageDir}${getParameter("KVS") ?? "/chip_tool_kvs"}`;
-    logger.info(`Using storage directory: ${storageName}`);
+    const storagePrefix = configuredControllerStoragePrefix();
+    logger.info(`Using storage directory: ${storagePrefix}`);
 
     if (hasParameter("factoryreset")) {
-        await rm(storageName, { recursive: true, force: true });
+        await resetControllerStorage(storagePrefix);
     }
 
-    const storage = new storageType(storageName);
-
     const testInstance = new testInstanceClass({
-        storage,
+        storagePrefix,
         websocketPort: getIntParameter("port") ?? 9002,
     });
 
@@ -72,18 +100,24 @@ export class ControllerTestInstance extends TestInstance {
         }
     >();
     #commandHandler: ChipToolWebSocketHandler;
+    #storagePrefix: string;
 
     constructor(config: ControllerTestInstanceConfig) {
         super(config);
         this.#commandHandler = new ChipToolWebSocketHandler(config.websocketPort);
+        this.#storagePrefix = config.storagePrefix ?? configuredControllerStoragePrefix();
+    }
+
+    /** Where this instance's identities keep their fabrics (see {@link resetControllerStorage}). */
+    get storagePrefix() {
+        return this.#storagePrefix;
     }
 
     /** Prepare Controller identities alpha, beta and gamma used by tests. */
     #setupControllers() {
         const initStorageService = (env: Environment) =>
             new MockStorageService(env, namespace => {
-                const storageDir = getParameter("storage-directory") ?? "/tmp";
-                const storageName = `${storageDir}${getParameter("KVS") ?? "/chip_tool_kvs"}-${namespace}`;
+                const storageName = controllerIdentityStorage(this.#storagePrefix, namespace);
                 logger.info(`Storage service requested for namespace ${namespace}: ${storageName}`);
                 return new StorageBackendAsyncJsonFile(storageName);
             });

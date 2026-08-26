@@ -191,22 +191,23 @@ describe("Presets local write", () => {
         expect(storedPresets(deviceEp)).deep.equals(stored);
     });
 
-    // Characterization: an observer that puts back exactly the value it was given leaves pre-commit nothing to
-    // announce, so the thermostat cannot see the change, let alone refuse it.  A preset stored this way carries no
-    // handle and violates the specification; what this pins is that the thermostat stays usable afterwards.
-    it("stays writable after an observer stored a preset with no handle", async () => {
+    it("refuses a preset an observer stripped the handle from, and stays writable", async () => {
         await using ctx = await thermostat();
         const { deviceEp } = ctx;
 
+        // An observer that puts back exactly the value it was given leaves pre-commit nothing to announce, so only a
+        // check of the settled presets sees this
         const revert = (presets: Thermostat.Preset[]) => {
             presets[0].presetHandle = null;
         };
         deviceEp.events.thermostat.persistedPresets$Changing.on(revert);
 
-        await writePresets(deviceEp, [newPreset()]);
-        expect(storedPresets(deviceEp)[0].presetHandle).equals(null);
+        await expect(writePresets(deviceEp, [newPreset()])).rejectedWith(
+            StatusResponse.ConstraintErrorError,
+            "carries no presetHandle",
+        );
+        expect(storedPresets(deviceEp)).deep.equals([]);
 
-        // A preset that carries no handle addresses nothing, but it must not make the thermostat unwritable
         deviceEp.events.thermostat.persistedPresets$Changing.off(revert);
         await writePresets(deviceEp, [newPreset({ heatingSetpoint: 2100 })]);
 
@@ -214,6 +215,48 @@ describe("Presets local write", () => {
         expect(stored.length).equals(1);
         expect(stored[0].heatingSetpoint).equals(2100);
         expect(stored[0].presetHandle?.byteLength).equals(16);
+    });
+
+    it("checks the settled presets of every commit that shares one transaction", async () => {
+        await using ctx = await thermostat();
+        const { deviceEp } = ctx;
+
+        const revert = (presets: Thermostat.Preset[]) => {
+            for (const preset of presets) {
+                preset.presetHandle = null;
+            }
+        };
+        deviceEp.events.thermostat.persistedPresets$Changing.on(revert);
+
+        const rejections = new Array<string>();
+
+        await MockTime.resolve(
+            deviceEp.act(async agent => {
+                const thermostat = agent.get(PresetsThermostatServer);
+
+                // A commit returns the transaction to shared, which drops its participants; the next write must
+                // enlist again or it commits unchecked
+                for (let attempt = 0; attempt < 2; attempt++) {
+                    try {
+                        thermostat.state.presets = [newPreset()];
+                        await agent.context.transaction.commit();
+                        rejections.push("accepted");
+                    } catch (error) {
+                        rejections.push(error instanceof Error ? error.message : String(error));
+                    }
+                }
+            }),
+            { macrotasks: true },
+        );
+
+        deviceEp.events.thermostat.persistedPresets$Changing.off(revert);
+
+        expect(rejections).length(2);
+        for (const rejection of rejections) {
+            expect(rejection).contains("carries no presetHandle");
+        }
+
+        expect(storedPresets(deviceEp)).deep.equals([]);
     });
 
     it("refuses a preset an observer marks built-in after the thermostat issued its handle", async () => {
