@@ -149,6 +149,20 @@ describe("TlvOfModel", () => {
             expect(ModelBounds.createLengthBounds(long)).deep.equals({ maxLength: 18446744073709552000 });
         });
 
+        // Beyond every number a magnitude states itself as Infinity, which states no integer to compare against
+        it("states a magnitude beyond every number as it stands", () => {
+            const beyond = new AttributeModel({
+                id: 3,
+                name: "Beyond",
+                type: "uint64",
+                constraint: `max ${"9".repeat(400)}`,
+            });
+            new ClusterModel({ name: "Test3", id: 0xfff3 }, beyond);
+
+            expect(() => TlvOfModel(beyond)).not.throws();
+            expect(typeof ModelBounds.createNumberBounds(beyond)?.max).equals("bigint");
+        });
+
         it("refuses the value above it", () => {
             expect(() => TlvOfModel(big).validate(18446744073709551615n)).throws();
         });

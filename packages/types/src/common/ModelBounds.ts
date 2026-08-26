@@ -110,8 +110,10 @@ function stated(bound: number | bigint | undefined) {
         return bound;
     }
 
+    // A magnitude beyond every number states itself as Infinity, which is no integer at all, so the bigint stands and
+    // model validation reports it as outside the type
     const asNumber = Number(bound);
-    return BigInt(asNumber) === bound ? asNumber : bound;
+    return Number.isFinite(asNumber) && BigInt(asNumber) === bound ? asNumber : bound;
 }
 
 export function extractApplicableConstraint(model: ValueModel) {
