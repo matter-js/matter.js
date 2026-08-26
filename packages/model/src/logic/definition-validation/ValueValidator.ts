@@ -344,9 +344,14 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
             return;
         }
 
-        // A fraction has no integer form, and casting it throws rather than saying so.  The numeric validation above
-        // has already reported it, so leave the default as stated
-        if (metatype === Metatype.integer && typeof defaultValue === "number" && !Number.isInteger(defaultValue)) {
+        // A fraction has no integer form, and the cast refuses it rather than saying what is wrong.  The numeric
+        // validation above has already reported it, so leave the default as stated.  An enum and a bitmap state the
+        // integers of the type behind them, so this holds for them too
+        if (
+            typeof defaultValue === "number" &&
+            !Number.isInteger(defaultValue) &&
+            (metatype === Metatype.integer || metatype === Metatype.enum || metatype === Metatype.bitmap)
+        ) {
             return;
         }
 
