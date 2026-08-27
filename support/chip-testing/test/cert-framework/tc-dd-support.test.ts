@@ -12,8 +12,17 @@ import {
     Millis,
     UnexpectedDataError,
 } from "@matter/main";
-import type { CertNodeApi, CertNodeRef, CertStepContext, CheckRecord, ControllerAdapter } from "@matter/testing";
-import { LogFollower } from "@matter/testing";
+import type {
+    CertDevice,
+    CertNodeApi,
+    CertNodeRef,
+    CertStepContext,
+    CheckRecord,
+    ControllerAdapter,
+    DeviceExitInfo,
+    DeviceFlavor,
+} from "@matter/testing";
+import { LineQueue, LogFollower, PicsFile } from "@matter/testing";
 import { expect } from "chai";
 import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
@@ -29,9 +38,11 @@ import {
     qrPayloadWith,
     qrPayloadWithPrefix,
     recordDiscoveryCapabilityAbsent,
+    recordBackInCommissioningMode,
     recordGeneratedManualCode,
     recordPayloadOffering,
     recordGeneratedPayload,
+    recordUnpair,
     recordVendorOutcome,
 } from "../cert/tc-dd-support.js";
 import { CertCheckFailedError, CertCleanupError, CommissionedRefs } from "../cert/tc-support.js";
@@ -963,5 +974,343 @@ describe("unchangedFrom", () => {
         expect(
             checkGeneratedManualCode("749701123365522327692", { vendorId: 0xfff2, unchangedFrom: PLAN_CODE }).detail,
         ).contain("checkDigit=2 (correct)");
+    });
+});
+
+/**
+ * Drives {@link recordUnpair}/{@link recordBackInCommissioningMode} against a hand-fed TH log and a
+ * {@link CertNodeApi} that answers the two identifier reads, recording the order it was asked in.
+ */
+class UnpairFixture {
+    readonly checks = new Array<CheckRecord>();
+    readonly calls = new Array<string>();
+    readonly cx: CertStepContext;
+    readonly commissioned = new CommissionedRefs();
+    readonly #source = new LineQueue();
+    readonly #log: LogFollower;
+
+    constructor(
+        flavor: DeviceFlavor,
+        options: {
+            fabricIndex?: number;
+            backchannel?: () => void;
+            commission?: () => Promise<CertNodeRef>;
+        } = {},
+    ) {
+        const { fabricIndex = 1, backchannel = () => {} } = options;
+        const log = new LogFollower(this.#source, "th");
+        this.#log = log;
+        const unused = () => Promise.reject(new InternalError("not used by these tests"));
+
+        const node: CertNodeApi = {
+            invoke: unused,
+            invokeBatch: unused,
+            readAttributes: unused,
+            writeAttribute: unused,
+            writeAttributes: unused,
+            subscribe: unused,
+            readEvents: unused,
+            subscribeEvents: unused,
+            openCommissioningWindow: unused,
+            readAttribute: async () => {
+                this.calls.push("readFabricIndex");
+                return fabricIndex;
+            },
+            operationalMdnsInstanceName: unused,
+            decommission: async () => {
+                this.calls.push("decommission");
+            },
+        };
+
+        const device: CertDevice = {
+            id: "th",
+            app: "all-clusters",
+            commissioning: { kind: "on-network", passcode: 20202021, discriminator: 3840, qrPairingCode: "" },
+            pics: new PicsFile([]),
+            async initialize() {},
+            async start() {},
+            async stop() {},
+            async close() {},
+            async snapshot() {
+                return {};
+            },
+            async restore() {},
+            backchannel: async () => {
+                this.calls.push("backchannel");
+                backchannel();
+            },
+            flavor,
+            log,
+            exit: new Promise<DeviceExitInfo>(() => {}),
+        };
+
+        const controller: ControllerAdapter = {
+            id: "dut",
+            log,
+            async start() {},
+            async close() {},
+            commission: options.commission ?? unused,
+            parseQrPayload: unused,
+            parseManualPairingCode: unused,
+            node: () => node,
+        };
+
+        this.cx = {
+            devices: { th: device },
+            controllers: { dut: controller },
+            recorder: {
+                beginStep: () => {},
+                check: record => void this.checks.push(record),
+                endStep: () => [],
+                flush: async () => "",
+            },
+        };
+        this.commissioned.set("dut", "peer1" as CertNodeRef);
+    }
+
+    push(...lines: string[]): void {
+        for (const line of lines) {
+            this.#source.push(line);
+        }
+    }
+
+    /** Ends the log, which is what makes a check for a line the TH never printed fail promptly. */
+    close(): void {
+        this.#source.close();
+    }
+
+    mark(): number {
+        return this.#log.mark();
+    }
+
+    /** Lets the follower's pump ingest what was pushed, so a later `mark()` is past it. */
+    async drain(): Promise<void> {
+        await new Promise(resolve => setImmediate(resolve));
+    }
+}
+
+const CHIP_FABRIC_REMOVED = "[1787433103.742] [23362:73430237:chip] [ZCL] OpCreds: RemoveFabric successful";
+const CHIP_SESSIONS_EXPIRED = "[1787433103.742] [23362:73430237:chip] [IN] Expiring all sessions for fabric 0x1!!";
+const CHIP_SETUP_QR_CODE = "[1787433105.001] [23362:73430237:chip] [SVR] SetupQRCode: [MT:-24J042C00KA0648G00]";
+const CHIP_ADVERTISING_COMMISSIONABLE =
+    "[1787433105.010] [23362:73430237:chip] [DIS] mDNS service published: _matterc._udp; instance name: 245375FD9D5602FE";
+const MATTERJS_ADVERTISING_COMMISSIONABLE =
+    "2026-08-27 13:05:44.123 INFO MdnsAdvertisement Publishing kind: commissionable service: mdns:036341AECBC96116._matterc._udp.local";
+
+describe("recordUnpair", () => {
+    it("records the removal and the ended sessions, and gives up the ref", async () => {
+        const fixture = new UnpairFixture("chip-local");
+        fixture.push(CHIP_FABRIC_REMOVED, CHIP_SESSIONS_EXPIRED);
+
+        await recordUnpair(fixture.cx, fixture.commissioned);
+
+        expect(fixture.commissioned.get("dut")).equal(undefined);
+        expect(fixture.checks.map(check => `${check.type}:${check.verdict}`)).deep.equal([
+            "response:pass",
+            "device-log:pass",
+            "device-log:pass",
+        ]);
+    });
+
+    // The in-process controller drops the peer as the device announces the removal, so the index the
+    // device assigned this controller cannot be read once the fabric is gone
+    it("reads the fabric index before removing the fabric", async () => {
+        const fixture = new UnpairFixture("chip-local");
+        fixture.push(CHIP_FABRIC_REMOVED, CHIP_SESSIONS_EXPIRED);
+
+        await recordUnpair(fixture.cx, fixture.commissioned);
+
+        expect(fixture.calls).deep.equal(["readFabricIndex", "decommission"]);
+    });
+
+    it("judges both lines against the fabric index the device assigned", async () => {
+        const fixture = new UnpairFixture("chip-local", { fabricIndex: 2 });
+        fixture.push(CHIP_FABRIC_REMOVED, CHIP_SESSIONS_EXPIRED);
+        fixture.close();
+
+        await expect(recordUnpair(fixture.cx, fixture.commissioned)).rejectedWith(CertCheckFailedError);
+
+        // The removal line names no fabric on chip, so only the session line can tell fabric 2 from 1
+        expect(fixture.checks.map(check => check.verdict)).deep.equal(["pass", "pass", "fail"]);
+    });
+
+    // matter.js closes the removed fabric's sessions before it answers the invoke, so a search
+    // starting where the removal matched would never reach them
+    it("finds a session end the TH logged before the removal it answered", async () => {
+        const fixture = new UnpairFixture("matterjs");
+        fixture.push(
+            "2026-08-22 21:48:06.401 INFO Session @1:1946ee4c0f86d574•c677 Session ended",
+            "2026-08-22 21:48:06.406 INFO ProtocolService Invoke » binford-6100.operationalCredentials.removeFabric " +
+                "@1:9a52bb47a4ee167d•c675⇵68ce✉09f1964b statusCode: 0 fabricIndex: 1",
+        );
+
+        await recordUnpair(fixture.cx, fixture.commissioned);
+
+        expect(fixture.checks.map(check => check.verdict)).deep.equal(["pass", "pass", "pass"]);
+    });
+
+    it("fails, but still gives up the ref, when the TH never logs the removal", async () => {
+        const fixture = new UnpairFixture("chip-local");
+        fixture.close();
+
+        await expect(recordUnpair(fixture.cx, fixture.commissioned)).rejectedWith(CertCheckFailedError);
+
+        // The fabric is off the TH whatever the log said, so cleanup must not try to remove it again
+        expect(fixture.commissioned.get("dut")).equal(undefined);
+    });
+
+    it("records both outcomes before failing on the first bad one", async () => {
+        const fixture = new UnpairFixture("chip-local");
+        fixture.push(CHIP_FABRIC_REMOVED);
+        fixture.close();
+
+        await expect(recordUnpair(fixture.cx, fixture.commissioned)).rejectedWith(CertCheckFailedError);
+
+        expect(fixture.checks.map(check => check.verdict)).deep.equal(["pass", "pass", "fail"]);
+    });
+
+    // The bundle must carry the session-end outcome even though the removal check ahead of it is what
+    // fails the step: recording the two in sequence would throw on the first and drop the second
+    it("records the session-end outcome even when the removal check is the one that failed", async () => {
+        const fixture = new UnpairFixture("chip-local");
+        fixture.push(CHIP_SESSIONS_EXPIRED);
+        fixture.close();
+
+        await expect(recordUnpair(fixture.cx, fixture.commissioned)).rejectedWith(CertCheckFailedError);
+
+        expect(fixture.checks.map(check => check.verdict)).deep.equal(["pass", "fail", "pass"]);
+    });
+});
+
+describe("restoreCommissioningMode, through recordVendorOutcome", () => {
+    // The composed path every pre-existing caller uses: an earlier attempt onboarded the TH, so the
+    // next one has to put it back into commissioning mode first.
+    it("resets the TH and gives up the ref before the next attempt", async () => {
+        const fixture = new UnpairFixture("chip-local", {
+            backchannel: () => fixture.push(CHIP_SETUP_QR_CODE, CHIP_ADVERTISING_COMMISSIONABLE),
+            commission: () => Promise.reject(new DiscoveryError("No commissionable device was discovered")),
+        });
+        const probed = new Array<string>();
+
+        await recordVendorOutcome(
+            fixture.cx,
+            "34970112332",
+            fixture.commissioned,
+            new CommissioningRefusals({ refusalTimeout: Millis(50), settleTimeout: Millis(50) }),
+            "vendor outcome",
+            Millis(50),
+            { vendorId: 0xfff2, thVendorId: 0xfff1 },
+            async (_cx, what) => void probed.push(what),
+        );
+
+        expect(fixture.calls).deep.equal(["decommission", "backchannel"]);
+        expect(fixture.commissioned.get("dut")).equal(undefined);
+
+        // The restore's own probe, and no second one: a restore that ran has already proven the TH
+        // is there, so the attempt does not probe again
+        expect(probed).deep.equal(["TH back in commissioning mode"]);
+    });
+
+    // The fabric is off the TH once decommission() resolves, whatever the reset that follows does, so
+    // a ref surrendered only on success would have the finalizer remove a fabric that is gone
+    it("gives up the ref even when the reset that follows never completes", async () => {
+        const fixture = new UnpairFixture("chip-local", { backchannel: () => fixture.close() });
+
+        await expect(
+            recordVendorOutcome(
+                fixture.cx,
+                "34970112332",
+                fixture.commissioned,
+                new CommissioningRefusals({ refusalTimeout: Millis(50), settleTimeout: Millis(50) }),
+                "vendor outcome",
+                Millis(50),
+                { vendorId: 0xfff2, thVendorId: 0xfff1 },
+                async () => {},
+            ),
+        ).rejectedWith(CertCheckFailedError);
+
+        expect(fixture.commissioned.get("dut")).equal(undefined);
+    });
+});
+
+describe("recordBackInCommissioningMode", () => {
+    it("factory-resets a chip TH and waits for the restarted app's own payload", async () => {
+        const fixture = new UnpairFixture("chip-local", {
+            backchannel: () => fixture.push(CHIP_SETUP_QR_CODE, CHIP_ADVERTISING_COMMISSIONABLE),
+        });
+        const probed = new Array<string>();
+
+        await recordBackInCommissioningMode(fixture.cx, {
+            what: "TH advertising again",
+            probeCommissionable: async (_cx, what) => void probed.push(what),
+        });
+
+        expect(fixture.calls).deep.equal(["backchannel"]);
+        expect(fixture.checks.map(check => check.verdict)).deep.equal(["pass", "pass"]);
+        expect(probed).deep.equal(["TH advertising again"]);
+    });
+
+    // A matter.js device returns to commissioning mode when its last fabric goes, so erasing it would
+    // restart a TH that needs nothing
+    it("does not reset a matterjs TH, and takes its own announcement instead", async () => {
+        const fixture = new UnpairFixture("matterjs");
+        fixture.push(MATTERJS_ADVERTISING_COMMISSIONABLE);
+        const probed = new Array<string>();
+
+        await recordBackInCommissioningMode(fixture.cx, {
+            what: "TH advertising again",
+            probeCommissionable: async (_cx, what) => void probed.push(what),
+        });
+
+        expect(fixture.calls).deep.equal([]);
+        expect(fixture.checks.map(check => check.verdict)).deep.equal(["pass"]);
+        expect(probed).deep.equal(["TH advertising again"]);
+    });
+
+    // The probe alone passes off a record cached before the TH was ever commissioned, so the device
+    // saying so is what carries the claim — and a TH that never returns must not reach the probe
+    it("fails, without probing, when a matterjs TH never announces the advertisement", async () => {
+        const fixture = new UnpairFixture("matterjs");
+        fixture.close();
+        const probed = new Array<string>();
+
+        await expect(
+            recordBackInCommissioningMode(fixture.cx, {
+                what: "TH advertising again",
+                probeCommissionable: async (_cx, what) => void probed.push(what),
+            }),
+        ).rejectedWith(CertCheckFailedError);
+
+        expect(probed).deep.equal([]);
+    });
+
+    it("searches the announcement from the caller's mark, not from its own entry", async () => {
+        const fixture = new UnpairFixture("matterjs");
+        const before = fixture.mark();
+        // A TH that returned to commissioning mode before this helper was entered, which is the
+        // ordinary case: the decommission that caused it happened in the caller
+        fixture.push(MATTERJS_ADVERTISING_COMMISSIONABLE);
+        await fixture.drain();
+
+        await recordBackInCommissioningMode(fixture.cx, {
+            from: before,
+            probeCommissionable: async () => {},
+        });
+
+        expect(fixture.checks.map(check => check.verdict)).deep.equal(["pass"]);
+    });
+
+    it("fails, without probing, when the restarted chip TH never prints its payload", async () => {
+        const fixture = new UnpairFixture("chip-local", { backchannel: () => fixture.close() });
+        const probed = new Array<string>();
+
+        await expect(
+            recordBackInCommissioningMode(fixture.cx, {
+                what: "TH advertising again",
+                probeCommissionable: async (_cx, what) => void probed.push(what),
+            }),
+        ).rejectedWith(CertCheckFailedError);
+
+        expect(probed).deep.equal([]);
     });
 });

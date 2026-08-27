@@ -11,10 +11,8 @@ import { certTest } from "@matter/testing";
 import { expectMdns } from "../../src/cert/mdns-check.js";
 import {
     COMMISSIONING_COMPLETE,
-    fabricSessionsEnded,
     isPostRemovalRefusal,
     removeFabricResponseFailure,
-    removeFabricSucceeded,
     WINDOW_OPEN,
 } from "./tc-cadmin-1.17-support.js";
 import {
@@ -22,10 +20,13 @@ import {
     CommissionedRefs,
     expectDeviceLog,
     expectRejection,
+    fabricSessionsEnded,
     LOG_TIMEOUT,
     PendingPairingCode,
+    readOwnFabricIndex,
     record,
     recordAll,
+    removeFabricSucceeded,
 } from "./tc-support.js";
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
@@ -33,7 +34,6 @@ const VENDOR_ID = BASIC_INFORMATION.attributes.require("vendorId");
 const NODE_LABEL = BASIC_INFORMATION.attributes.require("nodeLabel");
 const OPERATIONAL_CREDENTIALS = Matter.clusters.require("OperationalCredentials");
 const FABRICS = OPERATIONAL_CREDENTIALS.attributes.require("fabrics");
-const CURRENT_FABRIC_INDEX = OPERATIONAL_CREDENTIALS.attributes.require("currentFabricIndex");
 
 const CW_DURATION_SECONDS = 180;
 const EXPECTED_CR2_FABRIC_INDEX = 2;
@@ -78,24 +78,6 @@ function asFabricEntries(value: unknown[]): FabricEntry[] {
         throw new InternalError(
             `Expected Fabrics attribute entries with fabricIndex/label, got ${describeFabrics(value)}`,
         );
-    }
-    return value;
-}
-
-/**
- * The fabric index the TH assigned to `node`'s own controller, read over that controller's own session
- * — the only discriminator every controller has without setup. A fabric's `Label` is empty until an
- * admin writes one (Core § 11.18.6.2) and the plan's own `FabricIndex = 2` assumes commissioning order,
- * so neither identifies a fabric for a harness that must work with any controller implementation.
- */
-async function readOwnFabricIndex(node: CertNodeApi): Promise<number> {
-    const value = await node.readAttribute({
-        endpoint: 0,
-        cluster: OPERATIONAL_CREDENTIALS.id,
-        attribute: CURRENT_FABRIC_INDEX.id,
-    });
-    if (typeof value !== "number") {
-        throw new InternalError(`Expected CurrentFabricIndex to read as a number, got ${JSON.stringify(value)}`);
     }
     return value;
 }
@@ -316,8 +298,9 @@ certTest("TC-CADMIN-1.17", {
             record(cx, removed.check, "RemoveFabric-successful log");
 
             // Searched from the step's own mark, not from the line above: matter.js closes the removed
-            // fabric's sessions before it answers the invoke, chip after. Both patterns name the fabric
-            // index, and the mark precedes this step's removal, so neither can match another removal's.
+            // fabric's sessions before it answers the invoke, chip after. This step drives the only
+            // removal after that mark, which is what keeps the checks attributable — chip's success
+            // line names no fabric, so on that flavor only the session line identifies one.
             const expiring = await expectDeviceLog(
                 th.log,
                 th.flavor,
