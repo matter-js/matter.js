@@ -331,6 +331,51 @@ export class Transitions<B extends Behavior> {
     }
 
     /**
+     * Stop a transition of one or more attributes at the request of a command.
+     *
+     * Unlike {@link finish} the transition has not reached its target value, and unlike {@link stop} the remaining
+     * time of the transitions this instance manages becomes zero and is reported, which the specification requires
+     * whenever it changes to zero.  Where the transition time is stated elsewhere the caller owns clearing it.
+     */
+    cancel(name?: Transitions.PropertyOf<B>): void {
+        // The value read before the transition ends is what the change is measured against
+        const previousRemainingTime = this.remainingTime;
+
+        const names = typeof name === "string" ? [name] : [...this].map(({ name }) => name);
+
+        this.stop(name);
+
+        for (const stopped of names) {
+            const event = (this.#endpoint.events as Events.Generic<ClusterEvents.ChangedObservable<any>>)[
+                this.#config.type.id
+            ]?.[`${stopped}$Changed`];
+
+            // Per specification a quieter event always emits at the end of a transition, and a command that stops one
+            // ends it
+            if (event?.isQuieter) {
+                event.quiet.emitNow();
+            }
+        }
+
+        if (Object.keys(this.#propertyStates).length) {
+            // Other transitions are ongoing, but ending the longest of them shortens the remaining time, which is
+            // reportable where a command causes it to change by more than the reporting floor
+            this.#updateRemainingTime(undefined, true);
+            return;
+        }
+
+        this.#staticRemainingTime = 0;
+
+        // Nothing publishes the remaining time where the transition is managed elsewhere, so the value that was
+        // readable is the baseline; without it the report of zero looks like no change
+        if (previousRemainingTime > 10) {
+            this.#prevPublishedRemainingTime = previousRemainingTime;
+        }
+
+        this.#updateRemainingTime(0);
+    }
+
+    /**
      * Free resources.
      */
     async close() {
@@ -361,8 +406,8 @@ export class Transitions<B extends Behavior> {
      */
     get remainingTime() {
         if (this.#config.manageTransitions === false) {
-            if (this.#config.transitionEndTimeMs !== undefined) {
-                const remaining = Timespan(Time.nowMs, this.#config.transitionEndTimeMs).duration;
+            if (this.#config.transitionEndTime !== undefined) {
+                const remaining = Timespan(Time.nowMs, this.#config.transitionEndTime).duration;
                 if (remaining < 0) {
                     return 0;
                 }
@@ -696,7 +741,7 @@ export namespace Transitions {
         /**
          * The end time for a transition if transition management is disabled.
          */
-        readonly transitionEndTimeMs?: number;
+        readonly transitionEndTime?: Timestamp;
 
         /**
          * An observable associated with the "remaining time" value.
