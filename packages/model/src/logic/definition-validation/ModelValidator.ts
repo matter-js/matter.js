@@ -104,7 +104,9 @@ export class ModelValidator<T extends Model> {
                 if (child instanceof CommandModel) {
                     id = `${id}:${child.direction}`;
                 } else if (child instanceof RequirementModel) {
-                    id = `${id}:${child.element}`;
+                    // A device type may require several instances of one component, numbered from 1, and each is a
+                    // requirement of its own
+                    id = `${id}:${child.element}${child.instance === undefined ? "" : `:${child.instance}`}`;
                 }
                 const identity = `${child.tag};${id};${(child as ValueModel).conformance}`;
                 if (identities[identity]) {
