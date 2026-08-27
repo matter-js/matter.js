@@ -1076,6 +1076,43 @@ window. Anchor by identity instead: the subscription id from the TH's own `Subsc
 the envelope itself to pick this TC's subscriptions out from the node-level one (which chip's capture
 shows as `KeepSubscriptions = false`). Never anchor on "first match after a mark".
 
+## Anchor a chunked transfer on its read request's exchange (`TC-IDM-2.1` step 20)
+
+`expectChunkedTransfer` does not look for the read itself. The step hands it the check that already
+matched *this* read's request — the paths that check asked for are what identify the request — and the
+transfer is then every report chunk sent on the exchange that request arrived on. Everything else is
+discarded. Every message of an exchange carries its id, which is how a responder's messages are matched
+to the request that caused them (Matter Core, "Message Exchanges"), so this is identity, not position.
+
+Handing the request in rather than searching for it is the point. A search could only ask for "the
+first read request after the mark", which is the anchor the rule above forbids, and `InteractionServer
+Read «` covers event reads as well as attribute reads.
+
+The margin this replaces is small. In the `matterjs`-controller bundle
+`2026-08-14T06-51-46.111Z-TC-IDM-2.1`, the node-level wildcard subscription (exchange 12822) emitted 21
+reports 3–40 ms apart, and its burst ended 61 ms before the next chunked read's first chunk. Anchoring
+on the first `ReportDataMessage` after the step's mark would have made one of those the transfer's
+anchor, and every real chunk would then have read as another read's — a spurious failure, not a wrong
+pass.
+
+Three things to know before changing this helper:
+
+- **A transfer that stops is not a truncated log.** Collection ends either because the source closed or
+  because nothing further arrived. Only the first is a log that ends inside a transfer; the second, on a
+  last chunk that announced more, is the TH abandoning the transfer and fails. Keep the two apart.
+- **The quiet period is an absolute deadline** from the last chunk of *ours*. Another exchange's reports
+  match the same pattern, so a per-wait timeout restarts for as long as that exchange keeps reporting.
+- **A report whose own exchange cannot be read fails the check.** An unattributable chunk cannot be
+  shown not to be ours.
+
+What this cannot tell apart: exchange ids are allocated per initiator and neither implementation logs
+the initiator (matter.js renders `hex.word(exchangeId)`, chip prints a bare `Exchange = N`), so a
+TH-initiated exchange whose id collides with the read's would be read as part of the transfer. That
+matters because a matter.js TH does *not* answer a subscription on the `SubscribeRequest`'s exchange —
+`ServerSubscription` initiates a fresh exchange per report round, and only the priming report goes out
+on the inbound one. A chip TH reuses the subscription's exchange; the bundle above shows all 21 reports
+on 12822.
+
 ## Reading and subscribing to events (`TC-IDM-6.3`, `TC-IDM-6.4`)
 
 `CertNodeApi` grew `readEvents(paths, options)` and `subscribeEvents(paths, opts)` for these two TCs.
