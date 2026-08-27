@@ -5,6 +5,7 @@
  */
 
 import { DimmableLightDevice } from "#devices/dimmable-light";
+import { LevelControl } from "@matter/types/clusters/level-control";
 import { MockServerNode } from "../../node/mock-server-node.js";
 
 describe("LevelControl on/off coupling", () => {
@@ -57,14 +58,87 @@ describe("LevelControl on/off coupling", () => {
 
         await node.close();
     });
+    it("turns off after a move down reaches the minimum level", async () => {
+        const { node, endpoint } = await coupledLight({ onOff: true, currentLevel: 254, onLevel: null });
+
+        await node.online({ command: true }, async agent => {
+            await endpoint.agentFor(agent.context).levelControl.moveWithOnOff({
+                moveMode: LevelControl.MoveMode.Down,
+                rate: 254,
+                optionsMask: {},
+                optionsOverride: {},
+            });
+        });
+
+        expect(endpoint.state.levelControl.currentLevel).equals(1);
+        expect(endpoint.state.onOff.onOff).equals(false);
+
+        await node.close();
+    });
+
+    it("turns off after a step down overshoots the minimum level", async () => {
+        const { node, endpoint } = await coupledLight({ onOff: true, currentLevel: 50, onLevel: null });
+
+        await node.online({ command: true }, async agent => {
+            await endpoint.agentFor(agent.context).levelControl.stepWithOnOff({
+                stepMode: LevelControl.StepMode.Down,
+                stepSize: 100,
+                transitionTime: null,
+                optionsMask: {},
+                optionsOverride: {},
+            });
+        });
+
+        expect(endpoint.state.levelControl.currentLevel).equals(1);
+        expect(endpoint.state.onOff.onOff).equals(false);
+
+        await node.close();
+    });
+
+    it("stays off for a move down while the device is off", async () => {
+        const { node, endpoint } = await coupledLight({ onOff: false, currentLevel: 50, onLevel: null });
+
+        await node.online({ command: true }, async agent => {
+            await endpoint.agentFor(agent.context).levelControl.moveWithOnOff({
+                moveMode: LevelControl.MoveMode.Down,
+                rate: 254,
+                optionsMask: {},
+                optionsOverride: {},
+            });
+        });
+
+        expect(endpoint.state.onOff.onOff).equals(false);
+
+        await node.close();
+    });
+
+    it("turns on for a move up while the device is off", async () => {
+        const { node, endpoint } = await coupledLight({ onOff: false, currentLevel: 50, onLevel: null });
+
+        await node.online({ command: true }, async agent => {
+            await endpoint.agentFor(agent.context).levelControl.moveWithOnOff({
+                moveMode: LevelControl.MoveMode.Up,
+                rate: 254,
+                optionsMask: {},
+                optionsOverride: {},
+            });
+        });
+
+        expect(endpoint.state.levelControl.currentLevel).equals(254);
+        expect(endpoint.state.onOff.onOff).equals(true);
+
+        await node.close();
+    });
 });
 
-async function coupledLight() {
+async function coupledLight(state: { onOff?: boolean; currentLevel?: number; onLevel?: number | null } = {}) {
     const node = await MockServerNode.createOnline(undefined, { device: undefined });
 
+    const { onOff = false, currentLevel = 1, onLevel = 100 } = state;
+
     const endpoint = await node.add(DimmableLightDevice, {
-        onOff: { onOff: false },
-        levelControl: { currentLevel: 1, onLevel: 100 },
+        onOff: { onOff },
+        levelControl: { currentLevel, onLevel },
     });
 
     return { node, endpoint };

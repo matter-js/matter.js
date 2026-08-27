@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Lifetime } from "#index.js";
+import { Diagnostic, Lifetime, LogDestination, Logger, LogLevel } from "#index.js";
 import { MatterAggregateError } from "#MatterError.js";
 import {
     FinalizationError,
@@ -1207,6 +1207,71 @@ describe("Transaction", () => {
                 await expect(transaction.commit()).rejectedWith(SomeError);
                 expect(resource.lockedBy).undefined;
             });
+        });
+    });
+
+    describe("lock", () => {
+        test2("acquires without a promise where the resources are free", async () => {
+            const resource = new TestResource();
+
+            join();
+
+            expect(transaction.lock(resource)).undefined;
+            expect(transaction.status).equals(Transaction.Status.Exclusive);
+            expect(resource.lockedBy).equals(transaction);
+        });
+
+        test2("does not advise awaiting when it waits by itself", async () => {
+            const resource = new TestResource();
+
+            join();
+            transaction.addResourcesSync(resource);
+            transaction.beginSync();
+
+            const advice = new Array<string>();
+            Logger.destinations.capture = LogDestination({
+                add(message: Diagnostic.Message) {
+                    if (message.level >= LogLevel.WARN) {
+                        advice.push(String(message.values[0]));
+                    }
+                },
+            });
+
+            try {
+                join2();
+                const locked = transaction2.lock(resource);
+
+                expect(advice).deep.equals([]);
+
+                await transaction.commit();
+                await locked;
+            } finally {
+                delete Logger.destinations.capture;
+            }
+        });
+
+        test2("waits for a transaction that holds the resources", async () => {
+            const resource = new TestResource();
+
+            join();
+            transaction.addResourcesSync(resource);
+            transaction.beginSync();
+
+            join2();
+            const locked = transaction2.lock(resource);
+            expect(MaybePromise.is(locked)).true;
+
+            let acquired = false;
+            const acquiring = MaybePromise.then(locked, () => (acquired = true));
+
+            await Promise.resolve();
+            expect(acquired).false;
+
+            await transaction.commit();
+            await acquiring;
+
+            expect(acquired).true;
+            expect(resource.lockedBy).equals(transaction2);
         });
     });
 

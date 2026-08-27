@@ -1602,6 +1602,52 @@ outcome that satisfies `requireRefusal` also satisfies it, so a malformed genera
 step 4 pass at ~1ms having never reached discovery. The two checks are only a partition because the
 predicate says so.
 
+## A transport the controller has no radio for is not applicable, not skipped (`TC-DD-3.11`)
+
+The plan runs the same three steps over BLE, Wi-Fi PAF and IP: produce a QR code offering that
+capability, scan it, commission over it. A payload's discovery-capability bitmask is what the
+*commissionee* offers, though, and nothing makes a commissioner use it. `InProcessControllerAdapter`
+takes only the discriminator, passcode, vendor and product out of a QR target and discards the bitmask
+entirely, and neither adapter wires a radio — so a commissioning step driven from a BLE payload
+proceeds over IP and passes on a transport it never used.
+
+Those two steps therefore carry `notApplicable`, whose reason reaches the bundle as `skipReason`.
+A PICS gate cannot express it. The value that reaches a step's gate is the device file's, and
+`ci-pics-values` answers `MCORE.DD.DISCOVERY_BLE=1` / `MCORE.DD.DISCOVERY_PAF=0`; the controller
+adapters deliberately declare neither (`controller-adapter.test.ts` holds them to that). So the BLE
+leg is gated by an answer about the TH while the step is about the DUT, and the bundle carries both
+statements side by side — the `notApplicable` text says which subject it means for that reason.
+
+**Unsettled, worth resolving before the next per-transport TC:** the PICS register
+(`chip-test-plans/tools/PICS_Automation/Pics_XML_Files/XML__Files/Base.xml`) defines
+`MCORE.DD.DISCOVERY_BLE` as "Does the commissioner support Discovery Capability over BLE?", which
+makes it a DUT question in TC-DD-3.14 as well, where this directory currently treats it as a TH one.
+If the register governs, the adapters declaring `= 0` would be the cleaner gate and `notApplicable`
+would become unnecessary.
+
+Generating and parsing a payload needs no radio, so those steps are left executable — though only the
+BLE leg's actually run today, since `DISCOVERY_PAF=0` skips the PAF leg entirely. A leg is reported as
+a unit, so its scan step must not outlive its generate step's gate: step 2.b is gated on
+`MCORE.DD.SCAN_QR_CODE & MCORE.DD.DISCOVERY_PAF`, not because it consumes 2.a's artifact (it rebuilds
+its own) but because recording a PAF-leg scan while the PAF leg is out of scope misreads. Step-level
+`pics` takes a full expression (`&`, `|`, `!`, parentheses), and `certTest` parses it at declaration
+time so a typo cannot surface as the step failing.
+
+**A scan step must judge the field that defines its leg.** `recordParse` settles its verdict on the
+discriminator and passcode alone, so every leg's scan step otherwise passes on identical evidence and
+one handed another leg's payload still passes. `recordPayloadOffering` puts the capability and the
+commissioning flow into the verdict, read back through the DUT's own parse.
+
+**The TH's own QR code already satisfies the plan's precondition**, so this TC verifies rather than
+fabricates: both chip builds publish `flowType` 0 — `MT:-24J042C00KA0648G00` from the cert-bins app,
+discovery `0b10`, BLE only, and `MT:-24J0AFN00KA0648G00` from the own-built app, discovery `0b100`,
+OnNetwork. Only the capability bitmask needs substituting. Assert the version explicitly rather than
+through `unchangedFrom`, which supplies it from the source payload and so compares the TH's version
+against itself — the plan's "ensure the Version bit string follows the current Matter spec" is a claim
+about the artifact, not about the TH. Note the plan's own example payload, `MT:-24J029Q00KA0648G00`,
+decodes to `flowType` 2: it is copy-pasted into 3.11, 3.12 and 3.14 from 3.13, the one case whose flow
+value it actually matches.
+
 ## chip-tool delivers one result per async report and discards the rest
 
 `step 4: write 1/3 … produced no subscription report carrying "tc-idm-4-1-a" within 30s`,

@@ -219,6 +219,22 @@ class Tx implements Transaction, Transaction.Finalization {
         }
     }
 
+    lock(...resources: Resource[]): MaybePromise<void> {
+        // Becoming exclusive locks the resources already added as well as these
+        if (new ResourceSet(this, [...this.#resources, ...resources]).lockableSync) {
+            this.addResourcesSync(...resources);
+            this.beginSync();
+            return;
+        }
+
+        return this.#lockAsync(resources);
+    }
+
+    async #lockAsync(resources: Resource[]) {
+        await this.addResources(...resources);
+        await this.begin();
+    }
+
     async begin() {
         this.#assertAvailable();
 
