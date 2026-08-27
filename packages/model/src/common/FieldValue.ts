@@ -260,12 +260,6 @@ export namespace FieldValue {
     const MAX_STATED_DIGITS = 64;
 
     /**
-     * The integer that decimal or exponential notation states exactly, or undefined where it states a fraction.
-     *
-     * The digits are shifted by hand because converting to a number first rounds a value too large to be one, and
-     * "18446744073709551614.5" would then look like the integer it is not.
-     */
-    /**
      * Read a value as the integer it states, exactly.
      *
      * A magnitude only a bigint holds stays a bigint; a number states the value where it holds it.  Also serves the
@@ -346,6 +340,13 @@ export namespace FieldValue {
         }
     }
 
+    /**
+     * The digits of the integer decimal or exponential notation states, or undefined where the text states no
+     * integer this reader builds.
+     *
+     * The digits are shifted by hand because converting to a number first rounds a value too large to be one, and
+     * "18446744073709551614.5" would then look like the integer it is not.
+     */
     function statedInteger(text: string) {
         const stated = text.match(/^([+-]?)(\d*)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/);
         if (stated === null) {

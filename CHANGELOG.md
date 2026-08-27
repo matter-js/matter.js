@@ -194,7 +194,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The `storage.clear` variable now clears the storage on start as it does on Node.js
 
 - @matter/types
-    - Breaking: `ModelBounds.createNumberBounds()` states a bound as a `bigint` where a number cannot hold it, and states both `min` and `max` where it previously omitted an absent bound; `createLengthBounds()` still states a number, as a length counts what a message can carry
+    - Breaking: `ModelBounds.createNumberBounds()` states a bound as a `bigint` where it lies beyond the safe integers, and states both `min` and `max` where it previously omitted an absent bound; `createLengthBounds()` still states a number, as a length counts what a message can carry
+    - Breaking: `TlvNumericSchema.bound()` states the base type of the schema it bounds in `baseTypeMin` and `baseTypeMax`, where it previously stated the bound; the bound is stated by `min` and `max`. The class gains a protected `constrain()`
+    - Breaking: A bounded 64 bit schema states its datatype again, so a legacy `ClusterType()` cluster derives the type and constraint of such an attribute instead of neither, and enforces a range it previously left open
+    - Fix: A nullable 64 bit integer reserves the value that encodes null from its type rather than from its constraint, so it neither refuses the extreme its constraint states nor admits the sentinel. `ElectricalPowerMeasurement`'s `Frequency` and `PowerFactor` refused their own maximum and minimum
+    - Breaking: `TlvNumericSchema.bound()` refuses a bound stated as a number that the number holds only approximately, such as `9223372036854775807` on a `uint64`, which rounded to 2^63 and admitted a value above the stated maximum. State such a bound as a `bigint`
     - Breaking: Provisional cluster elements are now typed as optional rather than always present
     - Breaking: An onboarding payload's vendor and product ID are reported absent (undefined) where it states none instead of 0
     - Feature: Added the `ClusterLookup` namespace for cluster/attribute/command/event name↔id resolution (optional `MatterModel` for custom clusters)

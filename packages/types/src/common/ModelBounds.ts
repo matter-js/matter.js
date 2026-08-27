@@ -56,7 +56,7 @@ export namespace ModelBounds {
 
         const value = EncodedValue(model, constraint.value);
         if (value !== undefined) {
-            return { min: value, max: value };
+            return { min: stated(value), max: stated(value) };
         }
 
         return createRangeBounds(model, constraint, model.effectiveType);
@@ -104,16 +104,14 @@ function createRangeBounds(model: ValueModel, constraint: Constraint, type?: str
     return { min: stated(min), max: stated(max) };
 }
 
-/** A magnitude a number states exactly is a number, so only a bound that needs more carries a bigint */
+/** A safe integer is a number; a wider magnitude carries a bigint, as a number states it only approximately */
 function stated(bound: number | bigint | undefined) {
     if (typeof bound !== "bigint") {
         return bound;
     }
 
-    // A magnitude beyond every number states itself as Infinity, which is no integer at all, so the bigint stands and
-    // model validation reports it as outside the type
     const asNumber = Number(bound);
-    return Number.isFinite(asNumber) && BigInt(asNumber) === bound ? asNumber : bound;
+    return Number.isSafeInteger(asNumber) ? asNumber : bound;
 }
 
 export function extractApplicableConstraint(model: ValueModel) {
