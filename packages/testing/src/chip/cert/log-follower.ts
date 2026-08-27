@@ -175,11 +175,24 @@ export class LogFollower implements LogSource {
      * yet flushed is not observable by any means here.
      */
     async markSettled(): Promise<number> {
+        await this.settled();
+        return this.mark();
+    }
+
+    /**
+     * Lets the pump deliver what its source already holds, without taking a mark.
+     *
+     * What {@link markSettled} does before marking, for a caller that instead reads the buffer
+     * directly — {@link count} and {@link lastMatchBefore} see only what has been ingested, so a line
+     * the device wrote moments ago is invisible to them until this has run. Same bound as
+     * {@link markSettled}: it yields two macrotask turns, which is what every source this class is
+     * given today needs.
+     */
+    async settled(): Promise<void> {
         // Two turns: the first lets a pending read resolve, the second lets the pump's own
         // continuation append what it read.
         await delay(0).promise;
         await delay(0).promise;
-        return this.mark();
     }
 
     /**
