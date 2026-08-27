@@ -55,6 +55,26 @@ describe("RequirementValidator", () => {
         });
     });
 
+    describe("a number that is no instance number", () => {
+        // The number tells two requirements apart, so one that states no instance would make requirements that are
+        // the same look different
+        it("reports a number that does not count from one", () => {
+            expect(withComponents(0)).deep.equals(["INVALID_INSTANCE"]);
+            expect(withComponents(-1)).deep.equals(["INVALID_INSTANCE"]);
+            expect(withComponents(1.5)).deep.equals(["INVALID_INSTANCE"]);
+            expect(withComponents(Number.NaN)).deep.equals(["INVALID_INSTANCE"]);
+        });
+
+        it("reports a value that is no number at all", () => {
+            expect(withComponents("1" as unknown as number)).deep.equals(["INVALID_INSTANCE"]);
+        });
+
+        it("accepts the numbers the specification counts", () => {
+            expect(withComponents(1)).deep.equals([]);
+            expect(withComponents(2)).deep.equals([]);
+        });
+    });
+
     describe("an instance number where the specification states none", () => {
         it("reports it, and still reports the duplicate it would otherwise hide", () => {
             expect(withNumberedAttributes(1, 2)).deep.equals([

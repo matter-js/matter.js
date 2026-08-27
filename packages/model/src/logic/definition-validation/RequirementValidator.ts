@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ElementTag } from "../../common/index.js";
+import { ElementTag, FieldValue } from "../../common/index.js";
 import { RequirementElement } from "../../elements/index.js";
 import { FieldModel, RequirementModel } from "../../models/index.js";
 import { ModelValidator } from "./ModelValidator.js";
@@ -20,11 +20,21 @@ ModelValidator.validators[RequirementElement.Tag] = class RequirementValidator e
             required: true,
         });
 
-        if (this.model.instance !== undefined && this.model.element !== RequirementElement.ElementType.DeviceType) {
-            this.error(
-                "INSTANCE_NOT_APPLICABLE",
-                `Only a component device type is required in numbered instances, not ${this.model.element}`,
-            );
+        const { instance } = this.model;
+        if (instance !== undefined) {
+            if (this.model.element !== RequirementElement.ElementType.DeviceType) {
+                this.error(
+                    "INSTANCE_NOT_APPLICABLE",
+                    `Only a component device type is required in numbered instances, not ${this.model.element}`,
+                );
+            } else if (typeof instance !== "number" || !Number.isInteger(instance) || instance < 1) {
+                // Instances are numbered from one, and the number tells two requirements apart, so a number that
+                // states no instance would make requirements that are the same look different
+                this.error(
+                    "INVALID_INSTANCE",
+                    `Instance ${FieldValue.serialize(instance)} is not a number of an instance, which counts from 1`,
+                );
+            }
         }
 
         const parentTag = this.model.parent?.tag;
