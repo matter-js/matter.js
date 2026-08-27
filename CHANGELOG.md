@@ -52,6 +52,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: New `EncodedConstraint.bounds()` reports which of a constraint's bounds state a number in encoding units and which state a unit with no known scale
     - Fix: The model build rejects a value stating a unit with no known scale, a fraction an integer type cannot hold, or a negative an unsigned type cannot hold
     - Fix: The model build rejects a bound or default stating a number outside the range of the integer type that carries it, such as the `300` of a `0 to 300` constraint on a `uint8`
+    - Fix: The model build rejects a bound or default stating a magnitude beyond the range of the float type that carries it, such as the `1e300` of a `single`
     - Fix: A constraint bound keeps the magnitude it states: the parser accumulated digits as a number, so `max 18446744073709551615` became 18446744073709552000 and a `uint64` bound admitted values above the type. A bound a number cannot state exactly is now a bigint
     - Fix: A bitmap or enum value states its magnitude exactly, so a `map64` value no longer loses precision passing through `FieldValue.cast()`
     - Breaking: `FieldValue.numericValue()` returns a `bigint` for a magnitude a number cannot state exactly, so a 64 bit bound and default keep what they say. `FieldValue.countValue()` is the number-valued form, for a length, a bit position or a count
