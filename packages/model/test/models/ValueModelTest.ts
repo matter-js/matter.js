@@ -8,6 +8,26 @@ import { enum8, uint8 } from "#index.js";
 import { AttributeModel, ClusterModel, DatatypeModel, MatterModel } from "#models/index.js";
 
 describe("ValueModel", () => {
+    describe("effectiveQuality", () => {
+        it("merges an extension's qualities with the base's", () => {
+            const base = new AttributeModel({ id: 1, name: "Attr", type: "uint8", quality: "N T" });
+            const extended = base.extend({ quality: "X" });
+
+            expect(extended.effectiveQuality.nonvolatile).equals(true);
+            expect(extended.effectiveQuality.atomic).equals(true);
+            expect(extended.effectiveQuality.nullable).equals(true);
+        });
+
+        it("drops a quality the extension removes", () => {
+            const base = new AttributeModel({ id: 1, name: "Attr", type: "uint8", quality: "N T" });
+            const extended = base.extend({ quality: "!N" });
+
+            expect(extended.effectiveQuality.nonvolatile).equals(undefined);
+            expect(extended.effectiveQuality.atomic).equals(true);
+            expect(base.effectiveQuality.nonvolatile).equals(true);
+        });
+    });
+
     describe("primitiveBase", () => {
         /** A chain of enums of the stated depth, the way the specification states a status code */
         function chained(depth: number, ...extra: DatatypeModel[]) {

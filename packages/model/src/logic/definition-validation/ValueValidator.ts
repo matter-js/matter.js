@@ -22,6 +22,21 @@ function list(values: FieldValue[]) {
     return values.map(value => FieldValue.serialize(value)).join(" and ");
 }
 
+/** The values a primitive integer type holds, in the units the type is encoded in */
+function rangeOf(primitive: string) {
+    const width = primitive.match(INTEGER_TYPE)?.[1];
+    if (width === undefined) {
+        return;
+    }
+
+    const bits = BigInt(width);
+    if (UNSIGNED_TYPE.test(primitive)) {
+        return { min: 0n, max: 2n ** bits - 1n };
+    }
+
+    return { min: -(2n ** (bits - 1n)), max: 2n ** (bits - 1n) - 1n };
+}
+
 /** Group bounds by the type that decides what they may state, which for a list entry is not the type of the list */
 function groupBy<T>(bounds: EncodedConstraint.Bound<T>[], keyOf: (model: ValueModel) => string | undefined) {
     const groups = new Map<string, T[]>();
@@ -178,6 +193,41 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
                     this.error("NEGATIVE_ON_UNSIGNED_TYPE", `${list(negative)} cannot be held by ${primitive}`);
                 }
             }
+
+            const range = rangeOf(primitive);
+            if (range !== undefined) {
+                const exceeding = values.filter(value => {
+                    // A fraction and a negative on an unsigned type are reported above, and a value that is no number
+                    // at all has no magnitude to judge
+                    if (typeof value === "number" && !Number.isInteger(value)) {
+                        return false;
+                    }
+                    if (value < 0 && UNSIGNED_TYPE.test(primitive)) {
+                        return false;
+                    }
+
+                    if (typeof value === "bigint") {
+                        return value > range.max || value < range.min;
+                    }
+
+                    if (Number.isSafeInteger(value)) {
+                        return value > range.max || value < range.min;
+                    }
+
+                    // A magnitude this large states itself only as the number it rounded to, so it is judged against
+                    // the bound rounded the same way: the widest uint64 and the value above it are one number, and
+                    // only a magnitude no rounding explains is refused
+                    return value > Number(range.max) || value < Number(range.min);
+                });
+
+                if (exceeding.length) {
+                    this.error(
+                        "VALUE_EXCEEDS_TYPE",
+                        `${list(exceeding)} ${exceeding.length === 1 ? "is" : "are"} outside the range ` +
+                            `${range.min} to ${range.max} of ${primitive}`,
+                    );
+                }
+            }
         }
     }
 
@@ -294,9 +344,14 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
             return;
         }
 
-        // A fraction has no integer form, and casting it throws rather than saying so.  The numeric validation above
-        // has already reported it, so leave the default as stated
-        if (metatype === Metatype.integer && typeof defaultValue === "number" && !Number.isInteger(defaultValue)) {
+        // A fraction has no integer form, and the cast refuses it rather than saying what is wrong.  The numeric
+        // validation above has already reported it, so leave the default as stated.  An enum and a bitmap state the
+        // integers of the type behind them, so this holds for them too
+        if (
+            typeof defaultValue === "number" &&
+            !Number.isInteger(defaultValue) &&
+            (metatype === Metatype.integer || metatype === Metatype.enum || metatype === Metatype.bitmap)
+        ) {
             return;
         }
 
