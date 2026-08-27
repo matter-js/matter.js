@@ -22,6 +22,7 @@ import {
     MaybePromise,
     Millis,
     type Transaction,
+    type Timestamp,
 } from "@matter/general";
 import { Val } from "@matter/protocol";
 import { Status, StatusResponseError } from "@matter/types";
@@ -174,8 +175,8 @@ export class LevelControlBaseServer extends LevelControlBase {
                 return readOnlyState.managedTransitionTimeHandling;
             },
 
-            get transitionEndTimeMs() {
-                return readOnlyState.transitionEndTimeMs;
+            get transitionEndTime() {
+                return readOnlyState.transitionEndTime;
             },
 
             get stepInterval() {
@@ -502,7 +503,19 @@ export class LevelControlBaseServer extends LevelControlBase {
      * Default stop logic. This aborts any level transition currently underway and sets the remaining time to 0.
      */
     protected stopLogic(_options: LevelControl.Options = {}): MaybePromise {
-        this.internal.transitions?.stop();
+        this.internal.transitions?.cancel();
+
+        // Where the application manages transitions it states the end time, and the remaining time is computed from it
+        // until it passes
+        if (this.state.transitionEndTime === undefined) {
+            return;
+        }
+
+        // A transition step holds this behavior's lock across its own await, so a synchronous write here fails a stop
+        // that lands mid-step
+        return MaybePromise.then(this.context.transaction.lock(this), () => {
+            this.state.transitionEndTime = undefined;
+        });
     }
 
     /**
@@ -780,8 +793,10 @@ export namespace LevelControlBaseServer {
         /**
          * If transition management is disabled you may specify this as the "end time" for transitions.  The remaining
          * time attribute will then report correctly.
+         *
+         * A stop clears this, because the remaining time is zero once the transition ends.
          */
-        transitionEndTimeMs = undefined;
+        transitionEndTime: Timestamp | undefined = undefined;
 
         /**
          * When managing transitions, this is the interval at which steps occur in ms.
@@ -809,7 +824,8 @@ export namespace LevelControlBaseServer {
     }
 
     export class Events extends LevelControlBase.Events {
-        transitionEndTime$Changed = AsyncObservable<[value: number, oldValue: number, context: ActionContext]>();
+        transitionEndTime$Changed =
+            AsyncObservable<[value: Timestamp | undefined, oldValue: Timestamp | undefined, context: ActionContext]>();
     }
 
     export declare const ExtensionInterface: {
