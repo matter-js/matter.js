@@ -30,6 +30,7 @@ import type { ManualPairingCodeParts, TransitionMark } from "../cert/tc-dd-suppo
 import {
     checkGeneratedManualCode,
     checkGeneratedPayload,
+    commissionByQr,
     CommissioningRefusals,
     manualPairingCode,
     manualPairingCodeDigits,
@@ -1261,6 +1262,33 @@ describe("restoreCommissioningMode, through recordVendorOutcome", () => {
         ).rejectedWith(CertCheckFailedError);
 
         expect(fixture.commissioned.get("dut")).equal(undefined);
+    });
+});
+
+describe("commissionByQr's own causal boundary", () => {
+    const completion = (fabric: string) =>
+        `2026-08-27 19:31:27.056 NOTICE GeneralCommissioningClusterHandler Commissioned fabric: ${fabric} (#1) node: 1`;
+
+    // The mark this takes has to sit behind a completion the TH had already written, or the check
+    // matches that one and reports a commissioning this call never performed. The markSettled tests
+    // above prove the primitive; this one proves the call site actually uses it.
+    it("matches the completion its own commissioning caused, not one already in flight", async () => {
+        const fixture = new UnpairFixture("matterjs", {
+            commission: async () => {
+                fixture.push(completion("bbbbbbbbbbbbbbbb"));
+                return "peer1" as CertNodeRef;
+            },
+        });
+
+        // Written before the call and deliberately left undrained, which is exactly the state a plain
+        // mark() cannot distinguish from a line this commissioning caused
+        fixture.push(completion("aaaaaaaaaaaaaaaa"));
+
+        await commissionByQr(fixture.cx, "MT:-24J042C00KA0648G00", new CommissionedRefs());
+
+        const matched = fixture.checks.find(check => check.type === "device-log")?.matched ?? "";
+        expect(matched).contains("bbbbbbbbbbbbbbbb");
+        expect(matched).not.contains("aaaaaaaaaaaaaaaa");
     });
 });
 
