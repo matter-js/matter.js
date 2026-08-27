@@ -5,7 +5,14 @@
  */
 
 import { InternalError, Millis, Time, Seconds } from "@matter/main";
-import type { AttributePathSpec, CertNodeApi, CertStepContext, CheckRecord, ControllerAdapter } from "@matter/testing";
+import type {
+    AttributePathSpec,
+    CertNodeApi,
+    CertStepContext,
+    CheckRecord,
+    ControllerAdapter,
+    LogExpectPatterns,
+} from "@matter/testing";
 import { LogFollower } from "@matter/testing";
 import {
     attributePathIBSequence,
@@ -22,15 +29,19 @@ import {
     expectRejection,
     expectReportAck,
     expectSequence,
+    expectDeviceLog,
     expectSubscriptionId,
     fabricFilteredPattern,
+    fabricSessionsEnded,
     matterjsReadEventPath,
     matterjsSubscribeEventPath,
     matterjsSubscribeFlags,
     matterjsSubscribeTiming,
     READ_REQUEST_MESSAGE,
+    readOwnFabricIndex,
     recordAll,
     CertCleanupErrors,
+    removeFabricSucceeded,
     requireId,
     runCleanups,
     WRITE_REQUEST_MESSAGE,
@@ -1269,6 +1280,100 @@ describe("requireId", () => {
 
     it("throws when the id is undefined", () => {
         expect(() => requireId(undefined, "thing")).to.throw(/thing has no numeric id/);
+    });
+});
+
+describe("readOwnFabricIndex", () => {
+    function nodeReporting(value: unknown): CertNodeApi {
+        const unused = () => Promise.reject(new InternalError("not used by these tests"));
+        return {
+            invoke: unused,
+            invokeBatch: unused,
+            readAttributes: unused,
+            writeAttribute: unused,
+            writeAttributes: unused,
+            subscribe: unused,
+            readEvents: unused,
+            subscribeEvents: unused,
+            openCommissioningWindow: unused,
+            operationalMdnsInstanceName: unused,
+            decommission: unused,
+            readAttribute: async () => value,
+        };
+    }
+
+    it("returns the index the device reported", async () => {
+        expect(await readOwnFabricIndex(nodeReporting(2))).equal(2);
+    });
+
+    // The caller uses this to build a log pattern, so a non-numeric read would become a pattern
+    // matching a fabric no device has rather than a failure anyone can see
+    it("refuses a read that is not a number", async () => {
+        await expect(readOwnFabricIndex(nodeReporting(null))).rejectedWith(
+            InternalError,
+            /Expected CurrentFabricIndex to read as a number/,
+        );
+    });
+});
+
+describe("fabric-removal log patterns", () => {
+    // Lines captured from real runs against each device flavor.
+    const CHIP_REMOVED = "[1787433103.742] [23362:73430237:chip] [ZCL] OpCreds: RemoveFabric successful";
+    const CHIP_EXPIRING = "[1787433103.742] [23362:73430237:chip] [IN] Expiring all sessions for fabric 0x2!!";
+    const MATTERJS_REMOVED =
+        "2026-08-22 21:48:06.406 INFO ProtocolService Invoke » binford-6100.operationalCredentials.removeFabric @1:9a52bb47a4ee167d•c675⇵68ce✉09f1964b statusCode: 0 fabricIndex: 2";
+    const MATTERJS_SESSION_ENDED = "2026-08-22 21:48:06.401 INFO Session @2:1946ee4c0f86d574•c677 Session ended";
+
+    async function check(flavor: string, patterns: LogExpectPatterns, lines: string[]) {
+        return withFollower(lines, async follower => {
+            return (await expectDeviceLog(follower, flavor, patterns, 0, Millis(100))).check;
+        });
+    }
+
+    const removalCheck = (flavor: string, fabricIndex: number, lines: string[]) =>
+        check(flavor, removeFabricSucceeded(fabricIndex), lines);
+
+    it("finds the removal of the fabric it asked about", async () => {
+        expect((await removalCheck("chip-local", 2, [CHIP_REMOVED])).verdict).equal("pass");
+        expect((await removalCheck("matterjs", 2, [MATTERJS_REMOVED])).verdict).equal("pass");
+    });
+
+    it("does not take another fabric's removal for the one it asked about", async () => {
+        expect((await removalCheck("matterjs", 3, [MATTERJS_REMOVED])).verdict).equal("fail");
+    });
+
+    it("does not take fabric 20's removal for fabric 2's", async () => {
+        const fabric20 = MATTERJS_REMOVED.replace("fabricIndex: 2", "fabricIndex: 20");
+
+        expect((await removalCheck("matterjs", 2, [fabric20])).verdict).equal("fail");
+    });
+
+    it("does not pass a removal the device answered with a failure status", async () => {
+        const rejected = MATTERJS_REMOVED.replace("statusCode: 0", "statusCode: 11");
+
+        expect((await removalCheck("matterjs", 2, [rejected])).verdict).equal("fail");
+    });
+
+    it("finds the removed fabric's sessions ending in either device's log", async () => {
+        expect((await check("chip-local", fabricSessionsEnded(2), [CHIP_EXPIRING])).verdict).equal("pass");
+        expect((await check("matterjs", fabricSessionsEnded(2), [MATTERJS_SESSION_ENDED])).verdict).equal("pass");
+    });
+
+    it("does not take another fabric's session ending for the removed fabric's", async () => {
+        expect((await check("matterjs", fabricSessionsEnded(1), [MATTERJS_SESSION_ENDED])).verdict).equal("fail");
+        expect((await check("chip-local", fabricSessionsEnded(1), [CHIP_EXPIRING])).verdict).equal("fail");
+    });
+
+    it("does not take fabric 20's session ending for fabric 2's", async () => {
+        const fabric20 = MATTERJS_SESSION_ENDED.replace("@2:", "@20:");
+
+        expect((await check("matterjs", fabricSessionsEnded(2), [fabric20])).verdict).equal("fail");
+    });
+
+    it("does not take a PASE session ending for a removed fabric's", async () => {
+        const unsecured = "2026-08-23 22:41:11.220 INFO Session •unsecured#7372af0fa8e6f033 Session ended";
+
+        expect((await check("matterjs", fabricSessionsEnded(2), [unsecured])).verdict).equal("fail");
     });
 });
 

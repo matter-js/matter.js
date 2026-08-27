@@ -25,10 +25,16 @@ import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload
 import {
     CertCleanupError,
     CommissionedRefs,
+    expectDeviceLog,
     expectRejection,
     expectSequence,
+    fabricSessionsEnded,
+    LOG_TIMEOUT,
     MATTERJS_COMMISSIONED_FABRIC,
+    readOwnFabricIndex,
     record,
+    recordAll,
+    removeFabricSucceeded,
     settleWithin,
 } from "./tc-support.js";
 
@@ -756,7 +762,9 @@ export async function recordVendorOutcome(
     /** Overridden by the unit tests, which have no advertisement to observe. */
     probeCommissionable: (cx: CertStepContext, what: string) => Promise<void> = recordCommissionable,
 ): Promise<void> {
-    const restored = await restoreCommissioningMode(cx, commissioned);
+    // The same override the caller passed for this helper's own probe: without it a restore reaching
+    // live mDNS is what a unit test would wait out, and its default is the real probe either way.
+    const restored = await restoreCommissioningMode(cx, commissioned, probeCommissionable);
 
     // A rejection is evidence about the code only if the TH was there to be found; without this the
     // step passes on a TH that stopped advertising after an earlier attempt. A restore that ran has
@@ -831,31 +839,78 @@ export async function recordVendorOutcome(
 }
 
 /**
- * Returns the TH to a factory-new state if a fabric from an earlier onboarding is still on it, which
- * is what a plan means by commissioning the same device again.
+ * Removes the fabric an earlier step commissioned and records that the TH left the Matter network,
+ * which the device states twice in its own log: the removal succeeded, and the removed fabric's
+ * sessions are gone.
  *
- * The fabric comes off first, so the controller never holds a peer for a fabric the device has
- * forgotten. A chip TH then needs a factory reset, which is what actually puts it back into
- * commissioning mode — removing its last fabric does not. A matter.js device is already there, and
- * erasing it would restart a TH that needs nothing.
+ * The network does not settle this within a step's budget: against a chip TH, `operationalRecords: 0`
+ * for the removed fabric's own instance name still observes a live SRV record after 30 s, although
+ * the device's log shows it updating its advertisement as it removes the fabric. See this
+ * directory's AGENTS.md for what is and is not established about that.
+ *
+ * The fabric index is read while the fabric is still there; the in-process controller drops the peer
+ * as the device announces the removal, so it cannot be read afterwards. Both checks search from the
+ * step's own mark, not from each other, because matter.js closes the removed fabric's sessions
+ * before it answers the invoke and chip after.
+ *
+ * **Only one fabric may be removable after the mark.** chip's success line names no fabric, so on
+ * that flavor it says a fabric went, and only the session line says which. A caller with a second
+ * admin on the TH would have another fabric's removal satisfy the first check.
  */
-async function restoreCommissioningMode(cx: CertStepContext, commissioned: CommissionedRefs): Promise<boolean> {
-    const previous = commissioned.get("dut");
-    if (previous === undefined) {
-        return false;
-    }
-
+export async function recordUnpair(cx: CertStepContext, commissioned: CommissionedRefs): Promise<void> {
     const th = cx.devices.th;
-    await cx.controllers.dut.node(previous).decommission();
+    const ref = commissioned.require("dut");
+    const node = cx.controllers.dut.node(ref);
+
+    const fabricIndex = await readOwnFabricIndex(node);
+
+    const from = th.log.mark();
+    await node.decommission();
     commissioned.clear("dut");
+    cx.recorder.check({
+        type: "response",
+        verdict: "pass",
+        detail: `DUT removed its fabric (index ${fabricIndex}) from the TH, giving up node ${ref}`,
+    });
+
+    const removed = await expectDeviceLog(th.log, th.flavor, removeFabricSucceeded(fabricIndex), from, LOG_TIMEOUT);
+    const expired = await expectDeviceLog(th.log, th.flavor, fabricSessionsEnded(fabricIndex), from, LOG_TIMEOUT);
+    recordAll(cx, [
+        { check: () => removed.check, what: "TH reported a successful fabric removal" },
+        { check: () => expired.check, what: "TH ended the DUT's fabric's sessions" },
+    ]);
+}
+
+/**
+ * Puts the TH back into commissioning mode by its manufacturer's means and records that it is
+ * advertising there.
+ *
+ * A chip TH needs a factory reset: removing its last fabric does not return it to commissioning
+ * mode. A matter.js device is already there, and erasing it would restart a TH that needs nothing.
+ *
+ * **Every fabric on the TH must already be surrendered.** The reset wipes all of them, so a
+ * `CommissionedRefs` still holding one would have the finalizer remove a fabric that is gone and
+ * report a cleanup failure in place of the run's real outcome.
+ *
+ * What this proves is bounded: `probeCommissionable` is answered by any live commissionable record
+ * for the TH's discriminator, including one cached from before it was commissioned, so on its own it
+ * does not witness the transition back. The restart check is what separates the generations on a
+ * chip TH — see this directory's AGENTS.md.
+ */
+export async function recordBackInCommissioningMode(
+    cx: CertStepContext,
+    what = "TH back in commissioning mode",
+    /** Overridden by the unit tests, which have no mDNS to answer. */
+    probeCommissionable: (cx: CertStepContext, what: string) => Promise<void> = recordCommissionable,
+): Promise<void> {
+    const th = cx.devices.th;
 
     if (th.flavor !== "matterjs") {
         const from = th.log.mark();
         await th.backchannel({ name: "factoryReset" });
 
-        // A chip app's start() returns when the process is up, not when the app is; without waiting
-        // for the new generation to reach its own onboarding print, the check below can be answered
-        // by a cached advertisement from the generation that just went down.
+        // A chip app's start() returns when the process is up, not when the app is, so without this
+        // the probe below can run before the new generation exists at all.
         record(
             cx,
             await expectSequence(
@@ -872,7 +927,30 @@ async function restoreCommissioningMode(cx: CertStepContext, commissioned: Commi
 
     // The TH advertises itself commissionable on its own schedule, and a discovery started before
     // that finds only the devices this run is not looking for.
-    await recordCommissionable(cx, "TH back in commissioning mode");
+    await probeCommissionable(cx, what);
+}
+
+/**
+ * Returns the TH to a factory-new state if a fabric from an earlier onboarding is still on it, which
+ * is what a plan means by commissioning the same device again.
+ *
+ * The fabric comes off first, so the controller never holds a peer for a fabric the device has
+ * forgotten.
+ */
+async function restoreCommissioningMode(
+    cx: CertStepContext,
+    commissioned: CommissionedRefs,
+    probeCommissionable?: (cx: CertStepContext, what: string) => Promise<void>,
+): Promise<boolean> {
+    const previous = commissioned.get("dut");
+    if (previous === undefined) {
+        return false;
+    }
+
+    await cx.controllers.dut.node(previous).decommission();
+    commissioned.clear("dut");
+
+    await recordBackInCommissioningMode(cx, undefined, probeCommissionable);
     return true;
 }
 

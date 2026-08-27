@@ -1376,11 +1376,15 @@ The TC asserts the length it built rather than trusting the arithmetic, since a 
 misses lands on a payload the plan did not ask for.
 
 **Onboarding the same TH twice: factory reset it between attempts.** A chip TH does not return to
-commissioning mode when its last fabric goes — after `RemoveFabric succeeds` its log stops there, and
-the next commissioning fails as `No device could be commissioned (1 of 1 started attempt(s) failed, 1
-discovered)` against a stale advertisement. The plans cover this with a precondition ("place the TH
-back into commissioning mode using the TH manufacturer's means"), and for a TC that drives everything
-itself that means asking the device for a factory reset:
+commissioning mode when its last fabric goes. It re-advertises as the fabric is removed —
+`[DIS] Updating services using commissioning mode 0` — and mode 0 is `kDisabled`, so no commissionable
+service goes out; the next commissioning then fails as `No device could be commissioned (1 of 1
+started attempt(s) failed, 1 discovered)` against a stale advertisement. The plans cover this with a
+precondition ("place the TH back into commissioning mode using the TH manufacturer's means"), and for
+a TC that drives everything itself that means asking the device for a factory reset. Two helpers in
+`tc-dd-support.ts` split the work — `recordUnpair` removes the fabric, `recordBackInCommissioningMode`
+does the reset — and `restoreCommissioningMode` is the private assembly `commissionByQr` runs when a
+TC has not driven the steps itself:
 
 ```ts
 await cx.controllers.dut.node(ref).decommission();
@@ -1395,9 +1399,15 @@ Three things about that shape are load-bearing. The fabric comes off first, so t
 holds a peer for a fabric the device has forgotten — a later `decommissionAll` against a wiped device
 fails. The matterjs leg is excluded because it is already back in commissioning mode, and erasing it
 would restart a TH that needs nothing. And the wait for the restarted app matters because
-`ChipLocalDevice.start()` returns when the *process* is up, not when the app is, while
-`checkCommissionable` primes from the DNS-SD names already cached — so without it the check can be
-answered by an advertisement the generation that just died had published.
+`ChipLocalDevice.start()` returns when the *process* is up, not when the app is, so without it the
+probe can run before the new generation exists at all.
+
+**What the wait does not do is make the probe witness the restart.** `checkCommissionable` primes
+from the DNS-SD names already cached and fires on any live record for the TH's discriminator, which
+every flavor pins across restarts — so a record cached before the TH was ever commissioned answers it
+just as well. On the chip legs the restart check beside it is what separates the generations; the
+probe on its own states that *something* is advertising that discriminator, not that this device just
+returned to commissioning mode. See "Freshness: a cache hit is not a state transition" below.
 
 Earlier revisions instead opened a *basic* commissioning window and then removed the fabric, which
 works on paper but publishes `_matterc._udp` twice inside about 15 ms; avahi calls that a name
@@ -1647,6 +1657,96 @@ against itself — the plan's "ensure the Version bit string follows the current
 about the artifact, not about the TH. Note the plan's own example payload, `MT:-24J029Q00KA0648G00`,
 decodes to `flowType` 2: it is copy-pasted into 3.11, 3.12 and 3.14 from 3.13, the one case whose flow
 value it actually matches.
+
+## Commission, unpair, re-commission (`TC-DD-3.20`)
+
+The plan drives the same device onto the fabric twice, with an explicit unpair between the attempts,
+so what `commissionByQr` had been doing silently — return the TH to a factory-new state before a
+second onboarding — becomes two of the plan's own steps. `restoreCommissioningMode` is now assembled
+from the two exported halves the TC drives directly:
+
+- **`recordUnpair`** removes the DUT's fabric and takes the TH's own two statements about it: the
+  removal succeeded, and the removed fabric's sessions are gone (`removeFabricSucceeded` /
+  `fabricSessionsEnded` / `readOwnFabricIndex`, all promoted from TC-CADMIN-1.17's support module to
+  `tc-support.ts` now that a second TC needs them).
+- **`recordBackInCommissioningMode`** is the plan's "manufacturer's means" precondition: a chip TH
+  factory-resets and its restarted app's own `SetupQRCode` line is waited for, a matterjs TH needs
+  nothing.
+
+**The network does not settle this within a step's budget.** The first revision proved the removal
+with `operationalRecords: 0` against the node's own instance name. It passes on matterjs and fails on
+chip-local: `expectMdns` still held a live `_matter._tcp` SRV for the removed fabric's instance after
+its full 30 s window (`observed 1`). The device is *not* at fault — its log carries
+`[DIS] Updating services using commissioning mode 0` 4 ms before `OpCreds: RemoveFabric successful`,
+which is `DnssdServer::StartServer()` running `RemoveServices()` and then re-advertising only the
+fabrics that remain (`OperationalCredentialsCluster::OnFabricRemoved` is a `FabricTable::Delegate`
+and calls it for exactly this reason). **Why the withdrawal is not observable within the window is
+not established** — a goodbye that is never sent, one that is sent but not ingested, or the check's
+own rule of never re-soliciting a name it still holds live, leaving the cached record to run out its
+TTL. TC-CADMIN-1.17 step 10 fails the same way on the same host, and it removes one fabric of three,
+so the symptom does not depend on the removed fabric being the last. Until someone captures the wire,
+the device's own log is the evidence this step rests on.
+
+**The fabric index is read before the fabric comes off**, because the in-process controller drops the
+peer as the device announces the removal and it cannot be read afterwards. On chip only the session
+line names a fabric — the removal line is unqualified — so the index is what separates this removal
+from another's on one leg and from nothing on the other.
+
+**Both lines are searched from the step's own mark, not from each other.** matter.js closes the
+removed fabric's sessions before it answers the invoke and chip after, which is the same rule
+TC-CADMIN-1.17 step 7 states.
+
+**The ref is surrendered as soon as `decommission()` resolves, not once the checks pass.** The fabric
+is off the TH whatever the log went on to say, and a `commissioned` entry outliving it has the
+finalizer remove a fabric that is already gone. This is the opposite of TC-CADMIN-1.17 step 7, which
+holds its ref until its checks pass — there the removal is a raw `RemoveFabric` invoke and the
+controller still owns the peer either way.
+
+**Step 5 needs no restore of its own.** `commissionByQr` restores only where `commissioned` still
+holds a ref, and step 3 cleared it, so the TC's own steps 3 and 4 are what run — the helper does not
+factory-reset a TH that was just reset.
+
+## Freshness: a cache hit is not a state transition — OPEN, needs a decision
+
+An adversarial review of TC-DD-3.20 found one cause behind several steps across this directory. It is
+recorded here rather than patched, because closing it properly means a new framework primitive.
+
+**The shape.** A step that drives a transition proves it with a check that observes a *condition*,
+and the condition was already true before the transition. Two instruments have this property:
+
+- **`expectMdns({ commissionable: true })`.** `checkCommissionable` builds a
+  `CommissionableMdnsScanner` over the process-global `Environment.default.get(MdnsService).names`,
+  primes from `discoveredNames`, and fires as soon as any cached device matches the long
+  discriminator. Every flavor pins discriminator 3840 across restarts, and a Matter commissionable
+  record lives ~120 s, so a record cached in step 1 answers a probe in step 4 without the TH having
+  sent anything. Where the step's claim is "the TH went *back* into commissioning mode"
+  (TC-DD-3.20 step 4, `restoreCommissioningMode`, the probe after a decommission in `commissionByQr`),
+  the instrument cannot distinguish that from "it was advertising before, and the cache remembers".
+- **`LogFollower.mark()`.** It returns the count of lines *ingested*, not lines the device has
+  printed. The follower pumps asynchronously, so a line the TH emitted before the mark but which had
+  not yet been drained lands at an index at or after `from` and reads as "after the mark".
+  `expectSequence`'s own doc already states this; anything anchoring on a mark inherits it.
+
+**Where it currently bites, in order of how much it would hide:**
+
+1. TC-DD-3.20 step 4, and every `restoreCommissioningMode`: a TH that never returns to commissioning
+   mode still passes. On the chip legs the restart check beside it (the new generation's own
+   `SetupQRCode` line) is what carries the claim; on matterjs nothing does.
+2. Steps 2.a/5.a of TC-DD-3.20 and 2.a of TC-DD-3.21 gate on `MCORE.DD.SCAN_QR_CODE` while their
+   `.b` siblings repeat the same parse ungated — so a controller whose PICS says it cannot scan gets
+   a `skipped` step and two parse passes in the same bundle. The plan gives the `.b` steps no PICS,
+   which is why both TCs read this way; the leg-integrity rule TC-DD-3.11 states argues the other way.
+3. `thQrPayload` searches `from: 0`, so a step after a factory reset re-reads the payload the *dead*
+   generation printed. Benign while `chip-app-subject.ts` pins the discriminator and passcode across
+   restarts, and wrong the moment a TH's payload changes across a reset.
+
+**What would close it.** A freshness primitive: an mDNS probe that rejects a record installed before
+a caller-supplied mark (`DnssdName.Record` already carries `installedAt`, and `DnssdNames` already
+retires records on a goodbye), plus a log anchor that waits for the follower to drain to real time
+before taking its mark. Both are framework changes in `packages/testing` and `packages/general`,
+touching every existing TC's evidence, so they are a decision rather than a fixup — the alternative
+is to keep the weaker instruments and state their limit in each step's `detail`, which is what the
+helpers' JSDoc does today.
 
 ## chip-tool delivers one result per async report and discards the rest
 

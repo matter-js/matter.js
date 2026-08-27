@@ -17,6 +17,7 @@ import {
 import { Matter } from "@matter/model";
 import type {
     AttributePathSpec,
+    CertNodeApi,
     CertNodeRef,
     CertStepContext,
     CheckRecord,
@@ -34,6 +35,13 @@ import { CertLogClosedError, CertLogTimeoutError, forFlavor } from "@matter/test
  * while answering the interaction the step drove, not one it writes after work of its own.
  */
 export const LOG_TIMEOUT = Seconds(15);
+
+const OPERATIONAL_CREDENTIALS = Matter.clusters.require("OperationalCredentials");
+const OPERATIONAL_CREDENTIALS_ID = requireId(OPERATIONAL_CREDENTIALS.id, "OperationalCredentials cluster");
+const CURRENT_FABRIC_INDEX_ID = requireId(
+    OPERATIONAL_CREDENTIALS.attributes.require("currentFabricIndex").id,
+    "OperationalCredentials.currentFabricIndex",
+);
 
 /** A cert run left a fabric (and whatever it carries) behind on the TH. */
 export class CertCleanupError extends MatterError {}
@@ -542,6 +550,50 @@ function matterjsElement(name: string | undefined, id: number | undefined): stri
  * that completed it belongs to — the equivalent of chip's "Commissioning completed successfully".
  */
 export const MATTERJS_COMMISSIONED_FABRIC = /GeneralCommissioningClusterHandler Commissioned fabric:/;
+
+/**
+ * A `RemoveFabric` the device answered with success. matter.js's line is the invoke's own answer,
+ * which names the fabric it removed and the status it answered with, where chip logs an unqualified
+ * success line.
+ */
+export function removeFabricSucceeded(fabricIndex: number): LogExpectPatterns {
+    return {
+        chip: /OpCreds: RemoveFabric successful/,
+        matterjs: new RegExp(
+            `operationalCredentials\\.removeFabric .*statusCode: 0 fabricIndex: ${fabricIndex}(?!\\d)`,
+        ),
+    };
+}
+
+/**
+ * The removed fabric's sessions going away. A matter.js session is named
+ * `@<fabricIndex>:<fabricId>•<id>`, so one such line per session is what chip states once as
+ * "Expiring all sessions for fabric N".
+ */
+export function fabricSessionsEnded(fabricIndex: number): LogExpectPatterns {
+    return {
+        chip: new RegExp(`Expiring all sessions for fabric 0x${fabricIndex.toString(16)}!!`),
+        matterjs: new RegExp(`Session @${fabricIndex}:[0-9a-f]+•[0-9a-f]+ Session ended`),
+    };
+}
+
+/**
+ * The fabric index the TH assigned to `node`'s own controller, read over that controller's own session
+ * — the only discriminator every controller has without setup. A fabric's `Label` is empty until an
+ * admin writes one (Core § 11.18.6.2), so it identifies nothing for a harness that must work with any
+ * controller implementation.
+ */
+export async function readOwnFabricIndex(node: CertNodeApi): Promise<number> {
+    const value = await node.readAttribute({
+        endpoint: 0,
+        cluster: OPERATIONAL_CREDENTIALS_ID,
+        attribute: CURRENT_FABRIC_INDEX_ID,
+    });
+    if (typeof value !== "number") {
+        throw new InternalError(`Expected CurrentFabricIndex to read as a number, got ${JSON.stringify(value)}`);
+    }
+    return value;
+}
 
 // A path is one entry of a comma-separated list, so a match needs both ends bounded: without this,
 // the path a step asked for matches as the tail of a longer endpoint number or the head of a longer
