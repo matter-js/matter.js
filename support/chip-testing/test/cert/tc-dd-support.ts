@@ -114,9 +114,13 @@ const ADVERTISING_COMMISSIONABLE = {
  * commissioning flow's.
  *
  * `from` is the log cursor to read it at, and a step after a device restart must supply one: the
- * default reads the whole log and so returns the payload the *previous* generation printed. That is
- * harmless only while a flavor pins its discriminator and passcode across restarts, which is a
- * property of the harness rather than of any device it may run.
+ * default reads the whole log and so returns the payload the *previous* generation printed.
+ *
+ * That is harmless because a subject's identity is fixed at construction and reused on every start —
+ * `ChipLocalSubject.start()` rebuilds `--discriminator`/`--passcode` from `this.commissioning` on each
+ * spawn, and the matter.js instances take theirs from their config — so a `factoryReset` comes back
+ * with the same setup code. It is a property of the harness, not of any device it may run, and it is
+ * what lets `commissionByQr` restore a TH *after* its caller has already read the payload.
  */
 export async function thQrPayload(th: CertDevice, from = 0): Promise<string> {
     if (th.commissioning.qrPairingCode) {
@@ -938,7 +942,7 @@ export async function recordUnpair(cx: CertStepContext, commissioned: Commission
  * theorised: on a matterjs run the probe passed at 13:05:44.088 and the device published its
  * commissionable record at 13:05:44.123, 35 ms later.
  *
- * `options.from` is where the announcement is searched from, and must precede whatever caused the
+ * `options.since` is where the announcement is searched from, and must precede whatever caused the
  * transition — for a matter.js TH that is the caller's own `decommission()`, which happens before
  * this function is entered, so a mark taken here would already be too late. {@link recordUnpair}
  * returns exactly that mark.
