@@ -259,6 +259,40 @@ describe("expectChunkedTransfer", () => {
         expect(record.detail).match(/announces a further chunk that never arrived/);
     });
 
+    it("stops collecting when its own budget is spent, however fast other traffic arrives", async function () {
+        this.timeout(30_000);
+
+        // A report of another exchange matches the same pattern and is answered out of the follower's
+        // buffer before its timer is consulted, so traffic that outpaces collection would carry the
+        // check past its budget if the clock were left to that timer.
+        const source = new OpenSource();
+        const follower = new LogFollower(source, "th");
+        source.push(...readLines(), ...chunkLines(), ackLine(), ...chunkLines());
+        await new Promise(resolve => setImmediate(resolve));
+
+        let storming = true;
+        const stormUntil = Time.nowUs + 5000;
+        const storm = (async () => {
+            while (storming && Time.nowUs < stormUntil) {
+                source.push(...chunkLines(EXCHANGE + 1));
+                await Promise.resolve();
+            }
+        })();
+
+        const started = Time.nowUs;
+        try {
+            const record = await expectChunkedTransfer(follower, "chip-docker", requestCheck(1), Millis(300));
+
+            expect(Time.nowUs - started).lessThan(3000);
+            expect(record.verdict).equal("fail");
+            expect(record.detail).match(/announces a further chunk that never arrived/);
+        } finally {
+            storming = false;
+            await storm;
+            await follower.close();
+        }
+    });
+
     it("concludes a quiet transfer while another exchange keeps reporting", async function () {
         this.timeout(15_000);
 

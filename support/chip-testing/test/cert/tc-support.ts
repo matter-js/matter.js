@@ -1031,7 +1031,6 @@ export async function expectChunkedTransfer(
     }
 
     const deadline = Time.nowUs + timeout;
-    const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
 
     const chunks = new Array<LogLine>();
     const skipped = new Map<string, number>();
@@ -1040,14 +1039,21 @@ export async function expectChunkedTransfer(
     let closed = false;
     for (;;) {
         // The second chunk is what proves the read chunked at all, so it gets the whole remaining
-        // budget; every later one only has to outlast pump lag. That quiet period must stay an
-        // absolute deadline: another exchange's reports match this same pattern, so a per-wait
-        // timeout would restart for as long as that exchange keeps reporting.
-        const wait =
-            quietUntil === undefined ? remaining() : Millis(Math.max(1, Math.min(quietUntil, deadline) - Time.nowUs));
+        // budget; every later one only has to outlast pump lag. Both are absolute deadlines, and the
+        // clock is read before the wait rather than left to the wait's own timer: another exchange's
+        // reports match this same pattern and are answered out of the follower's buffer before that
+        // timer is consulted, so a backlog of them would otherwise carry collection past both bounds.
+        // A chunk still buffered behind such a backlog reached the log more than CHUNK_QUIET after our
+        // last one, which is what the quiet period says the transfer ended before.
+        const expiry = quietUntil === undefined ? deadline : Math.min(quietUntil, deadline);
+        const now = Time.nowUs;
+        if (now >= expiry) {
+            break;
+        }
+
         let next: LogLine;
         try {
-            next = await log.expectPattern(dialect.chunk.line, { timeoutMs: wait, from: cursor });
+            next = await log.expectPattern(dialect.chunk.line, { timeoutMs: Millis(expiry - now), from: cursor });
         } catch (e) {
             if (e instanceof CertLogClosedError) {
                 closed = true;
