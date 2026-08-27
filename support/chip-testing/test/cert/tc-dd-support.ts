@@ -145,6 +145,55 @@ export async function onNetworkOnlyPayload(cx: CertStepContext): Promise<string>
     return qrPayloadWith(await thQrPayload(cx.devices.th), { discoveryCapabilities: ON_NETWORK_ONLY });
 }
 
+/** § 5.1.3.1 Table 59's version string for this revision of the specification. */
+export const STANDARD_VERSION = 0;
+
+/** § 5.1.3.1 Table 59's standard commissioning flow. */
+export const STANDARD_FLOW = 0;
+
+/**
+ * Records that the DUT reads `payload` as offering `capability` over the standard commissioning flow.
+ *
+ * The capability is what tells one leg of a per-transport plan from another, and the flow is what such
+ * a plan is named for, so both belong in the verdict. Left to the prose, every leg's scan step passes
+ * on the same evidence — that the DUT read some payload's discriminator and passcode — and a step
+ * handed the wrong leg's payload still passes.
+ */
+export async function recordPayloadOffering(
+    cx: CertStepContext,
+    payload: string,
+    capability: keyof typeof DiscoveryCapabilitiesBitmap,
+): Promise<void> {
+    const parsed = await cx.controllers.dut.parseQrPayload(payload);
+    const offered = DiscoveryCapabilitiesSchema.decode(parsed.discoveryCapabilities);
+    const names = Object.entries(offered)
+        .filter(([, set]) => set)
+        .map(([name]) => name);
+
+    const wrong = new Array<string>();
+    if (!offered[capability]) {
+        wrong.push(`does not offer ${capability}`);
+    }
+    if (parsed.flowType !== STANDARD_FLOW) {
+        wrong.push(`carries flowType ${parsed.flowType} rather than the standard flow`);
+    }
+
+    record(
+        cx,
+        {
+            type: "response",
+            verdict: wrong.length ? "fail" : "pass",
+            detail:
+                `DUT read ${payload} as flowType=${parsed.flowType} offering discovery over ` +
+                `${names.join(", ") || "nothing"} (bitmask 0b${parsed.discoveryCapabilities
+                    .toString(2)
+                    .padStart(8, "0")})` +
+                (wrong.length ? `; the payload ${wrong.join(" and ")}` : ""),
+        },
+        `Payload offers ${capability} over the standard flow`,
+    );
+}
+
 /**
  * Records that `payload` does not offer `capability`, read back through the DUT so a controller that
  * cannot report a bitmask fails here rather than silently proving nothing.

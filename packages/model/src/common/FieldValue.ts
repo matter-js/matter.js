@@ -199,14 +199,28 @@ export namespace FieldValue {
     }
 
     /**
-     * Given a type name as a hint, do our best to convert a field value to a number.
+     * The numeric form of a value that counts something — a length, a bit position, a number of entries.
+     *
+     * Such a count is bounded by what a message can carry, so it states itself as a number even where a value of the
+     * same type would need more.
+     */
+    export function countValue(value: Open | undefined, typeName?: string) {
+        const numeric = numericValue(value, typeName);
+        return typeof numeric === "bigint" ? Number(numeric) : numeric;
+    }
+
+    /**
+     * Given a type name as a hint, do our best to convert a field value to the number it states.
+     *
+     * States a `bigint` for a magnitude a number does not state exactly, which is where the values of a 64 bit type
+     * live, so arithmetic on the result must accept either.  {@link countValue} is the number-valued form.
      */
     export function numericValue(value: Open | undefined, typeName?: string) {
         if (typeof value === "boolean") {
             return value ? 1 : 0;
         }
 
-        if (typeof value === "number") {
+        if (typeof value === "number" || typeof value === "bigint") {
             return value;
         }
 
@@ -246,7 +260,89 @@ export namespace FieldValue {
     const MAX_STATED_DIGITS = 64;
 
     /**
-     * The integer that decimal or exponential notation states exactly, or undefined where it states a fraction.
+     * Read a value as the integer it states, exactly.
+     *
+     * A magnitude only a bigint holds stays a bigint; a number states the value where it holds it.  Also serves the
+     * bitmap and enum metatypes, whose values are integers of the type they encode to.
+     */
+    function integerValue(value: any): FieldValue | FieldValue.Invalid | undefined {
+        if (typeof value === "string") {
+            // Specialized support for percentages and temperatures
+            let type: FieldValue.celsius | FieldValue.percent | undefined;
+            if (value.endsWith("°C")) {
+                type = FieldValue.celsius;
+            } else if (value.endsWith("%")) {
+                type = FieldValue.percent;
+            }
+            if (type) {
+                // Both units are fractional in the specification's notation ("25.5°C", "0.01%") and scale to
+                // an integer only once the field's own unit is known
+                const radix = value.match(/^\s*([+-]?0[xb][\da-f]+)/i);
+                value = radix === null ? Number.parseFloat(value) : Number(radix[1]);
+                if (!Number.isFinite(value)) {
+                    return FieldValue.Invalid;
+                }
+                return { type, value };
+            }
+
+            // Decimal and exponential notation state a value of their own, so read them exactly rather
+            // than dropping the tail: "1e3" is 1000, while "1e-3" and "0.01" state no integer at all
+            const stated = statedInteger(value);
+            if (stated !== undefined) {
+                value = stated;
+            } else {
+                // Strip off extra garbage like Number.parseInt would but BigInt doesn't
+                const match = value.match(/^(0x[0-9a-f]+|0b[01]+|\d+)/i);
+                if (match) {
+                    if (/^[.eE]/.test(value.slice(match[1].length))) {
+                        return FieldValue.Invalid;
+                    }
+
+                    value = match[1];
+                }
+            }
+        }
+
+        try {
+            switch (typeof value) {
+                case "string":
+                case "number":
+                case "bigint":
+                case "boolean":
+                    break;
+
+                default:
+                    if (FieldValue.is(value, FieldValue.celsius) || FieldValue.is(value, FieldValue.percent)) {
+                        return value;
+                    }
+                    return FieldValue.Invalid;
+            }
+            const i = BigInt(value);
+
+            // A number the caller stated stays a number, having already lost whatever it lost.  A magnitude stated as
+            // text or as a bigint keeps its exact form above the integers a number states without rounding, so
+            // whatever reads it can judge it
+            if (typeof value === "number") {
+                return value;
+            }
+            const n = Number(i);
+            if (Number.isSafeInteger(n)) {
+                return n;
+            }
+            return i;
+        } catch (e) {
+            // BigInt refuses text that states no integer with a SyntaxError, and a number that is a fraction
+            // or is not finite with a RangeError.  Both say the same thing about the value
+            if (e instanceof SyntaxError || e instanceof RangeError) {
+                return FieldValue.Invalid;
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * The digits of the integer decimal or exponential notation states, or undefined where the text states no
+     * integer this reader builds.
      *
      * The digits are shifted by hand because converting to a number first rounds a value too large to be one, and
      * "18446744073709551614.5" would then look like the integer it is not.
@@ -400,82 +496,17 @@ export namespace FieldValue {
                     return value;
                 }
 
-                const id = Number(value);
-                if (!Number.isFinite(id)) {
-                    if (typeof value === "string") {
-                        // Key name
-                        return value;
-                    }
-                    return;
+                // The other thing a member states is its name, so text that opens with no number is one
+                if (typeof value === "string" && !value.match(/^\s*[+-]?[\d.]/)) {
+                    return value;
                 }
 
-                // Value
-                return id;
+                // A value is a number of the type the bitmap or enum encodes to, so it is read the way that type reads
+                // it — a map64 states values only a bigint holds
+                return integerValue(value);
 
             case "integer":
-                if (typeof value === "string") {
-                    // Specialized support for percentages and temperatures
-                    let type: FieldValue.celsius | FieldValue.percent | undefined;
-                    if (value.endsWith("°C")) {
-                        type = FieldValue.celsius;
-                    } else if (value.endsWith("%")) {
-                        type = FieldValue.percent;
-                    }
-                    if (type) {
-                        // Both units are fractional in the specification's notation ("25.5°C", "0.01%") and scale to
-                        // an integer only once the field's own unit is known
-                        const radix = value.match(/^\s*([+-]?0[xb][\da-f]+)/i);
-                        value = radix === null ? Number.parseFloat(value) : Number(radix[1]);
-                        if (!Number.isFinite(value)) {
-                            return FieldValue.Invalid;
-                        }
-                        return { type, value };
-                    }
-
-                    // Decimal and exponential notation state a value of their own, so read them exactly rather
-                    // than dropping the tail: "1e3" is 1000, while "1e-3" and "0.01" state no integer at all
-                    const stated = statedInteger(value);
-                    if (stated !== undefined) {
-                        value = stated;
-                    } else {
-                        // Strip off extra garbage like Number.parseInt would but BigInt doesn't
-                        const match = value.match(/^(0x[0-9a-f]+|0b[01]+|\d+)/i);
-                        if (match) {
-                            if (/^[.eE]/.test(value.slice(match[1].length))) {
-                                return FieldValue.Invalid;
-                            }
-
-                            value = match[1];
-                        }
-                    }
-                }
-
-                try {
-                    switch (typeof value) {
-                        case "string":
-                        case "number":
-                        case "bigint":
-                        case "boolean":
-                            break;
-
-                        default:
-                            if (FieldValue.is(value, FieldValue.celsius) || FieldValue.is(value, FieldValue.percent)) {
-                                return value;
-                            }
-                            return FieldValue.Invalid;
-                    }
-                    const i = BigInt(value);
-                    const n = Number(i);
-                    if (BigInt(n) === i) {
-                        return n;
-                    }
-                    return i;
-                } catch (e) {
-                    if (e instanceof SyntaxError) {
-                        return FieldValue.Invalid;
-                    }
-                    throw e;
-                }
+                return integerValue(value);
 
             case "float":
                 const float = Number(value);

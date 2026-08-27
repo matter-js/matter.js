@@ -238,12 +238,20 @@ export namespace Metatype {
                 try {
                     const big = BigInt(value);
                     const little = Number.parseInt(value);
-                    if (big === BigInt(little)) {
-                        return little;
+
+                    // Text stating no digits at all, which BigInt reads as zero
+                    if (!Number.isNaN(little)) {
+                        // A magnitude beyond the integers a number states exactly stays a bigint, since parseInt
+                        // states it as Infinity and that is no integer to compare against
+                        if (Number.isSafeInteger(little) && big === BigInt(little)) {
+                            return little;
+                        }
+                        return big;
                     }
-                    return big;
                 } catch (e) {
-                    if (!(e instanceof SyntaxError)) {
+                    // BigInt refuses text stating no integer with a SyntaxError and a value it cannot hold with a
+                    // RangeError, and neither is an integer this can state
+                    if (!(e instanceof SyntaxError) && !(e instanceof RangeError)) {
                         throw e;
                     }
                 }
@@ -261,9 +269,13 @@ export namespace Metatype {
                 return value.getTime();
             }
 
-            const number = Number(value);
-            if (Number.isFinite(value)) {
-                return number;
+            // Only text states a number here; a boolean or an empty array is not a value of this type, whatever
+            // Number() makes of it
+            if (typeof value === "string" && value.trim() !== "") {
+                const number = Number(value);
+                if (Number.isFinite(number)) {
+                    return number;
+                }
             }
 
             throw new UnsupportedCastError(`Cannot convert "${value}" to a float`);

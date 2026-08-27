@@ -24,6 +24,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `InteractionClient`'s read, write, invoke and subscribe options take an `abort` signal, forwarded to the interaction
 
 - @matter/general
+    - Enhancement: `Transaction.lock()` takes an exclusive lock on resources without a promise where they are free, and waits instead of throwing where another transaction holds them
     - Breaking: `DnssdNames.Context.goodbyeProtectionWindow` and `DnssdNames.defaults.goodbyeProtectionWindow` are now `evictionDelay`, and `DnssdName.deleteRecord` no longer takes an `ifOlderThan` argument
     - Enhancement: New `MatterAggregateError.settleSeries()` runs tasks in order, continuing past a failure, and reports the accumulated errors
     - Enhancement: A storage driver states how long a consumer may buffer dirty values via `StorageDriver.writeCoalescingInterval`, defaulting to 20 minutes; `MemoryStorageDriver` reports `Instant`
@@ -50,6 +51,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: New `EncodedConstraint()` restates every bound of a constraint in the units the value is encoded in
     - Enhancement: New `EncodedConstraint.bounds()` reports which of a constraint's bounds state a number in encoding units and which state a unit with no known scale
     - Fix: The model build rejects a value stating a unit with no known scale, a fraction an integer type cannot hold, or a negative an unsigned type cannot hold
+    - Fix: The model build rejects a bound or default stating a number outside the range of the integer type that carries it, such as the `300` of a `0 to 300` constraint on a `uint8`
+    - Fix: A constraint bound keeps the magnitude it states: the parser accumulated digits as a number, so `max 18446744073709551615` became 18446744073709552000 and a `uint64` bound admitted values above the type. A bound a number cannot state exactly is now a bigint
+    - Fix: A bitmap or enum value states its magnitude exactly, so a `map64` value no longer loses precision passing through `FieldValue.cast()`
+    - Breaking: `FieldValue.numericValue()` returns a `bigint` for a magnitude a number cannot state exactly, so a 64 bit bound and default keep what they say. `FieldValue.countValue()` is the number-valued form, for a length, a bit position or a count
+    - Fix: `Metatype.cast()` to a float reads a number stated as text instead of refusing it
     - Fix: A default stating a number no integer form matches, such as `1e-3`, is rejected instead of stored as the digits preceding the exponent
     - Fix: `FieldValue.cast()` treats "no value" as a value of every type, so an override removes a default rather than making the value invalid
     - Fix: A rejected default is reported as the value it states and the type that rejected it
@@ -74,6 +80,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A constraint that bounds a value by a field named like a constraint keyword, such as the `Min` of ClosureDimension's range structs, survives serialization
 
 - @matter/node
+    - Fix: `MoveToLevelWithOnOff`, `MoveWithOnOff` and `StepWithOnOff` build their options from the Options attribute and the request's mask and override, so `CoupleColorTempToLevel` couples color temperature to the level for them as it already did for `MoveToLevel`, `Move` and `Step`
+    - Fix: `StopWithOnOff` stops a transition on a device that is off; the ExecuteIfOff option gates the commands without On/Off only
+    - Fix: `MoveWithOnOff` and `StepWithOnOff` turn the device off when the level they reach is the minimum, and leave a device that is off alone when the level moves down
+    - Fix: A level change that couples On/Off or color temperature waits for a transaction holding those clusters instead of failing
+    - Behavior: `LevelControlServer.couple()` takes the target level as a third argument, which is what decides whether the device turns off; an override that omits it loses that decision
     - Breaking: Default server exports no longer inherit the features their base implementation enables internally.
         - `ColorControlServer`, `DoorLockServer`, `ElectricalEnergyMeasurementServer`, `LevelControlServer`, `ModeSelectServer`, `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer` and `WindowCoveringServer` now select no features. Select the features your device supports with `.with(...)` or use the DeviceType specific Requirement definitions of these clusters which automatically enable the needed features for the device type
         - `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer`, `WindowCoveringServer` and `ElectricalEnergyMeasurementServer` now require a selection to be added to an endpoint at all. The `DoorLockDevice`, `SpeakerDevice` and `ModeSelectDevice` device types alias these exports, so their clusters also select no features and advertise a different FeatureMap.
@@ -186,6 +197,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The `storage.clear` variable now clears the storage on start as it does on Node.js
 
 - @matter/types
+    - Breaking: `ModelBounds.createNumberBounds()` states a bound as a `bigint` where it lies beyond the safe integers, and states both `min` and `max` where it previously omitted an absent bound; `createLengthBounds()` still states a number, as a length counts what a message can carry
+    - Breaking: `TlvNumericSchema.bound()` states the base type of the schema it bounds in `baseTypeMin` and `baseTypeMax`, where it previously stated the bound; the bound is stated by `min` and `max`. The class gains a protected `constrain()`
+    - Breaking: A bounded 64 bit schema states its datatype again, so a legacy `ClusterType()` cluster derives the type and constraint of such an attribute instead of neither, and enforces a range it previously left open
+    - Fix: A nullable 64 bit integer reserves the value that encodes null from its type rather than from its constraint, so it neither refuses the extreme its constraint states nor admits the sentinel. `ElectricalPowerMeasurement`'s `Frequency` and `PowerFactor` refused their own maximum and minimum
+    - Breaking: `TlvNumericSchema.bound()` refuses a bound stated as a number that the number holds only approximately, such as `9223372036854775807` on a `uint64`, which rounded to 2^63 and admitted a value above the stated maximum. State such a bound as a `bigint`
     - Breaking: Provisional cluster elements are now typed as optional rather than always present
     - Breaking: An onboarding payload's vendor and product ID are reported absent (undefined) where it states none instead of 0
     - Feature: Added the `ClusterLookup` namespace for cluster/attribute/command/event name↔id resolution (optional `MatterModel` for custom clusters)

@@ -581,9 +581,7 @@ namespace Parser {
                                 tokens.next();
                             }
                         } else {
-                            result.cpMax = FieldValue.numericValue(
-                                (tokens.token as unknown as BasicToken.Number).value,
-                            );
+                            result.cpMax = FieldValue.countValue((tokens.token as unknown as BasicToken.Number).value);
                             tokens.next();
                         }
 
@@ -805,8 +803,8 @@ namespace Parser {
                         tokens.next();
 
                         if (token.type === "-") {
-                            if (typeof number === "number") {
-                                number *= -1;
+                            if (typeof number === "number" || typeof number === "bigint") {
+                                number = -number;
                             } else if (
                                 FieldValue.is(number, FieldValue.percent) ||
                                 FieldValue.is(number, FieldValue.celsius)

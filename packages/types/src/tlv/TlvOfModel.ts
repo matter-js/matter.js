@@ -72,6 +72,7 @@ import {
     TlvInt64,
     TlvInt8,
     TlvNumberSchema,
+    TlvNumericSchema,
     TlvPercent,
     TlvPercent100ths,
     TlvPosixMs,
@@ -334,10 +335,10 @@ function generateInteger(model: ValueModel): TlvSchema<unknown> {
         throw new InternalError(`No numeric TLV mapping for model ${model.path} type ${model.type}`);
     }
 
-    if ("bound" in tlv) {
+    if (tlv instanceof TlvNumericSchema) {
         const bounds = ModelBounds.createNumberBounds(model);
         if (bounds) {
-            return (tlv as TlvNumberSchema).bound(bounds);
+            return tlv.bound(bounds);
         }
     }
 

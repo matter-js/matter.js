@@ -7,7 +7,7 @@
 # Includes dev tools required for matter.js, claude code, quality-of-life tweaks, and attempts to lock down the
 # "matter" user so that it cannot run arbitrary code as root
 
-FROM mcr.microsoft.com/devcontainers/javascript-node:22-bookworm
+FROM mcr.microsoft.com/devcontainers/javascript-node:24-bookworm
 
 ARG TZ
 ENV TZ="$TZ"
