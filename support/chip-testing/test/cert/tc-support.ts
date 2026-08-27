@@ -1036,37 +1036,50 @@ export async function expectChunkedTransfer(
     const skipped = new Map<string, number>();
     let cursor = requestLine.index + 1;
     let quietUntilAt: number | undefined;
-    let closed = false;
+    let stopped: "window" | "budget" | "source-closed" = "window";
     for (;;) {
-        // The second chunk is what proves the read chunked at all, so it gets the whole remaining
-        // budget; every later one only has to outlast pump lag.
-        const now = Time.nowUs;
-        if (now >= deadline) {
-            break;
-        }
-        const wait =
-            quietUntilAt === undefined ? Millis(deadline - now) : Duration.min(CHUNK_QUIET, Millis(deadline - now));
+        // Draining what has arrived and waiting for more are separate steps. A line already in the log
+        // belongs to the transfer whatever the clock says now, and only the waiting is bounded; asking
+        // one call to do both is what lets a backlog of another exchange's reports either carry
+        // collection past the window or swallow a chunk that arrived inside it.
+        let next = log.firstMatchFrom(dialect.chunk.line, cursor);
 
-        let next: LogLine;
-        try {
-            next = await log.expectPattern(dialect.chunk.line, { timeoutMs: wait, from: cursor });
-        } catch (e) {
-            if (e instanceof CertLogClosedError) {
-                closed = true;
+        if (next === undefined) {
+            // The window closes at a wall-clock instant, because that is the clock the lines' arrival
+            // stamps carry, while the budget is elapsed time. Each is read in its own clock and only
+            // the remaining durations meet.
+            const untilBudgetSpent = deadline - Time.nowUs;
+            const untilWindowCloses = quietUntilAt === undefined ? untilBudgetSpent : quietUntilAt - Time.nowMs;
+            if (untilBudgetSpent <= 0) {
+                stopped = "budget";
                 break;
             }
-            if (e instanceof CertLogTimeoutError) {
+            if (untilWindowCloses <= 0) {
                 break;
             }
-            throw e;
+
+            try {
+                next = await log.expectPattern(dialect.chunk.line, {
+                    timeoutMs: Millis(Math.min(untilBudgetSpent, untilWindowCloses)),
+                    from: cursor,
+                });
+            } catch (e) {
+                if (e instanceof CertLogClosedError) {
+                    stopped = "source-closed";
+                    break;
+                }
+                if (e instanceof CertLogTimeoutError) {
+                    stopped = untilWindowCloses <= untilBudgetSpent ? "window" : "budget";
+                    break;
+                }
+                throw e;
+            }
         }
         cursor = next.index + 1;
 
-        // The quiet period runs between the chunks' own arrival stamps, not between the times this
-        // loop reached them: another exchange's reports match the same pattern and are answered out of
-        // the follower's buffer, so a backlog of them would otherwise both carry collection past the
-        // window and drop a chunk that had arrived inside it. Wall-clock stamps, because that is the
-        // clock the lines themselves carry.
+        // The second chunk is what proves the read chunked at all, so the window opens only once one
+        // has arrived; a chunk arriving after it closed is not this transfer's, however early the loop
+        // reached it.
         if (quietUntilAt !== undefined && next.at.getTime() > quietUntilAt) {
             break;
         }
@@ -1133,29 +1146,50 @@ export async function expectChunkedTransfer(
     const last = chunks[chunks.length - 1];
     const finality = dialect.finality(log, last);
     if (finality !== "final") {
-        if (!closed) {
-            return {
-                type: "device-log",
-                verdict: "fail",
-                pattern: "a report chunk carrying SuppressResponse",
-                detail:
-                    `${chunks.length} report chunks on Exchange ${exchange}, and the last of them ` +
-                    `${finality === "more" ? "announces a further chunk that never arrived" : "carries neither MoreChunkedMessages nor SuppressResponse"}` +
-                    alsoSeen,
-                matched: last.text,
-                logLine: last.index,
-            };
+        // Which of the three reasons collection ended decides who the record names. Only silence on the
+        // read's own exchange is the TH's; a source that ended and a budget that ran out are the run's,
+        // and reporting either as the TH abandoning its transfer blames the wrong side.
+        const unfinished =
+            `${chunks.length} report chunks on Exchange ${exchange}, and the last of them ` +
+            (finality === "more"
+                ? "announces a further chunk"
+                : "carries neither MoreChunkedMessages nor SuppressResponse");
+
+        switch (stopped) {
+            case "window":
+                return {
+                    type: "device-log",
+                    verdict: "fail",
+                    pattern: "a report chunk carrying SuppressResponse",
+                    detail: `${unfinished}, and none followed within ${Duration.format(CHUNK_QUIET)}${alsoSeen}`,
+                    matched: last.text,
+                    logLine: last.index,
+                };
+
+            case "budget":
+                return {
+                    type: "device-log",
+                    verdict: "unverified",
+                    pattern: "a report chunk carrying SuppressResponse",
+                    detail:
+                        `${unfinished}; this check's own budget of ${Duration.format(timeout)} was spent before ` +
+                        `the transfer ended, so whether the TH finished it is not claimed${alsoSeen}`,
+                    matched: last.text,
+                    logLine: last.index,
+                };
+
+            case "source-closed":
+                return {
+                    type: "device-log",
+                    verdict: "pass",
+                    pattern: "ReportDataMessage, StatusResponse on the same Exchange between every adjacent pair",
+                    detail:
+                        `${chunks.length} report chunks, each but the last followed by a StatusResponse; the log ` +
+                        "ends inside the transfer, so whether the DUT answered its final message is not claimed",
+                    matched: last.text,
+                    logLine: last.index,
+                };
         }
-        return {
-            type: "device-log",
-            verdict: "pass",
-            pattern: "ReportDataMessage, StatusResponse on the same Exchange between every adjacent pair",
-            detail:
-                `${chunks.length} report chunks, each but the last followed by a StatusResponse; the log ends ` +
-                "inside the transfer, so whether the DUT answered its final message is not claimed",
-            matched: last.text,
-            logLine: last.index,
-        };
     }
 
     // The loop waited past the last chunk for as long as this check's budget allowed, so an ack the

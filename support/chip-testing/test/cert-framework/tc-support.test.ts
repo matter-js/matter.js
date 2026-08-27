@@ -143,8 +143,14 @@ const requestCheck = (logLine?: number): CheckRecord =>
         ? { type: "device-log", verdict: "unverified" }
         : { type: "device-log", verdict: "pass", logLine };
 
-async function checkFrom(lines: string[], request: CheckRecord, flavor = "chip-docker", endSource = false) {
-    return withFollower(lines, follower => expectChunkedTransfer(follower, flavor, request, Seconds(1)), {
+async function checkFrom(
+    lines: string[],
+    request: CheckRecord,
+    flavor = "chip-docker",
+    endSource = false,
+    budget = Seconds(1),
+) {
+    return withFollower(lines, follower => expectChunkedTransfer(follower, flavor, request, budget), {
         endSource,
         drain: true,
     });
@@ -152,9 +158,13 @@ async function checkFrom(lines: string[], request: CheckRecord, flavor = "chip-d
 
 // Every case about the reports themselves gets the read request in front of them, anchored where the
 // step's own path check leaves its match: inside the request's decode dump.
-async function check(lines: string[], flavor = "chip-docker", endSource = false) {
-    return checkFrom([...readLines(), ...lines], requestCheck(1), flavor, endSource);
+async function check(lines: string[], flavor = "chip-docker", endSource = false, budget = Seconds(1)) {
+    return checkFrom([...readLines(), ...lines], requestCheck(1), flavor, endSource, budget);
 }
+
+// A case about the TH going silent needs a budget the quiet period can close inside, or the check runs
+// out of its own budget first and says so instead.
+const OUTLASTS_QUIET_PERIOD = Seconds(4);
 
 describe("expectChunkedTransfer", () => {
     it("passes when every chunk but the last is acked", async () => {
@@ -252,11 +262,18 @@ describe("expectChunkedTransfer", () => {
         expect(record.verdict).equal("unverified");
     });
 
-    it("fails when the transfer stops on a chunk that announced another", async () => {
-        const record = await check([...chunkLines(), ackLine(), ...chunkLines()]);
+    it("fails when the transfer stops on a chunk that announced another", async function () {
+        this.timeout(15_000);
+
+        const record = await check(
+            [...chunkLines(), ackLine(), ...chunkLines()],
+            "chip-docker",
+            false,
+            OUTLASTS_QUIET_PERIOD,
+        );
 
         expect(record.verdict).equal("fail");
-        expect(record.detail).match(/announces a further chunk that never arrived/);
+        expect(record.detail).match(/announces a further chunk, and none followed within 2s/);
     });
 
     it("stops collecting when its own budget is spent, however fast other traffic arrives", async function () {
@@ -284,11 +301,37 @@ describe("expectChunkedTransfer", () => {
             const record = await expectChunkedTransfer(follower, "chip-docker", requestCheck(1), Millis(300));
 
             expect(Time.nowUs - started).lessThan(3000);
-            expect(record.verdict).equal("fail");
-            expect(record.detail).match(/announces a further chunk that never arrived/);
+            expect(record.verdict).equal("unverified");
+            expect(record.detail).match(/budget of 300ms was spent before the transfer ended/);
         } finally {
             storming = false;
             await storm;
+            await follower.close();
+        }
+    });
+
+    it("ends the wait when the quiet period closes, not a further quiet period after the last report", async function () {
+        this.timeout(20_000);
+
+        // A report of another exchange arriving late in the window must not buy the check a fresh quiet
+        // period: the window runs from our own last chunk, so it closes at the same instant either way
+        const source = new OpenSource();
+        const follower = new LogFollower(source, "th");
+        source.push(...readLines(), ...chunkLines(), ackLine(), ...chunkLines());
+        await new Promise(resolve => setImmediate(resolve));
+
+        const foreign = setTimeout(() => source.push(...chunkLines(EXCHANGE + 1)), 1700);
+
+        const started = Time.nowUs;
+        try {
+            const record = await expectChunkedTransfer(follower, "chip-docker", requestCheck(1), Seconds(6));
+            const elapsed = Time.nowUs - started;
+
+            expect(record.verdict).equal("fail");
+            expect(record.detail).match(/announces a further chunk, and none followed within 2s/);
+            expect(elapsed).lessThan(3000);
+        } finally {
+            clearTimeout(foreign);
             await follower.close();
         }
     });
@@ -739,10 +782,10 @@ describe("expectChunkedTransfer against a matter.js TH", () => {
     const mjsRead = (exchange = MATTERJS_EXCHANGE) =>
         `2026-08-22 16:54:44.301 DEBUG InteractionServer Read « @1:f8b164969e6633a1•678b⇵${exchange} fabricFiltered attributes: *.*.*`;
 
-    async function transfer(lines: string[], endSource = false) {
+    async function transfer(lines: string[], endSource = false, budget = Seconds(1)) {
         return withFollower(
             [mjsRead(), ...lines],
-            follower => expectChunkedTransfer(follower, "matterjs", requestCheck(0), Seconds(1)),
+            follower => expectChunkedTransfer(follower, "matterjs", requestCheck(0), budget),
             { endSource, drain: true },
         );
     }
@@ -801,11 +844,13 @@ describe("expectChunkedTransfer against a matter.js TH", () => {
         );
     });
 
-    it("fails when the transfer stops on a chunk that announced another", async () => {
-        const record = await transfer([mjsChunk(), mjsAck(), mjsChunk()]);
+    it("fails when the transfer stops on a chunk that announced another", async function () {
+        this.timeout(15_000);
+
+        const record = await transfer([mjsChunk(), mjsAck(), mjsChunk()], false, OUTLASTS_QUIET_PERIOD);
 
         expect(record.verdict).equal("fail");
-        expect(record.detail).match(/announces a further chunk that never arrived/);
+        expect(record.detail).match(/announces a further chunk, and none followed within 2s/);
     });
 
     it("fails when the read never chunked", async () => {
