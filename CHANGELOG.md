@@ -42,6 +42,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/model
     - Fix: A device type requiring several instances of one component, such as `BatteryStorage` with two electrical sensors and two power sources, no longer reports each instance as a duplicate of the others
+    - Enhancement: The model build reports an instance number stated on a requirement other than a component device type, where the specification numbers nothing
     - Enhancement: A model element's `extend()` can remove an inherited quality, stated as `!N` in the quality definition; the removal survives further extension, and a definition that extends one carrying a removal may state the quality again
     - Fix: A quality definition given as an array of flags, such as `["N", "T"]`, loads those flags instead of reading as empty
     - Fix: A quality states which of its flags are not qualities, so a definition another rewrites still carries the flags it could not parse and the errors they raise

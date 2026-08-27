@@ -20,6 +20,13 @@ ModelValidator.validators[RequirementElement.Tag] = class RequirementValidator e
             required: true,
         });
 
+        if (this.model.instance !== undefined && this.model.element !== RequirementElement.ElementType.DeviceType) {
+            this.error(
+                "INSTANCE_NOT_APPLICABLE",
+                `Only a component device type is required in numbered instances, not ${this.model.element}`,
+            );
+        }
+
         const parentTag = this.model.parent?.tag;
         if (parentTag) {
             switch (this.model.element) {

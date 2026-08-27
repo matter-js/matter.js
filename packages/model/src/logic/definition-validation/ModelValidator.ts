@@ -6,6 +6,7 @@
 
 import { CrossReference } from "#models/CrossReference.js";
 import { ElementTag } from "../../common/index.js";
+import { RequirementElement } from "../../elements/index.js";
 import { CommandModel, Model, RequirementModel, ValueModel } from "../../models/index.js";
 
 /**
@@ -105,8 +106,13 @@ export class ModelValidator<T extends Model> {
                     id = `${id}:${child.direction}`;
                 } else if (child instanceof RequirementModel) {
                     // A device type may require several instances of one component, numbered from 1, and each is a
-                    // requirement of its own
-                    id = `${id}:${child.element}${child.instance === undefined ? "" : `:${child.instance}`}`;
+                    // requirement of its own.  Only a component states an instance; elsewhere the number would let
+                    // two requirements that are genuinely the same escape this check
+                    const instance =
+                        child.element === RequirementElement.ElementType.DeviceType && child.instance !== undefined
+                            ? `:${child.instance}`
+                            : "";
+                    id = `${id}:${child.element}${instance}`;
                 }
                 const identity = `${child.tag};${id};${(child as ValueModel).conformance}`;
                 if (identities[identity]) {
