@@ -21,6 +21,7 @@ import {
     Logger,
     MaybePromise,
     Millis,
+    type Timestamp,
 } from "@matter/general";
 import { Val } from "@matter/protocol";
 import { Status, StatusResponseError } from "@matter/types";
@@ -1655,8 +1656,8 @@ export class ColorControlBaseServer extends ColorControlBase {
                 return readOnlyState.managedTransitionTimeHandling;
             },
 
-            get transitionEndTimeMs() {
-                return readOnlyState.transitionEndTimeMs;
+            get transitionEndTime() {
+                return readOnlyState.transitionEndTime;
             },
 
             get stepInterval() {
@@ -1916,7 +1917,7 @@ export namespace ColorControlBaseServer {
          * If transition management is disabled you may specify this as the "end time" for transitions.  The remaining
          * time attribute will then report correctly.
          */
-        transitionEndTimeMs?: number;
+        transitionEndTime?: Timestamp;
 
         /**
          * When managing transitions, this is the interval at which steps occur in ms.
@@ -1955,7 +1956,8 @@ export namespace ColorControlBaseServer {
     }
 
     export class Events extends ColorControlBase.Events {
-        transitionEndTime$Changed = AsyncObservable<[value: number, oldValue: number, context: ActionContext]>();
+        transitionEndTime$Changed =
+            AsyncObservable<[value: Timestamp | undefined, oldValue: Timestamp | undefined, context: ActionContext]>();
     }
 
     export declare const ExtensionInterface: {
