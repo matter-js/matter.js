@@ -1183,11 +1183,12 @@ export async function expectChunkedTransfer(
             case "source-closed":
                 return {
                     type: "device-log",
-                    verdict: "pass",
-                    pattern: "ReportDataMessage, StatusResponse on the same Exchange between every adjacent pair",
+                    verdict: "unverified",
+                    pattern: "a report chunk carrying SuppressResponse",
                     detail:
-                        `${chunks.length} report chunks, each but the last followed by a StatusResponse; the log ` +
-                        "ends inside the transfer, so whether the DUT answered its final message is not claimed",
+                        `${unfinished}, and the log ends there; the acks between the chunks seen are in it, but ` +
+                        "whether the DUT answered this one — which is not the transfer's last — and whether it " +
+                        "left the transfer's own last message unanswered are both outside the evidence",
                     matched: last.text,
                     logLine: last.index,
                 };

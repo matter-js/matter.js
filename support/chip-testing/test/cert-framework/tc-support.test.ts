@@ -454,24 +454,24 @@ describe("expectChunkedTransfer", function () {
         expect(record.detail).match(/none after the last/);
     });
 
-    it("treats a log source that ends mid-transfer as the end of the transfer", async () => {
+    it("claims nothing where the log ends before the transfer does", async () => {
         const record = await check(
             [...chunkLines(), ackLine(), ...chunkLines(), ackLine(), ...chunkLines()],
             "chip-docker",
             true,
         );
 
-        expect(record.verdict).equal("pass");
-        expect(record.detail).match(/3 report chunks, each but the last followed by a StatusResponse; the log ends/);
+        expect(record.verdict).equal("unverified");
+        expect(record.detail).match(/the log ends there/);
     });
 
     it("does not read a truncated transfer's trailing ack as an answer to a final chunk", async () => {
         // A log cut inside a transfer ends on an acked chunk by construction — the ack of chunk N
-        // precedes chunk N+1 — so this must not be the same finding as an answered final chunk
+        // precedes chunk N+1 — so this must not be read as the DUT answering a final chunk
         const record = await check([...chunkLines(), ackLine(), ...chunkLines(), ackLine()], "chip-docker", true);
 
-        expect(record.verdict).equal("pass");
-        expect(record.detail).match(/the log ends inside the transfer/);
+        expect(record.verdict).equal("unverified");
+        expect(record.detail).not.match(/which a read's last chunk suppresses/);
     });
 
     it("records a fail instead of throwing when no report chunk ever appears", async () => {
@@ -906,8 +906,8 @@ describe("expectChunkedTransfer against a matter.js TH", function () {
     it("does not claim the final message was unanswered where the log ends inside the transfer", async () => {
         const record = await transfer([mjsChunk(), mjsAck(), mjsChunk(), mjsAck()], true);
 
-        expect(record.verdict).equal("pass");
-        expect(record.detail).match(/the log ends inside the transfer/);
+        expect(record.verdict).equal("unverified");
+        expect(record.detail).not.match(/which a read's last chunk suppresses/);
     });
 });
 
