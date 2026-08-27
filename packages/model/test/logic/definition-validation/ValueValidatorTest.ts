@@ -88,6 +88,8 @@ function modelWithDefault(type: string, dflt: FieldValue) {
         struct.clone(),
         duration.clone(),
         bool.clone(),
+        single.clone(),
+        double.clone(),
         new DatatypeModel({ name: "UnsignedTemperature", type: "uint8" }),
         new ClusterModel({ name: "Test", id: 0xfff1 }, Attribute({ name: "Bounded", id: 1, type, default: dflt })),
     );
@@ -526,6 +528,55 @@ describe("ValueValidator", () => {
             expect(validateDefault("uint64", 18446744073709551617n).map(error => error.code)).deep.equals([
                 "VALUE_EXCEEDS_TYPE",
             ]);
+        });
+        it("accepts the widest magnitude a float type holds", () => {
+            expect(validateDefault("single", 340282346638528859811704183484516925440)).deep.equals([]);
+            expect(validateDefault("single", -340282346638528859811704183484516925440)).deep.equals([]);
+            expect(validateDefault("double", 1e300)).deep.equals([]);
+        });
+
+        // A float states a magnitude it cannot hold as infinity rather than refusing it
+        it("rejects a magnitude a float type states as infinity", () => {
+            const errors = validateDefault("single", 1e300);
+
+            expect(errors.length).equals(1);
+            expect(errors[0].code).equals("VALUE_EXCEEDS_TYPE");
+            expect(errors[0].message).equals(
+                "1e+300 is outside the range -3.4028234663852886e+38 to 3.4028234663852886e+38 of single",
+            );
+        });
+
+        it("rejects a magnitude below the least a float type holds", () => {
+            expect(validateDefault("single", -1e300).map(error => error.code)).deep.equals(["VALUE_EXCEEDS_TYPE"]);
+        });
+
+        it("judges a float bound by the same range", () => {
+            expect(
+                validateConstraint("single", "max 1000000000000000000000000000000000000000").map(error => error.code),
+            ).deep.equals(["VALUE_EXCEEDS_TYPE"]);
+            expect(validateConstraint("single", "max 100000000000000000000000000000000000000")).deep.equals([]);
+            expect(validateConstraint("double", "max 1000000000000000000000000000000000000000")).deep.equals([]);
+        });
+
+        // Characterization: a fraction was already exempt before the range rule, since the fraction check tests for
+        // an integer type.  Here to pin that the range rule did not change it
+        it("accepts a fractional default on a float type", () => {
+            expect(validateDefault("single", 0.1)).deep.equals([]);
+            expect(validateDefault("double", -1.5)).deep.equals([]);
+        });
+
+        // A number states no magnitude a double cannot hold, so only a bound stating its own digits reaches the range
+        it("judges a bound against the range of a double", () => {
+            expect(validateConstraint("double", `max ${"9".repeat(320)}`).map(error => error.code)).deep.equals([
+                "VALUE_EXCEEDS_TYPE",
+            ]);
+            expect(validateConstraint("double", `max ${"9".repeat(100)}`)).deep.equals([]);
+        });
+
+        // The cast refuses it already, and a value outside no range is not what is wrong with it
+        it("leaves a default stating no magnitude to the cast that refused it", () => {
+            expect(allErrors("single", NaN).map(error => error.code)).deep.equals(["INVALID_VALUE"]);
+            expect(allErrors("single", Infinity).map(error => error.code)).deep.equals(["INVALID_VALUE"]);
         });
 
         // A bound keeps its magnitude exactly, so a type's own range is judged and admitted
