@@ -1221,8 +1221,9 @@ export class ColorControlBaseServer extends ColorControlBase {
         }
 
         // An active color loop is stopped by ColorLoopSet alone, so a transition survives this command and the
-        // remaining time is not this command's to end
-        if (this.state.colorLoopActive !== ColorControl.ColorLoopActive.Inactive) {
+        // remaining time is not this command's to end.  Without the ColorLoop feature the attribute reads undefined,
+        // so only an explicitly active loop may bypass the end of the transition
+        if (this.state.colorLoopActive === ColorControl.ColorLoopActive.Active) {
             return this.stopMoveStepLogic();
         }
 
@@ -1237,7 +1238,7 @@ export class ColorControlBaseServer extends ColorControlBase {
      * @protected
      */
     protected stopMoveStepLogic(): MaybePromise {
-        if (this.state.colorLoopActive === ColorControl.ColorLoopActive.Inactive) {
+        if (this.state.colorLoopActive !== ColorControl.ColorLoopActive.Active) {
             this.internal.transitions?.stop("enhancedCurrentHue");
         }
         this.internal.transitions?.stop("currentHue");

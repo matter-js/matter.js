@@ -15,6 +15,10 @@ const ColorLightDevice = ExtendedColorLightDevice.with(
     ColorControlServer.with("HueSaturation", "EnhancedHue", "ColorLoop", "Xy", "ColorTemperature"),
 );
 
+const ColorLightDeviceWithoutColorLoop = ExtendedColorLightDevice.with(
+    ColorControlServer.with("HueSaturation", "EnhancedHue", "Xy", "ColorTemperature"),
+);
+
 describe("ColorControlServer", () => {
     it("transitions cyclic hue downwards with correct events", async () => {
         const { node, endpoint, events, complete } = await setup();
@@ -65,10 +69,30 @@ describe("ColorControlServer", () => {
     });
 });
 
-async function setup(state?: { managedTransitionTimeHandling: boolean }) {
+async function setupWithoutColorLoop() {
     MockTime.reset();
 
-    const { node, endpoint } = await initializeDimmableHueLight(state);
+    const node = await MockServerNode.createOnline(undefined, { device: undefined });
+    const endpoint = await node.add(ColorLightDeviceWithoutColorLoop, colorLightState(true));
+
+    const reports = Array<number>();
+    endpoint.events.colorControl.remainingTime$Changed!.online.on(value => {
+        reports.push(value);
+    });
+
+    const invoke = async (actor: (agent: Agent.Instance<typeof ColorLightDeviceWithoutColorLoop>) => MaybePromise) => {
+        await node.online({ command: true }, async agent => {
+            await actor(endpoint.agentFor(agent.context));
+        });
+    };
+
+    return { node, endpoint, reports, invoke };
+}
+
+async function setup(options?: { managedTransitionTimeHandling?: boolean }) {
+    MockTime.reset();
+
+    const { node, endpoint } = await initializeDimmableHueLight(options);
 
     const events = Array<{
         kind: "hue" | "time";
@@ -108,18 +132,24 @@ async function setup(state?: { managedTransitionTimeHandling: boolean }) {
     return { node, endpoint, events, reports, complete, invoke };
 }
 
-async function initializeDimmableHueLight(state?: { managedTransitionTimeHandling: boolean }) {
+async function initializeDimmableHueLight(options?: { managedTransitionTimeHandling?: boolean }) {
     const node = await MockServerNode.createOnline(undefined, {
         device: undefined,
     });
 
-    const endpoint = await node.add(ColorLightDevice, {
+    const endpoint = await node.add(ColorLightDevice, colorLightState(options?.managedTransitionTimeHandling ?? true));
+
+    return { node, endpoint };
+}
+
+function colorLightState(managedTransitionTimeHandling: boolean) {
+    return {
         onOff: { onOff: true },
         levelControl: {
             currentLevel: 254,
         },
         colorControl: {
-            managedTransitionTimeHandling: state?.managedTransitionTimeHandling ?? true,
+            managedTransitionTimeHandling,
             colorTempPhysicalMinMireds: 153,
             colorTempPhysicalMaxMireds: 370,
             colorMode: ColorControl.ColorMode.CurrentHueAndCurrentSaturation,
@@ -130,9 +160,7 @@ async function initializeDimmableHueLight(state?: { managedTransitionTimeHandlin
             coupleColorTempToLevelMinMireds: 153,
             startUpColorTemperatureMireds: null,
         },
-    });
-
-    return { node, endpoint };
+    };
 }
 
 describe("ColorControl stop", () => {
@@ -207,6 +235,33 @@ describe("ColorControl stop", () => {
             agent.colorControl.moveColor({
                 rateX: 0,
                 rateY: 0,
+                optionsMask: {},
+                optionsOverride: {},
+            }),
+        );
+
+        expect(reports).deep.equals([100, 0]);
+        expect(endpoint.state.colorControl.remainingTime).equals(0);
+
+        await node.close();
+    });
+
+    // The attribute the color loop carve-out consults is absent without the feature, so it reads undefined rather
+    // than Inactive
+    it("reports zero remaining time on StopMoveStep without the ColorLoop feature", async () => {
+        const { node, endpoint, reports, invoke } = await setupWithoutColorLoop();
+
+        await invoke(agent =>
+            agent.colorControl.moveToColorTemperature({
+                colorTemperatureMireds: 370,
+                transitionTime: 100,
+                optionsMask: {},
+                optionsOverride: {},
+            }),
+        );
+
+        await invoke(agent =>
+            agent.colorControl.stopMoveStep({
                 optionsMask: {},
                 optionsOverride: {},
             }),
