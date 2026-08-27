@@ -214,6 +214,11 @@ describe("ChipToolClient", function () {
         await waitFor(() => fake.parked, "the client to park an async-report frame");
 
         expect(fake.pushReport({ clusterId: 6, endpointId: 1, attributeId: 0, value: true })).equal("sent");
+
+        // Answering the park disarms it; the client parks again once the report reaches it, so this
+        // is the one moment the flag can be read
+        expect(fake.parked).false;
+
         await waitFor(() => asyncResults.length === 1, "the report to reach onAsyncResult");
 
         expect(asyncResults).deep.equal([{ clusterId: 6, endpointId: 1, attributeId: 0, value: true }]);
@@ -487,6 +492,102 @@ describe("ChipToolClient", function () {
         fake.reply = () => ({ results: [{ value: 7 }] });
         const next = await chipTool.execute("any read-by-id 0x6 0x0 1 2");
         expect(next.results).deep.equal([{ value: 7 }]);
+        expect(fake.violations).deep.equal([]);
+    });
+
+    // Each arm of the two shape checks the client applies to a reply, since one frame satisfies only
+    // the arm it trips and leaves the others free to be deleted unnoticed.
+    const MALFORMED_REPLIES = [
+        ["a frame that is not an object", '"a bare string"', /not a \{ results: \[\], logs: \[\] \} frame/],
+        ["a frame with no results", '{"logs":[]}', /not a \{ results: \[\], logs: \[\] \} frame/],
+        ["a frame with no logs", '{"results":[{"value":1}]}', /not a \{ results: \[\], logs: \[\] \} frame/],
+        [
+            "a log entry that is not an object",
+            '{"results":[],"logs":["TE9H"]}',
+            /log entry without a base64 "message" string/,
+        ],
+        [
+            "a log entry with no message",
+            '{"results":[],"logs":[{"module":"TOO","category":"Info"}]}',
+            /log entry without a base64 "message" string/,
+        ],
+    ] as const;
+
+    for (const [what, frame, reason] of MALFORMED_REPLIES) {
+        it(`rejects ${what}, and keeps serving`, async () => {
+            const chipTool = await start();
+
+            fake.reply = () => ({ hang: true });
+            const pending = chipTool.execute("any read-by-id 0x6 0x0 1 1");
+
+            await waitFor(() => fake.commands.length === 1, "the command to reach the server");
+            fake.sendRaw(frame);
+
+            await expect(pending).rejectedWith(UnexpectedDataError, reason);
+
+            fake.reply = () => ({ results: [{ value: 8 }] });
+            const next = await chipTool.execute("any read-by-id 0x6 0x0 1 2");
+            expect(next.results).deep.equal([{ value: 8 }]);
+            expect(fake.violations).deep.equal([]);
+        });
+    }
+
+    it("refuses a verbatim answer when nothing is waiting for one", async () => {
+        await start();
+
+        expect(() => fake.sendRaw('{"results":[],"logs":[]}')).throws(InternalError);
+    });
+
+    it("refuses a verbatim answer once the socket carrying it is gone", async () => {
+        const chipTool = await start();
+
+        fake.reply = () => ({ hang: true });
+        const pending = chipTool.execute("any read-by-id 0x6 0x0 1 1", Millis(100));
+        await waitFor(() => fake.commands.length === 1, "the command to reach the server");
+        await expect(pending).rejectedWith(TimeoutError);
+
+        await chipTool.close();
+        await waitFor(() => fake.closedSockets === 1, "the socket to close");
+
+        expect(() => fake.sendRaw('{"results":[],"logs":[]}')).throws(InternalError);
+    });
+
+    it("answers a command once when a verbatim answer arrives while its reply is still due", async () => {
+        const chipTool = await start();
+
+        fake.reply = () => ({ results: [{ value: 1 }], delayMs: 60 });
+        const pending = chipTool.execute("any read-by-id 0x6 0x0 1 1");
+
+        await waitFor(() => fake.commands.length === 1, "the command to reach the server");
+        fake.sendRaw('{"results":[{"value":2}],"logs":[]}');
+
+        expect((await pending).results).deep.equal([{ value: 2 }]);
+
+        // The superseded reply would land here if the double still sent it
+        await delay(120);
+        expect(asyncResults).deep.equal([]);
+        expect(fake.violations).deep.equal([]);
+    });
+
+    it("discards an unparseable frame that answers no command, and keeps serving", async () => {
+        const chipTool = await start();
+
+        chipTool.armReports();
+        await waitFor(() => fake.parked, "the async-report slot to arm");
+        fake.sendRaw("not a frame at all");
+
+        // The frame is in flight until the client reports it: a command issued before then would be
+        // the one holding the slot when it lands, and would take the rejection itself
+        await waitFor(
+            () => logs.some(line => line.includes("Discarding unparseable chip-tool frame")),
+            "the client to discard the frame",
+        );
+
+        fake.reply = () => ({ results: [{ value: 9 }] });
+        const next = await chipTool.execute("any read-by-id 0x6 0x0 1 2");
+        expect(next.results).deep.equal([{ value: 9 }]);
+        expect(asyncResults).deep.equal([]);
+        expect(fake.violations).deep.equal([]);
     });
 });
 

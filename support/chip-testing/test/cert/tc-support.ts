@@ -275,6 +275,18 @@ export const REPORT_DATA_MESSAGE = /\[DMG\] ReportDataMessage =\s*$/;
 // Test_TC_IDM_4_4.yaml. Correlating on it is what attributes a report to one subscription when
 // several are live at once.
 export const SUBSCRIBE_RESPONSE_MESSAGE = /\[DMG\] SubscribeResponseMessage =\s*$/;
+
+/**
+ * What a report carries, on the line chip prints right after the subscription id.
+ *
+ * A report carrying neither prints `InteractionModelRevision` here instead, and two very different
+ * reports have that shape: the keepalive an idle subscription sends at its maximum interval, and the
+ * priming report of a subscription established with nothing to report yet. Both are acked like any
+ * report, so nothing downstream of the ack tells them from a report either — which is why requiring
+ * this line is the caller's choice (`expectReportAck`'s `carriesData`) rather than always on. A
+ * chip-local TC-IDM-4.1 run's device log holds six of the first kind.
+ */
+export const REPORT_DATA_IBS = /(?:Attribute|Event)ReportIBs =\s*$/;
 export const SUBSCRIPTION_ID_LINE = /SubscriptionId = 0x([0-9a-f]+),\s*$/;
 
 /** matter.js names the subscription it just minted on the response that carries it. */
@@ -286,9 +298,12 @@ const MATTERJS_SUBSCRIBE_RESPONSE = /Message » for: I\/SubscribeResponse sub#: 
  * where the keepalive an idle subscription sends at its maximum interval is marked `empty`, and a
  * keepalive's ack must not stand in for a report's.
  */
-function matterjsReportPattern(subscriptionId: number): RegExp {
+function matterjsReportPattern(subscriptionId: number, carriesData: boolean): RegExp {
+    // matter.js prints the counts a report carried, and flags a report carrying neither as `empty`
+    // (`InteractionMessenger`'s report logContext), so requiring the counts is what excludes a keepalive.
+    const carried = carriesData ? "(?:attr|ev): \\d+" : "";
     return new RegExp(
-        `Message » for: I/ReportData sub#: ${matterjsSubscriptionIdOf(subscriptionId)} (?:attr|ev): \\d+.*?✉([0-9a-f]+)`,
+        `Message » for: I/ReportData sub#: ${matterjsSubscriptionIdOf(subscriptionId)} ${carried}.*?✉([0-9a-f]+)`,
     );
 }
 
@@ -1355,10 +1370,11 @@ async function matterjsReportAck(
     subscriptionId: number,
     from: number,
     timeout: Duration,
+    carriesData: boolean,
 ): Promise<CheckRecord> {
     const deadline = Time.nowUs + timeout;
     const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
-    const reportPattern = matterjsReportPattern(subscriptionId);
+    const reportPattern = matterjsReportPattern(subscriptionId, carriesData);
     const pattern = `${reportPattern} then its own Success StatusResponse`;
 
     try {
@@ -1427,6 +1443,11 @@ async function matterjsReportAck(
  * Against a matter.js TH the correlation is tighter still: it names the message counter each ack
  * carries, so the ack is matched to this very report rather than to whatever answered on the same
  * exchange next.
+ *
+ * A report carrying no data is not accepted by default, because it is acked exactly like a report and so
+ * could stand in for one the step asked for — that is the keepalive an idle subscription sends. Pass
+ * `{ carriesData: false }` where a report carrying nothing is itself a legitimate answer: the priming
+ * report of a subscription established with nothing to report yet, which is ordinary for events.
  */
 export async function expectReportAck(
     log: LogFollower,
@@ -1434,6 +1455,7 @@ export async function expectReportAck(
     subscription: SubscriptionIdLookup,
     from: number,
     timeout: Duration,
+    options: { carriesData?: boolean } = {},
 ): Promise<CheckRecord> {
     // Takes the lookup rather than its id so a failure cannot arrive here as an unverified nobody can
     // explain. Callers gate on `check` first, so this is the second line of defence, not the first.
@@ -1441,20 +1463,25 @@ export async function expectReportAck(
         return subscription.check;
     }
     const { subscriptionId } = subscription;
+    const { carriesData = true } = options;
 
     if (flavor === "matterjs") {
-        return matterjsReportAck(log, flavor, subscriptionId, from, timeout);
+        return matterjsReportAck(log, flavor, subscriptionId, from, timeout, carriesData);
     }
 
     const deadline = Time.nowUs + timeout;
     const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
-    const pattern = `ReportDataMessage(SubscriptionId = 0x${subscriptionId.toString(16)}) then its own ${STATUS_RESPONSE_SUCCESS} (matched by Exchange id)`;
+    const pattern = `ReportDataMessage(SubscriptionId = 0x${subscriptionId.toString(16)})${carriesData ? " carrying data" : ""} then its own ${STATUS_RESPONSE_SUCCESS} (matched by Exchange id)`;
 
     try {
         const report = await expectAdjacentLines(
             log,
             flavor,
-            { chip: [REPORT_DATA_MESSAGE, /\{\s*$/, subscriptionIdPattern(subscriptionId)] },
+            {
+                chip: carriesData
+                    ? [REPORT_DATA_MESSAGE, /\{\s*$/, subscriptionIdPattern(subscriptionId), REPORT_DATA_IBS]
+                    : [REPORT_DATA_MESSAGE, /\{\s*$/, subscriptionIdPattern(subscriptionId)],
+            },
             from,
             remaining(),
         );

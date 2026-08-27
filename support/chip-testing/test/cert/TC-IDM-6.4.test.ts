@@ -152,7 +152,10 @@ certTest("TC-IDM-6.4", {
             const idLookup = await expectSubscriptionId(th.log, th.flavor, from, LOG_TIMEOUT);
             record(cx, idLookup.check, "SubscribeResponseMessage");
 
-            const ackCheck = await expectReportAck(th.log, th.flavor, idLookup, from, LOG_TIMEOUT);
+            // The priming report of an event subscription legitimately carries no events yet.
+            const ackCheck = await expectReportAck(th.log, th.flavor, idLookup, from, LOG_TIMEOUT, {
+                carriesData: false,
+            });
             record(cx, ackCheck, "Report ack");
         }),
         { expected: "Verify that the DUT sends Status Response Action with a success Status Code." },
