@@ -1729,47 +1729,67 @@ controller still owns the peer either way.
 holds a ref, and step 3 cleared it, so the TC's own steps 3 and 4 are what run — the helper does not
 factory-reset a TH that was just reset.
 
-## Freshness: a cache hit is not a state transition — OPEN
+## Freshness: a cache hit is not a state transition
 
-TC-DD-3.20 closed this for its own step 4 by requiring the device's own announcement. The instruments
-themselves still have the property, and three other places still rest on them. Recorded here in the
-same spirit as "Known limitations carried forward from `TC-ACT-3.2`" and the TC-DD-3.11 section's
-"Unsettled, worth resolving before the next per-transport TC" above.
+A step that *drives* a transition must not prove it with a check that only observes a *condition* —
+the condition was already true beforehand. The instrument that witnesses a transition here is the
+**device's own log**. The network cannot do it, and the reason is worth knowing before anyone tries
+again.
 
-**The shape.** A step that drives a transition proves it with a check that observes a *condition*, and
-the condition was already true before the transition.
+**The mDNS probe cannot witness anything.** `checkCommissionable` primes from the process-global
+`Environment.default.get(MdnsService).names` and fires on any cached device matching the long
+discriminator. Every flavor pins discriminator 3840 across restarts and a commissionable record
+outlives its announcement by about two minutes, so a record cached several steps earlier answers with
+nothing on the wire. Measured in TC-DD-3.20 before this was fixed: its step-4 probe passed at
+13:05:44.088 and the device published the record at 13:05:44.123 — green for 35 ms on evidence that
+predated its own cause.
 
-- **`expectMdns({ commissionable: true })`.** `checkCommissionable` builds a
-  `CommissionableMdnsScanner` over the process-global `Environment.default.get(MdnsService).names`,
-  primes from `discoveredNames`, and fires as soon as any cached device matches the long
-  discriminator. Every flavor pins discriminator 3840 across restarts and a commissionable record
-  lives about two minutes, so a record cached several steps earlier answers it with nothing on the
-  wire. See the measured 35 ms window in the TC-DD-3.20 section above.
-- **`LogFollower.mark()`.** It returns the count of lines *ingested*, not lines the device has
-  printed. The follower pumps asynchronously, so a line the TH emitted before the mark but which had
-  not yet been drained lands at an index at or after `from` and reads as "after the mark".
-  `expectSequence`'s own doc already states this; anything anchoring on a mark inherits it.
+**And dating the record does not rescue it.** A `DnssdName.Record` carries `installedAt`, so "was this
+announced after my mark?" looks answerable, and it was built and then cut. Two reasons, both in our
+own code:
 
-**Where it still bites:**
+- `DnssdNames.#processMessage` installs records from a **query's** known-answer list exactly as it
+  does from a response. Any other commissioner on the LAN — another `chip-tool`, a Home Assistant or
+  python-matter-server instance running commissionable discovery — refreshes `installedAt` while the
+  device says nothing. On a developer LAN that is not hypothetical.
+- Soliciting for a fresh announcement makes it worse, not better: our query carries the record we
+  already hold as a known answer, and `MdnsServer`'s known-answer suppression tells the responder not
+  to answer while that record has more than half its TTL left — which is exactly the window the check
+  cares about. `checkOperationalRecords` states the same hazard in its own comment ("Never solicit a
+  name whose SRV is already live").
 
-1. `restoreCommissioningMode` now takes its own pre-decommission mark and requires the announcement,
-   so the composed path is covered too. What is *not* covered is any step whose only evidence is a
-   bare `recordCommissionable` — TC-DD-3.21 step 1 and TC-DD-3.20 step 1 among them. Those are
-   preconditions rather than transitions, so a cached record is arguably the right answer there; the
-   distinction is worth making explicit rather than left to whoever reads the step next.
-2. Steps 2.a/5.a of TC-DD-3.20 and 2.a of TC-DD-3.21 gate on `MCORE.DD.SCAN_QR_CODE` while their `.b`
-   siblings repeat the same parse ungated — so a controller whose PICS says it cannot scan gets a
-   `skipped` step and two parse passes in the same bundle. The plan gives the `.b` steps no PICS,
-   which is why both TCs read this way; the leg-integrity rule TC-DD-3.11 states argues the other way.
-3. `thQrPayload` searches `from: 0`, so a step after a factory reset re-reads the payload the *dead*
-   generation printed. Benign while `chip-app-subject.ts` pins the discriminator and passcode across
-   restarts, and wrong the moment a TH's payload changes across a reset.
+So `recordCommissionable` stays what it is — "the TH is advertising", a precondition — and a step
+proving a transition takes the device's own line:
+`mDNS service published: _matterc._udp` (chip) / `MdnsAdvertisement Publishing kind: commissionable`
+(matter.js), which is what `recordBackInCommissioningMode` requires, with the probe beside it as
+corroboration. Pick such a pattern from CHIP's *source*, not from a local run: `Registering service …`
+is `platform/Darwin` only and would pass on a Mac while matching nothing on a Linux CI build.
 
-**What would close the rest.** A freshness primitive: an mDNS probe that rejects a record installed
-before a caller-supplied mark (`DnssdName.Record` already carries `installedAt`, and `DnssdNames`
-already retires records on a goodbye), plus a log anchor that waits for the follower to drain to real
-time before taking its mark. Both are framework changes in `packages/testing` and `packages/general`
-touching every existing TC's evidence, so they are a decision rather than a fixup.
+**The other instrument is fixed rather than documented.** `LogFollower.mark()` counts lines
+*ingested*, so a line the device wrote just before the mark can still be in flight and land after it,
+where a check reads it as caused by whatever the caller did next. `markSettled()` lets the pump
+deliver what its source already holds first, and `markTransition(cx)` is the cert-side wrapper. A
+mark that anchors a causal claim must be one of those, and it must be taken before the **cause** —
+which for a matter.js TH returning to commissioning mode is the *previous* step's `decommission()`,
+not anything the checking step does. `recordUnpair` returns the mark it took for exactly that reason,
+and TC-DD-3.20's steps 4 and 5 use it.
+
+**Related, and fixed with it:** `thQrPayload` takes a cursor. Its default reads the whole log and so
+returns the payload the generation *before* a restart printed, which is benign only while the harness
+pins the discriminator and passcode across restarts.
+
+**Also fixed:** a gated scan step's claim is no longer re-recorded by its ungated sibling. `2.a` is
+gated on `MCORE.DD.SCAN_QR_CODE` and owns the parse evidence; `2.b` commissions (TC-DD-3.20,
+TC-DD-3.21, and TC-DD-3.11's `3.b`/`3.c`, where the capability offering was duplicated as well).
+Before, a controller whose PICS said it cannot scan got a `skipped` step and a pass for that same
+step's claim in one bundle. Commissioning from the payload is itself evidence the DUT parsed it, so
+the trade is deliberate: on a controller that cannot scan, those steps now record the commissioning
+result alone.
+
+**TC-DD-1.8 is the exception, and stays as it is.** Its `.b` steps carry their own expected outcome —
+"verify the TH's QR code *with the appended TLV data* was parsed successfully" — which is a different
+claim from `.a`'s "the QR code has been scanned successfully". Read the plan's expected column before
+deciding a `.b` step's parse is redundant: it usually is, and there it is not.
 
 ## chip-tool delivers one result per async report and discards the rest
 

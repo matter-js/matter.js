@@ -176,11 +176,12 @@ certTest("TC-DD-3.11", {
         "Using the DUT, parse the TH's QR code and follow any steps needed for the Commissioner/Commissionee to " +
             "complete the commissioning process using IP Network",
         async cx => {
+            // The parse and the capability it offers are step 3.b's claims, and 3.b is where the
+            // PICS gate for them sits; recording them again here would put a pass for a skipped
+            // step's claim in the same bundle
             const payload = qrPayloadWith(await thQrPayload(cx.devices.th), {
                 discoveryCapabilities: ON_NETWORK_ONLY,
             });
-            await recordParse(cx, payload);
-            await recordPayloadOffering(cx, payload, "onIpNetwork");
             await recordCommissionable(cx);
             await commissionByQr(cx, payload, commissioned);
         },

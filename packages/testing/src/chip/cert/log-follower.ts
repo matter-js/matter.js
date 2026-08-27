@@ -148,10 +148,38 @@ export class LogFollower implements LogSource {
     /**
      * Sets the default cursor a subsequent {@link expect} call scans from when it doesn't specify
      * `from` itself. Typically called once at the start of a step.
+     *
+     * This counts lines **ingested**, not lines the device has printed. The pump reads its source
+     * asynchronously, so a line the device wrote just before this call may still be in flight and
+     * land at an index at or after the mark — where a check reads it as having been caused by
+     * whatever the caller does next. Use {@link markSettled} for a mark that has to separate cause
+     * from effect.
      */
     mark(): number {
         this.#lastMark = this.#lines.length;
         return this.#lastMark;
+    }
+
+    /**
+     * {@link mark}, after letting the pump deliver what its source already holds.
+     *
+     * This is the mark to take before doing something whose effect a later check attributes to it:
+     * a plain {@link mark} can sit *behind* a line the device had already written, and the check
+     * then passes on evidence that predates its own cause.
+     *
+     * What it promises is bounded, and deliberately so: it yields two macrotask turns, which is what
+     * every source this class is given today needs — a process stream, a {@link LineQueue}, or a
+     * follower reading another follower all reach {@link #consume} through microtasks after one poll
+     * phase. A source that inserts a macrotask of its own between read and append would need more,
+     * and would get a mark that is silently too early rather than an error. A line the device has not
+     * yet flushed is not observable by any means here.
+     */
+    async markSettled(): Promise<number> {
+        // Two turns: the first lets a pending read resolve, the second lets the pump's own
+        // continuation append what it read.
+        await delay(0).promise;
+        await delay(0).promise;
+        return this.mark();
     }
 
     /**
