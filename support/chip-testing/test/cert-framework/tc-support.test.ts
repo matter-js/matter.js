@@ -166,17 +166,16 @@ async function check(lines: string[], flavor = "chip-docker", endSource = false,
 // out of its own budget first and says so instead.
 const OUTLASTS_QUIET_PERIOD = Seconds(4);
 
-describe("expectChunkedTransfer", () => {
+describe("expectChunkedTransfer", function () {
+    this.timeout(30_000);
+
     it("passes when every chunk but the last is acked", async () => {
-        const record = await check([
-            ...chunkLines(),
-            NOISE,
-            ackLine(),
-            ...chunkLines(),
-            ackLine(),
-            ...chunkLines(EXCHANGE, "final"),
-            NOISE,
-        ]);
+        const record = await check(
+            [...chunkLines(), NOISE, ackLine(), ...chunkLines(), ackLine(), ...chunkLines(EXCHANGE, "final"), NOISE],
+            "chip-docker",
+            false,
+            OUTLASTS_QUIET_PERIOD,
+        );
 
         expect(record.verdict).equal("pass");
         expect(record.detail).equal(
@@ -224,13 +223,18 @@ describe("expectChunkedTransfer", () => {
     });
 
     it("ignores a report of another exchange that lands before this read's first chunk", async () => {
-        const record = await check([
-            ...chunkLines(EXCHANGE + 1),
-            ackLine(EXCHANGE + 1),
-            ...chunkLines(),
-            ackLine(),
-            ...chunkLines(EXCHANGE, "final"),
-        ]);
+        const record = await check(
+            [
+                ...chunkLines(EXCHANGE + 1),
+                ackLine(EXCHANGE + 1),
+                ...chunkLines(),
+                ackLine(),
+                ...chunkLines(EXCHANGE, "final"),
+            ],
+            "chip-docker",
+            false,
+            OUTLASTS_QUIET_PERIOD,
+        );
 
         expect(record.verdict).equal("pass");
         expect(record.detail).equal(
@@ -239,13 +243,18 @@ describe("expectChunkedTransfer", () => {
     });
 
     it("ignores a report of another exchange interleaved with this read's chunks", async () => {
-        const record = await check([
-            ...chunkLines(),
-            ackLine(),
-            ...chunkLines(EXCHANGE + 1),
-            ackLine(EXCHANGE + 1),
-            ...chunkLines(EXCHANGE, "final"),
-        ]);
+        const record = await check(
+            [
+                ...chunkLines(),
+                ackLine(),
+                ...chunkLines(EXCHANGE + 1),
+                ackLine(EXCHANGE + 1),
+                ...chunkLines(EXCHANGE, "final"),
+            ],
+            "chip-docker",
+            false,
+            OUTLASTS_QUIET_PERIOD,
+        );
 
         expect(record.verdict).equal("pass");
         expect(record.detail).equal(
@@ -404,13 +413,42 @@ describe("expectChunkedTransfer", () => {
         expect(record.detail).match(/after the final one of 2 report chunks/);
     });
 
+    it("does not let a skipped report's flag end this read's transfer", async function () {
+        this.timeout(15_000);
+
+        // Our last chunk prints neither flag; the foreign report behind it says SuppressResponse. Read
+        // past the message boundary, that flag would mark our chunk final and pass the transfer off as
+        // complete
+        const record = await check(
+            [...chunkLines(), ackLine(), sentLine(), CHUNK, sentLine(EXCHANGE + 1), CHUNK, SUPPRESSED],
+            "chip-docker",
+            false,
+            OUTLASTS_QUIET_PERIOD,
+        );
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).match(/carries neither MoreChunkedMessages nor SuppressResponse/);
+    });
+
+    it("claims nothing about an ack after the final chunk when its own budget ran out first", async () => {
+        const record = await check(
+            [...chunkLines(), ackLine(), ...chunkLines(EXCHANGE, "final")],
+            "chip-docker",
+            false,
+            Millis(300),
+        );
+
+        expect(record.verdict).equal("unverified");
+        expect(record.detail).match(/budget of 300ms was spent before the 2s after it had passed/);
+    });
+
     it("ignores an ack of another exchange after the final chunk", async () => {
-        const record = await check([
-            ...chunkLines(),
-            ackLine(),
-            ...chunkLines(EXCHANGE, "final"),
-            ackLine(EXCHANGE + 1),
-        ]);
+        const record = await check(
+            [...chunkLines(), ackLine(), ...chunkLines(EXCHANGE, "final"), ackLine(EXCHANGE + 1)],
+            "chip-docker",
+            false,
+            OUTLASTS_QUIET_PERIOD,
+        );
 
         expect(record.verdict).equal("pass");
         expect(record.detail).match(/none after the last/);
@@ -768,7 +806,9 @@ describe("attribute-path checks against a matter.js TH", () => {
     });
 });
 
-describe("expectChunkedTransfer against a matter.js TH", () => {
+describe("expectChunkedTransfer against a matter.js TH", function () {
+    this.timeout(30_000);
+
     // matter.js names the exchange on the report line itself (`⇵<exchange>✉<counter>`), so a chunk
     // carries its own attribution. Lines captured from a matterjs-vs-matterjs run's device log.
     const MATTERJS_EXCHANGE = "50c9";
@@ -791,13 +831,11 @@ describe("expectChunkedTransfer against a matter.js TH", () => {
     }
 
     it("passes when every chunk but the last is acked", async () => {
-        const record = await transfer([
-            mjsChunk(),
-            mjsAck(),
-            mjsChunk(),
-            mjsAck(),
-            mjsChunk(MATTERJS_EXCHANGE, "final"),
-        ]);
+        const record = await transfer(
+            [mjsChunk(), mjsAck(), mjsChunk(), mjsAck(), mjsChunk(MATTERJS_EXCHANGE, "final")],
+            false,
+            OUTLASTS_QUIET_PERIOD,
+        );
 
         expect(record.verdict).equal("pass");
         expect(record.detail).equal(
@@ -830,13 +868,11 @@ describe("expectChunkedTransfer against a matter.js TH", () => {
     });
 
     it("ignores a report of another exchange that lands before this read's first chunk", async () => {
-        const record = await transfer([
-            mjsChunk("50ca"),
-            mjsAck("50ca"),
-            mjsChunk(),
-            mjsAck(),
-            mjsChunk(MATTERJS_EXCHANGE, "final"),
-        ]);
+        const record = await transfer(
+            [mjsChunk("50ca"), mjsAck("50ca"), mjsChunk(), mjsAck(), mjsChunk(MATTERJS_EXCHANGE, "final")],
+            false,
+            OUTLASTS_QUIET_PERIOD,
+        );
 
         expect(record.verdict).equal("pass");
         expect(record.detail).equal(

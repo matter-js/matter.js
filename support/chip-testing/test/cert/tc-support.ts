@@ -1194,8 +1194,6 @@ export async function expectChunkedTransfer(
         }
     }
 
-    // The loop waited past the last chunk for as long as this check's budget allowed, so an ack the
-    // DUT sent within that window is in the log by now.
     const lateAck = lines.slice(last.index + 1).find(line => !line.synthetic && ackPattern.test(line.text));
     if (lateAck !== undefined) {
         return {
@@ -1206,6 +1204,27 @@ export async function expectChunkedTransfer(
                 `The DUT sent a StatusResponse on Exchange ${exchange} after the final one of ${chunks.length} ` +
                 `report chunks (log line ${lateAck.index}), which a read's last chunk suppresses`,
             logLine: lateAck.index,
+        };
+    }
+
+    // "None after the last" is a claim about a whole window, so it takes having watched that window
+    // out: only collection ending at the window's own close means it was. An ack that did appear is
+    // evidence whenever it appeared, which is why it is answered above this.
+    if (stopped !== "window") {
+        return {
+            type: "device-log",
+            verdict: "unverified",
+            pattern: String(ackPattern),
+            detail:
+                `${chunks.length} report chunks, each but the last followed by a StatusResponse and the last of ` +
+                `them ending the transfer; ${
+                    stopped === "budget"
+                        ? `this check's own budget of ${Duration.format(timeout)} was spent`
+                        : "the log ended"
+                } before the ${Duration.format(CHUNK_QUIET)} after it had passed, so whether the DUT went on to ` +
+                "answer it is not claimed",
+            matched: last.text,
+            logLine: last.index,
         };
     }
 
@@ -1417,6 +1436,10 @@ const MATTERJS_READ_EXCHANGE = /InteractionServer Read « [^⇵]*⇵([0-9a-f]+)/
 const MATTERJS_MORE_CHUNKS = /Message » for: I\/ReportData [^⇵]*\bmoreChunkedMessages\b/;
 const MATTERJS_SUPPRESSED_RESPONSE = /Message » for: I\/ReportData [^⇵]*\bsuppressResponse\b/;
 const CHIP_MORE_CHUNKS = /\[DMG\]\s+MoreChunkedMessages = true,\s*$/;
+
+// chip logs one message at a time, each dump preceded by its own trace line, whichever direction it
+// went — the same invariant `exchangeIdBefore` reads backward.
+const CHIP_MESSAGE_TRACE_LINE = /\[DMG\] (?:>> to|<< from) UDP:/;
 const CHIP_SUPPRESSED_RESPONSE = /\[DMG\]\s+SuppressResponse = true,\s*$/;
 
 /**
@@ -1425,9 +1448,19 @@ const CHIP_SUPPRESSED_RESPONSE = /\[DMG\]\s+SuppressResponse = true,\s*$/;
  * dump has neither.
  */
 function chipChunkFinality(log: LogFollower, chunk: LogLine): "final" | "more" | "unknown" {
-    for (const line of log.lines.slice(chunk.index + 1)) {
+    for (let i = chunk.index + 1; ; i++) {
+        const line = log.at(i);
+        if (line === undefined) {
+            break;
+        }
         if (line.synthetic) {
             continue;
+        }
+        // A message's decode dump ends where the next message's trace line begins, so a flag past that
+        // line is another report's and says nothing about this one. Without the bound, a report skipped
+        // for belonging to another exchange can still mark this chunk final.
+        if (CHIP_MESSAGE_TRACE_LINE.test(line.text)) {
+            break;
         }
         if (CHIP_SUPPRESSED_RESPONSE.test(line.text)) {
             return "final";
