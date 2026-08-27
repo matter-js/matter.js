@@ -558,8 +558,16 @@ describe("ValueValidator", () => {
             expect(validateConstraint("double", "max 1000000000000000000000000000000000000000")).deep.equals([]);
         });
 
-        // Characterization: a fraction was already exempt before the range rule, since the fraction check tests for
-        // an integer type.  Here to pin that the range rule did not change it
+        // Casting to a float rounds a bigint to the nearest magnitude the type states, so the magnitude one above
+        // the widest float becomes that float exactly and would read as in range
+        it("judges the magnitude a float default states, not the one the cast rounds it to", () => {
+            expect(validateDefault("single", 340282346638528859811704183484516925440n)).deep.equals([]);
+            expect(
+                validateDefault("single", 340282346638528859811704183484516925441n).map(error => error.code),
+            ).deep.equals(["VALUE_EXCEEDS_TYPE"]);
+        });
+
+        // Characterization: holding a fraction is what a float is for, so no rule refuses one
         it("accepts a fractional default on a float type", () => {
             expect(validateDefault("single", 0.1)).deep.equals([]);
             expect(validateDefault("double", -1.5)).deep.equals([]);

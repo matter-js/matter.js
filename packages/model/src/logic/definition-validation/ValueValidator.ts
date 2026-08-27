@@ -7,7 +7,7 @@
 import { EncodedConstraint } from "#logic/EncodedConstraint.js";
 import { EncodedValue } from "#logic/EncodedValue.js";
 import { ModelTraversal } from "#logic/ModelTraversal.js";
-import { camelize, FLOAT32_MAX, FLOAT32_MIN, FLOAT64_MAX, FLOAT64_MIN, toNumber } from "@matter/general";
+import { camelize, FLOAT32_MAX, FLOAT32_MIN, FLOAT64_MAX, FLOAT64_MIN } from "@matter/general";
 import { Access, Aspect, Conformance, Constraint, Quality } from "../../aspects/index.js";
 import { DefinitionError, FieldValue, Metatype } from "../../common/index.js";
 import { CommandElement } from "../../elements/index.js";
@@ -153,9 +153,13 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
 
         // A number states itself; only a unit needs converting.  Asking for the encoded form of every default would
         // lose one too large to be a number, which is where the values of a 64 bit type live
+        // Casting to a float rounds a bigint to the nearest magnitude the type states, which lands a value from just
+        // beyond the range back inside it.  What the definition states is the magnitude to judge
+        const magnitude = typeof stated === "bigint" && typeof effective === "number" ? stated : effective;
+
         let reportedUnit = false;
-        if (typeof effective === "number" || typeof effective === "bigint") {
-            encoded.push({ value: effective, model: this.model });
+        if (typeof magnitude === "number" || typeof magnitude === "bigint") {
+            encoded.push({ value: magnitude, model: this.model });
         } else if (effective !== undefined) {
             const value = EncodedValue(this.model, effective);
             if (value !== undefined) {
@@ -215,14 +219,20 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
             const floats = floatRangeOf(primitive);
             if (floats !== undefined) {
                 const exceeding = values.filter(value => {
+                    // A bigint states a magnitude a number rounds, and rounding one lands it back inside the range:
+                    // the magnitude one above the widest float becomes that float exactly.  The range of a float is
+                    // whole, so a bigint is judged against it as a bigint
+                    if (typeof value === "bigint") {
+                        return value > BigInt(floats.max) || value < BigInt(floats.min);
+                    }
+
                     // A number that states no magnitude is reported by the cast that refused it; reporting it again
                     // as out of range says nothing, and says it wrongly, as a value outside no range
-                    if (typeof value === "number" && !Number.isFinite(value)) {
+                    if (!Number.isFinite(value)) {
                         return false;
                     }
 
-                    const magnitude = toNumber(value);
-                    return !(magnitude >= floats.min && magnitude <= floats.max);
+                    return !(value >= floats.min && value <= floats.max);
                 });
 
                 if (exceeding.length) {
