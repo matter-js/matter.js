@@ -22,7 +22,7 @@ describe("MatterDefinition", () => {
 
     it("has not increased in errors", () => {
         validate().report();
-        expect(validationResult?.errors.length).most(4);
+        expect(validationResult?.errors.length).most(0);
     });
 
     it("has not decreased in scope", () => {

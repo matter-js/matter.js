@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ElementTag } from "../../common/index.js";
+import { ElementTag, FieldValue } from "../../common/index.js";
 import { RequirementElement } from "../../elements/index.js";
 import { FieldModel, RequirementModel } from "../../models/index.js";
 import { ModelValidator } from "./ModelValidator.js";
@@ -19,6 +19,21 @@ ModelValidator.validators[RequirementElement.Tag] = class RequirementValidator e
             type: RequirementElement.ElementType,
             required: true,
         });
+
+        const { instance } = this.model;
+        if (instance !== undefined) {
+            if (this.model.element !== RequirementElement.ElementType.DeviceType) {
+                this.error(
+                    "INSTANCE_NOT_APPLICABLE",
+                    `Only a component device type is required in numbered instances, not ${this.model.element}`,
+                );
+            } else if (this.model.instanceNumber === undefined) {
+                this.error(
+                    "INVALID_INSTANCE",
+                    `Instance ${FieldValue.serialize(instance)} is not a number of an instance, which counts from 1`,
+                );
+            }
+        }
 
         const parentTag = this.model.parent?.tag;
         if (parentTag) {
