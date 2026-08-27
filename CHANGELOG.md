@@ -82,6 +82,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Fix: `Stop` and `StopWithOnOff` set `RemainingTime` to zero and report it, including where the application manages transitions and stated an end time
+    - Fix: `StopMoveStep` and `MoveColor` with both rates zero set Color Control's `RemainingTime` to zero and report it, and clear the end time stated where the application manages transitions. `StopMoveStep` leaves the remaining time alone while a color loop runs, since a color loop ends only on `ColorLoopSet`
+    - Fix: A Color Control color mode switch no longer discards the promise from `stopAllColorMovement()`, so an asynchronous override of it completes before the color values are converted
     - Breaking: The `transitionEndTimeMs` state field on `LevelControlServer` and `ColorControlServer` is now `transitionEndTime`, a `Timestamp`; the value is unchanged but the name and type are not
     - Fix: `MoveToLevelWithOnOff`, `MoveWithOnOff` and `StepWithOnOff` build their options from the Options attribute and the request's mask and override, so `CoupleColorTempToLevel` couples color temperature to the level for them as it already did for `MoveToLevel`, `Move` and `Step`
     - Fix: `StopWithOnOff` stops a transition on a device that is off; the ExecuteIfOff option gates the commands without On/Off only
