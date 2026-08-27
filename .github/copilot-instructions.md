@@ -395,7 +395,7 @@ export * from "@matter/node/behaviors";
 
 - Avoid Node.js-specific APIs in core packages
 - Use dependency injection for platform services
-- Test on multiple Node.js versions (20.x, 22.x, 24.x)
+- Test on multiple Node.js versions (20.x, 22.x, 24.x, 26.x)
 
 ## Performance Guidelines
 

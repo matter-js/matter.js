@@ -30,6 +30,7 @@ import {
     qrPayloadWithPrefix,
     recordDiscoveryCapabilityAbsent,
     recordGeneratedManualCode,
+    recordPayloadOffering,
     recordGeneratedPayload,
     recordVendorOutcome,
 } from "../cert/tc-dd-support.js";
@@ -302,6 +303,47 @@ describe("CommissioningRefusals", () => {
         await expect(refusals.requireRefusal(cx, { qrPairingCode: "MT:whatever" }, "must be refused")).rejected;
 
         await expect(refusals.settle(cx)).rejectedWith(CertCleanupError, /still running/);
+    });
+});
+
+describe("recordPayloadOffering", () => {
+    function contextWithParser(): CertStepContext {
+        const cx = contextWith(() => Promise.reject(new InternalError("not used by these tests")));
+        cx.controllers.dut.parseQrPayload = async payload => {
+            const { version, vendorId, productId, flowType, discoveryCapabilities, discriminator, passcode } =
+                qrPayloadFields(payload);
+            return { version, vendorId, productId, flowType, discoveryCapabilities, discriminator, passcode };
+        };
+        return cx;
+    }
+
+    // chip-all-clusters-app's own payload: standard flow, BLE alone
+    const BLE_PAYLOAD = "MT:-24J042C00KA0648G00";
+
+    it("passes for a standard-flow payload offering the capability asked for", async () => {
+        const cx = contextWithParser();
+
+        await recordPayloadOffering(cx, BLE_PAYLOAD, "ble");
+
+        expect(checksOf(cx).map(({ verdict }) => verdict)).deep.equal(["pass"]);
+    });
+
+    it("fails when the payload offers a capability other than the one asked for", async () => {
+        const cx = contextWithParser();
+
+        await expect(
+            recordPayloadOffering(cx, qrPayloadWith(BLE_PAYLOAD, { discoveryCapabilities: ON_NETWORK_ONLY }), "ble"),
+        ).rejectedWith(CertCheckFailedError, /does not offer ble/);
+    });
+
+    it("fails when the payload names a commissioning flow other than the standard one", async () => {
+        const cx = contextWithParser();
+
+        // The plan's own example payload, which carries the custom flow
+        await expect(recordPayloadOffering(cx, PLAN_PAYLOAD, "onIpNetwork")).rejectedWith(
+            CertCheckFailedError,
+            /flowType 2 rather than the standard flow/,
+        );
     });
 });
 

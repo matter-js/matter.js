@@ -30,6 +30,22 @@ export class ResourceSet {
     }
 
     /**
+     * Whether {@link acquireLocksSync} would succeed.
+     *
+     * Attempting and failing is not equivalent: that reports advice for a caller that has no asynchronous option.
+     */
+    get lockableSync() {
+        for (const resource of this.#resources) {
+            const lockedBy = resource.lockedBy;
+            if (lockedBy !== undefined && lockedBy !== this.#transaction) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Wait until the resources have no exclusive transactions and then lock.
      */
     async acquireLocks() {
