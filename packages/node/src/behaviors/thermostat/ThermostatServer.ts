@@ -1249,7 +1249,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
      * A staged atomic write is validated against the stored presets, which it has not replaced yet.
      */
     #handlePresetsAtomicChanging(newPresets: Thermostat.Preset[], _oldPresets: unknown, context: ActionContext) {
-        this.#validatePresetWriteRequest(newPresets, this.state.persistedPresets, this.#handlesIssuedIn(context));
+        this.#validatePresetWriteRequest(newPresets, this.state.persistedPresets, this.#presetsIn(context).handles);
     }
 
     /**
@@ -1260,32 +1260,56 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         oldPresets: Thermostat.Preset[] | undefined,
         context: ActionContext,
     ) {
-        const issued = this.#handlesIssuedIn(context);
+        const presets = this.#presetsIn(context);
 
-        this.#validatePresetWriteRequest(newPresets, oldPresets, issued);
-        this.#normalizeAndValidatePresetCommit(newPresets, oldPresets, issued);
+        this.#validatePresetWriteRequest(newPresets, oldPresets, presets.handles);
+        this.#normalizeAndValidatePresetCommit(newPresets, oldPresets, presets.handles);
+
+        if (!presets.validatesOnceSettled) {
+            context.transaction.addParticipants({
+                toString: () => `presets of ${this.endpoint}`,
+                settled: () => this.#assertSettledPresetsCarryHandles(),
+            });
+            presets.validatesOnceSettled = true;
+        }
     }
 
     /**
-     * The preset handles this device issued in a transaction.  Normalization mutates the value in flight, so
-     * pre-commit announces the presets again, and an atomic write stores what it staged; both carry handles the
-     * baseline predates.  Every announcement is still validated - the handles are what the client did not supply.
+     * A null handle is only valid in the write that arrives; the device issues one before the value commits.
      */
-    #handlesIssuedIn({ transaction }: ActionContext) {
-        let issued = this.internal.presetHandlesIssued;
+    #assertSettledPresetsCarryHandles() {
+        for (const preset of this.state.persistedPresets ?? []) {
+            if (preset.presetHandle == null) {
+                throw new StatusResponse.ConstraintErrorError(
+                    `Preset for scenario ${Thermostat.PresetScenario[preset.presetScenario]} of ${this.endpoint} carries no presetHandle`,
+                );
+            }
+        }
+    }
 
-        if (issued?.transaction !== transaction) {
-            issued = { transaction, handles: new Set<string>() };
-            this.internal.presetHandlesIssued = issued;
+    /**
+     * What this behavior did to the presets of the transaction in context.
+     *
+     * `handles` are the ones this device issued.  Normalization mutates the value in flight, so pre-commit announces
+     * the presets again, and an atomic write stores what it staged; both carry handles the baseline predates.  Every
+     * announcement is still validated - the handles are what the client did not supply.
+     *
+     * `validatesOnceSettled` records that the transaction will check the settled presets.  An observer that puts back
+     * exactly the value it was handed leaves pre-commit nothing to announce, so a revert of the handle this device
+     * just issued would otherwise reach the store unvalidated; the settled phase is the one place that sees the final
+     * presets with nothing written yet.
+     */
+    #presetsIn({ transaction }: ActionContext) {
+        let presets = this.internal.presetTransactions.get(transaction);
 
-            transaction.onShared(() => {
-                if (this.internal.presetHandlesIssued?.transaction === transaction) {
-                    this.internal.presetHandlesIssued = undefined;
-                }
-            }, true);
+        if (presets === undefined) {
+            presets = { handles: new Set<string>() };
+            this.internal.presetTransactions.set(transaction, presets);
+
+            transaction.onShared(() => this.internal.presetTransactions.delete(transaction), true);
         }
 
-        return issued.handles;
+        return presets;
     }
 
     /**
@@ -1429,7 +1453,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         oldPresets: Thermostat.Preset[] | undefined,
         context: ActionContext,
     ) {
-        this.#normalizeAndValidatePresetCommit(newPresets, oldPresets, this.#handlesIssuedIn(context));
+        this.#normalizeAndValidatePresetCommit(newPresets, oldPresets, this.#presetsIn(context).handles);
     }
 
     /**
@@ -1459,7 +1483,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
 
         // Normalized in place: the report that follows reads these back through the attribute's accessor
         for (const preset of newPresets) {
-            if (preset.presetHandle === null) {
+            if (preset.presetHandle == null) {
                 logger.debug("Preset is missing presetHandle, generating a new one");
                 preset.presetHandle = entropy.randomBytes(16);
                 issuedHandles.add(Bytes.toHex(preset.presetHandle));
@@ -1714,9 +1738,13 @@ export namespace ThermostatBaseServer {
         controlSequenceOfOperation!: Thermostat.ControlSequenceOfOperation;
 
         /**
-         * The preset handles this device issued in a transaction, which no baseline within it carries.
+         * What this behavior did to the presets of each transaction in flight: the handles it issued, which no
+         * baseline within that transaction carries, and whether it enlisted the check of the settled presets.
+         *
+         * Several transactions reach one endpoint at a time: an atomic write announces its staged presets before it
+         * takes any lock.
          */
-        presetHandlesIssued?: { transaction: Transaction; handles: Set<string> };
+        presetTransactions = new WeakMap<Transaction, { handles: Set<string>; validatesOnceSettled?: boolean }>();
     }
 }
 

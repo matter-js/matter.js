@@ -5,10 +5,20 @@
  */
 
 import { BitmapWrapper, TlvNumericSchema } from "#tlv/TlvNumber.js";
+import { Quality } from "@matter/model";
 import { ArraySchema } from "./TlvArray.js";
 import { TlvTag, TlvType, TlvTypeLength } from "./TlvCodec.js";
 import { TlvEncodingOptions, TlvReader, TlvSchema, TlvWriter } from "./TlvSchema.js";
 import { StringSchema } from "./TlvString.js";
+
+/**
+ * A magnitude states itself as a number or as a bigint, and the sentinel a type reserves is the same value either
+ * way.  Comparing the forms rather than the magnitudes leaves a type stating its bounds as bigints with no sentinel
+ * reserved at all.
+ */
+function sameMagnitude(a: number | bigint, b: number | bigint) {
+    return !(a < b) && !(a > b);
+}
 
 /**
  * Schema to encode a nullable value in TLV.
@@ -26,13 +36,13 @@ export class NullableSchema<T> extends TlvSchema<T | null> {
         // That's why adjust the max value accordingly if needed.
         if (schema instanceof TlvNumericSchema && schema.type !== TlvType.Float) {
             // Unsigned integers use the max value of the base type to represent null
-            if (schema.baseTypeMin === 0 && schema.max === schema.baseTypeMax) {
+            if (sameMagnitude(schema.baseTypeMin, 0) && sameMagnitude(schema.max, schema.baseTypeMax)) {
                 if (typeof schema.baseTypeMax === "number") {
                     schema = schema.bound({ min: schema.min, max: schema.baseTypeMax - 1 });
                 } else {
                     schema = schema.bound({ min: schema.min, max: schema.baseTypeMax - BigInt(1) });
                 }
-            } else if (schema.baseTypeMin < 0 && schema.min === schema.baseTypeMin) {
+            } else if (schema.baseTypeMin < 0 && sameMagnitude(schema.min, schema.baseTypeMin)) {
                 // Signed integers use the min value of the base type to represent null
                 if (typeof schema.baseTypeMin === "number") {
                     schema = schema.bound({ min: schema.baseTypeMin + 1, max: schema.max });
@@ -54,14 +64,9 @@ export class NullableSchema<T> extends TlvSchema<T | null> {
             return undefined;
         }
 
-        const quality =
-            inner.quality === undefined
-                ? "X"
-                : typeof inner.quality === "string"
-                  ? inner.quality.includes("X")
-                      ? inner.quality
-                      : `${inner.quality} X`
-                  : inner.quality;
+        // The wrapper is what makes the value nullable, so its X wins over a schema that removes the quality.  A flag
+        // the schema states that is not a quality survives the merge, so validation still reports it.
+        const quality = new Quality(inner.quality).extend(new Quality(["X"])).toString();
 
         return { ...inner, quality };
     }

@@ -108,6 +108,10 @@ export namespace ClientSubscription {
         peer: PeerAddress;
         closed: () => void;
         lifetime: Lifetime.Owner;
-        abort?: AbortSignal;
+        /**
+         * Signals that end the subscription's own life, not merely the attempt in flight: its session's
+         * and, where the caller gave one, its request's.
+         */
+        abort?: Abort.Options["abort"];
     }
 }

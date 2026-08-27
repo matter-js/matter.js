@@ -16,6 +16,7 @@ import type {
     Subject,
 } from "@matter/testing";
 import { LineQueue, LogFollower, PicsFile } from "@matter/testing";
+import { env } from "node:process";
 import type { SubscribeAndModifyTimeouts } from "../cert/tc-idm-4.1-support.js";
 import { subscribeAndModify } from "../cert/tc-idm-4.1-support.js";
 import { CertCheckFailedError } from "../cert/tc-support.js";
@@ -108,7 +109,11 @@ class Fixture {
             subscribe: async (_path, opts) => {
                 this.#onUpdate = opts.onUpdate;
                 this.push(...subscribeRequestLines(PATH), ...subscribeResponseLines(SUBSCRIPTION_ID));
-                this.pushReport(SUBSCRIPTION_ID);
+                if (this.primingCarriesData) {
+                    this.pushReport(SUBSCRIPTION_ID);
+                } else {
+                    this.pushKeepalive(SUBSCRIPTION_ID);
+                }
                 this.onSubscribe(this);
                 // Every line pushed so far is in the log before the helper takes its first per-write
                 // mark, which is what makes "this report predates the write" deterministic here.
@@ -163,16 +168,37 @@ class Fixture {
     }
 
     /**
-     * One report on `subscriptionId`, plus the DUT's ack on the same CHIP exchange unless `acked` is
-     * false. `status` is the ack's own status line, so a caller can hand back a rejection.
+     * Whether the priming report carries data. A subscription can be established with nothing to report
+     * yet — ordinary for an event subscription — so the priming check must accept a report without any.
+     */
+    primingCarriesData = true;
+
+    /**
+     * One report on `subscriptionId` carrying attribute data, plus the DUT's ack on the same CHIP
+     * exchange unless `acked` is false. `status` is the ack's own status line, so a caller can hand back
+     * a rejection.
      */
     pushReport(subscriptionId: number, acked = true, status = "Status = 0x00 (SUCCESS),"): void {
+        this.#pushReportData(subscriptionId, ["[DMG] AttributeReportIBs =", "[DMG] ["], acked, status);
+    }
+
+    /**
+     * One keepalive on `subscriptionId`: the report an idle subscription sends at its maximum interval,
+     * which carries no data and prints `InteractionModelRevision` where a report prints its data — the
+     * shape a chip-local TC-IDM-4.1 run's device log holds six of. It is acked like any other report.
+     */
+    pushKeepalive(subscriptionId: number, acked = true, status = "Status = 0x00 (SUCCESS),"): void {
+        this.#pushReportData(subscriptionId, ["[DMG] InteractionModelRevision = 12"], acked, status);
+    }
+
+    #pushReportData(subscriptionId: number, body: string[], acked: boolean, status: string): void {
         const exchange = ++this.#exchange;
         this.push(
             `[DMG] >> to UDP:[fe80::1%en0]:5540 | 1234${exchange} | [Interaction Model  (1) / Report Data (0x05) / Session = 1 / Exchange = ${exchange}]`,
             "[DMG] ReportDataMessage =",
             "[DMG] {",
             `[DMG] SubscriptionId = 0x${subscriptionId.toString(16)},`,
+            ...body,
         );
         if (acked) {
             this.push(
@@ -272,6 +298,50 @@ describe("subscribeAndModify", () => {
         });
     });
 
+    it("accepts a priming report that carries nothing, which an event subscription may well send", async () => {
+        const fixture = new Fixture("chip-local", (f, _index, value) => {
+            f.pushReport(SUBSCRIPTION_ID);
+            f.report(value);
+        });
+        fixture.primingCarriesData = false;
+
+        await withFixture(fixture, async f => {
+            await f.run([true], IMPATIENT);
+
+            expect(f.failures).deep.equal([]);
+        });
+    });
+
+    it("does not let a keepalive stand in for the report a write asked for", async () => {
+        const fixture = new Fixture("chip-local", (f, _index, value) => {
+            // What an idle subscription sends at its maximum interval: acked like a report, and on the
+            // same subscription, but carrying nothing the write could have caused.
+            f.pushKeepalive(SUBSCRIPTION_ID);
+            f.report(value);
+        });
+
+        await withFixture(fixture, async f => {
+            await expect(f.run([true], IMPATIENT)).rejectedWith(
+                CertCheckFailedError,
+                /ack check failed for step 3, write 1\/1/,
+            );
+        });
+    });
+
+    it("accepts the report that follows a keepalive on the same subscription", async () => {
+        const fixture = new Fixture("chip-local", (f, _index, value) => {
+            f.pushKeepalive(SUBSCRIPTION_ID);
+            f.pushReport(SUBSCRIPTION_ID);
+            f.report(value);
+        });
+
+        await withFixture(fixture, async f => {
+            await f.run([true], IMPATIENT);
+
+            expect(f.failures).deep.equal([]);
+        });
+    });
+
     it("records, rather than fails, callbacks that do not carry the written values in order", async () => {
         const fixture = new Fixture("chip-local", (f, _index) => {
             f.pushReport(SUBSCRIPTION_ID);
@@ -286,6 +356,56 @@ describe("subscribeAndModify", () => {
             expect(unverified).to.have.lengthOf(1);
             expect(unverified[0].detail).match(/matched 1\/3/);
         });
+    });
+
+    it("accepts the shortfall under chip-tool, whose server drops all but the first result of a batch", async () => {
+        const originalController = env.MATTER_CERT_CONTROLLER;
+        env.MATTER_CERT_CONTROLLER = "chip-tool";
+        try {
+            const fixture = new Fixture("chip-local", (f, _index) => {
+                f.pushReport(SUBSCRIPTION_ID);
+                f.report(true);
+            });
+
+            await withFixture(fixture, async f => {
+                await f.run(VALUES, IMPATIENT);
+
+                const unverified = f.checks.filter(check => check.verdict === "unverified");
+                expect(unverified).to.have.lengthOf(1);
+                expect(unverified[0].accepted).match(/only the first result of a batch/);
+            });
+        } finally {
+            if (originalController === undefined) {
+                delete env.MATTER_CERT_CONTROLLER;
+            } else {
+                env.MATTER_CERT_CONTROLLER = originalController;
+            }
+        }
+    });
+
+    it("leaves the shortfall a gap to close on any other controller", async () => {
+        const originalController = env.MATTER_CERT_CONTROLLER;
+        env.MATTER_CERT_CONTROLLER = "matterjs";
+        try {
+            const fixture = new Fixture("chip-local", (f, _index) => {
+                f.pushReport(SUBSCRIPTION_ID);
+                f.report(true);
+            });
+
+            await withFixture(fixture, async f => {
+                await f.run(VALUES, IMPATIENT);
+
+                const unverified = f.checks.filter(check => check.verdict === "unverified");
+                expect(unverified).to.have.lengthOf(1);
+                expect(unverified[0].accepted).equal(undefined);
+            });
+        } finally {
+            if (originalController === undefined) {
+                delete env.MATTER_CERT_CONTROLLER;
+            } else {
+                env.MATTER_CERT_CONTROLLER = originalController;
+            }
+        }
     });
 
     it("records the mismatch when a report carries a value nobody wrote", async () => {

@@ -5,6 +5,7 @@
  */
 
 import { DimmableLightDevice } from "#devices/dimmable-light";
+import { Timestamp } from "@matter/general";
 import { MockServerNode } from "../../node/mock-server-node.js";
 
 async function transitioningLight() {
@@ -50,6 +51,49 @@ describe("LevelControl RemainingTime", () => {
         await node.close(10);
     });
 
+    it("reads zero and reports it when a stop ends the transition", async () => {
+        const { node, endpoint } = await transitioningLight();
+
+        const reports = new Array<number>();
+        endpoint.events.levelControl.remainingTime$Changed.on(value => void reports.push(value));
+
+        await advance(10);
+        expect(endpoint.state.levelControl.remainingTime).greaterThan(0);
+
+        await node.online({ command: true }, async agent => {
+            await endpoint.agentFor(agent.context).levelControl.stop({ optionsMask: {}, optionsOverride: {} });
+        });
+
+        expect(endpoint.state.levelControl.remainingTime).equals(0);
+
+        // The specification requires a report whenever the remaining time changes to zero, and only then
+        expect(reports).deep.equals([0]);
+
+        await node.close(10);
+    });
+
+    it("reports nothing for a stop with no transition underway", async () => {
+        MockTime.reset();
+
+        const node = await MockServerNode.createOnline(undefined, { device: undefined });
+        const endpoint = await node.add(DimmableLightDevice, {
+            onOff: { onOff: true },
+            levelControl: { managedTransitionTimeHandling: true, currentLevel: 100 },
+        });
+
+        const reports = new Array<number>();
+        endpoint.events.levelControl.remainingTime$Changed.on(value => void reports.push(value));
+
+        await node.online({ command: true }, async agent => {
+            await endpoint.agentFor(agent.context).levelControl.stop({ optionsMask: {}, optionsOverride: {} });
+        });
+
+        expect(reports).deep.equals([]);
+        expect(endpoint.state.levelControl.remainingTime).equals(0);
+
+        await node.close(10);
+    });
+
     it("reads zero once the transition completes", async () => {
         const { node, endpoint } = await transitioningLight();
 
@@ -88,6 +132,63 @@ describe("LevelControl RemainingTime with an application-supplied value", () => 
         await advance(10);
 
         expect(endpoint.state.levelControl.remainingTime).greaterThan(0);
+
+        await node.close(10);
+    });
+});
+
+describe("LevelControl RemainingTime with an application-supplied remaining time", () => {
+    before(MockTime.enable);
+
+    it("reads zero after a stop, although the application stated a remaining time", async () => {
+        MockTime.reset();
+
+        const node = await MockServerNode.createOnline(undefined, { device: undefined });
+        const endpoint = await node.add(DimmableLightDevice, {
+            onOff: { onOff: true },
+            levelControl: { currentLevel: 1 },
+        });
+
+        await MockTime.resolve(endpoint.set({ levelControl: { remainingTime: 150 } }), { macrotasks: true });
+        expect(endpoint.state.levelControl.remainingTime).equals(150);
+
+        const reports = new Array<number>();
+        endpoint.events.levelControl.remainingTime$Changed.on(value => void reports.push(value));
+
+        await node.online({ command: true }, async agent => {
+            await endpoint.agentFor(agent.context).levelControl.stop({ optionsMask: {}, optionsOverride: {} });
+        });
+
+        expect(endpoint.state.levelControl.remainingTime).equals(0);
+        expect(reports).deep.equals([0]);
+
+        await node.close(10);
+    });
+});
+
+describe("LevelControl RemainingTime with an application-managed transition", () => {
+    before(MockTime.enable);
+
+    it("reads zero after a stop, although the application stated a later end time", async () => {
+        MockTime.reset();
+
+        const node = await MockServerNode.createOnline(undefined, { device: undefined });
+        const endpoint = await node.add(DimmableLightDevice, {
+            onOff: { onOff: true },
+            levelControl: { currentLevel: 1, transitionEndTime: Timestamp(MockTime.nowMs + 15000) },
+        });
+
+        expect(endpoint.state.levelControl.remainingTime).greaterThan(0);
+
+        const reports = new Array<number>();
+        endpoint.events.levelControl.remainingTime$Changed.on(value => void reports.push(value));
+
+        await node.online({ command: true }, async agent => {
+            await endpoint.agentFor(agent.context).levelControl.stop({ optionsMask: {}, optionsOverride: {} });
+        });
+
+        expect(endpoint.state.levelControl.remainingTime).equals(0);
+        expect(reports).deep.equals([0]);
 
         await node.close(10);
     });

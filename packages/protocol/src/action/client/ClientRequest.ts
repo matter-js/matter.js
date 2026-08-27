@@ -47,4 +47,17 @@ export interface ClientRequest {
      * it per-call. On expiry the operation rejects with `IcdPeerAsleepError`. Ignored for non-LIT peers.
      */
     icdAwaitTimeout?: Duration;
+
+    /**
+     * Abandon this interaction when the signal aborts.
+     *
+     * The exchange stops sending and stops waiting — no further MRP retransmission — and the operation
+     * rejects with `AbortedError`. A caller that must bound an interaction more tightly than the
+     * peer's own response time uses this; without it the operation runs until matter.js gives up on
+     * the peer, which is a property of the peer rather than of the caller's deadline.
+     *
+     * Aborting abandons the interaction rather than telling the peer anything, so a write or invoke
+     * already in flight may still be acted on by the peer.
+     */
+    abort?: AbortSignal;
 }

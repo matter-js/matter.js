@@ -293,6 +293,17 @@ export class LogFollower implements LogSource {
         await this.#pump;
     }
 
+    /**
+     * The first line at or after `from` matching `pattern`, or `undefined` where the buffer holds none.
+     *
+     * The synchronous half of {@link expectPattern}, for a caller that has to tell "not in the log"
+     * from "not in the log yet" — one draining what has arrived before deciding how long to wait for
+     * more cannot express that through {@link expectPattern}, which does both in one call.
+     */
+    firstMatchFrom(pattern: RegExp, from: number): LogLine | undefined {
+        return this.#firstMatchFrom(matchableCopy(pattern), from);
+    }
+
     #firstMatchFrom(pattern: RegExp, from: number): LogLine | undefined {
         for (let i = from; i < this.#lines.length; i++) {
             if (this.#lines[i].synthetic) {

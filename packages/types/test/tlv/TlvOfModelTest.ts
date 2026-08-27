@@ -4,8 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ModelBounds } from "#common/ModelBounds.js";
 import { MATTER_EPOCH_OFFSET_S, MATTER_EPOCH_OFFSET_US } from "#tlv/TlvNumber.js";
 import { TlvOfModel } from "#tlv/TlvOfModel.js";
+import { ImplementationError } from "@matter/general";
 import { AttributeModel, ClusterModel, Matter, ValueModel } from "@matter/model";
 
 const grpKeyMgmt = Matter.clusters("GroupKeyManagement")!;
@@ -123,6 +125,109 @@ describe("TlvOfModel", () => {
                 groupKeySet: ReturnType<typeof groupKeySet>;
             };
             expect(decoded.groupKeySet.epochStartTime0).equal(MATTER_EPOCH_OFFSET_US + 1n);
+        });
+    });
+
+    describe("a bound wider than a number states exactly", () => {
+        // A bound just inside the type's own range, so the bound is the only thing that can refuse a value
+        const big = new AttributeModel({ id: 1, name: "Big", type: "uint64", constraint: "0 to 18446744073709551614" });
+        new ClusterModel({ name: "Test", id: 0xfff1 }, big);
+
+        it("admits the widest value the bound states", () => {
+            expect(() => TlvOfModel(big).validate(18446744073709551614n)).not.throws();
+        });
+
+        // A length counts bytes, which the size of a message bounds, so it states itself as a number
+        it("states a length bound as a number", () => {
+            const long = new AttributeModel({
+                id: 2,
+                name: "Long",
+                type: "string",
+                constraint: "max 18446744073709551615",
+            });
+            new ClusterModel({ name: "Test2", id: 0xfff2 }, long);
+
+            expect(ModelBounds.createLengthBounds(long)).deep.equals({ maxLength: 18446744073709552000 });
+        });
+
+        it("states a magnitude beyond every number as it stands", () => {
+            const beyond = new AttributeModel({
+                id: 3,
+                name: "Beyond",
+                type: "uint64",
+                constraint: `max ${"9".repeat(400)}`,
+            });
+            new ClusterModel({ name: "Test3", id: 0xfff3 }, beyond);
+
+            expect(() => TlvOfModel(beyond)).not.throws();
+            expect(typeof ModelBounds.createNumberBounds(beyond)?.max).equals("bigint");
+        });
+
+        it("refuses the value above it", () => {
+            expect(() => TlvOfModel(big).validate(18446744073709551615n)).throws();
+        });
+
+        // 2^63 is a magnitude a number states exactly, so only the safe-integer rule keeps it a bigint
+        it("states a bound beyond the safe integers as a bigint", () => {
+            const exact = new AttributeModel({
+                id: 4,
+                name: "Exact",
+                type: "uint64",
+                constraint: "max 9223372036854775808",
+            });
+            new ClusterModel({ name: "Test4", id: 0xfff4 }, exact);
+
+            expect(ModelBounds.createNumberBounds(exact)?.max).equals(9223372036854775808n);
+            expect(() => TlvOfModel(exact).validate(9223372036854775808n)).not.throws();
+            expect(() => TlvOfModel(exact).validate(9223372036854775809n)).throws();
+        });
+
+        // A constraint stating a number carries what the number holds, 2^60; one stating text carries the magnitude
+        // the digits state, 24 more.  Both spell themselves "1152921504606847000"
+        it("refuses a bound a number states only approximately", () => {
+            const held = new AttributeModel({
+                id: 5,
+                name: "Held",
+                type: "uint64",
+                constraint: { max: 1152921504606847000 },
+            });
+            new ClusterModel({ name: "Test5", id: 0xfff5 }, held);
+
+            const stated = new AttributeModel({
+                id: 6,
+                name: "Stated",
+                type: "uint64",
+                constraint: "max 1152921504606847000",
+            });
+            new ClusterModel({ name: "Test6", id: 0xfff6 }, stated);
+
+            expect(ModelBounds.createNumberBounds(held)?.max).equals(1152921504606847000);
+            expect(ModelBounds.createNumberBounds(stated)?.max).equals(1152921504606847000n);
+
+            // The number lost the magnitude before the schema saw it, so there is no bound to enforce
+            expect(() => TlvOfModel(held)).throws(ImplementationError, /must be a bigint/);
+            expect(() => TlvOfModel(stated).validate(1152921504606846977n)).not.throws();
+        });
+
+        it("states an exact value the way it states a bound", () => {
+            const wide = new AttributeModel({ id: 8, name: "Wide", type: "uint8", constraint: { value: 5n } });
+            new ClusterModel({ name: "Test8", id: 0xfff8 }, wide);
+
+            expect(ModelBounds.createNumberBounds(wide)).deep.equals({ min: 5, max: 5 });
+        });
+
+        it("keeps the bound of a nullable type that states one", () => {
+            const bounded = new AttributeModel({
+                id: 7,
+                name: "Bounded",
+                type: "int64",
+                quality: "X",
+                constraint: "-10000 to 10000",
+            });
+            new ClusterModel({ name: "Test7", id: 0xfff7 }, bounded);
+
+            expect(() => TlvOfModel(bounded).validate(-10000n)).not.throws();
+            expect(() => TlvOfModel(bounded).validate(10000n)).not.throws();
         });
     });
 });

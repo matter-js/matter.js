@@ -15,7 +15,6 @@ import { Logger } from "@matter/general";
 import { createFileLogger } from "@matter/nodejs";
 import { writeFileSync } from "node:fs";
 import { ControllerTestInstance, startControllerTestApp } from "./ControllerTestInstance.js";
-import { StorageBackendAsyncJsonFile } from "./storage/StorageBackendAsyncJsonFile.js";
 
 Logger.destinations.default.write = await createFileLogger("./test_controller.log");
 
@@ -32,7 +31,7 @@ process.on("uncaughtException", error => {
 });
 
 //if (process.argv.includes("--test")) {
-startControllerTestApp(ControllerTestInstance, StorageBackendAsyncJsonFile).catch(error =>
+startControllerTestApp(ControllerTestInstance).catch(error =>
     logger.error("Error starting ControllerTestInstance", error),
 );
 //} else {

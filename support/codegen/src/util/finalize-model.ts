@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { isDeepEqual, Logger } from "#general";
+import { InternalError, isDeepEqual, Logger } from "#general";
 import {
     AnyElement,
     AttributeModel,
@@ -30,6 +30,11 @@ const logger = Logger.get("create-model");
  * Create and validate the final model for export
  **/
 export function finalizeModel(matter: MatterModel) {
+    // Generation emits what validation normalizes, and validation cannot normalize a frozen model
+    if (matter.isFinal) {
+        throw new InternalError(`Cannot generate from ${matter.name} because it is final`);
+    }
+
     const scopedDatatypes = collectScopedDatatypes(matter);
 
     const semanticNamespaces = new Array<SemanticNamespaceModel>();
@@ -95,7 +100,7 @@ export type ScopedDatatypes = Record<string, Model | undefined>;
 function updateSemanticNamespaces(semanticNamespaces: SemanticNamespaceModel[], matter: MatterModel) {
     const namespace = matter.get(DatatypeModel, "namespace");
     if (!namespace) {
-        throw new Error("Namespace datatype not found in model. This should never happen");
+        throw new InternalError("Namespace datatype not found in model");
     }
 
     namespace.children = semanticNamespaces

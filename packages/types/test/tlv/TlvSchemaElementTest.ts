@@ -10,6 +10,7 @@ import { TlvBoolean } from "#tlv/TlvBoolean.js";
 import { TlvNullable } from "#tlv/TlvNullable.js";
 import {
     TlvDouble,
+    TlvNumericSchema,
     TlvFloat,
     TlvInt16,
     TlvInt32,
@@ -211,6 +212,18 @@ describe("TlvSchema.element", () => {
             });
         });
 
+        it("overrides an inner schema that removes nullability", () => {
+            withDeclaredQuality(210, "!X", schema => {
+                expect(TlvNullable(schema).element?.quality).equals("X");
+            });
+        });
+
+        it("keeps a flag the inner schema states that is not a quality", () => {
+            withDeclaredQuality(211, "Z !X", schema => {
+                expect(TlvNullable(schema).element?.quality).equals("X Z");
+            });
+        });
+
         it("nullable string with constraint", () => {
             const el = TlvNullable(TlvString.bound({ maxLength: 32 })).element;
             expect(el?.type).equals("string");
@@ -240,3 +253,24 @@ describe("TlvSchema.element", () => {
         });
     });
 });
+
+/**
+ * A numeric schema declaring a quality of its own.
+ *
+ * `bound()` caches by schema and bounds, so the instance is shared: each caller needs its own bounds, and the
+ * declaration is removed again once the caller is done with it.
+ */
+function withDeclaredQuality(max: number, quality: string, actor: (schema: TlvNumericSchema<number>) => void) {
+    const schema = TlvUInt8.bound({ max });
+
+    Object.defineProperty(schema, "element", {
+        configurable: true,
+        get: () => ({ type: "uint8", quality }),
+    });
+
+    try {
+        actor(schema);
+    } finally {
+        Reflect.deleteProperty(schema, "element");
+    }
+}

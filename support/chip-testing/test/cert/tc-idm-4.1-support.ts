@@ -5,6 +5,7 @@
  */
 
 import { Duration, Millis, Seconds, Time } from "@matter/main";
+import { resolveControllerImplementation } from "@matter/testing";
 import type { AttributePathSpec, CertNodeRef, CertStepContext } from "@matter/testing";
 import {
     CertCheckFailedError,
@@ -91,7 +92,10 @@ export interface SubscribeAndModifyTimeouts {
  *
  * What the log confirmation does not prove: that the report it matched carried this write's data
  * rather than another change on the same subscription. A report carrying no data at all — the
- * keepalive an idle subscription sends — is excluded on both flavors.
+ * keepalive an idle subscription sends — is excluded for the per-write confirmations, on both flavors,
+ * each by requiring the line on which its own log says what the report carried. Only the priming report
+ * is checked without that requirement, since a subscription can legitimately be established with
+ * nothing to report yet.
  */
 export async function subscribeAndModify<Value>(
     cx: CertStepContext,
@@ -153,7 +157,12 @@ export async function subscribeAndModify<Value>(
         );
     }
 
-    const primingAckCheck = await expectReportAck(th.log, th.flavor, idLookup, established, establish);
+    // A subscription can be established with nothing to report yet, so this one report is allowed to
+    // carry no data; every later check in this step requires data, which is what tells a report of this
+    // write from a keepalive on the same subscription.
+    const primingAckCheck = await expectReportAck(th.log, th.flavor, idLookup, established, establish, {
+        carriesData: false,
+    });
     record(cx, primingAckCheck, `Priming-report status for step ${step}`);
 
     let ackCursor = primingAckCheck.logLine !== undefined ? primingAckCheck.logLine + 1 : th.log.mark();
@@ -201,12 +210,16 @@ export async function subscribeAndModify<Value>(
         // What the plan asks to verify is the TH's own view: it reported, and the DUT acked Success,
         // which the loop above took from the TH's log for every write. A value missing from the
         // controller's own callbacks is a gap in that controller's delivery rather than in the
-        // behaviour under test — chip-tool's interactive server hands over only the first result of a
-        // batch and discards the rest, so a report the TH coalesced with another attribute reaches no
-        // callback at all.
+        // behaviour under test — but only chip-tool is known to have one, so on any other controller
+        // this stays a gap to close.
         cx.recorder.check({
             type: "response",
             verdict: "unverified",
+            accepted:
+                resolveControllerImplementation() === "chip-tool"
+                    ? "chip-tool's interactive server hands over only the first result of a batch and discards " +
+                      "the rest, so a report the TH coalesced with another attribute reaches no callback at all"
+                    : undefined,
             detail:
                 `step ${step}: onUpdate delivered ${JSON.stringify(reported)} of the written values ` +
                 `${JSON.stringify(values)} (matched ${matched}/${values.length}); every write is confirmed by the ` +

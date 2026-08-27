@@ -68,7 +68,25 @@ const enumValueOk: EnumMemberValidator = () => {};
  *   - "runtime" means conformance depends on sibling fields in an object. These result in a {@link RuntimeNode} with
  *     additional logic that applies to operational state.
  */
-export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): ValueSupervisor.Validate | undefined {
+export namespace astToFunction {
+    export interface Options {
+        /**
+         * Produce a validator only where the conformance refuses a value outright, judged with no record around it.
+         *
+         * A presence requirement, a conformance that cross-references another property and the membership of an enum
+         * value are all left to the caller.  This is what a caller wants when the value it judges is not a member of a
+         * record — the bit of a bitmap, say, where the conformance says whether the bit may be set and nothing states
+         * that it must be.
+         */
+        refusalOnly?: boolean;
+    }
+}
+
+export function astToFunction(
+    schema: ValueModel,
+    supervisor: RootSupervisor,
+    options?: astToFunction.Options,
+): ValueSupervisor.Validate | undefined {
     const ast = schema.conformance.ast;
     const { featuresAvailable, featuresSupported } = FeatureSet.normalize(
         supervisor.featureMap,
@@ -118,7 +136,7 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
     // function
     switch (compiledNode.code) {
         case Code.Conformant:
-            if (isNullable) {
+            if (isNullable || options?.refusalOnly) {
                 // We map undefined to null so no validation required
                 break;
             }
@@ -135,7 +153,12 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
 
         case Code.Value:
             // Passes validation if the field is defined
-            validator = compiledNode.value === undefined ? disallowValue : isNullable ? undefined : requireValue;
+            validator =
+                compiledNode.value === undefined
+                    ? disallowValue
+                    : isNullable || options?.refusalOnly
+                      ? undefined
+                      : requireValue;
             break;
 
         case Code.Optional:
@@ -143,6 +166,12 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
             break;
 
         case Code.Evaluate:
+            if (options?.refusalOnly) {
+                // What this conformance states is decided by the record the value sits in, which the caller does not
+                // have, so there is nothing to refuse
+                break;
+            }
+
             // We must perform runtime evaluation to determine whether the field is conformant
             const { evaluate } = compiledNode;
 
@@ -182,7 +211,7 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
             throw new UnsupportedConformanceNodeError(schema, compiledNode);
     }
 
-    if (validator !== disallowValue && schema.effectiveMetatype === Metatype.enum) {
+    if (validator !== disallowValue && !options?.refusalOnly && schema.effectiveMetatype === Metatype.enum) {
         validator = addEnumMemberValidation(validator);
     }
 
@@ -366,6 +395,11 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
 
             // Evaluate - remains in list and requires evaluation at runtime
             reduced.push(member);
+        }
+
+        // One surviving member that needs no record is the group's answer, so state it rather than deferring
+        if (reduced.length === 1 && isStatic(reduced[0])) {
+            return reduced[0];
         }
 
         // We must further reduce at runtime
@@ -692,7 +726,13 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
 
     function disallowValue(value: Val, _session: AccessControl.Session, location: ValidationLocation) {
         if (value !== undefined) {
-            throw new ConformanceError(schema, location, "Matter does not allow you to set this attribute");
+            throw new ConformanceError(
+                schema,
+                location,
+                options?.refusalOnly
+                    ? "Matter does not allow you to set this value"
+                    : "Matter does not allow you to set this attribute",
+            );
         }
     }
 

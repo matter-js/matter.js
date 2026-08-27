@@ -29,32 +29,6 @@ export const WINDOW_OPEN: LogExpectPatterns = {
 };
 
 /**
- * A `RemoveFabric` the device answered with success. matter.js's line is the invoke's own answer,
- * which names the fabric it removed and the status it answered with, where chip logs an unqualified
- * success line.
- */
-export function removeFabricSucceeded(fabricIndex: number): LogExpectPatterns {
-    return {
-        chip: /OpCreds: RemoveFabric successful/,
-        matterjs: new RegExp(
-            `operationalCredentials\\.removeFabric .*statusCode: 0 fabricIndex: ${fabricIndex}(?!\\d)`,
-        ),
-    };
-}
-
-/**
- * The removed fabric's sessions going away. A matter.js session is named
- * `@<fabricIndex>:<fabricId>•<id>`, so one such line per session is what chip states once as
- * "Expiring all sessions for fabric N".
- */
-export function fabricSessionsEnded(fabricIndex: number): LogExpectPatterns {
-    return {
-        chip: new RegExp(`Expiring all sessions for fabric 0x${fabricIndex.toString(16)}!!`),
-        matterjs: new RegExp(`Session @${fabricIndex}:[0-9a-f]+•[0-9a-f]+ Session ended`),
-    };
-}
-
-/**
  * How step 8's post-removal write/read fails on a controller whose fabric the device removed, as
  * captured across all six CI legs. The in-process controller normally refuses locally: it reacts to
  * the device's Leave event by deleting the peer, so every later node operation reports

@@ -71,21 +71,24 @@ export class CertTest extends BaseTest {
         // a response check on essentially every step. Counting them is what lets a controller refusal
         // discovered *after* the step acted be told apart from one discovered before it acted.
         let observedThisStep = 0;
+        let unaccountedThisStep = 0;
         let unverifiedChecks = 0;
         const recorded = cx.recorder;
 
         // A StepRecorder may be a class instance, whose members live on its prototype — so each is
         // forwarded by name.
         const recorder: StepRecorder = {
-            beginStep: step => {
-                observedThisStep = 0;
-                recorded.beginStep(step);
-            },
+            beginStep: step => recorded.beginStep(step),
             check: record => {
                 observedThisStep++;
                 recorded.check(record);
                 if (record.verdict === "unverified") {
                     unverifiedChecks++;
+                    // A blank reason accounts for nothing: an empty string would otherwise pass a step
+                    // off as proven on a field somebody forgot to fill in.
+                    if (record.accepted === undefined || record.accepted.trim() === "") {
+                        unaccountedThisStep++;
+                    }
                 }
             },
             endStep: (step, verdict, skipReason) => recorded.endStep(step, verdict, skipReason),
@@ -97,6 +100,8 @@ export class CertTest extends BaseTest {
                 recorded.recordControllerUnsupportedSkips === undefined
                     ? undefined
                     : count => recorded.recordControllerUnsupportedSkips?.(count),
+            recordPicsSkips:
+                recorded.recordPicsSkips === undefined ? undefined : count => recorded.recordPicsSkips?.(count),
             recordUnverifiedChecks:
                 recorded.recordUnverifiedChecks === undefined
                     ? undefined
@@ -122,6 +127,9 @@ export class CertTest extends BaseTest {
         let failure: unknown;
         let failed = false;
         let controllerUnsupportedSkips = 0;
+        let picsSkips = 0;
+        let unverifiedSteps = 0;
+        let unproven = false;
         let reportingFailure: unknown;
 
         // Ends a step and announces its outcome. A throw here must not become the step's outcome —
@@ -181,12 +189,15 @@ export class CertTest extends BaseTest {
                     }
 
                     if (!stepPicsMet(stepDef, picsFile)) {
+                        picsSkips++;
                         report(stepDef, "skipped", `PICS "${stepDef.pics}" not met`);
                         continue;
                     }
 
                     step(`Test Step ${stepDef.number}: ${stepDef.text}`);
                     announceStepStart(cx, tc, stepDef);
+                    observedThisStep = 0;
+                    unaccountedThisStep = 0;
                     recorder.beginStep(stepDef);
 
                     await raceAgainstDeviceExit(stepDef.run(cx), deviceExitWatch.exit, tc, stepDef.number);
@@ -222,6 +233,12 @@ export class CertTest extends BaseTest {
                     continue;
                 }
 
+                if (unaccountedThisStep > 0) {
+                    unverifiedSteps++;
+                    report(stepDef, "unverified");
+                    continue;
+                }
+
                 report(stepDef, "pass");
             }
 
@@ -235,21 +252,27 @@ export class CertTest extends BaseTest {
             // recorded count are what would tell a reader the run proved less than its verdict
             // suggests; a raw result.json with no attached logs must say it too.
             if (controllerUnsupportedSkips > 0) {
-                try {
-                    announceControllerSkipSummary(cx, tc, controllerUnsupportedSkips);
-                    recorder.recordControllerUnsupportedSkips?.(controllerUnsupportedSkips);
-                } catch (e) {
-                    console.warn("Cert test controller-skip summary reporting failed:", e);
-                }
+                recordSummary(
+                    () => recorder.recordControllerUnsupportedSkips?.(controllerUnsupportedSkips),
+                    () => announceControllerSkipSummary(cx, tc, controllerUnsupportedSkips),
+                    "controller-skip",
+                );
+            }
+
+            if (picsSkips > 0) {
+                recordSummary(
+                    () => recorder.recordPicsSkips?.(picsSkips),
+                    () => announcePicsSkipSummary(cx, tc, picsSkips),
+                    "PICS-skip",
+                );
             }
 
             if (unverifiedChecks > 0) {
-                try {
-                    announceUnverifiedSummary(cx, tc, unverifiedChecks);
-                    recorder.recordUnverifiedChecks?.(unverifiedChecks);
-                } catch (e) {
-                    console.warn("Cert test unverified-check summary reporting failed:", e);
-                }
+                recordSummary(
+                    () => recorder.recordUnverifiedChecks?.(unverifiedChecks),
+                    () => announceUnverifiedSummary(cx, tc, unverifiedChecks),
+                    "unverified-check",
+                );
             }
         } catch (e) {
             // Kept before rethrowing: the handlers inside cover what a step can do, and everything else
@@ -346,10 +369,28 @@ export class CertTest extends BaseTest {
                 }
             }
 
+            // Only where nothing else failed: a device that died or cleanup that threw is the run's
+            // own outcome, and a step that observed nothing is the weaker claim of the two.
+            if (!failed && unverifiedSteps > 0) {
+                unproven = true;
+                failed = true;
+                failure = new Error(
+                    `Cert test ${tc}: ${unverifiedSteps} step${unverifiedSteps === 1 ? "" : "s"} ended with a ` +
+                        "check that could not be evaluated, so the run proved less than those steps claim. Close " +
+                        "the gap — a device-log check usually needs the pattern for this device's flavor written " +
+                        "— or, where this run genuinely cannot observe the claim, say so in the check's " +
+                        '"accepted" field.',
+                );
+            }
+
             // Last, so the outcome handed over is the one this method is about to report. The record
             // states no verdict until here, and a run that cannot get this far leaves one saying so.
             try {
-                await recorder.concludeRun?.({ failed, detail: failed ? errorText(failure) : undefined });
+                await recorder.concludeRun?.({
+                    failed,
+                    detail: failed ? errorText(failure) : undefined,
+                    unproven,
+                });
             } catch (e) {
                 if (failed) {
                     console.warn("Cert test could not settle its evidence record after a failure:", e);
@@ -483,10 +524,36 @@ function announceRunHeader(cx: CertStepContext, recorder: StepRecorder): void {
     }
 }
 
+/**
+ * Persists a run-level summary and then announces it. In that order and in separate attempts: the
+ * count is what a bundle with no attached logs has, so a banner that cannot be written must not cost
+ * it.
+ */
+function recordSummary(record: () => void, announce: () => void, what: string): void {
+    try {
+        record();
+    } catch (e) {
+        console.warn(`Cert test ${what} summary could not be recorded:`, e);
+    }
+    try {
+        announce();
+    } catch (e) {
+        console.warn(`Cert test ${what} summary could not be announced:`, e);
+    }
+}
+
 function announceControllerSkipSummary(cx: CertStepContext, tc: string, count: number): void {
     announceStep(cx, [
         STEP_BANNER_RULE,
         `${tc} — ${count} step${count === 1 ? "" : "s"} skipped as unsupported by the controller`,
+        STEP_BANNER_RULE,
+    ]);
+}
+
+function announcePicsSkipSummary(cx: CertStepContext, tc: string, count: number): void {
+    announceStep(cx, [
+        STEP_BANNER_RULE,
+        `${tc} — ${count} step${count === 1 ? "" : "s"} skipped by their own PICS`,
         STEP_BANNER_RULE,
     ]);
 }

@@ -33,7 +33,7 @@ Enable the following in Docker Desktop settings:
 
 Once running, the container provides:
 
-- Node.js 22 (Debian Bookworm)
+- Node.js 24 (Debian Bookworm)
 - Docker-in-Docker for running nested containers
 - ZSH with productivity enhancements (fzf, git-delta)
 - All matter.js dependencies installed via `npm ci`
@@ -104,10 +104,10 @@ Edit the `customizations.vscode.extensions` array in `devcontainer.json`.
 Update the base image in `Dockerfile`:
 
 ```dockerfile
-FROM mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm
+FROM mcr.microsoft.com/devcontainers/javascript-node:24-bookworm
 ```
 
-Replace `22` with your desired Node.js major version.
+Replace `24` with your desired Node.js major version.
 
 ### Updating Claude Code
 

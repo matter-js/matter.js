@@ -24,6 +24,7 @@ import {
     ChipToolClient,
     ChipToolExitError,
     CHIP_TOOL_READY_MESSAGE,
+    isAsyncReportFrame,
     resolveChipToolBinary,
 } from "../../src/chip-tool/chip-tool-client.js";
 import {
@@ -57,6 +58,54 @@ async function isRunning(pidFile: string) {
         return false;
     }
 }
+
+describe("isAsyncReportFrame", () => {
+    // Every case was measured by compiling chip-tool's own `OnWebSocketMessageReceived` against
+    // libstdc++, which is what CI runs, rather than reasoned about: `strlen(msg) == 0`, or
+    // `strlen(msg) <= 5` with a `uint16_t` stream extraction that does not set failbit.
+    const cases: [frame: string, armsReports: boolean, why: string][] = [
+        ["", true, "strlen == 0"],
+        ["5", true, "one digit, extraction succeeds"],
+        ["0", true, "zero is a value like any other"],
+        ["00000", true, "five digits, still zero"],
+        ["65535", true, "the largest value the uint16 holds"],
+        ["65536", false, "past the uint16, so the extraction fails and the frame runs"],
+        ["99999", false, "five digits, still past the uint16"],
+        ["100000", false, "six bytes, past the strlen <= 5 gate"],
+        ["+65535", false, "six bytes with the sign, past the gate"],
+        [" 5", true, "extraction skips leading whitespace"],
+        ["\t5", true, "a tab is whitespace to the extraction as well"],
+        ["+5", true, "extraction takes a leading sign"],
+        ["-5", true, "a negative wraps into the uint16 rather than failing (timeout 65531)"],
+        ["-1", true, "the same wrap, to 65535"],
+        ["-9999", true, "and again, to 55537"],
+        ["5abc", true, "extraction stops at the first non-digit without failing"],
+        ["5 ", true, "trailing whitespace does not fail it either"],
+        ["12 34", true, "extraction takes 12 and stops"],
+        ["abc", false, "no digit consumed, extraction fails"],
+        ["   ", false, "whitespace only, no digit consumed"],
+        ["+", false, "sign without a digit, extraction fails"],
+        ["1ééé", false, "four characters but seven bytes, and strlen counts bytes"],
+        ["\0", true, "strlen stops at the NUL, so the frame is empty"],
+        ["12345\0", true, "five bytes before the NUL, parsed as 12345"],
+        ["5\0abc", true, "one byte before the NUL"],
+        ["\0read", true, "strlen stops at the NUL before the command"],
+        ["\n5", true, "a newline is whitespace to the C locale extraction"],
+        ["\v5", true, "so is a vertical tab"],
+        ["\f5", true, "and a form feed"],
+        ["\r5", true, "and a carriage return"],
+        ["\u00a05", false, "a non-breaking space is not whitespace to the C locale, so the frame runs"],
+        ["\u20095", false, "nor is a thin space"],
+        ["any read", false, "a real command, past the strlen gate"],
+        ["read", false, "a four-byte command with no digit"],
+    ];
+
+    for (const [frame, armsReports, why] of cases) {
+        it(`${armsReports ? "arms reports for" : "runs"} ${JSON.stringify(frame)} — ${why}`, () => {
+            expect(isAsyncReportFrame(frame)).equal(armsReports);
+        });
+    }
+});
 
 describe("ChipToolClient", function () {
     // Every test here spawns a process and opens a socket; the default 2s budget is not enough for
@@ -165,6 +214,11 @@ describe("ChipToolClient", function () {
         await waitFor(() => fake.parked, "the client to park an async-report frame");
 
         expect(fake.pushReport({ clusterId: 6, endpointId: 1, attributeId: 0, value: true })).equal("sent");
+
+        // Answering the park disarms it; the client parks again once the report reaches it, so this
+        // is the one moment the flag can be read
+        expect(fake.parked).false;
+
         await waitFor(() => asyncResults.length === 1, "the report to reach onAsyncResult");
 
         expect(asyncResults).deep.equal([{ clusterId: 6, endpointId: 1, attributeId: 0, value: true }]);
@@ -438,6 +492,102 @@ describe("ChipToolClient", function () {
         fake.reply = () => ({ results: [{ value: 7 }] });
         const next = await chipTool.execute("any read-by-id 0x6 0x0 1 2");
         expect(next.results).deep.equal([{ value: 7 }]);
+        expect(fake.violations).deep.equal([]);
+    });
+
+    // Each arm of the two shape checks the client applies to a reply, since one frame satisfies only
+    // the arm it trips and leaves the others free to be deleted unnoticed.
+    const MALFORMED_REPLIES = [
+        ["a frame that is not an object", '"a bare string"', /not a \{ results: \[\], logs: \[\] \} frame/],
+        ["a frame with no results", '{"logs":[]}', /not a \{ results: \[\], logs: \[\] \} frame/],
+        ["a frame with no logs", '{"results":[{"value":1}]}', /not a \{ results: \[\], logs: \[\] \} frame/],
+        [
+            "a log entry that is not an object",
+            '{"results":[],"logs":["TE9H"]}',
+            /log entry without a base64 "message" string/,
+        ],
+        [
+            "a log entry with no message",
+            '{"results":[],"logs":[{"module":"TOO","category":"Info"}]}',
+            /log entry without a base64 "message" string/,
+        ],
+    ] as const;
+
+    for (const [what, frame, reason] of MALFORMED_REPLIES) {
+        it(`rejects ${what}, and keeps serving`, async () => {
+            const chipTool = await start();
+
+            fake.reply = () => ({ hang: true });
+            const pending = chipTool.execute("any read-by-id 0x6 0x0 1 1");
+
+            await waitFor(() => fake.commands.length === 1, "the command to reach the server");
+            fake.sendRaw(frame);
+
+            await expect(pending).rejectedWith(UnexpectedDataError, reason);
+
+            fake.reply = () => ({ results: [{ value: 8 }] });
+            const next = await chipTool.execute("any read-by-id 0x6 0x0 1 2");
+            expect(next.results).deep.equal([{ value: 8 }]);
+            expect(fake.violations).deep.equal([]);
+        });
+    }
+
+    it("refuses a verbatim answer when nothing is waiting for one", async () => {
+        await start();
+
+        expect(() => fake.sendRaw('{"results":[],"logs":[]}')).throws(InternalError);
+    });
+
+    it("refuses a verbatim answer once the socket carrying it is gone", async () => {
+        const chipTool = await start();
+
+        fake.reply = () => ({ hang: true });
+        const pending = chipTool.execute("any read-by-id 0x6 0x0 1 1", Millis(100));
+        await waitFor(() => fake.commands.length === 1, "the command to reach the server");
+        await expect(pending).rejectedWith(TimeoutError);
+
+        await chipTool.close();
+        await waitFor(() => fake.closedSockets === 1, "the socket to close");
+
+        expect(() => fake.sendRaw('{"results":[],"logs":[]}')).throws(InternalError);
+    });
+
+    it("answers a command once when a verbatim answer arrives while its reply is still due", async () => {
+        const chipTool = await start();
+
+        fake.reply = () => ({ results: [{ value: 1 }], delayMs: 60 });
+        const pending = chipTool.execute("any read-by-id 0x6 0x0 1 1");
+
+        await waitFor(() => fake.commands.length === 1, "the command to reach the server");
+        fake.sendRaw('{"results":[{"value":2}],"logs":[]}');
+
+        expect((await pending).results).deep.equal([{ value: 2 }]);
+
+        // The superseded reply would land here if the double still sent it
+        await delay(120);
+        expect(asyncResults).deep.equal([]);
+        expect(fake.violations).deep.equal([]);
+    });
+
+    it("discards an unparseable frame that answers no command, and keeps serving", async () => {
+        const chipTool = await start();
+
+        chipTool.armReports();
+        await waitFor(() => fake.parked, "the async-report slot to arm");
+        fake.sendRaw("not a frame at all");
+
+        // The frame is in flight until the client reports it: a command issued before then would be
+        // the one holding the slot when it lands, and would take the rejection itself
+        await waitFor(
+            () => logs.some(line => line.includes("Discarding unparseable chip-tool frame")),
+            "the client to discard the frame",
+        );
+
+        fake.reply = () => ({ results: [{ value: 9 }] });
+        const next = await chipTool.execute("any read-by-id 0x6 0x0 1 2");
+        expect(next.results).deep.equal([{ value: 9 }]);
+        expect(asyncResults).deep.equal([]);
+        expect(fake.violations).deep.equal([]);
     });
 });
 

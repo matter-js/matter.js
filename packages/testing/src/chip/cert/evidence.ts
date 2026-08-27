@@ -48,7 +48,7 @@ export interface RunRecord {
      * finished reporting has no verdict to state — so no hang, interruption or unwritable volume can
      * leave a passing record standing for a run that failed.
      */
-    verdict: "pass" | "fail" | "skipped" | "incomplete";
+    verdict: "pass" | "fail" | "unverified" | "skipped" | "incomplete";
     deviceExit?: { code: number | null; signal?: string };
     /** Why the run's own cleanup failed, if it did (see {@link EvidenceRecorder.finalizationFailed}). */
     finalizationError?: string;
@@ -70,9 +70,17 @@ export interface RunRecord {
      */
     controllerUnsupportedSkips?: number;
     /**
+     * How many steps their own PICS excluded, absent if none. Such a step is meant to skip where the
+     * device or controller does not declare what it needs — but a PICS value that is simply wrong skips
+     * it the same way, so this is what makes a run that tested less visible as such.
+     */
+    picsSkips?: number;
+    /**
      * How many checks reported `"unverified"`, absent if none. Such a check neither proves nor
-     * disproves what its step claims — a step made only of them still passes — so this is what tells a
-     * reader of this record alone how much of the run's claims rest on nothing observed.
+     * disproves what its step claims, so this is what tells a reader of this record alone how much of
+     * the run's claims rest on nothing observed. A step carrying one ends `"unverified"` unless the
+     * check declared its gap ({@link CheckRecord.accepted}), so this count is at least as large as the
+     * unverified step verdicts suggest and says nothing on its own about how many steps they fell in.
      */
     unverifiedChecks?: number;
 }
@@ -107,7 +115,9 @@ export class EvidenceRecorder implements StepRecorder {
     #teardownError?: string;
     #evidenceError?: string;
     #runError?: string;
+    #unproven = false;
     #controllerUnsupportedSkips?: number;
+    #picsSkips?: number;
     #unverifiedChecks?: number;
     #concluded = false;
 
@@ -179,6 +189,14 @@ export class EvidenceRecorder implements StepRecorder {
     }
 
     /**
+     * Records how many steps their own PICS excluded (see {@link RunRecord.picsSkips}). Like a
+     * controller-unsupported skip this never changes the verdict: the step was not meant to run.
+     */
+    recordPicsSkips(count: number): void {
+        this.#picsSkips = count;
+    }
+
+    /**
      * Records that closing the run's controllers or devices failed, which makes the run's verdict a
      * failure: state left on the TH outlasts this run and can break the next one (see
      * {@link RunRecord.teardownError}).
@@ -199,9 +217,9 @@ export class EvidenceRecorder implements StepRecorder {
     }
 
     /**
-     * Records how many checks could not be evaluated (see {@link RunRecord.unverifiedChecks}). Unlike a
-     * failed step this never changes the verdict — such a check is a gap in what the run observed, not
-     * a defect in the device.
+     * Records how many checks could not be evaluated (see {@link RunRecord.unverifiedChecks}). The
+     * count itself settles nothing: a check that did not declare its gap has already made its step's
+     * verdict `"unverified"`, and one that did changes no verdict at all.
      */
     recordUnverifiedChecks(count: number): void {
         this.#unverifiedChecks = count;
@@ -258,10 +276,15 @@ export class EvidenceRecorder implements StepRecorder {
      * cause this recorder was never told about, and `outcome.detail` records that report as
      * {@link RunRecord.runError} whether or not another field already names a mechanism for it.
      */
-    async concludeRun(outcome: { failed: boolean; detail?: string }): Promise<void> {
+    async concludeRun(outcome: { failed: boolean; detail?: string; unproven?: boolean }): Promise<void> {
         this.#concluded = true;
         if (outcome.failed && this.#runError === undefined) {
             this.#runError = outcome.detail ?? "the run failed";
+        }
+        // Only alongside a failure: a run its own runner reported as green cannot be one this record
+        // calls unproven.
+        if (outcome.unproven && outcome.failed) {
+            this.#unproven = true;
         }
         await this.#writeRecord();
     }
@@ -289,6 +312,7 @@ export class EvidenceRecorder implements StepRecorder {
             evidenceError: this.#evidenceError,
             runError: this.#runError,
             controllerUnsupportedSkips: this.#controllerUnsupportedSkips,
+            picsSkips: this.#picsSkips,
             unverifiedChecks: this.#unverifiedChecks,
         };
 
@@ -328,7 +352,8 @@ export class EvidenceRecorder implements StepRecorder {
     /**
      * A run where every step was skipped (or that had no steps at all — a malformed definition) is
      * neither a pass nor a fail: nothing was actually exercised, so reporting `"pass"` would overstate
-     * what the run proved. Only a run with at least one non-skipped step can pass.
+     * what the run proved. Only a run with at least one non-skipped step can pass, and only a run
+     * whose every executed step observed what it claims can pass rather than settle `"unverified"`.
      */
     #verdict(): RunRecord["verdict"] {
         if (!this.#concluded) {
@@ -339,12 +364,17 @@ export class EvidenceRecorder implements StepRecorder {
             this.#finalizationError !== undefined ||
             this.#teardownError !== undefined ||
             this.#evidenceError !== undefined ||
-            this.#runError !== undefined
+            // A run whose only failure is a step that observed nothing states that as its verdict; the
+            // catch-all otherwise makes every such run indistinguishable from a device that misbehaved.
+            (this.#runError !== undefined && !this.#unproven)
         ) {
             return "fail";
         }
         if (this.#steps.some(step => step.verdict === "fail" || step.verdict === "aborted")) {
             return "fail";
+        }
+        if (this.#unproven || this.#steps.some(step => step.verdict === "unverified")) {
+            return "unverified";
         }
         if (this.#steps.some(step => step.verdict === "pass")) {
             return "pass";

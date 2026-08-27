@@ -16,10 +16,11 @@ const logger = Logger.get("ValidateModel");
  * Ensures that a model's definition is correct.  Places errors into the error
  * array of invalid models.
  *
- * Makes a few minor modifications to the model as a side effect:
+ * Modifies the model as a side effect: a default value is cast to the type that carries it, and a type whose case does
+ * not match its definition is corrected.
  *
- * - Default values are cast to the correct type if possible
- * - Cross-references are deleted if they're redundant with the parent
+ * A final model is frozen, so validating one reports without normalizing it: a default remains as stated, and a type
+ * whose case does not match is reported as having no type rather than corrected.
  *
  * Note that we run validation against model classes rather than element
  * datatypes.  The classes implement type resolution, error handling and other

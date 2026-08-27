@@ -91,18 +91,20 @@ export class ClusterRequirements {
         }
 
         if (requirement.constraint) {
+            // A bound this states is a value of the element's own type, and the alteration carries it as a number, so a
+            // magnitude a number cannot state states nothing here
             const value = FieldValue.numericValue(requirement.constraint.value);
-            if (value !== undefined) {
+            if (typeof value === "number") {
                 alteration.default = value;
                 alteration.min = value;
                 alteration.max = value + 1;
-            } else {
+            } else if (value === undefined) {
                 const min = FieldValue.numericValue(requirement.constraint.min);
-                if (min !== undefined) {
+                if (typeof min === "number") {
                     alteration.min = min;
                 }
                 const max = FieldValue.numericValue(requirement.constraint.max);
-                if (max !== undefined) {
+                if (typeof max === "number") {
                     alteration.max = max;
                 }
             }

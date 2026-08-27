@@ -13,6 +13,7 @@ import {
     CommandElement,
     EventElement,
     FieldElement,
+    Quality,
 } from "@matter/model";
 import { BitSchema, TypeFromPartialBitSchema } from "../schema/BitmapSchema.js";
 import { TlvSchema } from "../tlv/TlvSchema.js";
@@ -302,20 +303,24 @@ function eventAccess(evt: Event<any, any>): string | undefined {
 }
 
 function attributeQuality(attr: Attribute<any, any>): string | undefined {
-    let q = attr.schema.element?.quality?.toString() ?? "";
+    const flags = new Array<Quality.FlagName>();
 
-    if (attr.persistent && !q.includes("N")) {
-        q += "N";
+    if (attr.persistent) {
+        flags.push("N");
     }
-    if (attr.scene && !q.includes("S")) {
-        q += "S";
+    if (attr.scene) {
+        flags.push("S");
     }
-    if (attr.omitChanges && !q.includes("C")) {
-        q += "C";
+    if (attr.omitChanges) {
+        flags.push("C");
     }
-    if (attr.fixed && !q.includes("F")) {
-        q += "F";
+    if (attr.fixed) {
+        flags.push("F");
     }
 
-    return q || undefined;
+    // What the legacy definition states wins over the schema's, including where the schema removes the quality.  A
+    // flag the schema states that is not a quality survives the merge, so model validation still reports it.
+    const quality = new Quality(attr.schema.element?.quality).extend(new Quality(flags));
+
+    return quality.isEmpty ? undefined : quality.toString();
 }

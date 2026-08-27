@@ -278,11 +278,8 @@ export const CommodityTariff = Cluster(
         Field({ name: "Price", id: 0x1, type: "TariffPriceStruct", conformance: "[PRICE].b+", quality: "X" }),
         Field({ name: "FriendlyCredit", id: 0x2, type: "bool", conformance: "[FCRED].b+" }),
         Field({ name: "AuxiliaryLoad", id: 0x3, type: "AuxiliaryLoadSwitchSettingsStruct", conformance: "[AUXLD].b+" }),
-        Field({ name: "PeakPeriod", id: 0x4, type: "PeakPeriodStruct", conformance: "[PEAKP].b+", default: { type: "none" } }),
-        Field({
-            name: "PowerThreshold", id: 0x5, type: "PowerThresholdStruct", conformance: "[PWRTHLD].b+",
-            default: { type: "none" }
-        }),
+        Field({ name: "PeakPeriod", id: 0x4, type: "PeakPeriodStruct", conformance: "[PEAKP].b+" }),
+        Field({ name: "PowerThreshold", id: 0x5, type: "PowerThresholdStruct", conformance: "[PWRTHLD].b+" }),
         Field({ name: "Threshold", id: 0x6, type: "int64", conformance: "M", quality: "X" }),
         Field({ name: "Label", id: 0x7, type: "string", conformance: "O", constraint: "max 128", quality: "X" }),
         Field({ name: "Predicted", id: 0x8, type: "bool", conformance: "O" })

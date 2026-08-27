@@ -61,12 +61,12 @@
 	},
 	"mounts": [
 		"source=matter-js-npm-${devcontainerId},target=/matter.js/node_modules,type=volume",
-		"source=matter-js-bashhistory-${devcontainerId},target=/home/node/.commandhistory,type=volume",
-		"source=matter-js-claude-config-${devcontainerId},target=/home/node/.claude,type=volume",
+		"source=matter-js-bashhistory-${devcontainerId},target=/home/matter/.commandhistory,type=volume",
+		"source=matter-js-claude-config-${devcontainerId},target=/home/matter/.claude,type=volume",
 		"type=tmpfs,destination=/tmp,tmpfs-mode=1770,tmpfs-size=64m"
 	],
 	"containerEnv": {
 		//"NODE_OPTIONS": "--max-old-space-size=4096",
-		"CLAUDE_CONFIG_DIR": "/home/node/.claude"
+		"CLAUDE_CONFIG_DIR": "/home/matter/.claude"
 	}
 }

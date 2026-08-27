@@ -7,6 +7,7 @@
 import { ImplementationError, InternalError } from "@matter/main";
 import { QrPairingCodeCodec, Status, StatusResponseError } from "@matter/main/types";
 import { Matter } from "@matter/model";
+import { PicsExpression, PicsFile } from "@matter/testing";
 import {
     controllerPicsOverridesFor,
     createControllerAdapter,
@@ -639,6 +640,37 @@ describe("ControllerAdapter registry", () => {
             expect(pics["MCORE.DD.MANUAL_PC_COMMISSIONING"]).equal(1);
             expect(pics["MCORE.DD.SCAN_QR_CODE"]).equal(1);
             expect(pics["MCORE.DD.CTRL_CONCATENATED_QR_CODE_1"]).equal(0);
+        }
+    });
+
+    it("declares the client-side capabilities the device's own PICS file answers for a device", () => {
+        // Every command TC-ACT-3.2 gates a step on, since a declaration missing from the middle of the
+        // range skips that step as quietly as one missing from either end.
+        const actionCommands = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "0a", "0b"].map(
+            id => `ACT.C.C${id}.Tx`,
+        );
+
+        // The CHIP file describes a device, which is not an Actions client, so it answers 0 for every
+        // Actions command. The DUT of those steps is the controller, so its own declaration has to win.
+        const asDevice = new PicsFile(actionCommands.map(key => `${key}=0`));
+
+        for (const implementation of ["matterjs", "chip-tool"] as const) {
+            const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
+
+            for (const key of actionCommands) {
+                expect(new PicsExpression(key).evaluate(forRun), `${implementation} ${key}`).equal(true);
+            }
+        }
+    });
+
+    it("declares nothing about what the device advertises, which every run's report would inherit", () => {
+        // certPicsFile() feeds every cert test's report, so a key describing the TH — what it
+        // advertises, above all — has to come from the device's own file and never from an overlay.
+        for (const implementation of ["matterjs", "chip-tool"] as const) {
+            const declared = controllerPicsOverridesFor(implementation);
+
+            expect("MCORE.DD.DISCOVERY_BLE" in declared, implementation).equal(false);
+            expect("MCORE.DD.DISCOVERY_PAF" in declared, implementation).equal(false);
         }
     });
 

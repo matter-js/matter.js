@@ -171,6 +171,13 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
                 );
             }
 
+            // Constructing the expression is the validation: unparsed until the run, a malformed one
+            // is caught by the per-step handler and recorded as the step failing, i.e. as a defect of
+            // the device under test.
+            if (opts?.pics !== undefined) {
+                new PicsExpression(opts.pics);
+            }
+
             definition.steps.push({
                 number,
                 text,

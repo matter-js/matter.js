@@ -340,6 +340,49 @@ describe("EvidenceRecorder", () => {
         expect(resultJson.controllerUnsupportedSkips).equal(2);
     });
 
+    it("persists the PICS-skip count, so a bundle says a run tested less than the plan asks", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-ACT-3.2",
+            plan: "actions.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "chip-tool",
+            device: "chip-local:bridge",
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.endStep(step1, "pass");
+        recorder.endStep(step2, "skipped", 'PICS "ACT.C.C00.Tx" not met');
+        recorder.recordPicsSkips(1);
+
+        const dir = await publish(recorder);
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+
+        expect(resultJson.verdict).equal("pass");
+        expect(resultJson.picsSkips).equal(1);
+    });
+
+    it("omits the PICS-skip count when every step's PICS was met", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-ACT-3.2",
+            plan: "actions.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "chip-tool",
+            device: "chip-local:bridge",
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.endStep(step1, "pass");
+
+        const dir = await publish(recorder);
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+
+        expect("picsSkips" in resultJson).equal(false);
+    });
+
     it("omits the skip count from the persisted metadata when nothing was skipped that way", async () => {
         const recorder = new EvidenceRecorder(outDir, {
             tc: "TC-IDM-3.1",
@@ -358,6 +401,117 @@ describe("EvidenceRecorder", () => {
         const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
 
         expect("controllerUnsupportedSkips" in resultJson).equal(false);
+    });
+
+    it("settles a run whose step observed nothing as unverified rather than as a device failure", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-IDM-2.1",
+            plan: "interactiondatamodel.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "matterjs",
+            device: "matterjs:all-clusters",
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.check({ type: "device-log", verdict: "unverified" });
+        recorder.endStep(step1, "unverified");
+        recorder.recordUnverifiedChecks(1);
+
+        await recorder.flush();
+        await recorder.concludeRun({ failed: true, detail: "1 step ended with a check ...", unproven: true });
+
+        const resultJson = JSON.parse(
+            await fsp.readFile(pathMod.join(outDir, "2026-08-07T00-00-00.000Z-TC-IDM-2.1", "result.json"), "utf8"),
+        );
+
+        expect(resultJson.verdict).equal("unverified");
+        expect(resultJson.runError).equal("1 step ended with a check ...");
+        expect(resultJson.unverifiedChecks).equal(1);
+    });
+
+    it("keeps a run its runner reported as green at pass, whatever else the outcome claims", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-IDM-2.1",
+            plan: "interactiondatamodel.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "matterjs",
+            device: "matterjs:all-clusters",
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.check({ type: "response", verdict: "pass" });
+        recorder.endStep(step1, "pass");
+
+        await recorder.flush();
+        await recorder.concludeRun({ failed: false, unproven: true });
+
+        const resultJson = JSON.parse(
+            await fsp.readFile(pathMod.join(outDir, "2026-08-07T00-00-00.000Z-TC-IDM-2.1", "result.json"), "utf8"),
+        );
+
+        expect(resultJson.verdict).equal("pass");
+    });
+
+    it("fails a run that both observed nothing and lost its device, since the device outranks the gap", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-IDM-2.1",
+            plan: "interactiondatamodel.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "matterjs",
+            device: "matterjs:all-clusters",
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.check({ type: "device-log", verdict: "unverified" });
+        recorder.endStep(step1, "unverified");
+        recorder.deviceExited({ code: 134, signal: null });
+
+        await recorder.flush();
+        await recorder.concludeRun({ failed: true, detail: "device exited", unproven: true });
+
+        const resultJson = JSON.parse(
+            await fsp.readFile(pathMod.join(outDir, "2026-08-07T00-00-00.000Z-TC-IDM-2.1", "result.json"), "utf8"),
+        );
+
+        expect(resultJson.verdict).equal("fail");
+    });
+
+    it("keeps a check's own reason for its gap in the record", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-IDM-2.1",
+            plan: "interactiondatamodel.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "matterjs",
+            device: "matterjs:all-clusters",
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.check({
+            type: "response",
+            verdict: "unverified",
+            detail: "no manufacturer-specific cluster in the wildcard read",
+            accepted: "the matter.js app defines none",
+        });
+        recorder.endStep(step1, "pass");
+
+        const dir = await publish(recorder);
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+
+        expect(resultJson.verdict).equal("pass");
+        expect(resultJson.steps[0].checks[0]).deep.equal({
+            type: "response",
+            verdict: "unverified",
+            detail: "no manufacturer-specific cluster in the wildcard read",
+            accepted: "the matter.js app defines none",
+        });
     });
 
     it("records a teardown failure arriving between the evidence and the verdict, and fails the run over it", async () => {
@@ -509,7 +663,7 @@ describe("EvidenceRecorder", () => {
         expect("runError" in resultJson).equal(false);
     });
 
-    it("persists the unverified-check count, so a bare result.json says how much of a passing run rests on nothing observed", async () => {
+    it("persists the unverified-check count, so a bare result.json says how much of the run rests on nothing observed", async () => {
         const recorder = new EvidenceRecorder(outDir, {
             tc: "TC-IDM-5.1",
             plan: "interactiondatamodel.adoc",
@@ -521,14 +675,15 @@ describe("EvidenceRecorder", () => {
         });
 
         recorder.beginStep(step1);
-        recorder.check({ type: "device-log", verdict: "unverified" });
+        recorder.check({ type: "device-log", verdict: "unverified", accepted: "the app cannot exhibit the claim" });
         recorder.endStep(step1, "pass");
         recorder.recordUnverifiedChecks(3);
 
         const dir = await publish(recorder);
         const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
 
-        // An unverified check is a gap in what was observed, not a defect — the verdict stays a pass.
+        // The count covers the declared gaps too, which are the only unverified checks a passing run
+        // can carry.
         expect(resultJson.verdict).equal("pass");
         expect(resultJson.unverifiedChecks).equal(3);
     });

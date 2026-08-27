@@ -103,10 +103,10 @@ export class TlvNumericSchema<T extends bigint | number> extends TlvSchema<T> {
 
         const constraint: Constraint.Ast = {};
         if (this.min !== this.baseTypeMin) {
-            constraint.min = this.min as number;
+            constraint.min = this.min;
         }
         if (this.max !== this.baseTypeMax) {
-            constraint.max = this.max as number;
+            constraint.max = this.max;
         }
         if (constraint.min !== undefined || constraint.max !== undefined) {
             result.constraint = constraint;
@@ -157,6 +157,9 @@ export class TlvNumericSchema<T extends bigint | number> extends TlvSchema<T> {
 
     /** Restrict value range. */
     bound({ min, max }: NumericConstraints<T>): TlvNumericSchema<T> {
+        this.#assertStatable(min);
+        this.#assertStatable(max);
+
         const effectiveMin = maxValue(min, this.min) as T;
         const effectiveMax = minValue(max, this.max) as T;
         const key = `${effectiveMin}:${effectiveMax}`;
@@ -169,10 +172,37 @@ export class TlvNumericSchema<T extends bigint | number> extends TlvSchema<T> {
 
         let result = inner.get(key) as TlvNumericSchema<T> | undefined;
         if (result === undefined) {
-            result = new TlvNumericSchema(this.type, this.lengthProvider, effectiveMin, effectiveMax);
+            result = this.constrain(effectiveMin, effectiveMax);
             inner.set(key, result);
         }
         return result;
+    }
+
+    /**
+     * A bound a number states only approximately is not the bound the caller wrote.
+     *
+     * A 64 bit type holds magnitudes a number rounds, and rounding one silently moves the bound: 9223372036854775807
+     * becomes 2^63, admitting a value above the stated maximum, and 18446744073709551614 rounds up past the type and
+     * drops the bound entirely.  Such a bound must be stated as a bigint.
+     */
+    #assertStatable(bound: number | bigint | undefined) {
+        if (typeof bound !== "number" || typeof this.baseTypeMax !== "bigint" || Number.isSafeInteger(bound)) {
+            return;
+        }
+
+        throw new ImplementationError(
+            `Bound ${bound} of ${TlvType[this.type]} states a magnitude no number holds exactly, so it must be a bigint`,
+        );
+    }
+
+    /**
+     * A schema of this type admitting only the given range.
+     *
+     * The base type of the result is the base type of this schema, not the range: a nullable type reserves its
+     * sentinel from the base type, and a constrained value must not lose the type it is constrained within.
+     */
+    protected constrain(min: T, max: T): TlvNumericSchema<T> {
+        return new TlvNumericSchema(this.type, this.lengthProvider, this.baseTypeMin, this.baseTypeMax, min, max);
     }
 }
 
@@ -198,30 +228,8 @@ export class TlvNumberSchema extends TlvNumericSchema<number> {
         return typeof value === "bigint" ? Number(value) : value;
     }
 
-    override bound({ min, max }: NumericConstraints<number>): TlvNumericSchema<number> {
-        const effectiveMin = maxValue(min, this.min);
-        const effectiveMax = minValue(max, this.max);
-        const key = `${effectiveMin}:${effectiveMax}`;
-
-        let inner = boundCache.get(this);
-        if (inner === undefined) {
-            inner = new Map();
-            boundCache.set(this, inner);
-        }
-
-        let result = inner.get(key) as TlvNumberSchema | undefined;
-        if (result === undefined) {
-            result = new TlvNumberSchema(
-                this.type,
-                this.lengthProvider,
-                this.baseTypeMin,
-                this.baseTypeMax,
-                effectiveMin,
-                effectiveMax,
-            );
-            inner.set(key, result);
-        }
-        return result;
+    protected override constrain(min: number, max: number): TlvNumericSchema<number> {
+        return new TlvNumberSchema(this.type, this.lengthProvider, this.baseTypeMin, this.baseTypeMax, min, max);
     }
 
     override validate(value: number): void {

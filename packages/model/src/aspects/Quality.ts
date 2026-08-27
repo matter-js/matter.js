@@ -7,6 +7,13 @@
 import { Aspect } from "./Aspect.js";
 
 /**
+ * A parsed definition, which may carry flags that are not qualities.
+ */
+interface ParsedQuality extends Quality.Ast {
+    unrecognized?: readonly string[];
+}
+
+/**
  * An operational representation of "other quality" as defined by the Matter specification.
  *
  * "Other qualities" are defined behaviors of data fields and cluster elements that do not involve access or
@@ -74,9 +81,18 @@ export class Quality extends Aspect<Quality.Definition> implements Quality.Ast {
     atomic?: boolean;
 
     /**
-     * A set of properties disallowed for a device type.
+     * Qualities this definition removes.  A removal drops the quality from the definition itself and, where the
+     * definition extends another, from what it inherits.
      */
     disallowed?: Quality.AllProperties;
+
+    /**
+     * Flags the definition states that are not qualities.
+     *
+     * Each also raises an error.  A caller that rewrites a definition can carry these through so what it produces
+     * still reports the same problem.
+     */
+    unrecognized?: readonly string[];
 
     /**
      * Initialize from a Quality.All definition or a string conforming to the
@@ -85,43 +101,49 @@ export class Quality extends Aspect<Quality.Definition> implements Quality.Ast {
     constructor(definition: Quality.Definition) {
         super(definition);
 
-        let ast: Quality.Definition;
+        let ast: ParsedQuality;
         if (typeof definition === "string") {
             ast = {};
             this.#parse(ast, definition);
         } else if (Array.isArray(definition)) {
             ast = {};
-            definition.map(f => this.#parse(this, f));
+            for (const flag of definition) {
+                this.#parse(ast, flag);
+            }
         } else {
-            ast = definition;
+            ast = definition ?? {};
         }
 
-        this.nullable = ast?.nullable;
-        this.nonvolatile = ast?.nonvolatile;
-        this.fixed = ast?.fixed;
-        this.changesOmitted = ast?.changesOmitted;
-        this.scene = ast?.scene;
-        this.reportable = ast?.reportable;
-        this.singleton = ast?.singleton;
-        this.quieter = ast?.quieter;
-        this.largeMessage = ast?.largeMessage;
-        this.diagnostics = ast?.diagnostics;
-        this.atomic = ast?.atomic;
-        this.disallowed = ast?.disallowed;
+        const disallowed = ast.disallowed;
+        let removals: Quality.AllProperties | undefined;
+        let isEmpty = true;
 
-        this.isEmpty = !(
-            this.nullable ||
-            this.nonvolatile ||
-            this.fixed ||
-            this.changesOmitted ||
-            this.scene ||
-            this.reportable ||
-            this.singleton ||
-            this.quieter ||
-            this.largeMessage ||
-            this.diagnostics ||
-            this.atomic
-        );
+        for (const field of Object.values(Quality.Flag)) {
+            if (disallowed?.[field]) {
+                this[field] = undefined;
+                if (removals === undefined) {
+                    removals = {};
+                }
+                removals[field] = true;
+                isEmpty = false;
+                continue;
+            }
+
+            this[field] = ast[field];
+            if (this[field]) {
+                isEmpty = false;
+            }
+        }
+
+        this.disallowed = removals && Object.freeze(removals);
+        this.unrecognized = ast.unrecognized && Object.freeze([...ast.unrecognized]);
+
+        // A definition stating a flag that is not a quality is not empty: dropping it would drop the error it raises
+        this.isEmpty = isEmpty && !this.unrecognized?.length;
+
+        for (const flag of this.unrecognized ?? []) {
+            this.error("UNKNOWN_QUALITY_FLAG", `Unknown flag "${flag}"`);
+        }
 
         this.freeze();
     }
@@ -135,23 +157,29 @@ export class Quality extends Aspect<Quality.Definition> implements Quality.Ast {
             return other;
         }
 
-        return new Quality({
-            nullable: other.nullable ?? this.nullable,
-            nonvolatile: other.nonvolatile ?? this.nonvolatile,
-            fixed: other.fixed ?? this.fixed,
-            changesOmitted: other.changesOmitted ?? this.changesOmitted,
-            scene: other.scene ?? this.scene,
-            reportable: other.reportable ?? this.reportable,
-            singleton: other.singleton ?? this.singleton,
-            quieter: other.quieter ?? this.quieter,
-            largeMessage: other.largeMessage ?? this.largeMessage,
-            diagnostics: other.diagnostics ?? this.diagnostics,
-            atomic: other.atomic ?? this.atomic,
-            disallowed: other.disallowed ?? this.disallowed,
-        });
+        const ast: ParsedQuality = {};
+        for (const field of Object.values(Quality.Flag)) {
+            ast[field] = other[field] ?? this[field];
+        }
+
+        const unrecognized = [...(this.unrecognized ?? []), ...(other.unrecognized ?? [])];
+        if (unrecognized.length) {
+            ast.unrecognized = unrecognized;
+        }
+
+        // A removal this quality states applies only where the extending definition does not state the quality
+        // itself: the extending definition is the more specific of the two
+        const disallowed: Quality.AllProperties = { ...other.disallowed };
+        for (const field of Object.values(Quality.Flag)) {
+            if (this.disallowed?.[field] && other[field] !== true) {
+                disallowed[field] = true;
+            }
+        }
+
+        return new Quality({ ...ast, disallowed });
     }
 
-    #parse(ast: Quality.Ast, definition: string) {
+    #parse(ast: ParsedQuality, definition: string) {
         const text = definition.toUpperCase();
         if (text === "DERIVED") {
             return;
@@ -184,7 +212,7 @@ export class Quality extends Aspect<Quality.Definition> implements Quality.Ast {
                     ast[field] = true;
                 }
             } else {
-                this.error("UNKNOWN_QUALITY_FLAG", `Unknown flag "${char}"`);
+                ast.unrecognized = [...(ast.unrecognized ?? []), char];
             }
         }
     }
@@ -195,14 +223,18 @@ export class Quality extends Aspect<Quality.Definition> implements Quality.Ast {
     override toString() {
         const flags = [] as Quality.FlagName[];
 
+        const removals = [] as string[];
+
         for (const f of Quality.FlagNames) {
             const field = Quality.Flag[f];
-            if (this[field] && !this.disallowed?.[field]) {
+            if (this.disallowed?.[field]) {
+                removals.push(`!${f}`);
+            } else if (this[field]) {
                 flags.push(f);
             }
         }
 
-        return flags.join(" ");
+        return [...flags, ...removals, ...(this.unrecognized ?? [])].join(" ");
     }
 }
 
@@ -210,7 +242,7 @@ export namespace Quality {
     /**
      * Various ways to define quality.
      */
-    export type Definition = Ast | `${Flag}`[] | string | undefined;
+    export type Definition = Ast | FlagName[] | string | undefined;
 
     /**
      * All qualities designated as "other qualities" in the Matter specification.
@@ -345,7 +377,7 @@ export namespace Quality {
      */
     export type DeviceType = AllProperties & {
         /**
-         * Designates qualities that are disallowed for the device type.
+         * Designates qualities the definition removes.
          */
         disallowed?: AllProperties;
     };

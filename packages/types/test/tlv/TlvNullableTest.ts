@@ -8,8 +8,9 @@ import { BitFlag } from "#schema/BitmapSchema.js";
 import { TlvByteString } from "#tlv/index.js";
 import { TlvAny } from "#tlv/TlvAny.js";
 import { TlvArray } from "#tlv/TlvArray.js";
+import { TlvCodec, TlvType } from "#tlv/TlvCodec.js";
 import { TlvNullable } from "#tlv/TlvNullable.js";
-import { TlvBitmap, TlvUInt16, TlvUInt8 } from "#tlv/TlvNumber.js";
+import { TlvBitmap, TlvInt64, TlvNumericSchema, TlvUInt16, TlvUInt64, TlvUInt8 } from "#tlv/TlvNumber.js";
 import { TlvString } from "#tlv/TlvString.js";
 import { Bytes } from "@matter/general";
 
@@ -94,6 +95,42 @@ describe("TlvNullable", () => {
             const encoded = schemaArray.encode([]);
             const schemaWithConstraint = TlvNullable(TlvArray(TlvString, { minLength: 1 }));
             expect(schemaWithConstraint.decode(encoded)).equal(null);
+        });
+    });
+
+    describe("a nullable integer reserves the sentinel of its type, not of its bound", () => {
+        it("refuses the maximum of an unbounded unsigned type", () => {
+            expect(() => TlvNullable(TlvUInt64).validate(18446744073709551615n)).throws();
+            expect(() => TlvNullable(TlvUInt64).validate(18446744073709551614n)).not.throws();
+        });
+
+        it("refuses the minimum of an unbounded signed type", () => {
+            expect(() => TlvNullable(TlvInt64).validate(-9223372036854775808n)).throws();
+            expect(() => TlvNullable(TlvInt64).validate(-9223372036854775807n)).not.throws();
+        });
+
+        it("reserves the sentinel of a type bounded away from it", () => {
+            expect(() => TlvNullable(TlvUInt64.bound({ min: 5n })).validate(18446744073709551615n)).throws();
+        });
+
+        it("reserves the sentinel of a type that states its own range as bigints", () => {
+            const stated = new TlvNumericSchema<bigint>(
+                TlvType.UnsignedInt,
+                value => TlvCodec.getUIntTlvLength(value),
+                0n,
+                18446744073709551615n,
+            );
+
+            expect(() => TlvNullable(stated).validate(18446744073709551615n)).throws();
+            expect(() => TlvNullable(stated).validate(18446744073709551614n)).not.throws();
+        });
+
+        it("admits the extreme a constrained type states", () => {
+            const schema = TlvNullable(TlvInt64.bound({ min: -10000n, max: 10000n }));
+
+            expect(() => schema.validate(-10000n)).not.throws();
+            expect(() => schema.validate(10000n)).not.throws();
+            expect(() => schema.validate(10001n)).throws();
         });
     });
 

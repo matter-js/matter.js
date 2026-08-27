@@ -23,7 +23,7 @@ import {
     TlvUInt8,
 } from "#tlv/TlvNumber.js";
 import { TlvByteArrayReader, TlvSchema } from "#tlv/TlvSchema.js";
-import { Bytes } from "@matter/general";
+import { Bytes, ImplementationError } from "@matter/general";
 
 type CodecVectorNumber<I, E> = {
     [valueDescription: string]: { schema: TlvNumberSchema; encoded: I; decoded: E };
@@ -123,6 +123,46 @@ describe("TlvNumber", () => {
                 }
             });
         }
+    });
+
+    describe("bound", () => {
+        it("states the same schema for the same bound", () => {
+            expect(TlvUInt64.bound({ max: 100n })).equals(TlvUInt64.bound({ max: 100n }));
+            expect(TlvUInt32.bound({ max: 100 })).equals(TlvUInt32.bound({ max: 100 }));
+        });
+
+        it("refuses a bound a number states only approximately", () => {
+            // Rounds down to 2^63, which would admit a value above the maximum the caller stated
+            expect(() => TlvUInt64.bound({ max: Number(9223372036854775807n) })).throws(
+                ImplementationError,
+                /must be a bigint/,
+            );
+
+            // Rounds up past the type, so the bound would be clamped away and constrain nothing
+            expect(() => TlvUInt64.bound({ max: Number(18446744073709551614n) })).throws(ImplementationError);
+            expect(() => TlvInt64.bound({ min: Number(-9223372036854775807n) })).throws(ImplementationError);
+        });
+
+        it("accepts a bound a number states exactly", () => {
+            expect(() => TlvUInt64.bound({ max: 100 })).not.throws();
+            expect(() => TlvUInt64.bound({ max: 18446744073709551614n })).not.throws();
+            expect(() => TlvUInt32.bound({ max: 4294967295 })).not.throws();
+        });
+
+        it("keeps the base type of the schema it bounds", () => {
+            const bounded = TlvUInt64.bound({ max: 100n });
+
+            expect(bounded.baseTypeMin).equals(TlvUInt64.baseTypeMin);
+            expect(bounded.baseTypeMax).equals(TlvUInt64.baseTypeMax);
+            expect(bounded.max).equals(100n);
+        });
+
+        it("states the datatype of a bounded 64 bit schema", () => {
+            expect(TlvUInt64.bound({ max: 100n }).element).deep.equals({
+                type: "uint64",
+                constraint: { max: 100n },
+            });
+        });
     });
 
     describe("validate", () => {

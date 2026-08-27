@@ -9,6 +9,7 @@ import {
     AttributeElement as Attribute,
     FieldElement,
     int8,
+    int64,
     bool,
     double,
     enum8,
@@ -16,14 +17,26 @@ import {
     percent100ths,
     single,
     uint8,
+    duration,
+    map8,
     uint16,
+    uint24,
+    uint56,
     string,
+    struct,
     uint64,
     ValidateModel,
 } from "#index.js";
-import { ClusterModel, DatatypeModel, MatterModel } from "#models/index.js";
+import { AttributeModel, ClusterModel, DatatypeModel, FieldModel, MatterModel } from "#models/index.js";
+import { Seconds } from "@matter/general";
 
-const CODES = new Set(["UNIT_WITHOUT_SCALE", "FRACTION_ON_INTEGER_TYPE", "NEGATIVE_ON_UNSIGNED_TYPE", "INVALID_VALUE"]);
+const CODES = new Set([
+    "UNIT_WITHOUT_SCALE",
+    "FRACTION_ON_INTEGER_TYPE",
+    "NEGATIVE_ON_UNSIGNED_TYPE",
+    "VALUE_EXCEEDS_TYPE",
+    "INVALID_VALUE",
+]);
 
 /** A constraint stated on the datatype that names the scale, rather than on a value of that type */
 function validateDatatype(constraint: string) {
@@ -59,22 +72,101 @@ function validateList(entryType: string, constraint: string) {
     return ValidateModel(Matter).errors.filter(e => CODES.has(e.code));
 }
 
-function validateDefault(type: string, dflt: FieldValue) {
-    const Matter = new MatterModel(
+function modelWithDefault(type: string, dflt: FieldValue) {
+    return new MatterModel(
         {},
         uint8.clone(),
         uint16.clone(),
         uint64.clone(),
+        uint56.clone(),
+        uint24.clone(),
+        int64.clone(),
+        map8.clone(),
         int8.clone(),
         percent100ths.clone(),
         string.clone(),
+        struct.clone(),
+        duration.clone(),
         bool.clone(),
+        single.clone(),
+        double.clone(),
         new DatatypeModel({ name: "UnsignedTemperature", type: "uint8" }),
         new ClusterModel({ name: "Test", id: 0xfff1 }, Attribute({ name: "Bounded", id: 1, type, default: dflt })),
     );
+}
 
-    // Not finalized: validation normalizes a default by writing it back, which a finalized model refuses
-    return ValidateModel(Matter).errors.filter(e => CODES.has(e.code));
+function validateDefault(type: string, dflt: FieldValue) {
+    return ValidateModel(modelWithDefault(type, dflt)).errors.filter(e => CODES.has(e.code));
+}
+
+/** Validation of a final model, which is frozen and so cannot be normalized */
+function validateFinalDefault(type: string, dflt: FieldValue) {
+    const model = modelWithDefault(type, dflt);
+    model.finalize();
+
+    return {
+        errors: ValidateModel(model).errors,
+        default: model.get(ClusterModel, "Test")?.get(AttributeModel, "Bounded")?.default,
+    };
+}
+
+/** Every error validation reports, not only those of the numeric rules */
+function allErrors(type: string, dflt: FieldValue) {
+    return ValidateModel(modelWithDefault(type, dflt)).errors;
+}
+
+/** A default naming a sibling field, which normalization turns into a reference to it */
+function modelWithReferenceDefault() {
+    return new MatterModel(
+        {},
+        uint8.clone(),
+        new ClusterModel(
+            { name: "Test", id: 0xfff1 },
+            Attribute({ name: "Bounded", id: 1, type: "uint8", default: "Other" }),
+            Attribute({ name: "Other", id: 2, type: "uint8" }),
+        ),
+    );
+}
+
+/** A default naming a cluster attribute, which the struct that carries the default does not shadow */
+function modelWithClusterReferenceDefault() {
+    return new MatterModel(
+        {},
+        uint8.clone(),
+        struct.clone(),
+        new ClusterModel(
+            { name: "Test", id: 0xfff1 },
+            Attribute({ name: "Limit", id: 1, type: "uint8" }),
+            new DatatypeModel(
+                { name: "Holder", type: "struct" },
+                FieldElement({ name: "Bounded", type: "uint8", default: "Limit" }),
+            ),
+        ),
+    );
+}
+
+/** A member whose type resolves only once its name is corrected to the case its definition uses */
+function modelWithCaseMismatch() {
+    return new MatterModel(
+        {},
+        uint8.clone(),
+        new ClusterModel({ name: "Base", id: 0xfff0 }, Attribute({ name: "Foo", id: 1, type: "uint8" })),
+        new ClusterModel({ name: "Derived", id: 0xfff1, type: "Base" }, Attribute({ name: "foo", id: 1 })),
+    );
+}
+
+function validate(model: MatterModel, final: boolean) {
+    if (final) {
+        model.finalize();
+    }
+    return ValidateModel(model).errors;
+}
+
+/** The default validation leaves on the model, which is the value generation then emits */
+function normalizedDefault(type: string, dflt: FieldValue) {
+    const model = modelWithDefault(type, dflt);
+    ValidateModel(model);
+    return model.get(ClusterModel, "Test")?.get(AttributeModel, "Bounded")?.default;
 }
 
 /** An enum states no unit, so a percentage default on one has nowhere to go */
@@ -92,12 +184,33 @@ function validateEnumDefault(dflt: FieldValue) {
     return ValidateModel(Matter).errors.filter(e => CODES.has(e.code));
 }
 
+/** A value of a type that states an enum of an enum, which is how the specification states a status code */
+function validateDerivedEnumDefault(dflt: FieldValue) {
+    const Matter = new MatterModel(
+        {},
+        uint8.clone(),
+        enum8.clone(),
+        new DatatypeModel({ name: "StatusLike", type: "enum8", metatype: "enum" }),
+        new ClusterModel(
+            { name: "Test", id: 0xfff1 },
+            Attribute(
+                { name: "Bounded", id: 1, type: "StatusLike", default: dflt },
+                FieldElement({ name: "A", id: 0 }),
+            ),
+        ),
+    );
+
+    return ValidateModel(Matter).errors.filter(e => CODES.has(e.code));
+}
+
 function validateConstraint(type: string, constraint: string) {
     const Matter = new MatterModel(
         {},
         uint8.clone(),
         uint16.clone(),
         int8.clone(),
+        int64.clone(),
+        uint64.clone(),
         percent.clone(),
         percent100ths.clone(),
         single.clone(),
@@ -154,6 +267,19 @@ describe("ValueValidator", () => {
         it("accepts a percentage on the types that state a scale", () => {
             expect(validateConstraint("percent", "0% to 100%")).deep.equals([]);
             expect(validateConstraint("percent100ths", "min 0.01%")).deep.equals([]);
+        });
+    });
+
+    // The status codes state an enum of enum8, so the integer holding the value is two definitions down.  Judging only
+    // the first left every such value unjudged
+    describe("a type that derives from an enum", () => {
+        it("judges a value by the integer that holds it", () => {
+            expect(validateDerivedEnumDefault(-1).map(error => error.code)).deep.equals(["NEGATIVE_ON_UNSIGNED_TYPE"]);
+            expect(validateDerivedEnumDefault(1.5).map(error => error.code)).deep.equals(["FRACTION_ON_INTEGER_TYPE"]);
+        });
+
+        it("accepts a value it holds", () => {
+            expect(validateDerivedEnumDefault(0)).deep.equals([]);
         });
     });
 
@@ -329,8 +455,312 @@ describe("ValueValidator", () => {
             expect(validateList("uint8", "max 4[0 to 10]")).deep.equals([]);
         });
 
+        it("accepts a duration stated as a number of milliseconds or as text", () => {
+            expect(validateDefault("duration", Seconds(2))).deep.equals([]);
+            expect(validateDefault("duration", "2s")).deep.equals([]);
+            expect(validateDefault("duration", "nonsense").map(error => error.code)).deep.equals(["INVALID_VALUE"]);
+        });
+
+        it("rejects a bound the type is too narrow to hold", () => {
+            const errors = validateConstraint("uint8", "0 to 300");
+
+            expect(errors.length).equals(1);
+            expect(errors[0].code).equals("VALUE_EXCEEDS_TYPE");
+            expect(errors[0].message).equals("300 is outside the range 0 to 255 of uint8");
+        });
+
+        it("accepts the widest value a type holds", () => {
+            expect(validateConstraint("uint8", "0 to 255")).deep.equals([]);
+            expect(validateConstraint("int8", "-128 to 127")).deep.equals([]);
+            expect(validateConstraint("uint16", "0 to 65535")).deep.equals([]);
+        });
+
+        // A signed type holds half the magnitude of the unsigned type of the same width
+        it("rejects a bound above the most a signed type holds", () => {
+            expect(validateConstraint("int8", "0 to 200").map(error => error.code)).deep.equals(["VALUE_EXCEEDS_TYPE"]);
+            expect(validateConstraint("int8", "0 to 127")).deep.equals([]);
+        });
+
+        it("judges a width the specification uses for a byte count", () => {
+            expect(validateDefault("uint24", 16777215)).deep.equals([]);
+            expect(validateDefault("uint24", 16777216).map(error => error.code)).deep.equals(["VALUE_EXCEEDS_TYPE"]);
+        });
+
+        it("accepts the least a 64 bit signed type holds", () => {
+            expect(validateDefault("int64", -9223372036854775808n)).deep.equals([]);
+        });
+
+        // A bitmap resolves to its integer type by name rather than by derivation, so it is its own path
+        it("rejects a value wider than the type a bitmap encodes to", () => {
+            expect(validateDefault("map8", 300).map(error => error.code)).deep.equals(["VALUE_EXCEEDS_TYPE"]);
+        });
+
+        it("rejects a bound the entry of a list is too narrow to hold", () => {
+            const errors = validateList("uint8", "max 4[0 to 300]");
+
+            expect(errors.length).equals(1);
+            expect(errors[0].code).equals("VALUE_EXCEEDS_TYPE");
+            expect(errors[0].message).equals("300 is outside the range 0 to 255 of uint8");
+        });
+
+        it("rejects a bound below the least a signed type holds", () => {
+            expect(validateConstraint("int8", "-129 to 0").map(error => error.code)).deep.equals([
+                "VALUE_EXCEEDS_TYPE",
+            ]);
+        });
+
+        // The sign is the fault a reader acts on; the magnitude adds nothing
+        it("reports a negative on an unsigned type as a negative alone", () => {
+            expect(validateConstraint("uint16", "-1 to 100").map(error => error.code)).deep.equals([
+                "NEGATIVE_ON_UNSIGNED_TYPE",
+            ]);
+        });
+
+        // An enum or bitmap is judged by the integer type carrying it
+        it("rejects a value wider than the type an enum encodes to", () => {
+            expect(validateEnumDefault(300).map(error => error.code)).deep.equals(["VALUE_EXCEEDS_TYPE"]);
+        });
+
+        it("judges a default by the width of its type", () => {
+            expect(validateDefault("uint8", 255)).deep.equals([]);
+            expect(validateDefault("uint8", 256).map(error => error.code)).deep.equals(["VALUE_EXCEEDS_TYPE"]);
+            expect(validateDefault("uint64", 18446744073709551615n)).deep.equals([]);
+            expect(validateDefault("uint64", 18446744073709551617n).map(error => error.code)).deep.equals([
+                "VALUE_EXCEEDS_TYPE",
+            ]);
+        });
+        it("accepts the widest magnitude a float type holds", () => {
+            expect(validateDefault("single", 340282346638528859811704183484516925440)).deep.equals([]);
+            expect(validateDefault("single", -340282346638528859811704183484516925440)).deep.equals([]);
+            expect(validateDefault("double", 1e300)).deep.equals([]);
+        });
+
+        // A float states a magnitude it cannot hold as infinity rather than refusing it
+        it("rejects a magnitude a float type states as infinity", () => {
+            const errors = validateDefault("single", 1e300);
+
+            expect(errors.length).equals(1);
+            expect(errors[0].code).equals("VALUE_EXCEEDS_TYPE");
+            expect(errors[0].message).equals(
+                "1e+300 is outside the range -3.4028234663852886e+38 to 3.4028234663852886e+38 of single",
+            );
+        });
+
+        it("rejects a magnitude below the least a float type holds", () => {
+            expect(validateDefault("single", -1e300).map(error => error.code)).deep.equals(["VALUE_EXCEEDS_TYPE"]);
+        });
+
+        it("judges a float bound by the same range", () => {
+            expect(
+                validateConstraint("single", "max 1000000000000000000000000000000000000000").map(error => error.code),
+            ).deep.equals(["VALUE_EXCEEDS_TYPE"]);
+            expect(validateConstraint("single", "max 100000000000000000000000000000000000000")).deep.equals([]);
+            expect(validateConstraint("double", "max 1000000000000000000000000000000000000000")).deep.equals([]);
+        });
+
+        // Casting to a float rounds a bigint to the nearest magnitude the type states, so the magnitude one above
+        // the widest float becomes that float exactly and would read as in range
+        it("judges the magnitude a float default states, not the one the cast rounds it to", () => {
+            expect(validateDefault("single", 340282346638528859811704183484516925440n)).deep.equals([]);
+            expect(
+                validateDefault("single", 340282346638528859811704183484516925441n).map(error => error.code),
+            ).deep.equals(["VALUE_EXCEEDS_TYPE"]);
+        });
+
+        // Characterization: holding a fraction is what a float is for, so no rule refuses one
+        it("accepts a fractional default on a float type", () => {
+            expect(validateDefault("single", 0.1)).deep.equals([]);
+            expect(validateDefault("double", -1.5)).deep.equals([]);
+        });
+
+        // A number states no magnitude a double cannot hold, so only a bound stating its own digits reaches the range
+        it("judges a bound against the range of a double", () => {
+            expect(validateConstraint("double", `max ${"9".repeat(320)}`).map(error => error.code)).deep.equals([
+                "VALUE_EXCEEDS_TYPE",
+            ]);
+            expect(validateConstraint("double", `max ${"9".repeat(100)}`)).deep.equals([]);
+        });
+
+        // The cast refuses it already, and a value outside no range is not what is wrong with it
+        it("leaves a default stating no magnitude to the cast that refused it", () => {
+            expect(allErrors("single", NaN).map(error => error.code)).deep.equals(["INVALID_VALUE"]);
+            expect(allErrors("single", Infinity).map(error => error.code)).deep.equals(["INVALID_VALUE"]);
+        });
+
+        // A bound keeps its magnitude exactly, so a type's own range is judged and admitted
+        it("accepts the range a 56 or 64 bit type states for itself", () => {
+            expect(validateConstraint("uint64", "max 18446744073709551615")).deep.equals([]);
+            expect(validateConstraint("int64", "-9223372036854775808 to 9223372036854775807")).deep.equals([]);
+
+            // A magnitude stated as a bigint keeps its exact form, so the width judges it
+            for (const [type, dflt] of [
+                ["uint64", 18446744073709551616n],
+                ["int64", 9223372036854775808n],
+                ["uint56", 72057594037927936n],
+            ] as [string, FieldValue][]) {
+                expect(
+                    validateDefault(type, dflt).map(error => error.code),
+                    `${type} ${dflt}`,
+                ).deep.equals(["VALUE_EXCEEDS_TYPE"]);
+            }
+        });
+
+        // A number states its magnitude as it arrived, having lost whatever it lost, so a wide type cannot tell one
+        // from the bound it exceeds — but a magnitude no rounding explains is still refused
+        it("judges a magnitude a number states only as what it rounded to", () => {
+            expect(validateDefault("uint64", 18446744073709551616)).deep.equals([]);
+            expect(validateDefault("uint64", 1e100).map(error => error.code)).deep.equals(["VALUE_EXCEEDS_TYPE"]);
+        });
+
+        // A narrow type holds none of a magnitude that large, so the precision it lost changes nothing
+        it("rejects a magnitude no narrow type could hold", () => {
+            expect(validateConstraint("uint8", "max 99999999999999999999999999").map(error => error.code)).deep.equals([
+                "VALUE_EXCEEDS_TYPE",
+            ]);
+        });
+
+        // A default states its magnitude as text, which the cast reads exactly
+        it("accepts the largest magnitude a 64 bit type holds", () => {
+            expect(validateDefault("uint64", "18446744073709551615")).deep.equals([]);
+        });
+
+        // A bound the specification computes stays an expression, and the rules read numbers.  Judging what an
+        // expression amounts to belongs to Constraint, which alone knows what one means
+        it("does not judge a bound stated as an expression", () => {
+            expect(validateConstraint("uint8", "max 2^16")).deep.equals([]);
+        });
+
         it("accepts a fraction the unit scales to a whole number", () => {
             expect(validateConstraint("percent100ths", "min 0.01%")).deep.equals([]);
+        });
+    });
+
+    // An override states no value to remove a default the specification states
+    describe("a default of no value", () => {
+        it("leaves no default on a type no scalar could state", () => {
+            expect(validateDefault("struct", FieldValue.None)).deep.equals([]);
+            expect(normalizedDefault("struct", FieldValue.None)).undefined;
+        });
+
+        it("leaves no default on a scalar type", () => {
+            expect(validateDefault("uint16", FieldValue.None)).deep.equals([]);
+            expect(normalizedDefault("uint16", FieldValue.None)).undefined;
+        });
+
+        // Casting it to the type would state a value of that type: "[object Object]" on a string, true on a boolean
+        it("leaves no default on a type that could render it", () => {
+            for (const type of ["string", "bool"]) {
+                expect(validateDefault(type, FieldValue.None)).deep.equals([]);
+                expect(normalizedDefault(type, FieldValue.None)).undefined;
+            }
+        });
+    });
+
+    describe("a final model", () => {
+        it("reports what the same model reports unfrozen", () => {
+            for (const [type, dflt] of [
+                ["uint16", "5"],
+                ["uint16", "-1"],
+                ["uint16", 0.01],
+                ["struct", "0"],
+                ["string", "empty"],
+                ["UnsignedTemperature", "25.5°C"],
+                ["percent100ths", { type: "percent", value: 0.01 }],
+            ] as [string, FieldValue][]) {
+                expect(validateFinalDefault(type, dflt).errors).deep.equals(allErrors(type, dflt));
+            }
+        });
+
+        it("leaves the default it cannot normalize as stated", () => {
+            expect(validateFinalDefault("uint16", "5").default).equals("5");
+            expect(normalizedDefault("uint16", "5")).equals(5);
+
+            // The specification's way of stating that a string has no default
+            expect(validateFinalDefault("string", "empty").default).equals("empty");
+            expect(normalizedDefault("string", "empty")).undefined;
+        });
+
+        it("leaves a default naming a sibling as the name it states", () => {
+            const final = modelWithReferenceDefault();
+            expect(validate(final, true)).deep.equals(validate(modelWithReferenceDefault(), false));
+            expect(final.get(ClusterModel, "Test")?.get(AttributeModel, "Bounded")?.default).equals("Other");
+
+            const normalized = modelWithReferenceDefault();
+            ValidateModel(normalized);
+            expect(normalized.get(ClusterModel, "Test")?.get(AttributeModel, "Bounded")?.default).deep.equals(
+                FieldValue.Reference("Other"),
+            );
+        });
+
+        it("leaves a default naming a cluster member as the name it states", () => {
+            const final = modelWithClusterReferenceDefault();
+            expect(validate(final, true)).deep.equals(validate(modelWithClusterReferenceDefault(), false));
+
+            const holder = (model: MatterModel) =>
+                model.get(ClusterModel, "Test")?.get(DatatypeModel, "Holder")?.get(FieldModel, "Bounded")?.default;
+            expect(holder(final)).equals("Limit");
+
+            const normalized = modelWithClusterReferenceDefault();
+            ValidateModel(normalized);
+            expect(holder(normalized)).deep.equals(FieldValue.Reference("Limit"));
+        });
+
+        // Correcting the case is a write, so a final model reports the type as absent instead of resolving it
+        it("reports a type it cannot correct the case of", () => {
+            const final = modelWithCaseMismatch();
+            expect(validate(final, true).map(error => error.code)).deep.equals(["NO_TYPE"]);
+            expect(final.get(ClusterModel, "Derived")?.get(AttributeModel, "foo")?.name).equals("foo");
+
+            const corrected = modelWithCaseMismatch();
+            expect(validate(corrected, false)).deep.equals([]);
+            expect(corrected.get(ClusterModel, "Derived")?.get(AttributeModel, "Foo")?.effectiveType).equals("Foo");
+        });
+
+        // Characterization: a cross-reference redundant with the parent's survives validation, final or not.  The
+        // generator drops these itself
+        it("keeps a cross-reference redundant with its parent", () => {
+            const xref = { document: "cluster", section: "1.2.3" } as const;
+            const build = () =>
+                new MatterModel(
+                    {},
+                    uint8.clone(),
+                    new ClusterModel(
+                        { name: "Test", id: 0xfff1, xref },
+                        Attribute({ name: "Bounded", id: 1, type: "uint8", xref }),
+                    ),
+                );
+
+            for (const final of [true, false]) {
+                const model = build();
+                expect(() => validate(model, final)).not.throws();
+                expect(model.get(ClusterModel, "Test")?.get(AttributeModel, "Bounded")?.xref?.section).equals("1.2.3");
+            }
+        });
+    });
+
+    describe("a rejected default", () => {
+        it("names the value and the type it rejects", () => {
+            const errors = validateDefault("struct", "0");
+
+            expect(errors.length).equals(1);
+            expect(errors[0].code).equals("INVALID_VALUE");
+            expect(errors[0].message).equals('Default value "0" is not a valid object for type struct');
+        });
+
+        it("names a value stated with a unit", () => {
+            const errors = validateDefault("struct", { type: "percent", value: 0.01 });
+
+            expect(errors.map(error => error.message)).contains(
+                'Default value "0.01%" is not a valid object for type struct',
+            );
+        });
+
+        it("names a value stating properties", () => {
+            const errors = validateDefault("uint16", { type: FieldValue.properties, properties: { a: 1 } });
+
+            expect(errors.map(error => error.message)).contains(
+                'Default value "{ a: 1 }" is not a valid integer for type uint16',
+            );
         });
     });
 });

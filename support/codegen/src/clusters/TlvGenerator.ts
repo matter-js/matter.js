@@ -233,7 +233,7 @@ export class TlvGenerator {
         if (globalMapping?.category !== "datatype") {
             const bounds = ModelBounds.createNumberBounds(model);
             if (bounds) {
-                tlv = `${tlv}.bound(${serialize(bounds)})`;
+                tlv = `${tlv}.bound(${serializeBounds(bounds)})`;
             }
         }
 
@@ -555,4 +555,18 @@ export class TlvGenerator {
                 break;
         }
     }
+}
+
+/**
+ * State a bound as the source that carries it.
+ *
+ * The general serializer states a bigint without the suffix a bigint literal needs, which would generate a bound the
+ * model does not state — the very loss exact bounds exist to prevent.
+ */
+function serializeBounds(bounds: { min?: number | bigint; max?: number | bigint }) {
+    const stated = Object.entries(bounds)
+        .filter(([, value]) => value !== undefined)
+        .map(([key, value]) => `${key}: ${value}${typeof value === "bigint" ? "n" : ""}`);
+
+    return `{ ${stated.join(", ")} }`;
 }

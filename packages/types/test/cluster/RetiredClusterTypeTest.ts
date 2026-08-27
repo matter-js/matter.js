@@ -21,7 +21,7 @@ import { Priority } from "#globals/Priority.js";
 import { BitFlag } from "#schema/BitmapSchema.js";
 import { TlvArray } from "#tlv/TlvArray.js";
 import { TlvNullable } from "#tlv/TlvNullable.js";
-import { TlvUInt16, TlvUInt8 } from "#tlv/TlvNumber.js";
+import { TlvNumericSchema, TlvUInt16, TlvUInt8 } from "#tlv/TlvNumber.js";
 import { TlvField, TlvObject } from "#tlv/TlvObject.js";
 import { TlvString } from "#tlv/TlvString.js";
 import { TlvVoid } from "#tlv/TlvVoid.js";
@@ -152,6 +152,42 @@ describe("ClusterCompat", () => {
             const attr = model.get(AttributeModel, "myPersistent");
             expect(attr).exist;
             expect(attr!.effectiveQuality.nonvolatile).equal(true);
+        });
+
+        it("states a persistent attribute whose schema removes the quality", () => {
+            // The schema's own definition removes persistence, which the legacy attribute's flag must override
+            withDeclaredQuality(200, "!N", schema => {
+                const model = RetiredClusterType.ModelForOptions({
+                    id: 1,
+                    name: "Test",
+                    revision: 1,
+                    attributes: {
+                        myPersistent: WritableAttribute(0x12, schema, { persistent: true }),
+                    },
+                });
+
+                const attr = model.get(AttributeModel, "myPersistent");
+                expect(attr).exist;
+                expect(attr!.effectiveQuality.nonvolatile).equal(true);
+            });
+        });
+
+        it("preserves a schema quality it cannot parse so validation reports it", () => {
+            withDeclaredQuality(201, "Z !N", schema => {
+                const model = RetiredClusterType.ModelForOptions({
+                    id: 1,
+                    name: "Test",
+                    revision: 1,
+                    attributes: {
+                        myBadQuality: WritableAttribute(0x13, schema, { persistent: true }),
+                    },
+                });
+
+                const attr = model.get(AttributeModel, "myBadQuality");
+                expect(attr).exist;
+                expect(attr!.quality.valid).equal(false);
+                expect(attr!.effectiveQuality.nonvolatile).equal(true);
+            });
         });
 
         it("skips global attributes", () => {
@@ -372,3 +408,24 @@ describe("ClusterCompat", () => {
         });
     });
 });
+
+/**
+ * A numeric schema declaring a quality of its own.
+ *
+ * `bound()` caches by schema and bounds, so the instance is shared: each caller needs its own bounds, and the
+ * declaration is removed again once the caller is done with it.
+ */
+function withDeclaredQuality(max: number, quality: string, actor: (schema: TlvNumericSchema<number>) => void) {
+    const schema = TlvUInt8.bound({ max });
+
+    Object.defineProperty(schema, "element", {
+        configurable: true,
+        get: () => ({ type: "uint8", quality }),
+    });
+
+    try {
+        actor(schema);
+    } finally {
+        Reflect.deleteProperty(schema, "element");
+    }
+}
