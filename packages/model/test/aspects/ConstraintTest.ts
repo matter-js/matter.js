@@ -432,6 +432,79 @@ describe("Constraint", () => {
         });
     });
 
+    describe("a bound wider than a number states exactly", () => {
+        it("keeps the magnitude of a decimal bound", () => {
+            const constraint = new Constraint("0 to 18446744073709551615");
+
+            expect(constraint.min).equal(0);
+            expect(constraint.max).equal(18446744073709551615n);
+        });
+
+        it("keeps the magnitude of a hexadecimal bound", () => {
+            expect(new Constraint("max 0xFFFFFFFFFFFFFFFF").max).equal(18446744073709551615n);
+        });
+
+        it("keeps the magnitude of a negative bound", () => {
+            const constraint = new Constraint("-9223372036854775808 to 9223372036854775807");
+
+            expect(constraint.min).equal(-9223372036854775808n);
+            expect(constraint.max).equal(9223372036854775807n);
+        });
+
+        // A code point count is bounded by what a message carries, so it states itself as a number
+        it("states a code point maximum as a number", () => {
+            expect(new Constraint("max 128{18446744073709551615}").cpMax).equal(18446744073709552000);
+        });
+
+        // A bound a number states exactly stays a number, so a reader sees the shape it always did
+        it("states a narrower bound as a number", () => {
+            const constraint = new Constraint("-128 to 255");
+
+            expect(constraint.min).equal(-128);
+            expect(constraint.max).equal(255);
+            expect(new Constraint(`max ${Number.MAX_SAFE_INTEGER}`).max).equal(Number.MAX_SAFE_INTEGER);
+        });
+
+        // Runtime validation judges a value against the bound this states, so the magnitude has to survive to here
+        it("judges a value against a bound only a bigint states", () => {
+            const constraint = new Constraint("0 to 18446744073709551614");
+
+            expect(constraint.test(18446744073709551614n)).true;
+            expect(constraint.test(18446744073709551615n)).false;
+        });
+
+        // The number rounds to an integer and the integer is not the value, so neither form states what was written
+        it("reports a fraction of a magnitude no number holds", () => {
+            expect(new Constraint("max 18446744073709551614.5").errors?.map(error => error.code)).contains(
+                "INVALID_NUMBER",
+            );
+            expect(new Constraint("max 18446744073709551614.0").errors).equal(undefined);
+            expect(new Constraint("max 12.5").errors).equal(undefined);
+        });
+
+        it("survives serialization", () => {
+            const constraint = new Constraint("0 to 18446744073709551615");
+
+            expect(`${constraint}`).equal("0 to 18446744073709551615");
+            expect(new Constraint(`${constraint}`).max).equal(18446744073709551615n);
+        });
+    });
+
+    describe("a number the syntax does not state", () => {
+        // The bound reads as the digits before the word, which is why the parser must report the rest of it
+        it("reports a word following a number", () => {
+            expect(new Constraint("max 1e300").errors?.map(error => error.code)).contains(
+                "UNEXPECTED_CONSTRAINT_TOKEN",
+            );
+        });
+
+        it("accepts the suffixes the syntax does state", () => {
+            for (const text of ["max 100", "0 to 12.7°C", "min 0.01%", "max 0x1F", "max 2^62", "max 4[max 10]"]) {
+                expect(new Constraint(text).errors, text).equal(undefined);
+            }
+        });
+    });
+
     describe("reference to a field named like a keyword", () => {
         it("survives serialization", () => {
             const constraint = new Constraint("Min to 100.00%");

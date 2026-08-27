@@ -48,6 +48,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: New `EncodedConstraint()` restates every bound of a constraint in the units the value is encoded in
     - Enhancement: New `EncodedConstraint.bounds()` reports which of a constraint's bounds state a number in encoding units and which state a unit with no known scale
     - Fix: The model build rejects a value stating a unit with no known scale, a fraction an integer type cannot hold, or a negative an unsigned type cannot hold
+    - Fix: The model build rejects a bound or default stating a number outside the range of the integer type that carries it, such as the `300` of a `0 to 300` constraint on a `uint8`
+    - Fix: A constraint bound keeps the magnitude it states: the parser accumulated digits as a number, so `max 18446744073709551615` became 18446744073709552000 and a `uint64` bound admitted values above the type. A bound a number cannot state exactly is now a bigint
+    - Fix: A bitmap or enum value states its magnitude exactly, so a `map64` value no longer loses precision passing through `FieldValue.cast()`
+    - Breaking: `FieldValue.numericValue()` returns a `bigint` for a magnitude a number cannot state exactly, so a 64 bit bound and default keep what they say. `FieldValue.countValue()` is the number-valued form, for a length, a bit position or a count
+    - Fix: `Metatype.cast()` to a float reads a number stated as text instead of refusing it
     - Fix: A default stating a number no integer form matches, such as `1e-3`, is rejected instead of stored as the digits preceding the exponent
     - Fix: `FieldValue.cast()` treats "no value" as a value of every type, so an override removes a default rather than making the value invalid
     - Fix: A rejected default is reported as the value it states and the type that rejected it
@@ -189,6 +194,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The `storage.clear` variable now clears the storage on start as it does on Node.js
 
 - @matter/types
+    - Breaking: `ModelBounds.createNumberBounds()` states a bound as a `bigint` where it lies beyond the safe integers, and states both `min` and `max` where it previously omitted an absent bound; `createLengthBounds()` still states a number, as a length counts what a message can carry
+    - Breaking: `TlvNumericSchema.bound()` states the base type of the schema it bounds in `baseTypeMin` and `baseTypeMax`, where it previously stated the bound; the bound is stated by `min` and `max`. The class gains a protected `constrain()`
+    - Breaking: A bounded 64 bit schema states its datatype again, so a legacy `ClusterType()` cluster derives the type and constraint of such an attribute instead of neither, and enforces a range it previously left open
+    - Fix: A nullable 64 bit integer reserves the value that encodes null from its type rather than from its constraint, so it neither refuses the extreme its constraint states nor admits the sentinel. `ElectricalPowerMeasurement`'s `Frequency` and `PowerFactor` refused their own maximum and minimum
+    - Breaking: `TlvNumericSchema.bound()` refuses a bound stated as a number that the number holds only approximately, such as `9223372036854775807` on a `uint64`, which rounded to 2^63 and admitted a value above the stated maximum. State such a bound as a `bigint`
     - Breaking: Provisional cluster elements are now typed as optional rather than always present
     - Breaking: An onboarding payload's vendor and product ID are reported absent (undefined) where it states none instead of 0
     - Feature: Added the `ClusterLookup` namespace for cluster/attribute/command/event name↔id resolution (optional `MatterModel` for custom clusters)
