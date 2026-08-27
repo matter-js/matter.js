@@ -1035,25 +1035,21 @@ export async function expectChunkedTransfer(
     const chunks = new Array<LogLine>();
     const skipped = new Map<string, number>();
     let cursor = requestLine.index + 1;
-    let quietUntil: number | undefined;
+    let quietUntilAt: number | undefined;
     let closed = false;
     for (;;) {
         // The second chunk is what proves the read chunked at all, so it gets the whole remaining
-        // budget; every later one only has to outlast pump lag. Both are absolute deadlines, and the
-        // clock is read before the wait rather than left to the wait's own timer: another exchange's
-        // reports match this same pattern and are answered out of the follower's buffer before that
-        // timer is consulted, so a backlog of them would otherwise carry collection past both bounds.
-        // A chunk still buffered behind such a backlog reached the log more than CHUNK_QUIET after our
-        // last one, which is what the quiet period says the transfer ended before.
-        const expiry = quietUntil === undefined ? deadline : Math.min(quietUntil, deadline);
+        // budget; every later one only has to outlast pump lag.
         const now = Time.nowUs;
-        if (now >= expiry) {
+        if (now >= deadline) {
             break;
         }
+        const wait =
+            quietUntilAt === undefined ? Millis(deadline - now) : Duration.min(CHUNK_QUIET, Millis(deadline - now));
 
         let next: LogLine;
         try {
-            next = await log.expectPattern(dialect.chunk.line, { timeoutMs: Millis(expiry - now), from: cursor });
+            next = await log.expectPattern(dialect.chunk.line, { timeoutMs: wait, from: cursor });
         } catch (e) {
             if (e instanceof CertLogClosedError) {
                 closed = true;
@@ -1065,6 +1061,15 @@ export async function expectChunkedTransfer(
             throw e;
         }
         cursor = next.index + 1;
+
+        // The quiet period runs between the chunks' own arrival stamps, not between the times this
+        // loop reached them: another exchange's reports match the same pattern and are answered out of
+        // the follower's buffer, so a backlog of them would otherwise both carry collection past the
+        // window and drop a chunk that had arrived inside it. Wall-clock stamps, because that is the
+        // clock the lines themselves carry.
+        if (quietUntilAt !== undefined && next.at.getTime() > quietUntilAt) {
+            break;
+        }
 
         const chunkExchange = dialect.chunk.exchangeOf(log, next);
         if (chunkExchange === undefined) {
@@ -1083,7 +1088,7 @@ export async function expectChunkedTransfer(
 
         chunks.push(next);
         if (chunks.length > 1) {
-            quietUntil = Time.nowUs + CHUNK_QUIET;
+            quietUntilAt = next.at.getTime() + CHUNK_QUIET;
         }
     }
 
