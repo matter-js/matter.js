@@ -41,6 +41,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The `Symbol.metadata` polyfill no longer conflicts with `lib.esnext.decorators` in the published declarations
 
 - @matter/model
+    - Enhancement: A model element's `extend()` can remove an inherited quality, stated as `!N` in the quality definition; the removal survives further extension, and a definition that extends one carrying a removal may state the quality again
+    - Fix: A quality definition given as an array of flags, such as `["N", "T"]`, loads those flags instead of reading as empty
+    - Fix: A quality states which of its flags are not qualities, so a definition another rewrites still carries the flags it could not parse and the errors they raise
     - Fix: A value whose type derives from an enum, as a status code does, is judged by the integer type that holds it, so the numeric definition rules no longer skip it and a scene-capable attribute of such a type is no longer refused
     - Breaking: A provisional element is no longer mandatory; conformance following a `P` describes the conformance intended once the element leaves provisional state
     - Enhancement: `FeatureSelectionErrors()` assesses a cluster's selected features against the combinations its FeatureMap conformance disallows
