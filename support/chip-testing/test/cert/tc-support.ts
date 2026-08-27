@@ -1116,7 +1116,9 @@ export async function expectChunkedTransfer(
             type: "device-log",
             verdict: "fail",
             pattern: String(dialect.chunk.line),
-            detail: `${chunks.length} report chunks on Exchange ${exchange} — the read did not chunk${alsoSeen}`,
+            detail:
+                `${chunks.length} report chunk${chunks.length === 1 ? "" : "s"} on Exchange ${exchange} — the read ` +
+                `did not chunk${alsoSeen}`,
             logLine: chunks[0]?.index ?? requestLine.index,
         };
     }

@@ -218,7 +218,7 @@ describe("expectChunkedTransfer", () => {
 
         expect(record.verdict).equal("fail");
         expect(record.detail).equal(
-            `1 report chunks on Exchange ${EXCHANGE} — the read did not chunk; 1 on Exchange ${EXCHANGE + 1} ` +
+            `1 report chunk on Exchange ${EXCHANGE} — the read did not chunk; 1 on Exchange ${EXCHANGE + 1} ` +
                 "belonged elsewhere",
         );
     });
@@ -824,7 +824,7 @@ describe("expectChunkedTransfer against a matter.js TH", () => {
 
         expect(record.verdict).equal("fail");
         expect(record.detail).equal(
-            `1 report chunks on Exchange ${MATTERJS_EXCHANGE} — the read did not chunk; 1 on Exchange 50ca ` +
+            `1 report chunk on Exchange ${MATTERJS_EXCHANGE} — the read did not chunk; 1 on Exchange 50ca ` +
                 "belonged elsewhere",
         );
     });
