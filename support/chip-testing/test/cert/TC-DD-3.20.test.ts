@@ -6,6 +6,7 @@
 
 import { InternalError } from "@matter/main";
 import { certTest } from "@matter/testing";
+import type { TransitionMark } from "./tc-dd-support.js";
 import {
     commissionByQr,
     recordBackInCommissioningMode,
@@ -18,9 +19,17 @@ import { CommissionedRefs } from "./tc-support.js";
 
 const commissioned = new CommissionedRefs();
 
-// Step 4's claim is about a transition step 3 caused, so its evidence has to be searched from before
-// that removal. A mark taken in step 4 can already be past the line on a TH that returns on its own.
-let unpairedAt: number | undefined;
+// Step 4's claim is about a transition step 3 caused, so its evidence has to start before that
+// removal. A mark taken in step 4 can already be past the device's own announcement, and the network
+// still holds the advertisement the TH published before it was ever commissioned.
+let unpairedAt: TransitionMark | undefined;
+
+function unpaired(): TransitionMark {
+    if (unpairedAt === undefined) {
+        throw new InternalError("Step ran before the TH was unpaired");
+    }
+    return unpairedAt;
+}
 
 certTest("TC-DD-3.20", {
     plan: "devicediscovery.adoc",
@@ -46,9 +55,7 @@ certTest("TC-DD-3.20", {
         "DUT parses TH's QR code. Follow any steps needed for the Commissioner/Commissionee to complete the " +
             "commissioning process over the TH Commissionee's method of device discovery",
         async cx => {
-            const payload = await thQrPayload(cx.devices.th);
-            await recordParse(cx, payload);
-            await commissionByQr(cx, payload, commissioned);
+            await commissionByQr(cx, await thQrPayload(cx.devices.th), commissioned);
         },
         {
             expected:
@@ -68,22 +75,14 @@ certTest("TC-DD-3.20", {
         4,
         "Place TH Commissionee back into commissioning mode using the TH manufacturer's means to be discovered " +
             "by the DUT Commissioner",
-        cx => {
-            if (unpairedAt === undefined) {
-                throw new InternalError("Step ran before the TH was unpaired");
-            }
-            return recordBackInCommissioningMode(cx, {
-                what: "TH advertising as commissionable again",
-                from: unpairedAt,
-            });
-        },
+        cx => recordBackInCommissioningMode(cx, { since: unpaired() }),
         { expected: "Verify that the TH is advertising and able to be discovered by a commissioner." },
     )
     .step(
         "5.a",
         "Scan TH's QR code using the DUT Commissioner.",
         async cx => {
-            await recordParse(cx, await thQrPayload(cx.devices.th));
+            await recordParse(cx, await thQrPayload(cx.devices.th, unpaired()));
         },
         { pics: "MCORE.DD.SCAN_QR_CODE", expected: "Verify the QR code has been scanned successfully." },
     )
@@ -92,9 +91,9 @@ certTest("TC-DD-3.20", {
         "DUT parses TH's QR code. Follow any steps needed for the Commissioner/Commissionee to complete the " +
             "commissioning process over the TH Commissionee's method of device discovery",
         async cx => {
-            const payload = await thQrPayload(cx.devices.th);
-            await recordParse(cx, payload);
-            await commissionByQr(cx, payload, commissioned);
+            // Read after the unpair, so a chip TH restarted in step 4 is scanned from its own
+            // payload rather than from the one the generation that went down had printed
+            await commissionByQr(cx, await thQrPayload(cx.devices.th, unpaired()), commissioned);
         },
         {
             expected:

@@ -26,7 +26,7 @@ import { LineQueue, LogFollower, PicsFile } from "@matter/testing";
 import { expect } from "chai";
 import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
-import type { ManualPairingCodeParts } from "../cert/tc-dd-support.js";
+import type { ManualPairingCodeParts, TransitionMark } from "../cert/tc-dd-support.js";
 import {
     checkGeneratedManualCode,
     checkGeneratedPayload,
@@ -994,10 +994,11 @@ class UnpairFixture {
         options: {
             fabricIndex?: number;
             backchannel?: () => void;
+            onDecommission?: () => void;
             commission?: () => Promise<CertNodeRef>;
         } = {},
     ) {
-        const { fabricIndex = 1, backchannel = () => {} } = options;
+        const { fabricIndex = 1, backchannel = () => {}, onDecommission = () => {} } = options;
         const log = new LogFollower(this.#source, "th");
         this.#log = log;
         const unused = () => Promise.reject(new InternalError("not used by these tests"));
@@ -1019,6 +1020,7 @@ class UnpairFixture {
             operationalMdnsInstanceName: unused,
             decommission: async () => {
                 this.calls.push("decommission");
+                onDecommission();
             },
         };
 
@@ -1079,8 +1081,8 @@ class UnpairFixture {
         this.#source.close();
     }
 
-    mark(): number {
-        return this.#log.mark();
+    async markTransition(): Promise<TransitionMark> {
+        return this.#log.markSettled();
     }
 
     /** Lets the follower's pump ingest what was pushed, so a later `mark()` is past it. */
@@ -1099,8 +1101,9 @@ const MATTERJS_ADVERTISING_COMMISSIONABLE =
 
 describe("recordUnpair", () => {
     it("records the removal and the ended sessions, and gives up the ref", async () => {
-        const fixture = new UnpairFixture("chip-local");
-        fixture.push(CHIP_FABRIC_REMOVED, CHIP_SESSIONS_EXPIRED);
+        const fixture = new UnpairFixture("chip-local", {
+            onDecommission: () => fixture.push(CHIP_FABRIC_REMOVED, CHIP_SESSIONS_EXPIRED),
+        });
 
         await recordUnpair(fixture.cx, fixture.commissioned);
 
@@ -1115,8 +1118,9 @@ describe("recordUnpair", () => {
     // The in-process controller drops the peer as the device announces the removal, so the index the
     // device assigned this controller cannot be read once the fabric is gone
     it("reads the fabric index before removing the fabric", async () => {
-        const fixture = new UnpairFixture("chip-local");
-        fixture.push(CHIP_FABRIC_REMOVED, CHIP_SESSIONS_EXPIRED);
+        const fixture = new UnpairFixture("chip-local", {
+            onDecommission: () => fixture.push(CHIP_FABRIC_REMOVED, CHIP_SESSIONS_EXPIRED),
+        });
 
         await recordUnpair(fixture.cx, fixture.commissioned);
 
@@ -1124,9 +1128,13 @@ describe("recordUnpair", () => {
     });
 
     it("judges both lines against the fabric index the device assigned", async () => {
-        const fixture = new UnpairFixture("chip-local", { fabricIndex: 2 });
-        fixture.push(CHIP_FABRIC_REMOVED, CHIP_SESSIONS_EXPIRED);
-        fixture.close();
+        const fixture = new UnpairFixture("chip-local", {
+            fabricIndex: 2,
+            onDecommission: () => {
+                fixture.push(CHIP_FABRIC_REMOVED, CHIP_SESSIONS_EXPIRED);
+                fixture.close();
+            },
+        });
 
         await expect(recordUnpair(fixture.cx, fixture.commissioned)).rejectedWith(CertCheckFailedError);
 
@@ -1137,16 +1145,33 @@ describe("recordUnpair", () => {
     // matter.js closes the removed fabric's sessions before it answers the invoke, so a search
     // starting where the removal matched would never reach them
     it("finds a session end the TH logged before the removal it answered", async () => {
-        const fixture = new UnpairFixture("matterjs");
-        fixture.push(
-            "2026-08-22 21:48:06.401 INFO Session @1:1946ee4c0f86d574•c677 Session ended",
-            "2026-08-22 21:48:06.406 INFO ProtocolService Invoke » binford-6100.operationalCredentials.removeFabric " +
-                "@1:9a52bb47a4ee167d•c675⇵68ce✉09f1964b statusCode: 0 fabricIndex: 1",
-        );
+        const fixture = new UnpairFixture("matterjs", {
+            onDecommission: () =>
+                fixture.push(
+                    "2026-08-22 21:48:06.401 INFO Session @1:1946ee4c0f86d574•c677 Session ended",
+                    "2026-08-22 21:48:06.406 INFO ProtocolService Invoke » binford-6100.operationalCredentials." +
+                        "removeFabric @1:9a52bb47a4ee167d•c675⇵68ce✉09f1964b statusCode: 0 fabricIndex: 1",
+                ),
+        });
 
         await recordUnpair(fixture.cx, fixture.commissioned);
 
         expect(fixture.checks.map(check => check.verdict)).deep.equal(["pass", "pass", "pass"]);
+    });
+
+    // The contract TC-DD-3.20's steps 4 and 5 rest on: the mark predates the removal, so a check
+    // anchored on it sees what the TH did in response
+    it("returns a mark taken before the fabric came off", async () => {
+        const fixture = new UnpairFixture("chip-local", {
+            onDecommission: () => fixture.push(CHIP_FABRIC_REMOVED, CHIP_SESSIONS_EXPIRED),
+        });
+
+        const mark = await recordUnpair(fixture.cx, fixture.commissioned);
+
+        // Both lines the TH printed because of the removal are at or after it
+        const lines = fixture.cx.devices.th.log.lines;
+        expect(lines.length).greaterThan(mark);
+        expect(lines.slice(mark).map(line => line.text)).deep.equal([CHIP_FABRIC_REMOVED, CHIP_SESSIONS_EXPIRED]);
     });
 
     it("fails, but still gives up the ref, when the TH never logs the removal", async () => {
@@ -1160,9 +1185,12 @@ describe("recordUnpair", () => {
     });
 
     it("records both outcomes before failing on the first bad one", async () => {
-        const fixture = new UnpairFixture("chip-local");
-        fixture.push(CHIP_FABRIC_REMOVED);
-        fixture.close();
+        const fixture = new UnpairFixture("chip-local", {
+            onDecommission: () => {
+                fixture.push(CHIP_FABRIC_REMOVED);
+                fixture.close();
+            },
+        });
 
         await expect(recordUnpair(fixture.cx, fixture.commissioned)).rejectedWith(CertCheckFailedError);
 
@@ -1172,9 +1200,12 @@ describe("recordUnpair", () => {
     // The bundle must carry the session-end outcome even though the removal check ahead of it is what
     // fails the step: recording the two in sequence would throw on the first and drop the second
     it("records the session-end outcome even when the removal check is the one that failed", async () => {
-        const fixture = new UnpairFixture("chip-local");
-        fixture.push(CHIP_SESSIONS_EXPIRED);
-        fixture.close();
+        const fixture = new UnpairFixture("chip-local", {
+            onDecommission: () => {
+                fixture.push(CHIP_SESSIONS_EXPIRED);
+                fixture.close();
+            },
+        });
 
         await expect(recordUnpair(fixture.cx, fixture.commissioned)).rejectedWith(CertCheckFailedError);
 
@@ -1208,7 +1239,7 @@ describe("restoreCommissioningMode, through recordVendorOutcome", () => {
 
         // The restore's own probe, and no second one: a restore that ran has already proven the TH
         // is there, so the attempt does not probe again
-        expect(probed).deep.equal(["TH back in commissioning mode"]);
+        expect(probed).deep.equal(["TH advertising as commissionable again"]);
     });
 
     // The fabric is off the TH once decommission() resolves, whatever the reset that follows does, so
@@ -1254,13 +1285,16 @@ describe("recordBackInCommissioningMode", () => {
     // restart a TH that needs nothing
     it("does not reset a matterjs TH, and takes its own announcement instead", async () => {
         const fixture = new UnpairFixture("matterjs");
-        fixture.push(MATTERJS_ADVERTISING_COMMISSIONABLE);
         const probed = new Array<string>();
 
-        await recordBackInCommissioningMode(fixture.cx, {
+        // The announcement has to land after the helper's own settled mark, which costs a couple of
+        // event-loop turns; the delay is what keeps that ordering out of the scheduler's hands
+        const pending = recordBackInCommissioningMode(fixture.cx, {
             what: "TH advertising again",
             probeCommissionable: async (_cx, what) => void probed.push(what),
         });
+        setTimeout(() => fixture.push(MATTERJS_ADVERTISING_COMMISSIONABLE), 25);
+        await pending;
 
         expect(fixture.calls).deep.equal([]);
         expect(fixture.checks.map(check => check.verdict)).deep.equal(["pass"]);
@@ -1286,14 +1320,14 @@ describe("recordBackInCommissioningMode", () => {
 
     it("searches the announcement from the caller's mark, not from its own entry", async () => {
         const fixture = new UnpairFixture("matterjs");
-        const before = fixture.mark();
+        const before = await fixture.markTransition();
         // A TH that returned to commissioning mode before this helper was entered, which is the
         // ordinary case: the decommission that caused it happened in the caller
         fixture.push(MATTERJS_ADVERTISING_COMMISSIONABLE);
         await fixture.drain();
 
         await recordBackInCommissioningMode(fixture.cx, {
-            from: before,
+            since: before,
             probeCommissionable: async () => {},
         });
 

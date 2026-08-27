@@ -38,6 +38,26 @@ import {
     settleWithin,
 } from "./tc-support.js";
 
+/**
+ * Where a later step's evidence has to start: a log cursor taken before whatever causes the
+ * transition the step will check, once the follower has caught up with what the device already
+ * wrote.
+ *
+ * **The network cannot supply the other half of this.** A commissionable mDNS record can be dated
+ * (`DnssdName` stamps `installedAt`), but not attributed: `DnssdNames` installs records from a
+ * *query's* known-answer list as readily as from a response, so any other commissioner on the LAN
+ * refreshes the date with the device silent — and soliciting for one ourselves attaches the record
+ * we hold as a known answer, which tells the responder to suppress the very reply we want
+ * (`MdnsServer`'s known-answer suppression). A device's own log line is what witnesses a transition
+ * here; see this directory's AGENTS.md.
+ */
+export type TransitionMark = number;
+
+/** Takes a {@link TransitionMark} on the TH, after letting its log pump settle. */
+export async function markTransition(cx: CertStepContext): Promise<TransitionMark> {
+    return cx.devices.th.log.markSettled();
+}
+
 /** Bounds a wait for a line a device prints as it comes up, with a whole commissioning flow ahead of it. */
 export const COMMISSIONING_LOG_TIMEOUT = Seconds(30);
 export const MDNS_TIMEOUT = Seconds(30);
@@ -92,15 +112,20 @@ const ADVERTISING_COMMISSIONABLE = {
  * The onboarding payload the TH publishes for its own setup code. A subject that renders one reports
  * it directly; a chip app only prints it, and the first of the two it prints is the standard
  * commissioning flow's.
+ *
+ * `from` is the log cursor to read it at, and a step after a device restart must supply one: the
+ * default reads the whole log and so returns the payload the *previous* generation printed. That is
+ * harmless only while a flavor pins its discriminator and passcode across restarts, which is a
+ * property of the harness rather than of any device it may run.
  */
-export async function thQrPayload(th: CertDevice): Promise<string> {
+export async function thQrPayload(th: CertDevice, from = 0): Promise<string> {
     if (th.commissioning.qrPairingCode) {
         return th.commissioning.qrPairingCode;
     }
 
     const result = await th.log.expect(
         { chip: SETUP_QR_CODE, matterjs: SETUP_QR_CODE },
-        { flavor: th.flavor, from: 0, timeoutMs: COMMISSIONING_LOG_TIMEOUT },
+        { flavor: th.flavor, from, timeoutMs: COMMISSIONING_LOG_TIMEOUT },
     );
     if (result.verdict === "unverified") {
         throw new InternalError(`${th.flavor} devices neither report nor print an onboarding payload`);
@@ -776,8 +801,8 @@ export async function recordVendorOutcome(
     /** Overridden by the unit tests, which have no advertisement to observe. */
     probeCommissionable: (cx: CertStepContext, what: string) => Promise<void> = recordCommissionable,
 ): Promise<void> {
-    // The same override the caller passed for this helper's own probe: without it a restore reaching
-    // live mDNS is what a unit test would wait out, and its default is the real probe either way.
+    // Passed on to the restore as well: without it a restore reaching live mDNS is what a unit test
+    // would wait out, and its default is the real probe either way.
     const restored = await restoreCommissioningMode(cx, commissioned, probeCommissionable);
 
     // A rejection is evidence about the code only if the TH was there to be found; without this the
@@ -871,14 +896,15 @@ export async function recordVendorOutcome(
  * that flavor it says a fabric went, and only the session line says which. A caller with a second
  * admin on the TH would have another fabric's removal satisfy the first check.
  */
-export async function recordUnpair(cx: CertStepContext, commissioned: CommissionedRefs): Promise<number> {
+export async function recordUnpair(cx: CertStepContext, commissioned: CommissionedRefs): Promise<TransitionMark> {
     const th = cx.devices.th;
     const ref = commissioned.require("dut");
     const node = cx.controllers.dut.node(ref);
 
     const fabricIndex = await readOwnFabricIndex(node);
 
-    const from = th.log.mark();
+    const since = await markTransition(cx);
+    const from = since;
     await node.decommission();
     commissioned.clear("dut");
     cx.recorder.check({
@@ -894,7 +920,7 @@ export async function recordUnpair(cx: CertStepContext, commissioned: Commission
         { check: () => expired.check, what: "TH ended the DUT's fabric's sessions" },
     ]);
 
-    return from;
+    return since;
 }
 
 /**
@@ -925,17 +951,18 @@ export async function recordBackInCommissioningMode(
     cx: CertStepContext,
     options: {
         what?: string;
-        from?: number;
+        since?: TransitionMark;
         /** Overridden by the unit tests, which have no mDNS to answer. */
         probeCommissionable?: (cx: CertStepContext, what: string) => Promise<void>;
     } = {},
 ): Promise<void> {
     const th = cx.devices.th;
     const {
-        what = "TH back in commissioning mode",
+        what = "TH advertising as commissionable again",
         probeCommissionable = recordCommissionable,
-        from = th.log.mark(),
+        since = await markTransition(cx),
     } = options;
+    const from = since;
 
     if (th.flavor !== "matterjs") {
         await th.backchannel({ name: "factoryReset" });
@@ -962,8 +989,9 @@ export async function recordBackInCommissioningMode(
         "TH announced it is advertising commissionable again",
     );
 
-    // The TH advertises itself commissionable on its own schedule, and a discovery started before
-    // that finds only the devices this run is not looking for.
+    // Corroboration only. On its own this is answered by any live record for the TH's discriminator,
+    // including the one it published before it was ever commissioned; the announcement checked above
+    // is what witnesses the transition.
     await probeCommissionable(cx, what);
 }
 
@@ -984,11 +1012,11 @@ async function restoreCommissioningMode(
         return false;
     }
 
-    const from = cx.devices.th.log.mark();
+    const since = await markTransition(cx);
     await cx.controllers.dut.node(previous).decommission();
     commissioned.clear("dut");
 
-    await recordBackInCommissioningMode(cx, { from, probeCommissionable });
+    await recordBackInCommissioningMode(cx, { since, probeCommissionable });
     return true;
 }
 
@@ -1023,7 +1051,9 @@ async function commissionByTarget(
 
     await restoreCommissioningMode(cx, commissioned);
 
-    const from = th.log.mark();
+    // Settled, because the line this waits for names no fabric on either flavor: a completion still
+    // in flight from an earlier commissioning would otherwise satisfy this one
+    const from = await th.log.markSettled();
     let ref;
     try {
         ref = await dut.commission(target);
