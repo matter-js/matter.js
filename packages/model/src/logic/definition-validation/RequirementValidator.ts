@@ -27,9 +27,7 @@ ModelValidator.validators[RequirementElement.Tag] = class RequirementValidator e
                     "INSTANCE_NOT_APPLICABLE",
                     `Only a component device type is required in numbered instances, not ${this.model.element}`,
                 );
-            } else if (typeof instance !== "number" || !Number.isInteger(instance) || instance < 1) {
-                // Instances are numbered from one, and the number tells two requirements apart, so a number that
-                // states no instance would make requirements that are the same look different
+            } else if (this.model.instanceNumber === undefined) {
                 this.error(
                     "INVALID_INSTANCE",
                     `Instance ${FieldValue.serialize(instance)} is not a number of an instance, which counts from 1`,

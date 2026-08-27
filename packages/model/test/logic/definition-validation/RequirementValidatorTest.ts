@@ -69,6 +69,16 @@ describe("RequirementValidator", () => {
             expect(withComponents("1" as unknown as number)).deep.equals(["INVALID_INSTANCE"]);
         });
 
+        // Reporting the number is not enough: a number that states no instance must not stand in for one, or a
+        // requirement carrying it escapes the check for duplicates
+        it("does not let a number that is no instance hide a duplicate", () => {
+            expect(withComponents(undefined, 0).sort()).deep.equals([
+                "DUPLICATE_CHILD",
+                "DUPLICATE_CHILD",
+                "INVALID_INSTANCE",
+            ]);
+        });
+
         it("accepts the numbers the specification counts", () => {
             expect(withComponents(1)).deep.equals([]);
             expect(withComponents(2)).deep.equals([]);

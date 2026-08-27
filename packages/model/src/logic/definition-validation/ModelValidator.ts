@@ -109,8 +109,9 @@ export class ModelValidator<T extends Model> {
                     // requirement of its own.  Only a component states an instance; elsewhere the number would let
                     // two requirements that are genuinely the same escape this check
                     const instance =
-                        child.element === RequirementElement.ElementType.DeviceType && child.instance !== undefined
-                            ? `:${child.instance}`
+                        child.element === RequirementElement.ElementType.DeviceType &&
+                        child.instanceNumber !== undefined
+                            ? `:${child.instanceNumber}`
                             : "";
                     id = `${id}:${child.element}${instance}`;
                 }
