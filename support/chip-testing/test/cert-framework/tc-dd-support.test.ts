@@ -987,6 +987,7 @@ class UnpairFixture {
     readonly cx: CertStepContext;
     readonly commissioned = new CommissionedRefs();
     readonly #source = new LineQueue();
+    readonly #log: LogFollower;
 
     constructor(
         flavor: DeviceFlavor,
@@ -998,6 +999,7 @@ class UnpairFixture {
     ) {
         const { fabricIndex = 1, backchannel = () => {} } = options;
         const log = new LogFollower(this.#source, "th");
+        this.#log = log;
         const unused = () => Promise.reject(new InternalError("not used by these tests"));
 
         const node: CertNodeApi = {
@@ -1076,11 +1078,24 @@ class UnpairFixture {
     close(): void {
         this.#source.close();
     }
+
+    mark(): number {
+        return this.#log.mark();
+    }
+
+    /** Lets the follower's pump ingest what was pushed, so a later `mark()` is past it. */
+    async drain(): Promise<void> {
+        await new Promise(resolve => setImmediate(resolve));
+    }
 }
 
 const CHIP_FABRIC_REMOVED = "[1787433103.742] [23362:73430237:chip] [ZCL] OpCreds: RemoveFabric successful";
 const CHIP_SESSIONS_EXPIRED = "[1787433103.742] [23362:73430237:chip] [IN] Expiring all sessions for fabric 0x1!!";
 const CHIP_SETUP_QR_CODE = "[1787433105.001] [23362:73430237:chip] [SVR] SetupQRCode: [MT:-24J042C00KA0648G00]";
+const CHIP_ADVERTISING_COMMISSIONABLE =
+    "[1787433105.010] [23362:73430237:chip] [DIS] mDNS service published: _matterc._udp; instance name: 245375FD9D5602FE";
+const MATTERJS_ADVERTISING_COMMISSIONABLE =
+    "2026-08-27 13:05:44.123 INFO MdnsAdvertisement Publishing kind: commissionable service: mdns:036341AECBC96116._matterc._udp.local";
 
 describe("recordUnpair", () => {
     it("records the removal and the ended sessions, and gives up the ref", async () => {
@@ -1172,7 +1187,7 @@ describe("restoreCommissioningMode, through recordVendorOutcome", () => {
     // next one has to put it back into commissioning mode first.
     it("resets the TH and gives up the ref before the next attempt", async () => {
         const fixture = new UnpairFixture("chip-local", {
-            backchannel: () => fixture.push(CHIP_SETUP_QR_CODE),
+            backchannel: () => fixture.push(CHIP_SETUP_QR_CODE, CHIP_ADVERTISING_COMMISSIONABLE),
             commission: () => Promise.reject(new DiscoveryError("No commissionable device was discovered")),
         });
         const probed = new Array<string>();
@@ -1220,31 +1235,69 @@ describe("restoreCommissioningMode, through recordVendorOutcome", () => {
 
 describe("recordBackInCommissioningMode", () => {
     it("factory-resets a chip TH and waits for the restarted app's own payload", async () => {
-        const fixture = new UnpairFixture("chip-local", { backchannel: () => fixture.push(CHIP_SETUP_QR_CODE) });
+        const fixture = new UnpairFixture("chip-local", {
+            backchannel: () => fixture.push(CHIP_SETUP_QR_CODE, CHIP_ADVERTISING_COMMISSIONABLE),
+        });
         const probed = new Array<string>();
 
-        await recordBackInCommissioningMode(fixture.cx, "TH advertising again", async (_cx, what) => {
-            probed.push(what);
+        await recordBackInCommissioningMode(fixture.cx, {
+            what: "TH advertising again",
+            probeCommissionable: async (_cx, what) => void probed.push(what),
         });
 
         expect(fixture.calls).deep.equal(["backchannel"]);
-        expect(fixture.checks.map(check => check.verdict)).deep.equal(["pass"]);
+        expect(fixture.checks.map(check => check.verdict)).deep.equal(["pass", "pass"]);
         expect(probed).deep.equal(["TH advertising again"]);
     });
 
     // A matter.js device returns to commissioning mode when its last fabric goes, so erasing it would
     // restart a TH that needs nothing
-    it("only probes a matterjs TH", async () => {
+    it("does not reset a matterjs TH, and takes its own announcement instead", async () => {
         const fixture = new UnpairFixture("matterjs");
+        fixture.push(MATTERJS_ADVERTISING_COMMISSIONABLE);
         const probed = new Array<string>();
 
-        await recordBackInCommissioningMode(fixture.cx, "TH advertising again", async (_cx, what) => {
-            probed.push(what);
+        await recordBackInCommissioningMode(fixture.cx, {
+            what: "TH advertising again",
+            probeCommissionable: async (_cx, what) => void probed.push(what),
         });
 
         expect(fixture.calls).deep.equal([]);
-        expect(fixture.checks).deep.equal([]);
+        expect(fixture.checks.map(check => check.verdict)).deep.equal(["pass"]);
         expect(probed).deep.equal(["TH advertising again"]);
+    });
+
+    // The probe alone passes off a record cached before the TH was ever commissioned, so the device
+    // saying so is what carries the claim — and a TH that never returns must not reach the probe
+    it("fails, without probing, when a matterjs TH never announces the advertisement", async () => {
+        const fixture = new UnpairFixture("matterjs");
+        fixture.close();
+        const probed = new Array<string>();
+
+        await expect(
+            recordBackInCommissioningMode(fixture.cx, {
+                what: "TH advertising again",
+                probeCommissionable: async (_cx, what) => void probed.push(what),
+            }),
+        ).rejectedWith(CertCheckFailedError);
+
+        expect(probed).deep.equal([]);
+    });
+
+    it("searches the announcement from the caller's mark, not from its own entry", async () => {
+        const fixture = new UnpairFixture("matterjs");
+        const before = fixture.mark();
+        // A TH that returned to commissioning mode before this helper was entered, which is the
+        // ordinary case: the decommission that caused it happened in the caller
+        fixture.push(MATTERJS_ADVERTISING_COMMISSIONABLE);
+        await fixture.drain();
+
+        await recordBackInCommissioningMode(fixture.cx, {
+            from: before,
+            probeCommissionable: async () => {},
+        });
+
+        expect(fixture.checks.map(check => check.verdict)).deep.equal(["pass"]);
     });
 
     it("fails, without probing, when the restarted chip TH never prints its payload", async () => {
@@ -1252,8 +1305,9 @@ describe("recordBackInCommissioningMode", () => {
         const probed = new Array<string>();
 
         await expect(
-            recordBackInCommissioningMode(fixture.cx, "TH advertising again", async (_cx, what) => {
-                probed.push(what);
+            recordBackInCommissioningMode(fixture.cx, {
+                what: "TH advertising again",
+                probeCommissionable: async (_cx, what) => void probed.push(what),
             }),
         ).rejectedWith(CertCheckFailedError);
 

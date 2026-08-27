@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/main";
 import { certTest } from "@matter/testing";
 import {
     commissionByQr,
@@ -16,6 +17,10 @@ import {
 import { CommissionedRefs } from "./tc-support.js";
 
 const commissioned = new CommissionedRefs();
+
+// Step 4's claim is about a transition step 3 caused, so its evidence has to be searched from before
+// that removal. A mark taken in step 4 can already be past the line on a TH that returns on its own.
+let unpairedAt: number | undefined;
 
 certTest("TC-DD-3.20", {
     plan: "devicediscovery.adoc",
@@ -54,14 +59,24 @@ certTest("TC-DD-3.20", {
     .step(
         3,
         "Using DUT Commissioner, unpair the TH Commissionee from the Matter network.",
-        cx => recordUnpair(cx, commissioned),
+        async cx => {
+            unpairedAt = await recordUnpair(cx, commissioned);
+        },
         { expected: "Verify the TH is no longer on the Matter network." },
     )
     .step(
         4,
         "Place TH Commissionee back into commissioning mode using the TH manufacturer's means to be discovered " +
             "by the DUT Commissioner",
-        cx => recordBackInCommissioningMode(cx, "TH advertising as commissionable again"),
+        cx => {
+            if (unpairedAt === undefined) {
+                throw new InternalError("Step ran before the TH was unpaired");
+            }
+            return recordBackInCommissioningMode(cx, {
+                what: "TH advertising as commissionable again",
+                from: unpairedAt,
+            });
+        },
         { expected: "Verify that the TH is advertising and able to be discovered by a commissioner." },
     )
     .step(

@@ -75,6 +75,20 @@ const SETUP_QR_CODE = /SetupQRCode: \[(MT:[^\]]+)\]/;
 const COMMISSIONING_COMPLETE = /Commissioning completed successfully/;
 
 /**
+ * The device announcing that it is now advertising itself commissionable — the transition a plan's
+ * "place the TH back into commissioning mode" step asks for, stated by the device rather than
+ * inferred from a record a scanner holds.
+ *
+ * chip's line comes from `Discovery_ImplPlatform`/`Advertiser_ImplMinimalMdns`, which print the same
+ * prefix, so it is the one form both a Linux CI build and a Darwin build emit. The platform build
+ * appends `; instance name: <name>`.
+ */
+const ADVERTISING_COMMISSIONABLE = {
+    chip: /mDNS service published: _matterc\._udp/,
+    matterjs: /MdnsAdvertisement Publishing kind: commissionable/,
+};
+
+/**
  * The onboarding payload the TH publishes for its own setup code. A subject that renders one reports
  * it directly; a chip app only prints it, and the first of the two it prints is the standard
  * commissioning flow's.
@@ -857,7 +871,7 @@ export async function recordVendorOutcome(
  * that flavor it says a fabric went, and only the session line says which. A caller with a second
  * admin on the TH would have another fabric's removal satisfy the first check.
  */
-export async function recordUnpair(cx: CertStepContext, commissioned: CommissionedRefs): Promise<void> {
+export async function recordUnpair(cx: CertStepContext, commissioned: CommissionedRefs): Promise<number> {
     const th = cx.devices.th;
     const ref = commissioned.require("dut");
     const node = cx.controllers.dut.node(ref);
@@ -879,38 +893,55 @@ export async function recordUnpair(cx: CertStepContext, commissioned: Commission
         { check: () => removed.check, what: "TH reported a successful fabric removal" },
         { check: () => expired.check, what: "TH ended the DUT's fabric's sessions" },
     ]);
+
+    return from;
 }
 
 /**
- * Puts the TH back into commissioning mode by its manufacturer's means and records that it is
- * advertising there.
+ * Puts the TH back into commissioning mode by its manufacturer's means and records that it got
+ * there: the device's own announcement that it is advertising commissionable again, and then an
+ * mDNS observation of that advertisement.
  *
- * A chip TH needs a factory reset: removing its last fabric does not return it to commissioning
- * mode. A matter.js device is already there, and erasing it would restart a TH that needs nothing.
+ * A chip TH needs a factory reset: removing its last fabric leaves it re-advertising with
+ * `commissioning mode 0` (`kDisabled`), which publishes no commissionable service. A matter.js
+ * device returns on its own, and erasing it would restart a TH that needs nothing.
+ *
+ * **The device's line is what witnesses the transition; the mDNS probe corroborates it.** A probe on
+ * its own is answered by any live record for the TH's discriminator, including one cached before it
+ * was ever commissioned — and every flavor pins its discriminator across restarts. Measured, not
+ * theorised: on a matterjs run the probe passed at 13:05:44.088 and the device published its
+ * commissionable record at 13:05:44.123, 35 ms later.
+ *
+ * `options.from` is where the announcement is searched from, and must precede whatever caused the
+ * transition — for a matter.js TH that is the caller's own `decommission()`, which happens before
+ * this function is entered, so a mark taken here would already be too late. {@link recordUnpair}
+ * returns exactly that mark.
  *
  * **Every fabric on the TH must already be surrendered.** The reset wipes all of them, so a
  * `CommissionedRefs` still holding one would have the finalizer remove a fabric that is gone and
  * report a cleanup failure in place of the run's real outcome.
- *
- * What this proves is bounded: `probeCommissionable` is answered by any live commissionable record
- * for the TH's discriminator, including one cached from before it was commissioned, so on its own it
- * does not witness the transition back. The restart check is what separates the generations on a
- * chip TH — see this directory's AGENTS.md.
  */
 export async function recordBackInCommissioningMode(
     cx: CertStepContext,
-    what = "TH back in commissioning mode",
-    /** Overridden by the unit tests, which have no mDNS to answer. */
-    probeCommissionable: (cx: CertStepContext, what: string) => Promise<void> = recordCommissionable,
+    options: {
+        what?: string;
+        from?: number;
+        /** Overridden by the unit tests, which have no mDNS to answer. */
+        probeCommissionable?: (cx: CertStepContext, what: string) => Promise<void>;
+    } = {},
 ): Promise<void> {
     const th = cx.devices.th;
+    const {
+        what = "TH back in commissioning mode",
+        probeCommissionable = recordCommissionable,
+        from = th.log.mark(),
+    } = options;
 
     if (th.flavor !== "matterjs") {
-        const from = th.log.mark();
         await th.backchannel({ name: "factoryReset" });
 
         // A chip app's start() returns when the process is up, not when the app is, so without this
-        // the probe below can run before the new generation exists at all.
+        // the checks below can run before the new generation exists at all.
         record(
             cx,
             await expectSequence(
@@ -924,6 +955,12 @@ export async function recordBackInCommissioningMode(
             "TH factory reset",
         );
     }
+
+    record(
+        cx,
+        (await expectDeviceLog(th.log, th.flavor, ADVERTISING_COMMISSIONABLE, from, COMMISSIONING_LOG_TIMEOUT)).check,
+        "TH announced it is advertising commissionable again",
+    );
 
     // The TH advertises itself commissionable on its own schedule, and a discovery started before
     // that finds only the devices this run is not looking for.
@@ -947,10 +984,11 @@ async function restoreCommissioningMode(
         return false;
     }
 
+    const from = cx.devices.th.log.mark();
     await cx.controllers.dut.node(previous).decommission();
     commissioned.clear("dut");
 
-    await recordBackInCommissioningMode(cx, undefined, probeCommissionable);
+    await recordBackInCommissioningMode(cx, { from, probeCommissionable });
     return true;
 }
 
