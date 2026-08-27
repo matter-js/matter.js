@@ -78,7 +78,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Fix: `Stop` and `StopWithOnOff` set `RemainingTime` to zero and report it, including where the application manages transitions and stated an end time
-    - Breaking: `LevelControlServer` and `ColorControlServer` state `transitionEndTimeMs` is now `transitionEndTime`, a `Timestamp`; the value is unchanged but the name and type are not
+    - Breaking: The `transitionEndTimeMs` state field on `LevelControlServer` and `ColorControlServer` is now `transitionEndTime`, a `Timestamp`; the value is unchanged but the name and type are not
     - Fix: `MoveToLevelWithOnOff`, `MoveWithOnOff` and `StepWithOnOff` build their options from the Options attribute and the request's mask and override, so `CoupleColorTempToLevel` couples color temperature to the level for them as it already did for `MoveToLevel`, `Move` and `Step`
     - Fix: `StopWithOnOff` stops a transition on a device that is off; the ExecuteIfOff option gates the commands without On/Off only
     - Fix: `MoveWithOnOff` and `StepWithOnOff` turn the device off when the level they reach is the minimum, and leave a device that is off alone when the level moves down
