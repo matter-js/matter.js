@@ -658,6 +658,21 @@ describe("ControllerAdapter registry", () => {
         }
     });
 
+    it("declares the ScenesManagement client commands TC-S-3.1 sends, and the cluster itself", () => {
+        // Unlike Groups, the device file answers 0 for the cluster as well, so an undeclared S.C would
+        // make the whole test pending rather than skipping one step.
+        const scenesKeys = ["00", "01", "02", "03", "04", "05", "06", "40"].map(id => `S.C.C${id}.Tx`);
+        const asDevice = new PicsFile(["S.C=0", ...scenesKeys.map(key => `${key}=0`)]);
+
+        for (const implementation of ["matterjs", "chip-tool"] as const) {
+            const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
+
+            for (const key of ["S.C", ...scenesKeys]) {
+                expect(new PicsExpression(key).evaluate(forRun), `${implementation} ${key}`).equal(true);
+            }
+        }
+    });
+
     it("declares the client-side capabilities the device's own PICS file answers for a device", () => {
         // Every command TC-ACT-3.2 gates a step on, since a declaration missing from the middle of the
         // range skips that step as quietly as one missing from either end.

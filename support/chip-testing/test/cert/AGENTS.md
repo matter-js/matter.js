@@ -2158,3 +2158,23 @@ widest integer a Matter field can hold fits exactly (`18446744073709551615` and
 `-9223372036854775808` are 20 characters each), but a float need not — the largest finite double
 renders as 23, and `stod` on the truncated text yields a well-formed number that is not the one asked
 for. A value that would not survive is refused rather than silently changed.
+
+## The second cluster-client TC of the same shape (`TC-S-3.1`)
+
+Eight steps, each "DUT issues *command*, TH receives it", plus the same key-set / GroupKeyMap /
+AddGroup preconditions `TC-G-3.2` needs — scenes are addressed by group, so a scene command names a
+group the fabric's key map must already carry. What it adds:
+
+- **The cluster's own PICS key needs declaring, not only its commands.** CHIP's file answers `S.C=0`
+  as well as `S.C.C0x.Tx=0`, so without the overlay the *whole test* is pending rather than one step
+  being skipped — a quieter failure than the per-command case, and one a `certTest`-level `pics`
+  never announces.
+- **A response's status is a separate claim from the invoke resolving.** Every command here but
+  `RecallScene` answers with a status inside its payload, so `answersWithStatus`/`responseStatusOf`
+  (promoted to `tc-support.ts` when this became the second TC to need them) gate on it. A command
+  whose schema mandates a status and answers without one fails rather than skipping the check.
+- **`EpochKey2`/`EpochStartTime2` go as null**, which the plan asks for and both adapters carry.
+- **A list or bitmap field carries no log assertion.** `AddScene`'s `ExtensionFieldSetStructs` and
+  `CopyScene`'s `Mode` are rendered across lines (chip) or as named bits (matter.js), and
+  `expectCommandInvoke` matches one line per field; the surrounding scalar fields carry the evidence.
+  Say so in the step's `expected` rather than leaving a reader to assume the whole payload was checked.

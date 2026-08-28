@@ -96,6 +96,18 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     "G.C.C03.Tx": 1,
     "G.C.C04.Tx": 1,
     "G.C.C05.Tx": 1,
+
+    // Every ScenesManagement client command TC-S-3.1 sends. The CHIP PICS file answers 0 for the
+    // cluster and each command because it describes a device, which is not a scenes client.
+    "S.C": 1,
+    "S.C.C00.Tx": 1,
+    "S.C.C01.Tx": 1,
+    "S.C.C02.Tx": 1,
+    "S.C.C03.Tx": 1,
+    "S.C.C04.Tx": 1,
+    "S.C.C05.Tx": 1,
+    "S.C.C06.Tx": 1,
+    "S.C.C40.Tx": 1,
 };
 
 const WILDCARD_CLUSTER = 0xffffffff;
