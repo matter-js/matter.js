@@ -9,7 +9,15 @@ import { Matter } from "@matter/model";
 import type { CertNodeRef, CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import type { CommandFieldValue } from "./tc-support.js";
-import { CommissionedRefs, expectCommandInvoke, LOG_TIMEOUT, record, requireId } from "./tc-support.js";
+import {
+    answersWithStatus,
+    CommissionedRefs,
+    expectCommandInvoke,
+    LOG_TIMEOUT,
+    record,
+    requireId,
+    responseStatusOf,
+} from "./tc-support.js";
 
 const GROUPS = Matter.clusters.require("Groups");
 const GROUP_KEY_MANAGEMENT = Matter.clusters.require("GroupKeyManagement");
@@ -74,11 +82,11 @@ async function invokeAndCheck(
         detail: response === undefined ? "status=Success" : `status=Success, response=${JSON.stringify(response)}`,
     });
 
-    if (answersWithStatus(commandName)) {
+    if (answersWithStatus(GROUPS, commandName)) {
         // An absent or malformed status is a failure, not a check to skip: skipping it would leave the
         // command resting on the TH's log alone, which says the request arrived and nothing about
         // whether the cluster accepted it.
-        const payloadStatus = statusOf(response);
+        const payloadStatus = responseStatusOf(response);
         record(
             cx,
             {
@@ -129,21 +137,6 @@ function groupKeySet() {
         epochKey2: Bytes.fromHex("d2d1d2d3d4d5d6d7d8d9dadbdcdddedf"),
         epochStartTime2: start + 2_000_000n,
     };
-}
-
-/** Whether `commandName`'s response schema makes a status part of the answer. */
-function answersWithStatus(commandName: string): boolean {
-    const response = GROUPS.commands.require(commandName).responseModel;
-    return response !== undefined && [...response.members].some(member => member.name === "Status");
-}
-
-/** The status a Groups response carries in its payload, or `undefined` where the answer has none. */
-function statusOf(response: unknown): number | undefined {
-    if (typeof response !== "object" || response === null || !("status" in response)) {
-        return undefined;
-    }
-    const { status } = response;
-    return typeof status === "number" ? status : undefined;
 }
 
 /** The group ids a `GetGroupMembership` response carries, whatever shape the controller decoded it into. */

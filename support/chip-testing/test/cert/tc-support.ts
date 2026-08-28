@@ -14,6 +14,7 @@ import {
     Seconds,
     Time,
 } from "@matter/main";
+import type { ClusterModel } from "@matter/model";
 import { Matter } from "@matter/model";
 import type {
     AttributePathSpec,
@@ -855,6 +856,25 @@ export function requireId(id: number | undefined, what: string): number {
         throw new InternalError(`${what} has no numeric id`);
     }
     return id;
+}
+
+/**
+ * The status a command's response carries in its own payload, or `undefined` where the answer has
+ * none. A cluster that answers with a status reports a refusal there rather than as an interaction
+ * status, so an invoke that resolves has told the caller nothing about it yet.
+ */
+export function responseStatusOf(response: unknown): number | undefined {
+    if (typeof response !== "object" || response === null || !("status" in response)) {
+        return undefined;
+    }
+    const { status } = response;
+    return typeof status === "number" ? status : undefined;
+}
+
+/** Whether `commandName`'s response schema makes a status part of the answer. */
+export function answersWithStatus(cluster: ClusterModel, commandName: string): boolean {
+    const response = cluster.commands.require(commandName).responseModel;
+    return response !== undefined && [...response.members].some(member => member.name === "Status");
 }
 
 /**
