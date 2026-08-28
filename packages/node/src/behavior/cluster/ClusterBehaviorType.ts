@@ -11,7 +11,6 @@ import {
     describeList,
     EventEmitter,
     GeneratedClass,
-    hex,
     ImplementationError,
 } from "@matter/general";
 import {
@@ -28,24 +27,12 @@ import {
     ValueModel,
 } from "@matter/model";
 import { Val } from "@matter/protocol";
-import { ClusterId, ClusterType } from "@matter/types";
+import { ClusterType } from "@matter/types";
 import { Behavior } from "../Behavior.js";
 import { DerivedState } from "../state/StateType.js";
 import { introspectionInstanceOf } from "./cluster-behavior-utils.js";
 import type { ClusterBehavior } from "./ClusterBehavior.js";
 import { ClusterBehaviorCache } from "./ClusterBehaviorCache.js";
-
-function assertHostedClusterId(source?: { id?: number; name?: string }) {
-    if (source?.id === undefined || ClusterId.isValid(source.id)) {
-        return;
-    }
-
-    throw new ImplementationError(
-        `Cluster ${source.name ?? "(unnamed)"} has ID 0x${hex.fixed(source.id, 8)} which is not a legal Matter ` +
-            `cluster ID; a standard cluster uses vendor prefix 0x0000 with a suffix of 0x0000 - 0x7fff and a ` +
-            `vendor-specific cluster a non-zero prefix with a suffix of 0xfc00 - 0xfffe`,
-    );
-}
 
 /**
  * Generates a {@link ClusterBehavior.Type}.
@@ -81,13 +68,6 @@ export function ClusterBehaviorType({
 
     if (!schema) {
         throw new ImplementationError("ClusterBehaviorType: no schema available");
-    }
-
-    // A peer may report an ID outside the legal ranges and we model it as reported; a cluster we host ourselves is an
-    // authoring error.  The namespace carries the ID the behavior exposes and need not be the schema's
-    if (!forClient) {
-        assertHostedClusterId(schema);
-        assertHostedClusterId(namespace as { id?: number; name?: string } | undefined);
     }
 
     // Apply feature selection to schema

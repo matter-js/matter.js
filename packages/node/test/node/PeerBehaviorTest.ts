@@ -5,6 +5,7 @@
  */
 
 import { PeerBehavior } from "#node/client/PeerBehavior.js";
+import { ClusterModel, Matter } from "@matter/model";
 import { AttributeId, ClusterId, CommandId } from "@matter/types";
 
 // NetworkCommissioning (0x31) with the EthernetNetworkInterface feature (bit 2).
@@ -64,6 +65,21 @@ describe("PeerBehavior", () => {
             };
 
             const behaviorType = PeerBehavior(shape);
+
+            expect(behaviorType.cluster.id).equals(MALFORMED_MEI);
+        });
+
+        it("builds a cluster for an ID a custom model resolves but the specification does not allow", () => {
+            const matter = Matter.withClusters(new ClusterModel({ id: MALFORMED_MEI, name: "CustomIllegalMei" }));
+
+            const behaviorType = PeerBehavior({
+                kind: "discovered",
+                id: MALFORMED_MEI,
+                revision: 1,
+                attributes: [65528, 65529, 65531, 65532, 65533].map(n => AttributeId(n)),
+                commands: new Array<CommandId>(),
+                matter,
+            });
 
             expect(behaviorType.cluster.id).equals(MALFORMED_MEI);
         });
