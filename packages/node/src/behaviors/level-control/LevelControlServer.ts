@@ -14,7 +14,16 @@ import { ScenesManagementServer } from "#behaviors/scenes-management";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { ServerNode } from "#node/ServerNode.js";
-import { AsyncObservable, cropValueRange, Identity, Logger, MaybePromise, Millis } from "@matter/general";
+import {
+    AsyncObservable,
+    cropValueRange,
+    Identity,
+    Logger,
+    MaybePromise,
+    Millis,
+    type Transaction,
+    type Timestamp,
+} from "@matter/general";
 import { Val } from "@matter/protocol";
 import { Status, StatusResponseError } from "@matter/types";
 import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
@@ -22,6 +31,22 @@ import { LevelControl } from "@matter/types/clusters/level-control";
 import { LevelControlBehavior } from "./LevelControlBehavior.js";
 
 const logger = Logger.get("LevelControlServer");
+
+/**
+ * What one transaction couples to the level.
+ *
+ * `turnsOff` records the direction of the latest level change, because only a change that ends at the minimum level
+ * turns the device off, and the level itself is not there yet while a transition is underway.
+ */
+interface CouplingParticipant extends Transaction.Participant {
+    turnsOff: boolean;
+    colorTemperature: boolean;
+    blocksOnOffReaction: boolean;
+}
+
+function isCoupling(participant: Transaction.Participant): participant is CouplingParticipant {
+    return "turnsOff" in participant && "colorTemperature" in participant && "blocksOnOffReaction" in participant;
+}
 
 const LevelControlBase = LevelControlBehavior.with(LevelControl.Feature.OnOff, LevelControl.Feature.Lighting);
 
@@ -150,8 +175,8 @@ export class LevelControlBaseServer extends LevelControlBase {
                 return readOnlyState.managedTransitionTimeHandling;
             },
 
-            get transitionEndTimeMs() {
-                return readOnlyState.transitionEndTimeMs;
+            get transitionEndTime() {
+                return readOnlyState.transitionEndTime;
             },
 
             get stepInterval() {
@@ -257,11 +282,21 @@ export class LevelControlBaseServer extends LevelControlBase {
      *
      * To replace this logic, override {@link moveToLevelLogic} whicih also implements {@link moveToLevel}.
      */
-    override moveToLevelWithOnOff({ level, transitionTime }: LevelControl.MoveToLevelRequest): MaybePromise {
+    override moveToLevelWithOnOff({
+        level,
+        transitionTime,
+        optionsMask,
+        optionsOverride,
+    }: LevelControl.MoveToLevelRequest): MaybePromise {
         level = cropValueRange(level, this.minLevel, this.maxLevel);
 
         this.#invalidateScenes();
-        return this.moveToLevelLogic(level, transitionTime, true);
+        return this.moveToLevelLogic(
+            level,
+            transitionTime,
+            true,
+            this.#calculateEffectiveOptions(optionsMask, optionsOverride),
+        );
     }
 
     /**
@@ -332,11 +367,11 @@ export class LevelControlBaseServer extends LevelControlBase {
      *
      * To replace default behavior, override {@link moveLogic} which also implements {@link move}.
      */
-    override moveWithOnOff({ moveMode, rate }: LevelControl.MoveRequest): MaybePromise {
+    override moveWithOnOff({ moveMode, rate, optionsMask, optionsOverride }: LevelControl.MoveRequest): MaybePromise {
         rate = this.#assertRateValue(rate);
 
         this.#invalidateScenes();
-        return this.moveLogic(moveMode, rate, true);
+        return this.moveLogic(moveMode, rate, true, this.#calculateEffectiveOptions(optionsMask, optionsOverride));
     }
 
     /**
@@ -397,9 +432,21 @@ export class LevelControlBaseServer extends LevelControlBase {
      *
      * To replace default beahavior, override {@link stepLogic} which also implements {@link step}.
      */
-    override stepWithOnOff({ stepMode, stepSize, transitionTime }: LevelControl.StepRequest): MaybePromise {
+    override stepWithOnOff({
+        stepMode,
+        stepSize,
+        transitionTime,
+        optionsMask,
+        optionsOverride,
+    }: LevelControl.StepRequest): MaybePromise {
         this.#invalidateScenes();
-        return this.stepLogic(stepMode, stepSize, transitionTime, true);
+        return this.stepLogic(
+            stepMode,
+            stepSize,
+            transitionTime,
+            true,
+            this.#calculateEffectiveOptions(optionsMask, optionsOverride),
+        );
     }
 
     /**
@@ -441,15 +488,34 @@ export class LevelControlBaseServer extends LevelControlBase {
         return this.stopLogic(effectiveOptions);
     }
 
-    override stopWithOnOff(request: LevelControl.StopRequest): MaybePromise {
-        return this.stop(request);
+    /**
+     * Default command implementation.
+     *
+     * Unlike {@link stop} this does not consult the ExecuteIfOff option: that gate applies to the commands without
+     * On/Off only.
+     */
+    override stopWithOnOff({ optionsMask, optionsOverride }: LevelControl.StopRequest): MaybePromise {
+        this.#invalidateScenes();
+        return this.stopLogic(this.#calculateEffectiveOptions(optionsMask, optionsOverride));
     }
 
     /**
      * Default stop logic. This aborts any level transition currently underway and sets the remaining time to 0.
      */
     protected stopLogic(_options: LevelControl.Options = {}): MaybePromise {
-        this.internal.transitions?.stop();
+        this.internal.transitions?.cancel();
+
+        // Where the application manages transitions it states the end time, and the remaining time is computed from it
+        // until it passes
+        if (this.state.transitionEndTime === undefined) {
+            return;
+        }
+
+        // A transition step holds this behavior's lock across its own await, so a synchronous write here fails a stop
+        // that lands mid-step
+        return MaybePromise.then(this.context.transaction.lock(this), () => {
+            this.state.transitionEndTime = undefined;
+        });
     }
 
     /**
@@ -477,7 +543,7 @@ export class LevelControlBaseServer extends LevelControlBase {
                 targetValue: targetLevel,
 
                 onStep() {
-                    this.couple(withOnOff, options, targetLevel);
+                    return this.couple(withOnOff, options, targetLevel);
                 },
             });
         });
@@ -489,69 +555,94 @@ export class LevelControlBaseServer extends LevelControlBase {
      * This handles of on/off state in the On/Off cluster and color temperature in the Color Control cluster.
      */
     couple(withOnOff: boolean, options: LevelControl.Options = {}, targetLevel?: number): MaybePromise {
-        let result: MaybePromise = undefined;
+        const coupleOnOff = this.features.onOff && withOnOff && this.agent.has(OnOffServer);
+        const coupleColorTemperature =
+            this.features.lighting && !!options.coupleColorTempToLevel && this.agent.has(ColorControlServer);
 
-        // Couple with On/Off state
-        if (this.features.onOff && withOnOff && this.agent.has(OnOffServer)) {
-            if (targetLevel === undefined) {
-                targetLevel = this.currentLevel;
-            }
+        const { transaction } = this.context;
 
-            if (targetLevel === this.minLevel) {
-                // When moving to off, coupling occurs at end of transaction
-                this.context.transaction.addParticipants({
-                    preCommit: () => {
-                        if (this.currentLevel === this.minLevel) {
-                            const onOff = this.agent.get(OnOffServer);
-                            if (onOff.state.onOff) {
-                                onOff.state.onOff = false;
-                                return true;
-                            }
-                        }
-
-                        return false;
-                    },
-                });
-            } else {
-                // When moving toward on, coupling has immediate affect (this is required by CHIP tests)
-                const onOff = this.agent.get(OnOffServer);
-                if (!onOff.state.onOff) {
-                    onOff.state.onOff = true;
-
-                    if (this.state.onLevel !== null) {
-                        // Ensure we move to "on" level before initiating any transition
-                        result = this.handleOnOffChange(true);
-                        this.internal.blockOnOffCouplingOnce = true; // But block the second call by listener
-                        this.context.transaction.addParticipants({
-                            postCommit: () => {
-                                if (this.internal.blockOnOffCouplingOnce) {
-                                    this.internal.blockOnOffCouplingOnce = false;
-                                }
-                            },
-                        });
-                    }
-                }
-            }
+        // The intent is the latest level change's, not the union of the transaction's: a command whose override clears
+        // a bit must undo what an earlier command in the same transaction asked for
+        const coupling =
+            coupleOnOff || coupleColorTemperature ? this.#couplingFor(transaction) : this.#coupling(transaction);
+        if (coupling === undefined) {
+            return;
         }
 
-        // Couple with ColorControl temp
-        if (this.features.lighting && options.coupleColorTempToLevel && this.agent.has(ColorControlServer)) {
-            this.context.transaction.addParticipants({
-                preCommit: () => {
-                    const colorControl = this.agent.get(ColorControlServer);
-                    const prevTemp = colorControl.mireds;
+        // The level a transition ends at is what decides the direction: a move reports an unbounded target and a step
+        // may overshoot, so both need the device's own bounds applied before they are compared
+        coupling.turnsOff =
+            coupleOnOff &&
+            cropValueRange(targetLevel ?? this.currentLevel, this.minLevel, this.maxLevel) <= this.minLevel;
+        coupling.colorTemperature = coupleColorTemperature;
 
-                    const promise = colorControl.syncColorTemperatureWithLevel(this.currentLevel);
-                    if (promise) {
-                        return promise.then(() => colorControl.mireds !== prevTemp);
-                    }
-
-                    return colorControl.mireds !== prevTemp;
-                },
-            });
+        // This behavior belongs in the lock set: a managed transition tick locks it before it couples, so acquiring the
+        // coupled clusters without it would leave two transactions taking the same locks in opposite orders
+        const resources = new Array<Transaction.Resource>(this);
+        if (coupleOnOff) {
+            resources.push(this.agent.get(OnOffServer));
         }
+        if (coupleColorTemperature) {
+            resources.push(this.agent.get(ColorControlServer));
+        }
+
+        return MaybePromise.then(transaction.lock(...resources), () =>
+            coupleOnOff && !coupling.turnsOff ? this.#turnOnForLevel(coupling) : undefined,
+        );
+    }
+
+    /**
+     * Moving toward on takes effect immediately, which the CHIP tests require.
+     */
+    #turnOnForLevel(coupling: CouplingParticipant): MaybePromise {
+        const onOff = this.agent.get(OnOffServer);
+        if (onOff.state.onOff) {
+            return;
+        }
+
+        onOff.state.onOff = true;
+
+        if (this.state.onLevel === null) {
+            return;
+        }
+
+        // Ensure we move to "on" level before initiating any transition
+        const result = this.handleOnOffChange(true);
+
+        // The reaction this blocks answers `onOff$Changed`, which fires after the commit, so the block cannot live in
+        // this transaction
+        this.internal.blockOnOffCouplingOnce = true;
+        coupling.blocksOnOffReaction = true;
 
         return result;
+    }
+
+    /**
+     * Coupling that must observe the level the transaction settled on: the device turns off only once the level has
+     * actually reached the minimum, and color temperature follows whatever level the transition arrived at.
+     */
+    #coupleOnCommit(coupling: CouplingParticipant): MaybePromise<boolean> {
+        let changed = false;
+
+        if (coupling.turnsOff && this.currentLevel === this.minLevel) {
+            const onOff = this.agent.get(OnOffServer);
+            if (onOff.state.onOff) {
+                onOff.state.onOff = false;
+                changed = true;
+            }
+        }
+
+        if (!coupling.colorTemperature) {
+            return changed;
+        }
+
+        const colorControl = this.agent.get(ColorControlServer);
+        const previousMireds = colorControl.mireds;
+
+        return MaybePromise.then(
+            colorControl.syncColorTemperatureWithLevel(this.currentLevel),
+            () => changed || colorControl.mireds !== previousMireds,
+        );
     }
 
     /**
@@ -576,6 +667,48 @@ export class LevelControlBaseServer extends LevelControlBase {
 
         logger.debug(`OnOff changed to ON, setting level to onLevel value of ${this.state.onLevel}`);
         this.state.currentLevel = this.state.onLevel;
+    }
+
+    /**
+     * The coupling this behavior performs for one transaction.
+     *
+     * One participant per behavior and transaction carries the intent of every level change the transaction makes, so
+     * the coupling that must wait for the settled level happens once.  Both the participant and the intent end with
+     * the commit cycle.
+     */
+    #couplingFor(transaction: Transaction) {
+        const existing = this.#coupling(transaction);
+        if (existing !== undefined) {
+            return existing;
+        }
+
+        const coupling: CouplingParticipant = {
+            role: this.internal,
+
+            turnsOff: false,
+            colorTemperature: false,
+            blocksOnOffReaction: false,
+
+            toString: () => `${this.endpoint} level coupling`,
+
+            preCommit: () => this.#coupleOnCommit(coupling),
+
+            // The block covers one on/off reaction, so it must lift however the transaction ends
+            conclusion: () => {
+                if (coupling.blocksOnOffReaction) {
+                    this.internal.blockOnOffCouplingOnce = false;
+                }
+            },
+        };
+
+        transaction.addParticipants(coupling);
+
+        return coupling;
+    }
+
+    #coupling(transaction: Transaction) {
+        const participant = transaction.getParticipant(this.internal);
+        return participant !== undefined && isCoupling(participant) ? participant : undefined;
     }
 
     #calculateEffectiveOptions(
@@ -660,8 +793,10 @@ export namespace LevelControlBaseServer {
         /**
          * If transition management is disabled you may specify this as the "end time" for transitions.  The remaining
          * time attribute will then report correctly.
+         *
+         * A stop clears this, because the remaining time is zero once the transition ends.
          */
-        transitionEndTimeMs = undefined;
+        transitionEndTime: Timestamp | undefined = undefined;
 
         /**
          * When managing transitions, this is the interval at which steps occur in ms.
@@ -689,7 +824,8 @@ export namespace LevelControlBaseServer {
     }
 
     export class Events extends LevelControlBase.Events {
-        transitionEndTime$Changed = AsyncObservable<[value: number, oldValue: number, context: ActionContext]>();
+        transitionEndTime$Changed =
+            AsyncObservable<[value: Timestamp | undefined, oldValue: Timestamp | undefined, context: ActionContext]>();
     }
 
     export declare const ExtensionInterface: {
@@ -719,7 +855,7 @@ export namespace LevelControlBaseServer {
             options?: LevelControl.Options,
         ): MaybePromise;
         stopLogic(options?: LevelControl.Options): MaybePromise;
-        couple(withOnOff: boolean, options?: LevelControl.Options): MaybePromise;
+        couple(withOnOff: boolean, options?: LevelControl.Options, targetLevel?: number): MaybePromise;
         handleOnOffChange(onOff: boolean): MaybePromise;
         createTransitions<B extends Behavior>(config: Transitions.Configuration<B>): Transitions<B>;
     };

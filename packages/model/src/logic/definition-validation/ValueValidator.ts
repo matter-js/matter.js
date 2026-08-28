@@ -7,7 +7,7 @@
 import { EncodedConstraint } from "#logic/EncodedConstraint.js";
 import { EncodedValue } from "#logic/EncodedValue.js";
 import { ModelTraversal } from "#logic/ModelTraversal.js";
-import { camelize } from "@matter/general";
+import { camelize, FLOAT32_MAX, FLOAT32_MIN, FLOAT64_MAX, FLOAT64_MIN } from "@matter/general";
 import { Access, Aspect, Conformance, Constraint, Quality } from "../../aspects/index.js";
 import { DefinitionError, FieldValue, Metatype } from "../../common/index.js";
 import { CommandElement } from "../../elements/index.js";
@@ -20,6 +20,39 @@ const UNSIGNED_TYPE = /^uint(8|16|24|32|40|48|56|64)$/;
 
 function list(values: FieldValue[]) {
     return values.map(value => FieldValue.serialize(value)).join(" and ");
+}
+
+/** The values a primitive integer type holds, in the units the type is encoded in */
+function rangeOf(primitive: string) {
+    const width = primitive.match(INTEGER_TYPE)?.[1];
+    if (width === undefined) {
+        return;
+    }
+
+    const bits = BigInt(width);
+    if (UNSIGNED_TYPE.test(primitive)) {
+        return { min: 0n, max: 2n ** bits - 1n };
+    }
+
+    return { min: -(2n ** (bits - 1n)), max: 2n ** (bits - 1n) - 1n };
+}
+
+/**
+ * The magnitudes a primitive float type holds.
+ *
+ * A magnitude beyond the range is not the magnitude the encoding keeps: it becomes the type's own maximum or
+ * infinity, so a bound stating one bounds nothing and a default stating one states a different value.  Precision
+ * within the range is not judged, since rounding a fraction to the nearest magnitude the type states is what a float
+ * is for.
+ */
+function floatRangeOf(primitive: string) {
+    switch (primitive) {
+        case "single":
+            return { min: FLOAT32_MIN, max: FLOAT32_MAX };
+
+        case "double":
+            return { min: FLOAT64_MIN, max: FLOAT64_MAX };
+    }
 }
 
 /** Group bounds by the type that decides what they may state, which for a list entry is not the type of the list */
@@ -47,6 +80,8 @@ function groupBy<T>(bounds: EncodedConstraint.Bound<T>[], keyOf: (model: ValueMo
  * Validates models that extend DataModel.
  */
 export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
+    #normalizedDefault?: { value: FieldValue | undefined };
+
     override validate() {
         this.validateProperty({ name: "type", type: "string" });
         this.validateProperty({ name: "byteSize", type: "number" });
@@ -69,10 +104,27 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         // discards what it cannot represent, so what was stated is kept to notice that
         const stated = this.model.default;
         this.#validateType();
-        this.#validateNumericValues(stated);
+        this.#validateNumericValues(stated, this.#effectiveDefault);
         this.#validateEntries();
 
         super.validate();
+    }
+
+    /**
+     * The default the model carries once validation has normalized it, which is the value the remaining checks judge.
+     *
+     * A final model is frozen so normalization cannot write to it; the value it would have written is recorded here so
+     * validating a final model reports exactly what validating the same model unfrozen does.
+     */
+    get #effectiveDefault() {
+        return this.#normalizedDefault === undefined ? this.model.default : this.#normalizedDefault.value;
+    }
+
+    #normalizeDefault(value: FieldValue | undefined) {
+        this.#normalizedDefault = { value };
+        if (!this.model.isFinal) {
+            this.model.default = value;
+        }
     }
 
     /**
@@ -88,7 +140,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
      * This reads what the model states rather than what it inherits, so one bad definition is reported once instead
      * of once per model deriving from it.
      */
-    #validateNumericValues(stated?: FieldValue) {
+    #validateNumericValues(stated: FieldValue | undefined, effective: FieldValue | undefined) {
         const encoded = new Array<EncodedConstraint.Bound<number | bigint>>();
         const unscaled = new Array<EncodedConstraint.Bound<FieldValue>>();
 
@@ -101,16 +153,19 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
 
         // A number states itself; only a unit needs converting.  Asking for the encoded form of every default would
         // lose one too large to be a number, which is where the values of a 64 bit type live
-        const fallback = this.model.default;
+        // Casting to a float rounds a bigint to the nearest magnitude the type states, which lands a value from just
+        // beyond the range back inside it.  What the definition states is the magnitude to judge
+        const magnitude = typeof stated === "bigint" && typeof effective === "number" ? stated : effective;
+
         let reportedUnit = false;
-        if (typeof fallback === "number" || typeof fallback === "bigint") {
-            encoded.push({ value: fallback, model: this.model });
-        } else if (fallback !== undefined) {
-            const value = EncodedValue(this.model, fallback);
+        if (typeof magnitude === "number" || typeof magnitude === "bigint") {
+            encoded.push({ value: magnitude, model: this.model });
+        } else if (effective !== undefined) {
+            const value = EncodedValue(this.model, effective);
             if (value !== undefined) {
                 encoded.push({ value, model: this.model });
-            } else if (FieldValue.is(fallback, FieldValue.percent) || FieldValue.is(fallback, FieldValue.celsius)) {
-                unscaled.push({ value: fallback, model: this.model });
+            } else if (FieldValue.is(effective, FieldValue.percent) || FieldValue.is(effective, FieldValue.celsius)) {
+                unscaled.push({ value: effective, model: this.model });
                 reportedUnit = true;
             }
         }
@@ -158,6 +213,69 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
                 );
                 if (negative.length) {
                     this.error("NEGATIVE_ON_UNSIGNED_TYPE", `${list(negative)} cannot be held by ${primitive}`);
+                }
+            }
+
+            const floats = floatRangeOf(primitive);
+            if (floats !== undefined) {
+                const exceeding = values.filter(value => {
+                    // A bigint states a magnitude a number rounds, and rounding one lands it back inside the range:
+                    // the magnitude one above the widest float becomes that float exactly.  The range of a float is
+                    // whole, so a bigint is judged against it as a bigint
+                    if (typeof value === "bigint") {
+                        return value > BigInt(floats.max) || value < BigInt(floats.min);
+                    }
+
+                    // A number that states no magnitude is reported by the cast that refused it; reporting it again
+                    // as out of range says nothing, and says it wrongly, as a value outside no range
+                    if (!Number.isFinite(value)) {
+                        return false;
+                    }
+
+                    return !(value >= floats.min && value <= floats.max);
+                });
+
+                if (exceeding.length) {
+                    this.error(
+                        "VALUE_EXCEEDS_TYPE",
+                        `${list(exceeding)} ${exceeding.length === 1 ? "is" : "are"} outside the range ` +
+                            `${floats.min} to ${floats.max} of ${primitive}`,
+                    );
+                }
+            }
+
+            const range = rangeOf(primitive);
+            if (range !== undefined) {
+                const exceeding = values.filter(value => {
+                    // A fraction and a negative on an unsigned type are reported above, and a value that is no number
+                    // at all has no magnitude to judge
+                    if (typeof value === "number" && !Number.isInteger(value)) {
+                        return false;
+                    }
+                    if (value < 0 && UNSIGNED_TYPE.test(primitive)) {
+                        return false;
+                    }
+
+                    if (typeof value === "bigint") {
+                        return value > range.max || value < range.min;
+                    }
+
+                    if (Number.isSafeInteger(value)) {
+                        return value > range.max || value < range.min;
+                    }
+
+                    // A magnitude this large states itself only as the number it rounded to, so it is judged against
+                    // the bound rounded the same way: the widest uint64 and the value above it are one number, and
+                    // only a magnitude no rounding explains is refused
+                    return value > Number(range.max) || value < Number(range.min);
+                });
+
+                if (exceeding.length) {
+                    this.error(
+                        "VALUE_EXCEEDS_TYPE",
+                        `${list(exceeding)} ${exceeding.length === 1 ? "is" : "are"} outside the range ` +
+                            `${range.min} to ${range.max} of ${primitive}`,
+                    );
                 }
             }
         }
@@ -272,13 +390,18 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
             // Metatype doesn't handle this case because otherwise you'd never be able to have a string called "empty".
             // In this case though the data likely comes from the spec so we're going to take a flyer and say you can
             // never have "empty" as a default value
-            delete this.model.default;
+            this.#normalizeDefault(undefined);
             return;
         }
 
-        // A fraction has no integer form, and casting it throws rather than saying so.  The numeric validation above
-        // has already reported it, so leave the default as stated
-        if (metatype === Metatype.integer && typeof defaultValue === "number" && !Number.isInteger(defaultValue)) {
+        // A fraction has no integer form, and the cast refuses it rather than saying what is wrong.  The numeric
+        // validation above has already reported it, so leave the default as stated.  An enum and a bitmap state the
+        // integers of the type behind them, so this holds for them too
+        if (
+            typeof defaultValue === "number" &&
+            !Number.isInteger(defaultValue) &&
+            (metatype === Metatype.integer || metatype === Metatype.enum || metatype === Metatype.bitmap)
+        ) {
             return;
         }
 
@@ -295,13 +418,16 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
                 referenced = this.model.owner(ClusterModel)?.member(defaultValue);
             }
             if (referenced instanceof ValueModel && referenced.effectiveType === this.model.effectiveType) {
-                this.model.default = FieldValue.Reference(referenced.name);
+                this.#normalizeDefault(FieldValue.Reference(referenced.name));
                 return;
             }
         }
 
         if (cast === FieldValue.Invalid) {
-            this.error("INVALID_VALUE", `Value "${defaultValue}" is not a ${metatype}`);
+            this.error(
+                "INVALID_VALUE",
+                `Default value "${FieldValue.serialize(defaultValue)}" is not a valid ${metatype} for type ${this.model.effectiveType}`,
+            );
             return;
         }
         defaultValue = cast;
@@ -326,7 +452,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
             }
         }
 
-        this.model.default = defaultValue;
+        this.#normalizeDefault(defaultValue);
     }
 
     #validateEntries() {
@@ -450,7 +576,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         if (typeof def === "string") {
             const other = this.model.parent?.member(def);
             if (other) {
-                this.model.default = FieldValue.Reference(other.name);
+                this.#normalizeDefault(FieldValue.Reference(other.name));
                 return true;
             }
         }
@@ -471,6 +597,12 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
     }
 
     #correctCaseFromShadow() {
+        // The correction is a write, which a final model cannot take.  Claiming it succeeded would suppress the error
+        // that says the type does not resolve, so a final model reports rather than repairs
+        if (this.model.isFinal) {
+            return false;
+        }
+
         const tag = this.model.tag;
         const name = this.model.name.toLowerCase();
         return (

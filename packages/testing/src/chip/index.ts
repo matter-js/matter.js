@@ -22,7 +22,9 @@ export type {
     StepRecorder,
     StepVerdict,
 } from "./cert/cert-context.js";
-export { certTest, MultiDeviceUnsupportedError } from "./cert/cert-dsl.js";
+export { certTest } from "./cert/cert-dsl.js";
+/** @internal Test seam — not API. Per-device identity assignment for a multi-device run. */
+export { DeviceIdentityExhaustedError, identityFor } from "./cert/cert-dsl.js";
 export type { CertStepOptions, CertTestBuilder, CertTestOptions } from "./cert/cert-dsl.js";
 /** @internal Test seam — not API. The gate `certTest()` applies before a test's device starts. */
 export { certPicsFile, unmetTestPics } from "./cert/cert-dsl.js";

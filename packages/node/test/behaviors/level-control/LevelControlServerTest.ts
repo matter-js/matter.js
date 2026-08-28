@@ -182,6 +182,66 @@ function expectTimers(count: number) {
     expect(MockTime.timerCountFor("delayed emit"), "deferred emit timer").equals(count);
 }
 
+describe("LevelControl stop", () => {
+    before(MockTime.enable);
+
+    it("stops a transition on StopWithOnOff while the device is off", async () => {
+        const { node, endpoint } = await transitioningWhileOff();
+
+        await node.online({ command: true }, async agent => {
+            await endpoint.agentFor(agent.context).levelControl.stopWithOnOff({
+                optionsMask: {},
+                optionsOverride: {},
+            });
+        });
+
+        expect(endpoint.state.levelControl.remainingTime).equals(0);
+
+        await node.close();
+    });
+
+    it("leaves a transition running on Stop while the device is off", async () => {
+        const { node, endpoint } = await transitioningWhileOff();
+
+        await node.online({ command: true }, async agent => {
+            await endpoint.agentFor(agent.context).levelControl.stop({
+                optionsMask: {},
+                optionsOverride: {},
+            });
+        });
+
+        // Stop is one of the commands the ExecuteIfOff option gates, so an off device ignores it
+        expect(endpoint.state.levelControl.remainingTime).greaterThan(0);
+
+        await node.close();
+    });
+});
+
+/** A device that is off, with a transition underway that only an ExecuteIfOff override could have started. */
+async function transitioningWhileOff() {
+    MockTime.reset();
+
+    const node = await MockServerNode.createOnline(undefined, { device: undefined });
+
+    const endpoint = await node.add(DimmableLightDevice, {
+        onOff: { onOff: false },
+        levelControl: { managedTransitionTimeHandling: true, currentLevel: 1, options: {} },
+    });
+
+    await node.online({ command: true }, async agent => {
+        await endpoint.agentFor(agent.context).levelControl.moveToLevel({
+            level: 254,
+            transitionTime: 300,
+            optionsMask: { executeIfOff: true },
+            optionsOverride: { executeIfOff: true },
+        });
+    });
+
+    expect(endpoint.state.levelControl.remainingTime).greaterThan(0);
+
+    return { node, endpoint };
+}
+
 async function setup() {
     MockTime.reset();
 

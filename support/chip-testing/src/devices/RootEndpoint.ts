@@ -34,6 +34,9 @@ export interface RootNodeOptions {
     wifi: boolean;
     discriminator: number;
     passcode: number;
+
+    /** Operational port, defaulting to Matter's 5540. See `TestInstanceConfig.port`. */
+    port?: number;
     /** Optional override for the test enable key (hex). When undefined, NodeTestInstance.testEnableKey is used. */
     enableKeyHex?: string;
     /** Mount the Groupcast cluster (and Auxiliary ACL support it requires) on the root endpoint. */
@@ -102,7 +105,7 @@ export async function buildRootNode(opts: RootNodeOptions): Promise<ServerNode> 
             nonvolatile: NodeTestInstance.nonvolatileEvents,
         },
         network: {
-            port: 5540,
+            port: opts.port ?? 5540,
             tcp: true,
             transportPreference: process.env.TEST_PREFER_TCP === "1" ? "tcp" : "udp",
             //advertiseOnStartup: false,

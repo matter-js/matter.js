@@ -130,6 +130,7 @@ export class AllDevicesTestInstance extends NodeTestInstance {
             wifi,
             discriminator: this.config.discriminator ?? 3840,
             passcode: this.config.passcode ?? 20202021,
+            port: this.config.port,
             enableKeyHex,
             groupcast,
         });

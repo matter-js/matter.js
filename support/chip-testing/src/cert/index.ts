@@ -64,8 +64,16 @@ function runTaggedForDevice<T>(id: string, fn: () => Promise<T>): Promise<T> {
  * Log attribution is best-effort: `initialize()`/`start()`/`stop()`/`close()` tag the matter.js
  * `Logger` sink with this device's id via `AsyncLocalStorage`, which Node propagates through any
  * async work descending from those calls (including most of a server node's own background
- * activity). It does not guarantee attribution for every line if multiple matterjs-flavored devices
- * ever ran concurrently in one process — today's cert tests only ever activate one at a time.
+ * activity).
+ *
+ * **A cert test may now declare several devices, so several of these do run concurrently.** Each
+ * node's own transport and storage are created inside `runTaggedForDevice`, so its own lines carry
+ * its own tag. What this cannot tag correctly is a service resolved lazily from the shared parent
+ * environment during whichever device happened to start first: that resolution captures the first
+ * device's tag for good, and lines it later emits on behalf of another device land in the first
+ * device's log. Attribution is therefore reliable for a device's own interactions — which is what a
+ * step's device-log checks read — and not for shared-service chatter. A step that must attribute a
+ * line to one of several devices should assert on something only that device says.
  */
 class MatterJsCertDevice implements CertDevice {
     readonly flavor: DeviceFlavor = "matterjs";
@@ -153,8 +161,9 @@ function MatterJsCertSubject(implementation: DeviceTestInstanceConstructor<NodeT
         const inner = new implementation({
             domain,
             commandPipeFactory: async () => {},
-            discriminator: 3840,
-            passcode: 20202021,
+            discriminator: options?.identity?.discriminator ?? 3840,
+            passcode: options?.identity?.passcode ?? 20202021,
+            port: options?.identity?.port,
             appArgs: options?.appArgs,
         });
         return new MatterJsCertDevice(inner, `${inner.id}`);

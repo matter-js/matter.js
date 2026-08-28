@@ -672,7 +672,6 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
         "DUT sends the Read Request Message to the TH to read something(Attribute) which is larger than 1 MTU(1280 bytes) and per spec can be chunked. For every chunked data message received, except the last one, DUT sends a status response.",
         commissioned.withRef("dut", async (cx, ref) => {
             const th = cx.devices.th;
-            const from = th.log.mark();
 
             const spec: AttributePathSpec = {};
             const { value, logCheck } = await readAndCheckLog(cx, ref, spec);
@@ -693,7 +692,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 );
             }
 
-            const chunkCheck = await expectChunkedTransfer(th.log, th.flavor, from, LOG_TIMEOUT);
+            const chunkCheck = await expectChunkedTransfer(th.log, th.flavor, logCheck, LOG_TIMEOUT);
             record(cx, chunkCheck, "Chunked-transfer log");
         }),
         {
@@ -744,6 +743,9 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                     type: "response",
                     verdict: "unverified",
                     detail: "matter.js all-clusters app defines no manufacturer-specific cluster",
+                    accepted:
+                        "the matter.js all-clusters app defines no manufacturer-specific cluster, so this " +
+                        "device cannot answer the read the step asks for",
                 });
                 if (!sizePass) {
                     throw new CertCheckFailedError(

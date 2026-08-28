@@ -327,7 +327,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                 nonvolatile: NodeTestInstance.nonvolatileEvents,
             },
             network: {
-                port: 5540,
+                port: this.config.port ?? 5540,
                 tcp: true,
                 transportPreference: process.env.TEST_PREFER_TCP === "1" ? "tcp" : "udp",
                 //advertiseOnStartup: false,
