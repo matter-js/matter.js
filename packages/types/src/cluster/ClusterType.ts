@@ -122,7 +122,7 @@ export function ClusterType(input: ClusterModel | RetiredClusterType.Options): o
     // Core identity
     if (model.id !== undefined) {
         // A peer may report an ID outside the legal MEI ranges and we model the device as it reports itself.  IDs of
-        // clusters we host ourselves are validated by ClusterBehaviorType
+        // clusters we host ourselves are validated by ClusterBehavior.for().
         props.id = ClusterId(model.id, false);
     }
     props.name = model.name;
