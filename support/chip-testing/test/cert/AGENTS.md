@@ -1867,6 +1867,21 @@ flow in its verdict, so these two would have recorded a `pass` whose text named 
 A helper whose verdict names a property must take that property from the caller, or the second test
 case to use it silently asserts the first one's value.
 
+**The transition the flow is named for is not exercised, and each leg's `.a` says so.** A user-intent
+or custom flow means the device is not commissionable until someone acts, which is why `.a`'s text
+carries "Commissionee is NOT in commissioning mode" — but an uncommissioned node opens its basic
+commissioning window at boot and neither TH flavor can suppress that, so `.d` commissions a TH that
+was commissionable throughout. `.a` records an `unverified` check carrying `accepted` for it: the step
+still passes, the bundle's unverified count carries the gap, and nothing in it implies a precondition
+that never held. A step whose setup the harness cannot establish states that in the bundle rather than
+recording only the parts it could do.
+
+**Both `.b` and `.c` parse the code, so both carry the `MCORE.DD.SCAN_QR_CODE` gate.** `.c` re-parses
+rather than citing `.b`'s parse, so on a controller declaring it cannot take a scanned payload an
+ungated `.c` would record a parse pass beside `.b`'s skip — the contradiction the "gated scan step"
+rule above exists to prevent. Where a step genuinely re-does the gated operation the fix is the gate,
+not dropping the claim.
+
 **Step `.c` is the one worth having, and it is negative.** The plan asks to verify the DUT parsed the
 code *and* that the TH has not been commissioned: a flow saying "not commissionable yet" must not have
 the DUT commission the device merely because it read the code. `recordNotCommissioned` states that

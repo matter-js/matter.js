@@ -36,6 +36,11 @@ function noRadio(transport: string) {
     );
 }
 
+const NOT_COMMISSIONABLE_UNAVAILABLE =
+    "no TH this harness runs can be uncommissioned and not commissionable at the same time — an " +
+    "uncommissioned node opens its basic commissioning window at boot, and neither flavor can " +
+    "suppress that";
+
 /**
  * TC-DD-3.12 and TC-DD-3.13 are one test case with one field changed, so they are declared from one
  * place: three transport legs of four steps each — generate a payload carrying the flow, scan it,
@@ -46,6 +51,11 @@ function noRadio(transport: string) {
  * manufacturer's steps is not something this harness can produce. So `qrPayloadWith` writes the flow
  * the test case is named for into the TH's own payload, and the scan step reads it back through the
  * DUT's parser — which is what makes the step evidence about the flow rather than about the TH.
+ *
+ * **What no leg exercises is the transition the flow is named for.** A user-intent or custom flow says
+ * the device is not commissionable until someone acts, and `.a`'s precondition says so — but a TH this
+ * harness runs advertises as commissionable from boot, so `.d` commissions one that never made that
+ * transition. Each leg's `.a` records that gap rather than leaving the bundle to imply otherwise.
  *
  * **Step `.c` carries the interesting claim**, and it is a negative one: the plan says "Verify DUT has
  * parsed the QR code. Verify TH has not been commissioned to the Matter network." Parsing a payload
@@ -74,6 +84,9 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number, flo
     ];
 
     for (const leg of legs) {
+        // Both `.b` and `.c` parse the code themselves, so both need the scan gate
+        const scanGate = leg.pics === undefined ? "MCORE.DD.SCAN_QR_CODE" : `MCORE.DD.SCAN_QR_CODE & ${leg.pics}`;
+
         const payloadFor = async (cx: CertStepContext) =>
             qrPayloadWith(await thQrPayload(cx.devices.th), { discoveryCapabilities: leg.bitmask, flowType });
 
@@ -97,6 +110,16 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number, flo
                         },
                         `${leg.transport} ${flowName.toLowerCase()}-flow payload`,
                     );
+
+                    cx.recorder.check({
+                        type: "network",
+                        verdict: "unverified",
+                        detail:
+                            "TH advertises as commissionable from boot, so the plan's \"Commissionee is NOT in " +
+                            'commissioning mode" precondition does not hold and step .d commissions a TH that was ' +
+                            "commissionable throughout",
+                        accepted: NOT_COMMISSIONABLE_UNAVAILABLE,
+                    });
                 },
                 { pics: leg.pics, expected: "User has a QR code to pass into DUT." },
             )
@@ -109,9 +132,7 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number, flo
                     await recordPayloadOffering(cx, payload, leg.capability, flowType);
                 },
                 {
-                    // A leg's steps stand or fall together: this one scans "the QR code from the
-                    // previous step", so it must not run where that step was gated out
-                    pics: leg.pics === undefined ? "MCORE.DD.SCAN_QR_CODE" : `MCORE.DD.SCAN_QR_CODE & ${leg.pics}`,
+                    pics: scanGate,
                     expected: "Verify the QR code has been scanned successfully.",
                 },
             )
@@ -130,7 +151,7 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number, flo
                     await recordNotCommissioned(cx, th, since, "TH was not commissioned by the parse");
                 },
                 {
-                    pics: leg.pics,
+                    pics: scanGate,
                     expected:
                         "Verify DUT has parsed the QR code. Verify TH has not been commissioned to the Matter " +
                         "network.",

@@ -277,7 +277,8 @@ const FLOW_NAMES: Record<number, string> = {
 };
 
 /**
- * Records that the DUT reads `payload` as offering `capability` over the standard commissioning flow.
+ * Records that the DUT reads `payload` as offering `capability` over the commissioning flow `flowType`
+ * denotes, which defaults to the standard one.
  *
  * The capability is what tells one leg of a per-transport plan from another, and the flow is what such
  * a plan is named for, so both belong in the verdict. Left to the prose, every leg's scan step passes
