@@ -1185,8 +1185,11 @@ truncated integer and the other as a chip-tool usage error.
 
 What the plan asks to verify, and how each part is evidenced:
 
-- **The timeout the device was asked for** — `TimedRequestMessage =` / `{` / `TimeoutMs = 0xc8,`, all
-  consecutive; the field is bare lowercase hex and the block closes with a bare `}`.
+- **The timeout the device was asked for** — `TimedRequestMessage =` / `{` / `TimeoutMs = 0x7d0,`, all
+  consecutive; the field is bare lowercase hex of the millisecond value the TC's own
+  `TIMED_INTERACTION_TIMEOUT` names, and the block closes with a bare `}`. The plan quotes 200ms as an
+  example, not a requirement, and a window that tight is missed by the controller's own follow-up under
+  CI load, so the TC asks for 2s.
 - **The message was unicast** — chip's own receive line categorises the session: `(S)` secure unicast,
   `(U)` unencrypted unicast, `(G)` secure groupcast (`src/messaging/README.md`). `expectUnicastReceipt`
   scans *backward* from the decode dump for the nearest `Msg RX from` line, which is this message's own
@@ -1862,19 +1865,23 @@ something the harness can produce. `qrPayloadWith` gained a `flowType` field for
 scan step reads it back through the DUT's own parser — which is what makes the step evidence about the
 flow rather than about the TH.
 
-**`recordPayloadOffering` takes the expected flow as a parameter.** It used to hardcode the standard
-flow in its verdict, so these two would have recorded a `pass` whose text named a flow nobody checked.
-A helper whose verdict names a property must take that property from the caller, or the second test
-case to use it silently asserts the first one's value.
+**`recordPayloadOffering` takes the expected flow as a parameter.** A helper whose verdict names a
+property must take that property from the caller; one holding the value itself records a `pass` whose
+text names a flow nobody checked, and the second test case to use it silently asserts the first one's
+value.
 
 **The transition the flow is named for is not exercised, and each leg's `.a` says so.** A user-intent
 or custom flow means the device is not commissionable until someone acts, which is why `.a`'s text
 carries "Commissionee is NOT in commissioning mode" — but an uncommissioned node opens its basic
-commissioning window at boot and neither TH flavor can suppress that, so `.d` commissions a TH that
-was commissionable throughout. `.a` records an `unverified` check carrying `accepted` for it: the step
-still passes, the bundle's unverified count carries the gap, and nothing in it implies a precondition
-that never held. A step whose setup the harness cannot establish states that in the bundle rather than
-recording only the parts it could do.
+commissioning window at boot and neither TH flavor can suppress that. `.a` records an `unverified`
+check carrying `accepted` for it: the step still passes, the bundle's unverified count carries the
+gap, and nothing in it implies a precondition that never held. A step whose setup the harness cannot
+establish states that in the bundle rather than recording only the parts it could do.
+
+The detail names what the leg does instead, and that differs per leg: the IP leg commissions a TH
+that was commissionable throughout, while the BLE and Wi-Fi PAF legs commission nothing at all
+because their `.d` is `notApplicable`. One text for all three put two contradictory statements about
+the same step in one bundle.
 
 **Both `.b` and `.c` parse the code, so both carry the `MCORE.DD.SCAN_QR_CODE` gate.** `.c` re-parses
 rather than citing `.b`'s parse, so on a controller declaring it cannot take a scanned payload an
@@ -1882,12 +1889,26 @@ ungated `.c` would record a parse pass beside `.b`'s skip — the contradiction 
 rule above exists to prevent. Where a step genuinely re-does the gated operation the fix is the gate,
 not dropping the claim.
 
-**Step `.c` is the one worth having, and it is negative.** The plan asks to verify the DUT parsed the
-code *and* that the TH has not been commissioned: a flow saying "not commissionable yet" must not have
-the DUT commission the device merely because it read the code. `recordNotCommissioned` states that
-from the TH's own log. This is the only step in either test case that could fail against a correct
-parse, which is the usual pattern — the positive steps confirm plumbing, the negative one is where a
-defect would surface.
+**`.c` records the parse and stops there, and the plan's second sentence is why this is worth stating.**
+The plan asks to verify the DUT parsed the code *and* that the TH has not been commissioned. The
+second half looks like the valuable claim and is not testable here: the only thing `.c` asks of the
+DUT is `parseQrPayload`, which is a local decode on both controllers — `singleQrPayload` in-process,
+`payload parse-setup-payload` for chip-tool — and reaches no network. A `recordNotCommissioned` after
+it searches a window nothing could have written to, and passes for a claim nobody tested.
+
+The general rule: before recording a negative check, ask what could have produced the thing it looks
+for. If the step's own actions cannot, the check is not evidence, and a bundle full of such checks
+reads exactly like one full of real ones. Whether a commissioner honours a flow that says "not
+commissionable yet" is observable only where it is offered the chance to commission — `.d` — and
+what to do there is an open item, because a commissioner that correctly declines such a code
+currently fails the step.
+
+**The flow's title comes from `flowTitle(flowType)`, not from the caller.** A test case states the
+flow once, as the constant it passes; the step prose, the check verdicts and the payload all derive
+from that. Passing a name alongside the value lets the two drift, which is the same defect as a
+helper hardcoding a flow it claims to check, one level up. `flowName` handles the value the field can
+carry but the specification does not define — the field is two bits, so 3 is reachable — and
+`flowTitle` throws for it, because a test case named after an undefined flow is our own mistake.
 
 **The plan's own example payload is a custom-flow code, in both test cases' preconditions.** It
 decodes to `flowType` 2, which is right for TC-DD-3.13 and contradicts TC-DD-3.12's own title. Worth

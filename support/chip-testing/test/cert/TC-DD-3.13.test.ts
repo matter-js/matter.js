@@ -15,5 +15,4 @@ defineFlowQrTest(
         app: "all-clusters",
     }),
     CUSTOM_FLOW,
-    "Custom",
 );
