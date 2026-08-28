@@ -6,6 +6,7 @@
 
 import { CrossReference } from "#models/CrossReference.js";
 import { ElementTag } from "../../common/index.js";
+import { RequirementElement } from "../../elements/index.js";
 import { CommandModel, Model, RequirementModel, ValueModel } from "../../models/index.js";
 
 /**
@@ -27,13 +28,6 @@ export class ModelValidator<T extends Model> {
             const base = this.model.base;
             if (!base) {
                 this.error("TYPE_UNKNOWN", `Type ${this.model.type} does not resolve`);
-            }
-        }
-
-        if (this.model.xref) {
-            const parentXref = this.model.parent?.effectiveXref;
-            if (parentXref && this.model.xref === parentXref) {
-                delete this.model.xref;
             }
         }
 
@@ -111,7 +105,15 @@ export class ModelValidator<T extends Model> {
                 if (child instanceof CommandModel) {
                     id = `${id}:${child.direction}`;
                 } else if (child instanceof RequirementModel) {
-                    id = `${id}:${child.element}`;
+                    // A device type may require several instances of one component, numbered from 1, and each is a
+                    // requirement of its own.  Only a component states an instance; elsewhere the number would let
+                    // two requirements that are genuinely the same escape this check
+                    const instance =
+                        child.element === RequirementElement.ElementType.DeviceType &&
+                        child.instanceNumber !== undefined
+                            ? `:${child.instanceNumber}`
+                            : "";
+                    id = `${id}:${child.element}${instance}`;
                 }
                 const identity = `${child.tag};${id};${(child as ValueModel).conformance}`;
                 if (identities[identity]) {

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { PicsValues } from "../pics/values.js";
 import type { LogSource } from "./cert-context.js";
 import { resolveControllerImplementation } from "./device-config.js";
 import type { ControllerImplementation } from "./device-config.js";
@@ -25,16 +26,35 @@ export type CertNodeRef = string;
  * Structurally compatible with {@link Subject.CommissioningParameters} so a step can pass
  * `subject.commissioning` directly for a device's original setup code.
  *
- * Either `manualPairingCode` or both `passcode`/`discriminator` must be present. An enhanced
- * commissioning window (`CertNodeApi.openCommissioningWindow({enhanced: true})`) generates a fresh
- * random discriminator/passcode pair that only the returned `manualPairingCode` carries — a step
- * commissioning through that window has no other way to obtain them.
+ * A `qrPairingCode`, a `manualPairingCode`, or both `passcode`/`discriminator` must be present; an
+ * adapter reads them in that order, so passing a whole `subject.commissioning` pairs through its
+ * onboarding payload where the subject publishes one and through its setup code otherwise (a
+ * subject that cannot render a payload reports it as an empty string).
+ *
+ * An enhanced commissioning window (`CertNodeApi.openCommissioningWindow({enhanced: true})`)
+ * generates a fresh random discriminator/passcode pair that only the returned pairing codes carry —
+ * a step commissioning through that window has no other way to obtain them.
  */
 export interface CommissioningTarget {
     passcode?: number;
     discriminator?: number;
     qrPairingCode?: string;
     manualPairingCode?: string;
+
+    /**
+     * Bounds how long the controller looks for the commissionee before giving up.
+     *
+     * For a step whose code names a device that is not there, where the controller's own budget is
+     * far longer than the step needs — matter.js waits out the specification's 3-minute minimum
+     * commissioning window. A controller that cannot be bounded says so and reports whatever its own
+     * policy produces.
+     *
+     * On matter.js this **also caps PASE establishment**, which otherwise gets 30 seconds of its own:
+     * `CommissioningDiscovery.Options` merges the discovery and commissioning option sets and both
+     * declare `timeout`. Harmless where no device is expected to answer; a step that sets this on a
+     * target that does resolve is shortening its handshake budget too.
+     */
+    giveUpAfterMs?: number;
 
     /**
      * Ask for commissioning to give up after a single operational handshake attempt, so a step that means to prove the
@@ -164,6 +184,37 @@ export interface TimedInteractionOptions {
     timedInteractionTimeoutMs?: number;
 }
 
+/**
+ * One command of a {@link CertNodeApi.invokeBatch} request.
+ */
+export interface BatchCommandSpec {
+    cluster: string | number;
+    command: string;
+    args?: object;
+    /** Default 0, as {@link CertNodeApi.invoke}'s own endpoint argument. */
+    endpoint?: number;
+}
+
+/**
+ * The device's answer to one command of a {@link CertNodeApi.invokeBatch} request.
+ */
+export interface BatchCommandResult {
+    /**
+     * Position of the answered command in the request (Matter Core § 8.9.3's `CommandRef`, which the
+     * device echoes). A device answering out of order — or not at all — is still attributable.
+     */
+    index: number;
+
+    /** Interaction status; `0` is success. Absent when the device answered with a response payload. */
+    status?: number;
+
+    /** Cluster-specific status accompanying `status`, when the device sent one. */
+    clusterStatus?: number;
+
+    /** Response payload, for a command that has one. */
+    data?: unknown;
+}
+
 export interface ReadAttributeOptions {
     /**
      * Whether the read is fabric-filtered (Matter Core § 8.9.2's `FabricFiltered` flag; default
@@ -191,6 +242,25 @@ export interface CertNodeApi {
         endpoint?: number,
         options?: TimedInteractionOptions,
     ): Promise<unknown>;
+
+    /**
+     * Invokes several commands in one request (Matter Core § 8.2.5's batch commands), each carrying its
+     * own `CommandRef` so the device's answers stay attributable.
+     *
+     * Results come back in **arrival** order, each naming the request position it answers, because that
+     * order is itself evidence: TC-IDM-1.3 has the device answer a two-command batch in reverse, and in
+     * separate response messages, and a step proving it needs to see what arrived when.
+     *
+     * A command the device never answers yields `Status.NoCommandResponse` (0xcc) rather than being
+     * omitted, so a step distinguishes "answered with a failure" from "not answered at all". Unlike
+     * {@link invoke}, a failure status is reported rather than thrown — the whole point of the batch is
+     * that its commands fail independently.
+     *
+     * A controller with no batch-invoke support throws {@link UnsupportedByControllerError} (see
+     * {@link CertNodeApi}'s own doc for the general contract).
+     */
+    invokeBatch(commands: BatchCommandSpec[], options?: TimedInteractionOptions): Promise<BatchCommandResult[]>;
+
     readAttribute(path: AttributePathSpec, options?: ReadAttributeOptions): Promise<unknown>;
 
     /**
@@ -199,6 +269,9 @@ export interface CertNodeApi {
      * A step needing the data versions of two clusters (TC-IDM-3.1 step 15) must obtain them from a
      * single `ReadRequest`, which is what the plan's procedure describes; issuing one read per cluster
      * would exercise a different interaction.
+     *
+     * A concrete path the device answers with a status **rejects**, matching {@link readAttribute}; a
+     * wildcard path's statuses are per-item results of the expansion and are dropped.
      */
     readAttributes(paths: AttributePathSpec[], options?: ReadAttributeOptions): Promise<AttributeReadEntry[]>;
     writeAttribute(path: AttributePathSpec, value: unknown, options?: TimedInteractionOptions): Promise<void>;
@@ -273,12 +346,17 @@ export interface CertNodeApi {
 /**
  * Thrown by a {@link ControllerAdapter} (or a {@link CertNodeApi} it returns) whose underlying
  * controller cannot express the requested operation — e.g. a {@link CertNodeApi.writeAttributes}
- * request chip-tool has no single command for. The step runner records such a step `skipped`
- * rather than failing the run; every other thrown value still fails and aborts it.
+ * request chip-tool has no single command for.
  *
  * Raise this before the operation has any observable effect (a commission, a write, a recorded
- * check). Raising it after a step already recorded evidence discards that evidence under a
- * `skipped` verdict instead of a `fail`.
+ * check). The step runner enforces that: a refusal reaching it before the step recorded anything is
+ * a `skipped` step, counted as a coverage gap in the run summary; a refusal arriving after the step
+ * recorded evidence fails and aborts the run, because the step did act and no later step can rest on
+ * a device state the bundle cannot describe.
+ *
+ * A controller that cannot do something at all should say so in its own PICS
+ * (see {@link controllerPicsOverridesFor}), which gates the step before it runs and keeps the rest of
+ * the run's coverage.
  */
 export class UnsupportedByControllerError extends Error {
     constructor(
@@ -306,8 +384,68 @@ export interface ControllerAdapter {
     start(): Promise<void>;
     close(): Promise<void>;
     commission(target: CommissioningTarget): Promise<CertNodeRef>;
+
+    /**
+     * What the controller itself reads out of a QR onboarding payload, so a step asserts on the
+     * controller's own parse rather than on one the step performed for it. Rejects a payload the
+     * controller would refuse to commission from.
+     */
+    parseQrPayload(code: string): Promise<OnboardingPayloadFields>;
+
+    /**
+     * {@link parseQrPayload} for the digits of a manual pairing code. Separate because the two code
+     * forms carry different fields: a manual code has only the 4-bit discriminator, states no
+     * discovery capabilities, and names a vendor and product only in its 21-digit form.
+     *
+     * How much a controller validates while reading is its own: matter.js's codec applies § 5.1's
+     * rules and refuses a code it would not commission from, where chip-tool's `parse-setup-payload`
+     * reports the fields of any code its parser can decode. Assert a refusal through
+     * {@link commission}, which both controllers judge, rather than through this.
+     */
+    parseManualPairingCode(code: string): Promise<ManualPairingCodeFields>;
+
     node(ref: CertNodeRef): CertNodeApi;
     log: LogFollower;
+}
+
+/**
+ * An onboarding payload's fixed fields, as {@link ControllerAdapter.parseQrPayload} reports them.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 5.1.3.1
+ */
+export interface OnboardingPayloadFields {
+    version: number;
+
+    /** Absent where the payload states nothing, which § 2.5.2 / § 2.5.3 write as 0. */
+    vendorId?: number;
+    productId?: number;
+
+    /** 0 standard, 1 user intent, 2 custom (§ 5.1.3.1 Table 59). */
+    flowType: number;
+
+    /** § 5.1.3.1 Table 60's bitmask, as it appears on the wire. */
+    discoveryCapabilities: number;
+
+    /** The full 12-bit form; a QR payload never carries the manual code's 4-bit one. */
+    discriminator: number;
+
+    passcode: number;
+}
+
+/**
+ * A manual pairing code's fields, as {@link ControllerAdapter.parseManualPairingCode} reports them.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 5.1.4.1
+ */
+export interface ManualPairingCodeFields {
+    /** § 5.1.4.1 Table 62's 4-bit form, the 4 most significant bits of the device's discriminator. */
+    shortDiscriminator: number;
+
+    passcode: number;
+
+    /** Present only in the 21-digit form, which sets `VID_PID_PRESENT`. */
+    vendorId?: number;
+    productId?: number;
 }
 
 /**
@@ -316,6 +454,7 @@ export interface ControllerAdapter {
 export type ControllerAdapterFactory = (id: string) => ControllerAdapter;
 
 const factories = new Map<ControllerImplementation, ControllerAdapterFactory>();
+const controllerPics = new Map<ControllerImplementation, PicsValues>();
 
 /**
  * Registers the {@link ControllerAdapterFactory} cert-test wiring uses to construct controllers for
@@ -331,6 +470,7 @@ const factories = new Map<ControllerImplementation, ControllerAdapterFactory>();
 export function registerControllerAdapterFactory(
     implementation: ControllerImplementation,
     factory: ControllerAdapterFactory,
+    pics?: PicsValues,
 ): void {
     if (factories.has(implementation)) {
         throw new Error(
@@ -339,6 +479,21 @@ export function registerControllerAdapterFactory(
         );
     }
     factories.set(implementation, factory);
+    if (pics !== undefined) {
+        controllerPics.set(implementation, pics);
+    }
+}
+
+/**
+ * The PICS entries `implementation` declares about itself, which overlay the device's own PICS for the
+ * run (see `cert-dsl.ts`'s test-level gate).
+ *
+ * A cert test's DUT is the controller, so a capability like batched invoke is the controller's to
+ * declare — but the PICS file a run loads describes the device. Rather than maintain a whole PICS file
+ * per controller, an adapter states only what differs, beside the code that implements or refuses it.
+ */
+export function controllerPicsOverridesFor(implementation: ControllerImplementation): PicsValues {
+    return controllerPics.get(implementation) ?? {};
 }
 
 /**
@@ -365,4 +520,5 @@ export function createControllerAdapter(role: string): ControllerAdapter {
  */
 export function resetControllerAdapterFactoryForTesting(implementation: ControllerImplementation): void {
     factories.delete(implementation);
+    controllerPics.delete(implementation);
 }

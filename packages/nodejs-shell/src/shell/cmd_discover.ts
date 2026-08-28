@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ChannelType, Diagnostic, Seconds } from "@matter/general";
+import { Diagnostic, Seconds } from "@matter/general";
 import { CommissionableDeviceIdentifiers } from "@matter/protocol";
 import { ManualPairingCodeCodec, VendorId } from "@matter/types";
 import type { Argv } from "yargs";
@@ -108,12 +108,10 @@ export default function commands(theNode: MatterNode) {
                             )} for ${once ? "first match or " : ""}${timeoutSeconds} seconds.`,
                         );
 
-                        // scannerFilter mirrors the discoveryCapabilities->filter mapping in CommissioningDiscovery.
                         const discovery = theNode.node.peers.discover({
                             ...identifierData,
                             timeout: Seconds(timeoutSeconds),
-                            scannerFilter: scanner =>
-                                scanner.type === ChannelType.UDP || (ble && scanner.type === ChannelType.BLE),
+                            discoveryCapabilities: { onIpNetwork: true, ble },
                         });
                         // A re-advertising device fires `discovered` again for the same node; dedupe by its
                         // canonical identity so the log doesn't spam duplicate lines.

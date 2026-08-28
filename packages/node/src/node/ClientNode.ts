@@ -115,8 +115,11 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         if (store.isPreexisting && promise !== undefined) {
             // We initialize ClientNodes on-demand but want them fully initialized for immediate use.  This means
             // initialization must be synchronous.  Enforce this here to ensure we don't accidentally break this
-            // contract
-            throw new InternalError("Unsupported async initialization detected when loading known peer");
+            // contract.  A behavior that fails to load also yields a promise, so adopt its rejection rather than
+            // discarding it; otherwise the real cause escapes as an unhandled rejection behind this diagnostic
+            return promise.then(() => {
+                throw new InternalError("Unsupported async initialization detected when loading known peer");
+            });
         }
 
         return promise;

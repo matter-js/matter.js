@@ -46,6 +46,8 @@ class Base38Schema extends Schema<Bytes, string> {
         const remainderEncodedLength = encodedLength % 5;
         let decodeLength = ((encodedLength - remainderEncodedLength) / 5) * 3;
         switch (remainderEncodedLength) {
+            case 0:
+                break;
             case 4:
                 decodeLength += 2;
                 break;
@@ -60,19 +62,19 @@ class Base38Schema extends Schema<Bytes, string> {
         let encodedOffset = 0;
         while (encodedOffset < encodedLength) {
             const remaining = encodedLength - encodedOffset;
-            if (remaining > 5) {
-                const value = this.decodeBase38(encoded, encodedOffset, 5);
+            if (remaining >= 5) {
+                const value = this.decodeBase38(encoded, encodedOffset, 5, 3);
                 result[decodedOffset++] = value & 0xff;
                 result[decodedOffset++] = (value >> 8) & 0xff;
                 result[decodedOffset++] = (value >> 16) & 0xff;
                 encodedOffset += 5;
             } else if (remaining === 4) {
-                const value = this.decodeBase38(encoded, encodedOffset, 4);
+                const value = this.decodeBase38(encoded, encodedOffset, 4, 2);
                 result[decodedOffset++] = value & 0xff;
                 result[decodedOffset++] = (value >> 8) & 0xff;
                 break;
             } else {
-                const value = this.decodeBase38(encoded, encodedOffset, 2);
+                const value = this.decodeBase38(encoded, encodedOffset, 2, 1);
                 result[decodedOffset++] = value & 0xff;
                 break;
             }
@@ -80,7 +82,7 @@ class Base38Schema extends Schema<Bytes, string> {
         return result;
     }
 
-    private decodeBase38(encoded: string, offset: number, charCount: number) {
+    private decodeBase38(encoded: string, offset: number, charCount: number, byteCount: number) {
         let result = 0;
         for (let i = charCount - 1; i >= 0; i--) {
             const char = encoded[offset + i];
@@ -88,6 +90,12 @@ class Base38Schema extends Schema<Bytes, string> {
             const code = BASE38_ALPHABET.indexOf(char);
             if (code === -1) throw new UnexpectedDataError(`Unexpected character ${char} at ${offset + i}`);
             result = result * 38 + code;
+        }
+        // A group of n characters holds more values than the n bytes it stands for, so one that overflows
+        // is not something `encode` could have written. The caller states the byte count rather than this
+        // deriving it, so there is no group length for which the bound comes out undefined.
+        if (result >= 1 << (8 * byteCount)) {
+            throw new UnexpectedDataError(`Base38 group at ${offset} decodes to more than ${byteCount} bytes`);
         }
         return result;
     }

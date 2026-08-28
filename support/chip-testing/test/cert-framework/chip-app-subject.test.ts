@@ -5,8 +5,9 @@
  */
 
 import type { CertDevice, CompositionHandle, Container, DockerHandle, Subject } from "@matter/testing";
-import { ChipDockerDevice, ChipLocalSubject, HARNESS_DBUS_CONTAINER } from "@matter/testing";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { ChipDockerDevice, ChipDockerSubject, ChipLocalSubject, HARNESS_DBUS_CONTAINER } from "@matter/testing";
+import { existsSync } from "node:fs";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { env } from "node:process";
@@ -61,6 +62,21 @@ function fakeContainer(overrides: Partial<Container> = {}): Container {
     } as unknown as Container;
 }
 
+/** Resolves to `true` if `promise` is still pending after `ms`, which is what a non-exit looks like. */
+async function stillPending(promise: Promise<unknown>, ms: number): Promise<boolean> {
+    let timer!: NodeJS.Timeout;
+    try {
+        return await Promise.race([
+            promise.then(() => false),
+            new Promise<true>(resolve => {
+                timer = setTimeout(() => resolve(true), ms);
+            }),
+        ]);
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 function isCertDevice(subject: Subject): subject is CertDevice {
     return "flavor" in subject && "log" in subject && "exit" in subject;
 }
@@ -97,6 +113,46 @@ async function collectLines(source: AsyncIterable<string>, count: number, timeou
     return lines;
 }
 
+/** Reads the next `kvs <path> <generations>` line the test app prints for the store it was started with. */
+async function nextStore(
+    source: AsyncIterable<string>,
+    timeoutMs: number,
+): Promise<{ path: string; generations: number }> {
+    const seen = new Array<string>();
+    const iterator = source[Symbol.asyncIterator]();
+    const deadline = Date.now() + timeoutMs;
+
+    for (;;) {
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) {
+            throw new Error(`No store line in ${JSON.stringify(seen)}`);
+        }
+
+        let timer!: NodeJS.Timeout;
+        let result;
+        try {
+            result = await Promise.race([
+                iterator.next(),
+                new Promise<never>((_, reject) => {
+                    timer = setTimeout(() => reject(new Error(`No store line in ${JSON.stringify(seen)}`)), remaining);
+                }),
+            ]);
+        } finally {
+            clearTimeout(timer);
+        }
+
+        if (result.done) {
+            throw new Error(`Log ended before a store line; saw ${JSON.stringify(seen)}`);
+        }
+
+        seen.push(result.value);
+        if (result.value.startsWith("kvs ")) {
+            const [, path, generations] = result.value.split(" ");
+            return { path, generations: Number(generations) };
+        }
+    }
+}
+
 describe("ChipLocalSubject", () => {
     const app = "test";
 
@@ -108,10 +164,27 @@ describe("ChipLocalSubject", () => {
         const scriptPath = join(appDir, `chip-${app}-app`);
 
         // `exec` replaces the shell with `sleep` so SIGTERM lands on the actual sleeping process,
-        // not a shell that could leave it orphaned.
-        await writeFile(scriptPath, "#!/bin/sh\necho known-line-one\necho known-line-two\nexec sleep 300\n", {
-            mode: 0o755,
-        });
+        // not a shell that could leave it orphaned. The store line stands in for the app's own
+        // key-value store: its path and its accumulated generations are what a factory reset and a
+        // reboot have to differ on.
+        await writeFile(
+            scriptPath,
+            [
+                "#!/bin/sh",
+                "echo known-line-one",
+                "echo known-line-two",
+                'kvs=""',
+                "while [ $# -gt 0 ]; do",
+                '    if [ "$1" = "--KVS" ]; then kvs="$2"; fi',
+                "    shift",
+                "done",
+                'echo generation >> "$kvs"',
+                'echo "kvs $kvs $(wc -l < "$kvs" | tr -d " ")"',
+                "exec sleep 300",
+                "",
+            ].join("\n"),
+            { mode: 0o755 },
+        );
 
         env.MATTER_CERT_APP_DIR = appDir;
     });
@@ -140,11 +213,200 @@ describe("ChipLocalSubject", () => {
             const lines = await collectLines(device.log.follow(), 2, 5_000);
             expect(lines).deep.equal(["known-line-one", "known-line-two"]);
 
+            // stop() only returns once the process is gone, and a stop the harness asked for is not
+            // the crash `exit` reports.
             await device.stop();
-
-            const exitInfo = await device.exit;
-            expect(exitInfo.signal).equal("SIGTERM");
+            expect(await stillPending(device.exit, 250)).equal(true);
         } finally {
+            await device.close();
+        }
+    });
+
+    it("reports a process that exits on its own as an exit", async function () {
+        this.timeout(15_000);
+
+        await writeFile(join(appDir, `chip-${app}-app`), "#!/bin/sh\necho known-line-one\nexit 3\n", {
+            mode: 0o755,
+        });
+
+        const device = ChipLocalSubject(app)("cert");
+        if (!isCertDevice(device)) {
+            throw new Error("Expected a CertDevice");
+        }
+
+        await device.initialize();
+        await device.start();
+
+        try {
+            expect(await device.exit).deep.equal({ code: 3, signal: null });
+        } finally {
+            await device.close();
+        }
+    });
+
+    it("does not report a restarted device as crashed by the process it replaced", async function () {
+        this.timeout(15_000);
+
+        const device = ChipLocalSubject(app)("cert");
+        if (!isCertDevice(device)) {
+            throw new Error("Expected a CertDevice");
+        }
+
+        await device.initialize();
+        await device.start();
+
+        try {
+            const follow = device.log.follow();
+            await nextStore(follow, 5_000);
+
+            await device.stop();
+            await device.start();
+
+            await nextStore(follow, 5_000);
+            expect(await stillPending(device.exit, 250)).equal(true);
+        } finally {
+            await device.close();
+        }
+    });
+
+    it("starts a fresh process after one that exited on its own", async function () {
+        this.timeout(15_000);
+
+        const binary = join(appDir, `chip-${app}-app`);
+        const sleeper = await readFile(binary, "utf8");
+        await writeFile(binary, "#!/bin/sh\necho known-line-one\nexit 3\n", { mode: 0o755 });
+
+        const device = ChipLocalSubject(app)("cert");
+        if (!isCertDevice(device)) {
+            throw new Error("Expected a CertDevice");
+        }
+
+        await device.initialize();
+        await device.start();
+
+        try {
+            expect(await device.exit).deep.equal({ code: 3, signal: null });
+
+            await writeFile(binary, sleeper, { mode: 0o755 });
+            await device.start();
+
+            expect((await nextStore(device.log.follow(), 5_000)).generations).equal(1);
+        } finally {
+            await device.close();
+        }
+    });
+
+    it("spawns one process for two overlapping start() calls", async function () {
+        this.timeout(15_000);
+
+        const device = ChipLocalSubject(app)("cert");
+        if (!isCertDevice(device)) {
+            throw new Error("Expected a CertDevice");
+        }
+
+        await device.initialize();
+        await Promise.all([device.start(), device.start()]);
+
+        try {
+            expect((await nextStore(device.log.follow(), 5_000)).generations).equal(1);
+        } finally {
+            await device.close();
+        }
+    });
+
+    it("rejects start() when the binary is missing, rather than reporting a device that never ran as crashed", async function () {
+        this.timeout(15_000);
+
+        await rm(join(appDir, `chip-${app}-app`));
+
+        const device = ChipLocalSubject(app)("cert");
+        if (!isCertDevice(device)) {
+            throw new Error("Expected a CertDevice");
+        }
+
+        await device.initialize();
+
+        try {
+            await expect(device.start()).rejectedWith("ENOENT");
+            expect(await stillPending(device.exit, 250)).equal(true);
+        } finally {
+            await device.close();
+        }
+    });
+
+    it("discards the key-value store on a factoryReset backchannel command", async function () {
+        this.timeout(15_000);
+
+        const device = ChipLocalSubject(app)("cert");
+        if (!isCertDevice(device)) {
+            throw new Error("Expected a CertDevice");
+        }
+
+        await device.initialize();
+        await device.start();
+
+        try {
+            const follow = device.log.follow();
+            const first = await nextStore(follow, 5_000);
+            expect(first.generations).equal(1);
+
+            await device.backchannel({ name: "factoryReset" });
+
+            const second = await nextStore(follow, 5_000);
+            expect(second.generations).equal(1);
+            expect(second.path).not.equal(first.path);
+            expect(existsSync(first.path)).equal(false);
+            expect(await stillPending(device.exit, 250)).equal(true);
+        } finally {
+            await device.close();
+        }
+    });
+
+    it("keeps the key-value store on a reboot backchannel command", async function () {
+        this.timeout(15_000);
+
+        const device = ChipLocalSubject(app)("cert");
+        if (!isCertDevice(device)) {
+            throw new Error("Expected a CertDevice");
+        }
+
+        await device.initialize();
+        await device.start();
+
+        try {
+            const follow = device.log.follow();
+            const first = await nextStore(follow, 5_000);
+
+            await device.backchannel({ name: "reboot" });
+
+            const second = await nextStore(follow, 5_000);
+            expect(second.path).equal(first.path);
+            expect(second.generations).equal(first.generations + 1);
+        } finally {
+            await device.close();
+        }
+    });
+
+    it("spawns the variant binary CHIP builds beside the plain one", async function () {
+        this.timeout(15_000);
+
+        const variant = "nlfaultinject";
+        await writeFile(join(appDir, `chip-${app}-app-${variant}`), "#!/bin/sh\necho variant-line\nexec sleep 300\n", {
+            mode: 0o755,
+        });
+
+        const device = ChipLocalSubject(app, variant)("cert");
+        if (!isCertDevice(device)) {
+            throw new Error("Expected a CertDevice");
+        }
+
+        await device.initialize();
+        await device.start();
+
+        try {
+            expect(await collectLines(device.log.follow(), 1, 5_000)).deep.equal(["variant-line"]);
+        } finally {
+            await device.stop();
             await device.close();
         }
     });
@@ -162,6 +424,12 @@ describe("ChipLocalSubject", () => {
 });
 
 describe("ChipDockerSubject", () => {
+    it("refuses an app variant, which its per-app image has no binary for", async () => {
+        const device = ChipDockerSubject("all-clusters", "nlfaultinject")("cert");
+
+        await expect(device.initialize()).rejectedWith(/nlfaultinject/);
+    });
+
     it("throws instead of starting its own dbus/mdns sidecars when the harness dbus container isn't running", async () => {
         const composeCalls = new Array<string>();
         const docker: DockerHandle = {
@@ -183,7 +451,18 @@ describe("ChipDockerSubject", () => {
     it("reuses the harness's dbus/mdns pair and starts only the app container", async () => {
         const statusChecks = new Array<string>();
         const addedParts = new Array<string>();
-        const container = fakeContainer();
+        let killed = false;
+        let ended!: () => void;
+        const container = fakeContainer({
+            kill: async () => {
+                killed = true;
+                ended();
+            },
+            wait: () =>
+                new Promise<void>(resolve => {
+                    ended = resolve;
+                }),
+        });
 
         const composition: CompositionHandle = {
             async add(config) {
@@ -213,18 +492,96 @@ describe("ChipDockerSubject", () => {
         } finally {
             await device.close();
         }
+
+        expect(killed).equal(true);
+        expect(await stillPending(device.exit, 100)).equal(true);
     });
 
-    it("settles the exit promise when attach() fails, so a later stop() completes", async function () {
+    it("closes the composition when adding the app container fails", async function () {
+        this.timeout(5_000);
+
+        let closed = 0;
+        const composition: CompositionHandle = {
+            async add() {
+                throw new Error("add exploded");
+            },
+            async close() {
+                closed++;
+            },
+        };
+
+        const docker: DockerHandle = {
+            async ensureVolume() {},
+            compose() {
+                return composition;
+            },
+            async containerStatus() {
+                return { isRunning: true };
+            },
+        };
+
+        const device = new ChipDockerDevice("test", "cert", undefined, docker);
+
+        await expect(device.start()).rejectedWith("add exploded");
+        await device.close();
+
+        expect(closed).equal(1);
+    });
+
+    it("starts for real after a launch that failed, rather than reporting the failed one as up", async function () {
+        this.timeout(5_000);
+
+        let closed = 0;
+        const added = new Array<string>();
+        const composition: CompositionHandle = {
+            async add(config) {
+                added.push(config.name);
+                if (added.length === 1) {
+                    throw new Error("add exploded");
+                }
+                return fakeContainer();
+            },
+            async close() {
+                closed++;
+            },
+        };
+
+        const docker: DockerHandle = {
+            async ensureVolume() {},
+            compose() {
+                return composition;
+            },
+            async containerStatus() {
+                return { isRunning: true };
+            },
+        };
+
+        const device = new ChipDockerDevice("test", "cert", undefined, docker);
+
+        await expect(device.start()).rejectedWith("add exploded");
+
+        // Without replacing the failed generation this resolves having started nothing
+        await device.start();
+        expect(added).deep.equal(["app", "app"]);
+
+        // The composition of the failed attempt is reaped before the second one runs
+        expect(closed).equal(1);
+
+        await device.close();
+        expect(closed).equal(2);
+    });
+
+    it("kills a container whose exit the daemon never confirmed", async function () {
         this.timeout(5_000);
 
         let killed = false;
+        let closed = 0;
         const container = fakeContainer({
-            attach: async () => {
-                throw new Error("attach exploded");
-            },
             kill: async () => {
                 killed = true;
+            },
+            wait: async () => {
+                throw new Error("daemon went away");
             },
         });
 
@@ -232,7 +589,57 @@ describe("ChipDockerSubject", () => {
             async add() {
                 return container;
             },
-            async close() {},
+            async close() {
+                closed++;
+            },
+        };
+
+        const docker: DockerHandle = {
+            async ensureVolume() {},
+            compose() {
+                return composition;
+            },
+            async containerStatus() {
+                return { isRunning: true };
+            },
+        };
+
+        const device = new ChipDockerDevice("test", "cert", undefined, docker);
+
+        await device.start();
+        await device.close();
+
+        expect(killed).equal(true);
+        expect(closed).equal(1);
+    });
+
+    it("still kills and reaps a running container when attach() fails", async function () {
+        this.timeout(5_000);
+
+        let killed = false;
+        let ended!: () => void;
+        const container = fakeContainer({
+            attach: async () => {
+                throw new Error("attach exploded");
+            },
+            kill: async () => {
+                killed = true;
+                ended();
+            },
+            wait: () =>
+                new Promise<void>(resolve => {
+                    ended = resolve;
+                }),
+        });
+
+        let closed = 0;
+        const composition: CompositionHandle = {
+            async add() {
+                return container;
+            },
+            async close() {
+                closed++;
+            },
         };
 
         const docker: DockerHandle = {
@@ -252,6 +659,6 @@ describe("ChipDockerSubject", () => {
         await device.close();
 
         expect(killed).equal(true);
-        expect(await device.exit).deep.equal({ code: 0, signal: null });
+        expect(closed).equal(1);
     });
 });

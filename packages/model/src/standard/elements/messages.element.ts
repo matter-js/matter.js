@@ -94,11 +94,11 @@ export const Messages = Cluster(
 
     Datatype(
         { name: "MessageControlBitmap", type: "map16" },
-        Field({ name: "ConfirmationRequired", constraint: "0" }),
-        Field({ name: "ResponseRequired", constraint: "1" }),
-        Field({ name: "ReplyMessage", constraint: "2" }),
-        Field({ name: "MessageConfirmed", constraint: "3" }),
-        Field({ name: "MessageProtected", constraint: "4" })
+        Field({ name: "ConfirmationRequired", conformance: "CONF", constraint: "0" }),
+        Field({ name: "ResponseRequired", conformance: "RESP", constraint: "1" }),
+        Field({ name: "ReplyMessage", conformance: "RPLY", constraint: "2" }),
+        Field({ name: "MessageConfirmed", conformance: "CONF", constraint: "3" }),
+        Field({ name: "MessageProtected", conformance: "PROT", constraint: "4" })
     ),
 
     Datatype(

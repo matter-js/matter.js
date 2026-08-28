@@ -249,7 +249,7 @@ describe("CommissionableMdnsScanner", () => {
         }
     });
 
-    it("accepts TTL=0 goodbye after protection window", async () => {
+    it("removes a device whose goodbye follows a re-announcement, and finds it again when it returns", async () => {
         const simulator = new NetworkSimulator();
         const serverNetwork = new MockNetwork(simulator, SERVER_MAC, [SERVER_IPv4, SERVER_IPv6]);
         const clientNetwork = new MockNetwork(simulator, CLIENT_MAC, [CLIENT_IPv4, CLIENT_IPv6]);
@@ -261,7 +261,7 @@ describe("CommissionableMdnsScanner", () => {
 
         try {
             const instanceQname = `${INSTANCE_ID}._matterc._udp.local`;
-            await serverSocket.send({
+            const announcement = {
                 messageType: DnsMessageType.Response,
                 answers: [
                     {
@@ -287,15 +287,16 @@ describe("CommissionableMdnsScanner", () => {
                     },
                 ],
                 additionalRecords: [],
-            });
+            };
+            await serverSocket.send(announcement);
 
             await MockTime.advance(10);
             expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 3840 }).length).equals(1);
 
-            // Advance past the 1-second goodbye protection window
-            await MockTime.advance(Millis(1100));
+            await MockTime.advance(Minutes(1));
+            await serverSocket.send(announcement);
+            await MockTime.advance(10);
 
-            // Send TTL=0 (goodbye) — now outside the protection window
             await serverSocket.send({
                 messageType: DnsMessageType.Response,
                 answers: [
@@ -316,10 +317,15 @@ describe("CommissionableMdnsScanner", () => {
                 ],
                 additionalRecords: [],
             });
+            await MockTime.advance(Seconds(1));
             await MockTime.advance(10);
 
-            // Device should be removed — goodbye was accepted
             expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 3840 }).length).equals(0);
+
+            await serverSocket.send(announcement);
+            await MockTime.advance(10);
+
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 3840 }).length).equals(1);
         } finally {
             await scanner.close();
             await clientNames.close();
@@ -540,6 +546,240 @@ describe("CommissionableMdnsScanner", () => {
 
             const noResults = scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 });
             expect(noResults.length).equals(0);
+        } finally {
+            await scanner.close();
+            await clientNames.close();
+            await serverSocket.close();
+            await clientSocket.close();
+        }
+    });
+
+    it("reports the host its SRV record names", async () => {
+        const simulator = new NetworkSimulator();
+        const serverNetwork = new MockNetwork(simulator, SERVER_MAC, [SERVER_IPv4, SERVER_IPv6]);
+        const clientNetwork = new MockNetwork(simulator, CLIENT_MAC, [CLIENT_IPv4, CLIENT_IPv6]);
+
+        const serverSocket = await MdnsSocket.create(serverNetwork);
+        const clientSocket = await MdnsSocket.create(clientNetwork);
+        const clientNames = new DnssdNames({ socket: clientSocket, entropy: MockCrypto(0x02) });
+        const scanner = new CommissionableMdnsScanner(clientNames);
+
+        try {
+            const instanceQname = `${INSTANCE_ID}._matterc._udp.local`;
+            await serverSocket.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: [`D=3840`, `CM=1`],
+                    },
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: { priority: 0, weight: 0, port: PORT, target: HOSTNAME },
+                    },
+                    {
+                        name: HOSTNAME,
+                        recordType: DnsRecordType.A,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: SERVER_IPv4,
+                    },
+                ],
+                additionalRecords: [],
+            });
+
+            await MockTime.advance(10);
+
+            const [device] = scanner.getDiscoveredCommissionableDevices({});
+            expect(device.hostname).equals("0011223344550000");
+        } finally {
+            await scanner.close();
+            await clientNames.close();
+            await serverSocket.close();
+            await clientSocket.close();
+        }
+    });
+
+    it("reports the host of an SRV record that arrives after the device was cached", async () => {
+        const simulator = new NetworkSimulator();
+        const serverNetwork = new MockNetwork(simulator, SERVER_MAC, [SERVER_IPv4, SERVER_IPv6]);
+        const clientNetwork = new MockNetwork(simulator, CLIENT_MAC, [CLIENT_IPv4, CLIENT_IPv6]);
+
+        const serverSocket = await MdnsSocket.create(serverNetwork);
+        const clientSocket = await MdnsSocket.create(clientNetwork);
+        const clientNames = new DnssdNames({ socket: clientSocket, entropy: MockCrypto(0x04) });
+        const scanner = new CommissionableMdnsScanner(clientNames);
+
+        try {
+            const instanceQname = `${INSTANCE_ID}._matterc._udp.local`;
+
+            // The TXT alone identifies the device, so it is cached before any SRV names its host — the
+            // ordering a real responder produced
+            await serverSocket.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: [`D=3840`, `CM=1`],
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            await serverSocket.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: { priority: 0, weight: 0, port: PORT, target: HOSTNAME },
+                    },
+                    {
+                        name: HOSTNAME,
+                        recordType: DnsRecordType.A,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: SERVER_IPv4,
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            const [device] = scanner.getDiscoveredCommissionableDevices({});
+            expect(device.hostname).equals("0011223344550000");
+        } finally {
+            await scanner.close();
+            await clientNames.close();
+            await serverSocket.close();
+            await clientSocket.close();
+        }
+    });
+
+    it("reports no host while two SRV records disagree about it, rather than the one it left", async () => {
+        const simulator = new NetworkSimulator();
+        const serverNetwork = new MockNetwork(simulator, SERVER_MAC, [SERVER_IPv4, SERVER_IPv6]);
+        const clientNetwork = new MockNetwork(simulator, CLIENT_MAC, [CLIENT_IPv4, CLIENT_IPv6]);
+
+        const serverSocket = await MdnsSocket.create(serverNetwork);
+        const clientSocket = await MdnsSocket.create(clientNetwork);
+        const clientNames = new DnssdNames({ socket: clientSocket, entropy: MockCrypto(0x05) });
+        const scanner = new CommissionableMdnsScanner(clientNames);
+
+        const NEW_HOSTNAME = "0011223344551111.local";
+
+        async function announce(target: string) {
+            await serverSocket.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: `${INSTANCE_ID}._matterc._udp.local`,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: [`D=3840`, `CM=1`],
+                    },
+                    {
+                        name: `${INSTANCE_ID}._matterc._udp.local`,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: { priority: 0, weight: 0, port: PORT, target },
+                    },
+                    {
+                        name: target,
+                        recordType: DnsRecordType.A,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: SERVER_IPv4,
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+        }
+
+        try {
+            // An SRV's key carries its target, so the device moving host installs a second record and the
+            // superseded one outlives it. Naming either would be a guess: the install timestamps are
+            // wall-clock, so they cannot settle which is current.
+            await announce(HOSTNAME);
+            await announce(NEW_HOSTNAME);
+
+            const [device] = scanner.getDiscoveredCommissionableDevices({});
+            expect(device.hostname).equals(undefined);
+        } finally {
+            await scanner.close();
+            await clientNames.close();
+            await serverSocket.close();
+            await clientSocket.close();
+        }
+    });
+
+    it("reports the host where the device answers on two ports of it", async () => {
+        const simulator = new NetworkSimulator();
+        const serverNetwork = new MockNetwork(simulator, SERVER_MAC, [SERVER_IPv4, SERVER_IPv6]);
+        const clientNetwork = new MockNetwork(simulator, CLIENT_MAC, [CLIENT_IPv4, CLIENT_IPv6]);
+
+        const serverSocket = await MdnsSocket.create(serverNetwork);
+        const clientSocket = await MdnsSocket.create(clientNetwork);
+        const clientNames = new DnssdNames({ socket: clientSocket, entropy: MockCrypto(0x06) });
+        const scanner = new CommissionableMdnsScanner(clientNames);
+
+        try {
+            const instanceQname = `${INSTANCE_ID}._matterc._udp.local`;
+            await serverSocket.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: [`D=3840`, `CM=1`],
+                    },
+                    // Two records, one host: keyed by target and port, so both are kept, and the host
+                    // they name is not in doubt
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: { priority: 0, weight: 0, port: PORT, target: HOSTNAME },
+                    },
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: { priority: 0, weight: 0, port: PORT + 1, target: HOSTNAME },
+                    },
+                    {
+                        name: HOSTNAME,
+                        recordType: DnsRecordType.A,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: SERVER_IPv4,
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            const [device] = scanner.getDiscoveredCommissionableDevices({});
+            expect(device.hostname).equals("0011223344550000");
         } finally {
             await scanner.close();
             await clientNames.close();

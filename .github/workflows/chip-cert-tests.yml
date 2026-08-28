@@ -13,7 +13,8 @@
 #
 #   * Every published release (official or nightly dev), checked out at that release's exact tag
 #
-#   * A push whose head commit message contains [execute-certtests]
+#   * A push that changed the cert suite or the framework it runs on (see the `changes` filter in
+#     `prepare`), or whose head commit message contains [execute-certtests]
 #
 # test-cert-framework runs the framework's own logic proofs once, as a gate: they are hermetic, so a
 # defect there would otherwise be diagnosed six times over from six device-specific runs.
@@ -86,6 +87,10 @@ on:
 # [execute-certtests] indicator skip all jobs but still enter the workflow's concurrency group
 # before the job-level gate runs, so they get a unique per-run group instead — otherwise any
 # unrelated push to the ref cancels a real run in flight.
+#
+# A concurrency expression cannot see which files a push touched, so a push that runs the matrix
+# because it changed the cert suite lands in that same per-run group: two such pushes in a row run
+# their matrices side by side rather than the second cancelling the first.
 concurrency:
   group: ${{ github.event_name == 'push' && !contains(github.event.head_commit.message, '[execute-certtests]') && github.run_id || format('{0}-cert-tests', github.ref) }}
   cancel-in-progress: true
@@ -104,11 +109,36 @@ jobs:
       chip-bins-tag: ${{ steps.resolve.outputs.chip-bins-tag }}
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
+      # Only for the change filter below, which needs the pushed tree and enough history to diff it
+      # against main. Every other job checks out the ref this one resolves.
+      - name: Check out matter.js
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # A change to the cert suite or the framework it runs on is exactly what these tests prove, so
+      # such a push runs them without needing the commit-message marker. The marker stays for
+      # everything else — a protocol change a cert test would exercise indirectly, a device-image
+      # change, or simply wanting the matrix on an unrelated commit.
+      - uses: dorny/paths-filter@v4
+        id: changes
+        with:
+          base: main
+          filters: |
+            cert:
+              - ".github/workflows/chip-cert-tests.yml"
+              - "packages/testing/src/chip/cert/**"
+              - "packages/testing/src/chip/pics/**"
+              - "support/chip-testing/src/cert/**"
+              - "support/chip-testing/test/cert/**"
+              - "support/chip-testing/test/cert-framework/**"
+
       - name: Resolve trigger inputs
         id: resolve
         env:
           EVENT_NAME: ${{ github.event_name }}
           PUSH_MSG: ${{ github.event.head_commit.message }}
+          CERT_FILES_CHANGED: ${{ steps.changes.outputs.cert }}
           DISPATCH_REF: ${{ inputs.ref }}
           DISPATCH_SOURCE: ${{ inputs.binariesSource }}
           DISPATCH_TAG: ${{ inputs.chipBinsTag }}
@@ -119,7 +149,7 @@ jobs:
             push)
               case "$PUSH_MSG" in
                 *"[execute-certtests]"*) echo "should-run=true" >> "$GITHUB_OUTPUT" ;;
-                *) echo "should-run=false" >> "$GITHUB_OUTPUT" ;;
+                *) echo "should-run=$([ "$CERT_FILES_CHANGED" = "true" ] && echo true || echo false)" >> "$GITHUB_OUTPUT" ;;
               esac
               echo "ref=$DEFAULT_REF" >> "$GITHUB_OUTPUT"
               echo "binaries-source=both" >> "$GITHUB_OUTPUT"
@@ -228,7 +258,7 @@ jobs:
             | map(select(.device != "own-built" or $ownBuilt == "true"))
           ')
 
-          echo "$matrix" | jq -r '.[] | "selected: test-cert-\(.controller)-vs-\(.device) on \(.runner)"'
+          echo "$matrix" | jq -r '.[] | "selected: test-cert \(.controller) vs \(.device) on \(.runner)"'
 
           count=$(echo "$matrix" | jq 'length')
           if [ "$count" -eq 0 ]; then
@@ -237,7 +267,30 @@ jobs:
             exit 1
           fi
 
-          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          # Emitted as controller/device vectors plus an include list carrying each leg's own
+          # settings, rather than as an include-only list: GitHub derives a leg's name from the
+          # vector values, so the job needs no `name:` of its own — and a job whose name holds a
+          # matrix expression shows that expression unevaluated whenever the job is skipped, which
+          # is every push without the marker.
+          #
+          # Every combination of the vectors must have an include entry, or its leg would start with
+          # an empty `runs-on`. The leg list is rectangular today (each controller runs against each
+          # selected device); this fails the run rather than the leg if that ever stops holding.
+          expanded=$(echo "$matrix" | jq -c '{
+            controller: (map(.controller) | unique),
+            device: (map(.device) | unique),
+            include: .
+          }')
+
+          product=$(echo "$expanded" | jq '(.controller | length) * (.device | length)')
+          if [ "$product" -ne "$count" ]; then
+            echo "::error::The $count selected legs do not form the full $product-combination product of" \
+              "controllers and devices, so some combination has no settings. Add the missing legs, or" \
+              "give the matrix an explicit exclude list."
+            exit 1
+          fi
+
+          echo "matrix=$expanded" >> "$GITHUB_OUTPUT"
 
   # The framework's own logic proofs: hermetic, no device and no chip binaries, so they are the same
   # everywhere and run once as a gate rather than once per leg. A framework defect fails here instead
@@ -253,10 +306,10 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.ref }}
 
-      - name: Use Node.js 22.x
+      - name: Use Node.js 24.x
         uses: actions/setup-node@v7
         with:
-          node-version: 22.x
+          node-version: 24.x
 
       - name: Install matter.js
         run: npm ci --foreground-scripts
@@ -278,25 +331,23 @@ jobs:
   test-cert:
     needs: [prepare, test-cert-framework]
     if: needs.prepare.outputs.should-run == 'true'
-    name: test-cert-${{ matrix.controller }}-vs-${{ matrix.device }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     strategy:
       # Legs are independent: one broken combination must not cancel the evidence from the others.
       fail-fast: false
-      matrix:
-        # Forks skip prepare on its repository gate, so the output can be absent entirely here.
-        include: ${{ fromJSON(needs.prepare.outputs.matrix || '[]') }}
+      # Forks skip prepare on its repository gate, so the output can be absent entirely here.
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix || '{"controller":[],"device":[],"include":[]}') }}
     steps:
       - name: Check out matter.js
         uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare.outputs.ref }}
 
-      - name: Use Node.js 22.x
+      - name: Use Node.js 24.x
         uses: actions/setup-node@v7
         with:
-          node-version: 22.x
+          node-version: 24.x
 
       - name: Install matter.js
         run: npm ci --foreground-scripts

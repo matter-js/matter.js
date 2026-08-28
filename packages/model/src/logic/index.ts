@@ -9,6 +9,8 @@ export * from "./ClusterModifier.js";
 export * from "./ClusterVariance.js";
 export * from "./DecodedBitmap.js";
 export * from "./DefaultValue.js";
+export * from "./EncodedConstraint.js";
+export * from "./EncodedValue.js";
 export * from "./EncodedBitmap.js";
 export * from "./GeneratorScope.js";
 export * from "./MergedModel.js";

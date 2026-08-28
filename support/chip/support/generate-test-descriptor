@@ -68,6 +68,18 @@ def read_json_file(path):
     with open(path) as input:
         return json.load(input)
 
+def normalize_app_name(name):
+    """Reduce a chip app reference such as "${ALL_DEVICES_APP}" to the harness app name "all-devices"."""
+    return (
+        str(name)
+            .removeprefix("${")
+            .removeprefix("CHIP_")
+            .removesuffix("}")
+            .removesuffix("_APP")
+            .replace("_", "-")
+            .lower()
+    )
+
 tests = []
 
 def load_yaml():
@@ -139,9 +151,65 @@ def load_yaml():
                 props["members"] = members
 
         if manual:
-                props["kind"] = "manual"
+            props["kind"] = "manual"
+            tests.append(props)
+            continue
 
-        tests.append(props)
+        # The CI block names the app each run targets, and the arguments that configure it.  With a single run the app
+        # is a preference the harness applies when it implements the app; multiple runs become a suite with one test per
+        # run, mirroring the shape of a multi-run python test
+        runs = definition.get("CI") if isinstance(definition, dict) else None
+        if not runs:
+            tests.append(props)
+            continue
+        if isinstance(runs, dict):
+            runs = list(runs.values())
+        runs = [run for run in runs if isinstance(run, dict)] if isinstance(runs, list) else []
+        if not runs:
+            sys.stderr.write(f"Ignoring unrecognized CI block in {path}\n")
+            tests.append(props)
+            continue
+
+        def arg_list(value):
+            if value is None:
+                return []
+            if isinstance(value, str):
+                return value.split()
+            return [str(arg) for arg in value]
+
+        def run_props(run):
+            result = dict(props)
+            config = dict(props.get("config", {}))
+            app_args = arg_list(run.get("args"))
+            if app_args:
+                config["app-args"] = app_args
+            test_args = arg_list(run.get("test_args"))
+            if test_args:
+                config["test-args"] = test_args
+            if config:
+                result["config"] = config
+            return result, normalize_app_name(run["app"]) if "app" in run else None
+
+        if len(runs) == 1:
+            single, app = run_props(runs[0])
+            if app is not None:
+                single["preferredApp"] = app
+            tests.append(single)
+            continue
+
+        suite = { "kind": "suite", "path": path, "name": props["name"], "members": [] }
+        for key in ("description", "category"):
+            if key in props:
+                suite[key] = props[key]
+        for index, run in enumerate(runs, 1):
+            member, app = run_props(run)
+            member["name"] = f"run{index}"
+            if app is None:
+                sys.stderr.write(f"Ignoring CI run {index} of {path} that names no app\n")
+                continue
+            member["app"] = app
+            suite["members"].append(member)
+        tests.append(suite if suite["members"] else props)
 
 def parse_command_line(str: str):
     # Some scripts have strings with spaces.  Currently only use single quotes but try to handle both that and double
@@ -326,15 +394,7 @@ def load_python():
                     run_tests[run] = all_test_methods
 
                 if "app" in config:
-                    config["app"] = (
-                        config["app"]
-                            .removeprefix("${")
-                            .removeprefix("CHIP_")
-                            .removesuffix("}")
-                            .removesuffix("_APP")
-                            .replace("_", "-")
-                            .lower()
-                    )
+                    config["app"] = normalize_app_name(config["app"])
 
         # Add a test for every test/run pair
         for test_method_name in all_test_methods:

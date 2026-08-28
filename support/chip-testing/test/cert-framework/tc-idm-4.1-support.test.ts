@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/main";
+import { InternalError, Millis, Seconds } from "@matter/main";
 import type {
     CertDevice,
     CertNodeApi,
@@ -16,6 +16,7 @@ import type {
     Subject,
 } from "@matter/testing";
 import { LineQueue, LogFollower, PicsFile } from "@matter/testing";
+import { env } from "node:process";
 import type { SubscribeAndModifyTimeouts } from "../cert/tc-idm-4.1-support.js";
 import { subscribeAndModify } from "../cert/tc-idm-4.1-support.js";
 import { CertCheckFailedError } from "../cert/tc-support.js";
@@ -31,11 +32,11 @@ const ACKED_SIBLING_ID = 0x77;
 const PATH = { endpoint: 0, cluster: 0x28, attribute: 0x10 };
 const VALUES = [true, false, true];
 
-const TIMEOUTS: SubscribeAndModifyTimeouts = { establishMs: 5_000, reportMs: 5_000 };
+const TIMEOUTS: SubscribeAndModifyTimeouts = { establish: Seconds(5), report: Seconds(5) };
 
 // Only for the cases that assert a wait giving up: long enough for the follower's async pump, short
 // enough that the failure lands inside a normal mocha timeout.
-const IMPATIENT: SubscribeAndModifyTimeouts = { establishMs: 5_000, reportMs: 400 };
+const IMPATIENT: SubscribeAndModifyTimeouts = { establish: Seconds(5), report: Millis(400) };
 
 function subscribeRequestLines(path: { endpoint: number; cluster: number; attribute: number }): string[] {
     const attribute = path.attribute.toString(16).toUpperCase().padStart(8, "0");
@@ -96,6 +97,7 @@ class Fixture {
         const unused = () => Promise.reject(new InternalError("not used by these tests"));
         const node: CertNodeApi = {
             invoke: unused,
+            invokeBatch: unused,
             readAttribute: unused,
             readAttributes: unused,
             writeAttributes: unused,
@@ -107,7 +109,11 @@ class Fixture {
             subscribe: async (_path, opts) => {
                 this.#onUpdate = opts.onUpdate;
                 this.push(...subscribeRequestLines(PATH), ...subscribeResponseLines(SUBSCRIPTION_ID));
-                this.pushReport(SUBSCRIPTION_ID);
+                if (this.primingCarriesData) {
+                    this.pushReport(SUBSCRIPTION_ID);
+                } else {
+                    this.pushKeepalive(SUBSCRIPTION_ID);
+                }
                 this.onSubscribe(this);
                 // Every line pushed so far is in the log before the helper takes its first per-write
                 // mark, which is what makes "this report predates the write" deterministic here.
@@ -134,6 +140,12 @@ class Fixture {
             async commission() {
                 return "ref";
             },
+            async parseQrPayload() {
+                throw new InternalError("not used in this test");
+            },
+            async parseManualPairingCode(): Promise<never> {
+                throw new InternalError("not used in this test");
+            },
             node: () => node,
         };
 
@@ -156,16 +168,37 @@ class Fixture {
     }
 
     /**
-     * One report on `subscriptionId`, plus the DUT's ack on the same CHIP exchange unless `acked` is
-     * false. `status` is the ack's own status line, so a caller can hand back a rejection.
+     * Whether the priming report carries data. A subscription can be established with nothing to report
+     * yet — ordinary for an event subscription — so the priming check must accept a report without any.
+     */
+    primingCarriesData = true;
+
+    /**
+     * One report on `subscriptionId` carrying attribute data, plus the DUT's ack on the same CHIP
+     * exchange unless `acked` is false. `status` is the ack's own status line, so a caller can hand back
+     * a rejection.
      */
     pushReport(subscriptionId: number, acked = true, status = "Status = 0x00 (SUCCESS),"): void {
+        this.#pushReportData(subscriptionId, ["[DMG] AttributeReportIBs =", "[DMG] ["], acked, status);
+    }
+
+    /**
+     * One keepalive on `subscriptionId`: the report an idle subscription sends at its maximum interval,
+     * which carries no data and prints `InteractionModelRevision` where a report prints its data — the
+     * shape a chip-local TC-IDM-4.1 run's device log holds six of. It is acked like any other report.
+     */
+    pushKeepalive(subscriptionId: number, acked = true, status = "Status = 0x00 (SUCCESS),"): void {
+        this.#pushReportData(subscriptionId, ["[DMG] InteractionModelRevision = 12"], acked, status);
+    }
+
+    #pushReportData(subscriptionId: number, body: string[], acked: boolean, status: string): void {
         const exchange = ++this.#exchange;
         this.push(
             `[DMG] >> to UDP:[fe80::1%en0]:5540 | 1234${exchange} | [Interaction Model  (1) / Report Data (0x05) / Session = 1 / Exchange = ${exchange}]`,
             "[DMG] ReportDataMessage =",
             "[DMG] {",
             `[DMG] SubscriptionId = 0x${subscriptionId.toString(16)},`,
+            ...body,
         );
         if (acked) {
             this.push(
@@ -226,8 +259,8 @@ describe("subscribeAndModify", () => {
 
             expect(f.failures).deep.equal([]);
             const summary = f.passes[f.passes.length - 1];
-            expect(summary.detail).match(/3 confirmed by their own report on subscription 0x2a/);
-            expect(summary.detail).match(/onUpdate delivered 6 reports carrying the written values in order/);
+            expect(summary.detail).match(/each confirmed by its own report on subscription 0x2a/);
+            expect(summary.detail).match(/onUpdate delivered 6 reports, 3\/3 of the written values in order/);
         });
     });
 
@@ -265,18 +298,114 @@ describe("subscribeAndModify", () => {
         });
     });
 
-    it("fails when the reported values are not the written ones in order", async () => {
+    it("accepts a priming report that carries nothing, which an event subscription may well send", async () => {
+        const fixture = new Fixture("chip-local", (f, _index, value) => {
+            f.pushReport(SUBSCRIPTION_ID);
+            f.report(value);
+        });
+        fixture.primingCarriesData = false;
+
+        await withFixture(fixture, async f => {
+            await f.run([true], IMPATIENT);
+
+            expect(f.failures).deep.equal([]);
+        });
+    });
+
+    it("does not let a keepalive stand in for the report a write asked for", async () => {
+        const fixture = new Fixture("chip-local", (f, _index, value) => {
+            // What an idle subscription sends at its maximum interval: acked like a report, and on the
+            // same subscription, but carrying nothing the write could have caused.
+            f.pushKeepalive(SUBSCRIPTION_ID);
+            f.report(value);
+        });
+
+        await withFixture(fixture, async f => {
+            await expect(f.run([true], IMPATIENT)).rejectedWith(
+                CertCheckFailedError,
+                /ack check failed for step 3, write 1\/1/,
+            );
+        });
+    });
+
+    it("accepts the report that follows a keepalive on the same subscription", async () => {
+        const fixture = new Fixture("chip-local", (f, _index, value) => {
+            f.pushKeepalive(SUBSCRIPTION_ID);
+            f.pushReport(SUBSCRIPTION_ID);
+            f.report(value);
+        });
+
+        await withFixture(fixture, async f => {
+            await f.run([true], IMPATIENT);
+
+            expect(f.failures).deep.equal([]);
+        });
+    });
+
+    it("records, rather than fails, callbacks that do not carry the written values in order", async () => {
         const fixture = new Fixture("chip-local", (f, _index) => {
             f.pushReport(SUBSCRIPTION_ID);
             f.report(true);
         });
 
         await withFixture(fixture, async f => {
-            await expect(f.run(VALUES, IMPATIENT)).rejectedWith(
-                CertCheckFailedError,
-                /does not carry the written values \[true,false,true\] in order \(matched 1\/3\)/,
-            );
+            await f.run(VALUES, IMPATIENT);
+
+            expect(f.failures).deep.equal([]);
+            const unverified = f.checks.filter(check => check.verdict === "unverified");
+            expect(unverified).to.have.lengthOf(1);
+            expect(unverified[0].detail).match(/matched 1\/3/);
         });
+    });
+
+    it("accepts the shortfall under chip-tool, whose server drops all but the first result of a batch", async () => {
+        const originalController = env.MATTER_CERT_CONTROLLER;
+        env.MATTER_CERT_CONTROLLER = "chip-tool";
+        try {
+            const fixture = new Fixture("chip-local", (f, _index) => {
+                f.pushReport(SUBSCRIPTION_ID);
+                f.report(true);
+            });
+
+            await withFixture(fixture, async f => {
+                await f.run(VALUES, IMPATIENT);
+
+                const unverified = f.checks.filter(check => check.verdict === "unverified");
+                expect(unverified).to.have.lengthOf(1);
+                expect(unverified[0].accepted).match(/only the first result of a batch/);
+            });
+        } finally {
+            if (originalController === undefined) {
+                delete env.MATTER_CERT_CONTROLLER;
+            } else {
+                env.MATTER_CERT_CONTROLLER = originalController;
+            }
+        }
+    });
+
+    it("leaves the shortfall a gap to close on any other controller", async () => {
+        const originalController = env.MATTER_CERT_CONTROLLER;
+        env.MATTER_CERT_CONTROLLER = "matterjs";
+        try {
+            const fixture = new Fixture("chip-local", (f, _index) => {
+                f.pushReport(SUBSCRIPTION_ID);
+                f.report(true);
+            });
+
+            await withFixture(fixture, async f => {
+                await f.run(VALUES, IMPATIENT);
+
+                const unverified = f.checks.filter(check => check.verdict === "unverified");
+                expect(unverified).to.have.lengthOf(1);
+                expect(unverified[0].accepted).equal(undefined);
+            });
+        } finally {
+            if (originalController === undefined) {
+                delete env.MATTER_CERT_CONTROLLER;
+            } else {
+                env.MATTER_CERT_CONTROLLER = originalController;
+            }
+        }
     });
 
     it("records the mismatch when a report carries a value nobody wrote", async () => {
@@ -316,32 +445,32 @@ describe("subscribeAndModify", () => {
         });
     });
 
-    it("confirms a write through onUpdate when the log carries no subscription id", async () => {
-        const fixture = new Fixture("matterjs", (f, _index, value) => {
-            f.report(value);
-            f.report(value);
-        });
+    it("passes on the TH's own report and ack when the controller's callbacks lag behind", async () => {
+        // chip-tool's interactive server hands over only the first result of a batch, so a report the
+        // TH coalesced with another attribute reaches no callback — the log is what proves the write
+        const fixture = new Fixture("chip-local", f => f.pushReport(SUBSCRIPTION_ID));
 
         await withFixture(fixture, async f => {
-            await f.run();
+            await f.run(VALUES, IMPATIENT);
 
             expect(f.failures).deep.equal([]);
-            const summary = f.passes[f.passes.length - 1];
-            expect(summary.detail).match(/3 by onUpdate/);
-            expect(summary.detail).match(/onUpdate delivered 6 reports carrying the written values in order/);
+            const unverified = f.checks.filter(check => check.verdict === "unverified");
+            expect(unverified).to.have.lengthOf(1);
+            expect(unverified[0].detail).match(/matched 0\/3/);
+            expect(unverified[0].detail).match(/confirmed by the TH's own report and its Success ack/);
         });
     });
 
-    it("fails by timeout when the log carries no subscription id and onUpdate never fires", async () => {
-        const fixture = new Fixture("matterjs", () => {});
+    it("fails when the TH's log carries no report for this write, whatever the callbacks say", async () => {
+        const fixture = new Fixture("chip-local", (f, _index, value) => {
+            f.report(value);
+        });
 
         await withFixture(fixture, async f => {
             await expect(f.run(VALUES, IMPATIENT)).rejectedWith(
                 CertCheckFailedError,
-                /produced no subscription report carrying true/,
+                /StatusResponse ack check failed/,
             );
-
-            expect(f.failures[f.failures.length - 1].type).equal("response");
         });
     });
 });

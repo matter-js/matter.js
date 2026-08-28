@@ -9,7 +9,7 @@ import { writeFile } from "node:fs/promises";
 import { createServer, type Socket } from "node:net";
 import { join } from "node:path";
 import { WebSocket, WebSocketServer } from "ws";
-import { CHIP_TOOL_READY_MESSAGE } from "../../src/chip-tool/chip-tool-client.js";
+import { CHIP_TOOL_READY_MESSAGE, isAsyncReportFrame } from "../../src/chip-tool/chip-tool-client.js";
 
 export function delay(ms: number) {
     return new Promise<void>(resolve => setTimeout(resolve, ms));
@@ -157,9 +157,21 @@ export class FakeChipTool {
         return "appended";
     }
 
-    /** Send a frame verbatim, for shapes `JSON.stringify` cannot produce. */
+    /**
+     * Answer with a frame verbatim, for shapes `JSON.stringify` cannot produce — a malformed reply, or
+     * a uint64 past the safe integer range.
+     *
+     * This is an answer, not a side channel: it disarms the slot the way the real server's `Reset()`
+     * follows every reply it sends. It therefore requires something to answer, and a socket to answer
+     * on: disarming for a frame that never went out would leave {@link violations} unable to record the
+     * next thing the client really does.
+     */
     sendRaw(frame: string) {
-        this.#socket?.send(frame);
+        if (!this.#enabled) {
+            throw new InternalError(`Nothing to answer with ${JSON.stringify(frame)}: the result slot is not armed`);
+        }
+        this.#emit(frame);
+        this.#reset();
     }
 
     async close() {
@@ -178,8 +190,16 @@ export class FakeChipTool {
         this.#work = this.#work.then(() => this.#serve(frame)).catch(e => void this.failures.push(e));
     }
 
+    // One reply per command, as the real server sends: a verbatim answer while this one waits is the
+    // answer, and this call must not add a second frame for the same command.
+    #superseded(frame: string) {
+        return this.#inFlight !== frame;
+    }
+
     async #serve(frame: string) {
-        const isAsyncReport = frame.length === 0 || (frame.length <= 5 && /^\s*[-+]?\d/.test(frame));
+        // The production rule, not a copy of it: a copy would agree with the client by construction and
+        // could not catch the client sending something real chip-tool never runs.
+        const isAsyncReport = isAsyncReportFrame(frame);
 
         this.#enabled = true;
         this.#async = isAsyncReport;
@@ -200,6 +220,9 @@ export class FakeChipTool {
 
         if (reply.delayMs) {
             await delay(reply.delayMs);
+            if (this.#superseded(frame)) {
+                return;
+            }
         }
 
         for (const result of reply.results ?? []) {
@@ -219,12 +242,22 @@ export class FakeChipTool {
 
     #send(status = 0) {
         const results = status === 0 ? this.#results : [...this.#results, { error: "FAILURE" }];
-        this.#socket?.send(JSON.stringify({ results, logs: this.#logs }));
+        this.#emit(JSON.stringify({ results, logs: this.#logs }));
+    }
+
+    // A frame the test believes was answered but that no socket carried leaves every later assertion
+    // reading a state the client never saw.
+    #emit(frame: string) {
+        if (this.#socket === undefined) {
+            throw new InternalError(`No connected socket to send ${JSON.stringify(frame)} on`);
+        }
+        this.#socket.send(frame);
     }
 
     #reset() {
         this.#enabled = false;
         this.#async = false;
+        this.parked = false;
         this.#inFlight = undefined;
         this.#results = [];
         this.#logs = [];

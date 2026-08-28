@@ -22,8 +22,12 @@ export type {
     StepRecorder,
     StepVerdict,
 } from "./cert/cert-context.js";
-export { certTest, MultiDeviceUnsupportedError } from "./cert/cert-dsl.js";
+export { certTest } from "./cert/cert-dsl.js";
+/** @internal Test seam — not API. Per-device identity assignment for a multi-device run. */
+export { DeviceIdentityExhaustedError, identityFor } from "./cert/cert-dsl.js";
 export type { CertStepOptions, CertTestBuilder, CertTestOptions } from "./cert/cert-dsl.js";
+/** @internal Test seam — not API. The gate `certTest()` applies before a test's device starts. */
+export { certPicsFile, unmetTestPics } from "./cert/cert-dsl.js";
 /** @internal Test seam — not API. Production cert tests go through the `certTest()` DSL, not this class directly. */
 export { CertTest } from "./cert/cert-test.js";
 export { ChipDockerSubject, ChipLocalSubject } from "./cert/chip-app-subject.js";
@@ -31,7 +35,11 @@ export { ChipDockerSubject, ChipLocalSubject } from "./cert/chip-app-subject.js"
 export { ChipDockerDevice, HARNESS_DBUS_CONTAINER } from "./cert/chip-app-subject.js";
 /** @internal Test seam — not API. */
 export type { CompositionHandle, DockerHandle } from "./cert/chip-app-subject.js";
-export { registerControllerAdapterFactory, UnsupportedByControllerError } from "./cert/controller-adapter.js";
+export {
+    controllerPicsOverridesFor,
+    registerControllerAdapterFactory,
+    UnsupportedByControllerError,
+} from "./cert/controller-adapter.js";
 /** @internal Test seam — not API. Cert-test wiring calls this from `cert-dsl.ts`; direct use is for registry tests. */
 export { createControllerAdapter } from "./cert/controller-adapter.js";
 /** @internal Test seam — not API. */
@@ -41,6 +49,8 @@ export type {
     AttributeReadEntry,
     AttributeWriteEntry,
     AttributeWriteStatus,
+    BatchCommandResult,
+    BatchCommandSpec,
     CertNodeApi,
     CertNodeRef,
     CommissioningTarget,
@@ -48,6 +58,8 @@ export type {
     ControllerAdapterFactory,
     EventPathSpec,
     EventReadEntry,
+    ManualPairingCodeFields,
+    OnboardingPayloadFields,
     ReadAttributeOptions,
     ReadEventOptions,
     SubscribeEventOptions,
@@ -58,8 +70,14 @@ export { resolveControllerImplementation, resolveDeviceFlavor } from "./cert/dev
 export type { ControllerImplementation } from "./cert/device-config.js";
 export { EvidenceRecorder } from "./cert/evidence.js";
 export type { RunRecord, StepRecord } from "./cert/evidence.js";
-export { CertLogClosedError, CertLogTimeoutError, LogFollower } from "./cert/log-follower.js";
-export type { LogExpectOptions, LogExpectPatterns, LogExpectResult, LogLine } from "./cert/log-follower.js";
+export { CertLogClosedError, CertLogTimeoutError, forFlavor, LogFollower } from "./cert/log-follower.js";
+export type {
+    LogExpectOptions,
+    LogExpectPatterns,
+    LogExpectResult,
+    LogExpectSequences,
+    LogLine,
+} from "./cert/log-follower.js";
 export { registerMatterJsCertSubject } from "./cert/matterjs-subject-registry.js";
 export { PromptDrivenPythonTest } from "./cert/prompt-driven-python-test.js";
 export type { PromptHandler } from "./cert/prompt-driven-python-test.js";

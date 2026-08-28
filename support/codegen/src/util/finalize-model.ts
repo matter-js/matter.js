@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { isDeepEqual, Logger } from "#general";
+import { InternalError, isDeepEqual, Logger } from "#general";
 import {
     AnyElement,
     AttributeModel,
@@ -12,6 +12,8 @@ import {
     CommandModel,
     DatatypeModel,
     ElementTag,
+    EventElement,
+    EventModel,
     FieldModel,
     MatterModel,
     Metatype,
@@ -28,6 +30,11 @@ const logger = Logger.get("create-model");
  * Create and validate the final model for export
  **/
 export function finalizeModel(matter: MatterModel) {
+    // Generation emits what validation normalizes, and validation cannot normalize a frozen model
+    if (matter.isFinal) {
+        throw new InternalError(`Cannot generate from ${matter.name} because it is final`);
+    }
+
     const scopedDatatypes = collectScopedDatatypes(matter);
 
     const semanticNamespaces = new Array<SemanticNamespaceModel>();
@@ -38,6 +45,7 @@ export function finalizeModel(matter: MatterModel) {
             patchClusterTypes(child);
             patchOptionsTypes(child);
             patchStatusTypes(child);
+            installEventPriorities(child);
         } else if (child instanceof SemanticNamespaceModel) {
             semanticNamespaces.push(child);
         }
@@ -54,12 +62,45 @@ export function finalizeModel(matter: MatterModel) {
     });
 }
 
+/**
+ * Install the priority of events that do not state one.
+ *
+ * A derived cluster's event table leaves the priority column empty for an event it inherits unchanged.  Priority is
+ * mandatory in our model, so we resolve it from the event we derive from, falling back to the most conservative value
+ * where the specification states none at all.
+ */
+function installEventPriorities(cluster: ClusterModel) {
+    for (const event of cluster.events) {
+        if (event.priority !== undefined) {
+            continue;
+        }
+
+        const inherited = inheritedPriority(event.shadow);
+        if (inherited !== undefined) {
+            event.priority = inherited;
+            continue;
+        }
+
+        logger.warn(`${event.path} has no priority, assuming CRITICAL`);
+        event.priority = EventElement.Priority.Critical;
+    }
+}
+
+/** The priority of the nearest event in the derivation chain that states one, independent of the order of clusters */
+function inheritedPriority(model: Model | undefined, depth = 0): EventElement.Priority | undefined {
+    if (!(model instanceof EventModel) || depth > 8) {
+        return;
+    }
+
+    return model.priority ?? inheritedPriority(model.shadow, depth + 1);
+}
+
 export type ScopedDatatypes = Record<string, Model | undefined>;
 
 function updateSemanticNamespaces(semanticNamespaces: SemanticNamespaceModel[], matter: MatterModel) {
     const namespace = matter.get(DatatypeModel, "namespace");
     if (!namespace) {
-        throw new Error("Namespace datatype not found in model. This should never happen");
+        throw new InternalError("Namespace datatype not found in model");
     }
 
     namespace.children = semanticNamespaces

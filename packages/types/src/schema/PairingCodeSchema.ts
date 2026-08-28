@@ -31,7 +31,12 @@ import {
 } from "./BitmapSchema.js";
 import { Schema } from "./Schema.js";
 
-/** See {@link MatterSpecification.v16.Core} §5.1.3.2. */
+/**
+ * Counted over the whole code, `MT:` prefix included: § 5.1.3.2's own 255 characters yield 1208 bits,
+ * of which 1120 (140 octets) are TLV data, which only works out with the prefix counted.
+ *
+ * See {@link MatterSpecification.v16.Core} §5.1.3.2.
+ */
 export const MATTER_QR_CODE_SINGLE_PAYLOAD_MAX_LENGTH = 255;
 
 /** See {@link MatterSpecification.v16.Core} §5.1.3.2. */
@@ -93,7 +98,15 @@ const QrCodeDataSchema = ByteArrayBitmapSchema({
     passcode: BitField(57, 27),
 });
 
-export type QrCodeData = TypeFromBitmapSchema<typeof QrCodeDataSchema> & {
+/**
+ * § 2.5.2 and § 2.5.3 give 0 the meaning "unspecified" for a vendor and a product. A QR payload
+ * carries both fields whether or not it names anything, so the codec reports an unspecified one as
+ * absent rather than as a value a caller might compare against.
+ */
+export type QrCodeData = Omit<TypeFromBitmapSchema<typeof QrCodeDataSchema>, "vendorId" | "productId"> & {
+    vendorId?: number;
+    productId?: number;
+} & {
     /**
      * See {@link MatterSpecification.v16.Core} § 5.1.5
      * Variable length TLV data. Zero length if TLV is not included. This data is byte-aligned.
@@ -171,6 +184,51 @@ export function assertValidPasscode(passcode: number): void {
     }
 }
 
+/** § 2.5.2 / § 2.5.3's "unspecified", which the codecs report as an absent identifier. */
+const UNSPECIFIED_ID = 0;
+
+/**
+ * An onboarding payload's vendor or product identifier as a caller should see it: absent where the
+ * payload states nothing. The specification writes "unspecified" as 0, and a reader comparing that
+ * against a real identifier would reject devices the payload never spoke about.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 2.5.2
+ * @see {@link MatterSpecification.v16.Core} § 2.5.3
+ */
+export function statedIdentifier<T extends number>(id: T | undefined): T | undefined {
+    return id === undefined || id === UNSPECIFIED_ID ? undefined : id;
+}
+
+/** Inclusive upper bound of a product identifier, which § 5.1.3.1 Table 59 carries in 16 bits. */
+const PRODUCT_ID_MAX = 0xffff;
+
+/**
+ * Rejects a vendor/product identifier pair an onboarding payload may not carry: a vendor id past the
+ * last test vendor (§ 2.5.2), a product id outside 16 bits, or a product the payload leaves unstated
+ * while naming a real vendor — 0 announces an anonymized product and is reserved for a payload that
+ * names no vendor either (§ 2.5.3).
+ *
+ * Takes the pair as the payload carries it, so 0 and `undefined` mean the same thing here and no
+ * caller has to normalise first. Mirrors CHIP's `PayloadContents::CheckPayloadCommonConstraints`.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 2.5.2
+ * @see {@link MatterSpecification.v16.Core} § 2.5.3
+ */
+export function assertValidPayloadIdentity(rawVendorId?: number, rawProductId?: number): void {
+    const vendorId = statedIdentifier(rawVendorId);
+    const productId = statedIdentifier(rawProductId);
+
+    if (vendorId !== undefined && !VendorId.isValid(vendorId)) {
+        throw new UnexpectedDataError(`Invalid vendor ID ${vendorId} in onboarding payload`);
+    }
+    if (productId !== undefined && (!Number.isInteger(productId) || productId < 0 || productId > PRODUCT_ID_MAX)) {
+        throw new UnexpectedDataError(`Invalid product ID ${productId} in onboarding payload`);
+    }
+    if (productId === undefined && vendorId !== undefined) {
+        throw new UnexpectedDataError(`An onboarding payload naming vendor ID ${vendorId} must name a product too`);
+    }
+}
+
 const PREFIX = "MT:";
 
 /**
@@ -227,6 +285,13 @@ class QrPairingCodeSchema extends Schema<QrCodeData[], string> {
         }
     }
 
+    /** § 2.5's identity rules, which bind a code being read but not one a caller may write. */
+    protected override validateDecoded(payloadData: QrCodeData[]): void {
+        for (const { vendorId, productId } of payloadData) {
+            assertValidPayloadIdentity(vendorId, productId);
+        }
+    }
+
     protected encodeInternal(payloadData: QrCodeData[]): string {
         if (payloadData.length === 0) throw new ImplementationError("Provided Payload data is empty");
         const result =
@@ -234,14 +299,21 @@ class QrPairingCodeSchema extends Schema<QrCodeData[], string> {
             payloadData
                 .map(payloadData => {
                     const { tlvData } = payloadData;
+                    // The fields are always on the wire; "unspecified" is written as 0 (§ 2.5.2, § 2.5.3)
+                    const fields = {
+                        ...payloadData,
+                        vendorId: payloadData.vendorId ?? UNSPECIFIED_ID,
+                        productId: payloadData.productId ?? UNSPECIFIED_ID,
+                    };
                     const data =
                         tlvData !== undefined && tlvData.byteLength > 0
-                            ? Bytes.of(Bytes.concat(QrCodeDataSchema.encode(payloadData), tlvData))
-                            : QrCodeDataSchema.encode(payloadData);
+                            ? Bytes.of(Bytes.concat(QrCodeDataSchema.encode(fields), tlvData))
+                            : QrCodeDataSchema.encode(fields);
                     const result = Base38.encode(data);
-                    if (result.length > MATTER_QR_CODE_SINGLE_PAYLOAD_MAX_LENGTH) {
+                    const length = PREFIX.length + result.length;
+                    if (length > MATTER_QR_CODE_SINGLE_PAYLOAD_MAX_LENGTH) {
                         throw new UnexpectedDataError(
-                            `Encoded pairing code is too long: ${result.length} characters (max ${MATTER_QR_CODE_SINGLE_PAYLOAD_MAX_LENGTH})`,
+                            `Encoded pairing code is too long: ${length} characters (max ${MATTER_QR_CODE_SINGLE_PAYLOAD_MAX_LENGTH})`,
                         );
                     }
                     return result;
@@ -262,8 +334,11 @@ class QrPairingCodeSchema extends Schema<QrCodeData[], string> {
             .split("*")
             .map(encodedData => {
                 const data = Bytes.of(Base38.decode(encodedData));
+                const { vendorId, productId, ...fields } = QrCodeDataSchema.decode(data.slice(0, 11));
                 return {
-                    ...QrCodeDataSchema.decode(data.slice(0, 11)),
+                    ...fields,
+                    vendorId: statedIdentifier(vendorId),
+                    productId: statedIdentifier(productId),
                     tlvData: data.length > 11 ? data.slice(11) : undefined, // TlvData (if any) is after the fixed-length data
                 };
             });
@@ -378,6 +453,11 @@ class ManualPairingCodeSchema extends Schema<ManualPairingData, string> {
         return result;
     }
 
+    /** § 2.5's identity rules, which bind a code being read but not one a caller may write. */
+    protected override validateDecoded({ vendorId, productId }: ManualPairingData): void {
+        assertValidPayloadIdentity(vendorId, productId);
+    }
+
     protected decodeInternal(encoded: string): ManualPairingData {
         encoded = encoded.replace(/\D/g, ""); // we SHALL be robust against other characters
         if (encoded.length !== 11 && encoded.length !== 21) {
@@ -390,14 +470,24 @@ class ManualPairingCodeSchema extends Schema<ManualPairingData, string> {
         if (new Verhoeff().computeChecksum(encoded.slice(0, -1)) !== parseInt(encoded.slice(-1))) {
             throw new UnexpectedDataError("Invalid checksum");
         }
+        // § 5.1.4.1 Table 62/64: the VID_PID_PRESENT bit and the code's length state the same thing, so a
+        // code whose bit disagrees with its length is malformed rather than a short code with a long tail
         const hasVendorProductIds = !!(parseInt(encoded[0]) & (1 << 2));
+        if (hasVendorProductIds !== (encoded.length === 21)) {
+            throw new UnexpectedDataError(
+                encoded.length === 21
+                    ? "A 21-digit manual pairing code must set VID_PID_PRESENT"
+                    : "An 11-digit manual pairing code must not set VID_PID_PRESENT",
+            );
+        }
         const shortDiscriminator = ((parseInt(encoded[0]) & 0x03) << 2) | ((parseInt(encoded.slice(1, 6)) >> 14) & 0x3);
         const passcode = (parseInt(encoded.slice(1, 6)) & 0x3fff) | (parseInt(encoded.slice(6, 10)) << 14);
         let vendorId: VendorId | undefined;
         let productId: number | undefined;
         if (hasVendorProductIds) {
-            vendorId = VendorId(parseInt(encoded.slice(10, 15)));
-            productId = parseInt(encoded.slice(15, 20));
+            const statedVendorId = statedIdentifier(parseInt(encoded.slice(10, 15)));
+            vendorId = statedVendorId === undefined ? undefined : VendorId(statedVendorId);
+            productId = statedIdentifier(parseInt(encoded.slice(15, 20)));
         }
         return { shortDiscriminator, passcode, vendorId, productId };
     }

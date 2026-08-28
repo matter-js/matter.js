@@ -4,15 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Millis, Time } from "@matter/main";
+import { Duration, Millis, Seconds, Time } from "@matter/main";
+import { resolveControllerImplementation } from "@matter/testing";
 import type { AttributePathSpec, CertNodeRef, CertStepContext } from "@matter/testing";
 import {
-    ACK_WAIT_TIMEOUT_MS,
     CertCheckFailedError,
     expectMessageWithPath,
     expectReportAck,
     expectSubscriptionId,
-    SUBSCRIBE_REQUEST_MESSAGE,
+    LOG_TIMEOUT,
+    record,
 } from "./tc-support.js";
 
 // TC-IDM-4.1's subscription machinery lives beside the test case rather than inside it because a
@@ -30,21 +31,21 @@ export const MAX_INTERVAL_CEILING_SECONDS = 80;
 // elapsed since the last report is coalesced into the next one, not reported on its own. Each write
 // in subscribeAndModify waits for its own report before the next write is issued, so this bounds
 // that wait (floor plus slack for scheduling/CI jitter), not the write itself.
-const REPORT_WAIT_TIMEOUT_MS = (MIN_INTERVAL_FLOOR_SECONDS + 20) * 1000;
+const REPORT_WAIT_TIMEOUT = Seconds(MIN_INTERVAL_FLOOR_SECONDS + 20);
 
 /**
- * Waits until `satisfied()` holds or `timeoutMs` elapses, woken by `setNotify`'s callback rather than
+ * Waits until `satisfied()` holds or `timeout` elapses, woken by `setNotify`'s callback rather than
  * polling. A wake that leaves `satisfied()` false waits again on the remaining budget, so a report
  * that isn't the awaited one can wake this without ending it, and no timer outlives the wait.
  */
 async function waitForReport(
     satisfied: () => boolean,
     setNotify: (fn: (() => void) | undefined) => void,
-    timeoutMs: number,
+    timeout: Duration,
 ): Promise<boolean> {
-    const deadline = Time.nowMs + timeoutMs;
+    const deadline = Time.nowUs + timeout;
     while (!satisfied()) {
-        const remaining = deadline - Time.nowMs;
+        const remaining = deadline - Time.nowUs;
         if (remaining <= 0) {
             return false;
         }
@@ -63,9 +64,9 @@ async function waitForReport(
 /** Per-wait budgets {@link subscribeAndModify} uses; a test supplies shorter ones than a real run needs. */
 export interface SubscribeAndModifyTimeouts {
     /** Bounds each establishment check (SubscribeRequest shape, subscription id, priming-report ack). */
-    establishMs?: number;
+    establish?: Duration;
     /** Bounds the wait for one write's own report; must cover MinIntervalFloor's debounce. */
-    reportMs?: number;
+    report?: Duration;
 }
 
 /**
@@ -83,15 +84,18 @@ export interface SubscribeAndModifyTimeouts {
  * bare mark taken after subscribe() — subscribe() resolving only means the client has sent the priming
  * ack, not that this log has decoded it yet.
  *
- * `onUpdate` asserts values rather than arrival counts: `values` must come back as an in-order
- * subsequence of what it delivers, so a duplicate or keepalive report is an extra element of that
- * sequence and never the next write's confirmation, while a value this step never wrote is a mismatch.
- * A flavor whose log carries no subscription id (matterjs) has nothing to correlate on, so there that
- * subsequence is also what confirms each write.
+ * `onUpdate` is secondary evidence, and asserts values rather than arrival counts: a value this step
+ * never wrote fails it, while `values` failing to come back as an in-order subsequence is recorded
+ * `"unverified"` — chip-tool's interactive server hands over only the first result of a batch and
+ * discards the rest (see this directory's AGENTS.md), so a report a TH coalesced with another
+ * attribute reaches no callback however well the interaction went.
  *
  * What the log confirmation does not prove: that the report it matched carried this write's data
- * rather than being a keepalive on the same subscription. Conversely a report the controller drops
- * before `onUpdate` fails the value assertion even though the interaction itself succeeded.
+ * rather than another change on the same subscription. A report carrying no data at all — the
+ * keepalive an idle subscription sends — is excluded for the per-write confirmations, on both flavors,
+ * each by requiring the line on which its own log says what the report carried. Only the priming report
+ * is checked without that requirement, since a subscription can legitimately be established with
+ * nothing to report yet.
  */
 export async function subscribeAndModify<Value>(
     cx: CertStepContext,
@@ -103,8 +107,8 @@ export async function subscribeAndModify<Value>(
 ): Promise<void> {
     const th = cx.devices.th;
     const node = cx.controllers.dut.node(ref);
-    const establishMs = timeouts.establishMs ?? ACK_WAIT_TIMEOUT_MS;
-    const reportMs = timeouts.reportMs ?? REPORT_WAIT_TIMEOUT_MS;
+    const establish = timeouts.establish ?? LOG_TIMEOUT;
+    const report = timeouts.report ?? REPORT_WAIT_TIMEOUT;
     const from = th.log.mark();
 
     const failResponse = (detail: string): never => {
@@ -132,44 +136,36 @@ export async function subscribeAndModify<Value>(
         },
     });
 
-    const subscribeCheck = await expectMessageWithPath(
-        th.log,
-        th.flavor,
-        SUBSCRIBE_REQUEST_MESSAGE,
-        path,
-        from,
-        establishMs,
-    );
-    cx.recorder.check(subscribeCheck);
-    if (subscribeCheck.verdict === "fail") {
-        throw new CertCheckFailedError(
-            `SubscribeRequestMessage log check failed for step ${step}: ${JSON.stringify(subscribeCheck)}`,
-        );
-    }
+    const subscribeCheck = await expectMessageWithPath(th.log, th.flavor, "subscribe", path, from, establish);
+    record(cx, subscribeCheck, `SubscribeRequestMessage log for step ${step}`);
 
     // The follower pumps the device stream asynchronously, so a previous step's SubscribeResponse
     // can surface after this step marked — reading the id out of that one pins every later check to
     // the wrong subscription.
     const established = subscribeCheck.logLine !== undefined ? subscribeCheck.logLine + 1 : from;
 
-    const idLookup = await expectSubscriptionId(th.log, th.flavor, established, establishMs);
-    cx.recorder.check(idLookup.check);
-    if (idLookup.check.verdict === "fail") {
+    const idLookup = await expectSubscriptionId(th.log, th.flavor, established, establish);
+    record(cx, idLookup.check, `Subscription-id lookup for step ${step}`);
+
+    // Every flavor names its subscriptions in its own log. One that does not cannot show the TH's own
+    // side of what this step claims, and the controller's callbacks are no substitute for it — chip-tool
+    // drops reports its device coalesced (see AGENTS.md) — so the step says so rather than proving less.
+    if (idLookup.outcome !== "found") {
         throw new CertCheckFailedError(
-            `Subscription-id lookup failed for step ${step}: ${JSON.stringify(idLookup.check)}`,
+            `Step ${step} cannot read a subscription id from a ${th.flavor} TH's log, so the reports this step ` +
+                `writes for cannot be attributed to its own subscription: ${JSON.stringify(idLookup.check)}`,
         );
     }
 
-    const primingAckCheck = await expectReportAck(th.log, th.flavor, idLookup.subscriptionId, established, establishMs);
-    cx.recorder.check(primingAckCheck);
-    if (primingAckCheck.verdict === "fail") {
-        throw new CertCheckFailedError(
-            `Priming-report status check failed for step ${step}: ${JSON.stringify(primingAckCheck)}`,
-        );
-    }
+    // A subscription can be established with nothing to report yet, so this one report is allowed to
+    // carry no data; every later check in this step requires data, which is what tells a report of this
+    // write from a keepalive on the same subscription.
+    const primingAckCheck = await expectReportAck(th.log, th.flavor, idLookup, established, establish, {
+        carriesData: false,
+    });
+    record(cx, primingAckCheck, `Priming-report status for step ${step}`);
 
     let ackCursor = primingAckCheck.logLine !== undefined ? primingAckCheck.logLine + 1 : th.log.mark();
-    let logConfirmed = 0;
     for (let i = 0; i < values.length; i++) {
         // A report already in the log when the write was issued cannot be this write's — a further
         // chunk of the priming report, or a keepalive on this same subscription, would otherwise
@@ -182,37 +178,17 @@ export async function subscribeAndModify<Value>(
             throw e;
         }
 
-        const ackCheck = await expectReportAck(
-            th.log,
-            th.flavor,
-            idLookup.subscriptionId,
-            Math.max(ackCursor, writeFrom),
-            reportMs,
-        );
+        const ackCheck = await expectReportAck(th.log, th.flavor, idLookup, Math.max(ackCursor, writeFrom), report);
+        // Not `record()`: this demands a pass, where that lets "unverified" through. A flavor whose log
+        // cannot show the ack cannot show what this step claims, so it fails rather than proving less.
         cx.recorder.check(ackCheck);
-        if (ackCheck.verdict === "fail") {
+        if (ackCheck.verdict !== "pass") {
             throw new CertCheckFailedError(
                 `StatusResponse ack check failed for step ${step}, write ${i + 1}/${values.length}: ${JSON.stringify(ackCheck)}`,
             );
         }
-        if (ackCheck.verdict === "pass") {
-            logConfirmed++;
-            if (ackCheck.logLine !== undefined) {
-                ackCursor = ackCheck.logLine + 1;
-            }
-        } else {
-            const arrived = await waitForReport(
-                () => matched > i,
-                fn => (notify = fn),
-                reportMs,
-            );
-            if (!arrived) {
-                failResponse(
-                    `step ${step}: write ${i + 1}/${values.length} to ${JSON.stringify(path)} produced no ` +
-                        `subscription report carrying ${JSON.stringify(values[i])} within ` +
-                        Duration.format(Millis(reportMs)),
-                );
-            }
+        if (ackCheck.logLine !== undefined) {
+            ackCursor = ackCheck.logLine + 1;
         }
 
         if (mismatch !== undefined) {
@@ -225,26 +201,39 @@ export async function subscribeAndModify<Value>(
     const allReported = await waitForReport(
         () => matched >= values.length,
         fn => (notify = fn),
-        reportMs,
+        report,
     );
     if (mismatch !== undefined) {
         failResponse(`step ${step}: ${mismatch}`);
     }
     if (!allReported) {
-        failResponse(
-            `step ${step}: onUpdate delivered ${JSON.stringify(reported)}, which does not carry the written values ` +
-                `${JSON.stringify(values)} in order (matched ${matched}/${values.length}) within ` +
-                Duration.format(Millis(reportMs)),
-        );
+        // What the plan asks to verify is the TH's own view: it reported, and the DUT acked Success,
+        // which the loop above took from the TH's log for every write. A value missing from the
+        // controller's own callbacks is a gap in that controller's delivery rather than in the
+        // behaviour under test — but only chip-tool is known to have one, so on any other controller
+        // this stays a gap to close.
+        cx.recorder.check({
+            type: "response",
+            verdict: "unverified",
+            accepted:
+                resolveControllerImplementation() === "chip-tool"
+                    ? "chip-tool's interactive server hands over only the first result of a batch and discards " +
+                      "the rest, so a report the TH coalesced with another attribute reaches no callback at all"
+                    : undefined,
+            detail:
+                `step ${step}: onUpdate delivered ${JSON.stringify(reported)} of the written values ` +
+                `${JSON.stringify(values)} (matched ${matched}/${values.length}); every write is confirmed by the ` +
+                "TH's own report and its Success ack instead",
+        });
     }
 
-    const idText = idLookup.subscriptionId === undefined ? "(none)" : `0x${idLookup.subscriptionId.toString(16)}`;
+    const idText = `0x${idLookup.subscriptionId.toString(16)}`;
     cx.recorder.check({
         type: "response",
         verdict: "pass",
         detail:
-            `step ${step}: ${values.length} distinct writes to ${JSON.stringify(path)} — ${logConfirmed} confirmed ` +
-            `by their own report on subscription ${idText} in the TH's log, ${values.length - logConfirmed} by ` +
-            `onUpdate; onUpdate delivered ${reported.length} reports carrying the written values in order`,
+            `step ${step}: ${values.length} distinct writes to ${JSON.stringify(path)}, each confirmed by its own ` +
+            `report on subscription ${idText} in the TH's log and the DUT's Success ack for it; onUpdate ` +
+            `delivered ${reported.length} reports, ${matched}/${values.length} of the written values in order`,
     });
 }

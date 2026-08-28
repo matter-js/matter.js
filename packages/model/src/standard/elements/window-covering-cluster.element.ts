@@ -107,44 +107,44 @@ export const WindowCovering = Cluster(
 
     Datatype(
         { name: "ConfigStatusBitmap", type: "map8" },
-        Field({ name: "Operational", constraint: "0" }),
-        Field({ name: "OnlineReserved", constraint: "1" }),
-        Field({ name: "LiftMovementReversed", constraint: "2" }),
-        Field({ name: "LiftPositionAware", constraint: "3" }),
-        Field({ name: "TiltPositionAware", constraint: "4" }),
-        Field({ name: "LiftEncoderControlled", constraint: "5" }),
-        Field({ name: "TiltEncoderControlled", constraint: "6" })
+        Field({ name: "Operational", conformance: "M", constraint: "0" }),
+        Field({ name: "OnlineReserved", conformance: "D", constraint: "1" }),
+        Field({ name: "LiftMovementReversed", conformance: "LF", constraint: "2" }),
+        Field({ name: "LiftPositionAware", conformance: "PA_LF", constraint: "3" }),
+        Field({ name: "TiltPositionAware", conformance: "PA_TL", constraint: "4" }),
+        Field({ name: "LiftEncoderControlled", conformance: "PA_LF", constraint: "5" }),
+        Field({ name: "TiltEncoderControlled", conformance: "PA_TL", constraint: "6" })
     ),
 
     Datatype(
         { name: "ModeBitmap", type: "map8" },
-        Field({ name: "MotorDirectionReversed", constraint: "0" }),
-        Field({ name: "CalibrationMode", constraint: "1" }),
-        Field({ name: "MaintenanceMode", constraint: "2" }),
-        Field({ name: "LedFeedback", constraint: "3" })
+        Field({ name: "MotorDirectionReversed", conformance: "M", constraint: "0" }),
+        Field({ name: "CalibrationMode", conformance: "M", constraint: "1" }),
+        Field({ name: "MaintenanceMode", conformance: "M", constraint: "2" }),
+        Field({ name: "LedFeedback", conformance: "M", constraint: "3" })
     ),
 
     Datatype(
         { name: "OperationalStatusBitmap", type: "map8" },
-        Field({ name: "Global", type: "MovementStatus", constraint: "0 to 1" }),
-        Field({ name: "Lift", type: "MovementStatus", constraint: "2 to 3" }),
-        Field({ name: "Tilt", type: "MovementStatus", constraint: "4 to 5" })
+        Field({ name: "Global", type: "MovementStatus", conformance: "M", constraint: "0 to 1" }),
+        Field({ name: "Lift", type: "MovementStatus", conformance: "LF", constraint: "2 to 3" }),
+        Field({ name: "Tilt", type: "MovementStatus", conformance: "TL", constraint: "4 to 5" })
     ),
 
     Datatype(
         { name: "SafetyStatusBitmap", type: "map16" },
-        Field({ name: "RemoteLockout", constraint: "0" }),
-        Field({ name: "TamperDetection", constraint: "1" }),
-        Field({ name: "FailedCommunication", constraint: "2" }),
-        Field({ name: "PositionFailure", constraint: "3" }),
-        Field({ name: "ThermalProtection", constraint: "4" }),
-        Field({ name: "ObstacleDetected", constraint: "5" }),
-        Field({ name: "Power", constraint: "6" }),
-        Field({ name: "StopInput", constraint: "7" }),
-        Field({ name: "MotorJammed", constraint: "8" }),
-        Field({ name: "HardwareFailure", constraint: "9" }),
-        Field({ name: "ManualOperation", constraint: "10" }),
-        Field({ name: "Protection", constraint: "11" })
+        Field({ name: "RemoteLockout", conformance: "M", constraint: "0" }),
+        Field({ name: "TamperDetection", conformance: "M", constraint: "1" }),
+        Field({ name: "FailedCommunication", conformance: "M", constraint: "2" }),
+        Field({ name: "PositionFailure", conformance: "M", constraint: "3" }),
+        Field({ name: "ThermalProtection", conformance: "M", constraint: "4" }),
+        Field({ name: "ObstacleDetected", conformance: "M", constraint: "5" }),
+        Field({ name: "Power", conformance: "M", constraint: "6" }),
+        Field({ name: "StopInput", conformance: "M", constraint: "7" }),
+        Field({ name: "MotorJammed", conformance: "M", constraint: "8" }),
+        Field({ name: "HardwareFailure", conformance: "M", constraint: "9" }),
+        Field({ name: "ManualOperation", conformance: "M", constraint: "10" }),
+        Field({ name: "Protection", conformance: "M", constraint: "11" })
     ),
 
     Datatype(
