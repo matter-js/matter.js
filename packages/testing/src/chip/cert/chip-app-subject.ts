@@ -19,8 +19,9 @@ import { Volume } from "../../docker/volume.js";
 import { delay, LineQueue } from "../../util/async.js";
 import { asyncLinesOf } from "../../util/text.js";
 import { CERT_BINS_PLATFORM, prepareChipBins, resolveChipBinsSource } from "../chip-bins.js";
+import { chip } from "../chip.js";
 import { HARNESS_DBUS_CONTAINER } from "../config.js";
-import { PicsUnavailableError, type PicsFile } from "../pics/file.js";
+import type { PicsFile, PicsUnavailableError } from "../pics/file.js";
 import type { CertDevice, CertDeviceFactory, DeviceExitInfo, DeviceFlavor } from "./cert-context.js";
 import { LogFollower } from "./log-follower.js";
 
@@ -43,11 +44,11 @@ const CONTAINER_STOP_TIMEOUT_MS = 30_000;
 // against (see TC-IDM-2.1's AGENTS.md section) never appear at all, on any platform build.
 const TRACE_ARGS = ["--trace_log", "1", "--trace_decode", "1"];
 
-function defaultCommissioning(): Subject.CommissioningParameters {
+function commissioningFor(identity?: Subject.Identity): Subject.CommissioningParameters {
     return {
         kind: "on-network",
-        passcode: DEFAULT_PASSCODE,
-        discriminator: DEFAULT_DISCRIMINATOR,
+        passcode: identity?.passcode ?? DEFAULT_PASSCODE,
+        discriminator: identity?.discriminator ?? DEFAULT_DISCRIMINATOR,
 
         // A real onboarding QR code needs the spec's base38 payload encoder, which lives in
         // matter.js and is out of reach here per the packages/testing dependency invariant.
@@ -55,6 +56,15 @@ function defaultCommissioning(): Subject.CommissioningParameters {
         // via discriminator/passcode instead.
         qrPairingCode: "",
     };
+}
+
+/**
+ * `--secured-device-port` for a subject that was given one. Without it every chip app binds 5540, so
+ * a second one in the same run fails to start — the failure surfaces as the device exiting while a
+ * step runs, which reads as a crash rather than as a port collision.
+ */
+function portArgs(identity?: Subject.Identity): string[] {
+    return identity?.port === undefined ? [] : ["--secured-device-port", String(identity.port)];
 }
 
 /**
@@ -169,13 +179,18 @@ class ChipLocalDevice implements CertDevice {
         this.app = app;
         this.appVariant = appVariant;
         this.id = domain;
-        this.commissioning = defaultCommissioning();
+        this.commissioning = commissioningFor(options?.identity);
         this.log = new LogFollower(this.#hub.follow(), domain);
-        this.#appArgs = options?.appArgs ?? [];
+        this.#appArgs = [...portArgs(options?.identity), ...(options?.appArgs ?? [])];
     }
 
+    /**
+     * A chip app's PICS is the certification file the harness container carries, the same one the
+     * run-level gate evaluates (`cert-dsl.ts`'s `certPicsFile`). Throws {@link PicsUnavailableError}
+     * until the container is up, as `chip.defaultPics` does.
+     */
     get pics(): PicsFile {
-        throw new PicsUnavailableError("No active PICS file for this device");
+        return chip.defaultPics;
     }
 
     get exit(): Promise<DeviceExitInfo> {
@@ -492,14 +507,19 @@ export class ChipDockerDevice implements CertDevice {
         this.app = app;
         this.appVariant = appVariant;
         this.id = domain;
-        this.commissioning = defaultCommissioning();
+        this.commissioning = commissioningFor(options?.identity);
         this.log = new LogFollower(this.#hub.follow(), domain);
-        this.#appArgs = options?.appArgs ?? [];
+        this.#appArgs = [...portArgs(options?.identity), ...(options?.appArgs ?? [])];
         this.#docker = docker;
     }
 
+    /**
+     * A chip app's PICS is the certification file the harness container carries, the same one the
+     * run-level gate evaluates (`cert-dsl.ts`'s `certPicsFile`). Throws {@link PicsUnavailableError}
+     * until the container is up, as `chip.defaultPics` does.
+     */
     get pics(): PicsFile {
-        throw new PicsUnavailableError("No active PICS file for this device");
+        return chip.defaultPics;
     }
 
     get exit(): Promise<DeviceExitInfo> {

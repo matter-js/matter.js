@@ -233,20 +233,32 @@ attached log stream (`device-<role>.log`, `controller-<name>.log`). Sketch of `r
 }
 ```
 
-A run-level `verdict` is one of `"pass" | "fail" | "skipped" | "incomplete"`; a step's is
-`"pass" | "fail" | "skipped" | "aborted"` (`"aborted"` for a step never reached after an earlier one
-failed). A run-level `"skipped"` means every step was skipped (a flavor or PICS gap) — not a failure.
+A run-level `verdict` is one of `"pass" | "fail" | "unverified" | "skipped" | "incomplete"`; a step's
+is `"pass" | "fail" | "unverified" | "skipped" | "aborted"` (`"aborted"` for a step never reached
+after an earlier one failed). A run-level `"skipped"` means every step was skipped (a flavor or PICS
+gap) — not a failure.
+
+`"unverified"` means the step ran without failing but one of its checks could not be evaluated, so it
+observed less than it claims; the test itself then fails, and the run reads `"unverified"` unless
+something stronger — a device that exited, cleanup or teardown that threw, evidence that could not be
+assembled, another step that failed — makes it `"fail"`. A gap in what was observed must not read as
+proof. A check whose claim the run genuinely cannot observe states why in its own `accepted` field,
+which keeps its step at `"pass"`.
 
 `"incomplete"` means the run never reached the point where its verdict is settled: a teardown that
 hung, a process killed mid-run, a volume that stopped accepting writes. Treat it as a failure of the
 run, not a statement about the device.
 
-Alongside `verdict`, a failed run carries `runError` (how the run's own runner reported the failure)
+Alongside `verdict`, every run the harness reported as failed — `"unverified"` runs included — carries
+`runError` (how the run's own runner reported the failure)
 and, where they apply, `deviceExit`, `finalizationError` (cleanup threw), `teardownError` (a
 controller or device would not close) and `evidenceError` (evidence the checks cite could not be
-assembled). `unverifiedChecks` counts checks whose claim could not be evaluated at all, and
-`controllerUnsupportedSkips` counts steps the controller could not express — both are gaps in what a
-passing run proved, not failures.
+assembled). `unverifiedChecks` counts checks whose claim could not be evaluated at all, those that
+stated a reason in `accepted` included, so it says how much the run left unobserved whatever the
+verdicts say; `controllerUnsupportedSkips` counts steps the controller could not express and
+`picsSkips` counts steps their own PICS excluded — both gaps in what a passing run proved rather than
+failures. A `picsSkips` figure that changes without the plan changing is worth reading as a PICS value
+gone wrong: the step skips just as quietly either way.
 
 Every attached `.log` file also carries a step-boundary banner (chip python/yaml style) at the point
 a step starts and again when it ends, e.g.:

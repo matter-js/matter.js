@@ -101,9 +101,7 @@ certTest("TC-DD-3.21", {
         "DUT parses TH's QR code. Follow any steps needed for the Commissioner/Commissionee to complete the " +
             "commissioning process over the TH Commissionee's method of device discovery",
         async cx => {
-            const payload = await thQrPayload(cx.devices.th);
-            await recordParse(cx, payload);
-            await commissionByQr(cx, payload, commissioned);
+            await commissionByQr(cx, await thQrPayload(cx.devices.th), commissioned);
         },
         {
             expected:

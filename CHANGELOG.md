@@ -12,14 +12,28 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/testing
+    - Enhancement: A certification step whose check could not be evaluated ends `"unverified"` and fails the run, unless the check states why the claim cannot be observed
+    - Enhancement: Per-step certification PICS is evaluated on chip device flavors too, and `result.json` reports how many steps their PICS excluded
     - Fix: A certification run's `result.json` no longer reports a passing verdict for a run that failed
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
 
+- @matter/protocol
+    - Enhancement: An interaction can be abandoned by the caller: `ClientRequest.abort` takes an `AbortSignal`, honored for read, write, invoke and subscribe
+
+- @project-chip/matter.js
+    - Enhancement: `InteractionClient`'s read, write, invoke and subscribe options take an `abort` signal, forwarded to the interaction
+
 - @matter/general
+    - Enhancement: `Transaction.lock()` takes an exclusive lock on resources without a promise where they are free, and waits instead of throwing where another transaction holds them
     - Breaking: `DnssdNames.Context.goodbyeProtectionWindow` and `DnssdNames.defaults.goodbyeProtectionWindow` are now `evictionDelay`, and `DnssdName.deleteRecord` no longer takes an `ifOlderThan` argument
     - Feature: Added generic WebSocket proxy framing (`net/ws-proxy`: hello handshake, JSON command/event envelope, binary frame codec) shared by WS-based proxy protocols
     - Enhancement: New `MatterAggregateError.settleSeries()` runs tasks in order, continuing past a failure, and reports the accumulated errors
     - Enhancement: A storage driver states how long a consumer may buffer dirty values via `StorageDriver.writeCoalescingInterval`, defaulting to 20 minutes; `MemoryStorageDriver` reports `Instant`
+    - Enhancement: `Transaction.Participant` gains `settled()`, invoked once after every participant's pre-commit reports no further mutation and before any of them writes; throwing there rejects the commit, and writes and further participants are refused while it runs
+    - Enhancement: `Transaction.Participant` gains `conclusion(outcome)`, which runs once per commit cycle or rollback — including the commit phase two failure that skips both `postCommit` and `rollback` — and states whether the transaction committed, rolled back, or ended inconsistent; it runs with the transaction's locks released and further writes refused
+    - Fix: A post-commit handler that rejects no longer detaches the remaining participants' post-commit work from the transaction
+    - Adjustment: `postCommit` and the new `conclusion` reach the participants commit phase two dispatched, so a participant that joins while its values are written — as a store does — is now told the outcome; one that joins after phase two has passed it is not, having run no phase at all
+    - Adjustment: A rollback completes once its participants have been told the outcome; where a participant reports asynchronously, a rollback that failed now rejects instead of throwing synchronously
     - Fix: Opening a namespace whose `driver.json` names an unregistered storage driver now throws `NoProviderError` instead of silently opening the existing data with a mismatched driver
     - Fix: DNS-SD ignores SRV records with port 0, an empty target or an out-of-range port
     - Fix: DNS-SD honors a goodbye that arrives shortly after the same record was re-announced
@@ -28,13 +42,29 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The `Symbol.metadata` polyfill no longer conflicts with `lib.esnext.decorators` in the published declarations
 
 - @matter/model
+    - Fix: A device type requiring several instances of one component, such as `BatteryStorage` with two electrical sensors and two power sources, no longer reports each instance as a duplicate of the others
+    - Enhancement: The model build reports an instance number stated on a requirement other than a component device type, where the specification numbers nothing
+    - Enhancement: A model element's `extend()` can remove an inherited quality, stated as `!N` in the quality definition; the removal survives further extension, and a definition that extends one carrying a removal may state the quality again
+    - Fix: A quality definition given as an array of flags, such as `["N", "T"]`, loads those flags instead of reading as empty
+    - Fix: A quality states which of its flags are not qualities, so a definition another rewrites still carries the flags it could not parse and the errors they raise
+    - Fix: A value whose type derives from an enum, as a status code does, is judged by the integer type that holds it, so the numeric definition rules no longer skip it and a scene-capable attribute of such a type is no longer refused
     - Breaking: A provisional element is no longer mandatory; conformance following a `P` describes the conformance intended once the element leaves provisional state
     - Enhancement: `FeatureSelectionErrors()` assesses a cluster's selected features against the combinations its FeatureMap conformance disallows
     - Enhancement: `FeatureSet.resolve()` resolves a feature short code, title or camelized title to a short code
     - Enhancement: New `EncodedConstraint()` restates every bound of a constraint in the units the value is encoded in
     - Enhancement: New `EncodedConstraint.bounds()` reports which of a constraint's bounds state a number in encoding units and which state a unit with no known scale
     - Fix: The model build rejects a value stating a unit with no known scale, a fraction an integer type cannot hold, or a negative an unsigned type cannot hold
+    - Fix: The model build rejects a bound or default stating a number outside the range of the integer type that carries it, such as the `300` of a `0 to 300` constraint on a `uint8`
+    - Fix: The model build rejects a bound or default stating a magnitude beyond the range of the float type that carries it, such as the `1e300` of a `single`
+    - Fix: A constraint bound keeps the magnitude it states: the parser accumulated digits as a number, so `max 18446744073709551615` became 18446744073709552000 and a `uint64` bound admitted values above the type. A bound a number cannot state exactly is now a bigint
+    - Fix: A bitmap or enum value states its magnitude exactly, so a `map64` value no longer loses precision passing through `FieldValue.cast()`
+    - Breaking: `FieldValue.numericValue()` returns a `bigint` for a magnitude a number cannot state exactly, so a 64 bit bound and default keep what they say. `FieldValue.countValue()` is the number-valued form, for a length, a bit position or a count
+    - Fix: `Metatype.cast()` to a float reads a number stated as text instead of refusing it
     - Fix: A default stating a number no integer form matches, such as `1e-3`, is rejected instead of stored as the digits preceding the exponent
+    - Fix: `FieldValue.cast()` treats "no value" as a value of every type, so an override removes a default rather than making the value invalid
+    - Fix: A rejected default is reported as the value it states and the type that rejected it
+    - Fix: `FieldValue.cast()` reads a duration, which it previously rejected whatever the value stated
+    - Fix: `ValidateModel()` no longer writes a normalized default to a final model, which threw because a final model is frozen; it reports on such a model without normalizing it
     - Fix: A percentage on a type other than `percent` or `percent100ths` no longer resolves to the printed number as though it were already encoded
     - Fix: A constraint bound's unit takes its scale from the types the value derives from, not from its own type name alone
     - Enhancement: New `Scope.isMandatory()` tells whether a member is mandatory under a schema's supported features, and the new `MandatoryDefaultValue()` computes the value such a member assumes when no real value exists (schema default, else the specification's fallback value, recursing into structs) — the basis for what an unreported client node attribute reads, usable wherever schema-derived fallback values are needed; `SelectDefaultValue()` exposes the shallow variant used for server state seeding
@@ -54,6 +84,15 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A constraint that bounds a value by a field named like a constraint keyword, such as the `Min` of ClosureDimension's range structs, survives serialization
 
 - @matter/node
+    - Fix: `Stop` and `StopWithOnOff` set `RemainingTime` to zero and report it, including where the application manages transitions and stated an end time
+    - Fix: `StopMoveStep` and `MoveColor` with both rates zero set Color Control's `RemainingTime` to zero and report it, and clear the end time stated where the application manages transitions. `StopMoveStep` leaves the remaining time alone while a color loop runs, since a color loop ends only on `ColorLoopSet`
+    - Fix: A Color Control color mode switch no longer discards the promise from `stopAllColorMovement()`, so an asynchronous override of it completes before the color values are converted
+    - Breaking: The `transitionEndTimeMs` state field on `LevelControlServer` and `ColorControlServer` is now `transitionEndTime`, a `Timestamp`; the value is unchanged but the name and type are not
+    - Fix: `MoveToLevelWithOnOff`, `MoveWithOnOff` and `StepWithOnOff` build their options from the Options attribute and the request's mask and override, so `CoupleColorTempToLevel` couples color temperature to the level for them as it already did for `MoveToLevel`, `Move` and `Step`
+    - Fix: `StopWithOnOff` stops a transition on a device that is off; the ExecuteIfOff option gates the commands without On/Off only
+    - Fix: `MoveWithOnOff` and `StepWithOnOff` turn the device off when the level they reach is the minimum, and leave a device that is off alone when the level moves down
+    - Fix: A level change that couples On/Off or color temperature waits for a transaction holding those clusters instead of failing
+    - Behavior: `LevelControlServer.couple()` takes the target level as a third argument, which is what decides whether the device turns off; an override that omits it loses that decision
     - Breaking: Default server exports no longer inherit the features their base implementation enables internally.
         - `ColorControlServer`, `DoorLockServer`, `ElectricalEnergyMeasurementServer`, `LevelControlServer`, `ModeSelectServer`, `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer` and `WindowCoveringServer` now select no features. Select the features your device supports with `.with(...)` or use the DeviceType specific Requirement definitions of these clusters which automatically enable the needed features for the device type
         - `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer`, `WindowCoveringServer` and `ElectricalEnergyMeasurementServer` now require a selection to be added to an endpoint at all. The `DoorLockDevice`, `SpeakerDevice` and `ModeSelectDevice` device types alias these exports, so their clusters also select no features and advertise a different FeatureMap.
@@ -65,6 +104,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: An unreported client node attribute reads its schema default, else the specification's fallback value for its type, when the attribute is mandatory under the peer's supported features, and `undefined` otherwise — regardless of the peer's AttributeList (an enum attribute reads `undefined`, as the specification defines its fallback as manufacturer-specific). The value is a detached copy, so mutating a struct or list read from an unreported attribute does not write through
     - Breaking: Configured options, environment variables, and state-class field initializers no longer seed a client node's cluster state; the peer's reports are the only source of values
     - Breaking: Adding a server cluster to an endpoint fails when its selected features violate the conformance of its FeatureMap
+    - Breaking: A local write or invoke rejects a bitmap bit whose conformance the cluster's selected features do not satisfy, wherever the bitmap appears — an attribute, a command field, a struct member or an event field. So `LevelControl.Options.ExecuteIfOff` (also as the `optionsMask` or `optionsOverride` of `MoveToLevel`, `Move`, `Step` and `Stop`) needs Lighting or OnOff, a `ColorControl.ColorCapabilities` bit needs its color feature, a `WindowCovering.ConfigStatus` position or encoder bit needs the matching position-aware feature, `Thermostat.RemoteSensing.Occupancy` needs Occupancy, a closure's latch control mode needs Latching, and a `Messages.MessageControl` bit needs its messaging feature. Only a bit the value sets is judged, only what the conformance decides without a record around it, and a write or invoke carrying a remote subject stays permissive
     - Breaking: Provisional elements are no longer implemented by default; supply a state value or use `ClusterBehavior.enable()` to implement one
     - Breaking: `SoftwareUpdateManager.addUpdateConsent()` and `forceUpdate()` take the update as an object instead of three positional arguments, so it can carry per-update options
     - Breaking: Ensure that changing any attribute of a client node sends a write to the peer; an attribute the peer's cluster type cannot express, including the global attributes, is declined locally with `UnsupportedWrite` or `UnsupportedAttribute`
@@ -93,11 +133,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: `NetworkServer.State.clientCacheFlushInterval` defaults to the storage driver's `writeCoalescingInterval` instead of a fixed 20 minutes; set it to `Instant` to persist every change immediately
     - Adjustment: A `SoftwareUpdateManager.State.announcementInterval` of `Instant` disables OTA provider announcements
     - Fix: A constraint whose bound carries a unit, such as the `0.01% to 100.00%` of a `percent100ths` value, is enforced in the units the value is encoded in
+    - Fix: A window covering with no Lift feature no longer states a lift movement direction in `ConfigStatus`
     - Fix: Struct validation resolves a member stored under its TLV tag number, so a constraint violation there is caught and a mandatory member present only at its id no longer raises a conformance error
     - Fix: `Thermostat.Presets` reports to subscribers and advances the cluster's data version when the presets change
     - Fix: A local write of `Thermostat.Presets` is stored instead of silently discarded, and an invalid one rejects the caller's write
     - Fix: `Thermostat.Presets` is validated and staged for an atomic write on every endpoint that selects the Presets feature, not only where the application passed a `presets` value; presets such an endpoint stored before are ignored
     - Fix: A preset write is refused for referencing the active preset only when it removes that preset; a thermostat starting with an `ActivePresetHandle` that names no preset stores null instead of refusing to start
+    - Fix: A preset write that would store a preset without a handle is refused, including where an application observer removed the handle the thermostat issued
     - Fix: A preset handle the thermostat generates is persisted, so it still addresses the preset after a restart
     - Fix: Two presets sharing a scenario and carrying no name are refused on an atomic write, as they already were on a local one
     - Fix: A state class serving an attribute from an accessor sees the values of the writing transaction
@@ -117,6 +159,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A client node's storage metadata no longer surfaces as state: a peer report that only bumps the data version emits no change notification, and `__version__` no longer appears among the changed properties or in cluster state
     - Fix: A peer that cannot be loaded, such as one whose fabric is missing locally, is reported with its actual cause instead of escaping as an unhandled rejection
     - Fix: Commissioning passes over a discovered device whose advertised vendor or product ID disagrees with the onboarding payload's
+    - Fix: A level change that couples to On/Off no longer leaves the coupling blocked when its transaction rolls back
+    - Fix: A cluster's feature selection is recorded as persisted only once the store accepted the values it travels with, so a failed write no longer leaves a later feature change undetected
     - Fix: Validating a state class that serves properties dynamically passes it the endpoint, as every other caller does
 
 - @matter/matter.js
@@ -161,6 +205,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The `storage.clear` variable now clears the storage on start as it does on Node.js
 
 - @matter/types
+    - Breaking: `ModelBounds.createNumberBounds()` states a bound as a `bigint` where it lies beyond the safe integers, and states both `min` and `max` where it previously omitted an absent bound; `createLengthBounds()` still states a number, as a length counts what a message can carry
+    - Breaking: `TlvNumericSchema.bound()` states the base type of the schema it bounds in `baseTypeMin` and `baseTypeMax`, where it previously stated the bound; the bound is stated by `min` and `max`. The class gains a protected `constrain()`
+    - Breaking: A bounded 64 bit schema states its datatype again, so a legacy `ClusterType()` cluster derives the type and constraint of such an attribute instead of neither, and enforces a range it previously left open
+    - Fix: A nullable 64 bit integer reserves the value that encodes null from its type rather than from its constraint, so it neither refuses the extreme its constraint states nor admits the sentinel. `ElectricalPowerMeasurement`'s `Frequency` and `PowerFactor` refused their own maximum and minimum
+    - Breaking: `TlvNumericSchema.bound()` refuses a bound stated as a number that the number holds only approximately, such as `9223372036854775807` on a `uint64`, which rounded to 2^63 and admitted a value above the stated maximum. State such a bound as a `bigint`
     - Breaking: Provisional cluster elements are now typed as optional rather than always present
     - Breaking: An onboarding payload's vendor and product ID are reported absent (undefined) where it states none instead of 0
     - Feature: Added the `ClusterLookup` namespace for cluster/attribute/command/event name↔id resolution (optional `MatterModel` for custom clusters)

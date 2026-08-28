@@ -318,7 +318,7 @@ describe("Supervision", () => {
     describe("RootSupervisor#persistentKeys()", () => {
         // ClusterModel injects global attributes (ClusterRevision, FeatureMap, ...) alongside our own fields, so
         // assert membership of the fields under test rather than the full set.
-        function supervisorFor(fields: FieldModel[]) {
+        function supervisorFor(fields: (FieldModel | AttributeModel)[]) {
             return RootSupervisor.for(new ClusterModel({ name: "TestCluster", children: fields }));
         }
 
@@ -330,6 +330,27 @@ describe("Supervision", () => {
             const keys = supervisor.persistentKeys("id");
             expect(keys.has("5")).true;
             expect(keys.has("6")).false;
+        });
+
+        it("omits a member whose extension removed the nonvolatile quality", () => {
+            const persistent = new FieldModel({ name: "persistent", id: 5, type: "uint8", quality: "N T" });
+            const supervisor = supervisorFor([
+                persistent,
+                persistent.extend({ name: "transient", id: 6, quality: "!N" }),
+            ]);
+
+            const keys = supervisor.persistentKeys("id");
+            expect(keys.has("5")).true;
+            expect(keys.has("6")).false;
+        });
+
+        // Characterization: a writable attribute persists whether or not it is nonvolatile, so removing the quality
+        // does not make it transient
+        it("keeps a writable attribute persistent although its extension removed the quality", () => {
+            const writable = new AttributeModel({ name: "writable", id: 7, type: "uint8", quality: "N", access: "RW" });
+            const supervisor = supervisorFor([writable.extend({ name: "stillWritable", id: 8, quality: "!N" })]);
+
+            expect(supervisor.persistentKeys("id").has("8")).true;
         });
 
         it("falls back to propertyName when a persistent member has no id", () => {
