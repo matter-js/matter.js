@@ -95,23 +95,33 @@ export abstract class ValueModel<T extends ValueElement = ValueElement>
      * metabase.
      */
     get primitiveBase(): ValueModel | undefined {
-        const metabase = this.metabase;
-        if (!metabase) {
-            return;
+        let base = this.metabase;
+
+        // An enum states another type as its base, and that type may state an enum in turn — the status codes are an
+        // enum of enum8 — so the primitive is however many definitions down it takes to reach one.  A definition that
+        // states itself, directly or through others, states no primitive at all
+        const visited = new Set<ValueModel>();
+        while (base !== undefined && !visited.has(base)) {
+            visited.add(base);
+
+            switch (base.metatype) {
+                case Metatype.enum:
+                    base = base.base;
+                    break;
+
+                // Bitmaps are not derived types so we have to map manually
+                case Metatype.bitmap:
+                    base = base.parent?.children.find(child => child.name === base!.name.replace("map", "uint")) as
+                        | ValueModel
+                        | undefined;
+                    break;
+
+                default:
+                    return base;
+            }
         }
 
-        // Enum is a derived type so we can just return its base
-        if (metabase.metatype === Metatype.enum) {
-            return metabase.base;
-        }
-
-        // Bitmaps are not derived types so we have to map manually
-        if (metabase.metatype === Metatype.bitmap) {
-            const primitiveName = metabase.name.replace("map", "uint");
-            return metabase.parent?.children.find(c => c.name === primitiveName) as ValueModel | undefined;
-        }
-
-        return metabase;
+        return undefined;
     }
 
     /**

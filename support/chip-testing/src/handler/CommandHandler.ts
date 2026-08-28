@@ -18,7 +18,21 @@ import {
 import { CommissionableDeviceIdentifiers } from "@matter/main/protocol";
 import { EndpointNumber, Status } from "@matter/main/types";
 
-export type ReadAttributeRequest = {
+/**
+ * The step's own deadline, for the operations that can honour one.
+ *
+ * A YAML step may carry `timeout: <seconds>`, which real chip-tool honours by giving up and tearing its
+ * command down. The operation is abandoned when this aborts — see `ClientRequest.abort` for what that
+ * does and does not tell the device.
+ *
+ * An operation whose underlying API takes no signal does not accept this, so a deadline is never handed
+ * to something that would ignore it: `DelayRequest` and `InitialPairingRequest` say why.
+ */
+export type AbandonableRequest = {
+    abort?: AbortSignal;
+};
+
+export type ReadAttributeRequest = AbandonableRequest & {
     nodeId: NodeId;
     endpointId: EndpointNumber;
     clusterId: ClusterId;
@@ -41,7 +55,7 @@ export type AttributeResponseStatus = {
 };
 export type ReadAttributeResponse = { values: AttributeResponseData[]; status?: AttributeResponseStatus[] };
 
-export type ReadByIdRequest = {
+export type ReadByIdRequest = AbandonableRequest & {
     nodeId: NodeId;
     endpointId: EndpointNumber;
     clusterId: ClusterId;
@@ -67,7 +81,7 @@ export type SubscribeAttributeResponse = {
     updated: Observable<[void]>;
 };
 
-export type WriteAttributeRequest = {
+export type WriteAttributeRequest = AbandonableRequest & {
     nodeId: NodeId;
     endpointId?: EndpointNumber;
     clusterId: ClusterId;
@@ -75,7 +89,7 @@ export type WriteAttributeRequest = {
     value: unknown;
 };
 
-export type WriteAttributeByIdRequest = {
+export type WriteAttributeByIdRequest = AbandonableRequest & {
     nodeId: NodeId;
     endpointId?: EndpointNumber;
     clusterId: ClusterId;
@@ -83,7 +97,7 @@ export type WriteAttributeByIdRequest = {
     value: unknown;
 };
 
-export type ReadEventRequest = {
+export type ReadEventRequest = AbandonableRequest & {
     nodeId: NodeId;
     endpointId: EndpointNumber;
     clusterId: ClusterId;
@@ -116,7 +130,7 @@ export type SubscribeEventResponse = {
     updated: Observable<[void]>;
 };
 
-export type InvokeRequest = {
+export type InvokeRequest = AbandonableRequest & {
     nodeId: NodeId;
     endpointId?: EndpointNumber;
     clusterId: ClusterId;
@@ -132,7 +146,7 @@ export type InvokeResponse = {
     value?: unknown;
 };
 
-export type InvokeByIdRequest = {
+export type InvokeByIdRequest = AbandonableRequest & {
     nodeId: NodeId;
     endpointId: EndpointNumber;
     clusterId: ClusterId;
@@ -141,17 +155,26 @@ export type InvokeByIdRequest = {
     timedInteractionTimeout?: Duration;
 };
 
+/**
+ * Waiting for a commissionee is bounded by its own discovery timeout and by nothing else: the
+ * controller API this drives takes no signal, so this request deliberately does not accept one — see
+ * {@link AbandonableRequest}.
+ */
 export type DelayRequest = {
     nodeId?: NodeId;
     expireExistingSession?: boolean;
 };
 
+/**
+ * Commissioning runs to its own conclusion: `CommissioningController.commissionNode` takes no signal,
+ * so this request deliberately does not accept one — see {@link AbandonableRequest}.
+ */
 export type InitialPairingRequest = {
     nodeId: NodeId;
     knownAddress?: { ip: string; port: number };
 } & ({ qrCode: string } | { manualCode: string } | { passcode: number; vendorId: number; productId: number });
 
-export type DiscoveryRequest = {
+export type DiscoveryRequest = AbandonableRequest & {
     findBy: CommissionableDeviceIdentifiers;
 };
 
@@ -194,6 +217,24 @@ export type IssueNocChainResponse = {
 };
 
 export abstract class CommandHandler {
+    /**
+     * Whether {@link start} has completed. A consumer starts a handler on first use rather than up
+     * front, so a run that never addresses a controller never pays for starting it.
+     */
+    abstract get started(): boolean;
+
+    /** Brings the underlying controller up. Idempotent: starting an already-started handler is a no-op. */
+    abstract start(): Promise<void>;
+
+    /** Establishes a PASE session with the commissionee the request names, without commissioning it. */
+    abstract handlePaseConnection(data: InitialPairingRequest): Promise<void>;
+
+    /**
+     * Drops the session with `nodeId`. The YAML corpus expects a failed interaction to stay failed, so
+     * a caller uses this where an automatic reconnection would answer a step that must not succeed.
+     */
+    abstract disconnectNode(nodeId: NodeId): Promise<void>;
+
     abstract handleReadAttribute(data: ReadAttributeRequest): Promise<ReadAttributeResponse>;
     abstract handleSubscribeAttribute(data: SubscribeAttributeRequest): Promise<SubscribeAttributeResponse>;
     abstract handleWriteAttribute(data: WriteAttributeRequest): Promise<void>;
