@@ -263,10 +263,10 @@ export const STANDARD_VERSION = 0;
 /** § 5.1.3.1 Table 59's standard commissioning flow. */
 export const STANDARD_FLOW = 0;
 
-/** § 5.1.3.1 Table 34's commissioning flows: the device needs a user action before it is commissionable. */
+/** § 5.1.3.1 Table 59's commissioning flows: the device needs a user action before it is commissionable. */
 export const USER_INTENT_FLOW = 1;
 
-/** § 5.1.3.1 Table 34's commissioning flows: the device needs steps the manufacturer defines. */
+/** § 5.1.3.1 Table 59's commissioning flows: the device needs steps the manufacturer defines. */
 export const CUSTOM_FLOW = 2;
 
 /** What a check calls each flow, so a bundle names the one its test case is named for. */
