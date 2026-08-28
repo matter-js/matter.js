@@ -6,10 +6,11 @@
 
 import { ImplementationError } from "@matter/general";
 import { Task, TaskPersistence } from "./Task.js";
+import { RunId } from "./types.js";
 
 export interface TaskCtor {
-    new (id: string, params: any, persisted?: Partial<TaskPersistence>): Task;
-    idFor(params: any): string;
+    new (runId: RunId, slotKey: string, params: any, persisted?: Partial<TaskPersistence>): Task;
+    slotKeyFor(params: any): string;
 }
 
 export class TaskRegistry {
@@ -23,12 +24,12 @@ export class TaskRegistry {
         return this.#ctors.has(type);
     }
 
-    idFor(type: string, params: unknown): string {
-        return this.#ctorFor(type).idFor(params);
+    slotKeyFor(type: string, params: unknown): string {
+        return this.#ctorFor(type).slotKeyFor(params);
     }
 
-    create(type: string, id: string, params: unknown, persisted?: Partial<TaskPersistence>): Task {
-        return new (this.#ctorFor(type))(id, params, persisted);
+    create(type: string, runId: RunId, slotKey: string, params: unknown, persisted?: Partial<TaskPersistence>): Task {
+        return new (this.#ctorFor(type))(runId, slotKey, params, persisted);
     }
 
     #ctorFor(type: string): TaskCtor {

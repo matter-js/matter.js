@@ -7,11 +7,12 @@
 import { Revert, RevertParams } from "#task/Revert.js";
 import { RunningTaskContext } from "#task/RunningTaskContext.js";
 import { TaskState } from "#task/types.js";
+import { RunId } from "#task/types.js";
 import { itemMapKey } from "@matter/node";
 import { FakePeer } from "./helpers.js";
 
 function runRevert(peer: FakePeer, params: RevertParams, referenced = new Set<string>()) {
-    const task = new Revert("revert:orig", params);
+    const task = new Revert(RunId(1), "revert:1", params);
     const setState = (s: TaskState) => {
         task.progress.state = s;
     };
@@ -29,7 +30,7 @@ describe("Revert task", () => {
         const peer = new FakePeer("p1");
         peer.addItem("groupKey", "42", "committed");
         await MockTime.resolve(
-            runRevert(peer, { originalId: "orig", entries: [{ peerId: "p1", kind: "groupKey", key: "42" }] }),
+            runRevert(peer, { originalRunId: RunId(1), entries: [{ peerId: "p1", kind: "groupKey", key: "42" }] }),
         );
         expect(peer.items[itemMapKey("groupKey", "42")]).equals(undefined);
     });
@@ -40,7 +41,7 @@ describe("Revert task", () => {
         peer.markHas("groupKeyMap", "257");
         await MockTime.resolve(
             runRevert(peer, {
-                originalId: "orig",
+                originalRunId: RunId(1),
                 entries: [
                     {
                         peerId: "p1",
@@ -61,7 +62,7 @@ describe("Revert task", () => {
         await MockTime.resolve(
             runRevert(
                 peer,
-                { originalId: "orig", entries: [{ peerId: "p1", kind: "groupKey", key: "42" }] },
+                { originalRunId: RunId(1), entries: [{ peerId: "p1", kind: "groupKey", key: "42" }] },
                 new Set(["groupKey:42"]),
             ),
         );

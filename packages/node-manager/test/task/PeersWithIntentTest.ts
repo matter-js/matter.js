@@ -8,6 +8,7 @@ import { ReconcilerSurface } from "#reconcile/ReconcilerSurface.js";
 import { RunningTaskContext } from "#task/RunningTaskContext.js";
 import { Task } from "#task/Task.js";
 import { TaskState } from "#task/types.js";
+import { RunId } from "#task/types.js";
 import { FakePeer } from "./helpers.js";
 
 /** peersWithIntent never touches the reconciler; a no-op stand-in avoids depending on the whole behavior. */
@@ -36,7 +37,7 @@ describe("peersWithIntent", () => {
         e.addItem("groupKey", "43", "committed"); // live, but a different key
 
         const all = [a, b, c, d, e];
-        const task = new PwiTask("pwi-test:1", {});
+        const task = new PwiTask(RunId(1), "pwi-test:1", {});
         const ctx = new RunningTaskContext(
             task,
             id => all.find(p => p.id === id)?.asNode(),

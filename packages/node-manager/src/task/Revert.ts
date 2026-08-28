@@ -6,12 +6,12 @@
 
 import { ClientNode } from "@matter/node";
 import { Task } from "./Task.js";
-import { ChangeEntry, TaskContext, TaskPhase } from "./types.js";
+import { ChangeEntry, RunId, TaskContext, TaskPhase } from "./types.js";
 
 export const REVERT_TYPE = "revert";
 
 export interface RevertParams {
-    originalId: string;
+    originalRunId: RunId;
     entries: ChangeEntry[];
 }
 
@@ -24,8 +24,8 @@ export interface RevertParams {
 export class Revert extends Task<RevertParams> {
     readonly type = REVERT_TYPE;
 
-    static override idFor(params: RevertParams): string {
-        return `revert:${params.originalId}`;
+    static override slotKeyFor(params: RevertParams): string {
+        return `revert:${params.originalRunId}`;
     }
 
     get phases(): TaskPhase[] {

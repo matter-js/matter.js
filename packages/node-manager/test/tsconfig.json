@@ -12,7 +12,13 @@
             "path": "../../general/src"
         },
         {
+            "path": "../../model/src"
+        },
+        {
             "path": "../../node/src"
+        },
+        {
+            "path": "../../protocol/src"
         },
         {
             "path": "../../testing/src"

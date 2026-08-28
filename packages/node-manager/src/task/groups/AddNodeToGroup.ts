@@ -31,7 +31,7 @@ export interface AddNodeToGroupParams {
 export class AddNodeToGroup extends Task<AddNodeToGroupParams> {
     readonly type = ADD_NODE_TO_GROUP_TYPE;
 
-    static override idFor(params: AddNodeToGroupParams): string {
+    static override slotKeyFor(params: AddNodeToGroupParams): string {
         return `${ADD_NODE_TO_GROUP_TYPE}:${params.peerId}:${params.groupId}:${params.endpoint}`;
     }
 

@@ -10,7 +10,15 @@ import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { Environment } from "@matter/general";
 import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
-import { FakePeer, SyntheticTask } from "./helpers.js";
+import {
+    FakePeer,
+    recordFor,
+    requireRecordFor,
+    revertRecordOf,
+    revertRecordsOf,
+    revertSlotOf,
+    SyntheticTask,
+} from "./helpers.js";
 
 class TestTaskManager extends TaskManagerBehavior {
     static override readonly schema = TaskManagerBehavior.schema;
@@ -28,8 +36,13 @@ const RootEndpoint = MockServerNode.RootEndpoint.with(TestTaskManager);
 
 async function awaitState(node: ServerNode, id: string, ...states: string[]): Promise<void> {
     for (let i = 0; i < 10_000; i++) {
-        const state = await node.act(a => a.get(TestTaskManager).state.tasks[id]?.state);
-        if (state !== undefined && states.includes(state)) return;
+        const state = await node.act(a => recordFor(a.get(TestTaskManager).state.runs, id)?.state);
+        if (state !== undefined && states.includes(state)) {
+            const settled =
+                !(["completed", "failed", "cancelled"] as string[]).includes(state) ||
+                (await node.act(a => !a.get(TestTaskManager).tasks.some(t => t.status.slotKey === id)));
+            if (settled) return;
+        }
         await MockTime.advance(1);
     }
     throw new Error(`Task ${id} did not reach state ${states.join("|")}`);
@@ -60,10 +73,16 @@ describe("auto-rollback", () => {
         await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "boom" }));
 
         await awaitState(node, "synthetic:boom", "failed");
-        const original = node.stateOf(TestTaskManager).tasks["synthetic:boom"];
-        expect(original.revertTaskId).equals("revert:synthetic:boom");
+        const original = requireRecordFor(node.stateOf(TestTaskManager).runs, "synthetic:boom");
+        expect(original.revertRunId).equals(
+            revertRecordOf(node.stateOf(TestTaskManager).runs, "synthetic:boom")?.runId,
+        );
 
-        await awaitState(node, "revert:synthetic:boom", "completed");
+        await awaitState(
+            node,
+            (await node.act(a => revertSlotOf(a.get(TestTaskManager).state.runs, "synthetic:boom")))!,
+            "completed",
+        );
         expect(peer.items[itemMapKey("groupKey", "42")]).equals(undefined);
         await node.close();
     });
@@ -99,11 +118,20 @@ describe("auto-rollback", () => {
         await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "boom2" }));
 
         await awaitState(node, "synthetic:boom2", "failed");
-        const original = node.stateOf(TestTaskManager).tasks["synthetic:boom2"];
-        expect(original.revertTaskId).equals("revert:synthetic:boom2");
+        const original = requireRecordFor(node.stateOf(TestTaskManager).runs, "synthetic:boom2");
+        expect(original.revertRunId).equals(
+            revertRecordOf(node.stateOf(TestTaskManager).runs, "synthetic:boom2")?.runId,
+        );
 
-        await awaitState(node, "revert:synthetic:boom2", "failed");
-        expect(node.stateOf(TestTaskManager).tasks["revert:revert:synthetic:boom2"]).equals(undefined);
+        await awaitState(
+            node,
+            (await node.act(a => revertSlotOf(a.get(TestTaskManager).state.runs, "synthetic:boom2")))!,
+            "failed",
+        );
+        // No rollback of the rollback: asserted against the failed rollback's own run, since a key built from
+        // the original's slot is unreachable under per-run identity and would make this check dead.
+        const failedRevert = requireRecordFor(node.stateOf(TestTaskManager).runs, `revert:${original.runId}`);
+        expect(revertRecordsOf(node.stateOf(TestTaskManager).runs, failedRevert.slotKey)).length(0);
         await node.close();
     });
 });

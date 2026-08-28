@@ -16,6 +16,7 @@ import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import { SustainedSubscription } from "@matter/protocol";
 import { EndpointNumber, GroupId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
+import { cancelSlot, recordFor, requireRecordFor, revertRecordOf, revertSlotOf, statusOfSlot } from "../helpers.js";
 
 const { TrustFirst } = GroupKeyManagement.GroupKeySecurityPolicy;
 
@@ -55,9 +56,16 @@ function itemState(
 /** Pump virtual time + macrotasks until the persisted task state is one of `states` (else throw). */
 async function awaitState(node: ServerNode, id: string, ...states: string[]): Promise<void> {
     for (let i = 0; i < 2_000; i++) {
-        const state = await node.act(a => a.get(TaskManagerBehavior).state.tasks[id]?.state);
+        const state = await node.act(a => recordFor(a.get(TaskManagerBehavior).state.runs, id)?.state);
         if (state !== undefined && states.includes(state)) {
-            return;
+            // A run turns terminal one step before it retires, so a caller that acts here would find the
+            // slot still held.
+            const settled =
+                !(["completed", "failed", "cancelled"] as string[]).includes(state) ||
+                (await node.act(a => !a.get(TaskManagerBehavior).tasks.some(t => t.status.slotKey === id)));
+            if (settled) {
+                return;
+            }
         }
         await MockTime.advance(100);
         await MockTime.macrotask;
@@ -124,22 +132,30 @@ describe("AddNodeToGroup task integration (single peer)", () => {
         expect(isMember(device)).equals(true);
 
         const handle = await MockTime.resolve(
-            controller.act(agent => agent.get(TaskManagerBehavior).cancel(TASK_ID)),
+            controller.act(agent => cancelSlot(agent.get(TaskManagerBehavior), TASK_ID)),
             {
                 macrotasks: true,
             },
         );
-        expect(handle?.id).equals(`revert:${TASK_ID}`);
-        await awaitState(controller, `revert:${TASK_ID}`, "completed");
+        expect(handle?.status.revertOf).equals(
+            requireRecordFor(controller.stateOf(TaskManagerBehavior).runs, TASK_ID).runId,
+        );
+        await awaitState(
+            controller,
+            (await controller.act(a => revertSlotOf(a.get(TaskManagerBehavior).state.runs, TASK_ID)))!,
+            "completed",
+        );
 
         expect(itemState(peer, "groupKey", String(GROUP_KEY_SET_ID))).equals(undefined);
         expect(itemState(peer, "groupKeyMap", String(GROUP))).equals(undefined);
         expect(itemState(peer, "endpointGroupMembership", MEMBERSHIP_KEY)).equals(undefined);
         expect(isMember(device)).equals(false);
         // Cancelling an already-completed task spawns the revert but leaves the original's truthful state.
-        const status = await controller.act(agent => agent.get(TaskManagerBehavior).get(TASK_ID)?.status);
+        const status = await controller.act(agent => statusOfSlot(agent.get(TaskManagerBehavior), TASK_ID));
         expect(status?.state).equals("completed");
-        expect(status?.revertTaskId).equals(`revert:${TASK_ID}`);
+        expect(status?.revertRunId).equals(
+            revertRecordOf(controller.stateOf(TaskManagerBehavior).runs, TASK_ID)?.runId,
+        );
     });
 
     it("resumes a parked task across a controller restart", async () => {
@@ -162,7 +178,9 @@ describe("AddNodeToGroup task integration (single peer)", () => {
         // Recreate the controller from the same storage (keyed by id) on the same network host (index 1).
         // The persisted parked task resumes once the node is online and the peer subscription re-establishes.
         const controller2 = await site.addNode(ControllerRoot, { id, index: 1 });
-        const resumed = await controller2.act(agent => agent.get(TaskManagerBehavior).state.tasks[TASK_ID]?.state);
+        const resumed = await controller2.act(
+            agent => recordFor(agent.get(TaskManagerBehavior).state.runs, TASK_ID)?.state,
+        );
         expect(["running", "parked"]).contains(resumed);
 
         await subscribedPeer(controller2, "peer1");

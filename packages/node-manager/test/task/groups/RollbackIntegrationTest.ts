@@ -17,6 +17,15 @@ import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import { SustainedSubscription } from "@matter/protocol";
 import { EndpointNumber, GroupId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
+import {
+    cancelSlot,
+    recordFor,
+    requireRecordFor,
+    requireStatusOfSlot,
+    revertRecordOf,
+    revertSlotOf,
+    statusOfSlot,
+} from "../helpers.js";
 
 const { TrustFirst } = GroupKeyManagement.GroupKeySecurityPolicy;
 
@@ -47,7 +56,7 @@ const FAILING_ID = `${FAILING_TYPE}:peer1:${0x101}`;
 class FailingProvision extends Task<AddNodeToGroupParams> {
     readonly type = FAILING_TYPE;
 
-    static override idFor(params: AddNodeToGroupParams): string {
+    static override slotKeyFor(params: AddNodeToGroupParams): string {
         return `${FAILING_TYPE}:${params.peerId}:${params.groupId}`;
     }
 
@@ -117,9 +126,16 @@ function itemState(
 /** Pump virtual time + macrotasks until the persisted task state is one of `states` (else throw). */
 async function awaitState(node: ServerNode, id: string, ...states: string[]): Promise<void> {
     for (let i = 0; i < 2_000; i++) {
-        const state = await node.act(a => a.get(TaskManagerBehavior).state.tasks[id]?.state);
+        const state = await node.act(a => recordFor(a.get(TaskManagerBehavior).state.runs, id)?.state);
         if (state !== undefined && states.includes(state)) {
-            return;
+            // A run turns terminal one step before it retires, so a caller that acts here would find the
+            // slot still held.
+            const settled =
+                !(["completed", "failed", "cancelled"] as string[]).includes(state) ||
+                (await node.act(a => !a.get(TaskManagerBehavior).tasks.some(t => t.status.slotKey === id)));
+            if (settled) {
+                return;
+            }
         }
         await MockTime.advance(100);
         await MockTime.macrotask;
@@ -145,17 +161,23 @@ describe("Rollback task integration (single peer)", () => {
         await awaitState(controller, FAILING_ID, "failed");
 
         const revertId = await controller.act(
-            agent => agent.get(TaskManagerBehavior).get(FAILING_ID)?.status.revertTaskId,
+            agent => requireStatusOfSlot(agent.get(TaskManagerBehavior), FAILING_ID).revertRunId,
         );
-        expect(revertId).equals(`revert:${FAILING_ID}`);
+        expect(revertId).equals(
+            await controller.act(a => revertRecordOf(a.get(TaskManagerBehavior).state.runs, FAILING_ID)?.runId),
+        );
 
         // revertOf is part of the revert's persisted seed, so it's readable before the revert has run at all.
         const revertOf = await controller.act(
-            agent => agent.get(TaskManagerBehavior).state.tasks[`revert:${FAILING_ID}`]?.revertOf,
+            agent => revertRecordOf(agent.get(TaskManagerBehavior).state.runs, FAILING_ID)?.revertOf,
         );
-        expect(revertOf).equals(FAILING_ID);
+        expect(revertOf).equals(requireRecordFor(controller.stateOf(TaskManagerBehavior).runs, FAILING_ID).runId);
 
-        await awaitState(controller, `revert:${FAILING_ID}`, "completed");
+        await awaitState(
+            controller,
+            (await controller.act(a => revertSlotOf(a.get(TaskManagerBehavior).state.runs, FAILING_ID)))!,
+            "completed",
+        );
 
         expect(itemState(peer, "groupKey", String(GROUP_KEY_SET_ID))).equals(undefined);
         expect(itemState(peer, "groupKeyMap", String(GROUP))).equals(undefined);
@@ -176,25 +198,31 @@ describe("Rollback task integration (single peer)", () => {
         expect(isMember(device)).equals(true);
 
         const handle = await MockTime.resolve(
-            controller.act(agent => agent.get(TaskManagerBehavior).cancel(TASK_ID)),
+            controller.act(agent => cancelSlot(agent.get(TaskManagerBehavior), TASK_ID)),
             { macrotasks: true },
         );
-        expect(handle?.id).equals(`revert:${TASK_ID}`);
+        expect(handle?.status.revertOf).equals(
+            requireRecordFor(controller.stateOf(TaskManagerBehavior).runs, TASK_ID).runId,
+        );
 
         // revertOf is part of the revert's persisted seed, so it's readable before the revert has run at all.
         const revertOf = await controller.act(
-            agent => agent.get(TaskManagerBehavior).state.tasks[`revert:${TASK_ID}`]?.revertOf,
+            agent => revertRecordOf(agent.get(TaskManagerBehavior).state.runs, TASK_ID)?.revertOf,
         );
-        expect(revertOf).equals(TASK_ID);
+        expect(revertOf).equals(requireRecordFor(controller.stateOf(TaskManagerBehavior).runs, TASK_ID).runId);
 
-        await awaitState(controller, `revert:${TASK_ID}`, "completed");
+        await awaitState(
+            controller,
+            (await controller.act(a => revertSlotOf(a.get(TaskManagerBehavior).state.runs, TASK_ID)))!,
+            "completed",
+        );
 
         expect(itemState(peer, "groupKey", String(GROUP_KEY_SET_ID))).equals(undefined);
         expect(itemState(peer, "groupKeyMap", String(GROUP))).equals(undefined);
         expect(itemState(peer, "endpointGroupMembership", `${GROUP}:${PARAMS.endpoint}`)).equals(undefined);
         expect(isMember(device)).equals(false);
 
-        const status = await controller.act(agent => agent.get(TaskManagerBehavior).get(TASK_ID)?.status);
+        const status = await controller.act(agent => statusOfSlot(agent.get(TaskManagerBehavior), TASK_ID));
         expect(status?.state).equals("completed");
     });
 
@@ -251,7 +279,11 @@ describe("Rollback task integration (single peer)", () => {
         await controller.act(agent => agent.get(TaskManagerBehavior).register(FAILING_TYPE, FailingProvision));
         await controller.act(agent => agent.get(TaskManagerBehavior).run(FAILING_TYPE, PARAMS));
         await awaitState(controller, FAILING_ID, "failed");
-        await awaitState(controller, `revert:${FAILING_ID}`, "parked");
+        await awaitState(
+            controller,
+            (await controller.act(a => revertSlotOf(a.get(TaskManagerBehavior).state.runs, FAILING_ID)))!,
+            "parked",
+        );
 
         const id = controller.id;
         await MockTime.resolve(controller.close(), { macrotasks: true });
@@ -259,12 +291,16 @@ describe("Rollback task integration (single peer)", () => {
         const controller2 = await site.addNode(ControllerRoot, { id, index: 1 });
         await controller2.act(agent => agent.get(TaskManagerBehavior).register(FAILING_TYPE, FailingProvision));
         const resumed = await controller2.act(
-            agent => agent.get(TaskManagerBehavior).state.tasks[`revert:${FAILING_ID}`]?.state,
+            agent => revertRecordOf(agent.get(TaskManagerBehavior).state.runs, FAILING_ID)?.state,
         );
         expect(["running", "parked"]).contains(resumed);
 
         const peer2 = await subscribedPeer(controller2, "peer1");
-        await awaitState(controller2, `revert:${FAILING_ID}`, "completed");
+        await awaitState(
+            controller2,
+            (await controller2.act(a => revertSlotOf(a.get(TaskManagerBehavior).state.runs, FAILING_ID)))!,
+            "completed",
+        );
 
         expect(itemState(peer2, "groupKey", String(GROUP_KEY_SET_ID))).equals(undefined);
         expect(itemState(peer2, "groupKeyMap", String(GROUP))).equals(undefined);
@@ -299,12 +335,16 @@ describe("Rollback task integration (single peer)", () => {
         await awaitState(controller, idEp2, "completed");
 
         await MockTime.resolve(
-            controller.act(agent => agent.get(TaskManagerBehavior).cancel(idEp1)),
+            controller.act(agent => cancelSlot(agent.get(TaskManagerBehavior), idEp1)),
             {
                 macrotasks: true,
             },
         );
-        await awaitState(controller, `revert:${idEp1}`, "completed");
+        await awaitState(
+            controller,
+            (await controller.act(a => revertSlotOf(a.get(TaskManagerBehavior).state.runs, idEp1)))!,
+            "completed",
+        );
 
         expect(itemState(peer, "endpointGroupMembership", `${GROUP}:1`)).equals(undefined);
         expect(itemState(peer, "endpointGroupMembership", `${GROUP}:2`)).equals("committed");

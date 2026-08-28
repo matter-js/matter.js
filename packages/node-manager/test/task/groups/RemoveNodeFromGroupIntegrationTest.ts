@@ -15,6 +15,7 @@ import { OnOffLightSwitchDevice } from "@matter/node/devices/on-off-light-switch
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import { EndpointNumber, GroupId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
+import { recordFor } from "../helpers.js";
 
 const { TrustFirst } = GroupKeyManagement.GroupKeySecurityPolicy;
 
@@ -57,9 +58,16 @@ function itemState(
 /** Pump virtual time + macrotasks until the persisted task state is one of `states` (else throw). */
 async function awaitState(node: ServerNode, id: string, ...states: string[]): Promise<void> {
     for (let i = 0; i < 2_000; i++) {
-        const state = await node.act(a => a.get(TaskManagerBehavior).state.tasks[id]?.state);
+        const state = await node.act(a => recordFor(a.get(TaskManagerBehavior).state.runs, id)?.state);
         if (state !== undefined && states.includes(state)) {
-            return;
+            // A run turns terminal one step before it retires, so a caller that acts here would find the
+            // slot still held.
+            const settled =
+                !(["completed", "failed", "cancelled"] as string[]).includes(state) ||
+                (await node.act(a => !a.get(TaskManagerBehavior).tasks.some(t => t.status.slotKey === id)));
+            if (settled) {
+                return;
+            }
         }
         await MockTime.advance(100);
         await MockTime.macrotask;
@@ -149,7 +157,9 @@ describe("RemoveNodeFromGroup task integration (single peer)", () => {
         await controller.act(a => a.get(TaskManagerBehavior).run("addNodeToGroup", addParams(overGroup, 50 + limit)));
         await awaitState(controller, addTaskId(overGroup), "failed");
 
-        const error = await controller.act(a => a.get(TaskManagerBehavior).state.tasks[addTaskId(overGroup)]?.error);
+        const error = await controller.act(
+            a => recordFor(a.get(TaskManagerBehavior).state.runs, addTaskId(overGroup))?.error,
+        );
         expect(error).contains("capacity");
 
         // Admission rejects before any node mutation: no new group, no leftover intent.

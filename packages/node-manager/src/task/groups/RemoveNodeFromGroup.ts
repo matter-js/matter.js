@@ -25,7 +25,7 @@ export interface RemoveNodeFromGroupParams {
 export class RemoveNodeFromGroup extends Task<RemoveNodeFromGroupParams> {
     readonly type = REMOVE_NODE_FROM_GROUP_TYPE;
 
-    static override idFor(p: RemoveNodeFromGroupParams): string {
+    static override slotKeyFor(p: RemoveNodeFromGroupParams): string {
         return `${REMOVE_NODE_FROM_GROUP_TYPE}:${p.peerId}:${p.groupId}:${p.endpoint}`;
     }
 

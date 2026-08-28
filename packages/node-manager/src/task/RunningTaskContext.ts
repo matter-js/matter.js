@@ -9,7 +9,7 @@ import { asError, Logger, ObserverGroup } from "@matter/general";
 import { ClientNode, DesiredStateBehavior, itemMapKey, ItemMode, ManagedItem, NetworkClient } from "@matter/node";
 import { SustainedSubscription } from "@matter/protocol";
 import { TaskFailedError, TaskPeerUnavailableError } from "./errors.js";
-import { Task } from "./Task.js";
+import { runLabel, Task } from "./Task.js";
 import { TaskContext, TaskState } from "./types.js";
 
 const logger = Logger.get("TaskContext");
@@ -41,7 +41,7 @@ export class RunningTaskContext implements TaskContext {
     resolvePeer(peerId: string): ClientNode {
         const peer = this.peerResolver(peerId);
         if (peer === undefined) {
-            throw new TaskPeerUnavailableError(`Task ${this.task.id}: peer "${peerId}" is not available`);
+            throw new TaskPeerUnavailableError(`Task ${runLabel(this.task.runId)}: peer "${peerId}" is not available`);
         }
         return peer;
     }
@@ -76,7 +76,7 @@ export class RunningTaskContext implements TaskContext {
 
     async removeIntentIfUnreferenced(peer: ClientNode, kind: string, key: string): Promise<boolean> {
         if (this.reconciler.itemKind(kind)?.isReferenced?.(peer, key)) {
-            logger.debug(`Task ${this.task.id}: keep ${kind}:${key} on ${peer.id} (still referenced)`);
+            logger.debug(`Task ${runLabel(this.task.runId)}: keep ${kind}:${key} on ${peer.id} (still referenced)`);
             return false;
         }
         await this.removeIntent(peer, kind, key);
@@ -99,7 +99,7 @@ export class RunningTaskContext implements TaskContext {
         const gone = items.find(i => this.#itemState(i.peer, i.kind, i.key) === undefined);
         if (gone !== undefined) {
             throw new TaskFailedError(
-                `Task ${this.task.id}: awaited intent ${gone.kind}:${gone.key} on ${gone.peer.id} is gone — ` +
+                `Task ${runLabel(this.task.runId)}: awaited intent ${gone.kind}:${gone.key} on ${gone.peer.id} is gone — ` +
                     `the reconciler dropped it, so it can no longer commit`,
             );
         }
@@ -124,7 +124,10 @@ export class RunningTaskContext implements TaskContext {
                     // A reconcile that rejects from an already-coalesced recheck after the gate settled
                     // still represents a real failure; surface it rather than dropping it silently.
                     if (err !== undefined) {
-                        logger.warn(`Task ${this.task.id}: ignoring late gate-evaluation error after settle:`, err);
+                        logger.warn(
+                            `Task ${runLabel(this.task.runId)}: ignoring late gate-evaluation error after settle:`,
+                            err,
+                        );
                     }
                     return;
                 }
