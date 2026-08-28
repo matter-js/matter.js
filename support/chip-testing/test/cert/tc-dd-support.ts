@@ -19,7 +19,7 @@ import {
 import { Base38, DiscoveryCapabilitiesBitmap, DiscoveryCapabilitiesSchema } from "@matter/main/types";
 import type { CertNodeRef, CertStepContext, CheckRecord, CommissioningTarget } from "@matter/testing";
 import type { CertDevice } from "@matter/testing";
-import { forFlavor } from "@matter/testing";
+import { forFlavor, resolveControllerImplementation } from "@matter/testing";
 import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
 import { expectMdns } from "../../src/cert/mdns-check.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
@@ -441,13 +441,19 @@ function readBits(data: Uint8Array, { offset, length }: { offset: number; length
  * The fields go in as bits rather than through matter.js's own encoder. An unsupported version and the
  * trivial passcodes are exactly what that encoder validates against on the way out (§ 5.1.3.1,
  * § 5.1.7.1), so it cannot produce them at all; the flow and the discovery capabilities it would write
- * happily, but no subject this harness runs publishes the values the plans ask for. One substitution
- * path covers both. The TLV data that may follow the fixed 11-byte structure is carried through
- * untouched.
+ * happily, but no subject this harness runs publishes the values the plans ask for, and a
+ * discriminator naming no device at all is the same case. One substitution path covers all of them.
+ * The TLV data that may follow the fixed 11-byte structure is carried through untouched.
  */
 export function qrPayloadWith(
     payload: string,
-    fields: { version?: number; passcode?: number; discoveryCapabilities?: number; flowType?: number },
+    fields: {
+        version?: number;
+        passcode?: number;
+        discoveryCapabilities?: number;
+        flowType?: number;
+        discriminator?: number;
+    },
 ): string {
     if (!payload.startsWith(QR_PREFIX)) {
         throw new InternalError(`Cannot substitute fields into "${payload}", which is not a QR onboarding payload`);
@@ -465,6 +471,9 @@ export function qrPayloadWith(
     }
     if (fields.flowType !== undefined) {
         writeBits(data, FLOW_TYPE_BITS, fields.flowType);
+    }
+    if (fields.discriminator !== undefined) {
+        writeBits(data, DISCRIMINATOR_BITS, fields.discriminator);
     }
     return QR_PREFIX + Base38.encode(data);
 }
@@ -742,6 +751,122 @@ export class CommissioningRefusals {
             );
         }
     }
+}
+
+/**
+ * What the DUT is asked to spend looking for a device that is not there. Only matter.js reaches this,
+ * and it honors the bound — {@link recordDiscriminatorHonored} states the gap and makes no attempt on
+ * chip-tool, which cannot be bounded at all.
+ */
+export const ABSENT_DEVICE_GIVE_UP = Seconds(20);
+
+/**
+ * How long the harness waits for that give-up: the deadline above, plus enough slack that a loaded
+ * runner delivering the rejection late is not read as the DUT having neither onboarded nor refused. A
+ * wait equal to the deadline it waits on observes the attempt still pending and records exactly that,
+ * which is why the two must not be the same value. Erring long only delays reporting a DUT that hangs;
+ * erring short fails a working one.
+ *
+ * Should the chip-tool path ever run the attempt, this has to outlast chip-tool's own give-up instead
+ * — TC-DD-3.17's step 4 documents that as roughly 45 seconds and sets this same pair for it.
+ */
+export const ABSENT_DEVICE_WAIT = Seconds(90);
+
+/** § 5.1.3.1 Table 59's discriminator field, which is what a substituted value has to fit. */
+const DISCRIMINATOR_MASK = 0xfff;
+
+/**
+ * A discriminator no device in this run advertises, derived from the one `payload` names so the
+ * substitution is guaranteed to change the field. Devices take consecutive values from `identityFor`,
+ * so inverting one lands far outside the span however many the plan declares — and a value that did
+ * name a device would turn the check below into an ordinary commissioning.
+ */
+function absentDiscriminator(cx: CertStepContext, payload: string): number {
+    const absent = qrPayloadFields(payload).discriminator ^ DISCRIMINATOR_MASK;
+    for (const device of Object.values(cx.devices)) {
+        if (device.commissioning.discriminator === absent) {
+            throw new InternalError(
+                `Discriminator ${absent} was meant to name no device in this run, but ${device.id} advertises it`,
+            );
+        }
+    }
+    return absent;
+}
+
+/**
+ * Records that the DUT commissions the device its code names rather than whichever commissionable
+ * device it can reach.
+ *
+ * Every other check about a payload asks what the DUT *read*, and a commissioning that succeeds
+ * proves only the passcode, which SPAKE2+ settles on its own. On a network holding one commissionable
+ * device, a commissioner that discarded the discriminator entirely satisfies all of them and onboards
+ * the TH anyway. Offering it the TH's own payload with a discriminator nothing advertises separates
+ * the two: a DUT that uses the field cannot find the device, and one that ignores it commissions and
+ * fails this check.
+ *
+ * Two things the evidence has to carry, because here a refusal is what a pass looks like:
+ *
+ * - The TH has to be observed advertising first, or the DUT gives up because there was nothing to
+ *   find and the check passes on the TH's absence rather than on the DUT's use of the field. This is
+ *   the guard {@link recordVendorOutcome} states for the same reason.
+ * - Only a give-up counts ({@link isCommissioningGiveUp}), where
+ *   {@link CommissioningRefusals.requireNoCommissioning} takes every failure but a payload refusal —
+ *   it serves a plan with no commissionee at all, so anything that is not the code being rejected
+ *   satisfies it. Here the TH is present and the code is well-formed, so a controller that would not
+ *   start would satisfy that looser test while proving nothing.
+ *
+ * The claim is about the commissioner rather than about any one step, so a test case establishes it
+ * once, in a precondition step of its own that no PICS gate can skip.
+ */
+export async function recordDiscriminatorHonored(
+    cx: CertStepContext,
+    refusals: CommissioningRefusals,
+    subject?: CertDevice,
+    /** Overridden by the unit tests, which have no advertisement to observe. */
+    probeCommissionable: (cx: CertStepContext, what: string, th: CertDevice) => Promise<void> = recordCommissionable,
+): Promise<void> {
+    const th = subject ?? theTh(cx);
+    const payload = await thQrPayload(th);
+    const absent = absentDiscriminator(cx, payload);
+
+    if (resolveControllerImplementation() === "chip-tool") {
+        record(
+            cx,
+            {
+                type: "response",
+                verdict: "unverified",
+                detail: `discriminator ${absent} was not offered to the DUT`,
+                accepted:
+                    "chip-tool funnels discovery, PASE, attestation, CASE, timeout and argument-parse failures " +
+                    "alike into one command error, so a give-up cannot be told from a controller that failed for " +
+                    "another reason, and the attempt would cost its own discovery timeout to prove nothing",
+            },
+            "DUT commissions the device its code names",
+        );
+        return;
+    }
+
+    const code = qrPayloadWith(payload, { discriminator: absent });
+
+    await probeCommissionable(cx, `${th.id} advertising before the DUT is offered discriminator ${absent}`, th);
+
+    const label = `commissioning from a code naming discriminator ${absent}`;
+    const attempt = cx.controllers.dut.commission({ qrPairingCode: code, giveUpAfterMs: ABSENT_DEVICE_GIVE_UP });
+    refusals.track(attempt);
+
+    const outcome = await expectRejection(label, attempt, ABSENT_DEVICE_WAIT, isCommissioningGiveUp);
+
+    record(
+        cx,
+        {
+            ...outcome,
+            detail:
+                `${outcome.detail ?? label}; the code is ${th.id}'s own payload with discriminator ` +
+                `${qrPayloadFields(payload).discriminator} replaced by ${absent}, which no device in this run ` +
+                "advertises",
+        },
+        "DUT commissions the device its code names",
+    );
 }
 
 function describeTarget(target: CommissioningTarget): string {
@@ -1174,6 +1299,12 @@ async function commissionByTarget(
     const th = subject ?? theTh(cx);
 
     await restoreCommissioningMode(cx, commissioned, undefined, subject);
+
+    // A commissioner that ignored the code and onboarded whatever it could find writes the same
+    // completion line as one that read it, so the code has to be evidence in its own right
+    if (target.qrPairingCode !== undefined) {
+        await recordParse(cx, target.qrPairingCode, th);
+    }
 
     // Settled, because the line this waits for names no fabric on either flavor: a completion still
     // in flight from an earlier commissioning would otherwise satisfy this one

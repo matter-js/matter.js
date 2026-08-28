@@ -8,17 +8,19 @@ import { DiscoveryCapabilitiesSchema } from "@matter/main/types";
 import type { CertStepContext, CertTestBuilder } from "@matter/testing";
 import {
     commissionByQr,
+    CommissioningRefusals,
     flowTitle,
     ON_NETWORK_ONLY,
     qrPayloadWith,
     recordCommissionable,
+    recordDiscriminatorHonored,
     recordGeneratedPayload,
     recordParse,
     recordPayloadOffering,
     STANDARD_VERSION,
     thQrPayload,
 } from "./tc-dd-support.js";
-import { CommissionedRefs } from "./tc-support.js";
+import { CommissionedRefs, runCleanups } from "./tc-support.js";
 
 const BLE_ONLY = DiscoveryCapabilitiesSchema.encode({ ble: true });
 const WIFI_PAF_ONLY = DiscoveryCapabilitiesSchema.encode({ wifiPublicActionFrame: true });
@@ -67,6 +69,7 @@ const NOT_COMMISSIONABLE_UNAVAILABLE =
 export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): CertTestBuilder {
     const title = flowTitle(flowType);
     const commissioned = new CommissionedRefs();
+    const refusals = new CommissioningRefusals();
 
     const NOTHING_COMMISSIONS = "no step of this leg commissions the TH, so nothing acts on the flow either";
 
@@ -96,6 +99,17 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): Ce
             commissions: "step .d commissions a TH that was commissionable throughout",
         },
     ];
+
+    builder.step(
+        "0",
+        "Precondition: the DUT is a commissioner that uses the discriminator its onboarding code names.",
+        cx => recordDiscriminatorHonored(cx, refusals),
+        {
+            expected:
+                "DUT does not commission the TH from a code naming a discriminator no device advertises. " +
+                "Every later step's commissioning rests on this.",
+        },
+    );
 
     for (const leg of legs) {
         // Both `.b` and `.c` parse the code themselves, so both need the scan gate
@@ -178,5 +192,10 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): Ce
             );
     }
 
-    return builder.finalize(cx => commissioned.decommissionAll(cx));
+    return builder.finalize(cx =>
+        runCleanups(
+            () => refusals.settle(cx),
+            () => commissioned.decommissionAll(cx),
+        ),
+    );
 }

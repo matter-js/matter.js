@@ -11,8 +11,10 @@ import { certTest } from "@matter/testing";
 import { expectMdns } from "../../src/cert/mdns-check.js";
 import {
     commissionByQr,
+    CommissioningRefusals,
     MDNS_TIMEOUT,
     qrPayloadFields,
+    recordDiscriminatorHonored,
     recordNotCommissioned,
     recordParse,
     thQrPayload,
@@ -26,6 +28,7 @@ const VENDOR_ID = requireId(BASIC_INFORMATION.attributes.require("vendorId").id,
 // One per device rather than one keyed by device: `CommissionedRefs` removes each fabric through
 // `cx.controllers[role]`, and both of these harnesses are commissioned by the same controller.
 const th1Commissioned = new CommissionedRefs();
+const refusals = new CommissioningRefusals();
 const th2Commissioned = new CommissionedRefs();
 
 /**
@@ -105,6 +108,16 @@ certTest("TC-DD-3.18", {
     devices: { th1: "all-clusters", th2: "all-clusters" },
 })
     .step(
+        "0",
+        "Precondition: the DUT is a commissioner that uses the discriminator its onboarding code names.",
+        cx => recordDiscriminatorHonored(cx, refusals, cx.devices.th1),
+        {
+            expected:
+                "DUT does not commission the TH from a code naming a discriminator no device advertises. " +
+                "Every later step's commissioning rests on this.",
+        },
+    )
+    .step(
         "1.a",
         "Place TH1 into commissioning mode using the TH manufacturer's means to be discovered by a commissioner",
         async cx => {
@@ -139,7 +152,8 @@ certTest("TC-DD-3.18", {
             const { th1, th2 } = await distinctSubjects(cx);
             const th2From = await th2.log.markSettled();
 
-            await commissionByQr(cx, await thQrPayload(th1), th1Commissioned, th1);
+            const payload = await thQrPayload(th1);
+            await commissionByQr(cx, payload, th1Commissioned, th1);
 
             // "Only TH1" is a claim about TH2, and TH2's own log is what states it. A commissionable
             // probe cannot: it is answered out of the shared DNS-SD cache, which still holds the
@@ -195,6 +209,7 @@ certTest("TC-DD-3.18", {
     )
     .finalize(cx =>
         runCleanups(
+            () => refusals.settle(cx),
             () => th1Commissioned.decommissionAll(cx),
             () => th2Commissioned.decommissionAll(cx),
         ),
