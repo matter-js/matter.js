@@ -102,6 +102,15 @@ describe("ClusterBehavior", () => {
             );
         });
 
+        it("refuses a namespace whose cluster ID is not a legal Matter cluster ID", () => {
+            const namespace = ClusterType({ id: 0xfff1_0002, name: "IllegalMeiNamespace", revision: 1 });
+
+            expect(() => MyBehavior.for(namespace)).throws(
+                ImplementationError,
+                /has ID 0xfff10002 which is not a legal Matter cluster ID/,
+            );
+        });
+
         it("exposes mandatory properties for enabled cluster elements", () => {
             MyBehavior satisfies { id: "myCluster" };
 

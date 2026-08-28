@@ -826,14 +826,14 @@ export class ScenesManagementServer extends ScenesManagementBase {
         }
         const clusterName = type.schema.propertyName;
 
-        const clusterId = ClusterId(type.schema.id, false);
+        const clusterId = ClusterId(type.schema.id);
         let sceneClusterDetails;
         for (const attribute of type.schema.conformant.attributes) {
             if (!attribute.effectiveQuality.scene) {
                 continue; // Ignore non sceneable attributes
             }
 
-            const attributeId = AttributeId(attribute.id, false);
+            const attributeId = AttributeId(attribute.id);
             const attributeName = attribute.propertyName;
 
             // Ignore attributes that are not present on the endpoint or do not have change events
