@@ -13,7 +13,7 @@ import { ServerNode } from "#node/ServerNode.js";
 import { Crypto, MockCrypto } from "@matter/general";
 import { Peer, SustainedSubscription } from "@matter/protocol";
 import { MockSite } from "../../../node/mock-site.js";
-import { subscribedPeer } from "../../../node/node-helpers.js";
+import { settled, subscribedPeer } from "../../../node/node-helpers.js";
 
 const RootWithIcd = ServerNode.RootEndpoint.with(IcdManagementServer);
 
@@ -23,7 +23,7 @@ async function loseSubscription(peer: ClientNode, device: ServerNode) {
     SustainedSubscription.assert(subscription);
     await MockTime.resolve(device.stop());
     await MockTime.resolve(subscription.inactive);
-    await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+    await settled(peer);
     return subscription;
 }
 
@@ -61,7 +61,7 @@ describe("ConnectionState", () => {
         expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.Reconnecting);
 
         peer1.env.get(Peer).establishmentUnresponsive.emit();
-        await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+        await settled(peer1);
 
         expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.WaitingForDeviceDiscovery);
         expect(peer1.lifecycle.isConnected).false;
@@ -80,13 +80,13 @@ describe("ConnectionState", () => {
 
         const protopeer = peer1.env.get(Peer);
         protopeer.establishmentUnresponsive.emit();
-        await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+        await settled(peer1);
         expect(states).deep.equals([NodeConnectionState.Reconnecting, NodeConnectionState.WaitingForDeviceDiscovery]);
 
         // A repeated establishment-unresponsive emit must not re-emit the transition (idempotent latch).
         protopeer.establishmentUnresponsive.emit();
         protopeer.establishmentUnresponsive.emit();
-        await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+        await settled(peer1);
         expect(states).deep.equals([NodeConnectionState.Reconnecting, NodeConnectionState.WaitingForDeviceDiscovery]);
     });
 
@@ -97,7 +97,7 @@ describe("ConnectionState", () => {
 
         const subscription = await loseSubscription(peer1, device);
         peer1.env.get(Peer).establishmentUnresponsive.emit();
-        await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+        await settled(peer1);
         expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.WaitingForDeviceDiscovery);
 
         const states = new Array<NodeConnectionState>();
@@ -173,7 +173,7 @@ describe("ConnectionState", () => {
         for (const session of [...protopeer.sessions]) {
             protopeer.sessions.delete(session);
         }
-        await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+        await settled(peer1);
 
         expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.Reconnecting);
         expect(peer1.lifecycle.isConnected).false;
@@ -191,7 +191,7 @@ describe("ConnectionState", () => {
         expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.Reconnecting);
 
         peer1.eventsOf(IcdClient).checkInMissed.emit();
-        await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+        await settled(peer1);
 
         expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.WaitingForDeviceDiscovery);
     });
