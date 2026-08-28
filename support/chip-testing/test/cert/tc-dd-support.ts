@@ -19,7 +19,7 @@ import {
 import { Base38, DiscoveryCapabilitiesBitmap, DiscoveryCapabilitiesSchema } from "@matter/main/types";
 import type { CertNodeRef, CertStepContext, CheckRecord, CommissioningTarget } from "@matter/testing";
 import type { CertDevice } from "@matter/testing";
-import { forFlavor } from "@matter/testing";
+import { forFlavor, resolveControllerImplementation } from "@matter/testing";
 import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
 import { expectMdns } from "../../src/cert/mdns-check.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
@@ -441,9 +441,9 @@ function readBits(data: Uint8Array, { offset, length }: { offset: number; length
  * The fields go in as bits rather than through matter.js's own encoder. An unsupported version and the
  * trivial passcodes are exactly what that encoder validates against on the way out (§ 5.1.3.1,
  * § 5.1.7.1), so it cannot produce them at all; the flow and the discovery capabilities it would write
- * happily, but no subject this harness runs publishes the values the plans ask for. One substitution
- * path covers both. The TLV data that may follow the fixed 11-byte structure is carried through
- * untouched.
+ * happily, but no subject this harness runs publishes the values the plans ask for, and a
+ * discriminator naming no device at all is the same case. One substitution path covers all of them.
+ * The TLV data that may follow the fixed 11-byte structure is carried through untouched.
  */
 export function qrPayloadWith(
     payload: string,
@@ -804,11 +804,11 @@ function absentDiscriminator(cx: CertStepContext, payload: string): number {
  * - The TH has to be observed advertising first, or the DUT gives up because there was nothing to
  *   find and the check passes on the TH's absence rather than on the DUT's use of the field. This is
  *   the guard {@link recordVendorOutcome} states for the same reason.
- * - Only a give-up counts ({@link isCommissioningGiveUp}), unlike
- *   {@link CommissioningRefusals.requireNoCommissioning}, which takes any failure because the plan it
- *   serves has no commissionee at all. Here the TH is present and the code is well-formed, so a
- *   payload refusal means the DUT never reached discovery and a controller that would not start
- *   proves nothing.
+ * - Only a give-up counts ({@link isCommissioningGiveUp}), where
+ *   {@link CommissioningRefusals.requireNoCommissioning} takes every failure but a payload refusal —
+ *   it serves a plan with no commissionee at all, so anything that is not the code being rejected
+ *   satisfies it. Here the TH is present and the code is well-formed, so a controller that would not
+ *   start would satisfy that looser test while proving nothing.
  *
  * The claim is about the commissioner rather than about any one step, so a test case establishes it
  * once, in a precondition step of its own that no PICS gate can skip.
@@ -823,6 +823,24 @@ export async function recordDiscriminatorHonored(
     const th = subject ?? theTh(cx);
     const payload = await thQrPayload(th);
     const absent = absentDiscriminator(cx, payload);
+
+    if (resolveControllerImplementation() === "chip-tool") {
+        record(
+            cx,
+            {
+                type: "response",
+                verdict: "unverified",
+                detail: `discriminator ${absent} was not offered to the DUT`,
+                accepted:
+                    "chip-tool funnels discovery, PASE, attestation, CASE, timeout and argument-parse failures " +
+                    "alike into one command error, so a give-up cannot be told from a controller that failed for " +
+                    "another reason, and the attempt would cost its own discovery timeout to prove nothing",
+            },
+            "DUT commissions the device its code names",
+        );
+        return;
+    }
+
     const code = qrPayloadWith(payload, { discriminator: absent });
 
     await probeCommissionable(cx, `${th.id} advertising before the DUT is offered discriminator ${absent}`, th);
@@ -912,8 +930,8 @@ export async function thCodeParts(
  * parse is the DUT's: a step that decoded the code itself would pass against a controller that
  * cannot read one.
  */
-export async function recordManualParse(cx: CertStepContext, code: string, th?: CertDevice): Promise<void> {
-    th ??= theTh(cx);
+export async function recordManualParse(cx: CertStepContext, code: string): Promise<void> {
+    const th = theTh(cx);
 
     let parsed;
     try {
@@ -1281,8 +1299,6 @@ async function commissionByTarget(
     // completion line as one that read it, so the code has to be evidence in its own right
     if (target.qrPairingCode !== undefined) {
         await recordParse(cx, target.qrPairingCode, th);
-    } else if (target.manualPairingCode !== undefined) {
-        await recordManualParse(cx, target.manualPairingCode, th);
     }
 
     // Settled, because the line this waits for names no fabric on either flavor: a completion still

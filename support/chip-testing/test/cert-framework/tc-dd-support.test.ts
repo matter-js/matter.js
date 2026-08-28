@@ -25,6 +25,7 @@ import type {
 } from "@matter/testing";
 import { LineQueue, LogFollower, PicsFile } from "@matter/testing";
 import { expect } from "chai";
+import { env } from "node:process";
 import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
 import type { ManualPairingCodeParts, TransitionMark } from "../cert/tc-dd-support.js";
@@ -43,6 +44,7 @@ import {
     qrPayloadWith,
     qrPayloadWithPrefix,
     recordDiscoveryCapabilityAbsent,
+    ABSENT_DEVICE_GIVE_UP,
     recordDiscriminatorHonored,
     recordBackInCommissioningMode,
     recordGeneratedManualCode,
@@ -1422,14 +1424,17 @@ describe("recordDiscriminatorHonored", () => {
 
     it("passes when the DUT gives up on the discriminator nothing advertises", async () => {
         const asked = new Array<string>();
+        const budgets = new Array<number | undefined>();
         const fixture = fixtureFor(async target => {
             asked.push(target.qrPairingCode ?? "");
+            budgets.push(target.giveUpAfterMs);
             throw new DiscoveryError("no commissionable device was discovered");
         });
 
         await recordDiscriminatorHonored(fixture.cx, new CommissioningRefusals(), undefined, advertising);
 
         expect(qrPayloadFields(asked[0] ?? "").discriminator).equal(ABSENT);
+        expect(budgets[0]).equal(ABSENT_DEVICE_GIVE_UP);
         expect(fixture.checks.at(-1)?.verdict).equal("pass");
         expect(fixture.checks.at(-1)?.detail).contains(`discriminator 3840 replaced by ${ABSENT}`);
     });
@@ -1469,6 +1474,32 @@ describe("recordDiscriminatorHonored", () => {
         await expect(
             recordDiscriminatorHonored(fixture.cx, new CommissioningRefusals(), undefined, advertising),
         ).rejectedWith(CertCheckFailedError);
+    });
+
+    // chip-tool reports every command failure the same way, so an attempt there would spend its own
+    // discovery timeout to produce a verdict that could not have failed
+    it("states the gap rather than attempting anything on chip-tool", async () => {
+        const attempts = new Array<string>();
+        const fixture = fixtureFor(async target => {
+            attempts.push(target.qrPairingCode ?? "");
+            throw new DiscoveryError("no commissionable device was discovered");
+        });
+
+        const original = env.MATTER_CERT_CONTROLLER;
+        env.MATTER_CERT_CONTROLLER = "chip-tool";
+        try {
+            await recordDiscriminatorHonored(fixture.cx, new CommissioningRefusals(), undefined, advertising);
+        } finally {
+            if (original === undefined) {
+                delete env.MATTER_CERT_CONTROLLER;
+            } else {
+                env.MATTER_CERT_CONTROLLER = original;
+            }
+        }
+
+        expect(attempts).deep.equal([]);
+        expect(fixture.checks.at(-1)?.verdict).equal("unverified");
+        expect(fixture.checks.at(-1)?.accepted).contains("one command error");
     });
 
     it("refuses a substitute another device in the run advertises", async () => {

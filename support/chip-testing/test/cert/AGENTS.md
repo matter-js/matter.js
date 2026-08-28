@@ -1858,40 +1858,65 @@ would satisfy either step.
 
 A step that commissions from an onboarding code used to record two things: that the commissioning
 succeeded, and that the TH logged it completing. Neither says the DUT read the code. The rule this
-directory used to state — "commissioning from the payload is itself evidence the DUT parsed it" —
-does not hold, and it is now retired.
+directory used to state — "commissioning from the payload is itself evidence the DUT parsed it" — is
+retired.
 
-**`commissionByTarget` records what the DUT read from the code before it uses it.** Every caller of
-`commissionByQr`/`commissionByManualCode` gets this, so a commissioning step's own bundle carries the
-parse, and `recordParse` compares that parse against the TH's own discriminator and passcode rather
-than merely reporting it. Do not add a second `recordParse` beside a `commissionByQr` in the same
-step — it records the same claim twice. Where a scan step and a commissioning step are different
-steps, both legitimately parse, and both should say so.
+**`commissionByTarget` records what the DUT read from the code before it uses it.** All twelve
+`commissionByQr` call sites get it, and `recordParse` compares that reading against the TH's own
+discriminator and passcode rather than merely reporting it. Do not add a second `recordParse` beside a
+`commissionByQr` in the same step — it records the same claim twice. Where a scan step and a
+commissioning step are different steps, both legitimately parse: the scan step's claim is that the
+payload was *scanned*, the commissioning step's is about the code that commissioning used. Their
+verdicts sit under different labels for that reason.
 
 **What that still does not prove, and what does.** A commissioning that succeeds proves the passcode
 by itself: SPAKE2+ cannot complete on a wrong one. It proves nothing about the discriminator. On a
 network holding one commissionable device — which is every run of this harness — a commissioner that
 discarded the discriminator entirely passes every check above and onboards the TH anyway.
 
-`recordDiscriminatorHonored` separates the two. It hands the DUT the same payload carrying a
-discriminator nothing advertises and requires it to give up: a DUT that uses the field cannot find
-the device, and one that ignores it commissions and fails the check. The substitute is the TH's own
+`recordDiscriminatorHonored` separates the two. It offers the DUT the TH's own payload carrying a
+discriminator nothing advertises and requires it to give up: a DUT that uses the field cannot find the
+device, and one that ignores it commissions and fails the check. The substitute is the payload's own
 discriminator inverted, because `identityFor` hands devices consecutive values and an inverted one
-lands far outside that span whatever the plan declares — and the helper throws if it names a device
-in the run anyway, since that would turn the control into an ordinary commissioning.
+lands far outside that span whatever the plan declares — and the helper throws if it names a device in
+the run anyway, since that would turn the control into an ordinary commissioning.
 
-**Establish it once per test case, before the first commissioning whose evidence rests on it.** The
-claim is about the commissioner, not about a step, and each control costs a full
-`ABSENT_DEVICE_TIMEOUT` — discovery for a discriminator nothing answers has nothing to finish early
-on. The wait for the outcome is `REFUSAL_TIMEOUT`, deliberately longer: a give-up that arrives exactly
-when its own deadline expires has to be observed after that deadline, not in a race with it. Passing
-the same value for both is what "neither resolved nor rejected within 5s" means.
+**Because a refusal is what a pass looks like here, two conditions are established rather than
+assumed.** The TH is observed advertising first, or the DUT gives up because there was nothing to find
+and the check passes on the TH's absence. And only a give-up counts (`isCommissioningGiveUp`), where
+`requireNoCommissioning` takes every failure but a payload refusal — that helper serves a plan with no
+commissionee at all, so a controller that would not start satisfies it.
+
+**On chip-tool the control cannot be run at all.** `ChipToolCommandError` covers discovery, PASE,
+attestation, CASE, timeout and argument-parse failures alike, so a give-up is indistinguishable from a
+controller that failed for any other reason — and the attempt would spend chip-tool's own discovery
+timeout to record a pass that examined nothing. The step records an `unverified` check carrying
+`accepted` instead, and makes no attempt. This is the shape to reach for whenever a controller cannot
+exhibit the thing a check is about: state the gap in the bundle, do not spend time producing a verdict
+that could not have failed.
+
+**Budgets.** `ABSENT_DEVICE_GIVE_UP` (20s) is what the DUT is asked to spend; `ABSENT_DEVICE_WAIT`
+(90s) is how long the harness waits for that give-up. They must not be equal: a wait equal to the
+deadline it is waiting on observes the attempt still pending and records the DUT as having neither
+onboarded nor refused. TC-DD-3.17 step 4 sets the same pair, and its comment records chip-tool's own
+give-up as roughly 45 seconds where a measured run of this control saw 30 — take 45 as the bound.
+
+**Where it goes.** A precondition step numbered `0`, before the first commissioning whose evidence
+rests on it, following the `0.1`/`0.2` precedent in TC-IDM-1.3. The claim is about the commissioner
+rather than about any plan step, and a step of its own is also the only placement no PICS gate can
+skip: attaching it to TC-DD-3.14's `3.b`, which is gated on `MCORE.DD.DISCOVERY_BLE`, let a DUT
+without BLE skip the control and commission unbacked two steps later. No plan table numbers a step
+`0`, so the step's `expected` text says it is a precondition — a reviewer diffing bundle against plan
+has to be able to see why it is there.
 
 The test case owns a `CommissioningRefusals` for the attempt and settles it in `finalize` alongside
 `decommissionAll`, through `runCleanups` so a failing settle cannot skip the decommission.
 
 **What this still does not cover.** Which discovery capability the DUT honoured: every leg commissions
-over IP whatever the payload's bitmask says, so that field remains parse evidence only.
+over IP whatever the payload's bitmask says, so that field remains parse evidence only. And the
+substituted discriminator is only known absent from `cx.devices` — a foreign commissionable device on
+the LAN answering it would make matter.js record a failure for an unrelated reason. The value is
+deterministic, so if that ever happens it happens every run.
 
 ## A flow the TH cannot publish has to be fabricated (`TC-DD-3.12`, `TC-DD-3.13`)
 
