@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { UnexpectedDataError } from "@matter/general";
+import { ImplementationError, UnexpectedDataError } from "@matter/general";
 import { Bytes } from "@matter/main";
 import { Matter } from "@matter/model";
 import { expect } from "chai";
@@ -43,6 +43,14 @@ const OPERATIONAL_STATUS_ATTRIBUTE = WINDOW_COVERING.attributes.require("operati
 const THERMOSTAT = Matter.clusters.require("Thermostat");
 const SETPOINT_CHANGE_SOURCE_TIMESTAMP_ATTRIBUTE = THERMOSTAT.attributes.require("setpointChangeSourceTimestamp");
 
+const ELECTRICAL_POWER_MEASUREMENT = Matter.clusters.require("ElectricalPowerMeasurement");
+const VOLTAGE_ATTRIBUTE = ELECTRICAL_POWER_MEASUREMENT.attributes.require("voltage");
+
+const CARBON_DIOXIDE_CONCENTRATION = Matter.clusters.require("CarbonDioxideConcentrationMeasurement");
+const MEASURED_VALUE_ATTRIBUTE = CARBON_DIOXIDE_CONCENTRATION.attributes.require("measuredValue");
+
+const NODE_LABEL_ATTRIBUTE = BASIC_INFORMATION.attributes.require("nodeLabel");
+
 const TIME_SYNCHRONIZATION = Matter.clusters.require("TimeSynchronization");
 const UTC_TIME_ATTRIBUTE = TIME_SYNCHRONIZATION.attributes.require("utcTime");
 
@@ -52,15 +60,70 @@ describe("chip-tool json codec", () => {
         expect(matterToChipJson(0xfff1, VENDOR_ID_ATTRIBUTE, BASIC_INFORMATION, "hex")).to.equal(0xfff1);
     });
 
-    it("survives a uint64 value above Number.MAX_SAFE_INTEGER as a bigint and re-encodes losslessly", () => {
+    it("survives a uint64 value above Number.MAX_SAFE_INTEGER as a bigint and re-encodes it as unsigned", () => {
         const wireJson = '{"value":18446744073709551615}';
         expect(parseChipJson(wireJson)).to.deep.equal({ value: 18446744073709551615n });
 
         const matterValue = chipJsonToMatter(18446744073709551615n, UP_TIME_ATTRIBUTE, GENERAL_DIAGNOSTICS);
         expect(matterValue).to.equal(18446744073709551615n);
 
+        // chip-tool's own type inference is 32-bit, so a plain JSON number this large reaches the peer
+        // as a float; the value goes back out in the `u:` form that states its type.
         const wireValue = matterToChipJson(matterValue, UP_TIME_ATTRIBUTE, GENERAL_DIAGNOSTICS, "hex");
-        expect(stringifyChipJson({ value: wireValue })).to.equal(wireJson);
+        expect(stringifyChipJson({ value: wireValue })).to.equal('{"value":"u:18446744073709551615"}');
+    });
+
+    it("leaves an unsigned value chip-tool already encodes as unsigned a plain number", () => {
+        expect(matterToChipJson(0xffffffff, UP_TIME_ATTRIBUTE, GENERAL_DIAGNOSTICS, "hex")).to.equal(0xffffffff);
+        expect(matterToChipJson(0x100000000, UP_TIME_ATTRIBUTE, GENERAL_DIAGNOSTICS, "hex")).to.equal("u:4294967296");
+    });
+
+    it("forces the signed encoding of a signed value outside chip-tool's 32-bit inference", () => {
+        // Both of chip-tool's predicates are 32 bits wide, so a signed field is mistyped in two
+        // directions: as a float below INT32_MIN, as an unsigned element above INT32_MAX.
+        expect(matterToChipJson(-9_000_000_000_000n, VOLTAGE_ATTRIBUTE, ELECTRICAL_POWER_MEASUREMENT, "hex")).to.equal(
+            "s:-9000000000000",
+        );
+        expect(matterToChipJson(3_000_000_000, VOLTAGE_ATTRIBUTE, ELECTRICAL_POWER_MEASUREMENT, "hex")).to.equal(
+            "s:3000000000",
+        );
+    });
+
+    it("leaves a signed value chip-tool already types correctly a plain number", () => {
+        expect(matterToChipJson(-2_000_000, VOLTAGE_ATTRIBUTE, ELECTRICAL_POWER_MEASUREMENT, "hex")).to.equal(
+            -2_000_000,
+        );
+    });
+
+    it("states a float field's type, which chip-tool never infers from a whole number", () => {
+        expect(matterToChipJson(2, MEASURED_VALUE_ATTRIBUTE, CARBON_DIOXIDE_CONCENTRATION, "hex")).to.equal("f:2");
+        expect(matterToChipJson(2.5, MEASURED_VALUE_ATTRIBUTE, CARBON_DIOXIDE_CONCENTRATION, "hex")).to.equal("f:2.5");
+    });
+
+    it("refuses a non-integral value on an integer field, naming the field", () => {
+        expect(() => matterToChipJson(1.5, UP_TIME_ATTRIBUTE, GENERAL_DIAGNOSTICS, "hex")).to.throw(
+            ImplementationError,
+            /UpTime/,
+        );
+    });
+
+    it("refuses a negative value on an unsigned field", () => {
+        expect(() => matterToChipJson(-1, UP_TIME_ATTRIBUTE, GENERAL_DIAGNOSTICS, "hex")).to.throw(ImplementationError);
+    });
+
+    it("refuses a string chip-tool would read as a typed value rather than as a string", () => {
+        for (const value of ["u:1", "s:1", "hex:ab", "f:1", "d:1"]) {
+            expect(() => matterToChipJson(value, NODE_LABEL_ATTRIBUTE, BASIC_INFORMATION, "hex")).to.throw(
+                ImplementationError,
+            );
+        }
+        expect(matterToChipJson("living room", NODE_LABEL_ATTRIBUTE, BASIC_INFORMATION, "hex")).to.equal("living room");
+    });
+
+    it("forces the unsigned encoding of an epoch-us above 32 bits after subtracting the Matter epoch", () => {
+        expect(matterToChipJson(1_600_000_000_000_000n, UTC_TIME_ATTRIBUTE, TIME_SYNCHRONIZATION, "hex")).to.equal(
+            "u:653315200000000",
+        );
     });
 
     it("round-trips a negative int64 value below Number.MIN_SAFE_INTEGER as a bigint, losslessly", () => {

@@ -14,6 +14,11 @@ export type OctetEncoding = "hex" | "base64";
 
 const enum ConvKind {
     Passthrough,
+    Unsigned,
+    Signed,
+    Float,
+    Double,
+    Text,
     EpochS,
     EpochUS,
     Bytes,
@@ -42,7 +47,13 @@ function classifyModel(model: ValueModel): ConvKind {
                 ? ConvKind.EpochS
                 : model.type === "epoch-us"
                   ? ConvKind.EpochUS
-                  : ConvKind.Passthrough;
+                  : model.metabase.name.startsWith("uint")
+                    ? ConvKind.Unsigned
+                    : ConvKind.Signed;
+    } else if (model.metabase?.metatype === "float") {
+        kind = model.metabase.name === "double" ? ConvKind.Double : ConvKind.Float;
+    } else if (model.metabase?.metatype === "string") {
+        kind = ConvKind.Text;
     } else {
         kind = ConvKind.Passthrough;
     }
@@ -170,7 +181,8 @@ export function chipJsonToMatter(value: unknown, model: ValueModel, clusterModel
         return null;
     }
 
-    switch (classifyModel(model)) {
+    const kind = classifyModel(model);
+    switch (kind) {
         case ConvKind.List: {
             if (!Array.isArray(value)) return value;
             const memberModel = listElementModel(model);
@@ -218,6 +230,13 @@ export function chipJsonToMatter(value: unknown, model: ValueModel, clusterModel
         case ConvKind.Bytes:
             return typeof value === "string" ? decodeOctetString(value) : value;
 
+        case ConvKind.Unsigned:
+        case ConvKind.Signed:
+        case ConvKind.Float:
+        case ConvKind.Double:
+        case ConvKind.Text:
+            return value;
+
         case ConvKind.EpochS:
             return typeof value === "number" ? value + MATTER_EPOCH_OFFSET_S : value;
 
@@ -229,6 +248,63 @@ export function chipJsonToMatter(value: unknown, model: ValueModel, clusterModel
         case ConvKind.Passthrough:
             return value;
     }
+}
+
+/**
+ * `CustomArgumentParser` reads a plain JSON number's TLV type off the value alone
+ * (`examples/chip-tool/commands/clusters/CustomArgument.h`), and jsoncpp's `isUInt()`/`isInt()` are
+ * both 32-bit, so it can only reach an unsigned TLV integer within these bounds and a signed one
+ * within `[INT32_MIN, INT32_MAX]`. Outside them it encodes a *float*, and inside the unsigned range a
+ * positive value is unsigned whatever the field's own type is. Either way a peer decoding the field's
+ * declared type rejects the element.
+ */
+const CHIP_TOOL_PLAIN_UNSIGNED_MAX = 0xffffffffn;
+const CHIP_TOOL_PLAIN_SIGNED_MIN = -0x80000000n;
+const CHIP_TOOL_PLAIN_SIGNED_MAX = 0x7fffffffn;
+
+/**
+ * The value chip-tool encodes as the TLV type `model` declares. `u:`/`s:`/`f:`/`d:` are its own
+ * prefixes for stating that type explicitly, which is the only way to reach a type its inference
+ * cannot; a value it already infers correctly stays a plain JSON number.
+ */
+function chipTypedNumber(value: number | bigint, kind: ConvKind, model: ValueModel): unknown {
+    if (kind === ConvKind.Float || kind === ConvKind.Double) {
+        return `${kind === ConvKind.Float ? "f" : "d"}:${value}`;
+    }
+
+    if (typeof value === "number" && !Number.isInteger(value)) {
+        throw new ImplementationError(`Field "${model.name}" is an integer but was given ${value}`);
+    }
+    const magnitude = BigInt(value);
+
+    if (kind === ConvKind.Signed) {
+        return magnitude > CHIP_TOOL_PLAIN_SIGNED_MAX || magnitude < CHIP_TOOL_PLAIN_SIGNED_MIN
+            ? `s:${magnitude}`
+            : value;
+    }
+
+    if (magnitude < 0) {
+        throw new ImplementationError(`Field "${model.name}" is unsigned but was given ${value}`);
+    }
+    return magnitude > CHIP_TOOL_PLAIN_UNSIGNED_MAX ? `u:${magnitude}` : value;
+}
+
+/** chip-tool's prefixes for stating a value's type, which it reads before it reads a char string. */
+const CHIP_TOOL_TYPE_PREFIXES = ["hex:", "u:", "s:", "f:", "d:"];
+
+/**
+ * A char string whose own text starts with one of chip-tool's type prefixes reaches the peer as that
+ * type instead of as a string, and nothing on the wire says so. There is no escape for it, so the
+ * value is refused here rather than silently retyped.
+ */
+function chipText(value: string, model: ValueModel): string {
+    const prefix = CHIP_TOOL_TYPE_PREFIXES.find(candidate => value.startsWith(candidate));
+    if (prefix !== undefined) {
+        throw new ImplementationError(
+            `Field "${model.name}" carries "${value}", which chip-tool reads as a "${prefix}" value rather than a string`,
+        );
+    }
+    return value;
 }
 
 /**
@@ -245,7 +321,8 @@ export function matterToChipJson(
         return null;
     }
 
-    switch (classifyModel(model)) {
+    const kind = classifyModel(model);
+    switch (kind) {
         case ConvKind.List: {
             if (!Array.isArray(value)) return value;
             const memberModel = listElementModel(model);
@@ -299,8 +376,17 @@ export function matterToChipJson(
 
         case ConvKind.EpochUS:
             return typeof value === "number" || typeof value === "bigint"
-                ? BigInt(value) - MATTER_EPOCH_OFFSET_US
+                ? chipTypedNumber(BigInt(value) - MATTER_EPOCH_OFFSET_US, ConvKind.Unsigned, model)
                 : value;
+
+        case ConvKind.Unsigned:
+        case ConvKind.Signed:
+        case ConvKind.Float:
+        case ConvKind.Double:
+            return typeof value === "number" || typeof value === "bigint" ? chipTypedNumber(value, kind, model) : value;
+
+        case ConvKind.Text:
+            return typeof value === "string" ? chipText(value, model) : value;
 
         case ConvKind.Passthrough:
             return value;
