@@ -168,16 +168,17 @@ export class OnlineEvent<T extends any[] = any[], S extends ValueModel = ValueMo
         // If it is a "real" Matter event, then we connect this event instance with the OccurrenceManager and
         // ChangeNotificationService
         const eventSchema = this.schema as EventModel;
+        const clusterId = this.owner.behavior?.schema.id;
         if (
             this.schema.tag === ElementTag.Event &&
             this.schema.id !== undefined &&
             this.owner.endpoint !== undefined &&
-            this.owner.behavior !== undefined &&
+            clusterId !== undefined &&
             eventSchema.priority !== undefined
         ) {
             this.#baseOccurrence = {
                 eventId: EventId(this.schema.id),
-                clusterId: ClusterId(this.owner.behavior.schema.id!),
+                clusterId: ClusterId(clusterId),
                 endpointId: this.owner.endpoint.number,
                 priority: EventElement.PriorityId[eventSchema.priority] as unknown as Priority,
             };

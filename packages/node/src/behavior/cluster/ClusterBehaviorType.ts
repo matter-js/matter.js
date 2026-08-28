@@ -11,6 +11,7 @@ import {
     describeList,
     EventEmitter,
     GeneratedClass,
+    hex,
     ImplementationError,
 } from "@matter/general";
 import {
@@ -27,7 +28,7 @@ import {
     ValueModel,
 } from "@matter/model";
 import { Val } from "@matter/protocol";
-import { ClusterType } from "@matter/types";
+import { ClusterId, ClusterType } from "@matter/types";
 import { Behavior } from "../Behavior.js";
 import { DerivedState } from "../state/StateType.js";
 import { introspectionInstanceOf } from "./cluster-behavior-utils.js";
@@ -68,6 +69,16 @@ export function ClusterBehaviorType({
 
     if (!schema) {
         throw new ImplementationError("ClusterBehaviorType: no schema available");
+    }
+
+    // A peer may report an ID outside the legal ranges and we model it as reported; a cluster we host ourselves is an
+    // authoring error
+    if (!forClient && schema.id !== undefined && !ClusterId.isValid(schema.id)) {
+        throw new ImplementationError(
+            `Cluster ${schema.name} has ID 0x${hex.fixed(schema.id, 8)} which is not a legal Matter cluster ID; a ` +
+                `standard cluster uses vendor prefix 0x0000 with a suffix of 0x0000 - 0x7fff and a vendor-specific ` +
+                `cluster a non-zero prefix with a suffix of 0xfc00 - 0xfffe`,
+        );
     }
 
     // Apply feature selection to schema
