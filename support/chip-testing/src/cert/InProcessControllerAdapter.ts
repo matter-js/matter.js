@@ -117,6 +117,15 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "ACT.C.C09.Tx": 1,
     "ACT.C.C0a.Tx": 1,
     "ACT.C.C0b.Tx": 1,
+
+    // The Groups client commands this run's DUT sends, its preconditions' AddGroup included. The CHIP
+    // PICS file answers 0 for these because it describes a device, which is not a Groups client; here
+    // the client is the controller.
+    "G.C.C00.Tx": 1,
+    "G.C.C02.Tx": 1,
+    "G.C.C03.Tx": 1,
+    "G.C.C04.Tx": 1,
+    "G.C.C05.Tx": 1,
 };
 
 const adapterStreams = new Map<string, LineQueue>();

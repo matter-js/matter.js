@@ -643,6 +643,21 @@ describe("ControllerAdapter registry", () => {
         }
     });
 
+    it("declares every Groups client command TC-G-3.2 sends, gated or not", () => {
+        // AddGroup carries no PICS gate of its own — it is a precondition — but a controller that sends
+        // a command it does not declare is exactly the drift the Actions block below guards against.
+        const groupsCommands = ["00", "02", "03", "04", "05"].map(id => `G.C.C${id}.Tx`);
+        const asDevice = new PicsFile(groupsCommands.map(key => `${key}=0`));
+
+        for (const implementation of ["matterjs", "chip-tool"] as const) {
+            const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
+
+            for (const key of groupsCommands) {
+                expect(new PicsExpression(key).evaluate(forRun), `${implementation} ${key}`).equal(true);
+            }
+        }
+    });
+
     it("declares the client-side capabilities the device's own PICS file answers for a device", () => {
         // Every command TC-ACT-3.2 gates a step on, since a declaration missing from the middle of the
         // range skips that step as quietly as one missing from either end.

@@ -715,6 +715,23 @@ function matterjsInvokePath(endpoint: number, cluster: number, command: number):
 }
 
 /**
+ * One field value as matter.js writes it into that line. A string is written bare and the next field
+ * follows a space, so a string is bounded by what can follow it — the line's end, or the next field's
+ * `<name>:` — rather than by "not more non-space", which a value containing a space would satisfy
+ * mid-value. A value matter.js cannot write on one line, or writes indistinguishably from an absent
+ * one, has no pattern at all and is refused here rather than waiting for a line that cannot come.
+ */
+function matterjsFieldValue(value: number | bigint | string): string {
+    if (typeof value !== "string") {
+        return `${value}(?!\\d)`;
+    }
+    if (value === "" || /[\n\r]/.test(value)) {
+        throw new InternalError(`matter.js does not print "${value}" as a matchable field value`);
+    }
+    return `${literally(value)}(?=$|\\s\\w+:)`;
+}
+
+/**
  * matter.js's line for the invoked command's own payload, which names each field rather than
  * numbering it: `<name>: <value>`, in payload order, on the line that names the command.
  */
@@ -725,7 +742,7 @@ function matterjsCommandFields(cluster: number, command: number, fields: Command
         if (name === undefined) {
             throw new InternalError(`Command 0x${command.toString(16)} has no field 0x${id.toString(16)}`);
         }
-        return `${camelize(name)}: ${value}(?!\\d)`;
+        return `${camelize(name)}: ${matterjsFieldValue(value)}`;
     });
     return new RegExp(`ProtocolService Invoke «.*${matterjsElement(model?.name, command)}\\b.*${named.join(".*")}`);
 }
@@ -840,10 +857,34 @@ export function requireId(id: number | undefined, what: string): number {
     return id;
 }
 
-/** One `CommandFields` entry: a field id and its value, matched as `0x<id> = <value> (unsigned),`. */
+/**
+ * One `CommandFields` entry: a field id and its value. chip prints the TLV type after the value, so a
+ * string is matched as `0x<id> = "<value>" (<n> chars),` — where `n` counts the string's UTF-8 bytes,
+ * not its code points — and a number as `0x<id> = <value> (unsigned),`. Every numeric field any TC
+ * checks so far is unsigned; chip prints a signed one as `(signed)`, which no shape here matches.
+ */
 export interface CommandFieldValue {
     id: number;
-    value: number;
+    value: number | bigint | string;
+}
+
+/** `value` as a pattern matching itself and nothing else. */
+function literally(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * The line chip prints for one decoded `CommandFields` entry.
+ *
+ * The trailing type name is load-bearing: without it `0x0 = 2,` also matches the first two digits of
+ * `0x0 = 20,`.
+ */
+function chipCommandField({ id, value }: CommandFieldValue): RegExp {
+    const rendered =
+        typeof value === "string"
+            ? `"${literally(value)}" \\(${new TextEncoder().encode(value).length} chars\\)`
+            : `${value} \\(unsigned\\)`;
+    return new RegExp(`0x${id.toString(16)} = ${rendered},\\s*$`);
 }
 
 /**
@@ -913,8 +954,8 @@ async function matterjsCommandInvoke(
 /**
  * Confirms chip's `InvokeRequestMessage` log carries a `CommandPathIB` matching `endpoint`/`cluster`/
  * `command` as a consecutive block at or after `from` (see {@link expectAdjacentLines}), then that
- * every `fields` entry appears afterward, in order, as its own `0x<id> = <value>,` line inside
- * `CommandFields`. Field lines aren't required adjacent to the `CommandPathIB` block itself — chip
+ * every `fields` entry appears afterward, in order, as its own line inside `CommandFields` (see
+ * {@link chipCommandField}). Field lines aren't required adjacent to the `CommandPathIB` block itself — chip
  * emits a blank `CHIP:DMG:` separator line in between that isn't part of what this check verifies. A
  * search always starts at or after the previous match's own index (`log.expect`'s `from`), so this
  * can't match a field line belonging to an earlier invoke. matter.js names every command one invoke
@@ -958,12 +999,11 @@ export async function expectCommandInvoke(
         last = block.last;
         cursor = block.last.index + 1;
 
-        for (const { id, value } of fields) {
-            // Every field checked by any TC using this helper so far is an unsigned int (uint16/uint32);
-            // chip's decode dump appends the TLV type name after the value (verified against a real
-            // chip-bridge-app capture).
-            const pattern = new RegExp(`0x${id.toString(16)} = ${value} \\(unsigned\\),\\s*$`);
-            const result = await log.expect({ chip: pattern }, { flavor, timeoutMs: remaining(), from: cursor });
+        for (const field of fields) {
+            const result = await log.expect(
+                { chip: chipCommandField(field) },
+                { flavor, timeoutMs: remaining(), from: cursor },
+            );
             if (result.verdict === "unverified") {
                 return { type: "device-log", verdict: "unverified" };
             }
