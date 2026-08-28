@@ -155,7 +155,7 @@ export class OfflineEvent<T extends any[] = any[], S extends ValueModel = ValueM
  */
 export class OnlineEvent<T extends any[] = any[], S extends ValueModel = ValueModel> extends ElementEvent<T> {
     readonly isQuieter: boolean = false;
-    readonly #baseOccurrence: Omit<Occurrence, "epochTimestamp" | "payload"> | undefined;
+    #baseOccurrence: Omit<Occurrence, "epochTimestamp" | "payload"> | undefined;
     #occurrenceTrigger?: (payload: any) => void;
 
     protected override handleError(error: Error, observer: Observer) {
@@ -176,26 +176,27 @@ export class OnlineEvent<T extends any[] = any[], S extends ValueModel = ValueMo
             clusterId !== undefined &&
             eventSchema.priority !== undefined
         ) {
-            this.#baseOccurrence = {
-                eventId: EventId(this.schema.id),
-                clusterId: ClusterId(clusterId),
-                endpointId: this.owner.endpoint.number,
-                priority: EventElement.PriorityId[eventSchema.priority] as unknown as Priority,
-            };
-            this.#connectWithOccurenceManager();
+            this.#connectWithOccurenceManager(this.schema.id, clusterId, eventSchema.priority);
         }
     }
 
-    #connectWithOccurenceManager() {
+    #connectWithOccurenceManager(eventId: number, clusterId: number, priority: EventElement.Priority) {
         if (this.owner.endpoint === undefined) {
             throw new InternalError("Events initialized with no assigned endpoint");
         }
 
-        // Obtain occurrence manager.  Events on client nodes will not have one
+        // Obtain occurrence manager.  Events on client nodes will not have one, and their IDs are the peer's to choose
         const occurrenceManager = this.owner.endpoint.env.maybeGet(OccurrenceManager);
         if (occurrenceManager === undefined) {
             return;
         }
+
+        this.#baseOccurrence = {
+            eventId: EventId(eventId),
+            clusterId: ClusterId(clusterId),
+            endpointId: this.owner.endpoint.number,
+            priority: EventElement.PriorityId[priority] as unknown as Priority,
+        };
 
         const trigger = (payload?: any) => {
             const occurrence = occurrenceManager.add({
