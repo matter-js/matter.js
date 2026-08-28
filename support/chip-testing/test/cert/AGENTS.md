@@ -1791,6 +1791,65 @@ result alone.
 claim from `.a`'s "the QR code has been scanned successfully". Read the plan's expected column before
 deciding a `.b` step's parse is redundant: it usually is, and there it is not.
 
+## More than one device in a run (`TC-DD-3.18`)
+
+`certTest`'s `devices` option takes as many roles as a plan names, and each declared device gets its
+own onboarding identity — discriminator, passcode, and operational port — from `identityFor(index)`
+in `cert-dsl.ts`. This used to throw.
+
+**Why it had to.** Every discovery instrument in this directory matches on the long discriminator
+alone, and every flavor defaulted to 3840 / 20202021 / 5540. Two subjects sharing that would have the
+commissioner reach whichever the scanner found first, and the run would pass having proven nothing
+about which device it talked to. The chip flavors would not even get that far: two apps contend for
+port 5540 and the second exits, which surfaces as "a cert-test device exited unexpectedly while a
+step was running" rather than as a port collision.
+
+**The primary keeps chip's defaults, deliberately.** Index 0 is 3840 / 20202021 / 5540, so all
+fifteen existing single-device TCs record exactly what they recorded before — same discriminator in
+their evidence, same payload. Only a second device gets new values. Identity is assigned by
+declaration order rather than randomly, so a bundle's discriminator means the same thing across runs
+and a failure reproduces; the cost is that a clash with an unrelated device on the LAN repeats every
+run instead of clearing, which is the better failure because it is diagnosable.
+
+**What each flavor needed:**
+
+| Flavor | Discriminator / passcode | Port |
+| --- | --- | --- |
+| `chip-local`, `chip-docker` | already per-instance `--discriminator`/`--passcode` | new `--secured-device-port` |
+| `matterjs` | already per-instance via `TestInstanceConfig` | new `port` on `TestInstanceConfig`, replacing a hardcoded 5540 in each `TestInstance` |
+
+**Two traps this cost:**
+
+- **A non-primary device's domain cannot be the TC's name.** The primary's is `descriptor.kind`
+  ("cert"); a name like `TC-DD-3.18` carries dots, and a matter.js subject rejects them as an endpoint
+  id. Non-primary devices are named `cert-<role>`.
+- **`CommissionedRefs` is keyed by *controller* role, not device role** — `decommissionAll` removes
+  each fabric through `cx.controllers[role]`. A plan whose devices share one controller therefore
+  gives each device its own `CommissionedRefs` and joins them with `runCleanups`, rather than
+  inventing device-named roles that resolve to no controller.
+
+**"Only TH1 was commissioned" is a claim about TH2, and TH2's own log is what states it.**
+`recordNotCommissioned` counts completion lines in the step's window and fails if there are any.
+The obvious alternative — a device that joined a fabric stops advertising commissionable, so check
+that TH2 still does — is the freshness trap above: the probe is answered out of the shared DNS-SD
+cache, which still holds the record step 1.b installed whether or not TH2 has since joined. The first
+draft of this TC used it. Step 3.b makes the symmetric check, that TH1 was not commissioned a second
+time, which the plan asks for in the same words.
+
+**A negative check cannot be proven by a run where nothing happened** — it passes whether or not it
+looks in the right place. Its unit tests supply the positive case: a completion after the mark must
+fail it, one before the mark must not.
+
+**The precondition is that the two devices differ in their long discriminator**, since that is the
+only field discovery matches on, and it is read out of the payloads the *devices themselves printed*.
+Comparing `device.commissioning` would not do: on a chip flavour that is the identity the harness
+handed the app, so it compares `identityFor(0)` with `identityFor(1)` and cannot fail. Comparing whole
+payloads is also not enough — two could differ only in passcode and leave discovery just as ambiguous.
+
+**Steps 4.a/4.b name the node and operational instance they reached.** Both harnesses run the same app
+with the same vendor id, so the attribute value alone cannot tell them apart and swapping the two refs
+would satisfy either step.
+
 ## chip-tool delivers one result per async report and discards the rest
 
 `step 4: write 1/3 … produced no subscription report carrying "tc-idm-4-1-a" within 30s`,

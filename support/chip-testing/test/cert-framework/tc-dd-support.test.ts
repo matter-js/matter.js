@@ -43,6 +43,7 @@ import {
     recordGeneratedManualCode,
     recordPayloadOffering,
     recordGeneratedPayload,
+    recordNotCommissioned,
     recordUnpair,
     recordVendorOutcome,
 } from "../cert/tc-dd-support.js";
@@ -1289,6 +1290,63 @@ describe("commissionByQr's own causal boundary", () => {
         const matched = fixture.checks.find(check => check.type === "device-log")?.matched ?? "";
         expect(matched).contains("bbbbbbbbbbbbbbbb");
         expect(matched).not.contains("aaaaaaaaaaaaaaaa");
+    });
+});
+
+describe("recordNotCommissioned", () => {
+    const CHIP_COMMISSIONED = "[1787433110.001] [23362:73430237:chip] [SVR] Commissioning completed successfully";
+    const MATTERJS_COMMISSIONED =
+        "2026-08-27 19:31:27.056 NOTICE GeneralCommissioningClusterHandler Commissioned fabric: 6ad0fe468a5d1880 (#1) node: 1";
+
+    // A negative check passes on a run where nothing happened whether or not it looks in the right
+    // place, so the case that proves it is the one where the device DID commission
+    it("fails when the device completed a commissioning after the mark", async () => {
+        const fixture = new UnpairFixture("chip-local");
+        const from = await fixture.markTransition();
+        // Deliberately not drained: the helper has to settle the log itself, or it counts a buffer
+        // the completion has not reached yet and reports the device idle
+        fixture.push(CHIP_COMMISSIONED);
+
+        await expect(
+            recordNotCommissioned(fixture.cx, fixture.cx.devices.th, from, "TH2 was not commissioned"),
+        ).rejectedWith(CertCheckFailedError);
+
+        expect(fixture.checks.map(check => check.verdict)).deep.equal(["fail"]);
+        expect(fixture.checks[0].detail).contains("completed 1 commissioning");
+    });
+
+    it("ignores a commissioning the device completed before the mark", async () => {
+        const fixture = new UnpairFixture("chip-local");
+        fixture.push(CHIP_COMMISSIONED);
+        const from = await fixture.markTransition();
+
+        await recordNotCommissioned(fixture.cx, fixture.cx.devices.th, from, "TH2 was not commissioned");
+
+        expect(fixture.checks.map(check => check.verdict)).deep.equal(["pass"]);
+    });
+
+    it("reads the matterjs device's own form of the line", async () => {
+        const fixture = new UnpairFixture("matterjs");
+        const from = await fixture.markTransition();
+        fixture.push(MATTERJS_COMMISSIONED);
+
+        await expect(
+            recordNotCommissioned(fixture.cx, fixture.cx.devices.th, from, "TH1 was not commissioned again"),
+        ).rejectedWith(CertCheckFailedError);
+
+        expect(fixture.checks.map(check => check.verdict)).deep.equal(["fail"]);
+    });
+
+    it("counts every commissioning in the window, not just the first", async () => {
+        const fixture = new UnpairFixture("chip-local");
+        const from = await fixture.markTransition();
+        fixture.push(CHIP_COMMISSIONED, CHIP_COMMISSIONED);
+
+        await expect(
+            recordNotCommissioned(fixture.cx, fixture.cx.devices.th, from, "TH2 was not commissioned"),
+        ).rejectedWith(CertCheckFailedError);
+
+        expect(fixture.checks[0].detail).contains("completed 2 commissioning");
     });
 });
 

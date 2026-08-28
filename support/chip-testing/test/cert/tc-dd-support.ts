@@ -19,6 +19,7 @@ import {
 import { Base38, DiscoveryCapabilitiesBitmap, DiscoveryCapabilitiesSchema } from "@matter/main/types";
 import type { CertNodeRef, CertStepContext, CheckRecord, CommissioningTarget } from "@matter/testing";
 import type { CertDevice } from "@matter/testing";
+import { forFlavor } from "@matter/testing";
 import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
 import { expectMdns } from "../../src/cert/mdns-check.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
@@ -53,9 +54,27 @@ import {
  */
 export type TransitionMark = number;
 
-/** Takes a {@link TransitionMark} on the TH, after letting its log pump settle. */
-export async function markTransition(cx: CertStepContext): Promise<TransitionMark> {
-    return cx.devices.th.log.markSettled();
+/** Takes a {@link TransitionMark} on `th`, after letting its log pump settle. */
+export async function markTransition(cx: CertStepContext, th = theTh(cx)): Promise<TransitionMark> {
+    return th.log.markSettled();
+}
+
+/**
+ * The device these helpers act on where a plan names only one.
+ *
+ * A plan may now declare several devices under names of its own (`devices: { th1, th2 }`), and then
+ * there is no `th` role at all. Reaching for one is a defect in the calling step rather than anything
+ * the run can recover from, so it says so instead of failing later on a property of `undefined`.
+ */
+function theTh(cx: CertStepContext): CertDevice {
+    const th = cx.devices.th;
+    if (th === undefined) {
+        throw new ImplementationError(
+            `This step's plan declares no "th" device (it has ${Object.keys(cx.devices).join(", ") || "none"}); ` +
+                "a helper acting on one device takes it as a parameter when the plan names more than one",
+        );
+    }
+    return th;
 }
 
 /** Bounds a wait for a line a device prints as it comes up, with a whole commissioning flow ahead of it. */
@@ -93,6 +112,51 @@ const SETUP_QR_CODE = /SetupQRCode: \[(MT:[^\]]+)\]/;
 
 /** chip-all-clusters-app announces a completed commissioning. */
 const COMMISSIONING_COMPLETE = /Commissioning completed successfully/;
+
+/** A device announcing it completed a commissioning, in whichever form its implementation prints. */
+export const COMMISSIONED = { chip: COMMISSIONING_COMPLETE, matterjs: MATTERJS_COMMISSIONED_FABRIC };
+
+/**
+ * Records that `th` did **not** complete a commissioning since `from`, which is how a plan's "only
+ * the other device was commissioned" is stated: the device that must not have joined is the only
+ * thing that can say so.
+ *
+ * A commissionable mDNS probe cannot. It is answered out of the process-global DNS-SD cache, so it
+ * reports a record this run installed several steps earlier just as readily as a live one — see this
+ * directory's AGENTS.md on freshness. The device's own log is not cached and not shared.
+ */
+export async function recordNotCommissioned(
+    cx: CertStepContext,
+    th: CertDevice,
+    from: number,
+    what: string,
+): Promise<void> {
+    // Counting reads the buffer directly, so a completion the device printed moments ago is
+    // invisible until the pump has delivered it — and this runs immediately after a commissioning,
+    // which is exactly when such a line is in flight.
+    await th.log.settled();
+
+    const pattern = forFlavor(COMMISSIONED, th.flavor);
+    if (pattern === undefined) {
+        record(cx, { type: "device-log", verdict: "unverified" }, what);
+        return;
+    }
+
+    const completions = th.log.count(pattern, from);
+    record(
+        cx,
+        {
+            type: "device-log",
+            verdict: completions === 0 ? "pass" : "fail",
+            pattern: String(pattern),
+            detail:
+                completions === 0
+                    ? `${th.id} logged no completed commissioning in this step`
+                    : `${th.id} completed ${completions} commissioning(s) in this step`,
+        },
+        what,
+    );
+}
 
 /**
  * The device announcing that it is now advertising itself commissionable — the transition a plan's
@@ -147,9 +211,8 @@ export async function thQrPayload(th: CertDevice, from = 0): Promise<string> {
  * parse is the DUT's, not the step's: a step that decoded the payload itself would pass against a
  * controller that cannot read one at all.
  */
-export async function recordParse(cx: CertStepContext, payload: string): Promise<void> {
-    const th = cx.devices.th;
-
+export async function recordParse(cx: CertStepContext, payload: string, th?: CertDevice): Promise<void> {
+    th ??= theTh(cx);
     let parsed;
     try {
         parsed = await cx.controllers.dut.parseQrPayload(payload);
@@ -191,7 +254,7 @@ export const ON_NETWORK_ONLY = DiscoveryCapabilitiesSchema.encode({ onIpNetwork:
  * a BLE-only bitmask, so the precondition does not otherwise hold on that TH at all.
  */
 export async function onNetworkOnlyPayload(cx: CertStepContext): Promise<string> {
-    return qrPayloadWith(await thQrPayload(cx.devices.th), { discoveryCapabilities: ON_NETWORK_ONLY });
+    return qrPayloadWith(await thQrPayload(theTh(cx)), { discoveryCapabilities: ON_NETWORK_ONLY });
 }
 
 /** § 5.1.3.1 Table 59's version string for this revision of the specification. */
@@ -680,7 +743,7 @@ export async function thManualPairingCode(
 export async function thCodeParts(
     cx: CertStepContext,
 ): Promise<ManualPairingCodeParts & { vendorId: number; productId: number }> {
-    const th = cx.devices.th;
+    const th = theTh(cx);
     const { vendorId, productId } = await cx.controllers.dut.parseQrPayload(await thQrPayload(th));
     if (vendorId === undefined || productId === undefined) {
         // parseQrPayload reports § 2.5.2/§ 2.5.3's "unspecified" as absent, and Table 64's 21-digit
@@ -706,7 +769,7 @@ export async function thCodeParts(
  * cannot read one.
  */
 export async function recordManualParse(cx: CertStepContext, code: string): Promise<void> {
-    const th = cx.devices.th;
+    const th = theTh(cx);
 
     let parsed;
     try {
@@ -743,8 +806,9 @@ export const SHORT_DISCRIMINATOR_SHIFT = 8;
 export async function recordCommissionable(
     cx: CertStepContext,
     what = "TH advertising as commissionable",
+    th = theTh(cx),
 ): Promise<void> {
-    record(cx, await expectMdns(cx.devices.th, { commissionable: true }, { timeoutMs: MDNS_TIMEOUT }), what);
+    record(cx, await expectMdns(th, { commissionable: true }, { timeoutMs: MDNS_TIMEOUT }), what);
 }
 
 /**
@@ -901,7 +965,7 @@ export async function recordVendorOutcome(
  * admin on the TH would have another fabric's removal satisfy the first check.
  */
 export async function recordUnpair(cx: CertStepContext, commissioned: CommissionedRefs): Promise<TransitionMark> {
-    const th = cx.devices.th;
+    const th = theTh(cx);
     const ref = commissioned.require("dut");
     const node = cx.controllers.dut.node(ref);
 
@@ -956,15 +1020,19 @@ export async function recordBackInCommissioningMode(
     options: {
         what?: string;
         since?: TransitionMark;
+        /** The device this acts on, where the plan names more than one. */
+        th?: CertDevice;
         /** Overridden by the unit tests, which have no mDNS to answer. */
         probeCommissionable?: (cx: CertStepContext, what: string) => Promise<void>;
     } = {},
 ): Promise<void> {
-    const th = cx.devices.th;
+    const th = options.th ?? theTh(cx);
     const {
         what = "TH advertising as commissionable again",
-        probeCommissionable = recordCommissionable,
-        since = await markTransition(cx),
+        // Bound to this device rather than to the plan's single-device role, which a multi-device
+        // plan does not have
+        probeCommissionable = (cx: CertStepContext, what: string) => recordCommissionable(cx, what, th),
+        since = await markTransition(cx, th),
     } = options;
     const from = since;
 
@@ -1010,17 +1078,19 @@ async function restoreCommissioningMode(
     cx: CertStepContext,
     commissioned: CommissionedRefs,
     probeCommissionable?: (cx: CertStepContext, what: string) => Promise<void>,
+    subject?: CertDevice,
 ): Promise<boolean> {
     const previous = commissioned.get("dut");
     if (previous === undefined) {
         return false;
     }
 
-    const since = await markTransition(cx);
+    const th = subject ?? theTh(cx);
+    const since = await markTransition(cx, th);
     await cx.controllers.dut.node(previous).decommission();
     commissioned.clear("dut");
 
-    await recordBackInCommissioningMode(cx, { since, probeCommissionable });
+    await recordBackInCommissioningMode(cx, { since, probeCommissionable, th });
     return true;
 }
 
@@ -1041,19 +1111,27 @@ export async function commissionByQr(
     cx: CertStepContext,
     payload: string,
     commissioned: CommissionedRefs,
+    /**
+     * The device being onboarded, where the plan names more than one. Its node ref is still filed
+     * under the `dut` role, because `CommissionedRefs.decommissionAll` removes a fabric through
+     * `cx.controllers[role]` — so a plan whose devices share one controller gives each device its own
+     * `CommissionedRefs` rather than its own role.
+     */
+    th?: CertDevice,
 ): Promise<void> {
-    await commissionByTarget(cx, { qrPairingCode: payload }, commissioned);
+    await commissionByTarget(cx, { qrPairingCode: payload }, commissioned, th);
 }
 
 async function commissionByTarget(
     cx: CertStepContext,
     target: CommissioningTarget,
     commissioned: CommissionedRefs,
+    subject?: CertDevice,
 ): Promise<void> {
     const dut = cx.controllers.dut;
-    const th = cx.devices.th;
+    const th = subject ?? theTh(cx);
 
-    await restoreCommissioningMode(cx, commissioned);
+    await restoreCommissioningMode(cx, commissioned, undefined, subject);
 
     // Settled, because the line this waits for names no fabric on either flavor: a completion still
     // in flight from an earlier commissioning would otherwise satisfy this one
@@ -1082,7 +1160,7 @@ async function commissionByTarget(
             from,
             COMMISSIONING_LOG_TIMEOUT,
         ),
-        "TH commissioning",
+        `${th.id} commissioning`,
     );
 }
 

@@ -97,24 +97,92 @@ export interface CertTestBuilder {
 }
 
 /**
- * Thrown by {@link certTest} when `options.devices` declares more than one device. Every device
- * flavor (`ChipDockerSubject`/`ChipLocalSubject`/the matterjs registry) currently starts every
- * device with the same hardcoded discriminator (3840), passcode (20202021), and operational port
- * — fine for one device per run, but two devices in the same run would advertise identical mDNS
- * commissionable records and (for chip flavors) contend for the same UDP port. Multi-device cert
- * tests need per-role discriminator/passcode/port assignment before this can work; until then this
- * throws instead of silently producing a flaky, ambiguous run.
+ * A role name reaches a subject as part of its id, and every flavor constrains those differently — a
+ * matter.js subject rejects a dot outright, because an id becomes an endpoint id. Rather than guess
+ * each flavor's rules, roles are held to the intersection every flavor accepts.
  */
-export class MultiDeviceUnsupportedError extends Error {
-    constructor(tc: string, roles: string[]) {
-        super(
-            `certTest "${tc}" declares ${roles.length} devices (${roles.join(", ")}) via options.devices; ` +
-                "every device flavor hardcodes discriminator 3840/passcode 20202021 (and, for chip flavors, " +
-                "a fixed operational port), so more than one device in a single run collides on mDNS " +
-                "advertisement and likely UDP port contention. Multi-device cert tests need per-role " +
-                "discriminator/passcode/port assignment in the device flavors before this can be supported.",
+function assertUsableRoleName(tc: string, role: string) {
+    if (!/^[a-z][a-z0-9_]*$/i.test(role)) {
+        throw new Error(
+            `certTest "${tc}" declares a device role "${role}"; a role name becomes part of the subject's id, so ` +
+                "it must start with a letter and carry only letters, digits and underscores",
         );
     }
+}
+
+/**
+ * Rejects a run whose devices do not all use the same app.
+ *
+ * Nothing needs one yet, and an evidence bundle cannot currently describe one: `RunRecord` names a
+ * single `device` and resolves one chip image revision, both from `options.app`. A mixed-app run would
+ * therefore publish a passing bundle that never names the second binary or the revision it came from,
+ * which is a worse outcome than not supporting it. Lift this together with per-role metadata in the
+ * recorder.
+ */
+function assertOneApp(tc: string, deviceRoles: Record<string, string>) {
+    const apps = new Set(Object.values(deviceRoles));
+    if (apps.size > 1) {
+        throw new Error(
+            `certTest "${tc}" declares devices running different apps (${[...apps].join(", ")}); the evidence ` +
+                "bundle records one app and one chip image revision, so such a run could not say what it ran " +
+                "against. Give the recorder per-role metadata before declaring one",
+        );
+    }
+}
+
+/**
+ * Thrown when a cert test declares more devices than there are discriminators left to give them.
+ *
+ * Its own type, so a caller can tell it from an unrelated failure during test collection — and so the
+ * boundary test asserts the condition rather than a message. A plain `Error` because
+ * `packages/testing` carries no dependency on the library and therefore no `MatterError`.
+ */
+export class DeviceIdentityExhaustedError extends Error {
+    constructor(index: number, discriminator: number) {
+        super(
+            `A cert test cannot declare this many devices: device ${index} would take discriminator ` +
+                `${discriminator}, which does not fit the 12 bits Matter gives it`,
+        );
+    }
+}
+
+/**
+ * The onboarding identity every flavor uses for a single-subject run: chip's own example-app defaults,
+ * which the whole cert suite and its evidence are written against.
+ */
+const PRIMARY_IDENTITY: Subject.Identity = { discriminator: 3840, passcode: 20202021, port: 5540 };
+
+/**
+ * Identities for a run's non-primary devices, one per role, in declaration order.
+ *
+ * The primary keeps {@link PRIMARY_IDENTITY} so every existing single-device test case is untouched
+ * — same discriminator in its evidence, same port, same payload. Only a test case that declares a
+ * second device gets new values, and only for that second device.
+ *
+ * Deterministic by position rather than random, so a bundle's discriminator means the same thing
+ * across runs and a failure is reproducible. The cost is that a collision with an unrelated device on
+ * the LAN repeats every run instead of clearing on the next one; that is the better failure, because
+ * it is diagnosable.
+ *
+ * Discriminators stay inside the 12 bits § 5.1.1.1 gives them. Passcodes step by one from chip's
+ * default, which cannot reach any value § 5.1.7.1 forbids — those are the repeated-digit and
+ * sequential codes, none of which is adjacent to 20202021.
+ */
+export function identityFor(index: number): Subject.Identity {
+    if (index === 0) {
+        return PRIMARY_IDENTITY;
+    }
+
+    const discriminator = PRIMARY_IDENTITY.discriminator + index;
+    if (discriminator > 0xfff) {
+        throw new DeviceIdentityExhaustedError(index, discriminator);
+    }
+
+    return {
+        discriminator,
+        passcode: PRIMARY_IDENTITY.passcode + index,
+        port: (PRIMARY_IDENTITY.port ?? 5540) + index,
+    };
 }
 
 /**
@@ -127,10 +195,14 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
     const controllerRoles = options.controllers ?? { dut: "dut" };
     const deviceRoles = options.devices ?? { th: options.app };
 
-    const deviceRoleNames = Object.keys(deviceRoles);
-    if (deviceRoleNames.length > 1) {
-        throw new MultiDeviceUnsupportedError(tc, deviceRoleNames);
-    }
+    // Both of these are pure properties of the declaration, so they are knowable now rather than
+    // after the primary device is already running — a failure inside #buildContext writes no evidence
+    // bundle at all.
+    Object.keys(deviceRoles).forEach((role, index) => {
+        identityFor(index);
+        assertUsableRoleName(tc, role);
+    });
+    assertOneApp(tc, deviceRoles);
 
     const definition: CertTestDefinition = {
         tc,
@@ -155,8 +227,8 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
 
     const builder: CertTestBuilder = {
         step(number, text, run, opts) {
-            // Declaration-time, like the MultiDeviceUnsupportedError guard above: an empty list
-            // is a defect of the test definition, not a run-time condition of any one flavor.
+            // Declaration-time: an empty list is a defect of the test definition, not a run-time
+            // condition of any one flavor.
             if (opts?.flavors !== undefined && opts.flavors.length === 0) {
                 throw new Error(
                     `certTest "${tc}" step ${number} declares an empty "flavors" list, which would skip it on ` +
@@ -540,12 +612,20 @@ class WiredCertTest extends CertTest {
         // run never gets to use should not leak the controllers/devices it already started.
         let recorder: EvidenceRecorder;
         try {
+            // The primary already exists and holds index 0; the rest are numbered in declaration
+            // order, which is what makes a role's identity the same on every run.
+            let identityIndex = 0;
             for (const [role, app] of Object.entries(this.#deviceRoles)) {
                 if (role === this.#primaryRole) {
                     continue;
                 }
                 const factory = subjectFactoryFor(this.#flavor, app, this.definition.appVariant);
-                const device = factory(`${this.descriptor.name}-${role}`);
+                // The role, not the test case's name: the primary's domain is `descriptor.kind`
+                // ("cert"), and a name like "TC-DD-3.18" carries dots a matter.js subject rejects as
+                // an endpoint id.
+                const device = factory(`${this.descriptor.kind ?? "cert"}-${role}`, {
+                    identity: identityFor(++identityIndex),
+                });
                 extra.push(device);
                 await device.initialize();
                 await device.start();
