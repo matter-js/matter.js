@@ -1004,9 +1004,10 @@ describe("IcdManagementServer", () => {
                 device: { type: RootWithDsls, icdManagement: DSLS_CONFIG },
             });
 
-            // Force LIT with no registrations.
+            // Force LIT with no registrations.  One task turn throughout: forcing LIT prompts the commissioned
+            // controller to register as a Check-In client, and a registration would drive the mode to LIT on its own
             await device.act(agent => agent.get(dslsServer).setOperatingMode(IcdManagement.OperatingMode.Lit));
-            await settled(device);
+            await MockTime.macrotask;
             expect(device.stateOf(dslsServer).operatingMode).equals(IcdManagement.OperatingMode.Lit);
 
             const deviceAdvertiser = device.env.get(DeviceAdvertiser);
@@ -1019,7 +1020,7 @@ describe("IcdManagementServer", () => {
 
             // Withdraw the override → registration-driven mode; no registrations means SIT.
             await device.act(agent => agent.get(dslsServer).withdrawForcedOperatingMode());
-            await settled(device);
+            await MockTime.macrotask;
 
             expect(device.stateOf(dslsServer).operatingMode).equals(IcdManagement.OperatingMode.Sit);
             expect(refreshCount).greaterThan(0);

@@ -63,11 +63,29 @@ import { MockServerNode } from "./mock-server-node.js";
 export async function settled(...nodes: Array<{ env: Environment }>) {
     const activities = nodes.map(node => node.env.get(NodeActivity));
 
-    for (let turn = 0; turn < 1000; turn++) {
-        await MockTime.macrotask;
+    let transitions = 0;
+    const observer = () => {
+        transitions++;
+    };
+    for (const activity of activities) {
+        activity.inactive.on(observer);
+    }
 
-        if (activities.every(activity => activity.inactive.value)) {
-            return;
+    try {
+        for (let turn = 0; turn < 1000; turn++) {
+            const before = transitions;
+
+            await MockTime.macrotask;
+
+            // Idle alone is not quiescence: one reactor may have closed while scheduling another for the next turn.
+            // A turn in which nothing started or finished means nothing is waiting to run
+            if (transitions === before && activities.every(activity => activity.inactive.value)) {
+                return;
+            }
+        }
+    } finally {
+        for (const activity of activities) {
+            activity.inactive.off(observer);
         }
     }
 
