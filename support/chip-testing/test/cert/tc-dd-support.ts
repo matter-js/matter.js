@@ -269,12 +269,34 @@ export const USER_INTENT_FLOW = 1;
 /** § 5.1.3.1 Table 59's commissioning flows: the device needs steps the manufacturer defines. */
 export const CUSTOM_FLOW = 2;
 
-/** What a check calls each flow, so a bundle names the one its test case is named for. */
-const FLOW_NAMES: Record<number, string> = {
-    [STANDARD_FLOW]: "the standard flow",
-    [USER_INTENT_FLOW]: "the user-intent flow",
-    [CUSTOM_FLOW]: "the custom flow",
+/** What a test case calls each flow, so its steps and its checks cannot name different ones. */
+const FLOW_TITLES: Record<number, string> = {
+    [STANDARD_FLOW]: "Standard",
+    [USER_INTENT_FLOW]: "User-Intent",
+    [CUSTOM_FLOW]: "Custom",
 };
+
+/**
+ * The title `devicediscovery.adoc` gives `flowType`, for a test case declaring the flow it is named
+ * for. Throws for a flow the specification does not define, which in a test case is our own mistake
+ * rather than something a device did.
+ */
+export function flowTitle(flowType: number): string {
+    const title = FLOW_TITLES[flowType];
+    if (title === undefined) {
+        throw new InternalError(`No commissioning flow ${flowType} to name a test case for`);
+    }
+    return title;
+}
+
+/**
+ * How a check's verdict names `flowType`. The § 5.1.3.1 field is two bits wide, so a payload can carry
+ * a flow the specification defines no title for, and a verdict about it has to say which one it saw.
+ */
+export function flowName(flowType: number): string {
+    const title = FLOW_TITLES[flowType];
+    return title === undefined ? `flow ${flowType}` : `the ${title.toLowerCase()} flow`;
+}
 
 /**
  * Records that the DUT reads `payload` as offering `capability` over the commissioning flow `flowType`
@@ -302,7 +324,7 @@ export async function recordPayloadOffering(
         wrong.push(`does not offer ${capability}`);
     }
     if (parsed.flowType !== flowType) {
-        wrong.push(`carries flowType ${parsed.flowType} rather than ${FLOW_NAMES[flowType] ?? flowType}`);
+        wrong.push(`carries flowType ${parsed.flowType} rather than ${flowName(flowType)}`);
     }
 
     record(
@@ -317,7 +339,7 @@ export async function recordPayloadOffering(
                     .padStart(8, "0")})` +
                 (wrong.length ? `; the payload ${wrong.join(" and ")}` : ""),
         },
-        `Payload offers ${capability} over ${FLOW_NAMES[flowType] ?? `flow ${flowType}`}`,
+        `Payload offers ${capability} over ${flowName(flowType)}`,
     );
 }
 
@@ -416,10 +438,12 @@ function readBits(data: Uint8Array, { offset, length }: { offset: number; length
  * `payload` with the named fields substituted, which is what the negative device-discovery plans ask
  * a tester to produce with a QR generator.
  *
- * The fields go in as bits rather than through matter.js's own encoder, because every value these
- * plans want is one that encoder refuses to write: an unsupported version and the trivial passcodes
- * are exactly what it validates against on the way out (§ 5.1.3.1, § 5.1.7.1). The TLV data that may
- * follow the fixed 11-byte structure is carried through untouched.
+ * The fields go in as bits rather than through matter.js's own encoder. An unsupported version and the
+ * trivial passcodes are exactly what that encoder validates against on the way out (§ 5.1.3.1,
+ * § 5.1.7.1), so it cannot produce them at all; the flow and the discovery capabilities it would write
+ * happily, but no subject this harness runs publishes the values the plans ask for. One substitution
+ * path covers both. The TLV data that may follow the fixed 11-byte structure is carried through
+ * untouched.
  */
 export function qrPayloadWith(
     payload: string,
