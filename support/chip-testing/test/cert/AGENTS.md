@@ -572,10 +572,10 @@ this out; a command with a genuine data response (unlike TC-ACT-3.2/TC-IDM-1.1's
 commands) would need a different anchor, so this fix lives in `tc-support.ts` alongside its
 read-side sibling matcher, not generalized into `log-follower.ts` itself.
 
-## Known limitations carried forward from `TC-ACT-3.2`, not yet fixed
+## Three limitations every cert TC inherits, and what to do about each
 
-An adversarial review of this TC surfaced a few items judged real but out of this pilot's scope — noted
-here rather than silently dropped, for whoever picks up the next cert TC or a framework promotion pass:
+An adversarial review of TC-ACT-3.2 surfaced these; they are shared by every TC in this directory, so
+each is written as the thing to do when it bites:
 
 - **`commandPathIBSequence`'s adjacency chain only rules out a lagging *response* echo, not a
   theoretically lagging *previous request*.** Now shared via `tc-support.ts` (see "Promoting the
@@ -820,12 +820,13 @@ import's top-level code always runs the instant the importing module loads, so n
 the import itself behind a runtime-skipped dynamic `import()` keeps those requires from executing (and
 crashing, since the browser has no `require`) during a web test run.
 
-## Prerequisite gap: no fault-injection-capable TH_SERVER binary available (`TC-SC-3.5`)
+## Where `TC-SC-3.5` gets its fault-injection TH_SERVER binary, per flavor
 
 `TC_SC_3_5.py` spawns TH_SERVER itself as a **container-side** subprocess (`--string-arg
 th_server_app_path:<path>`), and needs the `FaultInjection` cluster's `FailAtFault` command to actually
-do something (`CHIP_WITH_NLFAULTINJECTION` compiled in) rather than return `UnsupportedCommand`. Checked
-both parts:
+do something (`CHIP_WITH_NLFAULTINJECTION` compiled in) rather than return `UnsupportedCommand`. Both
+parts are satisfied today; what follows is where each comes from, so a new prompt-driven TC knows what
+to point at:
 
 - **Fault injection itself is likely already fine by default.** `CHIP_WITH_NLFAULTINJECTION` is driven
   by the GN arg `chip_with_nlfaultinjection`, which defaults to `chip_build_tools || chip_build_tests`
@@ -1630,12 +1631,11 @@ adapters deliberately declare neither (`controller-adapter.test.ts` holds them t
 leg is gated by an answer about the TH while the step is about the DUT, and the bundle carries both
 statements side by side — the `notApplicable` text says which subject it means for that reason.
 
-**Unsettled, worth resolving before the next per-transport TC:** the PICS register
-(`chip-test-plans/tools/PICS_Automation/Pics_XML_Files/XML__Files/Base.xml`) defines
-`MCORE.DD.DISCOVERY_BLE` as "Does the commissioner support Discovery Capability over BLE?", which
-makes it a DUT question in TC-DD-3.14 as well, where this directory currently treats it as a TH one.
-If the register governs, the adapters declaring `= 0` would be the cleaner gate and `notApplicable`
-would become unnecessary.
+**Never gate a transport leg on `MCORE.DD.DISCOVERY_BLE` alone.** The value reaching that gate comes
+from the device file and answers for the TH, while the step's claim is about the DUT. Use
+`notApplicable` with a reason naming the subject, as above. (The PICS register defines the key as a
+commissioner question, which would make the adapters the right place to declare it; that is parked
+with the BLE work and does not change what to write today.)
 
 Generating and parsing a payload needs no radio, so those steps are left executable — though only the
 BLE leg's actually run today, since `DISCOVERY_PAF=0` skips the PAF leg entirely. A leg is reported as
@@ -1849,6 +1849,51 @@ payloads is also not enough — two could differ only in passcode and leave disc
 **Steps 4.a/4.b name the node and operational instance they reached.** Both harnesses run the same app
 with the same vendor id, so the attribute value alone cannot tell them apart and swapping the two refs
 would satisfy either step.
+
+## A flow the TH cannot publish has to be fabricated (`TC-DD-3.12`, `TC-DD-3.13`)
+
+These two are one test case with one field changed — user-intent flow (1) and custom flow (2) — so
+they are declared from one place, `tc-dd-flow-support.ts`, and differ only in the constant they pass.
+Three transport legs of four steps each: generate, scan, parse, commission.
+
+**The flow is fabricated, unlike TC-DD-3.11's capability bitmask.** Every subject this harness runs
+publishes `flowType` 0, because a device that needs a user action or a manufacturer's steps is not
+something the harness can produce. `qrPayloadWith` gained a `flowType` field for exactly this, and the
+scan step reads it back through the DUT's own parser — which is what makes the step evidence about the
+flow rather than about the TH.
+
+**`recordPayloadOffering` takes the expected flow as a parameter.** It used to hardcode the standard
+flow in its verdict, so these two would have recorded a `pass` whose text named a flow nobody checked.
+A helper whose verdict names a property must take that property from the caller, or the second test
+case to use it silently asserts the first one's value.
+
+**The transition the flow is named for is not exercised, and each leg's `.a` says so.** A user-intent
+or custom flow means the device is not commissionable until someone acts, which is why `.a`'s text
+carries "Commissionee is NOT in commissioning mode" — but an uncommissioned node opens its basic
+commissioning window at boot and neither TH flavor can suppress that, so `.d` commissions a TH that
+was commissionable throughout. `.a` records an `unverified` check carrying `accepted` for it: the step
+still passes, the bundle's unverified count carries the gap, and nothing in it implies a precondition
+that never held. A step whose setup the harness cannot establish states that in the bundle rather than
+recording only the parts it could do.
+
+**Both `.b` and `.c` parse the code, so both carry the `MCORE.DD.SCAN_QR_CODE` gate.** `.c` re-parses
+rather than citing `.b`'s parse, so on a controller declaring it cannot take a scanned payload an
+ungated `.c` would record a parse pass beside `.b`'s skip — the contradiction the "gated scan step"
+rule above exists to prevent. Where a step genuinely re-does the gated operation the fix is the gate,
+not dropping the claim.
+
+**Step `.c` is the one worth having, and it is negative.** The plan asks to verify the DUT parsed the
+code *and* that the TH has not been commissioned: a flow saying "not commissionable yet" must not have
+the DUT commission the device merely because it read the code. `recordNotCommissioned` states that
+from the TH's own log. This is the only step in either test case that could fail against a correct
+parse, which is the usual pattern — the positive steps confirm plumbing, the negative one is where a
+defect would surface.
+
+**The plan's own example payload is a custom-flow code, in both test cases' preconditions.** It
+decodes to `flowType` 2, which is right for TC-DD-3.13 and contradicts TC-DD-3.12's own title. Worth
+knowing because the run confirms it from the other direction: TC-DD-3.13's IP leg fabricates
+`MT:-24J029Q00KA0648G00`, character for character the payload the plan prints. Reported upstream
+rather than worked around — see the `spec-qr-example-payload-wrong-flow` task.
 
 ## chip-tool delivers one result per async report and discards the rest
 
