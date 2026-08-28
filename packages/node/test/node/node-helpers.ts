@@ -5,6 +5,7 @@
  */
 
 import type { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
+import { NodeActivity } from "#behavior/context/NodeActivity.js";
 import { BasicInformationBehavior } from "#behaviors/basic-information";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import {
@@ -16,7 +17,7 @@ import {
     NetworkClient,
     ServerNode,
 } from "#index.js";
-import { Bytes, Crypto, InternalError } from "@matter/general";
+import { Bytes, Crypto, type Environment, InternalError } from "@matter/general";
 import { Specification } from "@matter/model";
 import {
     Certificate,
@@ -51,6 +52,27 @@ import {
 } from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { MockServerNode } from "./mock-server-node.js";
+
+/**
+ * Wait until the given nodes have no activity in flight.
+ *
+ * Work a node performs in reaction to an event registers as activity only once the reactor runs, so a node can look
+ * idle with work imminent.  This yields task turns until every node reports itself idle, and never advances mock time
+ * — a test that needs a timer to fire advances the clock itself, and doing so here would change what it observes.
+ */
+export async function settled(...nodes: Array<{ env: Environment }>) {
+    const activities = nodes.map(node => node.env.get(NodeActivity));
+
+    for (let turn = 0; turn < 1000; turn++) {
+        await MockTime.macrotask;
+
+        if (activities.every(activity => activity.inactive.value)) {
+            return;
+        }
+    }
+
+    throw new InternalError("Nodes did not settle; work is blocked on time that the test must advance itself");
+}
 
 export const FAILSAFE_LENGTH_S = 60;
 

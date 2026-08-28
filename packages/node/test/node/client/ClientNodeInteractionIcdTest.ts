@@ -54,7 +54,8 @@ async function registeredLitPair(site: MockSite) {
     await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: MONITORED }));
     // register seeds a signal (awake for activeModeThreshold = 5s); let that window lapse so the peer is idle.
     await MockTime.advance(Seconds(6));
-    await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+    // One task turn applies the lapsed window; settling further would let the peer's recovery work re-arm it
+    await MockTime.macrotask;
     return { controller, device, peer1 };
 }
 
@@ -119,8 +120,9 @@ describe("ClientNodeInteraction ICD hold", () => {
             },
         );
 
-        // Let the gate park; the read must not transmit while the peer is asleep.
-        await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+        // Let the gate park; the read must not transmit while the peer is asleep.  One task turn is the point: the
+        // read must still be outstanding, so there is no completion to wait for
+        await MockTime.macrotask;
         expect(settled).false;
 
         await wakeDevice(device);
@@ -194,7 +196,8 @@ describe("ClientNodeInteraction ICD hold", () => {
         expect(wakefulnessOf(controller, peer1)!.awake.value).false;
 
         const read = drainRead(peer1);
-        await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+        // The read parks until the device wakes, so there is nothing to settle here
+        await MockTime.macrotask;
 
         await wakeDevice(device);
         await MockTime.resolve(read, { macrotasks: true });
