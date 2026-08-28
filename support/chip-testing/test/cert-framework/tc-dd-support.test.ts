@@ -47,6 +47,7 @@ import {
     recordNotCommissioned,
     recordUnpair,
     recordVendorOutcome,
+    STANDARD_FLOW,
     USER_INTENT_FLOW,
 } from "../cert/tc-dd-support.js";
 import { CertCheckFailedError, CertCleanupError, CommissionedRefs } from "../cert/tc-support.js";
@@ -89,6 +90,14 @@ describe("qrPayloadWith", () => {
         expect(qrPayloadWith("MT:-24J042C00KA0648G00", { discoveryCapabilities: ON_NETWORK_ONLY })).equal(
             "MT:-24J0AFN00KA0648G00",
         );
+    });
+
+    it("substitutes the flow, which is the field TC-DD-3.12 and TC-DD-3.13 are named for", () => {
+        // The plan's own example payload carries the custom flow, and the standard-flow form of it is
+        // the payload the capabilities test above arrives at from the other direction
+        expect(qrPayloadWith(PLAN_PAYLOAD, { flowType: STANDARD_FLOW })).equal("MT:-24J0AFN00KA0648G00");
+        expect(qrPayloadWith(PLAN_PAYLOAD, { flowType: USER_INTENT_FLOW })).equal("MT:-24J06VO00KA0648G00");
+        expect(qrPayloadWith("MT:-24J0AFN00KA0648G00", { flowType: CUSTOM_FLOW })).equal(PLAN_PAYLOAD);
     });
 
     it("leaves every other field where it was", () => {
