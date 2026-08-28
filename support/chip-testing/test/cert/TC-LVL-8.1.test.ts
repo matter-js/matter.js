@@ -81,7 +81,7 @@ async function readsLighting(node: CertNodeApi): Promise<boolean> {
         return (value & LIGHTING_FEATURE) !== 0;
     }
     if (typeof value === "object" && value !== null && LIGHTING_PROPERTY in value) {
-        return Boolean((value as Record<string, unknown>)[LIGHTING_PROPERTY]);
+        return Boolean(value[LIGHTING_PROPERTY]);
     }
     throw new CertCheckFailedError(`TH answered FeatureMap with ${JSON.stringify(value)}, which names no features`);
 }
