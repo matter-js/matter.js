@@ -18,6 +18,7 @@ import type {
     CertNodeRef,
     CertStepContext,
     CheckRecord,
+    CommissioningTarget,
     ControllerAdapter,
     DeviceExitInfo,
     DeviceFlavor,
@@ -42,6 +43,7 @@ import {
     qrPayloadWith,
     qrPayloadWithPrefix,
     recordDiscoveryCapabilityAbsent,
+    recordDiscriminatorHonored,
     recordBackInCommissioningMode,
     recordGeneratedManualCode,
     recordPayloadOffering,
@@ -135,6 +137,15 @@ describe("qrPayloadWith", () => {
 
     it("refuses a code that is not a QR onboarding payload", () => {
         expect(() => qrPayloadWith("34970112336552132769", { version: 2 })).throw(InternalError);
+    });
+
+    it("substitutes the discriminator, which is what names a device nothing advertises", () => {
+        expect(qrPayloadWith(PLAN_PAYLOAD, { discriminator: 255 })).equal("MT:-24J0KI827R-.548G00");
+        expect(qrPayloadWith(PLAN_PAYLOAD, { discriminator: 0 })).equal("MT:-24J029Q00YZ.548G00");
+    });
+
+    it("refuses a discriminator too wide for the twelve bits the field holds", () => {
+        expect(() => qrPayloadWith(PLAN_PAYLOAD, { discriminator: 0x1000 })).throw(InternalError);
     });
 
     it("refuses a flow too wide for the two bits the field holds", () => {
@@ -1056,7 +1067,7 @@ class UnpairFixture {
             fabricIndex?: number;
             backchannel?: () => void;
             onDecommission?: () => void;
-            commission?: () => Promise<CertNodeRef>;
+            commission?: (target: CommissioningTarget) => Promise<CertNodeRef>;
         } = {},
     ) {
         const { fabricIndex = 1, backchannel = () => {}, onDecommission = () => {} } = options;
@@ -1113,7 +1124,8 @@ class UnpairFixture {
             async start() {},
             async close() {},
             commission: options.commission ?? unused,
-            parseQrPayload: unused,
+            // The commissioning helpers record what the DUT reads from the code before they use it
+            parseQrPayload: async payload => qrPayloadFields(payload),
             parseManualPairingCode: unused,
             node: () => node,
         };
@@ -1349,6 +1361,89 @@ describe("commissionByQr's own causal boundary", () => {
         const matched = fixture.checks.find(check => check.type === "device-log")?.matched ?? "";
         expect(matched).contains("bbbbbbbbbbbbbbbb");
         expect(matched).not.contains("aaaaaaaaaaaaaaaa");
+    });
+});
+
+describe("commissionByQr's payload evidence", () => {
+    const completion = (fabric: string) =>
+        `2026-08-27 19:31:27.056 NOTICE GeneralCommissioningClusterHandler Commissioned fabric: ${fabric} (#1) node: 1`;
+
+    function fixtureThatCommissions() {
+        const fixture: UnpairFixture = new UnpairFixture("matterjs", {
+            commission: async () => {
+                fixture.push(completion("bbbbbbbbbbbbbbbb"));
+                return "peer1" as CertNodeRef;
+            },
+        });
+        return fixture;
+    }
+
+    // A commissioner that ignored the code and onboarded whatever it could find writes the same
+    // completion line, so the step needs the code itself in evidence
+    it("records what the DUT read from the code it commissions with", async () => {
+        const fixture = fixtureThatCommissions();
+
+        await commissionByQr(fixture.cx, "MT:-24J042C00KA0648G00", new CommissionedRefs());
+
+        expect(fixture.checks[0]?.detail).contains("discriminator=3840 passcode=20202021");
+    });
+
+    it("fails when the code names a setup other than the TH's own", async () => {
+        const fixture = fixtureThatCommissions();
+
+        await expect(
+            commissionByQr(
+                fixture.cx,
+                qrPayloadWith("MT:-24J042C00KA0648G00", { passcode: 12345678 }),
+                new CommissionedRefs(),
+            ),
+        ).rejectedWith(CertCheckFailedError, /Onboarding payload parse/);
+    });
+});
+
+describe("recordDiscriminatorHonored", () => {
+    const TH_PAYLOAD = "MT:-24J042C00KA0648G00";
+
+    // The TH's own discriminator is 3840, so the substitute is 3840 ^ 0xfff
+    const ABSENT = 255;
+
+    it("passes when the DUT gives up on the discriminator nothing advertises", async () => {
+        const asked = new Array<string>();
+        const fixture = new UnpairFixture("matterjs", {
+            commission: async target => {
+                asked.push(target.qrPairingCode ?? "");
+                throw new InternalError("no commissionable device was discovered");
+            },
+        });
+
+        await recordDiscriminatorHonored(fixture.cx, TH_PAYLOAD, new CommissioningRefusals());
+
+        expect(qrPayloadFields(asked[0] ?? "").discriminator).equal(ABSENT);
+        expect(fixture.checks.map(check => check.verdict)).deep.equal(["pass"]);
+    });
+
+    // The case that gives the check its meaning: a commissioner that ignores the field onboards the
+    // only commissionable device there is, and every other check in the step still passes
+    it("fails when the DUT commissions a device its code did not name", async () => {
+        const fixture = new UnpairFixture("matterjs", {
+            commission: async () => "peer1" as CertNodeRef,
+        });
+
+        await expect(recordDiscriminatorHonored(fixture.cx, TH_PAYLOAD, new CommissioningRefusals())).rejectedWith(
+            CertCheckFailedError,
+        );
+    });
+
+    it("refuses a substitute another device in the run advertises", async () => {
+        const fixture = new UnpairFixture("matterjs");
+        const th = fixture.cx.devices.th;
+        const other = { ...th, id: "th2", commissioning: { ...th.commissioning, discriminator: ABSENT } };
+        const cx = { ...fixture.cx, devices: { th, th2: other } };
+
+        await expect(recordDiscriminatorHonored(cx, TH_PAYLOAD, new CommissioningRefusals())).rejectedWith(
+            InternalError,
+            /th2 advertises it/,
+        );
     });
 });
 

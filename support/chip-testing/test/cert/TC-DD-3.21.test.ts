@@ -11,11 +11,13 @@ import { certTest } from "@matter/testing";
 import {
     commissionByQr,
     COMMISSIONING_LOG_TIMEOUT,
+    CommissioningRefusals,
     recordCommissionable,
+    recordDiscriminatorHonored,
     recordParse,
     thQrPayload,
 } from "./tc-dd-support.js";
-import { CommissionedRefs, expectCommandInvoke, record, requireId } from "./tc-support.js";
+import { CommissionedRefs, expectCommandInvoke, record, requireId, runCleanups } from "./tc-support.js";
 
 const DESCRIPTOR = Matter.clusters.require("Descriptor");
 const DESCRIPTOR_ID = requireId(DESCRIPTOR.id, "Descriptor cluster");
@@ -33,6 +35,7 @@ const ROOT_ENDPOINT = 0;
 const ON_OFF_LIGHT_DEVICE_TYPE = 0x0100;
 
 const commissioned = new CommissionedRefs();
+const refusals = new CommissioningRefusals();
 
 function isDeviceType(entry: unknown, deviceType: number): boolean {
     return typeof entry === "object" && entry !== null && "deviceType" in entry && entry.deviceType === deviceType;
@@ -101,7 +104,9 @@ certTest("TC-DD-3.21", {
         "DUT parses TH's QR code. Follow any steps needed for the Commissioner/Commissionee to complete the " +
             "commissioning process over the TH Commissionee's method of device discovery",
         async cx => {
-            await commissionByQr(cx, await thQrPayload(cx.devices.th), commissioned);
+            const payload = await thQrPayload(cx.devices.th);
+            await recordDiscriminatorHonored(cx, payload, refusals);
+            await commissionByQr(cx, payload, commissioned);
         },
         {
             expected:
@@ -165,4 +170,9 @@ certTest("TC-DD-3.21", {
                 "expose an On/Off light device type.",
         },
     )
-    .finalize(cx => commissioned.decommissionAll(cx));
+    .finalize(cx =>
+        runCleanups(
+            () => refusals.settle(cx),
+            () => commissioned.decommissionAll(cx),
+        ),
+    );

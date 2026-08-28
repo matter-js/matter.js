@@ -8,8 +8,14 @@ import { Bytes, InternalError } from "@matter/main";
 import type { QrCodeData } from "@matter/main/types";
 import { QrPairingCodeCodec } from "@matter/main/types";
 import { certTest } from "@matter/testing";
-import { commissionByQr, recordParse, thQrPayload } from "./tc-dd-support.js";
-import { CommissionedRefs } from "./tc-support.js";
+import {
+    commissionByQr,
+    CommissioningRefusals,
+    recordDiscriminatorHonored,
+    recordParse,
+    thQrPayload,
+} from "./tc-dd-support.js";
+import { CommissionedRefs, runCleanups } from "./tc-support.js";
 
 /**
  * The plan's own example TLV payload (§ 5.1.5): an anonymous structure carrying serial number
@@ -28,6 +34,7 @@ const LARGE_QR_CODE_LENGTH = 255;
 const LARGE_TLV_STRING_LENGTH = 135;
 
 const commissioned = new CommissionedRefs();
+const refusals = new CommissioningRefusals();
 
 function decodeSingle(payload: string): QrCodeData {
     const payloads = QrPairingCodeCodec.decode(payload);
@@ -79,7 +86,7 @@ certTest("TC-DD-1.8", {
         "Using the DUT, parse the TH's QR code to onboard the TH Device onto the Matter network.",
         async cx => {
             const payload = await thQrPayload(cx.devices.th);
-            await recordParse(cx, payload);
+            await recordDiscriminatorHonored(cx, payload, refusals);
             await commissionByQr(cx, payload, commissioned);
         },
         { expected: "Verify the TH's QR code was parsed successfully by the DUT" },
@@ -97,7 +104,6 @@ certTest("TC-DD-1.8", {
         "Using the DUT, parse the TH's QR code to onboard the TH Device onto the Matter network.",
         async cx => {
             const payload = withTlvData(await thQrPayload(cx.devices.th), PLAN_TLV_DATA);
-            await recordParse(cx, payload);
             await commissionByQr(cx, payload, commissioned);
         },
         {
@@ -120,7 +126,6 @@ certTest("TC-DD-1.8", {
         "Using the DUT, parse the TH's QR code to onboard the TH Device onto the Matter network.",
         async cx => {
             const payload = largeQrPayload(await thQrPayload(cx.devices.th));
-            await recordParse(cx, payload);
             await commissionByQr(cx, payload, commissioned);
         },
         {
@@ -129,4 +134,9 @@ certTest("TC-DD-1.8", {
                 "DUT may ignore the TLV contents)",
         },
     )
-    .finalize(cx => commissioned.decommissionAll(cx));
+    .finalize(cx =>
+        runCleanups(
+            () => refusals.settle(cx),
+            () => commissioned.decommissionAll(cx),
+        ),
+    );

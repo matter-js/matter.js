@@ -8,9 +8,11 @@ import { DiscoveryCapabilitiesSchema } from "@matter/main/types";
 import { certTest } from "@matter/testing";
 import {
     commissionByQr,
+    CommissioningRefusals,
     ON_NETWORK_ONLY,
     qrPayloadWith,
     recordCommissionable,
+    recordDiscriminatorHonored,
     recordGeneratedPayload,
     recordParse,
     recordPayloadOffering,
@@ -18,7 +20,7 @@ import {
     STANDARD_VERSION,
     thQrPayload,
 } from "./tc-dd-support.js";
-import { CommissionedRefs } from "./tc-support.js";
+import { CommissionedRefs, runCleanups } from "./tc-support.js";
 
 /**
  * Why the two transport-specific commissioning steps cannot be run rather than skipped.
@@ -40,6 +42,7 @@ const BLE_ONLY = DiscoveryCapabilitiesSchema.encode({ ble: true });
 const WIFI_PAF_ONLY = DiscoveryCapabilitiesSchema.encode({ wifiPublicActionFrame: true });
 
 const commissioned = new CommissionedRefs();
+const refusals = new CommissioningRefusals();
 
 certTest("TC-DD-3.11", {
     plan: "devicediscovery.adoc",
@@ -183,8 +186,14 @@ certTest("TC-DD-3.11", {
                 discoveryCapabilities: ON_NETWORK_ONLY,
             });
             await recordCommissionable(cx);
+            await recordDiscriminatorHonored(cx, payload, refusals);
             await commissionByQr(cx, payload, commissioned);
         },
         { expected: "DUT parses QR code and DUT commissions TH to the Matter network" },
     )
-    .finalize(cx => commissioned.decommissionAll(cx));
+    .finalize(cx =>
+        runCleanups(
+            () => refusals.settle(cx),
+            () => commissioned.decommissionAll(cx),
+        ),
+    );

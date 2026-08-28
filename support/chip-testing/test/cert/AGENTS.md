@@ -1785,9 +1785,10 @@ pins the discriminator and passcode across restarts.
 gated on `MCORE.DD.SCAN_QR_CODE` and owns the parse evidence; `2.b` commissions (TC-DD-3.20,
 TC-DD-3.21, and TC-DD-3.11's `3.b`/`3.c`, where the capability offering was duplicated as well).
 Before, a controller whose PICS said it cannot scan got a `skipped` step and a pass for that same
-step's claim in one bundle. Commissioning from the payload is itself evidence the DUT parsed it, so
-the trade is deliberate: on a controller that cannot scan, those steps now record the commissioning
-result alone.
+step's claim in one bundle. The reasoning at the time — that commissioning from the payload is itself
+evidence the DUT parsed it — has since been retired; see "What a commissioning step owes its own
+evidence". A commissioning step now records its own parse, which is that step's claim rather than the
+scan step's, so the two no longer collide.
 
 **TC-DD-1.8 is the exception, and stays as it is.** Its `.b` steps carry their own expected outcome —
 "verify the TH's QR code *with the appended TLV data* was parsed successfully" — which is a different
@@ -1852,6 +1853,45 @@ payloads is also not enough — two could differ only in passcode and leave disc
 **Steps 4.a/4.b name the node and operational instance they reached.** Both harnesses run the same app
 with the same vendor id, so the attribute value alone cannot tell them apart and swapping the two refs
 would satisfy either step.
+
+## What a commissioning step owes its own evidence
+
+A step that commissions from an onboarding code used to record two things: that the commissioning
+succeeded, and that the TH logged it completing. Neither says the DUT read the code. The rule this
+directory used to state — "commissioning from the payload is itself evidence the DUT parsed it" —
+does not hold, and it is now retired.
+
+**`commissionByTarget` records what the DUT read from the code before it uses it.** Every caller of
+`commissionByQr`/`commissionByManualCode` gets this, so a commissioning step's own bundle carries the
+parse, and `recordParse` compares that parse against the TH's own discriminator and passcode rather
+than merely reporting it. Do not add a second `recordParse` beside a `commissionByQr` in the same
+step — it records the same claim twice. Where a scan step and a commissioning step are different
+steps, both legitimately parse, and both should say so.
+
+**What that still does not prove, and what does.** A commissioning that succeeds proves the passcode
+by itself: SPAKE2+ cannot complete on a wrong one. It proves nothing about the discriminator. On a
+network holding one commissionable device — which is every run of this harness — a commissioner that
+discarded the discriminator entirely passes every check above and onboards the TH anyway.
+
+`recordDiscriminatorHonored` separates the two. It hands the DUT the same payload carrying a
+discriminator nothing advertises and requires it to give up: a DUT that uses the field cannot find
+the device, and one that ignores it commissions and fails the check. The substitute is the TH's own
+discriminator inverted, because `identityFor` hands devices consecutive values and an inverted one
+lands far outside that span whatever the plan declares — and the helper throws if it names a device
+in the run anyway, since that would turn the control into an ordinary commissioning.
+
+**Establish it once per test case, before the first commissioning whose evidence rests on it.** The
+claim is about the commissioner, not about a step, and each control costs a full
+`ABSENT_DEVICE_TIMEOUT` — discovery for a discriminator nothing answers has nothing to finish early
+on. The wait for the outcome is `REFUSAL_TIMEOUT`, deliberately longer: a give-up that arrives exactly
+when its own deadline expires has to be observed after that deadline, not in a race with it. Passing
+the same value for both is what "neither resolved nor rejected within 5s" means.
+
+The test case owns a `CommissioningRefusals` for the attempt and settles it in `finalize` alongside
+`decommissionAll`, through `runCleanups` so a failing settle cannot skip the decommission.
+
+**What this still does not cover.** Which discovery capability the DUT honoured: every leg commissions
+over IP whatever the payload's bitmask says, so that field remains parse evidence only.
 
 ## A flow the TH cannot publish has to be fabricated (`TC-DD-3.12`, `TC-DD-3.13`)
 

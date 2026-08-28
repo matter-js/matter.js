@@ -8,17 +8,19 @@ import { DiscoveryCapabilitiesSchema } from "@matter/main/types";
 import type { CertStepContext, CertTestBuilder } from "@matter/testing";
 import {
     commissionByQr,
+    CommissioningRefusals,
     flowTitle,
     ON_NETWORK_ONLY,
     qrPayloadWith,
     recordCommissionable,
+    recordDiscriminatorHonored,
     recordGeneratedPayload,
     recordParse,
     recordPayloadOffering,
     STANDARD_VERSION,
     thQrPayload,
 } from "./tc-dd-support.js";
-import { CommissionedRefs } from "./tc-support.js";
+import { CommissionedRefs, runCleanups } from "./tc-support.js";
 
 const BLE_ONLY = DiscoveryCapabilitiesSchema.encode({ ble: true });
 const WIFI_PAF_ONLY = DiscoveryCapabilitiesSchema.encode({ wifiPublicActionFrame: true });
@@ -67,6 +69,7 @@ const NOT_COMMISSIONABLE_UNAVAILABLE =
 export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): CertTestBuilder {
     const title = flowTitle(flowType);
     const commissioned = new CommissionedRefs();
+    const refusals = new CommissioningRefusals();
 
     const NOTHING_COMMISSIONS = "no step of this leg commissions the TH, so nothing acts on the flow either";
 
@@ -168,8 +171,10 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): Ce
                     `commissioning mode and to complete the commissioning process using ${leg.transport}.`,
                 leg.capability === "onIpNetwork"
                     ? async cx => {
+                          const payload = await payloadFor(cx);
                           await recordCommissionable(cx);
-                          await commissionByQr(cx, await payloadFor(cx), commissioned);
+                          await recordDiscriminatorHonored(cx, payload, refusals);
+                          await commissionByQr(cx, payload, commissioned);
                       }
                     : async () => {},
                 leg.capability === "onIpNetwork"
@@ -178,5 +183,10 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): Ce
             );
     }
 
-    return builder.finalize(cx => commissioned.decommissionAll(cx));
+    return builder.finalize(cx =>
+        runCleanups(
+            () => refusals.settle(cx),
+            () => commissioned.decommissionAll(cx),
+        ),
+    );
 }

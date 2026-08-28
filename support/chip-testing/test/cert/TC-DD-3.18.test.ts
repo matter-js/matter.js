@@ -11,8 +11,10 @@ import { certTest } from "@matter/testing";
 import { expectMdns } from "../../src/cert/mdns-check.js";
 import {
     commissionByQr,
+    CommissioningRefusals,
     MDNS_TIMEOUT,
     qrPayloadFields,
+    recordDiscriminatorHonored,
     recordNotCommissioned,
     recordParse,
     thQrPayload,
@@ -26,6 +28,7 @@ const VENDOR_ID = requireId(BASIC_INFORMATION.attributes.require("vendorId").id,
 // One per device rather than one keyed by device: `CommissionedRefs` removes each fabric through
 // `cx.controllers[role]`, and both of these harnesses are commissioned by the same controller.
 const th1Commissioned = new CommissionedRefs();
+const refusals = new CommissioningRefusals();
 const th2Commissioned = new CommissionedRefs();
 
 /**
@@ -139,7 +142,9 @@ certTest("TC-DD-3.18", {
             const { th1, th2 } = await distinctSubjects(cx);
             const th2From = await th2.log.markSettled();
 
-            await commissionByQr(cx, await thQrPayload(th1), th1Commissioned, th1);
+            const payload = await thQrPayload(th1);
+            await recordDiscriminatorHonored(cx, payload, refusals, th1);
+            await commissionByQr(cx, payload, th1Commissioned, th1);
 
             // "Only TH1" is a claim about TH2, and TH2's own log is what states it. A commissionable
             // probe cannot: it is answered out of the shared DNS-SD cache, which still holds the
@@ -195,6 +200,7 @@ certTest("TC-DD-3.18", {
     )
     .finalize(cx =>
         runCleanups(
+            () => refusals.settle(cx),
             () => th1Commissioned.decommissionAll(cx),
             () => th2Commissioned.decommissionAll(cx),
         ),

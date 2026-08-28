@@ -447,7 +447,13 @@ function readBits(data: Uint8Array, { offset, length }: { offset: number; length
  */
 export function qrPayloadWith(
     payload: string,
-    fields: { version?: number; passcode?: number; discoveryCapabilities?: number; flowType?: number },
+    fields: {
+        version?: number;
+        passcode?: number;
+        discoveryCapabilities?: number;
+        flowType?: number;
+        discriminator?: number;
+    },
 ): string {
     if (!payload.startsWith(QR_PREFIX)) {
         throw new InternalError(`Cannot substitute fields into "${payload}", which is not a QR onboarding payload`);
@@ -465,6 +471,9 @@ export function qrPayloadWith(
     }
     if (fields.flowType !== undefined) {
         writeBits(data, FLOW_TYPE_BITS, fields.flowType);
+    }
+    if (fields.discriminator !== undefined) {
+        writeBits(data, DISCRIMINATOR_BITS, fields.discriminator);
     }
     return QR_PREFIX + Base38.encode(data);
 }
@@ -744,6 +753,64 @@ export class CommissioningRefusals {
     }
 }
 
+/**
+ * How long the DUT is given to conclude the device a code names is not on the network. Discovery for
+ * a discriminator nothing answers has nothing to finish early on, so a step spends this in full. The
+ * wait for the outcome is {@link REFUSAL_TIMEOUT} rather than this: a give-up that lands exactly when
+ * its own deadline expires has to be observed after it, not in a race with it.
+ */
+export const ABSENT_DEVICE_TIMEOUT = Seconds(5);
+
+/** § 5.1.3.1 Table 59's discriminator field, which is what a substituted value has to fit. */
+const DISCRIMINATOR_MASK = 0xfff;
+
+/**
+ * A discriminator no device in this run advertises. Devices take consecutive values from
+ * `identityFor`, so inverting one lands far outside the span however many the plan declares — and a
+ * value that did name a device would turn the check below into an ordinary commissioning.
+ */
+function absentDiscriminator(cx: CertStepContext, th: CertDevice): number {
+    const absent = th.commissioning.discriminator ^ DISCRIMINATOR_MASK;
+    for (const device of Object.values(cx.devices)) {
+        if (device.commissioning.discriminator === absent) {
+            throw new InternalError(
+                `Discriminator ${absent} was meant to name no device in this run, but ${device.id} advertises it`,
+            );
+        }
+    }
+    return absent;
+}
+
+/**
+ * Records that the DUT commissions the device its code names rather than whichever commissionable
+ * device it can reach.
+ *
+ * Every other check about a payload asks what the DUT *read*, and a commissioning that succeeds
+ * proves only the passcode, which SPAKE2+ settles on its own. On a network holding one commissionable
+ * device, a commissioner that discarded the discriminator entirely satisfies all of them and onboards
+ * the TH anyway. Handing it the same payload with a discriminator nothing advertises separates the
+ * two: a DUT that uses the field gives up, and one that ignores it commissions and fails this check.
+ *
+ * The claim is about the commissioner rather than about any one step, so a test case establishes it
+ * once, before the first commissioning whose evidence rests on it.
+ */
+export async function recordDiscriminatorHonored(
+    cx: CertStepContext,
+    payload: string,
+    refusals: CommissioningRefusals,
+    subject?: CertDevice,
+): Promise<void> {
+    const th = subject ?? theTh(cx);
+    const absent = qrPayloadWith(payload, { discriminator: absentDiscriminator(cx, th) });
+
+    await refusals.requireNoCommissioning(
+        cx,
+        { qrPairingCode: absent, giveUpAfterMs: ABSENT_DEVICE_TIMEOUT },
+        "DUT commissions the device its code names",
+        REFUSAL_TIMEOUT,
+    );
+}
+
 function describeTarget(target: CommissioningTarget): string {
     return target.qrPairingCode ?? target.manualPairingCode ?? JSON.stringify(target);
 }
@@ -810,8 +877,8 @@ export async function thCodeParts(
  * parse is the DUT's: a step that decoded the code itself would pass against a controller that
  * cannot read one.
  */
-export async function recordManualParse(cx: CertStepContext, code: string): Promise<void> {
-    const th = theTh(cx);
+export async function recordManualParse(cx: CertStepContext, code: string, th?: CertDevice): Promise<void> {
+    th ??= theTh(cx);
 
     let parsed;
     try {
@@ -1174,6 +1241,14 @@ async function commissionByTarget(
     const th = subject ?? theTh(cx);
 
     await restoreCommissioningMode(cx, commissioned, undefined, subject);
+
+    // A commissioner that ignored the code and onboarded whatever it could find writes the same
+    // completion line as one that read it, so the code has to be evidence in its own right
+    if (target.qrPairingCode !== undefined) {
+        await recordParse(cx, target.qrPairingCode, th);
+    } else if (target.manualPairingCode !== undefined) {
+        await recordManualParse(cx, target.manualPairingCode, th);
+    }
 
     // Settled, because the line this waits for names no fabric on either flavor: a completion still
     // in flight from an earlier commissioning would otherwise satisfy this one

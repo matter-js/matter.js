@@ -7,13 +7,14 @@
 import { certTest } from "@matter/testing";
 import {
     checkGeneratedPayload,
-    CommissioningRefusals,
     commissionByQr,
+    CommissioningRefusals,
     INVALID_PASSCODES,
     onNetworkOnlyPayload,
     qrPayloadWith,
     qrPayloadWithPrefix,
     recordDiscoveryCapabilityAbsent,
+    recordDiscriminatorHonored,
     recordGeneratedPayload,
     recordParse,
     thQrPayload,
@@ -91,7 +92,9 @@ certTest("TC-DD-3.14", {
         "3.b",
         "Scan/read the QR code of the TH device using the DUT",
         async cx => {
-            await commissionByQr(cx, await onNetworkOnlyPayload(cx), commissioned);
+            const payload = await onNetworkOnlyPayload(cx);
+            await recordDiscriminatorHonored(cx, payload, refusals);
+            await commissionByQr(cx, payload, commissioned);
         },
         {
             pics: "MCORE.DD.DISCOVERY_BLE",
