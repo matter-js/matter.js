@@ -1898,8 +1898,11 @@ that could not have failed.
 **Budgets.** `ABSENT_DEVICE_GIVE_UP` (20s) is what the DUT is asked to spend; `ABSENT_DEVICE_WAIT`
 (90s) is how long the harness waits for that give-up. They must not be equal: a wait equal to the
 deadline it is waiting on observes the attempt still pending and records the DUT as having neither
-onboarded nor refused. TC-DD-3.17 step 4 sets the same pair, and its comment records chip-tool's own
-give-up as roughly 45 seconds where a measured run of this control saw 30 — take 45 as the bound.
+onboarded nor refused. Only matter.js reaches the attempt, and it honors the bound, so the slack
+between the two is for a loaded runner delivering the rejection late rather than for a controller
+that ignores the deadline. Erring long only delays reporting a DUT that hangs; erring short fails a
+working one. If the chip-tool path ever runs the attempt, the wait has to outlast chip-tool's own
+give-up instead — TC-DD-3.17 step 4 documents that as roughly 45 seconds and sets this same pair.
 
 **Where it goes.** A precondition step numbered `0`, before the first commissioning whose evidence
 rests on it, following the `0.1`/`0.2` precedent in TC-IDM-1.3. The claim is about the commissioner

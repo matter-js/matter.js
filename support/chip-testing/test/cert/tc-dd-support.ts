@@ -754,16 +754,21 @@ export class CommissioningRefusals {
 }
 
 /**
- * What the DUT is asked to spend looking for a device that is not there. matter.js honors it;
- * chip-tool cannot be bounded and stops on its own after roughly 45 seconds, which is why
- * {@link ABSENT_DEVICE_WAIT} has to outlast that rather than this. TC-DD-3.17's step 4 sets the same
- * pair for the same reason.
+ * What the DUT is asked to spend looking for a device that is not there. Only matter.js reaches this,
+ * and it honors the bound — {@link recordDiscriminatorHonored} states the gap and makes no attempt on
+ * chip-tool, which cannot be bounded at all.
  */
 export const ABSENT_DEVICE_GIVE_UP = Seconds(20);
 
 /**
- * How long the harness waits for that give-up. A wait equal to the deadline it is waiting on observes
- * the attempt still pending and records the DUT as having neither onboarded nor refused.
+ * How long the harness waits for that give-up: the deadline above, plus enough slack that a loaded
+ * runner delivering the rejection late is not read as the DUT having neither onboarded nor refused. A
+ * wait equal to the deadline it waits on observes the attempt still pending and records exactly that,
+ * which is why the two must not be the same value. Erring long only delays reporting a DUT that hangs;
+ * erring short fails a working one.
+ *
+ * Should the chip-tool path ever run the attempt, this has to outlast chip-tool's own give-up instead
+ * — TC-DD-3.17's step 4 documents that as roughly 45 seconds and sets this same pair for it.
  */
 export const ABSENT_DEVICE_WAIT = Seconds(90);
 
