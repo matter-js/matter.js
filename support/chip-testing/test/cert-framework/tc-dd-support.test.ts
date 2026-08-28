@@ -32,6 +32,8 @@ import {
     checkGeneratedPayload,
     commissionByQr,
     CUSTOM_FLOW,
+    flowName,
+    flowTitle,
     CommissioningRefusals,
     manualPairingCode,
     manualPairingCodeDigits,
@@ -74,6 +76,26 @@ const PLAN_INVALID_PASSCODE_PAYLOADS: [passcode: number, payload: string][] = [
     [87654321, "MT:-24J029Q00YX018EW10"],
 ];
 
+describe("flow naming", () => {
+    it("titles each flow the plan defines", () => {
+        expect([STANDARD_FLOW, USER_INTENT_FLOW, CUSTOM_FLOW].map(flowTitle)).deep.equal([
+            "Standard",
+            "User-Intent",
+            "Custom",
+        ]);
+    });
+
+    it("refuses to title a flow the specification does not define", () => {
+        // The field is two bits wide, so a test case could name 3 and there is nothing to call it
+        expect(() => flowTitle(3)).throw(InternalError);
+    });
+
+    it("names an undefined flow by its value, because a verdict has to say which one it saw", () => {
+        expect(flowName(3)).equal("flow 3");
+        expect(flowName(USER_INTENT_FLOW)).equal("the user-intent flow");
+    });
+});
+
 describe("qrPayloadWith", () => {
     it("substitutes the version the plan's own example payload does", () => {
         expect(qrPayloadWith(PLAN_PAYLOAD, { version: 0b010 })).equal("MT:034J029Q00KA0648G00");
@@ -113,6 +135,10 @@ describe("qrPayloadWith", () => {
 
     it("refuses a code that is not a QR onboarding payload", () => {
         expect(() => qrPayloadWith("34970112336552132769", { version: 2 })).throw(InternalError);
+    });
+
+    it("refuses a flow too wide for the two bits the field holds", () => {
+        expect(() => qrPayloadWith(PLAN_PAYLOAD, { flowType: 4 })).throw(InternalError);
     });
 
     it("refuses a value too wide for the field it substitutes", () => {

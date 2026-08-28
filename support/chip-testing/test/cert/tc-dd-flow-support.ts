@@ -8,12 +8,11 @@ import { DiscoveryCapabilitiesSchema } from "@matter/main/types";
 import type { CertStepContext, CertTestBuilder } from "@matter/testing";
 import {
     commissionByQr,
-    markTransition,
+    flowTitle,
     ON_NETWORK_ONLY,
     qrPayloadWith,
     recordCommissionable,
     recordGeneratedPayload,
-    recordNotCommissioned,
     recordParse,
     recordPayloadOffering,
     STANDARD_VERSION,
@@ -54,25 +53,39 @@ const NOT_COMMISSIONABLE_UNAVAILABLE =
  *
  * **What no leg exercises is the transition the flow is named for.** A user-intent or custom flow says
  * the device is not commissionable until someone acts, and `.a`'s precondition says so — but a TH this
- * harness runs advertises as commissionable from boot, so `.d` commissions one that never made that
- * transition. Each leg's `.a` records that gap rather than leaving the bundle to imply otherwise.
+ * harness runs advertises as commissionable from boot, so no leg ever sees that transition. Each leg's
+ * `.a` records the gap, and says what its own leg does instead, rather than leaving the bundle to imply
+ * otherwise.
  *
- * **Step `.c` carries the interesting claim**, and it is a negative one: the plan says "Verify DUT has
- * parsed the QR code. Verify TH has not been commissioned to the Matter network." Parsing a payload
- * whose flow says "not commissionable yet" must not start a commissioning, and the TH's own log is
- * what states that it did not.
+ * **`.c` records the parse alone, not the plan's second sentence.** The plan also asks to verify the TH
+ * was not commissioned, but the only thing `.c` asks of the DUT is `parseQrPayload`, which decodes
+ * locally on both controllers and reaches no network — so a check that the TH was not commissioned by
+ * it examines a window nothing could have written to, and would record a pass for a claim nobody
+ * tested. Whether a commissioner acts on a flow that says "not commissionable yet" is only observable
+ * where it is given the chance to commission, which is `.d`.
  */
-export function defineFlowQrTest(builder: CertTestBuilder, flowType: number, flowName: string): CertTestBuilder {
+export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): CertTestBuilder {
+    const title = flowTitle(flowType);
     const commissioned = new CommissionedRefs();
 
+    const NOTHING_COMMISSIONS = "no step of this leg commissions the TH, so nothing acts on the flow either";
+
     const legs = [
-        { n: "1", capability: "ble" as const, bitmask: BLE_ONLY, transport: "BLE", pics: "MCORE.DD.DISCOVERY_BLE" },
+        {
+            n: "1",
+            capability: "ble" as const,
+            bitmask: BLE_ONLY,
+            transport: "BLE",
+            pics: "MCORE.DD.DISCOVERY_BLE",
+            commissions: NOTHING_COMMISSIONS,
+        },
         {
             n: "2",
             capability: "wifiPublicActionFrame" as const,
             bitmask: WIFI_PAF_ONLY,
             transport: "Wi-Fi PAF",
             pics: "MCORE.DD.DISCOVERY_PAF",
+            commissions: NOTHING_COMMISSIONS,
         },
         {
             n: "3",
@@ -80,6 +93,7 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number, flo
             bitmask: ON_NETWORK_ONLY,
             transport: "IP Network",
             pics: undefined,
+            commissions: "step .d commissions a TH that was commissionable throughout",
         },
     ];
 
@@ -93,7 +107,7 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number, flo
         builder
             .step(
                 `${leg.n}.a`,
-                `${flowName} Commissioning Flow: Use a Commissionee with a QR code that has the Custom Flow field ` +
+                `${title} Commissioning Flow: Use a Commissionee with a QR code that has the Custom Flow field ` +
                     `set to ${flowType} and supports ${leg.transport} for its Discovery Capability. Commissionee ` +
                     "is NOT in commissioning mode. Ensure the Version bit string follows the current Matter spec. " +
                     "documentation.",
@@ -108,7 +122,7 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number, flo
                             discoveryCapabilities: leg.bitmask,
                             unchangedFrom: source,
                         },
-                        `${leg.transport} ${flowName.toLowerCase()}-flow payload`,
+                        `${leg.transport} ${title.toLowerCase()}-flow payload`,
                     );
 
                     cx.recorder.check({
@@ -116,8 +130,7 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number, flo
                         verdict: "unverified",
                         detail:
                             "TH advertises as commissionable from boot, so the plan's \"Commissionee is NOT in " +
-                            'commissioning mode" precondition does not hold and step .d commissions a TH that was ' +
-                            "commissionable throughout",
+                            `commissioning mode" precondition does not hold: ${leg.commissions}`,
                         accepted: NOT_COMMISSIONABLE_UNAVAILABLE,
                     });
                 },
@@ -140,15 +153,7 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number, flo
                 `${leg.n}.c`,
                 "DUT parses QR code.",
                 async cx => {
-                    const th = cx.devices.th;
-                    const since = await markTransition(cx);
-
                     await recordParse(cx, await payloadFor(cx));
-
-                    // The plan's second sentence, and the one worth having: a flow that says the
-                    // device is not commissionable yet must not have the DUT commission it merely
-                    // because it read the code.
-                    await recordNotCommissioned(cx, th, since, "TH was not commissioned by the parse");
                 },
                 {
                     pics: scanGate,

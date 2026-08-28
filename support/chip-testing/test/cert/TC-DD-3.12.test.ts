@@ -15,5 +15,4 @@ defineFlowQrTest(
         app: "all-clusters",
     }),
     USER_INTENT_FLOW,
-    "User-Intent",
 );
