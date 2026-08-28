@@ -252,15 +252,15 @@ export function chipJsonToMatter(value: unknown, model: ValueModel, clusterModel
 
 /**
  * `CustomArgumentParser` reads a plain JSON number's TLV type off the value alone
- * (`examples/chip-tool/commands/clusters/CustomArgument.h`), and jsoncpp's `isUInt()`/`isInt()` are
- * both 32-bit, so it can only reach an unsigned TLV integer within these bounds and a signed one
- * within `[INT32_MIN, INT32_MAX]`. Outside them it encodes a *float*, and inside the unsigned range a
- * positive value is unsigned whatever the field's own type is. Either way a peer decoding the field's
- * declared type rejects the element.
+ * (`examples/chip-tool/commands/clusters/CustomArgument.h`): jsoncpp's `isUInt()` first, then
+ * `isInt()`, then a double. Both predicates are 32-bit, and `isUInt()` comes first, so a plain number
+ * reaches an unsigned TLV integer up to this bound — **whatever the field's declared type is** — a
+ * signed one only when it is negative and no smaller than `INT32_MIN`, and a float everywhere else.
+ * A peer decoding the field's declared type rejects anything else: CHIP's own `TLVReader::Get(int64_t)`
+ * answers `CHIP_ERROR_WRONG_TLV_TYPE` for an unsigned element.
  */
 const CHIP_TOOL_PLAIN_UNSIGNED_MAX = 0xffffffffn;
 const CHIP_TOOL_PLAIN_SIGNED_MIN = -0x80000000n;
-const CHIP_TOOL_PLAIN_SIGNED_MAX = 0x7fffffffn;
 
 /**
  * The value chip-tool encodes as the TLV type `model` declares. `u:`/`s:`/`f:`/`d:` are its own
@@ -278,9 +278,9 @@ function chipTypedNumber(value: number | bigint, kind: ConvKind, model: ValueMod
     const magnitude = BigInt(value);
 
     if (kind === ConvKind.Signed) {
-        return magnitude > CHIP_TOOL_PLAIN_SIGNED_MAX || magnitude < CHIP_TOOL_PLAIN_SIGNED_MIN
-            ? `s:${magnitude}`
-            : value;
+        // A non-negative value is the case that looks safe and is not: `isUInt()` runs first, so zero
+        // and every positive int32 would go out as an unsigned element.
+        return magnitude >= 0 || magnitude < CHIP_TOOL_PLAIN_SIGNED_MIN ? `s:${magnitude}` : value;
     }
 
     if (magnitude < 0) {

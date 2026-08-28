@@ -74,14 +74,20 @@ async function invokeAndCheck(
         detail: response === undefined ? "status=Success" : `status=Success, response=${JSON.stringify(response)}`,
     });
 
-    const payloadStatus = statusOf(response);
-    if (payloadStatus !== undefined) {
+    if (answersWithStatus(commandName)) {
+        // An absent or malformed status is a failure, not a check to skip: skipping it would leave the
+        // command resting on the TH's log alone, which says the request arrived and nothing about
+        // whether the cluster accepted it.
+        const payloadStatus = statusOf(response);
         record(
             cx,
             {
                 type: "response",
                 verdict: payloadStatus === 0 ? "pass" : "fail",
-                detail: `${commandName} response status=${payloadStatus}`,
+                detail:
+                    payloadStatus === undefined
+                        ? `${commandName} answered ${JSON.stringify(response)}, which carries no status`
+                        : `${commandName} response status=${payloadStatus}`,
             },
             `Groups.${commandName} response status`,
         );
@@ -125,7 +131,13 @@ function groupKeySet() {
     };
 }
 
-/** The status a Groups response carries in its payload, or `undefined` for a response that has none. */
+/** Whether `commandName`'s response schema makes a status part of the answer. */
+function answersWithStatus(commandName: string): boolean {
+    const response = GROUPS.commands.require(commandName).responseModel;
+    return response !== undefined && [...response.members].some(member => member.name === "Status");
+}
+
+/** The status a Groups response carries in its payload, or `undefined` where the answer has none. */
 function statusOf(response: unknown): number | undefined {
     if (typeof response !== "object" || response === null || !("status" in response)) {
         return undefined;

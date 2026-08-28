@@ -78,20 +78,30 @@ describe("chip-tool json codec", () => {
         expect(matterToChipJson(0x100000000, UP_TIME_ATTRIBUTE, GENERAL_DIAGNOSTICS, "hex")).to.equal("u:4294967296");
     });
 
-    it("forces the signed encoding of a signed value outside chip-tool's 32-bit inference", () => {
-        // Both of chip-tool's predicates are 32 bits wide, so a signed field is mistyped in two
-        // directions: as a float below INT32_MIN, as an unsigned element above INT32_MAX.
-        expect(matterToChipJson(-9_000_000_000_000n, VOLTAGE_ATTRIBUTE, ELECTRICAL_POWER_MEASUREMENT, "hex")).to.equal(
-            "s:-9000000000000",
-        );
-        expect(matterToChipJson(3_000_000_000, VOLTAGE_ATTRIBUTE, ELECTRICAL_POWER_MEASUREMENT, "hex")).to.equal(
-            "s:3000000000",
-        );
+    it("forces the signed encoding of every signed value chip-tool would not infer as signed", () => {
+        // `isUInt()` is tried first and is 32-bit, so a signed field is mistyped in three ways: as an
+        // unsigned element for anything from zero up, and as a float outside the 32-bit window.
+        for (const [value, expected] of [
+            [-9_000_000_000_000n, "s:-9000000000000"],
+            [3_000_000_000, "s:3000000000"],
+            [0, "s:0"],
+            [1, "s:1"],
+            [0x7fffffff, "s:2147483647"],
+        ] as const) {
+            expect(
+                matterToChipJson(value, VOLTAGE_ATTRIBUTE, ELECTRICAL_POWER_MEASUREMENT, "hex"),
+                `${value}`,
+            ).to.equal(expected);
+        }
     });
 
     it("leaves a signed value chip-tool already types correctly a plain number", () => {
+        // Negative and no smaller than INT32_MIN is the only case its inference gets right.
         expect(matterToChipJson(-2_000_000, VOLTAGE_ATTRIBUTE, ELECTRICAL_POWER_MEASUREMENT, "hex")).to.equal(
             -2_000_000,
+        );
+        expect(matterToChipJson(-0x80000000, VOLTAGE_ATTRIBUTE, ELECTRICAL_POWER_MEASUREMENT, "hex")).to.equal(
+            -0x80000000,
         );
     });
 

@@ -2133,10 +2133,13 @@ a *float* where the field is a `uint64`.
 `any command-by-id` and `any write-by-id` take their payload as chip-tool's `CustomArgument`, whose
 parser (`examples/chip-tool/commands/clusters/CustomArgument.h`) types a plain JSON number by asking
 jsoncpp `isUInt()`, then `isInt()`, then falling back to `asDouble()`. Both of those predicates are
-**32-bit** (jsoncpp's `Int`/`UInt` are `int`/`unsigned int`), so from the JSON alone chip-tool can
-reach an unsigned TLV integer only up to `0xffffffff` and a signed one only within
-`[INT32_MIN, INT32_MAX]`. Outside those it writes a float; inside the unsigned range it writes an
-unsigned element whatever the field's declared type is. The field's own type never enters into it.
+**32-bit** (jsoncpp's `Int`/`UInt` are `int`/`unsigned int`), and `isUInt()` is asked first. So from
+the JSON alone chip-tool reaches an unsigned TLV integer up to `0xffffffff` — whatever the field's
+declared type is — a signed one only when the value is negative and no smaller than `INT32_MIN`, and
+a float everywhere else. The field's own type never enters into it, and a peer decoding that type
+rejects the rest: CHIP's own `TLVReader::Get(int64_t)` answers `CHIP_ERROR_WRONG_TLV_TYPE` for an
+unsigned element. The case that looks safe and is not is a small **positive** value on a signed
+field.
 
 So the codec states the type instead, through chip-tool's own prefixes — `u:`, `s:`, `f:`, `d:` —
 whenever the plain form would mistype the value (`matterToChipJson`, `chipTypedNumber`). A value
