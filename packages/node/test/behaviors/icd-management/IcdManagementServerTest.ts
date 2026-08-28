@@ -917,7 +917,18 @@ describe("IcdManagementServer", () => {
             IcdManagement.Feature.UserActiveModeTrigger,
             IcdManagement.Feature.DynamicSitLitSupport,
         );
-        const RootWithDsls = ServerNode.RootEndpoint.with(dslsServer);
+        const RootWithDsls = MockServerNode.RootEndpoint.with(dslsServer);
+
+        /**
+         * A DSLS device with a fabric but no controller.  A commissioned controller auto-registers as a Check-In
+         * client for a LIT peer, and a registration drives the operating mode to LIT on its own, which would mask the
+         * forced-mode behavior these tests assert.
+         */
+        async function dslsDevice() {
+            const device = await MockServerNode.createOnline(RootWithDsls, { icdManagement: DSLS_CONFIG });
+            await device.addFabric();
+            return device;
+        }
 
         const DSLS_CONFIG = {
             operatingMode: IcdManagement.OperatingMode.Sit,
@@ -928,10 +939,7 @@ describe("IcdManagementServer", () => {
         } as const;
 
         it("setOperatingMode(Lit) with no registrations forces LIT and refreshes advertisement", async () => {
-            await using site = new MockSite();
-            const { device } = await site.addCommissionedPair({
-                device: { type: RootWithDsls, icdManagement: DSLS_CONFIG },
-            });
+            await using device = await dslsDevice();
 
             const deviceAdvertiser = device.env.get(DeviceAdvertiser);
             let refreshCount = 0;
@@ -961,10 +969,7 @@ describe("IcdManagementServer", () => {
         });
 
         it("setOperatingMode(Sit) after forced LIT switches back to SIT and refreshes advertisement", async () => {
-            await using site = new MockSite();
-            const { device } = await site.addCommissionedPair({
-                device: { type: RootWithDsls, icdManagement: DSLS_CONFIG },
-            });
+            await using device = await dslsDevice();
 
             // Force to LIT first.
             await device.act(agent => agent.get(dslsServer).setOperatingMode(IcdManagement.OperatingMode.Lit));
@@ -999,15 +1004,11 @@ describe("IcdManagementServer", () => {
         });
 
         it("withdrawForcedOperatingMode reverts a forced LIT to the registration-driven mode and refreshes", async () => {
-            await using site = new MockSite();
-            const { device } = await site.addCommissionedPair({
-                device: { type: RootWithDsls, icdManagement: DSLS_CONFIG },
-            });
+            await using device = await dslsDevice();
 
-            // Force LIT with no registrations.  One task turn throughout: forcing LIT prompts the commissioned
-            // controller to register as a Check-In client, and a registration would drive the mode to LIT on its own
+            // Force LIT with no registrations.
             await device.act(agent => agent.get(dslsServer).setOperatingMode(IcdManagement.OperatingMode.Lit));
-            await MockTime.macrotask;
+            await settled(device);
             expect(device.stateOf(dslsServer).operatingMode).equals(IcdManagement.OperatingMode.Lit);
 
             const deviceAdvertiser = device.env.get(DeviceAdvertiser);
@@ -1020,8 +1021,9 @@ describe("IcdManagementServer", () => {
 
             // Withdraw the override → registration-driven mode; no registrations means SIT.
             await device.act(agent => agent.get(dslsServer).withdrawForcedOperatingMode());
-            await MockTime.macrotask;
+            await settled(device);
 
+            expect(device.stateOf(dslsServer).registeredClients).empty;
             expect(device.stateOf(dslsServer).operatingMode).equals(IcdManagement.OperatingMode.Sit);
             expect(refreshCount).greaterThan(0);
         });
