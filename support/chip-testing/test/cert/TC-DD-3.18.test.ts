@@ -108,6 +108,16 @@ certTest("TC-DD-3.18", {
     devices: { th1: "all-clusters", th2: "all-clusters" },
 })
     .step(
+        "0",
+        "Precondition: the DUT is a commissioner that uses the discriminator its onboarding code names.",
+        cx => recordDiscriminatorHonored(cx, refusals, cx.devices.th1),
+        {
+            expected:
+                "DUT does not commission the TH from a code naming a discriminator no device advertises. " +
+                "Every later step's commissioning rests on this.",
+        },
+    )
+    .step(
         "1.a",
         "Place TH1 into commissioning mode using the TH manufacturer's means to be discovered by a commissioner",
         async cx => {
@@ -143,7 +153,6 @@ certTest("TC-DD-3.18", {
             const th2From = await th2.log.markSettled();
 
             const payload = await thQrPayload(th1);
-            await recordDiscriminatorHonored(cx, payload, refusals, th1);
             await commissionByQr(cx, payload, th1Commissioned, th1);
 
             // "Only TH1" is a claim about TH2, and TH2's own log is what states it. A commissionable

@@ -1068,6 +1068,7 @@ class UnpairFixture {
             backchannel?: () => void;
             onDecommission?: () => void;
             commission?: (target: CommissioningTarget) => Promise<CertNodeRef>;
+            qrPairingCode?: string;
         } = {},
     ) {
         const { fabricIndex = 1, backchannel = () => {}, onDecommission = () => {} } = options;
@@ -1099,7 +1100,12 @@ class UnpairFixture {
         const device: CertDevice = {
             id: "th",
             app: "all-clusters",
-            commissioning: { kind: "on-network", passcode: 20202021, discriminator: 3840, qrPairingCode: "" },
+            commissioning: {
+                kind: "on-network",
+                passcode: 20202021,
+                discriminator: 3840,
+                qrPairingCode: options.qrPairingCode ?? "",
+            },
             pics: new PicsFile([]),
             async initialize() {},
             async start() {},
@@ -1402,45 +1408,76 @@ describe("commissionByQr's payload evidence", () => {
 });
 
 describe("recordDiscriminatorHonored", () => {
-    const TH_PAYLOAD = "MT:-24J042C00KA0648G00";
-
-    // The TH's own discriminator is 3840, so the substitute is 3840 ^ 0xfff
+    // The fixture TH's own discriminator is 3840, so the substitute is 3840 ^ 0xfff
     const ABSENT = 255;
+
+    const advertising = async () => {};
+    const notAdvertising = async () => {
+        throw new CertCheckFailedError("TH is not advertising as commissionable");
+    };
+
+    function fixtureFor(commission: (target: CommissioningTarget) => Promise<CertNodeRef>) {
+        return new UnpairFixture("matterjs", { commission, qrPairingCode: "MT:-24J042C00KA0648G00" });
+    }
 
     it("passes when the DUT gives up on the discriminator nothing advertises", async () => {
         const asked = new Array<string>();
-        const fixture = new UnpairFixture("matterjs", {
-            commission: async target => {
-                asked.push(target.qrPairingCode ?? "");
-                throw new InternalError("no commissionable device was discovered");
-            },
+        const fixture = fixtureFor(async target => {
+            asked.push(target.qrPairingCode ?? "");
+            throw new DiscoveryError("no commissionable device was discovered");
         });
 
-        await recordDiscriminatorHonored(fixture.cx, TH_PAYLOAD, new CommissioningRefusals());
+        await recordDiscriminatorHonored(fixture.cx, new CommissioningRefusals(), undefined, advertising);
 
         expect(qrPayloadFields(asked[0] ?? "").discriminator).equal(ABSENT);
-        expect(fixture.checks.map(check => check.verdict)).deep.equal(["pass"]);
+        expect(fixture.checks.at(-1)?.verdict).equal("pass");
+        expect(fixture.checks.at(-1)?.detail).contains(`discriminator 3840 replaced by ${ABSENT}`);
     });
 
     // The case that gives the check its meaning: a commissioner that ignores the field onboards the
     // only commissionable device there is, and every other check in the step still passes
     it("fails when the DUT commissions a device its code did not name", async () => {
-        const fixture = new UnpairFixture("matterjs", {
-            commission: async () => "peer1" as CertNodeRef,
+        const fixture = fixtureFor(async () => "peer1" as CertNodeRef);
+
+        await expect(
+            recordDiscriminatorHonored(fixture.cx, new CommissioningRefusals(), undefined, advertising),
+        ).rejectedWith(CertCheckFailedError);
+    });
+
+    // Without this the DUT gives up because there was nothing to find, and the check passes on the
+    // TH's absence rather than on the DUT's use of the field
+    it("fails when the TH was not advertising to begin with", async () => {
+        const commissioned = new Array<string>();
+        const fixture = fixtureFor(async target => {
+            commissioned.push(target.qrPairingCode ?? "");
+            throw new DiscoveryError("no commissionable device was discovered");
         });
 
-        await expect(recordDiscriminatorHonored(fixture.cx, TH_PAYLOAD, new CommissioningRefusals())).rejectedWith(
-            CertCheckFailedError,
-        );
+        await expect(
+            recordDiscriminatorHonored(fixture.cx, new CommissioningRefusals(), undefined, notAdvertising),
+        ).rejectedWith(CertCheckFailedError);
+
+        expect(commissioned).deep.equal([]);
+    });
+
+    // A controller that would not start rejects too, and that says nothing about the discriminator
+    it("fails on a rejection that is not the DUT giving up on discovery", async () => {
+        const fixture = fixtureFor(async () => {
+            throw new OnboardingPayloadRefusedError("the DUT refused the code itself");
+        });
+
+        await expect(
+            recordDiscriminatorHonored(fixture.cx, new CommissioningRefusals(), undefined, advertising),
+        ).rejectedWith(CertCheckFailedError);
     });
 
     it("refuses a substitute another device in the run advertises", async () => {
-        const fixture = new UnpairFixture("matterjs");
+        const fixture = new UnpairFixture("matterjs", { qrPairingCode: "MT:-24J042C00KA0648G00" });
         const th = fixture.cx.devices.th;
         const other = { ...th, id: "th2", commissioning: { ...th.commissioning, discriminator: ABSENT } };
         const cx = { ...fixture.cx, devices: { th, th2: other } };
 
-        await expect(recordDiscriminatorHonored(cx, TH_PAYLOAD, new CommissioningRefusals())).rejectedWith(
+        await expect(recordDiscriminatorHonored(cx, new CommissioningRefusals(), undefined, advertising)).rejectedWith(
             InternalError,
             /th2 advertises it/,
         );

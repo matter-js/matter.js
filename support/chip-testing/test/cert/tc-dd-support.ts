@@ -754,23 +754,30 @@ export class CommissioningRefusals {
 }
 
 /**
- * How long the DUT is given to conclude the device a code names is not on the network. Discovery for
- * a discriminator nothing answers has nothing to finish early on, so a step spends this in full. The
- * wait for the outcome is {@link REFUSAL_TIMEOUT} rather than this: a give-up that lands exactly when
- * its own deadline expires has to be observed after it, not in a race with it.
+ * What the DUT is asked to spend looking for a device that is not there. matter.js honors it;
+ * chip-tool cannot be bounded and stops on its own after roughly 45 seconds, which is why
+ * {@link ABSENT_DEVICE_WAIT} has to outlast that rather than this. TC-DD-3.17's step 4 sets the same
+ * pair for the same reason.
  */
-export const ABSENT_DEVICE_TIMEOUT = Seconds(5);
+export const ABSENT_DEVICE_GIVE_UP = Seconds(20);
+
+/**
+ * How long the harness waits for that give-up. A wait equal to the deadline it is waiting on observes
+ * the attempt still pending and records the DUT as having neither onboarded nor refused.
+ */
+export const ABSENT_DEVICE_WAIT = Seconds(90);
 
 /** § 5.1.3.1 Table 59's discriminator field, which is what a substituted value has to fit. */
 const DISCRIMINATOR_MASK = 0xfff;
 
 /**
- * A discriminator no device in this run advertises. Devices take consecutive values from
- * `identityFor`, so inverting one lands far outside the span however many the plan declares — and a
- * value that did name a device would turn the check below into an ordinary commissioning.
+ * A discriminator no device in this run advertises, derived from the one `payload` names so the
+ * substitution is guaranteed to change the field. Devices take consecutive values from `identityFor`,
+ * so inverting one lands far outside the span however many the plan declares — and a value that did
+ * name a device would turn the check below into an ordinary commissioning.
  */
-function absentDiscriminator(cx: CertStepContext, th: CertDevice): number {
-    const absent = th.commissioning.discriminator ^ DISCRIMINATOR_MASK;
+function absentDiscriminator(cx: CertStepContext, payload: string): number {
+    const absent = qrPayloadFields(payload).discriminator ^ DISCRIMINATOR_MASK;
     for (const device of Object.values(cx.devices)) {
         if (device.commissioning.discriminator === absent) {
             throw new InternalError(
@@ -788,26 +795,54 @@ function absentDiscriminator(cx: CertStepContext, th: CertDevice): number {
  * Every other check about a payload asks what the DUT *read*, and a commissioning that succeeds
  * proves only the passcode, which SPAKE2+ settles on its own. On a network holding one commissionable
  * device, a commissioner that discarded the discriminator entirely satisfies all of them and onboards
- * the TH anyway. Handing it the same payload with a discriminator nothing advertises separates the
- * two: a DUT that uses the field gives up, and one that ignores it commissions and fails this check.
+ * the TH anyway. Offering it the TH's own payload with a discriminator nothing advertises separates
+ * the two: a DUT that uses the field cannot find the device, and one that ignores it commissions and
+ * fails this check.
+ *
+ * Two things the evidence has to carry, because here a refusal is what a pass looks like:
+ *
+ * - The TH has to be observed advertising first, or the DUT gives up because there was nothing to
+ *   find and the check passes on the TH's absence rather than on the DUT's use of the field. This is
+ *   the guard {@link recordVendorOutcome} states for the same reason.
+ * - Only a give-up counts ({@link isCommissioningGiveUp}), unlike
+ *   {@link CommissioningRefusals.requireNoCommissioning}, which takes any failure because the plan it
+ *   serves has no commissionee at all. Here the TH is present and the code is well-formed, so a
+ *   payload refusal means the DUT never reached discovery and a controller that would not start
+ *   proves nothing.
  *
  * The claim is about the commissioner rather than about any one step, so a test case establishes it
- * once, before the first commissioning whose evidence rests on it.
+ * once, in a precondition step of its own that no PICS gate can skip.
  */
 export async function recordDiscriminatorHonored(
     cx: CertStepContext,
-    payload: string,
     refusals: CommissioningRefusals,
     subject?: CertDevice,
+    /** Overridden by the unit tests, which have no advertisement to observe. */
+    probeCommissionable: (cx: CertStepContext, what: string, th: CertDevice) => Promise<void> = recordCommissionable,
 ): Promise<void> {
     const th = subject ?? theTh(cx);
-    const absent = qrPayloadWith(payload, { discriminator: absentDiscriminator(cx, th) });
+    const payload = await thQrPayload(th);
+    const absent = absentDiscriminator(cx, payload);
+    const code = qrPayloadWith(payload, { discriminator: absent });
 
-    await refusals.requireNoCommissioning(
+    await probeCommissionable(cx, `${th.id} advertising before the DUT is offered discriminator ${absent}`, th);
+
+    const label = `commissioning from a code naming discriminator ${absent}`;
+    const attempt = cx.controllers.dut.commission({ qrPairingCode: code, giveUpAfterMs: ABSENT_DEVICE_GIVE_UP });
+    refusals.track(attempt);
+
+    const outcome = await expectRejection(label, attempt, ABSENT_DEVICE_WAIT, isCommissioningGiveUp);
+
+    record(
         cx,
-        { qrPairingCode: absent, giveUpAfterMs: ABSENT_DEVICE_TIMEOUT },
+        {
+            ...outcome,
+            detail:
+                `${outcome.detail ?? label}; the code is ${th.id}'s own payload with discriminator ` +
+                `${qrPayloadFields(payload).discriminator} replaced by ${absent}, which no device in this run ` +
+                "advertises",
+        },
         "DUT commissions the device its code names",
-        REFUSAL_TIMEOUT,
     );
 }
 

@@ -100,6 +100,17 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): Ce
         },
     ];
 
+    builder.step(
+        "0",
+        "Precondition: the DUT is a commissioner that uses the discriminator its onboarding code names.",
+        cx => recordDiscriminatorHonored(cx, refusals),
+        {
+            expected:
+                "DUT does not commission the TH from a code naming a discriminator no device advertises. " +
+                "Every later step's commissioning rests on this.",
+        },
+    );
+
     for (const leg of legs) {
         // Both `.b` and `.c` parse the code themselves, so both need the scan gate
         const scanGate = leg.pics === undefined ? "MCORE.DD.SCAN_QR_CODE" : `MCORE.DD.SCAN_QR_CODE & ${leg.pics}`;
@@ -171,10 +182,8 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): Ce
                     `commissioning mode and to complete the commissioning process using ${leg.transport}.`,
                 leg.capability === "onIpNetwork"
                     ? async cx => {
-                          const payload = await payloadFor(cx);
                           await recordCommissionable(cx);
-                          await recordDiscriminatorHonored(cx, payload, refusals);
-                          await commissionByQr(cx, payload, commissioned);
+                          await commissionByQr(cx, await payloadFor(cx), commissioned);
                       }
                     : async () => {},
                 leg.capability === "onIpNetwork"

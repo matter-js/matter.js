@@ -86,6 +86,16 @@ certTest("TC-DD-3.21", {
     app: "all-clusters",
 })
     .step(
+        "0",
+        "Precondition: the DUT is a commissioner that uses the discriminator its onboarding code names.",
+        cx => recordDiscriminatorHonored(cx, refusals),
+        {
+            expected:
+                "DUT does not commission the TH from a code naming a discriminator no device advertises. " +
+                "Every later step's commissioning rests on this.",
+        },
+    )
+    .step(
         1,
         "Place TH into commissioning mode using the TH manufacturer's means to be discovered by the DUT Commissioner",
         recordCommissionable,
@@ -105,7 +115,6 @@ certTest("TC-DD-3.21", {
             "commissioning process over the TH Commissionee's method of device discovery",
         async cx => {
             const payload = await thQrPayload(cx.devices.th);
-            await recordDiscriminatorHonored(cx, payload, refusals);
             await commissionByQr(cx, payload, commissioned);
         },
         {

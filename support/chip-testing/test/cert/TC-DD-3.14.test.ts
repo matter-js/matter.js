@@ -36,6 +36,16 @@ certTest("TC-DD-3.14", {
     app: "all-clusters",
 })
     .step(
+        "0",
+        "Precondition: the DUT is a commissioner that uses the discriminator its onboarding code names.",
+        cx => recordDiscriminatorHonored(cx, refusals),
+        {
+            expected:
+                "DUT does not commission the TH from a code naming a discriminator no device advertises. " +
+                "Every later step's commissioning rests on this.",
+        },
+    )
+    .step(
         1,
         "Locate and scan/read the Commissionee's QR code using DUT",
         async cx => {
@@ -93,7 +103,6 @@ certTest("TC-DD-3.14", {
         "Scan/read the QR code of the TH device using the DUT",
         async cx => {
             const payload = await onNetworkOnlyPayload(cx);
-            await recordDiscriminatorHonored(cx, payload, refusals);
             await commissionByQr(cx, payload, commissioned);
         },
         {

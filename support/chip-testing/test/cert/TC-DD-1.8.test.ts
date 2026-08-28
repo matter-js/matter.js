@@ -74,6 +74,16 @@ certTest("TC-DD-1.8", {
     app: "all-clusters",
 })
     .step(
+        "0",
+        "Precondition: the DUT is a commissioner that uses the discriminator its onboarding code names.",
+        cx => recordDiscriminatorHonored(cx, refusals),
+        {
+            expected:
+                "DUT does not commission the TH from a code naming a discriminator no device advertises. " +
+                "Every later step's commissioning rests on this.",
+        },
+    )
+    .step(
         1,
         "Scan the TH Device's QR code using DUT",
         async cx => {
@@ -86,7 +96,6 @@ certTest("TC-DD-1.8", {
         "Using the DUT, parse the TH's QR code to onboard the TH Device onto the Matter network.",
         async cx => {
             const payload = await thQrPayload(cx.devices.th);
-            await recordDiscriminatorHonored(cx, payload, refusals);
             await commissionByQr(cx, payload, commissioned);
         },
         { expected: "Verify the TH's QR code was parsed successfully by the DUT" },

@@ -50,6 +50,16 @@ certTest("TC-DD-3.11", {
     app: "all-clusters",
 })
     .step(
+        "0",
+        "Precondition: the DUT is a commissioner that uses the discriminator its onboarding code names.",
+        cx => recordDiscriminatorHonored(cx, refusals),
+        {
+            expected:
+                "DUT does not commission the TH from a code naming a discriminator no device advertises. " +
+                "Every later step's commissioning rests on this.",
+        },
+    )
+    .step(
         "1.a",
         "Standard Commissioning Flow: Use a Commissionee with a QR code that has the Custom Flow field set to 0 " +
             "and supports BLE for its Discovery Capability. Ensure the Version bit string follows the current " +
@@ -186,7 +196,6 @@ certTest("TC-DD-3.11", {
                 discoveryCapabilities: ON_NETWORK_ONLY,
             });
             await recordCommissionable(cx);
-            await recordDiscriminatorHonored(cx, payload, refusals);
             await commissionByQr(cx, payload, commissioned);
         },
         { expected: "DUT parses QR code and DUT commissions TH to the Matter network" },
