@@ -5,9 +5,13 @@
  */
 
 import { ImplementationError } from "@matter/general";
-import { ChangeEntry, PlannedChange, TaskPhase, TaskState, TaskStatus } from "./types.js";
+import { ChangeEntry, PlannedChange, RetireSeq, RunId, TaskPhase, TaskState, TaskStatus } from "./types.js";
 
 export interface TaskPersistence {
+    /** Identity of this run. Unique for the manager's lifetime; a re-run of the same slot gets a new one. */
+    runId: RunId;
+    /** The target this run intends to change. At most one run may own a slot at a time. */
+    slotKey: string;
     type: string;
     params: unknown;
     phaseIndex: number;
@@ -15,15 +19,28 @@ export interface TaskPersistence {
     externalId?: string;
     changeSet: ChangeEntry[];
     error?: string;
-    revertTaskId?: string;
-    revertOf?: string;
+    /** Order in which runs retired. The only ordering key for history and eviction; never use `runId`. */
+    retireSeq?: RetireSeq;
+    revertRunId?: RunId;
+    revertOf?: RunId;
+}
+
+/** How a run reads in a log or an error. A display convention, never an address. */
+export function runLabel(runId: RunId): string {
+    return `run #${runId}`;
+}
+
+/** Storage key for a run's record. Object keys must be strings; the run table holds nothing else. */
+export function runKey(runId: RunId): string {
+    return String(runId);
 }
 
 export abstract class Task<P = unknown> {
     abstract readonly type: string;
     abstract readonly phases: TaskPhase[];
 
-    readonly id: string;
+    readonly runId: RunId;
+    readonly slotKey: string;
     readonly params: P;
 
     /** Id the caller of `run` asked for this task under, so it can observe and cancel the work it asked for. */
@@ -32,29 +49,40 @@ export abstract class Task<P = unknown> {
     progress: { phaseIndex: number; state: TaskState };
     changeSet: ChangeEntry[];
     error?: string;
-    revertTaskId?: string;
-    revertOf?: string;
+    retireSeq?: RetireSeq;
+    revertRunId?: RunId;
+    revertOf?: RunId;
 
-    constructor(id: string, params: P, persisted?: Partial<TaskPersistence>) {
-        this.id = id;
+    constructor(runId: RunId, slotKey: string, params: P, persisted?: Partial<TaskPersistence>) {
+        this.runId = runId;
+        this.slotKey = slotKey;
         this.params = params;
         this.externalId = persisted?.externalId;
         this.progress = { phaseIndex: persisted?.phaseIndex ?? 0, state: persisted?.state ?? "running" };
         this.changeSet = persisted?.changeSet ?? new Array<ChangeEntry>();
         this.error = persisted?.error;
-        this.revertTaskId = persisted?.revertTaskId;
+        this.retireSeq = persisted?.retireSeq;
+        this.revertRunId = persisted?.revertRunId;
         this.revertOf = persisted?.revertOf;
+    }
+
+    toString(): string {
+        return runLabel(this.runId);
     }
 
     get status(): TaskStatus {
         return {
+            runId: this.runId,
+            slotKey: this.slotKey,
             type: this.type,
             state: this.progress.state,
             phaseIndex: this.progress.phaseIndex,
             externalId: this.externalId,
             error: this.error,
-            revertTaskId: this.revertTaskId,
+            retireSeq: this.retireSeq,
+            revertRunId: this.revertRunId,
             revertOf: this.revertOf,
+            detail: "full",
         };
     }
 
@@ -77,22 +105,18 @@ export abstract class Task<P = unknown> {
         return new Array<PlannedChange>();
     }
 
-    /** Deterministic internal id from type + params. Subclasses override with their own key. */
-    static idFor(_params: unknown): string {
-        throw new ImplementationError("idFor must be implemented by the Task subclass");
-    }
-
     /**
-     * While a task is live and non-terminal, no other task sharing the same non-undefined resourceKey may start —
-     * mutual exclusion over a resource the reconciler cannot let two tasks mutate concurrently. Default undefined =
-     * no exclusivity.
+     * The target this task intends to change, derived from type and params. At most one non-terminal run may
+     * exist per slot key. Subclasses override with their own key.
      */
-    resourceKey(): string | undefined {
-        return undefined;
+    static slotKeyFor(_params: unknown): string {
+        throw new ImplementationError("slotKeyFor must be implemented by the Task subclass");
     }
 
     toPersistence(): TaskPersistence {
         return {
+            runId: this.runId,
+            slotKey: this.slotKey,
             type: this.type,
             params: this.params,
             phaseIndex: this.progress.phaseIndex,
@@ -100,7 +124,8 @@ export abstract class Task<P = unknown> {
             externalId: this.externalId,
             changeSet: this.changeSet,
             error: this.error,
-            revertTaskId: this.revertTaskId,
+            retireSeq: this.retireSeq,
+            revertRunId: this.revertRunId,
             revertOf: this.revertOf,
         };
     }

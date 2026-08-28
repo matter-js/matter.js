@@ -9,7 +9,7 @@ import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { Environment } from "@matter/general";
 import { CapacityInfo, ClientNode, ItemKind, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
-import { FakePeer, SyntheticTask } from "./helpers.js";
+import { FakePeer, recordFor, requireRecordFor, SyntheticTask } from "./helpers.js";
 
 class TestTaskManager extends TaskManagerBehavior {
     static override readonly schema = TaskManagerBehavior.schema;
@@ -27,8 +27,13 @@ const RootEndpoint = MockServerNode.RootEndpoint.with(TestTaskManager);
 
 async function awaitState(node: ServerNode, id: string, ...states: string[]): Promise<void> {
     for (let i = 0; i < 10_000; i++) {
-        const state = await node.act(a => a.get(TestTaskManager).state.tasks[id]?.state);
-        if (state !== undefined && states.includes(state)) return;
+        const state = await node.act(a => recordFor(a.get(TestTaskManager).state.runs, id)?.state);
+        if (state !== undefined && states.includes(state)) {
+            const settled =
+                !(["completed", "failed", "cancelled"] as string[]).includes(state) ||
+                (await node.act(a => !a.get(TestTaskManager).tasks.some(t => t.status.slotKey === id)));
+            if (settled) return;
+        }
         await MockTime.advance(1);
     }
     throw new Error(`Task ${id} did not reach state ${states.join("|")}`);
@@ -69,10 +74,10 @@ describe("capacity admission", () => {
         await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "over" }));
 
         await awaitState(node, "synthetic:over", "failed");
-        const rec = node.stateOf(TestTaskManager).tasks["synthetic:over"];
+        const rec = requireRecordFor(node.stateOf(TestTaskManager).runs, "synthetic:over");
         expect(rec.error).contains("capacity");
         expect(rec.changeSet.length).equals(0);
-        expect(rec.revertTaskId).equals(undefined);
+        expect(rec.revertRunId).equals(undefined);
         expect(ran).equals(false);
         await node.close();
     });

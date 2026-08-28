@@ -7,6 +7,7 @@
 import { RemoveNodeFromGroup, RemoveNodeFromGroupParams } from "#task/groups/RemoveNodeFromGroup.js";
 import { RunningTaskContext } from "#task/RunningTaskContext.js";
 import { TaskState } from "#task/types.js";
+import { RunId } from "#task/types.js";
 import { itemMapKey } from "@matter/node";
 import { FakePeer } from "../helpers.js";
 
@@ -40,7 +41,7 @@ function wireItemKind(peer: FakePeer) {
 }
 
 function runRemove(peer: FakePeer, params: RemoveNodeFromGroupParams) {
-    const task = new RemoveNodeFromGroup(RemoveNodeFromGroup.idFor(params), params);
+    const task = new RemoveNodeFromGroup(RunId(1), RemoveNodeFromGroup.slotKeyFor(params), params);
     const setState = (s: TaskState) => {
         task.progress.state = s;
     };

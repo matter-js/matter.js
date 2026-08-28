@@ -50,13 +50,11 @@ const ACTIVATE_INDEX = 1;
 export class RotateGroupKey extends Task<RotateGroupKeyParams> {
     readonly type = ROTATE_GROUP_KEY_TYPE;
 
-    static override idFor(params: RotateGroupKeyParams): string {
-        return `${ROTATE_GROUP_KEY_TYPE}:${params.groupKeySetId}:${params.rotationId}`;
-    }
-
-    // Independent of rotationId: different rotationIds on the same key set must be mutually exclusive.
-    override resourceKey(): string {
-        return `groupKey:${this.params.groupKeySetId}`;
+    // Keyed on the key set alone, so one-live-run-per-slot is what makes rotations of a key set mutually
+    // exclusive: two concurrent rotations would race the single shared groupKey slot, each observing the
+    // other's committed state and advancing on the wrong struct.
+    static override slotKeyFor(params: RotateGroupKeyParams): string {
+        return `${ROTATE_GROUP_KEY_TYPE}:${params.groupKeySetId}`;
     }
 
     override get revertible(): boolean {

@@ -5,6 +5,7 @@
  */
 
 import { MatterError } from "@matter/general";
+import type { RunId } from "./types.js";
 
 export class TaskError extends MatterError {}
 
@@ -20,11 +21,28 @@ export class TaskCapacityExceededError extends TaskError {}
 /** cancel() was refused: the task passed its point of no return (e.g. a realized group-key rotation). */
 export class TaskNotRevertibleError extends TaskError {}
 
-/** A new task was rejected because live work already holds its id, its rollback or an exclusive resource. */
-export class TaskConflictError extends TaskError {}
+/**
+ * A request was refused because live work already holds the slot it targets, or the external id it asked for,
+ * or is rolling that work back. {@link owner} names the run responsible, so a caller can act on it without
+ * parsing the message.
+ */
+export class TaskConflictError extends TaskError {
+    constructor(
+        message: string,
+        readonly owner?: RunId,
+    ) {
+        super(message);
+    }
+}
 
-/** No live task answers to the given id or external id, so there is nothing to observe or act on. */
+/** No run answers to the given name, so there is nothing to observe or act on. */
 export class TaskNotFoundError extends TaskError {}
+
+/**
+ * Undo of a finished run needs its task type registered, because whether a run may be rolled back is a
+ * decision of the task, not of its record.
+ */
+export class TaskTypeNotRegisteredError extends TaskError {}
 
 /** A task refused to run because a member's current intent violates a required precondition. */
 export class RotationPreconditionError extends TaskError {}

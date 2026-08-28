@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Task } from "#task/Task.js";
-import { PlannedChange, TaskPhase } from "#task/types.js";
-import { Observable } from "@matter/general";
+import { Task, TaskPersistence } from "#task/Task.js";
+import { TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
+import { PlannedChange, RunId, TaskPhase, TaskStatus } from "#task/types.js";
+import { Immutable, Observable } from "@matter/general";
 import { ClientNode, DesiredStateBehavior, ItemKind, ItemMode, ItemState, ManagedItem, itemMapKey } from "@matter/node";
 import { Status } from "@matter/types";
 
@@ -26,7 +27,7 @@ export class SyntheticTask extends Task<{ tag: string }> {
     override plannedChanges(): PlannedChange[] {
         return SyntheticTask.plannedChangesByTag[this.params.tag] ?? new Array<PlannedChange>();
     }
-    static override idFor(params: { tag: string }) {
+    static override slotKeyFor(params: { tag: string }) {
         return `synthetic:${params.tag}`;
     }
 }
@@ -218,4 +219,140 @@ export class FakePeer {
     asNode(): ClientNode {
         return this as unknown as ClientNode;
     }
+}
+
+/** Behavior state reaches a test through the project's deep-immutable view, so helpers read that shape. */
+type RunRecords = Immutable<Record<string, TaskPersistence>>;
+type RunRecord = Immutable<TaskPersistence>;
+
+/**
+ * Persisted records for a slot, newest run first. Records are per-run now, so a slot can hold several; a test
+ * that means "the record for this slot" wants {@link recordFor}, and one that means a specific attempt should
+ * name its runId.
+ */
+export function recordsFor(runs: RunRecords, slotKey: string): readonly RunRecord[] {
+    return Object.values(runs)
+        .filter(r => r.slotKey === slotKey)
+        .sort((a, b) => b.runId - a.runId);
+}
+
+/** The newest persisted record for a slot, or undefined if no run of it was ever recorded. */
+export function recordFor(runs: RunRecords, slotKey: string): RunRecord | undefined {
+    return recordsFor(runs, slotKey)[0];
+}
+
+/** The newest record for a slot, failing with the slot name when there is none. */
+export function requireRecordFor(runs: RunRecords, slotKey: string): RunRecord {
+    const record = recordFor(runs, slotKey);
+    if (record === undefined) {
+        throw new Error(`No persisted run of slot ${slotKey}`);
+    }
+    return record;
+}
+
+/**
+ * The persisted rollback the newest run of `slotKey` *recorded*, resolved through that run's own
+ * `revertRunId`.
+ *
+ * Deliberately not `find(r => r.revertOf === original.runId)`: an assertion on the result's `revertOf` would
+ * then be checking the predicate that selected it, which is how a migration ends up with a test that cannot
+ * fail. Resolving through the forward link keeps the two sides independent.
+ */
+export function revertRecordOf(runs: RunRecords, slotKey: string): RunRecord | undefined {
+    const revertRunId = recordFor(runs, slotKey)?.revertRunId;
+    return revertRunId === undefined ? undefined : runs[String(revertRunId)];
+}
+
+/** Every persisted rollback of any run of `slotKey`, for asserting that none exists. */
+export function revertRecordsOf(runs: RunRecords, slotKey: string): readonly RunRecord[] {
+    const undone = new Set(recordsFor(runs, slotKey).map(r => r.runId));
+    return Object.values(runs).filter(r => r.revertOf !== undefined && undone.has(r.revertOf));
+}
+
+/**
+ * The newest run of a slot, live or retired. Lookup is by run identity now, so a test that names a slot has to
+ * resolve it — and resolving it here keeps each assertion about the thing it was always about.
+ */
+export function requireRunIdOfSlot(manager: TaskManagerBehavior, slotKey: string): RunId {
+    const runId = runIdOfSlot(manager, slotKey);
+    if (runId === undefined) {
+        throw new Error(`No run answers to slot ${slotKey}`);
+    }
+    return runId;
+}
+
+export function runIdOfSlot(manager: TaskManagerBehavior, slotKey: string): RunId | undefined {
+    const live = manager.tasks.find(t => t.status.slotKey === slotKey);
+    if (live !== undefined) {
+        return live.runId;
+    }
+    return manager.history().find(h => h.status.slotKey === slotKey)?.runId;
+}
+
+/** The handle for the newest run of a slot. */
+export function handleOfSlot(manager: TaskManagerBehavior, slotKey: string): TaskHandle | undefined {
+    const runId = runIdOfSlot(manager, slotKey);
+    return runId === undefined ? undefined : manager.get(runId);
+}
+
+/** The status of the newest run of a slot. */
+export function statusOfSlot(manager: TaskManagerBehavior, slotKey: string): TaskStatus | undefined {
+    return handleOfSlot(manager, slotKey)?.status;
+}
+
+/** The status of the newest run of a slot, failing with the slot name when nothing answers to it. */
+export function requireStatusOfSlot(manager: TaskManagerBehavior, slotKey: string): TaskStatus {
+    const status = statusOfSlot(manager, slotKey);
+    if (status === undefined) {
+        throw new Error(`No run answers to slot ${slotKey}`);
+    }
+    return status;
+}
+
+/** Cancel the newest run of a slot, or report that nothing answers to it. */
+export function cancelSlot(manager: TaskManagerBehavior, slotKey: string): Promise<TaskHandle | undefined> {
+    const runId = runIdOfSlot(manager, slotKey);
+    if (runId === undefined) {
+        // Mirrors cancel() of a run nothing answers to, so a test asserting that outcome still exercises it.
+        return manager.cancel(RunId(Number.MAX_SAFE_INTEGER));
+    }
+    return manager.cancel(runId);
+}
+
+/** The slot key of the rollback of the newest run of `slotKey`, or undefined if none was recorded. */
+export function revertSlotOf(runs: RunRecords, slotKey: string): string | undefined {
+    return revertRecordOf(runs, slotKey)?.slotKey;
+}
+
+/**
+ * Wait for one specific run to reach one of `states`. A slot can hold several runs, so waiting on the slot
+ * would match a previous run that is already in the state the caller is waiting for.
+ */
+export async function awaitRun(
+    node: { act<T>(fn: (agent: { get(t: unknown): unknown }) => T): Promise<T> },
+    manager: { new (...args: never[]): unknown },
+    runId: RunId,
+    ...states: string[]
+): Promise<void> {
+    for (let i = 0; i < 2_000; i++) {
+        const settled = await node.act(a => {
+            const m = a.get(manager) as TaskManagerBehavior;
+            const state = m.get(runId)?.status.state;
+            if (state === undefined || !states.includes(state)) {
+                return false;
+            }
+            // A run turns terminal one step before it retires; a caller acting here would find the slot held.
+            return (
+                !(["completed", "failed", "cancelled"] as string[]).includes(state) ||
+                !m.tasks.some(t => t.runId === runId)
+            );
+        });
+        if (settled) {
+            return;
+        }
+        // Integration gates settle on macrotasks, not on time alone, so both have to be pumped.
+        await MockTime.advance(100);
+        await MockTime.macrotask;
+    }
+    throw new Error(`Run #${runId} did not reach state ${states.join("|")}`);
 }

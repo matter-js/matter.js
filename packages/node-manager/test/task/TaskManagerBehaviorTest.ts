@@ -10,10 +10,20 @@ import { RotateGroupKey } from "#task/groups/RotateGroupKey.js";
 import { Task, TaskPersistence } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { TaskPhase } from "#task/types.js";
+import { RetireSeq, RunId } from "#task/types.js";
 import { Environment } from "@matter/general";
 import { ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
-import { SyntheticTask } from "./helpers.js";
+import {
+    cancelSlot,
+    handleOfSlot,
+    recordFor,
+    requireRecordFor,
+    requireStatusOfSlot,
+    revertRecordOf,
+    statusOfSlot,
+    SyntheticTask,
+} from "./helpers.js";
 
 const RootEndpoint = MockServerNode.RootEndpoint.with(TaskManagerBehavior);
 
@@ -22,8 +32,8 @@ class TracingTaskManager extends TaskManagerBehavior {
     static override readonly schema = TaskManagerBehavior.schema;
 
     /** True while a drive of `id` owns this id's gate and driving entries. */
-    isDriven(id: string): boolean {
-        return this.internal.driving.has(id) && this.internal.gates.has(id);
+    isDriven(runId: RunId): boolean {
+        return this.internal.driving.has(runId) && this.internal.gates.has(runId);
     }
 }
 
@@ -62,17 +72,25 @@ async function pumpUntil(name: string, condition: () => boolean | Promise<boolea
 }
 
 /**
- * Advances MockTime until the persisted state for the task reaches a terminal state.
- * Polling persisted state (state.tasks[id]) ensures #drive's final #persist has completed.
+ * Advances MockTime until no run owns `slotKey` any more.
+ *
+ * A run turns terminal one step before it retires, so waiting for the record to read terminal would let a
+ * caller act while the slot is still held — and a re-run of that slot would then be refused.
  */
-async function awaitTaskDone(node: ServerNode, id: string): Promise<void> {
+async function awaitTaskDone(node: ServerNode, slotKey: string): Promise<void> {
     // Bound the poll loop so a never-terminating task fails clearly instead of spinning.
     for (let i = 0; i < 10_000; i++) {
-        const state = await node.act(a => a.get(TaskManagerBehavior).state.tasks[id]?.state);
-        if (state === "completed" || state === "failed") return;
+        const retired = await node.act(a => {
+            const manager = a.get(TaskManagerBehavior);
+            return (
+                !manager.tasks.some(t => t.status.slotKey === slotKey) &&
+                recordFor(manager.state.runs, slotKey) !== undefined
+            );
+        });
+        if (retired) return;
         await MockTime.advance(1);
     }
-    throw new Error(`Task ${id} did not reach a terminal state`);
+    throw new Error(`No run of slot ${slotKey} retired`);
 }
 
 describe("TaskManagerBehavior", () => {
@@ -106,7 +124,7 @@ describe("TaskManagerBehavior", () => {
         await node.act(agent => agent.get(TaskManagerBehavior).run("synthetic", { tag: "ok" }));
         await awaitTaskDone(node, "synthetic:ok");
         expect(ran).deep.equals(["a", "b"]);
-        const status = await node.act(a => a.get(TaskManagerBehavior).get("synthetic:ok")?.status);
+        const status = await node.act(a => statusOfSlot(a.get(TaskManagerBehavior), "synthetic:ok"));
         expect(status?.state).equals("completed");
     });
 
@@ -158,10 +176,11 @@ describe("TaskManagerBehavior", () => {
 
         // A terminal task does not hold its id, so the request runs again under it.
         const h3 = await node.act(a => a.get(TaskManagerBehavior).run("synthetic", { tag: "dup" }));
-        expect(h3.id).equals(h1.id);
+        expect(h3.runId).not.equals(h1.runId);
+        expect(h3.status.slotKey).equals(h1.status.slotKey);
         await pumpUntil("re-run in flight", () => runs === 2);
         await pumpUntil("re-run complete", async () => {
-            const state = await node.act(a => a.get(TaskManagerBehavior).get("synthetic:dup")?.status.state);
+            const state = await node.act(a => requireStatusOfSlot(a.get(TaskManagerBehavior), "synthetic:dup").state);
             return state === "completed";
         });
         expect(await node.act(a => a.get(TaskManagerBehavior).tasks.length)).equals(1);
@@ -192,7 +211,7 @@ describe("TaskManagerBehavior", () => {
             const again = await node.act(a =>
                 a.get(TaskManagerBehavior).run("synthetic", { tag: "mine" }, { externalId: "owner" }),
             );
-            expect(again.id).equals(first.id);
+            expect(again.runId).equals(first.runId);
             expect(await node.act(a => a.get(TaskManagerBehavior).tasks.length)).equals(1);
             // The join must reach the running task, not replace it under its id: a replacement would drive the
             // phases a second time against the same peers.
@@ -223,14 +242,15 @@ describe("TaskManagerBehavior", () => {
         await node.act(a => a.get(TaskManagerBehavior).register("synthetic", SyntheticTask));
         await node.act(a => a.get(TaskManagerBehavior).run("synthetic", { tag: "ext" }, { externalId: "myref" }));
         await awaitTaskDone(node, "synthetic:ext");
-        const found = await node.act(a => a.get(TaskManagerBehavior).get("myref"));
+        const found = await node.act(a => a.get(TaskManagerBehavior).forExternalId("myref"));
         expect(found?.status.externalId).equals("myref");
     });
 
     it("marks a rotation non-revertible once activate begins; tasks are revertible by default", () => {
         const rotatableAt = (phaseIndex: number) =>
             new RotateGroupKey(
-                "rotateGroupKey:42:r1",
+                RunId(1),
+                "rotateGroupKey:42",
                 { groupKeySetId: 42, newEpochKey: new Uint8Array(16), rotationId: "r1" },
                 { phaseIndex, state: "running" },
             ).revertible;
@@ -239,12 +259,14 @@ describe("TaskManagerBehavior", () => {
         expect(rotatableAt(2)).equals(false); // cleanup in flight
         expect(rotatableAt(3)).equals(false); // completed
 
-        expect(new SyntheticTask("synthetic:x", { tag: "x" }).revertible).equals(true);
+        expect(new SyntheticTask(RunId(1), "synthetic:x", { tag: "x" }).revertible).equals(true);
 
         // The generic decline reason must not leak a specific task type's domain language.
-        expect(new SyntheticTask("synthetic:x", { tag: "x" }).notRevertibleReason).does.not.contain("rotation");
+        expect(new SyntheticTask(RunId(1), "synthetic:x", { tag: "x" }).notRevertibleReason).does.not.contain(
+            "rotation",
+        );
         expect(
-            new RotateGroupKey("rotateGroupKey:42:r1", {
+            new RotateGroupKey(RunId(1), "rotateGroupKey:42", {
                 groupKeySetId: 42,
                 newEpochKey: new Uint8Array(16),
                 rotationId: "r1",
@@ -271,7 +293,7 @@ describe("TaskManagerBehavior", () => {
                     },
                 ];
             }
-            static override idFor(params: { tag: string }) {
+            static override slotKeyFor(params: { tag: string }) {
                 return `hardFail:${params.tag}`;
             }
         }
@@ -280,32 +302,34 @@ describe("TaskManagerBehavior", () => {
 
         await node.act(a => a.get(TaskManagerBehavior).run("hardFail", { tag: "revertible", revertible: true }));
         await awaitTaskDone(node, "hardFail:revertible");
-        const revertible = await node.act(a => a.get(TaskManagerBehavior).get("hardFail:revertible")?.status);
+        const revertible = await node.act(a => statusOfSlot(a.get(TaskManagerBehavior), "hardFail:revertible"));
         expect(revertible?.state).equals("failed");
-        expect(revertible?.revertTaskId).equals("revert:hardFail:revertible");
+        // A rollback was created, and it is a rollback OF this run — not merely "some record exists", which
+        // would pass identically when nothing was rolled back at all.
+        const revertRunId = revertible?.revertRunId;
+        expect(typeof revertRunId).equals("number");
+        const rollback = await node.act(a => a.get(TaskManagerBehavior).get(revertRunId!)?.status);
+        expect(rollback?.revertOf).equals(revertible?.runId);
+        expect(rollback?.slotKey).equals(`revert:${revertible?.runId}`);
 
         await node.act(a => a.get(TaskManagerBehavior).run("hardFail", { tag: "final", revertible: false }));
         await awaitTaskDone(node, "hardFail:final");
-        const nonRevertible = await node.act(a => a.get(TaskManagerBehavior).get("hardFail:final")?.status);
+        const nonRevertible = await node.act(a => statusOfSlot(a.get(TaskManagerBehavior), "hardFail:final"));
         expect(nonRevertible?.state).equals("failed");
-        expect(nonRevertible?.revertTaskId).equals(undefined);
-        expect(await node.act(a => a.get(TaskManagerBehavior).state.tasks["revert:hardFail:final"])).equals(undefined);
+        expect(nonRevertible?.revertRunId).equals(undefined);
+        expect(await node.act(a => revertRecordOf(a.get(TaskManagerBehavior).state.runs, "hardFail:final"))).equals(
+            undefined,
+        );
     });
 
-    it("keeps driver bookkeeping of a re-run started while the previous drive still settles", async () => {
+    it("refuses a re-run of a slot while the previous run's driver is still unwinding", async () => {
         await using node = await MockServerNode.create(TracingRootEndpoint, { id: "tm-rerun-race" });
-        let release!: () => void;
-        const blocked = new Promise<void>(resolve => (release = resolve));
-        let holding = false;
         let runs = 0;
         SyntheticTask.phasesByTag["race"] = [
             {
                 name: "a",
                 run: async () => {
-                    if (++runs > 1) {
-                        holding = true;
-                        await blocked;
-                    }
+                    runs++;
                 },
             },
         ];
@@ -315,17 +339,30 @@ describe("TaskManagerBehavior", () => {
             manager = a.get(TracingTaskManager);
         });
 
-        // Re-run from inside the terminal write of the first run: its drive promise has not settled yet.
-        HookedTask.atTerminalWrite = () => manager.run("synthetic", { tag: "race" });
+        // A run turns terminal before its driver settles, and it keeps its slot until it does. A re-run
+        // admitted in that window would start writing to the peer while the previous unwind is still in
+        // flight, so it is refused rather than queued.
+        let outcome: unknown = "hook never ran";
+        HookedTask.atTerminalWrite = () => {
+            try {
+                manager.run("synthetic", { tag: "race" });
+                outcome = "admitted";
+            } catch (e) {
+                outcome = e;
+            }
+        };
         try {
             await node.act(a => a.get(TracingTaskManager).run("synthetic", { tag: "race" }));
-            await pumpUntil("re-run in flight", () => holding);
-
-            expect(await node.act(a => a.get(TracingTaskManager).isDriven("synthetic:race"))).equals(true);
+            await pumpUntil(
+                "first run retired",
+                async () => (await node.act(a => a.get(TracingTaskManager).tasks.length)) === 0,
+            );
         } finally {
             HookedTask.atTerminalWrite = undefined;
-            release();
         }
+
+        expect(outcome).instanceOf(TaskConflictError);
+        expect(runs).equals(1);
     });
 
     it("distinguishes an id no live task answers to from a task with nothing to roll back", async () => {
@@ -337,22 +374,28 @@ describe("TaskManagerBehavior", () => {
         await awaitTaskDone(node, "synthetic:nothing");
 
         // A task that touched nothing has nothing to roll back, and says so.
-        expect(await node.act(a => a.get(TaskManagerBehavior).cancel("synthetic:nothing"))).equals(undefined);
+        expect(await node.act(a => cancelSlot(a.get(TaskManagerBehavior), "synthetic:nothing"))).equals(undefined);
 
         // An id nobody is holding work under is a different answer, not the same one.
         await expect(
-            (async () => node.act(a => a.get(TaskManagerBehavior).cancel("synthetic:never-existed")))(),
+            (async () => node.act(a => cancelSlot(a.get(TaskManagerBehavior), "synthetic:never-existed")))(),
         ).rejectedWith(TaskNotFoundError);
-        expect(await node.act(a => a.get(TaskManagerBehavior).get("synthetic:never-existed"))).equals(undefined);
+        expect(await node.act(a => handleOfSlot(a.get(TaskManagerBehavior), "synthetic:never-existed"))).equals(
+            undefined,
+        );
 
-        // So is a terminal record from a previous start: it is not resumed, so no live task answers to its id.
+        // A run that retired before a restart still answers. This is the contract this increment changes: it
+        // used to vanish, because only non-terminal records were resumed and lookup read only the live table.
         await node.act(a => {
-            a.get(TaskManagerBehavior).state.tasks = {
-                "synthetic:orphan": {
+            a.get(TaskManagerBehavior).state.runs = {
+                "7": {
+                    runId: RunId(7),
+                    slotKey: "synthetic:orphan",
                     type: "synthetic",
                     params: { tag: "orphan" },
                     phaseIndex: 1,
                     state: "cancelled",
+                    retireSeq: RetireSeq(1),
                     changeSet: [],
                 },
             };
@@ -361,9 +404,13 @@ describe("TaskManagerBehavior", () => {
 
         const node2 = await MockServerNode.create(RootEndpoint, { environment, id: "tm-cancel-unknown" });
         await node2.act(a => a.get(TaskManagerBehavior).register("synthetic", SyntheticTask));
-        await expect(
-            (async () => node2.act(a => a.get(TaskManagerBehavior).cancel("synthetic:orphan")))(),
-        ).rejectedWith(TaskNotFoundError);
+
+        expect(await node2.act(a => a.get(TaskManagerBehavior).get(RunId(7))?.status.state)).equals("cancelled");
+        // Its changeSet is empty, so there is nothing to roll back — a different answer from "never existed".
+        expect(await node2.act(a => a.get(TaskManagerBehavior).cancel(RunId(7)))).equals(undefined);
+        await expect((async () => node2.act(a => a.get(TaskManagerBehavior).cancel(RunId(999))))()).rejectedWith(
+            TaskNotFoundError,
+        );
         await node2.close();
     });
 
@@ -373,8 +420,10 @@ describe("TaskManagerBehavior", () => {
         await node.act(a => a.get(TaskManagerBehavior).register("synthetic", SyntheticTask));
         await node.act(a => a.get(TaskManagerBehavior).run("synthetic", { tag: "persist" }));
         await awaitTaskDone(node, "synthetic:persist");
-        const persisted = node.stateOf(TaskManagerBehavior).tasks;
-        expect(Object.keys(persisted)).deep.equals(["synthetic:persist"]);
-        expect(persisted["synthetic:persist"].state).equals("completed");
+        const persisted = node.stateOf(TaskManagerBehavior).runs;
+        const record = requireRecordFor(persisted, "synthetic:persist");
+        // One record, stored under the identity of the run that wrote it.
+        expect(Object.keys(persisted)).deep.equals([String(record.runId)]);
+        expect(record.state).equals("completed");
     });
 });

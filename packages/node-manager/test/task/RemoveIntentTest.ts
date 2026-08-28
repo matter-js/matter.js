@@ -7,6 +7,7 @@
 import { RunningTaskContext } from "#task/RunningTaskContext.js";
 import { Task } from "#task/Task.js";
 import { TaskState } from "#task/types.js";
+import { RunId } from "#task/types.js";
 import { itemMapKey } from "@matter/node";
 import { FakePeer } from "./helpers.js";
 
@@ -18,7 +19,7 @@ class CtxTask extends Task {
 }
 
 function makeContext(peer: FakePeer, referenced: boolean) {
-    const task = new CtxTask("ctx-test:1", {});
+    const task = new CtxTask(RunId(1), "ctx-test:1", {});
     const setState = (s: TaskState) => {
         task.progress.state = s;
     };

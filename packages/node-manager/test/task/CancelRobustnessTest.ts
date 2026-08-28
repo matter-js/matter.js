@@ -9,10 +9,22 @@ import { TaskConflictError, TaskFailedError, TaskManagerClosingError } from "#ta
 import { TaskPersistence } from "#task/Task.js";
 import { TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { TaskPhase, TaskState } from "#task/types.js";
+import { RunId } from "#task/types.js";
 import { CrashedDependencyError, Environment, Lifecycle, MaybePromise } from "@matter/general";
 import { Behavior, ClientNode, ItemKind, itemMapKey } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
-import { FakePeer, SyntheticTask } from "./helpers.js";
+import {
+    cancelSlot,
+    FakePeer,
+    recordFor,
+    requireRecordFor,
+    requireRunIdOfSlot,
+    requireStatusOfSlot,
+    revertRecordOf,
+    runIdOfSlot,
+    statusOfSlot,
+    SyntheticTask,
+} from "./helpers.js";
 
 class TestTaskManager extends TaskManagerBehavior {
     static override readonly schema = TaskManagerBehavior.schema;
@@ -30,13 +42,21 @@ class TestTaskManager extends TaskManagerBehavior {
     }
 
     /** True once cancel() has accepted the request, before it settles. */
-    isCancelling(id: string): boolean {
-        return this.internal.cancelling.has(id);
+    isCancelling(runId: RunId): boolean {
+        return this.internal.cancelling.has(runId);
     }
 
     /** True while a task's drive promise has not settled. */
-    isDriven(id: string): boolean {
-        return this.internal.driving.has(id);
+    isDriven(runId: RunId): boolean {
+        return this.internal.driving.has(runId);
+    }
+
+    /**
+     * Refuse every further write, with the node otherwise healthy. Distinct from shutdown: this is the storage
+     * failure a cancel can hit while the manager is running normally.
+     */
+    async closePersistMutex(): Promise<void> {
+        await this.internal.persistMutex?.close();
     }
 
     /** Occupy the persist mutex so the next persist queues behind the returned release. */
@@ -69,8 +89,8 @@ class TracedTask extends SyntheticTask {
     /** The state of every record written for this task, in order. */
     readonly persistedStates = new Array<TaskState>();
 
-    constructor(id: string, params: { tag: string }, persisted?: Partial<TaskPersistence>) {
-        super(id, params, persisted);
+    constructor(runId: RunId, slotKey: string, params: { tag: string }, persisted?: Partial<TaskPersistence>) {
+        super(runId, slotKey, params, persisted);
         TracedTask.instances.push(this);
     }
 
@@ -79,8 +99,8 @@ class TracedTask extends SyntheticTask {
         this.persistedStates.push(record.state);
         return record;
     }
-    static instance(id: string): TracedTask {
-        const found = TracedTask.instances.filter(t => t.id === id);
+    static instance(slotKey: string): TracedTask {
+        const found = TracedTask.instances.filter(t => t.slotKey === slotKey);
         expect(found.length).equals(1);
         return found[0];
     }
@@ -188,9 +208,11 @@ describe("cancel robustness", () => {
         await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "pregate" }));
         await pumpUntil("admission in flight", () => state.entered);
 
-        const cancelling = node.act(a => a.get(TestTaskManager).cancel("synthetic:pregate"));
+        const cancelling = node.act(a => cancelSlot(a.get(TestTaskManager), "synthetic:pregate"));
         await pumpUntil("cancel accepted", () =>
-            node.act(a => a.get(TestTaskManager).isCancelling("synthetic:pregate")),
+            node.act(a =>
+                a.get(TestTaskManager).isCancelling(runIdOfSlot(a.get(TestTaskManager), "synthetic:pregate")!),
+            ),
         );
         state.release();
 
@@ -200,13 +222,14 @@ describe("cancel robustness", () => {
         expect(peer.items[itemMapKey("groupMembership", "X")]).equals(undefined);
         expect(handle).equals(undefined);
 
-        const status = await node.act(a => a.get(TestTaskManager).get("synthetic:pregate")?.status);
+        const status = await node.act(a => statusOfSlot(a.get(TestTaskManager), "synthetic:pregate"));
         expect(status?.state).equals("cancelled");
-        expect(node.stateOf(TestTaskManager).tasks["synthetic:pregate"].state).equals("cancelled");
+        expect(requireRecordFor(node.stateOf(TestTaskManager).runs, "synthetic:pregate").state).equals("cancelled");
 
-        // The only record ever written is the cancelled one: a task whose cancel is already accepted must not be
-        // stored as running, which a crash before the cancel completes would resume.
-        expect(TracedTask.instance("synthetic:pregate").persistedStates).deep.equals(["cancelled"]);
+        // The only state ever written is the cancelled one: a task whose cancel is already accepted must not be
+        // stored as running, which a crash before the cancel completes would resume. Asserted on the distinct
+        // states rather than the sequence, because retirement re-reads the record it just wrote.
+        expect([...new Set(TracedTask.instance("synthetic:pregate").persistedStates)]).deep.equals(["cancelled"]);
 
         await node.close();
     });
@@ -225,7 +248,7 @@ describe("cancel robustness", () => {
         let cancelling: Promise<TaskHandle | undefined> | undefined;
         TestTaskManager.atContext = manager => {
             TestTaskManager.atContext = undefined;
-            cancelling = manager.cancel("synthetic:ctxrace");
+            cancelling = cancelSlot(manager, "synthetic:ctxrace");
         };
         try {
             await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "ctxrace" }));
@@ -238,7 +261,7 @@ describe("cancel robustness", () => {
 
         expect(peer.items[itemMapKey("groupMembership", "Z")]).equals(undefined);
         expect(handle).equals(undefined);
-        const status = await node.act(a => a.get(TestTaskManager).get("synthetic:ctxrace")?.status);
+        const status = await node.act(a => statusOfSlot(a.get(TestTaskManager), "synthetic:ctxrace"));
         expect(status?.state).equals("cancelled");
 
         await node.close();
@@ -257,17 +280,19 @@ describe("cancel robustness", () => {
         await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
         await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "durable" }));
         await pumpUntil("task complete", async () => {
-            const state = await node.act(a => a.get(TestTaskManager).state.tasks["synthetic:durable"]?.state);
+            const state = await node.act(a => recordFor(a.get(TestTaskManager).state.runs, "synthetic:durable")?.state);
             return state === "completed";
         });
 
-        const handle = await MockTime.resolve(node.act(a => a.get(TestTaskManager).cancel("synthetic:durable")));
-        expect(handle?.id).equals("revert:synthetic:durable");
+        const handle = await MockTime.resolve(node.act(a => cancelSlot(a.get(TestTaskManager), "synthetic:durable")));
+        expect(handle?.status.revertOf).equals(
+            requireRecordFor(node.stateOf(TestTaskManager).runs, "synthetic:durable").runId,
+        );
 
         // A promised revert that is not yet durable is lost to a crash while the forward record already names it.
-        const persisted = node.stateOf(TestTaskManager).tasks;
-        expect(persisted["synthetic:durable"].revertTaskId).equals("revert:synthetic:durable");
-        expect(persisted["revert:synthetic:durable"]).not.equals(undefined);
+        const persisted = node.stateOf(TestTaskManager).runs;
+        expect(requireRecordFor(persisted, "synthetic:durable").revertRunId).equals(handle?.runId);
+        expect(persisted[String(handle!.runId)]).not.equals(undefined);
 
         await node.close();
     });
@@ -299,11 +324,15 @@ describe("cancel robustness", () => {
         await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "cancelrerun" }, { externalId: "own" }));
         await pumpUntil("intent written", () => peer.items[itemMapKey("groupMembership", "C")] !== undefined);
 
-        const handle = await MockTime.resolve(node.act(a => a.get(TestTaskManager).cancel("synthetic:cancelrerun")));
-        expect(handle?.id).equals("revert:synthetic:cancelrerun");
+        const handle = await MockTime.resolve(
+            node.act(a => cancelSlot(a.get(TestTaskManager), "synthetic:cancelrerun")),
+        );
+        expect(handle?.status.revertOf).equals(
+            requireRecordFor(node.stateOf(TestTaskManager).runs, "synthetic:cancelrerun").runId,
+        );
         expect(rerun).instanceOf(TaskConflictError);
 
-        const status = await node.act(a => a.get(TestTaskManager).get("synthetic:cancelrerun")?.status);
+        const status = await node.act(a => statusOfSlot(a.get(TestTaskManager), "synthetic:cancelrerun"));
         expect(status?.state).equals("cancelled");
         await node.close();
     });
@@ -330,7 +359,7 @@ describe("cancel robustness", () => {
         await pumpUntil("intent written", () => peer.items[itemMapKey("groupMembership", "S")] !== undefined);
 
         // Cancel is accepted while the node is still up, then shutdown takes over the unwind.
-        const cancelling = node1.act(a => a.get(TestTaskManager).cancel("synthetic:shutrace"));
+        const cancelling = node1.act(a => cancelSlot(a.get(TestTaskManager), "synthetic:shutrace"));
         await pumpUntil("cancel observed by the gate", () => unwindReached);
 
         const closing = node1.close();
@@ -343,14 +372,14 @@ describe("cancel robustness", () => {
         // The task keeps a resumable state: nothing claims the cancel took effect.
         const task = TracedTask.instance("synthetic:shutrace");
         expect(task.progress.state).equals("running");
-        expect(task.revertTaskId).equals(undefined);
+        expect(task.revertRunId).equals(undefined);
 
         // Storage must agree: non-terminal, no dangling revert.
         const node2 = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-shutrace" });
-        const persisted = node2.stateOf(TestTaskManager).tasks;
-        expect(persisted["synthetic:shutrace"].state).equals("running");
-        expect(persisted["synthetic:shutrace"].revertTaskId).equals(undefined);
-        expect(persisted["revert:synthetic:shutrace"]).equals(undefined);
+        const persisted = node2.stateOf(TestTaskManager).runs;
+        expect(requireRecordFor(persisted, "synthetic:shutrace").state).equals("running");
+        expect(requireRecordFor(persisted, "synthetic:shutrace").revertRunId).equals(undefined);
+        expect(revertRecordOf(persisted, "synthetic:shutrace")).equals(undefined);
         await node2.close();
     });
 
@@ -374,8 +403,11 @@ describe("cancel robustness", () => {
         // Hold the mutex so the cancel's write cannot run when it is enqueued, then start shutdown in that window:
         // a synchronous check before the enqueue cannot see the shutdown that begins after it.
         const release = await node1.act(a => a.get(TestTaskManager).holdPersistMutex());
-        const cancelling = node1.act(a => a.get(TestTaskManager).cancel("synthetic:queued"));
-        await pumpUntil("cancel write enqueued", () => manager.get("synthetic:queued")?.status.state === "cancelled");
+        const cancelling = node1.act(a => cancelSlot(a.get(TestTaskManager), "synthetic:queued"));
+        await pumpUntil(
+            "cancel write enqueued",
+            () => requireStatusOfSlot(manager, "synthetic:queued").state === "cancelled",
+        );
 
         const closing = node1.close();
         await pumpUntil("node no longer active", () => node1.construction.status !== Lifecycle.Status.Active);
@@ -387,15 +419,15 @@ describe("cancel robustness", () => {
         // The refused write leaves no trace: state as it was, no rollback linked, none live, nothing rolled back.
         const task = TracedTask.instance("synthetic:queued");
         expect(task.progress.state).equals("running");
-        expect(task.revertTaskId).equals(undefined);
-        expect(manager.tasks.map(t => t.id)).deep.equals(["synthetic:queued"]);
+        expect(task.revertRunId).equals(undefined);
+        expect(manager.tasks.map(t => t.status.slotKey)).deep.equals(["synthetic:queued"]);
         expect(peer.removeOrder).deep.equals([]);
 
         const node2 = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-queued" });
-        const persisted = node2.stateOf(TestTaskManager).tasks;
-        expect(persisted["synthetic:queued"].state).equals("running");
-        expect(persisted["synthetic:queued"].revertTaskId).equals(undefined);
-        expect(persisted["revert:synthetic:queued"]).equals(undefined);
+        const persisted = node2.stateOf(TestTaskManager).runs;
+        expect(requireRecordFor(persisted, "synthetic:queued").state).equals("running");
+        expect(requireRecordFor(persisted, "synthetic:queued").revertRunId).equals(undefined);
+        expect(revertRecordOf(persisted, "synthetic:queued")).equals(undefined);
         await node2.close();
     });
 
@@ -416,14 +448,14 @@ describe("cancel robustness", () => {
         });
         await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "crashed" }));
         await pumpUntil("task complete", async () => {
-            const state = await node.act(a => a.get(TestTaskManager).state.tasks["synthetic:crashed"]?.state);
+            const state = await node.act(a => recordFor(a.get(TestTaskManager).state.runs, "synthetic:crashed")?.state);
             return state === "completed";
         });
 
         // A crashed manager cannot record a cancel either, but it is not shutting down and a re-issue after the
         // next start is not the remedy — so it must not claim it is.
         node.construction.setStatus(Lifecycle.Status.Crashed);
-        await expect(MockTime.resolve(manager.cancel("synthetic:crashed"))).rejectedWith(CrashedDependencyError);
+        await expect(MockTime.resolve(cancelSlot(manager, "synthetic:crashed"))).rejectedWith(CrashedDependencyError);
 
         await node.close();
     });
@@ -463,12 +495,12 @@ describe("cancel robustness", () => {
 
         const task = TracedTask.instance("synthetic:shutfail");
         expect(task.progress.state).equals("running");
-        expect(task.revertTaskId).equals(undefined);
+        expect(task.revertRunId).equals(undefined);
 
         const node2 = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-shutfail" });
-        const persisted = node2.stateOf(TestTaskManager).tasks;
-        expect(persisted["synthetic:shutfail"].state).equals("running");
-        expect(persisted["revert:synthetic:shutfail"]).equals(undefined);
+        const persisted = node2.stateOf(TestTaskManager).runs;
+        expect(requireRecordFor(persisted, "synthetic:shutfail").state).equals("running");
+        expect(revertRecordOf(persisted, "synthetic:shutfail")).equals(undefined);
         await node2.close();
     });
 
@@ -505,13 +537,13 @@ describe("cancel robustness", () => {
         // The task fails against a crashed node, so neither the failure nor a rollback of it can be recorded.
         node.construction.setStatus(Lifecycle.Status.Crashed);
         releasePhase();
-        await pumpUntil("drive settled", () => !manager.isDriven("synthetic:failwrite"));
-        expect(manager.get("synthetic:failwrite")?.status.state).equals("failed");
+        await pumpUntil("drive settled", () => !manager.isDriven(requireRunIdOfSlot(manager, "synthetic:failwrite")));
+        expect(requireStatusOfSlot(manager, "synthetic:failwrite").state).equals("failed");
 
         // A rollback the record does not name must not exist: it would block every future run of the id, and
         // nothing would ever drive it.
-        expect(manager.get("synthetic:failwrite")?.status.revertTaskId).equals(undefined);
-        expect(manager.tasks.map(t => t.id)).deep.equals(["synthetic:failwrite"]);
+        expect(requireStatusOfSlot(manager, "synthetic:failwrite").revertRunId).equals(undefined);
+        expect(manager.tasks.map(t => t.status.slotKey)).deep.equals(["synthetic:failwrite"]);
         expect(peer.removeOrder).deep.equals([]);
 
         await node.close();
@@ -546,7 +578,7 @@ describe("cancel robustness", () => {
         expect(peer.items[itemMapKey("groupMembership", "B")]).equals(undefined);
 
         const node2 = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-shutstart" });
-        expect(node2.stateOf(TestTaskManager).tasks["synthetic:shutstart"]).equals(undefined);
+        expect(recordFor(node2.stateOf(TestTaskManager).runs, "synthetic:shutstart")).equals(undefined);
         await node2.close();
     });
 
@@ -562,8 +594,10 @@ describe("cancel robustness", () => {
         const node = await MockServerNode.create(RegistrarRootEndpoint, { environment, id: "cancel-shutresume" });
         await node.act(a => {
             // A persisted task of a type this start never registers, so nothing resumes it before shutdown.
-            a.get(TestTaskManager).state.tasks = {
-                "synthetic:shutresume": {
+            a.get(TestTaskManager).state.runs = {
+                "1": {
+                    runId: RunId(1),
+                    slotKey: "synthetic:shutresume",
                     type: "synthetic",
                     params: { tag: "shutresume" },
                     phaseIndex: 0,
@@ -598,7 +632,9 @@ describe("cancel robustness", () => {
         const node2 = await MockServerNode.create(RegistrarRootEndpoint, { environment, id: "cancel-shutresume" });
         await node2.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
         await pumpUntil("resumed task complete", async () => {
-            const state = await node2.act(a => a.get(TestTaskManager).state.tasks["synthetic:shutresume"]?.state);
+            const state = await node2.act(
+                a => recordFor(a.get(TestTaskManager).state.runs, "synthetic:shutresume")?.state,
+            );
             return state === "completed";
         });
         await node2.close();
@@ -635,7 +671,47 @@ describe("cancel robustness", () => {
         // Shutdown cannot write state, so a task that never got that far is lost either way — but it must not be
         // recorded as failed.
         const node2 = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-predispose" });
-        expect(node2.stateOf(TestTaskManager).tasks["synthetic:predispose"]).equals(undefined);
+        expect(recordFor(node2.stateOf(TestTaskManager).runs, "synthetic:predispose")).equals(undefined);
         await node2.close();
+    });
+
+    it("keeps a task driveable when the write recording its cancel is refused", async () => {
+        const environment = new Environment("test");
+        const peer = new FakePeer("cw");
+        TestTaskManager.peers.set("cw", peer);
+        TestTaskManager.reconcilerPeer = peer;
+
+        SyntheticTask.phasesByTag["cancelwrite"] = [gatePhase("cw", "groupMembership", "W")];
+
+        const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-write-refused" });
+        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        let manager!: TestTaskManager;
+        await node.act(a => {
+            manager = a.get(TestTaskManager);
+        });
+        const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "cancelwrite" }));
+
+        // Wait until the phase has touched the peer, so the cancel has a changeSet to roll back.
+        for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "W")] === undefined; i++) {
+            await MockTime.advance(1);
+        }
+
+        // Storage refuses from here on, with the node still running: not shutdown, just a failed write.
+        await node.act(a => a.get(TestTaskManager).closePersistMutex());
+
+        await expect((async () => node.act(a => a.get(TestTaskManager).cancel(handle.runId)))()).rejected;
+
+        // A cancel that was never recorded must leave the task exactly as it was — including its driver. The
+        // abort stopped the driver and dropped the gate, so without giving both back the task would sit
+        // non-terminal with nothing left to advance it, and never reach any outcome at all.
+        expect(manager.get(handle.runId)?.status.state).does.not.equal("cancelled");
+        expect(manager.get(handle.runId)?.status.revertRunId).equals(undefined);
+
+        await pumpUntil("the redriven task reaches an outcome", () => {
+            const state = manager.get(handle.runId)?.status.state;
+            return state === "failed" || state === "completed";
+        });
+
+        await node.close();
     });
 });

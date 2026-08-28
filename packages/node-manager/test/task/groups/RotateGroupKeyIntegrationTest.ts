@@ -19,6 +19,18 @@ import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import { FabricManager, SustainedSubscription } from "@matter/protocol";
 import { FabricId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
+import {
+    awaitRun,
+    cancelSlot,
+    recordFor,
+    recordsFor,
+    requireRecordFor,
+    requireRunIdOfSlot,
+    requireStatusOfSlot,
+    revertRecordOf,
+    revertSlotOf,
+    statusOfSlot,
+} from "../helpers.js";
 
 const { TrustFirst } = GroupKeyManagement.GroupKeySecurityPolicy;
 
@@ -34,8 +46,7 @@ const ROTATE_PARAMS: RotateGroupKeyParams = {
     newEpochKey: NEW_KEY,
     rotationId: ROTATION_ID,
 };
-const rotateId = (rotationId: string) => `${ROTATE_GROUP_KEY_TYPE}:${GROUP_KEY_SET_ID}:${rotationId}`;
-const ROTATE_ID = rotateId(ROTATION_ID);
+const ROTATE_SLOT = `${ROTATE_GROUP_KEY_TYPE}:${GROUP_KEY_SET_ID}`;
 
 const ControllerRoot = MockServerNode.RootEndpoint.with(TaskManagerBehavior);
 const MEMBER_DEVICE = OnOffLightSwitchDevice.with(GroupsServer);
@@ -162,9 +173,16 @@ function subscriptionOf(peer: ClientNode): SustainedSubscription {
 /** Pump virtual time + macrotasks until the persisted task state is one of `states` (else throw). */
 async function awaitState(node: ServerNode, id: string, ...states: string[]): Promise<void> {
     for (let i = 0; i < 2_000; i++) {
-        const state = await node.act(a => a.get(TaskManagerBehavior).state.tasks[id]?.state);
+        const state = await node.act(a => recordFor(a.get(TaskManagerBehavior).state.runs, id)?.state);
         if (state !== undefined && states.includes(state)) {
-            return;
+            // A run turns terminal one step before it retires, so a caller that acts here would find the
+            // slot still held.
+            const settled =
+                !(["completed", "failed", "cancelled"] as string[]).includes(state) ||
+                (await node.act(a => !a.get(TaskManagerBehavior).tasks.some(t => t.status.slotKey === id)));
+            if (settled) {
+                return;
+            }
         }
         await MockTime.advance(100);
         await MockTime.macrotask;
@@ -178,7 +196,7 @@ async function awaitState(node: ServerNode, id: string, ...states: string[]): Pr
  */
 async function awaitParkedInPhase(node: ServerNode, id: string, phaseIndex: number): Promise<void> {
     for (let i = 0; i < 2_000; i++) {
-        const p = await node.act(a => a.get(TaskManagerBehavior).state.tasks[id]);
+        const p = await node.act(a => recordFor(a.get(TaskManagerBehavior).state.runs, id));
         if (p?.state === "parked" && p.phaseIndex === phaseIndex) {
             return;
         }
@@ -256,7 +274,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         writesA.length = writesB.length = 0;
 
         await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
-        await awaitState(controller, ROTATE_ID, "completed");
+        await awaitState(controller, ROTATE_SLOT, "completed");
 
         // Cleanup back-dates the sole surviving key to the ORIGINAL op start, so the final device start-set is
         // indistinguishable from the pre-rotation set (material is unreadable). The per-phase writes are the
@@ -284,16 +302,16 @@ describe("RotateGroupKey task integration (two members)", () => {
         // Park the rotation at distribute so the second member can join the key set mid-rotation.
         await MockTime.resolve(subscriptionOf(peerA).active.emit(false), { macrotasks: true });
         await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
-        await awaitParkedInPhase(controller, ROTATE_ID, 0);
+        await awaitParkedInPhase(controller, ROTATE_SLOT, 0);
 
         writesA.length = writesB.length = 0;
         await controller.act(a => a.get(TaskManagerBehavior).run("addNodeToGroup", addParamsFor(peerB.id)));
         await awaitState(controller, addTaskId(peerB.id), "completed");
 
         await MockTime.resolve(subscriptionOf(peerA).active.emit(true), { macrotasks: true });
-        await awaitState(controller, ROTATE_ID, "failed");
+        await awaitState(controller, ROTATE_SLOT, "failed");
 
-        const status = await controller.act(a => a.get(TaskManagerBehavior).get(ROTATE_ID)?.status);
+        const status = await controller.act(a => statusOfSlot(a.get(TaskManagerBehavior), ROTATE_SLOT));
         expect(status?.error).contains("joined the key set after the distribute phase");
 
         // A saw distribute only (2 starts, the new key future-dated and dormant); neither member was activated.
@@ -319,16 +337,16 @@ describe("RotateGroupKey task integration (two members)", () => {
         };
 
         await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
-        await awaitParkedInPhase(controller, ROTATE_ID, 1);
+        await awaitParkedInPhase(controller, ROTATE_SLOT, 1);
 
         writesA.length = writesB.length = 0;
         await controller.act(a => a.get(TaskManagerBehavior).run("addNodeToGroup", addParamsFor(peerB.id)));
         await awaitState(controller, addTaskId(peerB.id), "completed");
 
         await MockTime.resolve(subscriptionA.active.emit(true), { macrotasks: true });
-        await awaitState(controller, ROTATE_ID, "failed");
+        await awaitState(controller, ROTATE_SLOT, "failed");
 
-        const status = await controller.act(a => a.get(TaskManagerBehavior).get(ROTATE_ID)?.status);
+        const status = await controller.act(a => statusOfSlot(a.get(TaskManagerBehavior), ROTATE_SLOT));
         expect(status?.error).contains("during the activate phase");
 
         // Cleanup never ran, so no member lost the old key: A holds the 3-key activate struct, B only its own
@@ -341,19 +359,19 @@ describe("RotateGroupKey task integration (two members)", () => {
         expect(Bytes.areEqual(deviceKey0(deviceB, GROUP_KEY_SET_ID), OP_KEY)).equals(true);
 
         // The rotation stopped at its point of no return, so it is not rolled back.
-        expect(status?.revertTaskId).equals(undefined);
+        expect(status?.revertRunId).equals(undefined);
 
         // The remedy the failure prescribes must work: rotating to a DIFFERENT key is refused while the members
         // still carry the dormant one, so only the same key can finish what this rotation started.
-        await controller.act(a =>
+        const other = await controller.act(a =>
             a.get(TaskManagerBehavior).run("rotateGroupKey", {
                 groupKeySetId: GROUP_KEY_SET_ID,
                 newEpochKey: new Uint8Array(16).fill(0xef),
                 rotationId: "rOther",
             }),
         );
-        await awaitState(controller, rotateId("rOther"), "failed");
-        const otherStatus = await controller.act(a => a.get(TaskManagerBehavior).get(rotateId("rOther"))?.status);
+        await awaitRun(controller, TaskManagerBehavior, other.runId, "failed");
+        const otherStatus = await controller.act(a => a.get(TaskManagerBehavior).get(other.runId)?.status);
         expect(otherStatus?.error).contains("single-key steady state");
 
         // Re-issued with the same new key, distribute covers the whole current member set, so the late member is
@@ -361,7 +379,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         await controller.act(a =>
             a.get(TaskManagerBehavior).run("rotateGroupKey", { ...ROTATE_PARAMS, rotationId: "r2" }),
         );
-        await awaitState(controller, rotateId("r2"), "completed");
+        await awaitState(controller, ROTATE_SLOT, "completed");
         for (const device of [deviceA, deviceB]) {
             expect(deviceStarts(device, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
             expect(Bytes.areEqual(deviceKey0(device, GROUP_KEY_SET_ID), NEW_KEY)).equals(true);
@@ -377,7 +395,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         await MockTime.resolve(subscriptionB.active.emit(false), { macrotasks: true });
 
         await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
-        await awaitState(controller, ROTATE_ID, "parked");
+        await awaitState(controller, ROTATE_SLOT, "parked");
 
         // Let any reachable-peer work settle; the barrier still cannot advance past distribute while B is offline.
         for (let i = 0; i < 50; i++) {
@@ -387,14 +405,16 @@ describe("RotateGroupKey task integration (two members)", () => {
 
         // The rotation is stuck at distribute: A's desired state holds the 2-key distribute struct, never the
         // 1-key cleanup struct that drops the old key, so the still-online member keeps its old key.
-        expect(await controller.act(a => a.get(TaskManagerBehavior).state.tasks[ROTATE_ID]?.state)).equals("parked");
+        expect(await controller.act(a => recordFor(a.get(TaskManagerBehavior).state.runs, ROTATE_SLOT)?.state)).equals(
+            "parked",
+        );
         expect(intentStarts(peerA, GROUP_KEY_SET_ID).length).equals(2);
         expect(deviceStarts(deviceA, GROUP_KEY_SET_ID)).contains(OP_START);
         expect(deviceStarts(deviceB, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
 
         // Bring B back; the subscription wake re-drives the gate through the full rotation on both members.
         await MockTime.resolve(subscriptionB.active.emit(true), { macrotasks: true });
-        await awaitState(controller, ROTATE_ID, "completed");
+        await awaitState(controller, ROTATE_SLOT, "completed");
 
         // Both members were driven through all three phases once B returned (last three writes per device).
         expect(writesA.map(s => s.length).slice(-3)).deep.equals([2, 3, 1]);
@@ -412,19 +432,21 @@ describe("RotateGroupKey task integration (two members)", () => {
         // Park the rotation (member B offline), then close the controller mid-rotation.
         await MockTime.resolve(subscriptionOf(peerB).active.emit(false), { macrotasks: true });
         await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
-        await awaitState(controller, ROTATE_ID, "parked");
+        await awaitState(controller, ROTATE_SLOT, "parked");
         const id = controller.id;
         await MockTime.resolve(controller.close(), { macrotasks: true });
 
         // Recreate from the same storage on the same network host; the persisted parked task resumes.
         const controller2 = await site.addNode(ControllerRoot, { id, index: 1 });
-        const resumed = await controller2.act(a => a.get(TaskManagerBehavior).state.tasks[ROTATE_ID]?.state);
+        const resumed = await controller2.act(
+            a => recordFor(a.get(TaskManagerBehavior).state.runs, ROTATE_SLOT)?.state,
+        );
         expect(["running", "parked"]).contains(resumed);
 
         // Fresh subscriptions to both members re-establish; write-if-set-differs makes the re-drive idempotent.
         await subscribedPeer(controller2, peerAId);
         await subscribedPeer(controller2, peerBId);
-        await awaitState(controller2, ROTATE_ID, "completed");
+        await awaitState(controller2, ROTATE_SLOT, "completed");
 
         expect(deviceStarts(deviceA, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
         expect(deviceStarts(deviceB, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
@@ -435,7 +457,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         const { controller, deviceA, peerA } = await twoMemberGroup(site);
 
         await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
-        await awaitState(controller, ROTATE_ID, "completed");
+        await awaitState(controller, ROTATE_SLOT, "completed");
         expect(deviceStarts(deviceA, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
 
         // Drain the post-rotation verify pass before mutating so the drift below is what verify next observes.
@@ -479,32 +501,40 @@ describe("RotateGroupKey task integration (two members)", () => {
         await MockTime.resolve(subscriptionB.active.emit(false), { macrotasks: true });
 
         await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
-        await awaitState(controller, ROTATE_ID, "parked");
+        await awaitState(controller, ROTATE_SLOT, "parked");
 
         // Distribute has pushed the 2-key struct to the still-online member A; activate has not begun.
         expect(intentStarts(peerA, GROUP_KEY_SET_ID).length).equals(2);
-        const phaseIndex = await controller.act(a => a.get(TaskManagerBehavior).state.tasks[ROTATE_ID]?.phaseIndex);
+        const phaseIndex = await controller.act(
+            a => recordFor(a.get(TaskManagerBehavior).state.runs, ROTATE_SLOT)?.phaseIndex,
+        );
         expect(phaseIndex).equals(0);
 
         // Cancel is accepted in the safe window and returns a revert handle.
         const handle = await MockTime.resolve(
-            controller.act(a => a.get(TaskManagerBehavior).cancel(ROTATE_ID)),
+            controller.act(a => cancelSlot(a.get(TaskManagerBehavior), ROTATE_SLOT)),
             {
                 macrotasks: true,
             },
         );
-        expect(handle?.id).equals(`revert:${ROTATE_ID}`);
+        expect(handle?.status.revertOf).equals(
+            requireRecordFor(controller.stateOf(TaskManagerBehavior).runs, ROTATE_SLOT).runId,
+        );
 
         // Bring B back so the revert converges on both members.
         await MockTime.resolve(subscriptionB.active.emit(true), { macrotasks: true });
-        await awaitState(controller, `revert:${ROTATE_ID}`, "completed");
+        await awaitState(
+            controller,
+            (await controller.act(a => revertSlotOf(a.get(TaskManagerBehavior).state.runs, ROTATE_SLOT)))!,
+            "completed",
+        );
 
         // Both members restored to the single OLD key (old material); the dormant new key is dropped.
         for (const device of [deviceA, deviceB]) {
             expect(deviceStarts(device, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
             expect(Bytes.areEqual(deviceKey0(device, GROUP_KEY_SET_ID), OP_KEY)).equals(true);
         }
-        const state = await controller.act(a => a.get(TaskManagerBehavior).get(ROTATE_ID)?.status.state);
+        const state = await controller.act(a => requireStatusOfSlot(a.get(TaskManagerBehavior), ROTATE_SLOT).state);
         expect(state).equals("cancelled");
         expect(intentStarts(peerA, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
     });
@@ -528,12 +558,14 @@ describe("RotateGroupKey task integration (two members)", () => {
             await MockTime.macrotask;
         }
         expect(releaseDistribute).not.equals(undefined);
-        expect(await controller.act(a => a.get(TaskManagerBehavior).state.tasks[ROTATE_ID]?.phaseIndex)).equals(0);
+        expect(
+            await controller.act(a => recordFor(a.get(TaskManagerBehavior).state.runs, ROTATE_SLOT)?.phaseIndex),
+        ).equals(0);
         expect(writesA.map(s => s.length)).deep.equals([2]); // distribute wrote 2 slots; activate (3) has not run
         expect(writesB.map(s => s.length)).deep.equals([2]);
 
         // Request cancel while paused between phases; its flag is set synchronously (blocked on the drive promise).
-        const cancelPromise = controller.act(a => a.get(TaskManagerBehavior).cancel(ROTATE_ID));
+        const cancelPromise = controller.act(a => cancelSlot(a.get(TaskManagerBehavior), ROTATE_SLOT));
         for (let i = 0; i < 5; i++) {
             await MockTime.macrotask;
         }
@@ -543,8 +575,14 @@ describe("RotateGroupKey task integration (two members)", () => {
         releaseDistribute = undefined;
 
         const handle = await MockTime.resolve(cancelPromise, { macrotasks: true });
-        expect(handle?.id).equals(`revert:${ROTATE_ID}`);
-        await awaitState(controller, `revert:${ROTATE_ID}`, "completed");
+        expect(handle?.status.revertOf).equals(
+            requireRecordFor(controller.stateOf(TaskManagerBehavior).runs, ROTATE_SLOT).runId,
+        );
+        await awaitState(
+            controller,
+            (await controller.act(a => revertSlotOf(a.get(TaskManagerBehavior).state.runs, ROTATE_SLOT)))!,
+            "completed",
+        );
 
         // Forbidden outcome ruled out: no activate write (never a 3-slot struct), no sentinel; both members back
         // on the OLD key material with the single original start time.
@@ -554,7 +592,7 @@ describe("RotateGroupKey task integration (two members)", () => {
             expect(deviceStarts(device, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
             expect(Bytes.areEqual(deviceKey0(device, GROUP_KEY_SET_ID), OP_KEY)).equals(true);
         }
-        const state = await controller.act(a => a.get(TaskManagerBehavior).get(ROTATE_ID)?.status.state);
+        const state = await controller.act(a => requireStatusOfSlot(a.get(TaskManagerBehavior), ROTATE_SLOT).state);
         expect(state).equals("cancelled");
         expect(intentStarts(peerA, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
     });
@@ -566,28 +604,29 @@ describe("RotateGroupKey task integration (two members)", () => {
         const KEY_A = new Uint8Array(16).fill(0xa1);
         const KEY_B = new Uint8Array(16).fill(0xb2);
 
-        await controller.act(a =>
+        const first = await controller.act(a =>
             a.get(TaskManagerBehavior).run("rotateGroupKey", {
                 groupKeySetId: GROUP_KEY_SET_ID,
                 newEpochKey: KEY_A,
                 rotationId: "r1",
             }),
         );
-        await awaitState(controller, rotateId("r1"), "completed");
+        await awaitRun(controller, TaskManagerBehavior, first.runId, "completed");
         for (const device of [deviceA, deviceB]) {
             expect(Bytes.areEqual(deviceKey0(device, GROUP_KEY_SET_ID), KEY_A)).equals(true);
         }
 
-        // A distinct rotationId is a distinct task id, so the recovery path — rotating a bad key to another —
-        // runs as its own task with its own record.
-        await controller.act(a =>
+        // The recovery path — rotating a bad key to another — is a second run of the same slot, admitted once
+        // the first has retired. Each run keeps its own record; waiting on the slot would match the first.
+        const second = await controller.act(a =>
             a.get(TaskManagerBehavior).run("rotateGroupKey", {
                 groupKeySetId: GROUP_KEY_SET_ID,
                 newEpochKey: KEY_B,
                 rotationId: "r2",
             }),
         );
-        await awaitState(controller, rotateId("r2"), "completed");
+        expect(second.runId).not.equals(first.runId);
+        await awaitRun(controller, TaskManagerBehavior, second.runId, "completed");
         for (const device of [deviceA, deviceB]) {
             expect(Bytes.areEqual(deviceKey0(device, GROUP_KEY_SET_ID), KEY_B)).equals(true);
         }
@@ -600,24 +639,31 @@ describe("RotateGroupKey task integration (two members)", () => {
         // Park r1 non-terminal (member B offline during distribute).
         await MockTime.resolve(subscriptionOf(peerB).active.emit(false), { macrotasks: true });
         await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
-        await awaitState(controller, ROTATE_ID, "parked");
+        await awaitState(controller, ROTATE_SLOT, "parked");
 
         const OTHER_KEY = new Uint8Array(16).fill(0xef);
-        await expect(
-            controller.act(async a =>
+        let refusal: unknown;
+        try {
+            await controller.act(async a =>
                 a.get(TaskManagerBehavior).run("rotateGroupKey", {
                     groupKeySetId: GROUP_KEY_SET_ID,
                     newEpochKey: OTHER_KEY,
                     rotationId: "r2",
                 }),
-            ),
-        ).rejectedWith(TaskConflictError);
+            );
+        } catch (e) {
+            refusal = e;
+        }
+        expect(refusal).instanceOf(TaskConflictError);
+        // Pinned to the holder, because one error class now covers slot, external id and rollback conflicts.
+        expect((refusal as TaskConflictError).owner).equals(
+            await controller.act(a => requireRunIdOfSlot(a.get(TaskManagerBehavior), ROTATE_SLOT)),
+        );
 
-        // r1 is untouched and no r2 task was spawned.
-        const r1State = await controller.act(a => a.get(TaskManagerBehavior).state.tasks[ROTATE_ID]?.state);
-        expect(r1State).equals("parked");
-        expect(await controller.act(a => a.get(TaskManagerBehavior).state.tasks[rotateId("r2")])).equals(undefined);
-        expect(await controller.act(a => a.get(TaskManagerBehavior).get(rotateId("r2")))).equals(undefined);
+        // r1 is untouched, and the refusal means the slot still holds exactly one run.
+        const runs = await controller.act(a => recordsFor(a.get(TaskManagerBehavior).state.runs, ROTATE_SLOT));
+        expect(runs.length).equals(1);
+        expect(runs[0].state).equals("parked");
     });
 
     it("rejects a new rotation while a revert of the same key set is still live", async () => {
@@ -628,12 +674,17 @@ describe("RotateGroupKey task integration (two members)", () => {
         // offline), so a live non-terminal revert now holds the key set.
         await MockTime.resolve(subscriptionOf(peerB).active.emit(false), { macrotasks: true });
         await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
-        await awaitState(controller, ROTATE_ID, "parked");
+        await awaitState(controller, ROTATE_SLOT, "parked");
         await MockTime.resolve(
-            controller.act(a => a.get(TaskManagerBehavior).cancel(ROTATE_ID)),
+            controller.act(a => cancelSlot(a.get(TaskManagerBehavior), ROTATE_SLOT)),
             { macrotasks: true },
         );
-        await awaitState(controller, `revert:${ROTATE_ID}`, "parked", "running");
+        await awaitState(
+            controller,
+            (await controller.act(a => revertSlotOf(a.get(TaskManagerBehavior).state.runs, ROTATE_SLOT)))!,
+            "parked",
+            "running",
+        );
 
         const OTHER_KEY = new Uint8Array(16).fill(0xef);
         await expect(
@@ -646,11 +697,11 @@ describe("RotateGroupKey task integration (two members)", () => {
             ),
         ).rejectedWith(TaskConflictError);
 
-        // The revert is untouched and no r2 task was spawned.
+        // The revert is untouched, and the refusal means no second rotation of the slot was spawned.
         expect(["parked", "running"]).contains(
-            await controller.act(a => a.get(TaskManagerBehavior).state.tasks[`revert:${ROTATE_ID}`]?.state),
+            await controller.act(a => revertRecordOf(a.get(TaskManagerBehavior).state.runs, ROTATE_SLOT)?.state),
         );
-        expect(await controller.act(a => a.get(TaskManagerBehavior).state.tasks[rotateId("r2")])).equals(undefined);
+        expect(await controller.act(a => recordsFor(a.get(TaskManagerBehavior).state.runs, ROTATE_SLOT))).length(1);
     });
 
     it("refuses a re-issue of a live rotationId, and joins the caller that owns it", async () => {
@@ -662,8 +713,8 @@ describe("RotateGroupKey task integration (two members)", () => {
         const first = await controller.act(a =>
             a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS, { externalId: "nightly" }),
         );
-        expect(first.id).equals(ROTATE_ID);
-        await awaitState(controller, ROTATE_ID, "parked");
+        expect(first.status.slotKey).equals(ROTATE_SLOT);
+        await awaitState(controller, ROTATE_SLOT, "parked");
 
         // `act` returns a MaybePromise, so normalize before asserting on the rejection.
         await expect(
@@ -676,7 +727,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         const again = await controller.act(a =>
             a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS, { externalId: "nightly" }),
         );
-        expect(again.id).equals(ROTATE_ID);
+        expect(again.runId).equals(first.runId);
         expect(again.status.state).equals("parked");
         expect(again.status.phaseIndex).equals(0);
         expect(await controller.act(a => a.get(TaskManagerBehavior).tasks.length)).equals(before);
@@ -698,7 +749,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         };
 
         await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
-        await awaitParkedInPhase(controller, ROTATE_ID, 1); // parked in activate, not distribute
+        await awaitParkedInPhase(controller, ROTATE_SLOT, 1); // parked in activate, not distribute
 
         // Distribute committed the 2-key struct on both members (old key still present); activate never wrote.
         const parkedStartsA = deviceStarts(deviceA, GROUP_KEY_SET_ID);
@@ -707,14 +758,14 @@ describe("RotateGroupKey task integration (two members)", () => {
         expect(parkedStartsB.length).equals(2);
 
         // Cancel is declined with zero side effects: no revert spawned, task stays parked, devices untouched.
-        await expect(controller.act(a => a.get(TaskManagerBehavior).cancel(ROTATE_ID))).rejectedWith(
+        await expect(controller.act(a => cancelSlot(a.get(TaskManagerBehavior), ROTATE_SLOT))).rejectedWith(
             TaskNotRevertibleError,
             "forward-only",
         );
-        const status = await controller.act(a => a.get(TaskManagerBehavior).get(ROTATE_ID)?.status);
+        const status = await controller.act(a => statusOfSlot(a.get(TaskManagerBehavior), ROTATE_SLOT));
         expect(status?.state).equals("parked");
-        expect(status?.revertTaskId).equals(undefined);
-        expect(await controller.act(a => a.get(TaskManagerBehavior).state.tasks[`revert:${ROTATE_ID}`])).equals(
+        expect(status?.revertRunId).equals(undefined);
+        expect(await controller.act(a => revertRecordOf(a.get(TaskManagerBehavior).state.runs, ROTATE_SLOT))).equals(
             undefined,
         );
 
@@ -730,7 +781,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         const { controller, deviceA, deviceB } = await twoMemberGroup(site);
 
         await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
-        await awaitState(controller, ROTATE_ID, "completed");
+        await awaitState(controller, ROTATE_SLOT, "completed");
 
         // The rotation realized the NEW key on both members (start-set matches the original, material does not).
         for (const device of [deviceA, deviceB]) {
@@ -738,16 +789,16 @@ describe("RotateGroupKey task integration (two members)", () => {
             expect(Bytes.areEqual(deviceKey0(device, GROUP_KEY_SET_ID), NEW_KEY)).equals(true);
         }
 
-        await expect(controller.act(a => a.get(TaskManagerBehavior).cancel(ROTATE_ID))).rejectedWith(
+        await expect(controller.act(a => cancelSlot(a.get(TaskManagerBehavior), ROTATE_SLOT))).rejectedWith(
             TaskNotRevertibleError,
             "forward-only",
         );
 
         // Declined with zero side effects: no revert spawned, task stays completed, both devices keep the new key.
-        const status = await controller.act(a => a.get(TaskManagerBehavior).get(ROTATE_ID)?.status);
+        const status = await controller.act(a => statusOfSlot(a.get(TaskManagerBehavior), ROTATE_SLOT));
         expect(status?.state).equals("completed");
-        expect(status?.revertTaskId).equals(undefined);
-        expect(await controller.act(a => a.get(TaskManagerBehavior).state.tasks[`revert:${ROTATE_ID}`])).equals(
+        expect(status?.revertRunId).equals(undefined);
+        expect(await controller.act(a => revertRecordOf(a.get(TaskManagerBehavior).state.runs, ROTATE_SLOT))).equals(
             undefined,
         );
         for (const device of [deviceA, deviceB]) {

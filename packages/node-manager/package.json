@@ -27,7 +27,9 @@
     },
     "dependencies": {
         "@matter/general": "*",
+        "@matter/model": "*",
         "@matter/node": "*",
+        "@matter/protocol": "*",
         "@matter/types": "*"
     },
     "devDependencies": {

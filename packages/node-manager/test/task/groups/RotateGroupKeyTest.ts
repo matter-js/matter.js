@@ -14,6 +14,7 @@ import { GroupsServer } from "@matter/node/behaviors/groups";
 import { OnOffLightSwitchDevice } from "@matter/node/devices/on-off-light-switch";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
+import { recordFor, statusOfSlot } from "../helpers.js";
 
 const { TrustFirst } = GroupKeyManagement.GroupKeySecurityPolicy;
 
@@ -44,7 +45,7 @@ const ROTATE_PARAMS: RotateGroupKeyParams = {
 };
 
 const ADD_ID = `${ADD_NODE_TO_GROUP_TYPE}:peer1:${0x101}:1`;
-const ROTATE_ID = `${ROTATE_GROUP_KEY_TYPE}:${GROUP_KEY_SET_ID}:${ROTATION_ID}`;
+const ROTATE_SLOT = `${ROTATE_GROUP_KEY_TYPE}:${GROUP_KEY_SET_ID}`;
 
 /** Snapshot of a keySetWrite, captured before the server mutates the request (MAX-sentinel nulling). */
 type WriteSnapshot = GroupKeyManagement.GroupKeySet;
@@ -64,9 +65,16 @@ const DeviceRoot = MockServerNode.RootEndpoint.with(RecordingGroupKeyManagementS
 
 async function awaitState(node: ServerNode, id: string, ...states: string[]): Promise<void> {
     for (let i = 0; i < 2_000; i++) {
-        const state = await node.act(a => a.get(TaskManagerBehavior).state.tasks[id]?.state);
+        const state = await node.act(a => recordFor(a.get(TaskManagerBehavior).state.runs, id)?.state);
         if (state !== undefined && states.includes(state)) {
-            return;
+            // A run turns terminal one step before it retires, so a caller that acts here would find the
+            // slot still held.
+            const settled =
+                !(["completed", "failed", "cancelled"] as string[]).includes(state) ||
+                (await node.act(a => !a.get(TaskManagerBehavior).tasks.some(t => t.status.slotKey === id)));
+            if (settled) {
+                return;
+            }
         }
         await MockTime.advance(100);
         await MockTime.macrotask;
@@ -107,7 +115,7 @@ describe("RotateGroupKey task integration (single member)", () => {
 
         writes.length = 0; // ignore the provisioning write; record only the rotation
         await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
-        await awaitState(controller, ROTATE_ID, "completed");
+        await awaitState(controller, ROTATE_SLOT, "completed");
 
         // Three phases, each a distinct start-time set that write-if-set-differs actually wrote.
         expect(writes.length).equals(3);
@@ -184,9 +192,9 @@ describe("RotateGroupKey task integration (single member)", () => {
 
         writes.length = 0;
         await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
-        await awaitState(controller, ROTATE_ID, "failed");
+        await awaitState(controller, ROTATE_SLOT, "failed");
 
-        const status = await controller.act(a => a.get(TaskManagerBehavior).get(ROTATE_ID)?.status);
+        const status = await controller.act(a => statusOfSlot(a.get(TaskManagerBehavior), ROTATE_SLOT));
         expect(status?.error).contains("single-key steady state");
 
         // Nothing was mutated: no device write, and the seeded intent object is untouched (reference-equal).
@@ -208,7 +216,7 @@ describe("RotateGroupKey task integration (single member)", () => {
         await controller.act(a =>
             a.get(TaskManagerBehavior).run("rotateGroupKey", { ...ROTATE_PARAMS, groupKeySetId: 99 }),
         );
-        await awaitState(controller, `${ROTATE_GROUP_KEY_TYPE}:99:${ROTATION_ID}`, "completed");
+        await awaitState(controller, `${ROTATE_GROUP_KEY_TYPE}:99`, "completed");
         expect(writes.length).equals(0);
     });
 });
