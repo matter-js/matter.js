@@ -22,7 +22,7 @@ import {
     UINT64_MAX,
     UINT8_MAX,
 } from "@matter/general";
-import { Constraint, FieldValue, ValueModel } from "@matter/model";
+import { Constraint, EncodedValue, FieldValue, ValueModel } from "@matter/model";
 
 /**
  * Helpers for generation of TLV schema from models.
@@ -33,28 +33,40 @@ export namespace ModelBounds {
     export function createLengthBounds(model: ValueModel) {
         const constraint = extractApplicableConstraint(model);
 
-        const value = FieldValue.numericValue(constraint.value, model.type);
+        // A length counts bytes or entries, which the size of a message bounds, so it is a number even where a value
+        // of the same type would need more
+        const value = EncodedValue(model, constraint.value);
         if (value !== undefined) {
-            return { length: value };
+            return { length: Number(value) };
         }
 
-        return createRangeBounds(constraint, "minLength", "maxLength");
+        const bounds = createRangeBounds(model, constraint);
+        if (bounds === undefined) {
+            return;
+        }
+
+        return {
+            ...(bounds.min === undefined ? undefined : { minLength: Number(bounds.min) }),
+            ...(bounds.max === undefined ? undefined : { maxLength: Number(bounds.max) }),
+        };
     }
 
     export function createNumberBounds(model: ValueModel) {
         const constraint = model.effectiveConstraint;
 
-        const value = FieldValue.numericValue(constraint.value, model.type);
+        const value = EncodedValue(model, constraint.value);
         if (value !== undefined) {
-            return { min: value, max: value };
+            return { min: stated(value), max: stated(value) };
         }
 
-        return createRangeBounds(constraint, "min", "max", model.type);
+        return createRangeBounds(model, constraint, model.effectiveType);
     }
 
     /**
      * Bounds for numeric types.
      */
+    export type NumericRanges = typeof NumericRanges;
+
     export const NumericRanges = {
         uint8: { min: 0, max: UINT8_MAX },
         uint16: { min: 0, max: UINT16_MAX },
@@ -71,15 +83,17 @@ export namespace ModelBounds {
     };
 }
 
-function createRangeBounds(constraint: Constraint, minKey: string, maxKey: string, type?: string) {
-    let min = FieldValue.numericValue(constraint.min, type);
-    let max = FieldValue.numericValue(constraint.max, type);
+function createRangeBounds(model: ValueModel, constraint: Constraint, type?: string) {
+    let min = EncodedValue(model, constraint.min);
+    let max = EncodedValue(model, constraint.max);
 
-    if (min === (ModelBounds.NumericRanges as any)[type as any]?.min) {
+    const range = type === undefined ? undefined : ModelBounds.NumericRanges[type as keyof ModelBounds.NumericRanges];
+
+    // A bound that states what the type already states constrains nothing
+    if (range !== undefined && min !== undefined && min === range.min) {
         min = undefined;
     }
-
-    if (max === (ModelBounds.NumericRanges as any)[type as any]?.max) {
+    if (range !== undefined && max !== undefined && max === range.max) {
         max = undefined;
     }
 
@@ -87,15 +101,17 @@ function createRangeBounds(constraint: Constraint, minKey: string, maxKey: strin
         return;
     }
 
-    const bounds = {} as { [key: string]: number };
-    if (min !== undefined) {
-        bounds[minKey] = min;
-    }
-    if (max !== undefined) {
-        bounds[maxKey] = max;
+    return { min: stated(min), max: stated(max) };
+}
+
+/** A safe integer is a number; a wider magnitude carries a bigint, as a number states it only approximately */
+function stated(bound: number | bigint | undefined) {
+    if (typeof bound !== "bigint") {
+        return bound;
     }
 
-    return bounds;
+    const asNumber = Number(bound);
+    return Number.isSafeInteger(asNumber) ? asNumber : bound;
 }
 
 export function extractApplicableConstraint(model: ValueModel) {

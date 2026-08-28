@@ -148,13 +148,13 @@ export const CommodityTariff = Cluster(
 
     Datatype(
         { name: "DayPatternDayOfWeekBitmap", type: "map8" },
-        Field({ name: "Sunday", constraint: "0" }),
-        Field({ name: "Monday", constraint: "1" }),
-        Field({ name: "Tuesday", constraint: "2" }),
-        Field({ name: "Wednesday", constraint: "3" }),
-        Field({ name: "Thursday", constraint: "4" }),
-        Field({ name: "Friday", constraint: "5" }),
-        Field({ name: "Saturday", constraint: "6" })
+        Field({ name: "Sunday", conformance: "M", constraint: "0" }),
+        Field({ name: "Monday", conformance: "M", constraint: "1" }),
+        Field({ name: "Tuesday", conformance: "M", constraint: "2" }),
+        Field({ name: "Wednesday", conformance: "M", constraint: "3" }),
+        Field({ name: "Thursday", conformance: "M", constraint: "4" }),
+        Field({ name: "Friday", conformance: "M", constraint: "5" }),
+        Field({ name: "Saturday", conformance: "M", constraint: "6" })
     ),
 
     Datatype(
@@ -278,11 +278,8 @@ export const CommodityTariff = Cluster(
         Field({ name: "Price", id: 0x1, type: "TariffPriceStruct", conformance: "[PRICE].b+", quality: "X" }),
         Field({ name: "FriendlyCredit", id: 0x2, type: "bool", conformance: "[FCRED].b+" }),
         Field({ name: "AuxiliaryLoad", id: 0x3, type: "AuxiliaryLoadSwitchSettingsStruct", conformance: "[AUXLD].b+" }),
-        Field({ name: "PeakPeriod", id: 0x4, type: "PeakPeriodStruct", conformance: "[PEAKP].b+", default: { type: "none" } }),
-        Field({
-            name: "PowerThreshold", id: 0x5, type: "PowerThresholdStruct", conformance: "[PWRTHLD].b+",
-            default: { type: "none" }
-        }),
+        Field({ name: "PeakPeriod", id: 0x4, type: "PeakPeriodStruct", conformance: "[PEAKP].b+" }),
+        Field({ name: "PowerThreshold", id: 0x5, type: "PowerThresholdStruct", conformance: "[PWRTHLD].b+" }),
         Field({ name: "Threshold", id: 0x6, type: "int64", conformance: "M", quality: "X" }),
         Field({ name: "Label", id: 0x7, type: "string", conformance: "O", constraint: "max 128", quality: "X" }),
         Field({ name: "Predicted", id: 0x8, type: "bool", conformance: "O" })

@@ -21,6 +21,7 @@ import {
     Logger,
     MaybePromise,
     Millis,
+    type Timestamp,
 } from "@matter/general";
 import { Val } from "@matter/protocol";
 import { Status, StatusResponseError } from "@matter/types";
@@ -825,7 +826,7 @@ export class ColorControlBaseServer extends ColorControlBase {
         }
 
         if (rateX === 0 && rateY === 0) {
-            return this.stopAllColorMovement();
+            return MaybePromise.then(this.stopAllColorMovement(), () => this.#endTransitions());
         }
 
         return MaybePromise.then(this.setColorMode(ColorControl.ColorMode.CurrentXAndCurrentY), () =>
@@ -1218,7 +1219,15 @@ export class ColorControlBaseServer extends ColorControlBase {
         if (!this.#optionsAllowExecution(optionsMask, optionsOverride)) {
             return;
         }
-        return this.stopMoveStepLogic();
+
+        // An active color loop is stopped by ColorLoopSet alone, so a transition survives this command and the
+        // remaining time is not this command's to end.  Without the ColorLoop feature the attribute reads undefined,
+        // so only an explicitly active loop may bypass the end of the transition
+        if (this.state.colorLoopActive === ColorControl.ColorLoopActive.Active) {
+            return this.stopMoveStepLogic();
+        }
+
+        return MaybePromise.then(this.stopMoveStepLogic(), () => this.#endTransitions());
     }
 
     /**
@@ -1229,7 +1238,7 @@ export class ColorControlBaseServer extends ColorControlBase {
      * @protected
      */
     protected stopMoveStepLogic(): MaybePromise {
-        if (this.state.colorLoopActive === ColorControl.ColorLoopActive.Inactive) {
+        if (this.state.colorLoopActive !== ColorControl.ColorLoopActive.Active) {
             this.internal.transitions?.stop("enhancedCurrentHue");
         }
         this.internal.transitions?.stop("currentHue");
@@ -1446,7 +1455,7 @@ export class ColorControlBaseServer extends ColorControlBase {
         if (oldMode === newMode) {
             return;
         }
-        MaybePromise.then(this.stopAllColorMovement(), () => {
+        return MaybePromise.then(this.stopAllColorMovement(), () => {
             switch (oldMode) {
                 case ColorControl.ColorMode.CurrentHueAndCurrentSaturation:
                     if (this.state.currentHue === undefined || this.state.currentSaturation === undefined) {
@@ -1655,8 +1664,8 @@ export class ColorControlBaseServer extends ColorControlBase {
                 return readOnlyState.managedTransitionTimeHandling;
             },
 
-            get transitionEndTimeMs() {
-                return readOnlyState.transitionEndTimeMs;
+            get transitionEndTime() {
+                return readOnlyState.transitionEndTime;
             },
 
             get stepInterval() {
@@ -1711,6 +1720,27 @@ export class ColorControlBaseServer extends ColorControlBase {
         }
 
         return this.internal.transitions?.start(transition);
+    }
+
+    /**
+     * End the cluster's transition at the request of a command that stops every movement.
+     *
+     * The remaining time becomes zero and is reported, which the specification requires whenever it changes to zero.
+     * The end time stated where the application manages transitions describes the movement that is now over, so it no
+     * longer applies either.
+     */
+    #endTransitions(): MaybePromise {
+        this.internal.transitions?.cancel();
+
+        if (this.state.transitionEndTime === undefined) {
+            return;
+        }
+
+        // A transition step holds this behavior's lock across its own await, so a synchronous write here fails a stop
+        // that lands mid-step
+        return MaybePromise.then(this.context.transaction.lock(this), () => {
+            this.state.transitionEndTime = undefined;
+        });
     }
 
     #getBootReason() {
@@ -1916,7 +1946,7 @@ export namespace ColorControlBaseServer {
          * If transition management is disabled you may specify this as the "end time" for transitions.  The remaining
          * time attribute will then report correctly.
          */
-        transitionEndTimeMs?: number;
+        transitionEndTime?: Timestamp;
 
         /**
          * When managing transitions, this is the interval at which steps occur in ms.
@@ -1935,13 +1965,8 @@ export namespace ColorControlBaseServer {
         override colorLoopDirection = ColorControl.ColorLoopDirection.Increment;
 
         [Val.properties](endpoint: Endpoint) {
-            // Only return remaining time if the attribute is defined in the endpoint
-            if (
-                (endpoint.behaviors.optionsFor(ColorControlBaseServer) as Record<string, unknown>)?.remainingTime ===
-                    undefined &&
-                (endpoint.behaviors.defaultsFor(ColorControlBaseServer) as Record<string, unknown>)?.remainingTime ===
-                    undefined
-            ) {
+            // An undefined value means the endpoint does not support the attribute
+            if (this.remainingTime === undefined) {
                 return {};
             }
             return {
@@ -1960,7 +1985,8 @@ export namespace ColorControlBaseServer {
     }
 
     export class Events extends ColorControlBase.Events {
-        transitionEndTime$Changed = AsyncObservable<[value: number, oldValue: number, context: ActionContext]>();
+        transitionEndTime$Changed =
+            AsyncObservable<[value: Timestamp | undefined, oldValue: Timestamp | undefined, context: ActionContext]>();
     }
 
     export declare const ExtensionInterface: {

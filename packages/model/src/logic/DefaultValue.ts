@@ -8,6 +8,7 @@ import { Bytes, Duration, NotImplementedError } from "@matter/general";
 import { FieldValue, Metatype } from "../common/index.js";
 import type { ValueModel } from "../models/ValueModel.js";
 import { DecodedBitmap } from "./DecodedBitmap.js";
+import { EncodedValue } from "./EncodedValue.js";
 import { Scope } from "./Scope.js";
 
 /**
@@ -52,7 +53,9 @@ function castValue(model: ValueModel, modelDefault?: FieldValue): unknown {
 
         case Metatype.integer:
         case Metatype.float:
-            return FieldValue.numericValue(modelDefault, model.type);
+            // Restated in encoding units the same way a constraint's bounds are, or a unit would mean one thing in a
+            // bound and another in a default
+            return EncodedValue(model, modelDefault);
 
         case Metatype.enum:
             let enumValueModel;
@@ -179,8 +182,9 @@ function buildBitmap(scope: Scope, model: ValueModel) {
     let fieldsDefined = 0;
 
     for (const m of scope.membersOf(model, { conformance: "conformant" })) {
+        // The bits compose with 32 bit arithmetic, so a magnitude a number cannot state has no place in them
         const defaultValue = FieldValue.numericValue(m.default);
-        if (defaultValue === undefined) {
+        if (typeof defaultValue !== "number") {
             continue;
         }
 
@@ -190,13 +194,13 @@ function buildBitmap(scope: Scope, model: ValueModel) {
 
         let minBit, maxBit;
 
-        const constraintValue = FieldValue.numericValue(m.constraint.value);
+        const constraintValue = FieldValue.countValue(m.constraint.value);
         if (constraintValue !== undefined) {
             minBit = constraintValue;
             maxBit = constraintValue + 1;
         } else {
-            minBit = FieldValue.numericValue(m.constraint.min);
-            maxBit = FieldValue.numericValue(m.constraint.max);
+            minBit = FieldValue.countValue(m.constraint.min);
+            maxBit = FieldValue.countValue(m.constraint.max);
         }
 
         if (minBit === undefined) {

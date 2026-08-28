@@ -77,8 +77,8 @@ export const ContentLauncher = Cluster(
     ),
     Datatype(
         { name: "SupportedProtocolsBitmap", type: "map32" },
-        Field({ name: "Dash", constraint: "0" }),
-        Field({ name: "Hls", constraint: "1" })
+        Field({ name: "Dash", conformance: "M", constraint: "0" }),
+        Field({ name: "Hls", conformance: "M", constraint: "1" })
     ),
 
     Datatype(

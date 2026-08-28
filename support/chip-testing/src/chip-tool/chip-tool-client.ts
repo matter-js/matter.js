@@ -184,14 +184,57 @@ async function probeFreePort(): Promise<number> {
 }
 
 /**
- * chip-tool's `strlen(msg) <= 5` numeric sniff in `OnWebSocketMessageReceived` reads a short command
- * starting with a digit as an async-report arming frame, so the command would silently never run.
+ * Whether chip-tool reads a frame as an async-report arming frame rather than as a command to run.
+ *
+ * Mirrors `InteractiveServerCommand::OnWebSocketMessageReceived`
+ * (`examples/chip-tool/commands/interactive/InteractiveCommands.cpp`): the frame is empty, or its C
+ * string is at most five bytes and a `uint16_t` stream extraction of it does not fail. Every rule below
+ * was measured by compiling that C++ against libstdc++, which is what CI runs:
+ *
+ * - the length is `strlen`, so bytes rather than characters, and it stops at the first NUL: `"1ééé"` is
+ *   seven bytes and runs, while `"12345\0"` is five bytes and parks
+ * - the extraction skips leading whitespace and takes a sign, and stops at the first non-digit without
+ *   failing, so `" 5"`, `"+5"` and `"5abc"` all arm reports while `"abc"` and `"+"` do not
+ * - the whitespace it skips is the C locale's, so a tab or a newline skips while a non-breaking space
+ *   does not: `"\u00a05"` runs as a command
+ * - a value the type cannot hold fails, so `"65536"` runs as a command even though `"65535"` does not
+ * - a negative wraps into the type instead of failing, so `"-1"` arms reports with a timeout of 65535
+ *
+ * Anything this returns true for is never run as a command, whoever sent it, which is why the test
+ * double for chip-tool decides with this same function rather than a copy of it.
+ */
+export function isAsyncReportFrame(frame: string) {
+    // chip-tool reads a C string, so nothing from the first NUL onward is part of the frame it sees.
+    const cString = frame.split("\0")[0];
+
+    const length = Buffer.byteLength(cString, "utf8");
+    if (length === 0) {
+        return true;
+    }
+    if (length > 5) {
+        return false;
+    }
+
+    const parsed = cString.match(/^[ \t\n\v\f\r]*([-+]?)(\d+)/);
+    if (parsed === null) {
+        return false;
+    }
+
+    const [, sign, digits] = parsed;
+    return sign === "-" || Number(digits) <= 0xffff;
+}
+
+/**
+ * chip-tool reads some frames as a request to park and wait for reports rather than as a command, and
+ * then the command never runs (see {@link isAsyncReportFrame} for the rule and where it comes from).
  */
 function assertCommandFrame(command: string) {
-    if (command.length === 0 || (command.length <= 5 && /^\s*[-+]?\d/.test(command))) {
+    if (isAsyncReportFrame(command)) {
         throw new ImplementationError(
             `chip-tool would read the command ${JSON.stringify(command)} as an async-report arming frame ` +
-                "rather than running it (empty, or at most five characters parsing as a number)",
+                "rather than running it: its C string — everything before a NUL, measured in bytes — is " +
+                "empty, or is at most five bytes that a uint16 extraction accepts after skipping ASCII " +
+                "whitespace and a sign",
         );
     }
 }
@@ -687,8 +730,9 @@ export class ChipToolClient {
     }
 
     #send(frame: string) {
+        // ws reports success as `null` rather than by omitting the argument
         this.#socket?.send(frame, cause => {
-            if (cause !== undefined) {
+            if (cause !== undefined && cause !== null) {
                 this.#options.onLog(`chip-tool frame ${JSON.stringify(frame)} failed to send: ${cause}`);
             }
         });

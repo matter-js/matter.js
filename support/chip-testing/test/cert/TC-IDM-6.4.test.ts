@@ -8,8 +8,6 @@ import { Matter } from "@matter/model";
 import type { EventPathSpec } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import {
-    ACK_WAIT_TIMEOUT_MS,
-    CertCheckFailedError,
     CommissionedRefs,
     EVENT_PATH_IBS_SEQUENCE,
     eventPathIBSequence,
@@ -17,7 +15,13 @@ import {
     expectSequence,
     expectSubscriptionId,
     fabricFilteredPattern,
+    LOG_TIMEOUT,
+    matterjsSubscribeEventPath,
+    matterjsSubscribeFlags,
+    matterjsSubscribeTiming,
+    record,
     requireId,
+    sameMessageFrom,
     SUBSCRIBE_REQUEST_MESSAGE,
 } from "./tc-support.js";
 
@@ -26,7 +30,6 @@ const BASIC_INFORMATION_ID = requireId(BASIC_INFORMATION.id, "BasicInformation c
 const START_UP_EVENT = requireId(BASIC_INFORMATION.events.require("startUp").id, "BasicInformation.startUp");
 
 const ENDPOINT_0 = 0;
-const LOG_TIMEOUT_MS = 15_000;
 
 const EVENT_PATH: EventPathSpec = { endpoint: ENDPOINT_0, cluster: BASIC_INFORMATION_ID, event: START_UP_EVENT };
 
@@ -37,6 +40,16 @@ const STEP_1_MIN_INTERVAL = 10;
 const STEP_1_MAX_INTERVAL = 100;
 const STEP_2_MIN_INTERVAL = 20;
 const STEP_2_MAX_INTERVAL = 400;
+
+// matter.js states the same envelope across three of its own lines, in this order: the flags the
+// request carried, the paths it asked for, and the interval bounds it accepted from it.
+function matterjsSubscribeEnvelope(minInterval: number, maxInterval: number): RegExp[] {
+    return [
+        matterjsSubscribeFlags("keepSubscriptions"),
+        matterjsSubscribeEventPath(EVENT_PATH),
+        matterjsSubscribeTiming(minInterval, maxInterval),
+    ];
+}
 
 function subscribeEnvelopeSequence(minInterval: number, maxInterval: number) {
     return [
@@ -86,31 +99,24 @@ certTest("TC-IDM-6.4", {
                 th.flavor,
                 "SubscribeRequestMessage envelope (KeepSubscriptions, MinIntervalFloorSeconds, " +
                     `MaxIntervalCeilingSeconds, EventPathIBs ${JSON.stringify(EVENT_PATH)})`,
-                subscribeEnvelopeSequence(STEP_1_MIN_INTERVAL, STEP_1_MAX_INTERVAL),
+                {
+                    chip: subscribeEnvelopeSequence(STEP_1_MIN_INTERVAL, STEP_1_MAX_INTERVAL),
+                    matterjs: { ordered: matterjsSubscribeEnvelope(STEP_1_MIN_INTERVAL, STEP_1_MAX_INTERVAL) },
+                },
                 from,
-                LOG_TIMEOUT_MS,
+                LOG_TIMEOUT,
             );
-            cx.recorder.check(envelopeCheck);
-            if (envelopeCheck.verdict === "fail") {
-                throw new CertCheckFailedError(
-                    `SubscribeRequestMessage envelope check failed: ${JSON.stringify(envelopeCheck)}`,
-                );
-            }
+            record(cx, envelopeCheck, "SubscribeRequestMessage envelope");
 
             const fabricFilteredCheck = await expectSequence(
                 th.log,
                 th.flavor,
                 "SubscribeRequestMessage isFabricFiltered",
-                [fabricFilteredPattern(true)],
-                envelopeCheck.logLine === undefined ? from : envelopeCheck.logLine + 1,
-                LOG_TIMEOUT_MS,
+                { chip: [fabricFilteredPattern(true)], matterjs: [matterjsSubscribeFlags("fabricFiltered")] },
+                sameMessageFrom(th.flavor, envelopeCheck, from),
+                LOG_TIMEOUT,
             );
-            cx.recorder.check(fabricFilteredCheck);
-            if (fabricFilteredCheck.verdict === "fail") {
-                throw new CertCheckFailedError(
-                    `SubscribeRequestMessage isFabricFiltered check failed: ${JSON.stringify(fabricFilteredCheck)}`,
-                );
-            }
+            record(cx, fabricFilteredCheck, "SubscribeRequestMessage isFabricFiltered");
         },
         {
             expected:
@@ -143,25 +149,14 @@ certTest("TC-IDM-6.4", {
             // Several subscriptions of this run report concurrently (step 1's is still live, as is the
             // controller's own node-level one), so the ack this step needs is identified by the
             // subscription the TH just minted, not by position in the log.
-            const idLookup = await expectSubscriptionId(th.log, th.flavor, from, ACK_WAIT_TIMEOUT_MS);
-            cx.recorder.check(idLookup.check);
-            if (idLookup.check.verdict === "fail") {
-                throw new CertCheckFailedError(
-                    `SubscribeResponseMessage check failed: ${JSON.stringify(idLookup.check)}`,
-                );
-            }
+            const idLookup = await expectSubscriptionId(th.log, th.flavor, from, LOG_TIMEOUT);
+            record(cx, idLookup.check, "SubscribeResponseMessage");
 
-            const ackCheck = await expectReportAck(
-                th.log,
-                th.flavor,
-                idLookup.subscriptionId,
-                from,
-                ACK_WAIT_TIMEOUT_MS,
-            );
-            cx.recorder.check(ackCheck);
-            if (ackCheck.verdict === "fail") {
-                throw new CertCheckFailedError(`Report ack check failed: ${JSON.stringify(ackCheck)}`);
-            }
+            // The priming report of an event subscription legitimately carries no events yet.
+            const ackCheck = await expectReportAck(th.log, th.flavor, idLookup, from, LOG_TIMEOUT, {
+                carriesData: false,
+            });
+            record(cx, ackCheck, "Report ack");
         }),
         { expected: "Verify that the DUT sends Status Response Action with a success Status Code." },
     )

@@ -426,6 +426,15 @@ namespace Serializer {
             return FieldValue.serialize(value);
         }
 
+        // A field named like a keyword, such as the Min of a range struct, only parses back as a reference while it
+        // keeps the capital of its definition
+        if (FieldValue.is(value, FieldValue.reference)) {
+            const { name } = value as FieldValue.Reference;
+            if (Constraint.keywords.has(name)) {
+                return `${name[0].toUpperCase()}${name.slice(1)}`;
+            }
+        }
+
         switch (value.type) {
             case "+":
             case "-":
@@ -572,9 +581,7 @@ namespace Parser {
                                 tokens.next();
                             }
                         } else {
-                            result.cpMax = FieldValue.numericValue(
-                                (tokens.token as unknown as BasicToken.Number).value,
-                            );
+                            result.cpMax = FieldValue.countValue((tokens.token as unknown as BasicToken.Number).value);
                             tokens.next();
                         }
 
@@ -796,8 +803,8 @@ namespace Parser {
                         tokens.next();
 
                         if (token.type === "-") {
-                            if (typeof number === "number") {
-                                number *= -1;
+                            if (typeof number === "number" || typeof number === "bigint") {
+                                number = -number;
                             } else if (
                                 FieldValue.is(number, FieldValue.percent) ||
                                 FieldValue.is(number, FieldValue.celsius)

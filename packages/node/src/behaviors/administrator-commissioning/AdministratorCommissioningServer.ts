@@ -174,7 +174,7 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
             throw new InternalError("Commissioning window already initialized.");
         }
         const actor = hasRemoteActor(this.context) ? this.context.session.via : "local actor";
-        logger.debug(`Commissioning window timer started for ${commissioningTimeout} seconds for ${actor}.`);
+        logger.debug(`Commissioning window timer started for ${Duration.format(commissioningTimeout)} for ${actor}.`);
         this.internal.commissioningWindowTimeout = Time.getTimer(
             "Commissioning timeout",
             commissioningTimeout,

@@ -2861,6 +2861,7 @@ const PEER1_STATE = {
         offlineAt: undefined,
         ttl: undefined,
         deviceIdentifier: expect.STRING,
+        hostname: expect.STRING,
         discriminator: 0x202,
         commissioningMode: 1,
         vendorId: 0xfff1,

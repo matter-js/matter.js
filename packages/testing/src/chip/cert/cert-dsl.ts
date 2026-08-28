@@ -17,6 +17,7 @@ import { afterOne, beforeOne } from "../../mocha.js";
 import { TestFileDescriptor } from "../../test-descriptor.js";
 import { resolveChipBinsSource } from "../chip-bins.js";
 import { chip } from "../chip.js";
+import { PicsExpression } from "../pics/expression.js";
 import { State } from "../state.js";
 import {
     CertDevice,
@@ -28,7 +29,7 @@ import {
 } from "./cert-context.js";
 import { CertTest, registerCertTestFactory } from "./cert-test.js";
 import { chipImageBase, ChipDockerSubject, ChipLocalSubject, resolveChipLocalAppDir } from "./chip-app-subject.js";
-import { ControllerAdapter, createControllerAdapter } from "./controller-adapter.js";
+import { ControllerAdapter, controllerPicsOverridesFor, createControllerAdapter } from "./controller-adapter.js";
 import { ControllerImplementation, resolveControllerImplementation, resolveDeviceFlavor } from "./device-config.js";
 import { EvidenceRecorder } from "./evidence.js";
 import { matterJsCertSubjectFor } from "./matterjs-subject-registry.js";
@@ -39,6 +40,22 @@ export interface CertTestOptions {
     plan: string;
     pics: string[];
     app: string;
+
+    /**
+     * Selects a variant of `app` CHIP builds as its own binary — `nlfaultinject`, whose fault-injection
+     * hooks TC-IDM-1.3 arms. Only the `chip-local` flavor can run one, so a test declaring a variant
+     * declares `flavors` to match.
+     */
+    appVariant?: string;
+
+    /**
+     * Device flavors this test supports; absent runs on every flavor.
+     *
+     * Unlike the per-step option of the same name, this is decided before the device starts, so a test
+     * whose device cannot exist on a flavor (an app variant only `chip-local` can spawn) skips rather
+     * than failing to activate.
+     */
+    flavors?: DeviceFlavor[];
     /** Role name → "dut" (device under test) or "helper" (auxiliary controller). Default: `{ dut: "dut" }`. */
     controllers?: Record<string, "dut" | "helper">;
     /** Role name → app name. Default: `{ th: options.app }`. */
@@ -80,24 +97,92 @@ export interface CertTestBuilder {
 }
 
 /**
- * Thrown by {@link certTest} when `options.devices` declares more than one device. Every device
- * flavor (`ChipDockerSubject`/`ChipLocalSubject`/the matterjs registry) currently starts every
- * device with the same hardcoded discriminator (3840), passcode (20202021), and operational port
- * — fine for one device per run, but two devices in the same run would advertise identical mDNS
- * commissionable records and (for chip flavors) contend for the same UDP port. Multi-device cert
- * tests need per-role discriminator/passcode/port assignment before this can work; until then this
- * throws instead of silently producing a flaky, ambiguous run.
+ * A role name reaches a subject as part of its id, and every flavor constrains those differently — a
+ * matter.js subject rejects a dot outright, because an id becomes an endpoint id. Rather than guess
+ * each flavor's rules, roles are held to the intersection every flavor accepts.
  */
-export class MultiDeviceUnsupportedError extends Error {
-    constructor(tc: string, roles: string[]) {
-        super(
-            `certTest "${tc}" declares ${roles.length} devices (${roles.join(", ")}) via options.devices; ` +
-                "every device flavor hardcodes discriminator 3840/passcode 20202021 (and, for chip flavors, " +
-                "a fixed operational port), so more than one device in a single run collides on mDNS " +
-                "advertisement and likely UDP port contention. Multi-device cert tests need per-role " +
-                "discriminator/passcode/port assignment in the device flavors before this can be supported.",
+function assertUsableRoleName(tc: string, role: string) {
+    if (!/^[a-z][a-z0-9_]*$/i.test(role)) {
+        throw new Error(
+            `certTest "${tc}" declares a device role "${role}"; a role name becomes part of the subject's id, so ` +
+                "it must start with a letter and carry only letters, digits and underscores",
         );
     }
+}
+
+/**
+ * Rejects a run whose devices do not all use the same app.
+ *
+ * Nothing needs one yet, and an evidence bundle cannot currently describe one: `RunRecord` names a
+ * single `device` and resolves one chip image revision, both from `options.app`. A mixed-app run would
+ * therefore publish a passing bundle that never names the second binary or the revision it came from,
+ * which is a worse outcome than not supporting it. Lift this together with per-role metadata in the
+ * recorder.
+ */
+function assertOneApp(tc: string, deviceRoles: Record<string, string>) {
+    const apps = new Set(Object.values(deviceRoles));
+    if (apps.size > 1) {
+        throw new Error(
+            `certTest "${tc}" declares devices running different apps (${[...apps].join(", ")}); the evidence ` +
+                "bundle records one app and one chip image revision, so such a run could not say what it ran " +
+                "against. Give the recorder per-role metadata before declaring one",
+        );
+    }
+}
+
+/**
+ * Thrown when a cert test declares more devices than there are discriminators left to give them.
+ *
+ * Its own type, so a caller can tell it from an unrelated failure during test collection — and so the
+ * boundary test asserts the condition rather than a message. A plain `Error` because
+ * `packages/testing` carries no dependency on the library and therefore no `MatterError`.
+ */
+export class DeviceIdentityExhaustedError extends Error {
+    constructor(index: number, discriminator: number) {
+        super(
+            `A cert test cannot declare this many devices: device ${index} would take discriminator ` +
+                `${discriminator}, which does not fit the 12 bits Matter gives it`,
+        );
+    }
+}
+
+/**
+ * The onboarding identity every flavor uses for a single-subject run: chip's own example-app defaults,
+ * which the whole cert suite and its evidence are written against.
+ */
+const PRIMARY_IDENTITY: Subject.Identity = { discriminator: 3840, passcode: 20202021, port: 5540 };
+
+/**
+ * Identities for a run's non-primary devices, one per role, in declaration order.
+ *
+ * The primary keeps {@link PRIMARY_IDENTITY} so every existing single-device test case is untouched
+ * — same discriminator in its evidence, same port, same payload. Only a test case that declares a
+ * second device gets new values, and only for that second device.
+ *
+ * Deterministic by position rather than random, so a bundle's discriminator means the same thing
+ * across runs and a failure is reproducible. The cost is that a collision with an unrelated device on
+ * the LAN repeats every run instead of clearing on the next one; that is the better failure, because
+ * it is diagnosable.
+ *
+ * Discriminators stay inside the 12 bits § 5.1.1.1 gives them. Passcodes step by one from chip's
+ * default, which cannot reach any value § 5.1.7.1 forbids — those are the repeated-digit and
+ * sequential codes, none of which is adjacent to 20202021.
+ */
+export function identityFor(index: number): Subject.Identity {
+    if (index === 0) {
+        return PRIMARY_IDENTITY;
+    }
+
+    const discriminator = PRIMARY_IDENTITY.discriminator + index;
+    if (discriminator > 0xfff) {
+        throw new DeviceIdentityExhaustedError(index, discriminator);
+    }
+
+    return {
+        discriminator,
+        passcode: PRIMARY_IDENTITY.passcode + index,
+        port: (PRIMARY_IDENTITY.port ?? 5540) + index,
+    };
 }
 
 /**
@@ -110,16 +195,22 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
     const controllerRoles = options.controllers ?? { dut: "dut" };
     const deviceRoles = options.devices ?? { th: options.app };
 
-    const deviceRoleNames = Object.keys(deviceRoles);
-    if (deviceRoleNames.length > 1) {
-        throw new MultiDeviceUnsupportedError(tc, deviceRoleNames);
-    }
+    // Both of these are pure properties of the declaration, so they are knowable now rather than
+    // after the primary device is already running — a failure inside #buildContext writes no evidence
+    // bundle at all.
+    Object.keys(deviceRoles).forEach((role, index) => {
+        identityFor(index);
+        assertUsableRoleName(tc, role);
+    });
+    assertOneApp(tc, deviceRoles);
 
     const definition: CertTestDefinition = {
         tc,
         plan: options.plan,
         pics: options.pics,
         app: options.app,
+        appVariant: options.appVariant,
+        flavors: options.flavors,
         steps: new Array<CertStepDefinition>(),
     };
 
@@ -136,8 +227,8 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
 
     const builder: CertTestBuilder = {
         step(number, text, run, opts) {
-            // Declaration-time, like the MultiDeviceUnsupportedError guard above: an empty list
-            // is a defect of the test definition, not a run-time condition of any one flavor.
+            // Declaration-time: an empty list is a defect of the test definition, not a run-time
+            // condition of any one flavor.
             if (opts?.flavors !== undefined && opts.flavors.length === 0) {
                 throw new Error(
                     `certTest "${tc}" step ${number} declares an empty "flavors" list, which would skip it on ` +
@@ -150,6 +241,13 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
                     `certTest "${tc}" step ${number} declares an empty "notApplicable" reason, which would skip it ` +
                         "with nothing recorded to explain why — give the reason, or omit the option to run the step",
                 );
+            }
+
+            // Constructing the expression is the validation: unparsed until the run, a malformed one
+            // is caught by the per-step handler and recorded as the step failing, i.e. as a defect of
+            // the device under test.
+            if (opts?.pics !== undefined) {
+                new PicsExpression(opts.pics);
             }
 
             definition.steps.push({
@@ -188,14 +286,16 @@ function primaryDeviceRole(deviceRoles: Record<string, string>, app: string): st
     throw new Error(`certTest options.devices has no role for app "${app}" (the app the harness activates)`);
 }
 
-function subjectFactoryFor(flavor: DeviceFlavor, app: string): CertDeviceFactory {
+function subjectFactoryFor(flavor: DeviceFlavor, app: string, appVariant?: string): CertDeviceFactory {
     switch (flavor) {
         case "chip-docker":
-            return ChipDockerSubject(app);
+            return ChipDockerSubject(app, appVariant);
 
         case "chip-local":
-            return ChipLocalSubject(app);
+            return ChipLocalSubject(app, appVariant);
 
+        // A matterjs subject has no binary to vary, so `appVariant` does not apply to it; a TC needing a
+        // variant gates its steps on the flavor instead.
         case "matterjs": {
             const factory = matterJsCertSubjectFor(app);
             if (!factory) {
@@ -234,6 +334,14 @@ function defineCertTest(
 ) {
     describe(descriptor.name, () => {
         const flavor = resolveDeviceFlavor();
+
+        if (definition.flavors !== undefined && !definition.flavors.includes(flavor)) {
+            // Before registration, not inside the test: the device cannot start on this flavor at all,
+            // and the activation hook a registered test carries would try anyway.
+            it.skip(`${descriptor.name} (unsupported on device flavor "${flavor}")`, () => {});
+            return;
+        }
+
         // Eager, like `flavor` above: validates MATTER_CERT_CONTROLLER at test-collection time, so
         // a bad value fails immediately rather than only once this specific test's body runs. The
         // value a run actually records as evidence is re-resolved at run time in #buildContext,
@@ -242,7 +350,7 @@ function defineCertTest(
         // not leave this run's evidence disagreeing with the controller it actually used.
         resolveControllerImplementation();
         const primaryRole = primaryDeviceRole(deviceRoles, definition.app);
-        const factory = subjectFactoryFor(flavor, definition.app);
+        const factory = subjectFactoryFor(flavor, definition.app, definition.appVariant);
 
         registerCertTestFactory(
             descriptor,
@@ -266,7 +374,20 @@ function defineCertTest(
             return State.run(test, [], async () => {});
         });
 
-        beforeOne(mochaTest, async function () {
+        beforeOne(mochaTest, async function (this: Mocha.Context) {
+            // PICS resolves only once the container is up, so this gate cannot live beside the flavor
+            // gate above. It still precedes activation: a test the PICS excludes must not start a
+            // device, and its skip is the run's own record that it never ran.
+            const pics = certPicsFile();
+
+            // The report renders a test's PICS against this file rather than the device's alone, so a
+            // capability the controller declares reads as met there too.
+            descriptor.picsValues = pics;
+
+            if (unmetTestPics(definition, pics) !== undefined) {
+                this.skip();
+            }
+
             await State.activateSubject(factory, false, test);
         });
 
@@ -276,17 +397,52 @@ function defineCertTest(
     });
 }
 
+/**
+ * The test-level PICS expression `definition` declares, if the run's own PICS does not satisfy it.
+ *
+ * The controller's own declarations overlay the device's PICS file: a cert test's DUT is the
+ * controller, so a capability like batched invoke is the controller's to claim, while everything else
+ * the expression names still comes from the device (see `controller-adapter.ts`'s
+ * `controllerPicsOverridesFor`).
+ */
+export function unmetTestPics(definition: CertTestDefinition, pics = certPicsFile()): string | undefined {
+    if (!definition.pics.length) {
+        return undefined;
+    }
+
+    const expression = definition.pics.join(" & ");
+
+    return new PicsExpression(expression).evaluate(pics) ? undefined : expression;
+}
+
+/**
+ * The PICS a cert run evaluates against: the device's own file with the controller's declarations
+ * overlaid.
+ */
+export function certPicsFile() {
+    return chip.defaultPics.with(controllerPicsOverridesFor(resolveControllerImplementation()));
+}
+
 let matterJsCommitPromise: Promise<string> | undefined;
 
 /** Computed once per process and cached; every cert test run in this process shares one value. */
 function matterJsCommit(): Promise<string> {
     matterJsCommitPromise ??= execFileAsync("git", ["rev-parse", "HEAD"])
         .then(({ stdout }) => stdout.trim())
-        .catch(() => "(unknown)");
+        .catch(e => {
+            // Degraded provenance is not a failed run, but silence here is how a bundle comes to say
+            // "(unknown)" for a reason nobody can reconstruct afterwards
+            console.warn("Cert test cannot determine the matter.js commit:", e);
+            return "(unknown)";
+        });
     return matterJsCommitPromise;
 }
 
-/** Best-effort: a missing image/marker/label means no chip ref is available, not a test failure. */
+/**
+ * A missing image, marker or label means no chip ref is available, not a test failure — but anything
+ * else that stops us reading one is reported, or a bundle silently loses the provenance that is half
+ * its purpose.
+ */
 async function chipRefFor(flavor: DeviceFlavor, app: string): Promise<string | undefined> {
     try {
         switch (flavor) {
@@ -297,7 +453,8 @@ async function chipRefFor(flavor: DeviceFlavor, app: string): Promise<string | u
             case "matterjs":
                 return undefined;
         }
-    } catch {
+    } catch (e) {
+        console.warn(`Cert test cannot determine the chip ref for ${flavor} app "${app}":`, e);
         return undefined;
     }
 }
@@ -306,12 +463,23 @@ async function chipDockerImageRevision(app: string): Promise<string | undefined>
     const docker = new Docker();
     const image = Image(docker, `${chipImageBase()}-${app}:latest`);
     const info = await image.inspect();
-    return info.Config.Labels?.["org.opencontainers.image.revision"];
+    return info.Config?.Labels?.["org.opencontainers.image.revision"];
 }
 
 async function chipLocalMarkerRevision(): Promise<string | undefined> {
     const dir = await resolveChipLocalAppDir();
-    const text = await readFile(join(dir, "CHIP_REF"), "utf-8");
+
+    let text: string;
+    try {
+        text = await readFile(join(dir, "CHIP_REF"), "utf-8");
+    } catch (e) {
+        // A tree that did not come from an extraction carries no marker, which is not a fault
+        if (e instanceof Error && "code" in e && e.code === "ENOENT") {
+            return undefined;
+        }
+        throw e;
+    }
+
     const trimmed = text.trim();
     return trimmed === "" ? undefined : trimmed;
 }
@@ -331,7 +499,8 @@ async function chipToolRefFor(implementation: ControllerImplementation): Promise
     }
     try {
         return await chipLocalMarkerRevision();
-    } catch {
+    } catch (e) {
+        console.warn("Cert test cannot determine the chip-tool ref:", e);
         return undefined;
     }
 }
@@ -366,6 +535,8 @@ class WiredCertTest extends CertTest {
     #controllerRoles: Record<string, "dut" | "helper">;
     #deviceRoles: Record<string, string>;
     #cx?: CertStepContext;
+    /** Held apart from {@link #cx} so teardown does not depend on how long the context lives. */
+    #openControllers: Record<string, ControllerAdapter> = {};
     #extraDevices = new Array<CertDevice>();
     #recorder?: EvidenceRecorder;
 
@@ -397,8 +568,23 @@ class WiredCertTest extends CertTest {
             await super.invoke(subject, step, args, uncommissioned);
         } finally {
             this.#cx = undefined;
-            await this.#teardown(cx.controllers);
+
+            // The base tears down inside its own run, and does so for every path it can reach. This
+            // is the backstop for the ones it cannot — a throw before that run begins would otherwise
+            // leave this run's controllers open for the next test in the process. Idempotent, so the
+            // ordinary path closes nothing twice.
+            await this.teardown();
         }
+    }
+
+    protected override async teardown(): Promise<unknown[]> {
+        const controllers = this.#openControllers;
+        this.#openControllers = {};
+        return this.#teardown(controllers);
+    }
+
+    protected override flavorFor(): DeviceFlavor {
+        return this.#flavor;
     }
 
     protected override contextFor(_subject: Subject): CertStepContext {
@@ -426,12 +612,20 @@ class WiredCertTest extends CertTest {
         // run never gets to use should not leak the controllers/devices it already started.
         let recorder: EvidenceRecorder;
         try {
+            // The primary already exists and holds index 0; the rest are numbered in declaration
+            // order, which is what makes a role's identity the same on every run.
+            let identityIndex = 0;
             for (const [role, app] of Object.entries(this.#deviceRoles)) {
                 if (role === this.#primaryRole) {
                     continue;
                 }
-                const factory = subjectFactoryFor(this.#flavor, app);
-                const device = factory(`${this.descriptor.name}-${role}`);
+                const factory = subjectFactoryFor(this.#flavor, app, this.definition.appVariant);
+                // The role, not the test case's name: the primary's domain is `descriptor.kind`
+                // ("cert"), and a name like "TC-DD-3.18" carries dots a matter.js subject rejects as
+                // an endpoint id.
+                const device = factory(`${this.descriptor.kind ?? "cert"}-${role}`, {
+                    identity: identityFor(++identityIndex),
+                });
                 extra.push(device);
                 await device.initialize();
                 await device.start();
@@ -446,6 +640,7 @@ class WiredCertTest extends CertTest {
             for (const name of Object.keys(this.#controllerRoles)) {
                 const controller = createControllerAdapter(name);
                 controllers[name] = controller;
+                this.#openControllers = controllers;
                 await controller.start();
             }
 
@@ -461,7 +656,11 @@ class WiredCertTest extends CertTest {
                 timestamp: new Date().toISOString(),
                 controller: Object.keys(this.#controllerRoles).join(","),
                 controllerImplementation,
-                device: `${this.#flavor}:${this.definition.app}`,
+                // From the device, not from the definition: a flavor that cannot run a variant ignores
+                // the request, and evidence claiming a variant that never started would be a lie.
+                device: `${this.#flavor}:${this.definition.app}${
+                    subject.appVariant === undefined ? "" : `-${subject.appVariant}`
+                }`,
                 matterJsCommit: matterJsRef,
                 chipRef,
                 chipToolRef,
@@ -495,7 +694,8 @@ class WiredCertTest extends CertTest {
         }
     }
 
-    async #teardown(controllers: Record<string, ControllerAdapter>): Promise<void> {
+    /** Closes everything this run opened, returning what refused to close rather than deciding for the caller. */
+    async #teardown(controllers: Record<string, ControllerAdapter>): Promise<unknown[]> {
         const errors = new Array<unknown>();
 
         for (const controller of Object.values(controllers)) {
@@ -519,5 +719,7 @@ class WiredCertTest extends CertTest {
         for (const error of errors) {
             console.warn("Error tearing down cert-test controller/device:", error);
         }
+
+        return errors;
     }
 }

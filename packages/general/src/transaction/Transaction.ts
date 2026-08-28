@@ -99,6 +99,14 @@ export interface Transaction extends Lifetime.Owner {
     addResourcesSync(...resources: Resource[]): void;
 
     /**
+     * Take an exclusive lock on {@link Resources}, waiting only where another transaction holds them.
+     *
+     * A caller on a latency-sensitive path acquires without a promise wherever the resources are free, and serializes
+     * rather than failing where they are not.
+     */
+    lock(...resources: Resource[]): MaybePromise<void>;
+
+    /**
      * Begin an exclusive transaction.
      *
      * Transactions begin automatically on write but there are a few reasons you may want to use this method to start an
@@ -179,6 +187,8 @@ type ResourceType = Resource;
 type ResourceSetType = ResourceSet;
 type ParticipantType = Participant;
 
+type ParticipantOutcome = Participant.Outcome;
+
 export const Transaction = {
     /**
      * Perform a transactional operation.
@@ -237,6 +247,11 @@ export namespace Transaction {
     export type ResourceSet = ResourceSetType;
 
     export type Participant = ParticipantType;
+
+    /**
+     * How a transaction ended, as reported to {@link Participant.conclusion}.
+     */
+    export type Outcome = ParticipantOutcome;
 
     export interface Disposable extends Transaction, AsyncDisposable {
         close(): MaybePromise<void>;

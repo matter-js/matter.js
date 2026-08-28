@@ -8,7 +8,8 @@ import { IcdManagementServer } from "#behaviors/icd-management";
 import { InteractionServer } from "#node/server/InteractionServer.js";
 import { ServerSubscription, ServerSubscriptionConfig } from "#node/server/ServerSubscription.js";
 import { DataReadQueue, Lifetime, Millis, NoResponseTimeoutError, Seconds } from "@matter/general";
-import { MockServerNode } from "@matter/node/testing";
+import { Specification } from "@matter/model";
+import { interaction, MockServerNode } from "@matter/node/testing";
 import {
     ExchangeManager,
     InteractionServerMessenger,
@@ -304,6 +305,41 @@ describe("ServerSubscription", () => {
         await MockTime.resolve(flushingClose!);
 
         expect([...session.subscriptions]).is.empty;
+
+        await MockTime.resolve(node.close());
+    });
+
+    it("reports only the changed attribute when several attributes of one cluster are subscribed", async () => {
+        const node = await MockServerNode.createOnline();
+        const fabric = await node.addFabric();
+
+        const nodeLabelPath = {
+            endpointId: EndpointNumber(0),
+            clusterId: ClusterId(BasicInformation.id),
+            attributeId: AttributeId(BasicInformation.attributes.nodeLabel.id),
+        };
+        const locationPath = {
+            endpointId: EndpointNumber(0),
+            clusterId: ClusterId(BasicInformation.id),
+            attributeId: AttributeId(BasicInformation.attributes.location.id),
+        };
+
+        await interaction.subscribe(node, fabric, {
+            interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+            isFabricFiltered: false,
+            attributeRequests: [nodeLabelPath, locationPath],
+            keepSubscriptions: true,
+            minIntervalFloorSeconds: 0,
+            maxIntervalCeilingSeconds: 2,
+        });
+
+        const reported = interaction.receiveData(node, 1, 0);
+
+        await MockTime.resolve(node.set({ basicInformation: { nodeLabel: "relabeled" } }));
+
+        const report = await MockTime.resolve(reported);
+
+        expect(report.attributes.map(({ attributeData }) => attributeData?.path)).deep.equals([nodeLabelPath]);
 
         await MockTime.resolve(node.close());
     });

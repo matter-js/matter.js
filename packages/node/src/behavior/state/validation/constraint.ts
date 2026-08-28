@@ -6,7 +6,7 @@
 
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { InternalError } from "@matter/general";
-import { Constraint, FieldValue, Metatype, ValueModel } from "@matter/model";
+import { Constraint, EncodedConstraint, FieldValue, Metatype, ValueModel } from "@matter/model";
 import { ConstraintError, Val } from "@matter/protocol";
 import { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
 import { NameResolver } from "../managed/NameResolver.js";
@@ -43,7 +43,7 @@ export function createConstraintValidator(
         };
     };
 
-    const inner = create(constraint, schema, nameResolverFactory);
+    const inner = create(EncodedConstraint(constraint, schema), schema, nameResolverFactory);
     if (!inner) {
         return undefined;
     }

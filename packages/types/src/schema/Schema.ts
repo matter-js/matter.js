@@ -19,6 +19,7 @@ export abstract class Schema<T, E = Bytes> {
         const result = this.decodeInternal(encoded);
         if (validate) {
             this.validate(result);
+            this.validateDecoded(result);
         }
         return result;
     }
@@ -28,6 +29,14 @@ export abstract class Schema<T, E = Bytes> {
 
     /** Optional validator that can be used to enforce constraints on the data before encoding / after decoding. */
     validate(_value: T): void {
+        // Do nothing by default
+    }
+
+    /**
+     * Optional validator for constraints that apply to a value read but not to one written — a rule the
+     * schema enforces on input while still accepting the wider range a caller may legitimately encode.
+     */
+    protected validateDecoded(_value: T): void {
         // Do nothing by default
     }
 }

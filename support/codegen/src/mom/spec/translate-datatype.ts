@@ -281,6 +281,7 @@ export function translateValueChildren(
             const records = translateTable("bit", definition, {
                 constraint: Alias(Bits, ...ids),
                 name: Alias(Identifier, ...names),
+                conformance: Optional(ConformanceCode),
                 description: Optional(Alias(StrWithSuperscripts, "summary")),
             });
 
@@ -291,6 +292,12 @@ export function translateValueChildren(
             // Commands are not fabric-scoped data (Core § 7.5.3), so their request/response structs must not carry the
             // implicit global FabricIndex field (Core § 7.13.6); the accessing fabric is derived from the invocation.
             return translateFields(FieldElement, definition, parent?.type !== "event", tag !== "command");
+    }
+
+    // A derived cluster restates the fields it changes under the name of the base type rather than under "struct".
+    // Only field tables carry an ID column, which distinguishes such a table from a value or bit table.
+    if (metatype === undefined && hasColumn(definition, "id")) {
+        return translateFields(FieldElement, definition, false, false);
     }
 }
 

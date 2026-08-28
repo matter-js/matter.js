@@ -4,15 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, InternalError, Logger } from "@matter/general";
+import { camelize, Diagnostic, InternalError, Logger } from "@matter/general";
 import type { Schema } from "@matter/model";
 import { AttributeModel, ClusterModel, DataModelPath, FeatureMap, Metatype, ValueModel } from "@matter/model";
-import { ConformanceError, DatatypeError, SchemaImplementationError, Val } from "@matter/protocol";
+import { ConformanceError, DatatypeError, hasLocalActor, SchemaImplementationError, Val } from "@matter/protocol";
 import { BitmapEncodedValue, FabricIndex, Status } from "@matter/types";
 import { RootSupervisor } from "../../supervision/RootSupervisor.js";
 import { maybeConfigOf } from "../../supervision/SupervisionConfig.js";
 import type { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
-import { Internal } from "../managed/Internal.js";
 import { memberSlotOf, memberValueOf } from "../managed/MemberKeys.js";
 import {
     assertArray,
@@ -24,6 +23,7 @@ import {
     assertObject,
     assertString,
 } from "./assertions.js";
+import { astToFunction } from "./conformance-compiler.js";
 import { createConformanceValidator } from "./conformance.js";
 import { createConstraintValidator } from "./constraint.js";
 import { isFabricIndexSentinel } from "./FabricIndexSentinel.js";
@@ -187,7 +187,10 @@ function addBitsToMask(mask: number | undefined, start: number, length: number):
 }
 
 function createBitmapValidator(schema: ValueModel, supervisor: RootSupervisor): ValueSupervisor.Validate | undefined {
-    const fields = {} as Record<string, { schema: ValueModel; max: number }>;
+    const fields = {} as Record<
+        string,
+        { schema: ValueModel; max: number; conformance?: ValueSupervisor.Validate | undefined }
+    >;
 
     // Union of every bit position covered by a defined field.  Any bit set outside this mask in the encoded value is
     // reserved and may not be written (Matter spec: reserved bitmap bits SHALL be 0).  Decode discards reserved bits,
@@ -210,18 +213,32 @@ function createBitmapValidator(schema: ValueModel, supervisor: RootSupervisor): 
             }
         }
         let name;
+        let conformance;
         if (field?.parent?.id === FeatureMap.id) {
+            // The value of a feature map is the feature selection itself, so judging its bits against the features it
+            // states says nothing; FeatureSelectionErrors() assesses a selection
             name = camelize(field.title ?? field.name);
         } else {
             name = field.propertyName;
+            try {
+                conformance = astToFunction(field, supervisor, { refusalOnly: true });
+            } catch (e) {
+                // A conformance the compiler cannot read is one we cannot enforce; refusing to supervise the cluster at
+                // all would be worse than leaving the bit unjudged
+                if (!(e instanceof SchemaImplementationError)) {
+                    throw e;
+                }
+                logger.debug(`Cannot enforce conformance of ${field.path}:`, Diagnostic.errorMessage(e));
+            }
         }
         fields[name] = {
             schema: field,
             max,
+            conformance,
         };
     }
 
-    return (value, _session, location) => {
+    return (value, session, location) => {
         assertObject(value, location);
 
         // Structural per-field checks run before the reserved-bit check below: the latter is CONSTRAINT_ERROR-coded and
@@ -248,6 +265,23 @@ function createBitmapValidator(schema: ValueModel, supervisor: RootSupervisor): 
                 if (fieldValue > field.max) {
                     throw new DatatypeError(subpath, "in range of bit field", fieldValue);
                 }
+            }
+        }
+
+        // A bit's conformance says whether the bit may be set, never that it must be, because every declared bit is
+        // part of the value whether set or clear — so only a bit this value sets is judged.  Enforced only where no
+        // remote subject authored the value: a peer states its own capabilities, and refusing its write would deny
+        // interop with a device whose conformance disagrees with our model.  Runs after the structural checks because
+        // a ConformanceError is forwarded for a peer write, which unwinds the validator
+        if (hasLocalActor(session) && location.config?.supervision?.conformance !== false) {
+            for (const key in value) {
+                const field = fields[key];
+                const fieldValue = value[key];
+                if (field?.conformance === undefined || !fieldValue) {
+                    continue;
+                }
+
+                field.conformance(fieldValue, session, { ...location, path: location.path.at(key) });
             }
         }
 
@@ -361,6 +395,7 @@ function createStructValidator(schema: Schema, supervisor: RootSupervisor): Valu
             choices: {},
             outerResolve: location.outerResolve,
             config,
+            owner: location.owner,
         } as ValidationLocation;
 
         for (const name in validators) {
@@ -371,8 +406,7 @@ function createStructValidator(schema: Schema, supervisor: RootSupervisor): Valu
             // a name-keyed struct decoded without a schema keys members by TLV tag number, and an id-keyed mirror
             // root keys by id canonically — do not narrow this to the read-fallback policy
             if ((struct as Val.Dynamic)[Val.properties]) {
-                const rootOwner = (struct as unknown as Internal.Collection)[Internal.reference];
-                const properties = (struct as Val.Dynamic)[Val.properties](rootOwner, session);
+                const properties = (struct as Val.Dynamic)[Val.properties](location.owner, session);
                 if (name in properties) {
                     value = properties[name];
                 } else {
@@ -431,6 +465,7 @@ function createListValidator(schema: ValueModel, supervisor: RootSupervisor): Va
                 let index = 0;
                 const sublocation = {
                     path: location.path.at(""),
+                    owner: location.owner,
                 } as ValidationLocation;
                 for (const e of list as Iterable<unknown>) {
                     if (e === undefined || e === null) {

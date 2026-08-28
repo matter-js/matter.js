@@ -6,6 +6,7 @@
 
 import { WindowCoveringServer } from "#behaviors/window-covering";
 import { WindowCoveringDevice } from "#devices/window-covering";
+import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { MockServerNode } from "@matter/node/testing";
 import { AttributeWriteResponse, Write } from "@matter/protocol";
 import { AttributeId, ClusterId, EndpointNumber, Status, TlvUInt8, WriteRequest } from "@matter/types";
@@ -14,6 +15,12 @@ import { WindowCovering } from "@matter/types/clusters/window-covering";
 const TestWindowCoveringDevice = WindowCoveringDevice.with(
     WindowCoveringServer.with("Lift", "Tilt", "PositionAwareLift", "PositionAwareTilt").set({
         type: WindowCovering.WindowCoveringType.TiltBlindLift,
+    }),
+);
+
+const TiltOnlyWindowCoveringDevice = WindowCoveringDevice.with(
+    WindowCoveringServer.with("Tilt", "PositionAwareTilt").set({
+        type: WindowCovering.WindowCoveringType.TiltBlindTiltOnly,
     }),
 );
 
@@ -38,11 +45,20 @@ describe("bitmap reserved-bit write validation", () => {
         expect(response.data?.[0]?.status).equals(Status.Success);
         expect(response.counts).deep.equals({ status: 0, success: 1, existent: 1 });
     });
+
+    // ConfigStatus.LiftMovementReversed states the Lift feature, so a covering with no lift must not mirror the mode
+    // into it
+    it("accepts the motor direction bit on a covering with no lift", async () => {
+        const response = await writeMode(0x01, TiltOnlyWindowCoveringDevice);
+
+        expect(response.data?.[0]?.status).equals(Status.Success);
+        expect(response.counts).deep.equals({ status: 0, success: 1, existent: 1 });
+    });
 });
 
-async function writeMode(value: number) {
+async function writeMode(value: number, device: EndpointType = TestWindowCoveringDevice) {
     const node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: undefined });
-    await node.add(TestWindowCoveringDevice);
+    await node.add(device);
 
     return writeAttrRawAsAdmin(node, {
         writeRequests: [{ path: MODE_PATH, data: TlvUInt8.encodeTlv(value) }],

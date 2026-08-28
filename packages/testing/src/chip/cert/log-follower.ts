@@ -34,6 +34,16 @@ export interface LogExpectPatterns {
     matterjs?: RegExp;
 }
 
+/**
+ * Per-implementation-family line sequences: {@link LogExpectPatterns}'s analogue for an expectation
+ * spanning several consecutive lines, whose length differs per family (one implementation's dump of a
+ * message can take a dozen lines where another's takes one).
+ */
+export interface LogExpectSequences {
+    chip?: RegExp[];
+    matterjs?: RegExp[];
+}
+
 export interface LogExpectOptions {
     flavor: string;
     timeoutMs?: number;
@@ -70,15 +80,20 @@ export class CertLogClosedError extends Error {
     }
 }
 
-// Cert plans express expectations per implementation family, not per concrete DeviceFlavor
-// ("chip-docker"/"chip-local" both speak for "chip"); this maps a flavor to the bucket that
-// carries its pattern.
-function patternFor(patterns: LogExpectPatterns, flavor: string): RegExp | undefined {
+/**
+ * The variant `flavor`'s implementation family carries, or `undefined` where the caller supplied
+ * none for it.
+ *
+ * Cert plans express expectations per implementation family, not per concrete DeviceFlavor
+ * ("chip-docker"/"chip-local" both speak for "chip"), and they express them as single patterns
+ * ({@link LogExpectPatterns}) or as sequences ({@link LogExpectSequences}) — hence the generic.
+ */
+export function forFlavor<T>(variants: { chip?: T; matterjs?: T }, flavor: string): T | undefined {
     if (flavor.startsWith("chip")) {
-        return patterns.chip;
+        return variants.chip;
     }
     if (flavor === "matterjs") {
-        return patterns.matterjs;
+        return variants.matterjs;
     }
     return undefined;
 }
@@ -133,6 +148,12 @@ export class LogFollower implements LogSource {
     /**
      * Sets the default cursor a subsequent {@link expect} call scans from when it doesn't specify
      * `from` itself. Typically called once at the start of a step.
+     *
+     * This counts lines **ingested**, not lines the device has printed. The pump reads its source
+     * asynchronously, so a line the device wrote just before this call may still be in flight and
+     * land at an index at or after the mark — where a check reads it as having been caused by
+     * whatever the caller does next. Use {@link markSettled} for a mark that has to separate cause
+     * from effect.
      */
     mark(): number {
         this.#lastMark = this.#lines.length;
@@ -140,11 +161,118 @@ export class LogFollower implements LogSource {
     }
 
     /**
+     * {@link mark}, after letting the pump deliver what its source already holds.
+     *
+     * This is the mark to take before doing something whose effect a later check attributes to it:
+     * a plain {@link mark} can sit *behind* a line the device had already written, and the check
+     * then passes on evidence that predates its own cause.
+     *
+     * What it promises is bounded, and deliberately so: it yields two macrotask turns, which is what
+     * every source this class is given today needs — a process stream, a {@link LineQueue}, or a
+     * follower reading another follower all reach {@link #consume} through microtasks after one poll
+     * phase. A source that inserts a macrotask of its own between read and append would need more,
+     * and would get a mark that is silently too early rather than an error. A line the device has not
+     * yet flushed is not observable by any means here.
+     */
+    async markSettled(): Promise<number> {
+        await this.settled();
+        return this.mark();
+    }
+
+    /**
+     * Lets the pump deliver what its source already holds, without taking a mark.
+     *
+     * What {@link markSettled} does before marking, for a caller that instead reads the buffer
+     * directly — {@link count} and {@link lastMatchBefore} see only what has been ingested, so a line
+     * the device wrote moments ago is invisible to them until this has run. Same bound as
+     * {@link markSettled}: it yields two macrotask turns, which is what every source this class is
+     * given today needs.
+     */
+    async settled(): Promise<void> {
+        // Two turns: the first lets a pending read resolve, the second lets the pump's own
+        // continuation append what it read.
+        await delay(0).promise;
+        await delay(0).promise;
+    }
+
+    /**
      * Every line seen so far, in arrival order. A fresh copy on each access — callers cannot
-     * mutate the follower's own buffer through it.
+     * mutate the follower's own buffer through it. Prefer {@link count} and {@link lastMatchBefore}
+     * for scanning: they read the buffer directly, where this copies all of it per access.
      */
     get lines(): LogLine[] {
         return [...this.#lines];
+    }
+
+    /** The line at `index`, or `undefined` past the end. */
+    at(index: number): LogLine | undefined {
+        return this.#lines[index];
+    }
+
+    /**
+     * `count` lines starting at `from`, clamped to the buffer. Not named `slice`, whose second
+     * argument is an end index.
+     *
+     * Reads the buffer directly, where {@link lines} copies all of it: a caller scanning a fixed
+     * window inside a wait loop otherwise copies the whole log once per iteration.
+     */
+    window(from: number, count: number): LogLine[] {
+        const start = Math.max(0, from);
+        return this.#lines.slice(start, start + Math.max(0, count));
+    }
+
+    /**
+     * How many lines at or after `from` match `pattern` — for a "repeat N times, expect N
+     * successes" check. Skips synthetic lines, as {@link expect} does.
+     *
+     * `from` is required deliberately: {@link expect} defaults its cursor to the last {@link mark},
+     * and a count defaulting to the whole buffer instead would silently include every earlier step's
+     * lines.
+     */
+    count(pattern: RegExp, from: number): number {
+        const matchable = matchableCopy(pattern);
+        let matches = 0;
+        for (let i = Math.max(0, from); i < this.#lines.length; i++) {
+            const line = this.#lines[i];
+            if (!line.synthetic && matchable.test(line.text)) {
+                matches++;
+            }
+        }
+        return matches;
+    }
+
+    /**
+     * The nearest line before `before` matching `pattern`, searching back at most `within` lines,
+     * with the match it produced. Skips synthetic lines, as {@link expect} does.
+     *
+     * chip logs one message at a time, so the nearest preceding trace line belongs to the message
+     * whose decode dump starts at `before` — which is what makes scanning backward correct however
+     * many raw-frame lines that message's payload produced. `within` bounds it: unbounded, a search
+     * that finds nothing nearby keeps going and attributes a line from minutes earlier.
+     *
+     * The match comes back with the line so a caller reading capture groups does not re-`exec` the
+     * pattern it passed: this scans with a `g`/`y`-stripped copy, and a second `exec` of the
+     * caller's own pattern would not have that protection.
+     */
+    lastMatchBefore(
+        pattern: RegExp,
+        before: number,
+        within: number,
+    ): { line: LogLine; match: RegExpExecArray } | undefined {
+        const matchable = matchableCopy(pattern);
+        const end = Math.min(before, this.#lines.length);
+        const floor = Math.max(0, end - within);
+        for (let i = end - 1; i >= floor; i--) {
+            const line = this.#lines[i];
+            if (line.synthetic) {
+                continue;
+            }
+            const match = matchable.exec(line.text);
+            if (match !== null) {
+                return { line, match };
+            }
+        }
+        return undefined;
     }
 
     /**
@@ -155,11 +283,20 @@ export class LogFollower implements LogSource {
      * first.
      */
     async expect(patterns: LogExpectPatterns, options: LogExpectOptions): Promise<LogExpectResult> {
-        const original = patternFor(patterns, options.flavor);
+        const original = forFlavor(patterns, options.flavor);
         if (!original) {
             return { verdict: "unverified", reason: "no-pattern-for-flavor" };
         }
 
+        return { verdict: "pass", matched: await this.expectPattern(original, options), pattern: String(original) };
+    }
+
+    /**
+     * As {@link expect}, for a caller that has already selected the pattern for the flavor it runs
+     * under — a multi-line expectation resolves its whole sequence with {@link forFlavor} once, then
+     * waits for each line of it here. Has no `unverified` outcome for that reason.
+     */
+    async expectPattern(original: RegExp, options: Omit<LogExpectOptions, "flavor">): Promise<LogLine> {
         const pattern = matchableCopy(original);
         const from = options.from ?? this.#lastMark;
         const timeout = delay(options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
@@ -168,7 +305,7 @@ export class LogFollower implements LogSource {
             for (;;) {
                 const matched = this.#firstMatchFrom(pattern, from);
                 if (matched) {
-                    return { verdict: "pass", matched, pattern: String(original) };
+                    return matched;
                 }
 
                 if (this.#closeError) {
@@ -195,6 +332,17 @@ export class LogFollower implements LogSource {
     async close(): Promise<void> {
         this.#resolveCloseSignal();
         await this.#pump;
+    }
+
+    /**
+     * The first line at or after `from` matching `pattern`, or `undefined` where the buffer holds none.
+     *
+     * The synchronous half of {@link expectPattern}, for a caller that has to tell "not in the log"
+     * from "not in the log yet" — one draining what has arrived before deciding how long to wait for
+     * more cannot express that through {@link expectPattern}, which does both in one call.
+     */
+    firstMatchFrom(pattern: RegExp, from: number): LogLine | undefined {
+        return this.#firstMatchFrom(matchableCopy(pattern), from);
     }
 
     #firstMatchFrom(pattern: RegExp, from: number): LogLine | undefined {

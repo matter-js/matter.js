@@ -5,15 +5,19 @@
  */
 
 import {
+    AbortedError,
     Bytes,
     causedBy,
     Diagnostic,
+    Duration,
     ImplementationError,
     InternalError,
     Logger,
     LogLevel,
     Millis,
     NotImplementedError,
+    Seconds,
+    Time,
 } from "@matter/general";
 import {
     AttributeId,
@@ -35,6 +39,7 @@ import {
     MATTER_EPOCH_OFFSET_US,
     Status,
     StatusResponseError,
+    VendorId,
 } from "@matter/main/types";
 import {
     AcceptedCommandList,
@@ -58,8 +63,12 @@ import {
 import { NodeNotConnectedError } from "@project-chip/matter.js/device";
 import { WebSocketServer } from "ws";
 import { log } from "./GenericTestApp.js";
-import { AttributeResponseData, EventResponseData } from "./handler/CommandHandler.js";
-import { LegacyControllerCommandHandler } from "./handler/LegacyControllerCommandHandler.js";
+import {
+    AttributeResponseData,
+    CommandHandler,
+    DiscoveryResponse,
+    EventResponseData,
+} from "./handler/CommandHandler.js";
 
 const logger = new Logger("ChipToolWebSocketHandler");
 
@@ -164,6 +173,168 @@ function toChipJson(object: object, spaces?: number): string {
 }
 
 /**
+ * What a `find-commissionable-by-*` command asks discovery to look for.
+ *
+ * A vendor id arrives as the step wrote it and is taken unvalidated: a step naming an id the
+ * specification reserves is asking this shim what discovery answers for it, and validating here would
+ * throw before the command handler can answer at all.
+ */
+export function discoveryIdentifierFor(command: string, value: string): CommissionableDeviceIdentifiers {
+    switch (command) {
+        case "find-commissionable-by-long-discriminator":
+            return { longDiscriminator: parseInt(value) };
+
+        case "find-commissionable-by-short-discriminator":
+            return { shortDiscriminator: parseInt(value) };
+
+        case "find-commissionable-by-vendor-id":
+            return { vendorId: VendorId(parseInt(value), false) };
+
+        case "find-commissionable-by-device-type":
+            return { deviceType: parseInt(value) };
+
+        case "find-commissionable-by-commissioning-mode":
+        case "commissionables":
+            return {};
+
+        default:
+            throw new ImplementationError(`Missing find by details for discovery command "${command}"`);
+    }
+}
+
+/**
+ * A discovery command's answer.
+ *
+ * `{results: []}` is the runner's success shape, and every `DiscoveryCommands` step of the corpus
+ * exists to prove a device was found, so a discovery that found nothing has to fail them instead.
+ */
+export function discoveryResponseFor(results: DiscoveryResponse, command: string): ChipWebSocketCommandResponse {
+    if (results.length === 0) {
+        logger.error(`Discovery for "${command}" found no device`);
+        return { results: [{ error: "FAILURE" }] };
+    }
+    return { results };
+}
+
+/**
+ * The deadline a step declared, as a {@link Duration}, or `undefined` where it declared none.
+ *
+ * The runner encodes a step's `timeout:` as an argument, and real chip-tool honours it by giving up and
+ * tearing its command down. Ignoring it leaves the operation running until matter.js gives up on the
+ * peer instead — tens of seconds, and a property of the peer rather than of the deadline the plan set.
+ */
+export function stepDeadline(commandArguments: unknown): Duration | undefined {
+    if (!isObject(commandArguments) || commandArguments.timeout === undefined) {
+        return undefined;
+    }
+    const seconds = Number(commandArguments.timeout);
+    if (!Number.isFinite(seconds) || seconds <= 0) {
+        throw new ImplementationError(`A step declared the unusable timeout "${commandArguments.timeout}"`);
+    }
+    return Seconds(seconds);
+}
+
+/**
+ * The model of a cluster a step named, by the name the runner sends.
+ *
+ * A step naming something this shim has no model for is a fault of the step or of this shim — real
+ * chip-tool refuses such a step client-side too, and no device answered anything — so it is reported as
+ * ours (see {@link isOwnFailure}) rather than as an interaction status the device never sent. Left
+ * unchecked, these lookups reach the runner as a `TypeError` naming nothing.
+ */
+export function clusterModelFor(cluster: string): ClusterMapEntry {
+    const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
+    if (clusterData === undefined) {
+        throw new ImplementationError(`No model for cluster "${cluster}", which a step named`);
+    }
+    return clusterData;
+}
+
+/** The model of `cluster`'s attribute `name`, global attributes included (see {@link clusterModelFor}). */
+export function attributeModelFor(clusterData: ClusterMapEntry, cluster: string, name: string): AttributeModel {
+    const attributeName = camelize(name);
+    const attributeModel = clusterData.attributes[attributeName.toLowerCase()] ?? GlobalAttributes[attributeName];
+    if (attributeModel === undefined) {
+        throw new ImplementationError(`Cluster "${cluster}" has no attribute "${name}", which a step named`);
+    }
+    return attributeModel;
+}
+
+/** The model of `cluster`'s command `name` (see {@link clusterModelFor}). */
+export function commandModelFor(clusterData: ClusterMapEntry, cluster: string, name: string): CommandModel {
+    const commandModel = clusterData.commands[camelize(name).toLowerCase()];
+    if (commandModel === undefined) {
+        throw new ImplementationError(`Cluster "${cluster}" has no command "${name}", which a step named`);
+    }
+    return commandModel;
+}
+
+/** The model of `cluster`'s event `name` (see {@link clusterModelFor}). */
+export function eventModelFor(clusterData: ClusterMapEntry, cluster: string, name: string): EventModel {
+    const eventModel = clusterData.events[camelize(name).toLowerCase()];
+    if (eventModel === undefined) {
+        throw new ImplementationError(`Cluster "${cluster}" has no event "${name}", which a step named`);
+    }
+    return eventModel;
+}
+
+/**
+ * A write payload the step handed over, as the value to write.
+ *
+ * A payload nothing can read is refused rather than answered: `{results: []}` is the runner's success
+ * shape, so returning it would record a write the device never saw as one it accepted.
+ */
+export function parseWritePayload(value: string, what: string): unknown {
+    try {
+        return JSON.parse(value);
+    } catch (error) {
+        throw new ImplementationError(`Cannot read the payload of ${what}`, { cause: error });
+    }
+}
+
+/**
+ * Whether `error` can only be a fault of this shim or of the step that drove it, rather than an answer
+ * from the device: our own invariant, API misuse or unimplemented path (`NotImplementedError` extends
+ * {@link InternalError}), a JavaScript type error from a path the request never fit, or a `SyntaxError`
+ * from reading a step's own argument — `JSON.parse` in {@link parseChipJSON} and `BigInt` in
+ * {@link parseNumber} both raise one, and both run inside a command handler's `try`.
+ *
+ * The device cannot produce any of those, so reporting them as the failure the device gave lets a step
+ * that expects one pass on our bug. `RangeError` is deliberately absent: `DataReader` clamps its offset
+ * rather than failing, so a truncated device message reaches `DataView` and raises one.
+ *
+ * Cause chains are followed, as {@link StatusResponseError.of} and {@link causedBy} do for the two
+ * classifications beside this one — a wrapped {@link ImplementationError} is still ours.
+ */
+export function isOwnFailure(error: unknown) {
+    return causedBy(error, ImplementationError, InternalError, TypeError, SyntaxError);
+}
+
+/**
+ * How this shim answers a command that failed.
+ *
+ * A device that refuses gives a bare `FAILURE`, which steps of the corpus expect; a failure of this
+ * shim's own must not be spelled the same way (see {@link isOwnFailure}) or those steps pass on our bug.
+ * Every catch that answers a failure goes through here, so a handler cannot answer one way while
+ * another answers the other.
+ */
+export function failureResponseFor(error: unknown): ChipWebSocketCommandResponse {
+    return isOwnFailure(error) ? ownFailureResponse(error) : { results: [{ error: "FAILURE" }] };
+}
+
+/**
+ * How this shim reports a failure of its own to the runner.
+ *
+ * The message is never empty: the runner drops a trailing `FAILURE` from a multi-entry result and reads
+ * a falsy error as no error at all, so an error carrying no message would be recorded as a command that
+ * succeeded.
+ */
+export function ownFailureResponse(error: unknown): ChipWebSocketCommandResponse {
+    const message = error instanceof Error ? `${error.constructor.name}: ${error.message}` : String(error);
+    return { results: [{ error: `Test harness failure — ${message || "no message"}` }, { error: "FAILURE" }] };
+}
+
+/**
  * Uses the matter.js Model to convert the response data for read, subscribe and invoke into a tag based response
  * including conversion of data types.
  */
@@ -203,11 +374,11 @@ function convertMatterToWebSocketTagBased(value: unknown, model: ValueModel, clu
                 throw new ImplementationError(`Invalid bitmap value ${JSON.stringify(memberValue)}`);
             }
 
-            const constraintValue = FieldValue.numericValue(member.constraint.value);
+            const constraintValue = FieldValue.countValue(member.constraint.value);
             if (constraintValue !== undefined) {
                 numberValue |= 1 << constraintValue;
             } else {
-                const minBit = FieldValue.numericValue(member.constraint.min) ?? 0;
+                const minBit = FieldValue.countValue(member.constraint.min) ?? 0;
                 numberValue |= (typeof memberValue === "boolean" ? 1 : memberValue) << minBit;
             }
         }
@@ -415,6 +586,9 @@ interface ChipWebSocketCommand {
     command: string;
     arguments?: any;
     command_specifier?: string;
+
+    /** Aborts when the step's own `timeout` expires, absent where the step declared none. */
+    abort?: AbortSignal;
 }
 
 /** Incoming Websocket command with base64 encoded arguments. */
@@ -441,7 +615,7 @@ interface OutgoingChipWebSocketCommandResponse extends ChipWebSocketCommandRespo
 export class ChipToolWebSocketHandler {
     readonly #wsPort: number;
     #wsServer?: WebSocketServer;
-    #commandHandlers?: Map<string, LegacyControllerCommandHandler>;
+    #commandHandlers?: Map<string, CommandHandler>;
     #startRecording?: () => void;
     #stopRecording?: () => { module: string; category: string; message: string }[];
     readonly #subscriptionData = new Array<AttributeResponseData | EventResponseData>();
@@ -451,7 +625,7 @@ export class ChipToolWebSocketHandler {
         this.#wsPort = wsPort;
     }
 
-    initialize(commandHandlers: Map<string, LegacyControllerCommandHandler>) {
+    initialize(commandHandlers: Map<string, CommandHandler>) {
         logger.info(`Initialize with Command handlers for Identities ${Array.from(commandHandlers.keys()).join(", ")}`);
         this.#commandHandlers = commandHandlers;
 
@@ -475,16 +649,53 @@ export class ChipToolWebSocketHandler {
         }
         // Do start the controllers just if needed
         if (!handler.started) {
-            await handler.start();
+            try {
+                await handler.start();
+            } catch (error) {
+                // A controller of ours that will not come up is not the device refusing: left as it
+                // arrives, a storage or socket error here answers the bare failure 40 steps of the
+                // corpus expect, and they would pass on it.
+                throw new InternalError(`Controller "${controllerName ?? "alpha"}" failed to start`, {
+                    cause: error,
+                });
+            }
         }
         return handler;
     }
 
-    start() {
-        this.#wsServer = new WebSocketServer({ host: "127.0.0.1", port: this.#wsPort }, () => {
-            logger.info(`WebSocketServer started on port ${this.#wsPort}`);
-            log.directive("== WebSocket Server Ready"); // Testrunner uses this to detect that WS server has been started
+    /**
+     * The port the server actually listens on, which is the configured one unless that was 0 — then the
+     * OS picks it and only the bound socket knows. `undefined` before {@link start} resolves.
+     */
+    get port(): number | undefined {
+        const address = this.#wsServer?.address();
+        if (address === undefined || address === null || typeof address === "string") {
+            return undefined;
+        }
+        return address.port;
+    }
+
+    /**
+     * Starts listening. Resolves once the socket is bound, so a caller that reports "started" says
+     * something true, and rejects where the port could not be taken rather than raising an
+     * unhandled error event.
+     */
+    async start(): Promise<void> {
+        const server = new WebSocketServer({ host: "127.0.0.1", port: this.#wsPort });
+        this.#wsServer = server;
+
+        await new Promise<void>((resolve, reject) => {
+            const failed = (error: Error) => reject(error);
+            server.once("listening", () => {
+                server.off("error", failed);
+                logger.info(`WebSocketServer started on port ${this.port}`);
+                log.directive("== WebSocket Server Ready"); // Testrunner uses this to detect that WS server has been started
+                resolve();
+            });
+            server.once("error", failed);
         });
+
+        server.on("error", error => logger.error("Testrunner WebSocket server error", error));
 
         this.#wsServer.on("connection", ws => {
             logger.info("Testrunner connected to WebSocket");
@@ -515,7 +726,10 @@ export class ChipToolWebSocketHandler {
             }
         } catch (error) {
             logger.error("WebSocket Message parsing error", error);
-            result = { results: [{ error: (error as Error).message }, { error: "FAILURE" }] };
+            // Only this shim's own faults reach here — every call to the device runs inside a handler's
+            // own try — and an error carrying no message would otherwise answer with an empty error
+            // entry, which the runner reads as a command that succeeded.
+            result = failureResponseFor(error);
         }
 
         // Grab logs and send response including logs
@@ -536,19 +750,10 @@ export class ChipToolWebSocketHandler {
 
         logger.info("Received Text based command:", data);
 
-        // Empty data means we return the subscription data
-        if (data === "") {
-            if (!this.#subscriptionUpdated) {
-                throw new ImplementationError("No subscription active");
-            }
-            if (this.#subscriptionData.length === 0) {
-                // If no data are there we wait for next subscription update
-                await this.#subscriptionUpdated;
-            }
-            const data = [...this.#subscriptionData];
-            this.#subscriptionData.length = 0;
-            logger.info("Subscription-Data returns", data.length, "entries");
-            return { results: data };
+        // The runner sends a bare frame for a `wait-for-report` step: empty for one that waits
+        // indefinitely, and the number of seconds alone for one that declared a timeout.
+        if (data === "" || /^\d+$/.test(data)) {
+            return await this.#awaitSubscriptionData(data === "" ? undefined : Seconds(Number(data)));
         }
 
         const commandData = data.split(" ");
@@ -567,7 +772,7 @@ export class ChipToolWebSocketHandler {
                             return { results: [] };
                         } catch (error) {
                             logger.error("Error commissioning node", error);
-                            return { results: [{ error: "FAILURE" }] };
+                            return failureResponseFor(error);
                         }
                     default:
                         throw new NotImplementedError(`Pairing text command ${commandData[1]}`);
@@ -575,6 +780,46 @@ export class ChipToolWebSocketHandler {
             }
         }
         throw new NotImplementedError(`Text command ${commandData[0]}`);
+    }
+
+    /**
+     * Answers a `wait-for-report` step with whatever the live subscription has reported.
+     *
+     * Where the step declared a deadline, the wait is bounded by it and answers the failure chip-tool
+     * gives on its own timeout — a step waiting for a report the device never sends must not hold the
+     * whole run until the runner gives up on the test.
+     */
+    async #awaitSubscriptionData(deadline?: Duration): Promise<ChipWebSocketCommandResponse> {
+        if (!this.#subscriptionUpdated) {
+            throw new ImplementationError("No subscription active");
+        }
+
+        if (this.#subscriptionData.length === 0) {
+            if (deadline === undefined) {
+                await this.#subscriptionUpdated;
+            } else {
+                const abort = new AbortController();
+                const timer = Time.getTimer("Report timeout", deadline, () => abort.abort()).start();
+                try {
+                    await Promise.race([
+                        this.#subscriptionUpdated,
+                        new Promise<void>(resolve => abort.signal.addEventListener("abort", () => resolve())),
+                    ]);
+                } finally {
+                    timer.stop();
+                }
+
+                if (this.#subscriptionData.length === 0) {
+                    logger.error(`No subscription report within ${Duration.format(deadline)}`);
+                    return { results: [{ error: "FAILURE" }] };
+                }
+            }
+        }
+
+        const reported = [...this.#subscriptionData];
+        this.#subscriptionData.length = 0;
+        logger.info("Subscription-Data returns", reported.length, "entries");
+        return { results: reported };
     }
 
     /** Handles an incoming JSON based command */
@@ -604,10 +849,36 @@ export class ChipToolWebSocketHandler {
         };
         logger.info("Received JSON", toChipJson(data));
 
-        const { cluster } = data;
+        const deadline = stepDeadline(commandArguments);
+        if (deadline === undefined) {
+            return await this.#dispatchJsonCommand(data);
+        }
 
+        // Commissioning and waiting for a commissionee run to their own conclusion, so a deadline on
+        // one of those would be a promise this shim cannot keep.
+        if (data.cluster === "delay" || data.cluster === "pairing") {
+            throw new ImplementationError(
+                `A "${data.cluster}" step declared a timeout of ${Duration.format(deadline)}, which this shim ` +
+                    "cannot bound: the controller API it drives takes no abort signal",
+            );
+        }
+
+        // The operation itself observes the signal, so it stops rather than running on unobserved, and
+        // the abort reaches the runner as the failure chip-tool gives when its own timeout expires.
+        const abort = new AbortController();
+        const timer = Time.getTimer("Step timeout", deadline, () =>
+            abort.abort(new AbortedError(`The step's own timeout of ${Duration.format(deadline)} expired`)),
+        ).start();
+        try {
+            return await this.#dispatchJsonCommand({ ...data, abort: abort.signal });
+        } finally {
+            timer.stop();
+        }
+    }
+
+    async #dispatchJsonCommand(data: ChipWebSocketCommand): Promise<ChipWebSocketCommandResponse> {
         // Handles the commands from special testing clusters, else cluster commands
-        switch (cluster) {
+        switch (data.cluster) {
             case "delay": {
                 return await this.#handleDelayCommands(data);
             }
@@ -667,7 +938,7 @@ export class ChipToolWebSocketHandler {
                     return { results: [] };
                 } catch (error) {
                     logger.error("Error commissioning node", error);
-                    return { results: [{ error: "FAILURE" }] };
+                    return failureResponseFor(error);
                 }
             }
             case "code-paseonly": {
@@ -680,7 +951,7 @@ export class ChipToolWebSocketHandler {
                     return { results: [] };
                 } catch (error) {
                     logger.error("Error connecting to node via PASE", error);
-                    return { results: [{ error: "FAILURE" }] };
+                    return failureResponseFor(error);
                 }
             }
             case "get-commissioner-node-id":
@@ -768,6 +1039,7 @@ export class ChipToolWebSocketHandler {
 
         try {
             await handler.handleInvokeById({
+                abort: data.abort,
                 nodeId: NodeId(parseNumber(destinationId)),
                 endpointId: EndpointNumber(parseInt(endpointId)),
                 clusterId: ClusterId(parseInt(clusterId)),
@@ -797,6 +1069,7 @@ export class ChipToolWebSocketHandler {
 
         try {
             const { values, status } = await handler.handleReadAttribute({
+                abort: data.abort,
                 nodeId: NodeId(parseNumber(destinationId)),
                 endpointId: EndpointNumber(parseInt(endpointId)),
                 clusterId: ClusterId(parseInt(clusterId)),
@@ -842,17 +1115,14 @@ export class ChipToolWebSocketHandler {
             throw new ImplementationError("Missing attribute name or value");
         }
 
-        let parsedValue: any = value;
-        try {
-            parsedValue = JSON.parse(value);
-        } catch (err) {
-            logger.error("Error parsing data for write-by-id", err);
-            return { results: [] };
-        }
+        // `{results: []}` is the runner's success shape, so answering it for a payload nothing can read
+        // records a write the device never saw as one it accepted
+        const parsedValue = parseWritePayload(value, "write-by-id");
 
         const nodeId = NodeId(parseNumber(destinationId));
         try {
             await handler.handleWriteAttributeById({
+                abort: data.abort,
                 nodeId,
                 endpointId: GroupId.isGroupNodeId(nodeId) ? undefined : EndpointNumber(parseInt(endpointId)),
                 clusterId: ClusterId(parseInt(clusterId)),
@@ -881,6 +1151,7 @@ export class ChipToolWebSocketHandler {
 
         try {
             const { values, updated } = await handler.handleSubscribeAttribute({
+                abort: data.abort,
                 nodeId: NodeId(parseNumber(destinationId)),
                 endpointId: EndpointNumber(parseInt(endpointIds)),
                 clusterId: ClusterId(parseInt(clusterId)),
@@ -909,44 +1180,19 @@ export class ChipToolWebSocketHandler {
             arguments: { value, "commissioner-name": commissionerName },
         } = data;
 
-        let findBy: CommissionableDeviceIdentifiers | undefined;
-        switch (command) {
-            case "find-commissionable-by-long-discriminator": {
-                findBy = { longDiscriminator: parseInt(value) };
-                break;
-            }
-            case "find-commissionable-by-short-discriminator": {
-                findBy = { shortDiscriminator: parseInt(value) };
-                break;
-            }
-
-            case "find-commissionable-by-vendor-id": {
-                findBy = { vendorId: parseInt(value) };
-                break;
-            }
-            case "find-commissionable-by-device-type": {
-                findBy = { deviceType: parseInt(value) };
-                break;
-            }
-            case "find-commissionable-by-commissioning-mode":
-            case "commissionables": {
-                findBy = {};
-            }
-        }
-        if (findBy === undefined) {
-            throw new ImplementationError("Missing find by details");
-        }
+        const findBy = discoveryIdentifierFor(command, value);
 
         try {
             const results = await (
                 await this.#commandHandlerFor(commissionerName)
             ).handleDiscovery({
+                abort: data.abort,
                 findBy,
             });
-            return { results };
+            return discoveryResponseFor(results, command);
         } catch (error) {
             logger.error("Error on discovery", error);
-            return { results: [{ error: "FAILURE" }] };
+            return failureResponseFor(error);
         }
     }
 
@@ -989,16 +1235,16 @@ export class ChipToolWebSocketHandler {
         } = data;
         const handler = await this.#commandHandlerFor(commissionerName);
 
-        const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
+        const clusterData = clusterModelFor(cluster);
 
         if (commandSpecifier === undefined) {
             throw new ImplementationError("Missing attribute name");
         }
-        const attributeName = camelize(commandSpecifier);
-        const attributeModel = clusterData.attributes[attributeName.toLowerCase()] ?? GlobalAttributes[attributeName];
+        const attributeModel = attributeModelFor(clusterData, cluster, commandSpecifier);
 
         try {
             const { values, status } = await handler.handleReadAttribute({
+                abort: data.abort,
                 nodeId: NodeId(parseNumber(destinationId)),
                 endpointId: EndpointNumber(parseInt(endpointIds)),
                 clusterId: clusterData.clusterId,
@@ -1041,16 +1287,15 @@ export class ChipToolWebSocketHandler {
         } = data;
         const handler = await this.#commandHandlerFor(commissionerName);
 
-        const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
+        const clusterData = clusterModelFor(cluster);
 
         if (commandSpecifier === undefined) {
             throw new ImplementationError("Missing event name");
         }
-        const eventName = camelize(commandSpecifier);
-
-        const eventModel = clusterData.events[eventName.toLowerCase()];
+        const eventModel = eventModelFor(clusterData, cluster, commandSpecifier);
         try {
             const { values, status } = await handler.handleReadEvent({
+                abort: data.abort,
                 nodeId: NodeId(parseNumber(destinationId)),
                 endpointId: EndpointNumber(parseInt(endpointIds)),
                 clusterId: clusterData.clusterId,
@@ -1093,18 +1338,15 @@ export class ChipToolWebSocketHandler {
         } = data;
         const handler = await this.#commandHandlerFor(commissionerName);
 
-        const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
+        const clusterData = clusterModelFor(cluster);
 
         if (commandSpecifier === undefined) {
             throw new ImplementationError("Missing attribute name");
         }
-        const attributeName = camelize(commandSpecifier);
-        if (attributeName === undefined) {
-            throw new ImplementationError("Missing attribute name");
-        }
-        const attributeModel = clusterData.attributes[attributeName.toLowerCase()] ?? GlobalAttributes[attributeName];
+        const attributeModel = attributeModelFor(clusterData, cluster, commandSpecifier);
         try {
             const { values, updated } = await handler.handleSubscribeAttribute({
+                abort: data.abort,
                 nodeId: NodeId(parseNumber(destinationId)),
                 endpointId: EndpointNumber(parseInt(endpointIds)),
                 clusterId: clusterData.clusterId,
@@ -1146,16 +1388,15 @@ export class ChipToolWebSocketHandler {
         } = data;
         const handler = await this.#commandHandlerFor(commissionerName);
 
-        const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
+        const clusterData = clusterModelFor(cluster);
 
         if (commandSpecifier === undefined) {
             throw new ImplementationError("Missing event name");
         }
-        const eventName = camelize(commandSpecifier);
-
-        const eventModel = clusterData.events[eventName.toLowerCase()];
+        const eventModel = eventModelFor(clusterData, cluster, commandSpecifier);
         try {
             const { values, updated } = await handler.handleSubscribeEvent({
+                abort: data.abort,
                 nodeId: NodeId(parseNumber(destinationId)),
                 endpointId: EndpointNumber(parseInt(endpointIds)),
                 clusterId: clusterData.clusterId,
@@ -1196,32 +1437,27 @@ export class ChipToolWebSocketHandler {
         } = data;
         const handler = await this.#commandHandlerFor(commissionerName);
 
-        const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
+        const clusterData = clusterModelFor(cluster);
 
         if (commandSpecifier === undefined) {
             throw new ImplementationError("Missing attribute name");
         }
-        const attributeName = camelize(commandSpecifier);
         if (value === undefined) {
-            throw new ImplementationError("Missing attribute name or value");
+            throw new ImplementationError(`Missing value for the write of ${cluster}.${commandSpecifier}`);
         }
-        const attributeModel = clusterData.attributes[attributeName.toLowerCase()] ?? GlobalAttributes[attributeName];
-        let parsedValue: any = value;
+        const attributeModel = attributeModelFor(clusterData, cluster, commandSpecifier);
+        let parsedValue: unknown = value;
         if (
             typeof value === "string" &&
             ((value.startsWith("[") && value.endsWith("]")) || (value.startsWith("{") && value.endsWith("}")))
         ) {
-            try {
-                parsedValue = JSON.parse(value);
-            } catch (err) {
-                logger.error("Error on parsing value for write", err);
-                return { results: [] };
-            }
+            parsedValue = parseWritePayload(value, `write of ${cluster}.${commandSpecifier}`);
         }
         const matterValue = convertWebsocketDataToMatter(parsedValue, attributeModel);
         const nodeId = NodeId(parseNumber(destinationId));
         try {
             await handler.handleWriteAttribute({
+                abort: data.abort,
                 nodeId,
                 endpointId: GroupId.isGroupNodeId(nodeId) ? undefined : EndpointNumber(parseInt(endpointId)),
                 clusterId: clusterData.clusterId,
@@ -1244,7 +1480,7 @@ export class ChipToolWebSocketHandler {
         } = commandArguments;
         const handler = await this.#commandHandlerFor(commissionerName);
 
-        const clusterData = ClusterMap[camelize(cluster).toLowerCase()];
+        const clusterData = clusterModelFor(cluster);
 
         const commandData = {} as any;
         Object.keys(commandArguments).forEach(key => {
@@ -1252,17 +1488,18 @@ export class ChipToolWebSocketHandler {
                 key !== "destination-id" &&
                 key !== "commissioner-name" &&
                 key !== "endpoint-id-ignored-for-group-commands" &&
-                key !== "timedInteractionTimeoutMs"
+                key !== "timedInteractionTimeoutMs" &&
+                key !== "timeout"
             ) {
                 commandData[camelize(key)] = commandArguments[key];
             }
         });
-        const commandName = camelize(command);
-        const commandModel = clusterData.commands[commandName.toLowerCase()];
+        const commandModel = commandModelFor(clusterData, cluster, command);
         const nodeId = NodeId(parseNumber(destinationId));
         const isGroupNode = GroupId.isGroupNodeId(nodeId);
         try {
             const result = await handler.handleInvoke({
+                abort: data.abort,
                 nodeId,
                 endpointId: isGroupNode ? undefined : EndpointNumber(parseInt(endpointId)),
                 clusterId: clusterData.clusterId,
@@ -1322,7 +1559,7 @@ export class ChipToolWebSocketHandler {
             `Error for command "${command}" and cluster "${cluster}" and specifier "${commandSpecifier}"`,
             error,
         );
-        return { results: [{ error: "FAILURE" }] };
+        return failureResponseFor(error);
     }
 
     close() {

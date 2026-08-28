@@ -155,12 +155,32 @@ export async function main(argv = process.argv) {
             clear();
         }
 
+        const testable = new Array<Package>();
+        const optedOut = new Array<string>();
         for (const node of graph.nodes) {
-            if (!node.pkg.hasTests || node.pkg.json.nacho?.test === false) {
+            if (!node.pkg.hasTests) {
                 continue;
             }
+            if (node.pkg.json.nacho?.test === false) {
+                optedOut.push(node.pkg.json.name ?? node.pkg.path);
+                continue;
+            }
+            testable.push(node.pkg);
+        }
 
-            await test(node.pkg, true);
+        // Before the loop, not after: a package whose suite fails aborts this command
+        // (TestRunner.#run calls fatal()), so anything printed afterwards is exactly what a reader
+        // never sees. A run that silently omits packages otherwise reads as coverage it does not have.
+        // Plain text: --machine output carries no ANSI (see machine-reporter.ts).
+        if (optedOut.length && args._[0] !== "inspect" && args._[0] !== "manual") {
+            console.log(
+                `Not tested (opted out with nacho.test: false): ${optedOut.join(", ")}. ` +
+                    "Run each package's own test script for these.",
+            );
+        }
+
+        for (const pkg of testable) {
+            await test(pkg, true);
         }
     } else {
         const graph = await Graph.forProject(pkg.path);

@@ -190,6 +190,9 @@ export type InvokeOptions<C extends ClusterType.Command = ClusterType.Command> =
      */
     expectedProcessingTime?: Duration;
 
+    /** Abandon the invoke when this aborts (see {@link ClientRequest.abort}). */
+    abort?: AbortSignal;
+
     /** Use an extended Message Response Timeout as defined for FailSafe cases which is 30s. */
     useExtendedFailSafeMessageResponseTimeout?: boolean;
 
@@ -328,6 +331,9 @@ export class InteractionClient {
                 valueChanged?: boolean,
                 oldValue?: any,
             ) => void;
+
+            /** Abandon the read when this aborts (see {@link ClientRequest.abort}). */
+            abort?: AbortSignal;
         } = {},
     ): Promise<DecodedAttributeReportValue<any>[]> {
         return (
@@ -342,6 +348,9 @@ export class InteractionClient {
         options: {
             eventFilters?: TypeFromSchema<typeof TlvEventFilter>[];
             isFabricFiltered?: boolean;
+
+            /** Abandon the read when this aborts (see {@link ClientRequest.abort}). */
+            abort?: AbortSignal;
         } = {},
     ): Promise<DecodedEventReportValue<any>[]> {
         return (
@@ -366,6 +375,9 @@ export class InteractionClient {
                 valueChanged?: boolean,
                 oldValue?: any,
             ) => void;
+
+            /** Abandon the read when this aborts (see {@link ClientRequest.abort}). */
+            abort?: AbortSignal;
         } = {},
     ): Promise<{
         attributeReports: DecodedAttributeReportValue<any>[];
@@ -388,6 +400,9 @@ export class InteractionClient {
                 valueChanged?: boolean,
                 oldValue?: any,
             ) => void;
+
+            /** Abandon the read when this aborts (see {@link ClientRequest.abort}). */
+            abort?: AbortSignal;
         } = {},
     ): Promise<DecodedAttributeReportValue<any>[]> {
         return (await this.getMultipleAttributesAndEvents(options)).attributeReports;
@@ -403,6 +418,9 @@ export class InteractionClient {
                 valueChanged?: boolean,
                 oldValue?: any,
             ) => void;
+
+            /** Abandon the read when this aborts (see {@link ClientRequest.abort}). */
+            abort?: AbortSignal;
         } = {},
     ): Promise<{
         attributeData: DecodedAttributeReportValue<any>[];
@@ -417,6 +435,9 @@ export class InteractionClient {
             events?: { endpointId?: EndpointNumber; clusterId?: ClusterId; eventId?: EventId }[];
             eventFilters?: TypeFromSchema<typeof TlvEventFilter>[];
             isFabricFiltered?: boolean;
+
+            /** Abandon the read when this aborts (see {@link ClientRequest.abort}). */
+            abort?: AbortSignal;
         } = {},
     ): Promise<DecodedEventReportValue<any>[]> {
         return (await this.getMultipleAttributesAndEvents(options)).eventReports;
@@ -427,6 +448,9 @@ export class InteractionClient {
             events?: { endpointId?: EndpointNumber; clusterId?: ClusterId; eventId?: EventId }[];
             eventFilters?: TypeFromSchema<typeof TlvEventFilter>[];
             isFabricFiltered?: boolean;
+
+            /** Abandon the read when this aborts (see {@link ClientRequest.abort}). */
+            abort?: AbortSignal;
         } = {},
     ): Promise<{ eventData: DecodedEventReportValue<any>[]; eventStatus?: DecodedEventReportStatus[] }> {
         const { eventReports, eventStatus } = await this.getMultipleAttributesAndEvents(options);
@@ -441,6 +465,9 @@ export class InteractionClient {
             eventFilters?: TypeFromSchema<typeof TlvEventFilter>[];
             isFabricFiltered?: boolean;
             attributeChangeListener?: (data: DecodedAttributeReportValue<any>) => void;
+
+            /** Abandon the read when this aborts (see {@link ClientRequest.abort}). */
+            abort?: AbortSignal;
         } = {},
     ): Promise<ResponseDataReport> {
         if (this.isGroupAddress) {
@@ -454,6 +481,7 @@ export class InteractionClient {
             eventFilters,
             isFabricFiltered = true,
             attributeChangeListener: attributeListener,
+            abort,
         } = options;
 
         const read = (this.#interaction as ClientNodeInteraction).read({
@@ -468,6 +496,7 @@ export class InteractionClient {
                 fabricFilter: isFabricFiltered,
                 interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
             }),
+            abort,
             includeKnownVersions: !dataVersionFilters,
             [Diagnostic.value]: () =>
                 Diagnostic.dict({
@@ -628,10 +657,14 @@ export class InteractionClient {
         timedRequestTimeout?: Duration;
         suppressResponse?: boolean;
         chunkLists?: boolean;
+
+        /** Abandon the write when this aborts (see {@link ClientRequest.abort}). */
+        abort?: AbortSignal;
     }): Promise<void> {
-        const { attributeData, asTimedRequest, timedRequestTimeout, suppressResponse, chunkLists } = options;
+        const { attributeData, asTimedRequest, timedRequestTimeout, suppressResponse, chunkLists, abort } = options;
         const { endpointId, clusterId, attribute, value, dataVersion } = attributeData;
         const response = await this.setMultipleAttributes({
+            abort,
             attributes: [{ endpointId, clusterId, attribute, value, dataVersion }],
             asTimedRequest,
             timedRequestTimeout,
@@ -666,6 +699,9 @@ export class InteractionClient {
         timedRequestTimeout?: Duration;
         suppressResponse?: boolean;
         chunkLists?: boolean;
+
+        /** Abandon the write when this aborts (see {@link ClientRequest.abort}). */
+        abort?: AbortSignal;
     }): Promise<AttributeStatus[]> {
         const {
             attributes,
@@ -725,6 +761,7 @@ export class InteractionClient {
         }
 
         const response = await this.#interaction.write({
+            abort: options.abort,
             ...Write({
                 writes: writeRequests,
                 timed: asTimedRequest,
@@ -772,6 +809,9 @@ export class InteractionClient {
         listener?: (value: T, version: number) => void;
         updateTimeoutHandler?: () => void;
         updateReceived?: () => void;
+
+        /** Abandon establishing the subscription when this aborts (see {@link ClientRequest.abort}). */
+        abort?: AbortSignal;
     }): Promise<{
         maxInterval: number;
     }> {
@@ -790,10 +830,12 @@ export class InteractionClient {
             keepSubscriptions = true,
             updateTimeoutHandler,
             updateReceived,
+            abort,
         } = options;
         const { id: attributeId } = attribute;
 
         const { maxInterval } = await this.subscribeMultipleAttributesAndEvents({
+            abort,
             attributes: [{ endpointId, clusterId, attributeId }],
             minIntervalFloorSeconds,
             maxIntervalCeilingSeconds,
@@ -822,6 +864,9 @@ export class InteractionClient {
         listener?: (value: DecodedEventData<T>) => void;
         updateTimeoutHandler?: () => void;
         updateReceived?: () => void;
+
+        /** Abandon establishing the subscription when this aborts (see {@link ClientRequest.abort}). */
+        abort?: AbortSignal;
     }): Promise<{
         maxInterval: number;
     }> {
@@ -841,10 +886,12 @@ export class InteractionClient {
             listener,
             updateTimeoutHandler,
             updateReceived,
+            abort,
         } = options;
         const { id: eventId } = event;
 
         const { maxInterval } = await this.subscribeMultipleAttributesAndEvents({
+            abort,
             events: [{ endpointId, clusterId, eventId, isUrgent }],
             eventFilters: minimumEventNumber !== undefined ? [{ eventMin: minimumEventNumber }] : undefined,
             minIntervalFloorSeconds,
@@ -875,6 +922,9 @@ export class InteractionClient {
         dataVersionFilters?: { endpointId: EndpointNumber; clusterId: ClusterId; dataVersion: number }[];
         updateTimeoutHandler?: () => void;
         updateReceived?: () => void;
+
+        /** Abandon establishing the subscription when this aborts (see {@link ClientRequest.abort}). */
+        abort?: AbortSignal;
     }): Promise<{
         attributeReports?: DecodedAttributeReportValue<any>[];
         eventReports?: DecodedEventReportValue<any>[];
@@ -901,6 +951,9 @@ export class InteractionClient {
         dataVersionFilters?: { endpointId: EndpointNumber; clusterId: ClusterId; dataVersion: number }[];
         updateTimeoutHandler?: () => void;
         updateReceived?: () => void;
+
+        /** Abandon establishing the subscription when this aborts (see {@link ClientRequest.abort}). */
+        abort?: AbortSignal;
     }): Promise<{
         attributeReports?: DecodedAttributeReportValue<any>[];
         eventReports?: DecodedEventReportValue<any>[];
@@ -922,6 +975,7 @@ export class InteractionClient {
             dataVersionFilters,
             updateTimeoutHandler,
             updateReceived,
+            abort,
         } = options;
 
         // Will be set to undefined when initially send and then no longer collected
@@ -931,6 +985,7 @@ export class InteractionClient {
         };
 
         const subscribe = await (this.#interaction as ClientNodeInteraction).subscribe({
+            abort,
             ...Subscribe({
                 interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
                 attributes: attributeRequests,
@@ -1061,8 +1116,9 @@ export class InteractionClient {
 
         const clusterModel = Matter.clusters(clusterId);
         const cluster = { id: clusterId, name: clusterModel?.name ?? `Unknown (${Diagnostic.hex(clusterId)})` };
-        const invoke = this.#interaction.invoke(
-            Invoke({
+        const invoke = this.#interaction.invoke({
+            abort: options.abort,
+            ...Invoke({
                 commands: [
                     endpointId === undefined
                         ? Invoke.WildcardCommandRequest({
@@ -1087,7 +1143,7 @@ export class InteractionClient {
                         ? DEFAULT_MINIMUM_RESPONSE_TIMEOUT_WITH_FAILSAFE
                         : undefined),
             }),
-        );
+        });
 
         for await (const chunks of invoke) {
             for (const chunk of chunks) {
@@ -1128,6 +1184,9 @@ export class InteractionClient {
         asTimedRequest?: boolean;
         timedRequestTimeout?: Duration;
         skipValidation?: boolean;
+
+        /** Abandon the invoke when this aborts (see {@link ClientRequest.abort}). */
+        abort?: AbortSignal;
     }): Promise<void> {
         return this.#invoke({ ...options, suppressResponse: true }) as Promise<void>;
     }

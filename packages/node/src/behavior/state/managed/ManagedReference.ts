@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/general";
 import { AccessControl, ExpiredReferenceError, Val } from "@matter/protocol";
 import type { Supervision } from "../../supervision/Supervision.js";
 import {
@@ -52,6 +53,7 @@ export class ManagedReference implements ValReference {
     #location: AccessControl.Location;
     #value: unknown;
     #dynamicContainer: Val.Struct | undefined;
+    #dynamicSource: Val | undefined;
 
     /**
      * @param parent a reference to the container we reference
@@ -86,23 +88,11 @@ export class ManagedReference implements ValReference {
         this.#fallbackKey = fallbackKey;
         this.#readFallbackKey = readFallbackKey;
 
-        let dynamicContainer: Val.Struct | undefined;
-        if ((parent.value as Val.Dynamic)[Val.properties]) {
-            dynamicContainer = (parent.value as Val.Dynamic)[Val.properties](parent.rootOwner, session);
-            // A provider is name-keyed regardless of the parent's keying and holds live values, never seeded
-            // defaults, so dynamic reads accept the name spelling where container reads must not
-            const slot = memberSlotOf(dynamicContainer as Container, key, fallbackKey);
-            if (slot !== undefined) {
-                this.#value = (dynamicContainer as Container)[slot];
-            } else {
-                dynamicContainer = undefined;
-            }
-        }
-        this.#dynamicContainer = dynamicContainer;
-
-        if (dynamicContainer === undefined) {
-            this.#value = memberValueOf(parent.value as Container, key, readFallbackKey);
-        }
+        this.#bindDynamicContainer();
+        this.#value =
+            this.#dynamicContainer === undefined
+                ? memberValueOf(parent.value as Container, key, readFallbackKey)
+                : memberValueOf(this.#dynamicContainer as Container, key, fallbackKey);
 
         // Propagate supervision config from parent
         if (parent.supervisionConfig) {
@@ -197,12 +187,46 @@ export class ManagedReference implements ValReference {
             return;
         }
 
+        // A member the parent serves from a provider must stay served for the life of this reference; a reference that
+        // found no provider is never asked again, so a parent may not start serving one either
+        if (this.#dynamicContainer !== undefined && this.parent!.value !== this.#dynamicSource) {
+            this.#bindDynamicContainer();
+            if (this.#dynamicContainer === undefined) {
+                throw new InternalError(`Value at ${this.location.path} no longer serves ${this.#key}`);
+            }
+        }
+
         const value =
-            this.#dynamicContainer !== undefined
-                ? memberValueOf(this.#dynamicContainer as Container, this.#key, this.#fallbackKey)
-                : memberValueOf(this.parent!.value as Container, this.#key, this.#readFallbackKey);
+            this.#dynamicContainer === undefined
+                ? memberValueOf(this.parent!.value as Container, this.#key, this.#readFallbackKey)
+                : memberValueOf(this.#dynamicContainer as Container, this.#key, this.#fallbackKey);
 
         this.#replaceValue(value);
+    }
+
+    /**
+     * Bind to the provider the parent serves this member from, if it serves it from one.  A provider belongs to the
+     * struct it was derived from, so this runs again whenever the parent replaces that struct.
+     */
+    #bindDynamicContainer() {
+        const parent = this.parent!;
+
+        this.#dynamicSource = parent.value;
+        this.#dynamicContainer = undefined;
+
+        if (!(parent.value as Val.Dynamic)[Val.properties]) {
+            return;
+        }
+
+        const container = (parent.value as Val.Dynamic)[Val.properties](parent.rootOwner, this.#session);
+
+        // A provider is name-keyed regardless of the parent's keying and holds live values, never seeded defaults, so
+        // dynamic reads accept the name spelling where container reads must not
+        if (memberSlotOf(container as Container, this.#key, this.#fallbackKey) === undefined) {
+            return;
+        }
+
+        this.#dynamicContainer = container;
     }
 
     #writeTo(container: Container, newValue: Val) {

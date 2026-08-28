@@ -25,6 +25,18 @@ export class RequirementModel extends Model<RequirementElement, RequirementModel
         return this.element;
     }
 
+    /**
+     * The instance this requirement is one of, where it states a number that counts instances.
+     *
+     * Instances are numbered from one, so a number that counts none states no instance at all.  This is the only
+     * reading of {@link instance}: a requirement is told apart by the instance it belongs to, so a number that means
+     * nothing must not make two requirements that are the same look different.
+     */
+    get instanceNumber() {
+        const { instance } = this;
+        return typeof instance === "number" && Number.isInteger(instance) && instance >= 1 ? instance : undefined;
+    }
+
     get constraint(): Constraint {
         return this.#constraint;
     }

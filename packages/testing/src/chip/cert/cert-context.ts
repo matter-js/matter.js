@@ -35,7 +35,17 @@ export interface DeviceExitInfo {
 export interface CertDevice extends Subject {
     readonly log: LogFollower;
     readonly flavor: DeviceFlavor;
+
+    /**
+     * Settles when the device's backing process or container ends without the harness having asked
+     * it to — and only then, so a `stop()` or a restart a step drives itself is not an exit in this
+     * sense. One latch therefore covers the device's whole life, and a run that restarts a device
+     * keeps the crash detection it armed before the first step.
+     */
     readonly exit: Promise<DeviceExitInfo>;
+
+    /** The app variant this device actually runs, absent for a device whose flavor has no binary to vary. */
+    readonly appVariant?: string;
 }
 
 /**
@@ -50,8 +60,14 @@ export interface CertDeviceFactory extends Subject.Factory {
 
 /**
  * Outcome of a single cert-test step.
+ *
+ * `"unverified"` means the step ran and nothing in it threw, but at least one of its checks could not
+ * be evaluated, so the step observed less than its claim needs. It fails the run — unlike `"skipped"`,
+ * which states the step never ran at all — because a gap in what was observed must not read as proof.
+ * A check whose claim the run genuinely cannot observe says so with {@link CheckRecord.accepted} and
+ * leaves the step at `"pass"`.
  */
-export type StepVerdict = "pass" | "fail" | "skipped" | "aborted";
+export type StepVerdict = "pass" | "fail" | "unverified" | "skipped" | "aborted";
 
 /**
  * A single piece of evidence a step recorded while running.
@@ -63,6 +79,14 @@ export interface CheckRecord {
     pattern?: string;
     matched?: string;
     logLine?: number;
+    /**
+     * Why an `"unverified"` verdict here is expected rather than a gap to close — a claim this device
+     * or controller cannot exhibit at all, as against a pattern nobody has written yet. Such a check
+     * leaves its step at `"pass"`; every other unverified check makes the step `"unverified"` and fails
+     * the run, a blank reason included, since a field left empty accounts for nothing. Ignored for a
+     * `"pass"`/`"fail"` verdict, which state what was observed.
+     */
+    accepted?: string;
 }
 
 /**
@@ -72,8 +96,10 @@ export interface CheckRecord {
 export interface StepRecorder {
     beginStep(step: CertStepDefinition): void;
     /**
-     * Records evidence only; a failed check does not itself change the step's {@link StepVerdict}.
-     * A step signals failure by having its `run` throw, not by calling `check` with a failing verdict.
+     * A step signals failure by having its `run` throw, not by calling `check` with a failing verdict:
+     * a `"fail"` here is recorded, not acted on. An `"unverified"` verdict does reach the step's own
+     * {@link StepVerdict} unless the check carries {@link CheckRecord.accepted}, since a step whose
+     * claim went unobserved has not passed.
      */
     check(record: CheckRecord): void;
     /** Returns the checks recorded for `step` (empty if it never began), for the caller's own end-of-step reporting. */
@@ -104,11 +130,49 @@ export interface StepRecorder {
      */
     recordControllerUnsupportedSkips?(count: number): void;
     /**
+     * Records how many steps their own PICS excluded. A step gated on a capability the device or
+     * controller does not declare is meant to skip, but a wrong PICS value skips it just as quietly —
+     * so a bundle that does not carry the count cannot tell a run that tested less from one that had
+     * less to test.
+     */
+    recordPicsSkips?(count: number): void;
+    /**
+     * Records how many of the run's checks reported `"unverified"` — a check whose claim could not be
+     * evaluated at all. Counts the checks that declared their gap ({@link CheckRecord.accepted})
+     * alongside those that did not, so this says how much the run left unobserved whatever the
+     * verdicts say.
+     */
+    recordUnverifiedChecks?(count: number): void;
+    /**
+     * Records that closing the run's controllers or devices failed, leaving state behind for whatever
+     * runs next. {@link CertTest} calls this and then fails the run itself unless something already
+     * failed; a recorder need only persist the information (see {@link EvidenceRecorder.teardownFailed}).
+     */
+    teardownFailed?(detail: string): void;
+    /**
+     * Records that the evidence a step's checks cite could not be assembled — the device logs every
+     * `device-log` check's `logLine` indexes into, above all. The checks themselves say nothing about
+     * this, so without it the record would carry claims nothing in the bundle can support (see
+     * {@link EvidenceRecorder.evidenceIncomplete}).
+     */
+    evidenceIncomplete?(detail: string): void;
+    /**
      * Persists whatever evidence was recorded. Returns an implementation-defined locator for it
      * (e.g. {@link EvidenceRecorder} returns the directory it wrote to); a recorder with nothing to
      * persist returns an empty string.
      */
     flush(): Promise<string>;
+    /**
+     * Settles the run's verdict, after teardown, and persists the record carrying it. {@link flush} runs
+     * before teardown so a bundle exists even for a teardown that hangs; until this call the persisted
+     * record states no verdict, so a run that never reaches it cannot leave one behind. `outcome` is
+     * the run's own result as its runner will report it — recorded for every failed run, whatever else
+     * the record already names — so a failed run cannot settle as a pass over a cause this recorder was
+     * never told about (see {@link EvidenceRecorder.concludeRun}). `outcome.unproven` says the run's
+     * only failure is that some step ended `"unverified"`, which the record states as its own verdict
+     * rather than as a failure of the device.
+     */
+    concludeRun?(outcome: { failed: boolean; detail?: string; unproven?: boolean }): Promise<void>;
 }
 
 /**
@@ -143,6 +207,10 @@ export interface CertTestDefinition {
     plan: string;
     pics: string[];
     app: string;
+    /** Variant of `app` to run, where the flavor supports one (see `cert-dsl.ts`'s `CertTestOptions`). */
+    appVariant?: string;
+    /** Device flavors this test supports; absent runs on every flavor (see `cert-dsl.ts`'s `CertTestOptions`). */
+    flavors?: DeviceFlavor[];
     steps: CertStepDefinition[];
     /** Cleanup the engine runs after the last step whatever happened to it (see `cert-dsl.ts`'s `finalize`). */
     finalize?: (cx: CertStepContext) => Promise<void>;

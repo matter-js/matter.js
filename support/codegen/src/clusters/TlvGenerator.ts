@@ -19,6 +19,7 @@ import {
     ValueModel,
 } from "#model";
 import { ModelBounds } from "@matter/types";
+import { documentationOf } from "../util/documentation.js";
 import { ScopeFile } from "../util/ScopeFile.js";
 import { asObjectKey, camelize, serialize } from "../util/string.js";
 import { Block, Entry } from "../util/TsFile.js";
@@ -232,7 +233,7 @@ export class TlvGenerator {
         if (globalMapping?.category !== "datatype") {
             const bounds = ModelBounds.createNumberBounds(model);
             if (bounds) {
-                tlv = `${tlv}.bound(${serialize(bounds)})`;
+                tlv = `${tlv}.bound(${serializeBounds(bounds)})`;
             }
         }
 
@@ -286,7 +287,7 @@ export class TlvGenerator {
                     // Typescript doesn't allow numeric enum keys
                     name = `E${name}`;
                 }
-                enumBlock.atom(`${asObjectKey(name)} = ${child.id}`).document(child);
+                enumBlock.atom(`${asObjectKey(name)} = ${child.id}`).document(documentationOf(child));
             });
         });
 
@@ -356,7 +357,7 @@ export class TlvGenerator {
                 this.importTlv("tlv/TlvObject", tlv);
                 struct
                     .atom(field.propertyName, `${tlv}(${field.effectiveId}, ${this.reference(field)})`)
-                    .document(field);
+                    .document(documentationOf(field));
             });
         });
 
@@ -411,7 +412,7 @@ export class TlvGenerator {
                 continue;
             }
 
-            bitmap.atom(child.propertyName, type).document(child);
+            bitmap.atom(child.propertyName, type).document(documentationOf(child));
         }
 
         return bitmap;
@@ -554,4 +555,18 @@ export class TlvGenerator {
                 break;
         }
     }
+}
+
+/**
+ * State a bound as the source that carries it.
+ *
+ * The general serializer states a bigint without the suffix a bigint literal needs, which would generate a bound the
+ * model does not state — the very loss exact bounds exist to prevent.
+ */
+function serializeBounds(bounds: { min?: number | bigint; max?: number | bigint }) {
+    const stated = Object.entries(bounds)
+        .filter(([, value]) => value !== undefined)
+        .map(([key, value]) => `${key}: ${value}${typeof value === "bigint" ? "n" : ""}`);
+
+    return `{ ${stated.join(", ")} }`;
 }
