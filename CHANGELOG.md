@@ -161,6 +161,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A level change that couples to On/Off no longer leaves the coupling blocked when its transaction rolls back
     - Fix: A cluster's feature selection is recorded as persisted only once the store accepted the values it travels with, so a failed write no longer leaves a later feature change undetected
     - Fix: Validating a state class that serves properties dynamically passes it the endpoint, as every other caller does
+    - Fix: A peer that reports a cluster ID outside the ranges the specification allows no longer fails node initialization
+    - Adjustment: A cluster ID is validated when a server behavior is created rather than when a cluster namespace is built, so a peer's ID stays as reported
+    - Fix: Two peer clusters whose attribute or command IDs differ by 32 no longer share one generated behavior
 
 - @matter/matter.js
     - Adjustment: The duplicate "BLE is not enabled" log lines are gone; a node reports missing BLE support once, where it decides on it
@@ -180,6 +183,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Stopping an advertisement that was still waiting for the Bluetooth adapter retracts it, so the adapter powering on no longer starts an advertisement that was already given up on
 
 - @matter/nodejs-shell
+    - Fix: A cluster whose ID lies outside the ranges the specification allows is addressable instead of raising an error
     - Feature: Added `--cleanup-legacy-storage` to irreversibly remove the leftover pre-0.16 storage artifacts once they have been migrated to the current format
     - Fix: Attribute changes log one line per attribute, naming the attribute, instead of one line per cluster report carrying every changed attribute of that report
     - Fix: Attribute, event and connection-state log lines are recognized by the web UI again, so node tiles and device values update; event lines name the peer and render their timestamp according to the wire variant the device sent
@@ -204,6 +208,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The `storage.clear` variable now clears the storage on start as it does on Node.js
 
 - @matter/types
+    - Adjustment: `ClusterType()` no longer validates the cluster ID of the model it is given
     - Breaking: `ModelBounds.createNumberBounds()` states a bound as a `bigint` where it lies beyond the safe integers, and states both `min` and `max` where it previously omitted an absent bound; `createLengthBounds()` still states a number, as a length counts what a message can carry
     - Breaking: `TlvNumericSchema.bound()` states the base type of the schema it bounds in `baseTypeMin` and `baseTypeMax`, where it previously stated the bound; the bound is stated by `min` and `max`. The class gains a protected `constrain()`
     - Breaking: A bounded 64 bit schema states its datatype again, so a legacy `ClusterType()` cluster derives the type and constraint of such an attribute instead of neither, and enforces a range it previously left open
