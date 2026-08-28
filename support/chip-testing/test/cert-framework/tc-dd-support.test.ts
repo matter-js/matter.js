@@ -31,6 +31,7 @@ import {
     checkGeneratedManualCode,
     checkGeneratedPayload,
     commissionByQr,
+    CUSTOM_FLOW,
     CommissioningRefusals,
     manualPairingCode,
     manualPairingCodeDigits,
@@ -46,6 +47,7 @@ import {
     recordNotCommissioned,
     recordUnpair,
     recordVendorOutcome,
+    USER_INTENT_FLOW,
 } from "../cert/tc-dd-support.js";
 import { CertCheckFailedError, CertCleanupError, CommissionedRefs } from "../cert/tc-support.js";
 
@@ -347,6 +349,28 @@ describe("recordPayloadOffering", () => {
         await expect(
             recordPayloadOffering(cx, qrPayloadWith(BLE_PAYLOAD, { discoveryCapabilities: ON_NETWORK_ONLY }), "ble"),
         ).rejectedWith(CertCheckFailedError, /does not offer ble/);
+    });
+
+    // The flow a test case is named for is the caller's, not a constant: TC-DD-3.12 and 3.13 fabricate
+    // flows no subject publishes, and a helper hardcoding the standard one would have printed a
+    // verdict naming a flow nobody checked
+    it("judges the payload against the flow the caller asked for", async () => {
+        const cx = contextWithParser();
+
+        await recordPayloadOffering(cx, PLAN_PAYLOAD, "onIpNetwork", CUSTOM_FLOW);
+
+        const check = checksOf(cx).at(-1);
+        expect(check?.verdict).equal("pass");
+        expect(check?.detail).contains("flowType=2");
+    });
+
+    it("fails when the payload carries a different flow from the one asked for", async () => {
+        const cx = contextWithParser();
+
+        await expect(recordPayloadOffering(cx, PLAN_PAYLOAD, "onIpNetwork", USER_INTENT_FLOW)).rejectedWith(
+            CertCheckFailedError,
+            /flowType 2 rather than the user-intent flow/,
+        );
     });
 
     it("fails when the payload names a commissioning flow other than the standard one", async () => {

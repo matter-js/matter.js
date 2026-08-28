@@ -263,6 +263,19 @@ export const STANDARD_VERSION = 0;
 /** § 5.1.3.1 Table 59's standard commissioning flow. */
 export const STANDARD_FLOW = 0;
 
+/** § 5.1.3.1 Table 34's commissioning flows: the device needs a user action before it is commissionable. */
+export const USER_INTENT_FLOW = 1;
+
+/** § 5.1.3.1 Table 34's commissioning flows: the device needs steps the manufacturer defines. */
+export const CUSTOM_FLOW = 2;
+
+/** What a check calls each flow, so a bundle names the one its test case is named for. */
+const FLOW_NAMES: Record<number, string> = {
+    [STANDARD_FLOW]: "the standard flow",
+    [USER_INTENT_FLOW]: "the user-intent flow",
+    [CUSTOM_FLOW]: "the custom flow",
+};
+
 /**
  * Records that the DUT reads `payload` as offering `capability` over the standard commissioning flow.
  *
@@ -275,6 +288,7 @@ export async function recordPayloadOffering(
     cx: CertStepContext,
     payload: string,
     capability: keyof typeof DiscoveryCapabilitiesBitmap,
+    flowType = STANDARD_FLOW,
 ): Promise<void> {
     const parsed = await cx.controllers.dut.parseQrPayload(payload);
     const offered = DiscoveryCapabilitiesSchema.decode(parsed.discoveryCapabilities);
@@ -286,8 +300,8 @@ export async function recordPayloadOffering(
     if (!offered[capability]) {
         wrong.push(`does not offer ${capability}`);
     }
-    if (parsed.flowType !== STANDARD_FLOW) {
-        wrong.push(`carries flowType ${parsed.flowType} rather than the standard flow`);
+    if (parsed.flowType !== flowType) {
+        wrong.push(`carries flowType ${parsed.flowType} rather than ${FLOW_NAMES[flowType] ?? flowType}`);
     }
 
     record(
@@ -302,7 +316,7 @@ export async function recordPayloadOffering(
                     .padStart(8, "0")})` +
                 (wrong.length ? `; the payload ${wrong.join(" and ")}` : ""),
         },
-        `Payload offers ${capability} over the standard flow`,
+        `Payload offers ${capability} over ${FLOW_NAMES[flowType] ?? `flow ${flowType}`}`,
     );
 }
 
@@ -408,7 +422,7 @@ function readBits(data: Uint8Array, { offset, length }: { offset: number; length
  */
 export function qrPayloadWith(
     payload: string,
-    fields: { version?: number; passcode?: number; discoveryCapabilities?: number },
+    fields: { version?: number; passcode?: number; discoveryCapabilities?: number; flowType?: number },
 ): string {
     if (!payload.startsWith(QR_PREFIX)) {
         throw new InternalError(`Cannot substitute fields into "${payload}", which is not a QR onboarding payload`);
@@ -423,6 +437,9 @@ export function qrPayloadWith(
     }
     if (fields.discoveryCapabilities !== undefined) {
         writeBits(data, DISCOVERY_BITS, fields.discoveryCapabilities);
+    }
+    if (fields.flowType !== undefined) {
+        writeBits(data, FLOW_TYPE_BITS, fields.flowType);
     }
     return QR_PREFIX + Base38.encode(data);
 }
