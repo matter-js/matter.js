@@ -23,6 +23,7 @@ import {
     DerCodec,
     DerNode,
     DerTag,
+    DerType,
     EcdsaSignature,
     PrivateKey,
     PublicKey,
@@ -232,6 +233,48 @@ describe("Certificates", () => {
             await rcac.verify(crypto);
             await icac.verify(crypto, rcac);
             await noc.verify(crypto, rcac, icac);
+        });
+    });
+
+    describe("extensions we do not interpret", () => {
+        /** Re-encode a decoded node tree, so a spliced-in extension gets correct container lengths. */
+        function reencode(node: DerNode): Bytes {
+            if (node._elements === undefined) {
+                const bytes =
+                    node._tag === DerType.BitString
+                        ? Bytes.concat(Uint8Array.of(node._padding ?? 0), node._bytes)
+                        : node._bytes;
+                return DerCodec.encode({ _tag: node._tag, _bytes: bytes });
+            }
+            return DerCodec.encode({
+                _tag: node._tag,
+                _bytes: Bytes.concat(...node._elements.map(reencode)),
+            });
+        }
+
+        /** Append `extension` to the certificate's extension list. */
+        function withExtension(asn1: Bytes, extension: DerNode) {
+            const cert = DerCodec.decode(asn1);
+            const tbs = cert._elements![0];
+            // Extensions sit in the certificate's [3] EXPLICIT constructed tag
+            const extensionsTag = tbs._elements!.find(element => element._tag === 0xa3)!;
+            extensionsTag._elements![0]._elements!.push(extension);
+            return reencode(cert);
+        }
+
+        it("parses a certificate whose unrecognized extension holds bytes that are not DER", () => {
+            // OID 2.5.29.99 is not one we read, and 0xff is not a valid DER tag
+            const opaqueExtension = DerCodec.decode(
+                DerCodec.encode({
+                    oid: { _tag: DerType.ObjectIdentifier as number, _bytes: Bytes.fromHex("551d63") },
+                    value: { _tag: DerType.OctetString as number, _bytes: Bytes.fromHex("ffffff") },
+                }),
+            );
+
+            const rcac = Rcac.fromAsn1(withExtension(EXTERNAL_TEST_CERTIFICATES.RCAC_ASN1, opaqueExtension));
+
+            expect(rcac.cert.subject.rcacId).to.not.be.undefined;
+            expect(rcac.cert.extensions.basicConstraints.isCa).to.be.true;
         });
     });
 

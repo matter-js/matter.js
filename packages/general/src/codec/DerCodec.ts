@@ -6,11 +6,14 @@
 
 import { UnexpectedDataError } from "../MatterError.js";
 import { Bytes } from "../util/Bytes.js";
-import { DataReader } from "../util/DataReader.js";
+import { DataReader, DataReadError } from "../util/DataReader.js";
 import { toHex } from "../util/Number.js";
 import { isObject } from "../util/Type.js";
 
 export class DerError extends UnexpectedDataError {}
+
+/** Longest DER long-form length we accept, keeping the decoded length a safe integer. */
+const MAX_LENGTH_BYTES = 6;
 
 export enum DerType {
     Boolean = 0x01,
@@ -271,7 +274,14 @@ export class DerCodec {
     }
 
     static decode(data: Bytes): DerNode {
-        return this.#decodeRec(new DataReader(data));
+        try {
+            return this.#decodeRec(new DataReader(data));
+        } catch (cause) {
+            if (cause instanceof DataReadError) {
+                throw new DerError(`DER data is truncated: ${cause.message}`, { cause });
+            }
+            throw cause;
+        }
     }
 
     /**
@@ -438,9 +448,12 @@ export class DerCodec {
         let length = reader.readUInt8();
         if ((length & 0x80) !== 0) {
             let lengthLength = length & 0x7f;
+            if (lengthLength > MAX_LENGTH_BYTES) {
+                throw new DerError(`DER length of ${lengthLength} bytes exceeds the ${MAX_LENGTH_BYTES} byte maximum`);
+            }
             length = 0;
             while (lengthLength > 0) {
-                length = (length << 8) + reader.readUInt8();
+                length = length * 0x100 + reader.readUInt8();
                 lengthLength--;
             }
         }

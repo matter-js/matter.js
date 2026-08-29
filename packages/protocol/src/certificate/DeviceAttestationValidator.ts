@@ -4,7 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto, Diagnostic, EcdsaSignature, MaybePromise, PublicKey } from "@matter/general";
+import {
+    asError,
+    Bytes,
+    Crypto,
+    Diagnostic,
+    EcdsaSignature,
+    ImplementationError,
+    InternalError,
+    MaybePromise,
+    PublicKey,
+} from "@matter/general";
 import { MATTER_EPOCH_OFFSET_S, VendorId } from "@matter/types";
 import { TlvAttestation } from "../common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
@@ -28,6 +38,9 @@ export enum DeviceAttestationCheck {
     CertificationTypeProvisional = "CertificationTypeProvisional",
     CertificationTypeTest = "CertificationTypeTest",
     CertificateIdNotVerified = "CertificateIdNotVerified",
+    CertificateUnparseable = "CertificateUnparseable",
+    AttestationElementsUnparseable = "AttestationElementsUnparseable",
+    CertificationDeclarationUnparseable = "CertificationDeclarationUnparseable",
     CdSignerVerificationSkipped = "CdSignerVerificationSkipped",
     PaaTrustStoreTimeMismatch = "PaaTrustStoreTimeMismatch",
     DclServiceUnavailable = "DclServiceUnavailable",
@@ -54,9 +67,41 @@ export class DeviceAttestationError extends CommissioningError {
     constructor(
         readonly failure: DeviceAttestationCheck,
         message: string,
+        options?: ErrorOptions,
     ) {
-        super(message);
+        super(message, options);
     }
+}
+
+/**
+ * Decode a value the peer supplied, reporting malformed input as an attestation failure rather than letting a decoder
+ * error escape.
+ */
+function parsePeerValue<T>(check: DeviceAttestationCheck, description: string, parse: () => T): T {
+    try {
+        return parse();
+    } catch (cause) {
+        // A defect of ours is not the peer's malformed data and must not be reported as such
+        if (cause instanceof InternalError || cause instanceof ImplementationError) {
+            throw cause;
+        }
+        throw new DeviceAttestationError(check, `${description}: ${asError(cause).message}`, { cause });
+    }
+}
+
+/** Parse an attestation certificate the peer supplied, rejecting a missing certificate before the decoder sees it. */
+function parsePeerCertificate<T>(kind: string, der: Bytes, parse: (der: Bytes) => T): T {
+    if (Bytes.of(der).byteLength === 0) {
+        throw new DeviceAttestationError(
+            DeviceAttestationCheck.CertificateUnparseable,
+            `Device returned an empty ${kind} certificate`,
+        );
+    }
+    return parsePeerValue(
+        DeviceAttestationCheck.CertificateUnparseable,
+        `Device returned a ${kind} certificate that cannot be parsed`,
+        () => parse(der),
+    );
 }
 
 function idHex(id?: number) {
@@ -126,8 +171,8 @@ export namespace DeviceAttestationValidator {
         const findings = new Array<AttestationFinding>();
 
         // Step 1: Parse DAC and PAI from DER
-        const dac = Dac.fromAsn1(data.dac);
-        const pai = Pai.fromAsn1(data.pai);
+        const dac = parsePeerCertificate("DAC", data.dac, der => Dac.fromAsn1(der));
+        const pai = parsePeerCertificate("PAI", data.pai, der => Pai.fromAsn1(der));
 
         // === Local checks (always run, no DCL needed) ===
 
@@ -140,7 +185,11 @@ export namespace DeviceAttestationValidator {
         }
 
         // Step 6: AttestationNonce match
-        const attestationInfo = TlvAttestation.decode(data.attestationElements);
+        const attestationInfo = parsePeerValue(
+            DeviceAttestationCheck.AttestationElementsUnparseable,
+            "Device returned attestation elements that cannot be decoded",
+            () => TlvAttestation.decode(data.attestationElements),
+        );
         if (!Bytes.areEqual(attestationInfo.attestationNonce, data.attestationNonce)) {
             throw new DeviceAttestationError(
                 DeviceAttestationCheck.AttestationNonceMismatch,
@@ -305,7 +354,11 @@ export namespace DeviceAttestationValidator {
         // === Remaining local checks (CD validation) ===
 
         // Step 8: Certification Declaration signature verification
-        const cd = CertificationDeclaration.parse(attestationInfo.declaration);
+        const cd = parsePeerValue(
+            DeviceAttestationCheck.CertificationDeclarationUnparseable,
+            "Device returned a Certification Declaration that cannot be parsed",
+            () => CertificationDeclaration.parse(attestationInfo.declaration),
+        );
         const cdSignerSkidHex = Bytes.toHex(cd.signerSubjectKeyId);
 
         if (dclCertificateService !== undefined) {

@@ -167,6 +167,65 @@ describe("DeviceAttestationValidator", () => {
         });
     });
 
+    describe("malformed peer certificates", () => {
+        it("throws CertificateUnparseable when the device returns an empty PAI", async () => {
+            const dclService = await setupDclService();
+
+            await expect(
+                DeviceAttestationValidator.validate(buildContext(dclService), buildData({ pai: new Uint8Array(0) })),
+            ).to.be.rejectedWith(DeviceAttestationError, /Device returned an empty PAI certificate/);
+        });
+
+        it("throws CertificateUnparseable when the device returns an empty DAC", async () => {
+            const dclService = await setupDclService();
+
+            await expect(
+                DeviceAttestationValidator.validate(buildContext(dclService), buildData({ dac: new Uint8Array(0) })),
+            ).to.be.rejectedWith(DeviceAttestationError, /Device returned an empty DAC certificate/);
+        });
+
+        it("throws CertificateUnparseable when the device returns a truncated PAI", async () => {
+            const dclService = await setupDclService();
+
+            const truncatedPai = Bytes.of(paiDer).slice(0, 20);
+
+            let error: DeviceAttestationError | undefined;
+            try {
+                await DeviceAttestationValidator.validate(buildContext(dclService), buildData({ pai: truncatedPai }));
+            } catch (caught) {
+                error = caught as DeviceAttestationError;
+            }
+
+            expect(error).instanceOf(DeviceAttestationError);
+            expect(error!.failure).equal(DeviceAttestationCheck.CertificateUnparseable);
+            expect(error!.message).match(/PAI certificate that cannot be parsed/);
+        });
+    });
+
+    describe("malformed attestation elements", () => {
+        it("throws AttestationElementsUnparseable when the elements are not valid TLV", async () => {
+            const dclService = await setupDclService();
+
+            await expect(
+                DeviceAttestationValidator.validate(
+                    buildContext(dclService),
+                    buildData({ attestationElements: Bytes.fromHex("15300102") }),
+                ),
+            ).to.be.rejectedWith(DeviceAttestationError, /attestation elements that cannot be decoded/);
+        });
+
+        it("throws CertificationDeclarationUnparseable when the CD field holds something else", async () => {
+            const dclService = await setupDclService();
+
+            // A device that answers with a leaked buffer in place of the Certification Declaration
+            const attestation = await buildAttestationWithCd(Bytes.fromHex("6c6f63616c686f73743a3131333131"));
+
+            await expect(
+                DeviceAttestationValidator.validate(buildContext(dclService), buildData(attestation)),
+            ).to.be.rejectedWith(DeviceAttestationError, /Certification Declaration that cannot be parsed/);
+        });
+    });
+
     describe("PAA trust store", () => {
         it("throws PaaNotTrusted when PAA is not in trust store", async () => {
             // Set up service with empty trust store

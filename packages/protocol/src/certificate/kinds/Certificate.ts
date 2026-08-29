@@ -357,8 +357,20 @@ export namespace Certificate {
                 valueIndex = 2; // Skip critical flag
             }
 
-            const valueOctetString = extElements[valueIndex]._bytes;
-            const valueNode = DerCodec.decode(valueOctetString);
+            switch (oidValue) {
+                case X509.Extensions.BASIC_CONSTRAINTS:
+                case X509.Extensions.KEY_USAGE:
+                case X509.Extensions.EXTENDED_KEY_USAGE:
+                case X509.Extensions.SUBJECT_KEY_IDENTIFIER:
+                case X509.Extensions.AUTHORITY_KEY_IDENTIFIER:
+                    break;
+
+                // An extension we do not interpret may carry any encoding, so its value never reaches the decoder
+                default:
+                    continue;
+            }
+
+            const valueNode = DerCodec.decode(extElements[valueIndex]._bytes);
 
             switch (oidValue) {
                 case X509.Extensions.BASIC_CONSTRAINTS:

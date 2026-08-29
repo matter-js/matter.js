@@ -4,7 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ContextTagged, DatatypeOverride, DerBitString, DerCodec, DerRawUint, DerType } from "#codec/DerCodec.js";
+import {
+    ContextTagged,
+    DatatypeOverride,
+    DerBitString,
+    DerCodec,
+    DerError,
+    DerRawUint,
+    DerType,
+} from "#codec/DerCodec.js";
 import { X520 } from "#crypto/X520.js";
 import { X962 } from "#index.js";
 
@@ -88,6 +96,32 @@ describe("DerCodec", () => {
             expectHex(DerCodec.encode(DerRawUint(b$`0001`)), "020101");
             expectHex(DerCodec.encode(DerRawUint(b$`80`)), "02020080");
             expectHex(DerCodec.encode(DerRawUint(b$`0080`)), "02020080");
+        });
+    });
+
+    describe("decode", () => {
+        it("rejects empty data", () => {
+            expect(() => DerCodec.decode(new Uint8Array(0))).throws(DerError, /DER data is truncated/);
+        });
+
+        it("rejects data whose declared length exceeds the buffer", () => {
+            // SEQUENCE claiming 16 content bytes with only 2 present
+            expect(() => DerCodec.decode(b$`301000ff`)).throws(DerError, /DER data is truncated/);
+        });
+
+        it("rejects a long-form length whose high bit would make it negative", () => {
+            // OCTET STRING with a 4-byte length of 0x80000000
+            expect(() => DerCodec.decode(b$`048480000000`)).throws(DerError, /DER data is truncated/);
+        });
+
+        it("rejects a long-form length longer than a safe integer", () => {
+            // OCTET STRING with a 7-byte length
+            expect(() => DerCodec.decode(b$`0487ffffffffffffff`)).throws(DerError, /exceeds the 6 byte maximum/);
+        });
+
+        it("rejects a truncated nested element", () => {
+            // SEQUENCE of 2 bytes containing an INTEGER claiming 8 content bytes
+            expect(() => DerCodec.decode(b$`30020208`)).throws(DerError, /DER data is truncated/);
         });
     });
 });

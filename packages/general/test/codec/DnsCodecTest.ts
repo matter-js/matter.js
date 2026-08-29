@@ -228,6 +228,31 @@ describe("DnsCodec", () => {
             // that we do not support right now on encoding side
         });
 
+        it("keeps the readable records of a message that holds an unreadable one", () => {
+            // Two answers: a TXT record whose string length overruns its RDATA, then a valid A record
+            const message = Bytes.fromHex(
+                "000084000000000200000000" +
+                    "0162056c6f63616c00" +
+                    "0010" +
+                    "0001" +
+                    "0000003c" +
+                    "0003" +
+                    "054142" +
+                    "0161056c6f63616c00" +
+                    "0001" +
+                    "0001" +
+                    "0000003c" +
+                    "0004" +
+                    "c0a80101",
+            );
+
+            const result = DnsCodec.decode(message);
+
+            expect(result?.answers).to.have.length(1);
+            expect(result?.answers[0].name).equal("a.local");
+            expect(result?.answers[0].value).equal("192.168.1.1");
+        });
+
         it("decodes message with private record type", () => {
             const result = DnsCodec.decode(RESULT_WITH_PRIVATE_TYPE);
 

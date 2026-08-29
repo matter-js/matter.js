@@ -11,7 +11,7 @@ import { Seconds } from "#time/TimeUnit.js";
 import { isObject } from "#util/index.js";
 import { InternalError, NotImplementedError, UnexpectedDataError } from "../MatterError.js";
 import { Bytes, Endian } from "../util/Bytes.js";
-import { DataReader } from "../util/DataReader.js";
+import { DataReader, DataReadError } from "../util/DataReader.js";
 import { DataWriter } from "../util/DataWriter.js";
 import { ipv4BytesToString, ipv4ToBytes, ipv6BytesToString, ipv6ToBytes, isIPv4, isIPv6 } from "../util/Ip.js";
 
@@ -271,7 +271,17 @@ export class DnsCodec {
         const ttl = Seconds(reader.readUInt32());
         const valueLength = reader.readUInt16();
         const valueBytes = reader.readByteArray(valueLength);
-        const value = this.decodeRecordValue(valueBytes, recordType, message);
+
+        // The reader already stands after this record, so a record we cannot read costs only itself
+        let value: unknown;
+        try {
+            value = this.decodeRecordValue(valueBytes, recordType, message);
+        } catch (error) {
+            if (!(error instanceof DataReadError)) {
+                throw error;
+            }
+            return undefined;
+        }
 
         // Validate that the record has required fields
         if (recordType === undefined || value === undefined) {
