@@ -2079,3 +2079,107 @@ and a `& bit` test against it is always falsy — read the named bit instead.
 
 No PICS work: CHIP's register defines no per-command client keys for LevelControl, so `LVL.C` (which
 the device file already answers 1) is the only gate, and choosing which commands to send is ours.
+## The cluster-client block opens with `TC-G-3.2`
+
+The first WP-5 test, and the shape the rest of that block shares: four steps, each "DUT sends
+*command* to TH; TH receives it", proved from the TH's own log through `expectCommandInvoke` — the
+same check `TC-ACT-3.2` and `TC-IDM-1.1` use. What it adds over those two:
+
+- **Preconditions that are themselves interactions.** Before a Groups command means anything the DUT
+  must write a key set to the TH's GroupKeyManagement cluster (`KeySetWrite`), bind both group ids to
+  it in `GroupKeyMap`, and add both groups. `AddGroup` is refused for a group the fabric's
+  `GroupKeyMap` does not name, so the two `AddGroup` invokes are what proves the binding took: the
+  precondition step gates on them rather than asserting a hard-coded pass.
+- **Endpoint 1, not the YAML's endpoint 0.** chip's all-clusters app has Groups on endpoint 0 as
+  well; matter.js's root endpoint has none, and its Groups clusters come from the `OnOffLightDevice`
+  endpoints. Endpoint 1 is an `OnOffLightDevice` on both, so it carries Groups *and* Identify, which
+  step 4 needs — and the plan names the endpoint `PIXIT.G.ENDPOINT` rather than fixing a number.
+- **A `GetGroupMembership` with an empty `GroupList`** asks for every group the endpoint holds for
+  this fabric, so the response names the two groups the preconditions added. The step checks that,
+  because its log check alone cannot: chip renders the empty list field across several lines and
+  `expectCommandInvoke` matches one line per field, so the command path is all the log proves.
+- **`AddGroupIfIdentifying` is a no-op unless the TH is identifying**, so the step invokes
+  `Identify.identify` first, as chip's own worked commands do.
+
+## A command field that is a string (`TC-G-3.2`)
+
+`CommandFieldValue.value` takes a string as well as a number. chip prints one as
+`0x1 = "gp3" (3 chars),` — the count is the string's UTF-8 bytes — where matter.js prints the value
+bare, `groupName: gp3`, so each flavor renders it from the same entry. The value is matched
+literally: a name containing regular-expression syntax is escaped, and a longer name is not accepted
+for a shorter one.
+
+matter.js's bare rendering is the awkward half. Its fields are separated by a single space, so what
+ends a value is either the line's end or the next field's `<name>:`, not "no further non-space" —
+bound it that way and `gp` matches the `gp 3` of a name that has a space in it. A value matter.js
+cannot render on one line, or renders indistinguishably from an absent one (empty, or carrying a
+newline), gets no pattern at all: `matterjsFieldValue` throws rather than waiting out a timeout on a
+line that cannot come.
+
+## An `epoch-us` cannot carry the plan's literal start time
+
+`TC-G-3.2`'s preconditions say `EpochStartTime0 = 1`. matter.js's `TlvEpochUs` takes a **Unix**
+timestamp and subtracts the Matter epoch itself, so it rejects a value already offset to the Matter
+epoch — the plan's literal is one. The TC writes Unix-microsecond start times instead; only their
+order matters, since nothing in it sends group traffic. The chip-tool adapter's codec applies the
+same offset in its own direction, so both controllers put the same instant on the wire.
+
+## chip-tool reads a number's TLV type off the number, and its inference is 32-bit
+
+Found by this TC's `KeySetWrite`: matter.js answered a bare `StatusResponse FAILURE` with
+`Unexpected type 10, was expecting 4` — 10 is `TlvType.Float`, so the epoch start time had arrived as
+a *float* where the field is a `uint64`.
+
+`any command-by-id` and `any write-by-id` take their payload as chip-tool's `CustomArgument`, whose
+parser (`examples/chip-tool/commands/clusters/CustomArgument.h`) types a plain JSON number by asking
+jsoncpp `isUInt()`, then `isInt()`, then falling back to `asDouble()`. Both of those predicates are
+**32-bit** (jsoncpp's `Int`/`UInt` are `int`/`unsigned int`), and `isUInt()` is asked first. So from
+the JSON alone chip-tool reaches an unsigned TLV integer up to `0xffffffff` — whatever the field's
+declared type is — a signed one only when the value is negative and no smaller than `INT32_MIN`, and
+a float everywhere else. The field's own type never enters into it, and a peer decoding that type
+rejects the rest: CHIP's own `TLVReader::Get(int64_t)` answers `CHIP_ERROR_WRONG_TLV_TYPE` for an
+unsigned element. The case that looks safe and is not is a small **positive** value on a signed
+field.
+
+So the codec states the type instead, through chip-tool's own prefixes — `u:`, `s:`, `f:`, `d:` —
+whenever the plain form would mistype the value (`matterToChipJson`, `chipTypedNumber`). A value
+chip-tool already infers correctly stays a plain number. Two related refusals live there too, both
+`ImplementationError`, because neither has a wire form that says what went wrong: a non-integral
+value on an integer field, and a char string whose text begins with one of those prefixes (chip-tool
+reads the prefix before it reads a string).
+
+This was latent for every field the suite might send through chip-tool whose value leaves the 32-bit
+window — a node id, an event number, a timestamp, a negative int64, any float — not only this TC's
+epoch keys.
+
+The prefixed form has a budget of its own: each of those parsers copies the text after the prefix into
+a `char[21]` and `CopyString` truncates to fit rather than failing, so **20 characters survive**. The
+widest integer a Matter field can hold fits exactly (`18446744073709551615` and
+`-9223372036854775808` are 20 characters each), but a float need not — the largest finite double
+renders as 23, and `stod` on the truncated text yields a well-formed number that is not the one asked
+for. A value that would not survive is refused rather than silently changed.
+
+## The second cluster-client TC of the same shape (`TC-S-3.1`)
+
+Eight steps, each "DUT issues *command*, TH receives it", plus the same key-set / GroupKeyMap /
+AddGroup preconditions `TC-G-3.2` needs — scenes are addressed by group, so a scene command names a
+group the fabric's key map must already carry. What it adds:
+
+- **The cluster's own PICS key needs declaring, not only its commands.** CHIP's file answers `S.C=0`
+  as well as `S.C.C0x.Tx=0`, so without the overlay the *whole test* is pending rather than one step
+  being skipped — a quieter failure than the per-command case, and one a `certTest`-level `pics`
+  never announces.
+- **A response's status is a separate claim from the invoke resolving.** Every command here but
+  `RecallScene` answers with a status inside its payload, so `answersWithStatus`/`responseStatusOf`
+  (promoted to `tc-support.ts` when this became the second TC to need them) gate on it. A command
+  whose schema mandates a status and answers without one fails rather than skipping the check.
+- **`EpochKey2`/`EpochStartTime2` go as null**, which the plan asks for and both adapters carry.
+- **A list or bitmap field needs its own lines, not a field entry.** `expectCommandInvoke` matches one
+  line per field, and neither shape is one line on both flavors: chip nests a list across lines and
+  numbers its members, while matter.js prints the whole nested value inline and names them
+  (`extensionFieldSetStructs: { clusterId: 6, attributeValueList: [ { attributeId: 0, valueUnsigned8: 1 } ] }`).
+  A bitmap diverges the same way — chip prints `0x0 = 0 (unsigned),` where matter.js prints
+  `mode: { copyAllScenes: false }`. So these go through `expectSequence` with per-flavor lines instead,
+  anchored on the mark the invoke took, which is what lets the step assert the nested `ClusterID` and
+  `AttributeValueList` the plan actually names. Sending an empty list would have been the quieter
+  mistake: the step would pass while exercising none of the shape it is about.

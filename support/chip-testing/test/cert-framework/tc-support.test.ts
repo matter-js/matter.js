@@ -927,8 +927,8 @@ describe("command, event and subscribe checks against a matter.js TH", () => {
     const SESSION = "@1:6933d77f2aac19fc•8c2d";
     const invokeLine = (paths: string, flags = "") =>
         `2026-08-22 16:56:18.684 INFO InteractionServer Invoke « ${SESSION}⇵4ef3 ${flags}invokes: ${paths}`;
-    const fieldsLine = (command: string, fields: string) =>
-        `2026-08-22 16:54:43.437 INFO ProtocolService Invoke « binford-6100.generalCommissioning.${command} ${SESSION}⇵4ef3✉0d8128da ${fields}`;
+    const fieldsLine = (command: string, fields: string, cluster = "generalCommissioning") =>
+        `2026-08-22 16:54:43.437 INFO ProtocolService Invoke « binford-6100.${cluster}.${command} ${SESSION}⇵4ef3✉0d8128da ${fields}`;
     const readEventLine = (events: string, flags = "fabricFiltered ") =>
         `2026-08-22 16:56:19.727 DEBUG InteractionServer Read « ${SESSION}⇵9376 ${flags}attributes: none events: ${events}`;
     const subscribeFlagsLine = (flags: string) =>
@@ -978,6 +978,92 @@ describe("command, event and subscribe checks against a matter.js TH", () => {
         );
 
         expect(record.verdict).equal("pass");
+    });
+
+    it("checks a string field by the value matter.js prints unquoted", async () => {
+        const record = await withFollower(
+            [
+                invokeLine("1.groups.addGroupIfIdentifying"),
+                fieldsLine("addGroupIfIdentifying", "groupId: 3 groupName: gp3", "groups"),
+            ],
+            follower =>
+                expectCommandInvoke(
+                    follower,
+                    "matterjs",
+                    1,
+                    0x4,
+                    0x5,
+                    [
+                        { id: 0, value: 3 },
+                        { id: 1, value: "gp3" },
+                    ],
+                    0,
+                    Millis(100),
+                ),
+        );
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("does not take a longer string for the one the step asked for", async () => {
+        const record = await withFollower(
+            [
+                invokeLine("1.groups.addGroupIfIdentifying"),
+                fieldsLine("addGroupIfIdentifying", "groupId: 3 groupName: gp30", "groups"),
+            ],
+            follower =>
+                expectCommandInvoke(follower, "matterjs", 1, 0x4, 0x5, [{ id: 1, value: "gp3" }], 0, Millis(100)),
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("does not take a name whose own space ends the value the step asked for", async () => {
+        const record = await withFollower(
+            [
+                invokeLine("1.groups.addGroupIfIdentifying"),
+                fieldsLine("addGroupIfIdentifying", "groupId: 3 groupName: gp 3", "groups"),
+            ],
+            follower =>
+                expectCommandInvoke(follower, "matterjs", 1, 0x4, 0x5, [{ id: 1, value: "gp" }], 0, Millis(100)),
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("matches a name that ends the line, and one another field follows", async () => {
+        for (const fields of ["groupId: 3 groupName: gp 3", "groupName: gp 3 groupId: 3"]) {
+            const record = await withFollower(
+                [invokeLine("1.groups.addGroupIfIdentifying"), fieldsLine("addGroupIfIdentifying", fields, "groups")],
+                follower =>
+                    expectCommandInvoke(follower, "matterjs", 1, 0x4, 0x5, [{ id: 1, value: "gp 3" }], 0, Millis(100)),
+            );
+
+            expect(record.verdict, fields).equal("pass");
+        }
+    });
+
+    it("matches a name carrying regular-expression syntax literally", async () => {
+        const record = await withFollower(
+            [
+                invokeLine("1.groups.addGroupIfIdentifying"),
+                fieldsLine("addGroupIfIdentifying", "groupId: 3 groupName: gpX3", "groups"),
+            ],
+            follower =>
+                expectCommandInvoke(follower, "matterjs", 1, 0x4, 0x5, [{ id: 1, value: "gp.3" }], 0, Millis(100)),
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("refuses a value matter.js cannot print as a matchable field", async () => {
+        for (const value of ["", "two\nlines"]) {
+            await expect(
+                withFollower([invokeLine("1.groups.addGroupIfIdentifying")], follower =>
+                    expectCommandInvoke(follower, "matterjs", 1, 0x4, 0x5, [{ id: 1, value }], 0, Millis(100)),
+                ),
+            ).rejectedWith(InternalError);
+        }
     });
 
     it("fails when a field carried another value than the step asked for", async () => {
@@ -1433,6 +1519,50 @@ describe("expectCommandInvoke", () => {
         );
 
         expect(record.verdict).equal("unverified");
+    });
+
+    // A string field is rendered by its own TLV type, which chip states as the string's length in
+    // bytes — the shape TC-G-3.2's AddGroupIfIdentifying GroupName is checked by.
+    const STRING_FIELD = '[DMG] 0x1 = "gp3" (3 chars),';
+
+    it("passes on a string field chip printed with its character count", async () => {
+        const record = await withFollower([...PATH, STRING_FIELD], follower =>
+            expectCommandInvoke(follower, "chip-local", 1, 0x6, 0x1, [{ id: 1, value: "gp3" }], 0, Seconds(1)),
+        );
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("does not take a longer string for the one the step asked for", async () => {
+        const record = await withFollower([...PATH, '[DMG] 0x1 = "gp30" (4 chars),'], follower =>
+            expectCommandInvoke(follower, "chip-local", 1, 0x6, 0x1, [{ id: 1, value: "gp3" }], 0, Seconds(1)),
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("counts a string's UTF-8 bytes, as chip does, not its code points", async () => {
+        const record = await withFollower([...PATH, '[DMG] 0x1 = "gpü" (4 chars),'], follower =>
+            expectCommandInvoke(follower, "chip-local", 1, 0x6, 0x1, [{ id: 1, value: "gpü" }], 0, Seconds(1)),
+        );
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("matches a string carrying regular-expression syntax literally", async () => {
+        const record = await withFollower([...PATH, '[DMG] 0x1 = "g.3" (3 chars),'], follower =>
+            expectCommandInvoke(follower, "chip-local", 1, 0x6, 0x1, [{ id: 1, value: "g.3" }], 0, Seconds(1)),
+        );
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("does not let a string's regular-expression syntax match another value", async () => {
+        const record = await withFollower([...PATH, '[DMG] 0x1 = "gp3" (3 chars),'], follower =>
+            expectCommandInvoke(follower, "chip-local", 1, 0x6, 0x1, [{ id: 1, value: "g.3" }], 0, Seconds(1)),
+        );
+
+        expect(record.verdict).equal("fail");
     });
 });
 
