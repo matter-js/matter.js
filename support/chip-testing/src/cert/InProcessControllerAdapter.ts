@@ -66,6 +66,8 @@ import type {
     CertNodeRef,
     CommissioningTarget,
     ControllerAdapter,
+    ControllerAdapterOptions,
+    ControllerTransport,
     EventPathSpec,
     EventReadEntry,
     ManualPairingCodeFields,
@@ -855,8 +857,9 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     readonly #logStream = new LineQueue();
     #controller?: ServerNode;
     #fabric?: Fabric;
+    readonly #transport?: ControllerTransport;
 
-    constructor(id: string) {
+    constructor(id: string, options?: ControllerAdapterOptions) {
         if (adapterStreams.has(id)) {
             throw new InternalError(
                 `InProcessControllerAdapter "${id}" is already registered; two live adapters with the same id ` +
@@ -866,6 +869,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
         }
 
         this.id = id;
+        this.#transport = options?.transport;
         this.#env = new Environment(`cert-${id}`, Environment.default);
         new MockStorageService(this.#env);
         this.log = new LogFollower(this.#logStream.follow(), id);
@@ -894,7 +898,13 @@ export class InProcessControllerAdapter implements ControllerAdapter {
                 id: this.id,
                 commissioning: { enabled: false },
                 controller: { adminFabricLabel: this.id },
-                network: { autoStartCommissionedPeers: false },
+                network: {
+                    autoStartCommissionedPeers: false,
+
+                    // A TC that needs TCP asks for it; every other run keeps the transport its
+                    // evidence and timing were written against.
+                    ...(this.#transport === "tcp" ? { tcp: true, transportPreference: "tcp" as const } : {}),
+                },
                 subscriptions: { persistenceEnabled: false },
             });
             this.#controller = controller;

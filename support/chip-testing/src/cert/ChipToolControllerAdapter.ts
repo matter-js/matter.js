@@ -39,7 +39,7 @@ import type {
     SubscribeOptions,
     TimedInteractionOptions,
 } from "@matter/testing";
-import type { PicsValues } from "@matter/testing";
+import type { ControllerAdapterOptions, ControllerTransport, PicsValues } from "@matter/testing";
 import { LineQueue, LogFollower, UnsupportedByControllerError } from "@matter/testing";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -176,6 +176,16 @@ function quoteArg(value: string) {
 }
 
 /** chip-tool's own name for the timed-interaction timeout, on `command-by-id` and `write-by-id` alike. */
+/**
+ * chip-tool decides a session's transport at CASE setup: `--allow-large-payload 1` makes it ask for a
+ * TCP-backed one, which it can only get where the peer advertises a TCP server
+ * (`OperationalSessionSetup`). The flag lives on chip-tool's shared model-command base, so it applies
+ * to read, write and invoke alike.
+ */
+function largePayloadArg(transport?: ControllerTransport) {
+    return transport === "tcp" ? " --allow-large-payload 1" : "";
+}
+
 function timedArg(options?: TimedInteractionOptions) {
     const timeout = timedInteractionTimeoutOf(options);
     return timeout === undefined ? "" : ` --timedInteractionTimeoutMs ${timeout}`;
@@ -768,7 +778,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
 
         const reply = await this.#adapter.execute(
             `any command-by-id ${hex(clusterId)} ${hex(commandModel.id)} ${quoteArg(fields)} ` +
-                `${this.#node} ${endpoint}${timedArg(options)}`,
+                `${this.#node} ${endpoint}${timedArg(options)}${largePayloadArg(this.#adapter.transport)}`,
         );
 
         const operation = `invoke ${clusterModel.name}.${commandModel.name}`;
@@ -1157,6 +1167,7 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
     readonly #subscriptions = new Array<LiveSubscription>();
     readonly #eventSubscriptions = new Array<LiveEventSubscription>();
     readonly #commissionerName: ChipToolCommissionerName;
+    readonly #transport?: ControllerTransport;
     #storageDirectory?: string;
     #client?: ChipToolClient;
     #nextNodeId = FIRST_NODE_ID;
@@ -1164,7 +1175,7 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
     readonly #globalFabricIds = new Map<string, Promise<GlobalFabricId>>();
     #closed = false;
 
-    constructor(id: string) {
+    constructor(id: string, options?: ControllerAdapterOptions) {
         const commissionerName = COMMISSIONER_NAMES.find(name => !claimedCommissioners.has(name));
         if (commissionerName === undefined) {
             throw new InternalError(
@@ -1176,9 +1187,15 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
         }
 
         this.id = id;
+        this.#transport = options?.transport;
         this.#commissionerName = commissionerName;
         claimedCommissioners.set(commissionerName, this);
         this.log = new LogFollower(this.#logStream.follow(), id);
+    }
+
+    /** How this adapter's sessions reach their peers, which a model command states per invocation. */
+    get transport() {
+        return this.#transport;
     }
 
     /** The commissioner identity this adapter's chip-tool process was launched with. */
