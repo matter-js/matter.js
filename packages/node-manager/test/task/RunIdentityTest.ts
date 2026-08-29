@@ -53,6 +53,24 @@ async function pumpUntil(name: string, condition: () => Promise<boolean>) {
     throw new Error(`Condition "${name}" never held`);
 }
 
+/** Refuses to be rebuilt from its persisted parameters, as a custom task validating them might. */
+class UnbuildableTask extends Task<{ tag: string }> {
+    static rejectConstruction = false;
+    override readonly type = "unbuildable";
+    override get phases(): TaskPhase[] {
+        return [];
+    }
+    static override slotKeyFor(params: { tag: string }) {
+        return `unbuildable:${params.tag}`;
+    }
+    constructor(runId: RunId, slotKey: string, params: { tag: string }, persisted?: Partial<TaskPersistence>) {
+        super(runId, slotKey, params, persisted);
+        if (UnbuildableTask.rejectConstruction) {
+            throw new ImplementationError("malformed persisted parameters");
+        }
+    }
+}
+
 /** A second type, so a request for a different slot can try to take a pending run's external id. */
 class OtherTask extends Task<{ tag: string }> {
     override readonly type = "other";
@@ -345,7 +363,7 @@ describe("run identity", () => {
         expect(await node.act(a => a.get(TestTaskManager).forExternalId("mine")?.runId)).equals(held.runId);
     });
 
-    it("refuses a re-run while a rollback of an older run of the slot is still live", async () => {
+    it("refuses a re-run while a rollback of that slot is still live", async () => {
         await using node = await makeNode(undefined, "older");
         const peer = touchingPeer("older");
         SyntheticTask.phasesByTag["older"] = [touchPhase("older")];
@@ -366,10 +384,10 @@ describe("run identity", () => {
         await settle(node, "synthetic:older");
         expect(second.runId).not.equals(first.runId);
 
-        // The rollback of the OLDER run parks on an unreachable peer, so it stays live.
+        // The rollback parks on an unreachable peer, so it stays live while the re-run is attempted.
         peer.setReachable(false);
-        const rollback = await node.act(a => a.get(TestTaskManager).cancel(first.runId));
-        expect(rollback?.status.revertOf).equals(first.runId);
+        const rollback = await node.act(a => a.get(TestTaskManager).cancel(second.runId));
+        expect(rollback?.status.revertOf).equals(second.runId);
 
         // A rollback rewrites exactly the intents a re-run would re-apply, whichever run of the slot it undoes.
         let refusal: unknown;
@@ -449,37 +467,38 @@ describe("run identity", () => {
         expect(again?.runId).equals(rollbackId);
     });
 
-    it("refuses a second rollback of a slot another rollback is already undoing", async () => {
-        await using node = await makeNode(undefined, "tworollbacks");
-        const peer = touchingPeer("tworollbacks");
-        SyntheticTask.phasesByTag["tworollbacks"] = [touchPhase("tworollbacks")];
+    it("refuses to undo a run a later run of its slot has superseded", async () => {
+        await using node = await makeNode(undefined, "superseded");
+        const peer = touchingPeer("superseded");
+        SyntheticTask.phasesByTag["superseded"] = [touchPhase("superseded")];
         await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
 
         const runs = new Array<RunId>();
         for (let round = 0; round < 2; round++) {
-            const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "tworollbacks" }));
+            const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "superseded" }));
             for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
                 await MockTime.advance(1);
             }
-            await settle(node, "synthetic:tworollbacks");
+            await settle(node, "synthetic:superseded");
             peer.dropItem("groupMembership", "X");
             runs.push(handle.runId);
         }
 
-        // Each rollback has a slot of its own, so nothing about their own slots keeps them apart. They rewrite
-        // the same intents, so the second must be refused against the slot they both undo.
-        peer.setReachable(false);
-        const first = await node.act(a => a.get(TestTaskManager).cancel(runs[0]));
-        expect(first).not.equals(undefined);
-
+        // Undoing a run restores the values it found. A later run of the slot has committed its own since, so
+        // restoring the older run's would overwrite an outcome nobody asked to undo.
         let refusal: unknown;
         try {
-            await node.act(a => a.get(TestTaskManager).cancel(runs[1]));
+            await node.act(a => a.get(TestTaskManager).cancel(runs[0]));
         } catch (e) {
             refusal = e;
         }
         expect(refusal).instanceOf(TaskConflictError);
-        expect((refusal as TaskConflictError).owner).equals(first?.runId);
+        expect((refusal as TaskConflictError).owner).equals(runs[1]);
+
+        // The newest run of the slot is still undoable.
+        peer.setReachable(false);
+        const rollback = await node.act(a => a.get(TestTaskManager).cancel(runs[1]));
+        expect(rollback?.status.revertOf).equals(runs[1]);
     });
 
     it("refuses a rollback of a retired run whose slot a newer run now owns", async () => {
@@ -647,5 +666,40 @@ describe("run identity", () => {
             }
         });
         expect(exhausted).instanceOf(TaskIdentityExhaustedError);
+    });
+
+    it("keeps a run pending when its task cannot be rebuilt from its record", async () => {
+        const environment = persistentEnvironment();
+
+        let parked: RunId;
+        {
+            await using node = await makeNode(environment, "unbuildable");
+            UnbuildableTask.rejectConstruction = false;
+            await node.act(a => a.get(TestTaskManager).register("unbuildable", UnbuildableTask));
+            const handle = await node.act(a => a.get(TestTaskManager).run("unbuildable", { tag: "u" }));
+            parked = handle.runId;
+            await pumpUntil(
+                "the run is recorded",
+                async () =>
+                    (await node.act(a => recordFor(a.get(TestTaskManager).state.runs, "unbuildable:u"))) !== undefined,
+            );
+        }
+
+        // The record survives but its task refuses to be rebuilt. It is still unfinished work that has been
+        // written down, so forgetting it here would free its slot and hide it for the rest of this process.
+        await using node = await makeNode(environment, "unbuildable");
+        UnbuildableTask.rejectConstruction = true;
+        await node.act(a => a.get(TestTaskManager).register("unbuildable", UnbuildableTask));
+
+        expect(await node.act(a => a.get(TestTaskManager).get(parked)?.status.slotKey)).equals("unbuildable:u");
+        UnbuildableTask.rejectConstruction = false;
+        let refusal: unknown;
+        try {
+            await node.act(a => a.get(TestTaskManager).run("unbuildable", { tag: "u" }));
+        } catch (e) {
+            refusal = e;
+        }
+        expect(refusal).instanceOf(TaskConflictError);
+        expect((refusal as TaskConflictError).owner).equals(parked);
     });
 });

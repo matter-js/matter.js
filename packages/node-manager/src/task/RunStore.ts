@@ -278,6 +278,26 @@ export class RunStore {
     }
 
     /**
+     * A retired run of the same slot that finished after `runId`, if there is one.
+     *
+     * Undoing a run restores the values it found, so a later run of the same slot having since committed its
+     * own makes those values historical: applying them would overwrite an outcome nobody asked to undo.
+     */
+    supersederOf(runId: RunId): TaskPersistence | undefined {
+        const record = this.#retired.get(runId);
+        if (record === undefined) {
+            return undefined;
+        }
+        const retiredAt = record.retireSeq ?? 0;
+        for (const other of this.#retired.values()) {
+            if (other.slotKey === record.slotKey && (other.retireSeq ?? 0) > retiredAt) {
+                return other;
+            }
+        }
+        return undefined;
+    }
+
+    /**
      * A live rollback of any retired run of `slotKey`. A rollback rewrites exactly the intents a re-run would
      * re-apply, so the two must never overlap — and the rollback in flight is not necessarily undoing the most
      * recent run of the slot.
