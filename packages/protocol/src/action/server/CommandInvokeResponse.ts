@@ -469,27 +469,20 @@ export class CommandInvokeResponse<
             }
         } catch (error) {
             // Spec 1.6 §8.8.3.2.1: Invoke Execution yields only a CommandStatusIB or a CommandDataIB, so this command
-            // owes a status however classification, logging or rollback themselves fare
+            // owes a status even if handling the error itself fails
             let status = Status.Failure;
             let clusterStatus: number | undefined;
 
             try {
-                const sre = StatusResponseError.of(error);
-
-                if (sre !== undefined) {
-                    status = sre.code;
-                    clusterStatus = sre.clusterCode;
-                    if (sre instanceof ValidationError && status === Status.InvalidAction) {
-                        status = Status.InvalidCommand;
-                    }
-                }
-
-                // Discarding the command's state must not be contingent on logging succeeding
                 await this.session.transaction?.rollback();
 
+                const sre = StatusResponseError.of(error);
                 if (sre === undefined) {
                     logger.error(`Unhandled error invoking command ${this.node.inspectPath(path)}:`, error);
                 } else {
+                    status = sre.code;
+                    clusterStatus = sre.clusterCode;
+
                     const errorLogText = `Error ${Diagnostic.hex(status)}${
                         clusterStatus !== undefined ? `/${Diagnostic.hex(clusterStatus)}` : ""
                     } while invoking command: ${sre.message}`;
@@ -498,6 +491,9 @@ export class CommandInvokeResponse<
                         logger.info(
                             `Validation-${errorLogText}${sre.fieldName !== undefined ? ` in field ${sre.fieldName}` : ""}`,
                         );
+                        if (status === Status.InvalidAction) {
+                            status = Status.InvalidCommand;
+                        }
                     } else {
                         logger.info(errorLogText);
                     }
