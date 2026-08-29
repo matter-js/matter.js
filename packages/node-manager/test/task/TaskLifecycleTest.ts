@@ -5,7 +5,7 @@
  */
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
-import { TaskConflictError } from "#task/errors.js";
+import { TaskConflictError, TaskFailedError, TaskIdentityExhaustedError } from "#task/errors.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { TaskPhase } from "#task/types.js";
 import { RunId } from "#task/types.js";
@@ -37,6 +37,23 @@ class TestTaskManager extends TaskManagerBehavior {
     }
     protected override taskReconciler(): ReconcilerBehavior {
         return TestTaskManager.reconcilerPeer as unknown as ReconcilerBehavior;
+    }
+
+    /**
+     * Consume every identity the reservation covers, so the next rollback the manager tries to prepare is
+     * refused. Reaches the preparation-failure path on a healthy node, which shutdown otherwise hides.
+     */
+    exhaustIdentities(): void {
+        for (;;) {
+            try {
+                this.internal.runs.allocate();
+            } catch (e) {
+                if (e instanceof TaskIdentityExhaustedError) {
+                    return;
+                }
+                throw e;
+            }
+        }
     }
 
     /** True while a drive of `id` owns this id's gate and driving entries. */
@@ -397,6 +414,81 @@ describe("Task lifecycle", () => {
                 "completed",
             );
             expect(peer.items[itemMapKey("groupMembership", "X")]).equals(undefined);
+            await node.close();
+        });
+    });
+
+    describe("rollback refusal", () => {
+        it("records a failure whose rollback the manager refuses", async () => {
+            const environment = new Environment("test");
+            const peer = new FakePeer("rb");
+            TestTaskManager.peers.set("rb", peer);
+            TestTaskManager.reconcilerPeer = peer;
+
+            let failNow!: () => void;
+            const held = new Promise<void>(resolve => (failNow = resolve));
+            SyntheticTask.phasesByTag["blockedrollback"] = [
+                {
+                    name: "touch",
+                    run: async ctx => {
+                        await ctx.setIntent(ctx.resolvePeer("rb"), "groupMembership", "B", {});
+                        await held;
+                        throw new TaskFailedError("forced failure");
+                    },
+                },
+            ];
+
+            const node = await makeNode(environment);
+            await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "blockedrollback" }));
+
+            // No identity is left for a rollback, so the manager cannot prepare one when this run fails.
+            await node.act(a => a.get(TestTaskManager).exhaustIdentities());
+            failNow();
+
+            // The refused rollback must not cost the task its recorded outcome, and must not escape the driver
+            // as an unhandled rejection.
+            await awaitState(node, "synthetic:blockedrollback", "failed");
+            const status = await node.act(a => a.get(TestTaskManager).get(handle.runId)?.status);
+            expect(status?.error).contains("forced failure");
+            expect(status?.revertRunId).equals(undefined);
+            await node.close();
+        });
+
+        it("leaves a task untouched when its cancel cannot spawn a rollback", async () => {
+            const environment = new Environment("test");
+            const peer = new FakePeer("cr2");
+            peer.setReachable(false);
+            TestTaskManager.peers.set("cr2", peer);
+            TestTaskManager.reconcilerPeer = peer;
+
+            SyntheticTask.phasesByTag["blockedcancel"] = [gatePhase("cr2", "groupMembership", "K")];
+
+            const node = await makeNode(environment);
+            await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "blockedcancel" }));
+            await awaitState(node, "synthetic:blockedcancel", "parked");
+
+            await node.act(a => a.get(TestTaskManager).exhaustIdentities());
+            await expect((async () => node.act(a => a.get(TestTaskManager).cancel(handle.runId)))()).rejectedWith(
+                TaskIdentityExhaustedError,
+            );
+
+            // Memory must not claim a cancel that storage never saw.
+            const status = await node.act(a => a.get(TestTaskManager).get(handle.runId)?.status);
+            expect(status?.state).does.not.equal("cancelled");
+            expect(
+                requireRecordFor(node.stateOf(TestTaskManager).runs, "synthetic:blockedcancel").state,
+            ).does.not.equal("cancelled");
+
+            // The abort stopped the driver and dropped the gate; declining the cancel must give both back, or
+            // the task sits non-terminal with nothing left to advance it until a restart.
+            expect(await node.act(a => a.get(TestTaskManager).isDriven(handle.runId))).equals(true);
+
+            // ...and it still converges once the device has the item, which it cannot do without a driver.
+            peer.markHas("groupMembership", "K");
+            peer.setReachable(true);
+            await awaitState(node, "synthetic:blockedcancel", "completed");
             await node.close();
         });
     });
