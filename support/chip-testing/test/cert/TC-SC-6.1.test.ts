@@ -36,6 +36,9 @@ const GROUPS_ENDPOINT = 1;
 const GROUP = { id: 1, name: "GroupOne" };
 const GROUP_KEY_SET_ID = 1;
 
+/** The fabric's own IPK key set, which commissioning writes and no step removes (Matter Core § 11.2.2). */
+const IPK_KEY_SET_ID = 0;
+
 /** `AccessControlEntryPrivilegeEnum.Operate` and `AccessControlEntryAuthModeEnum.Group`. */
 const PRIVILEGE_OPERATE = 3;
 const AUTH_MODE_GROUP = 3;
@@ -352,18 +355,20 @@ certTest("TC-SC-6.1", {
             );
 
             // The plan allows either name: a TH without the GroupNames feature answers an empty string.
-            const name =
-                typeof response === "object" && response !== null && "groupName" in response
-                    ? (response as { groupName?: unknown }).groupName
-                    : undefined;
+            // The group id is not optional though — a response for another group would otherwise pass.
+            const { groupId, groupName } =
+                typeof response === "object" && response !== null
+                    ? (response as { groupId?: unknown; groupName?: unknown })
+                    : {};
+            const named = groupName === GROUP.name || groupName === "";
             record(
                 cx,
                 {
                     type: "response",
-                    verdict: name === GROUP.name || name === "" ? "pass" : "fail",
-                    detail: `ViewGroupResponse names the group ${describe(name)}`,
+                    verdict: Number(groupId) === GROUP.id && named ? "pass" : "fail",
+                    detail: `ViewGroupResponse answers for group ${describe(groupId)} named ${describe(groupName)}`,
                 },
-                "the group name the TH reports",
+                "the group the TH reports, and its name",
             );
         }),
         {
@@ -456,13 +461,18 @@ certTest("TC-SC-6.1", {
                 typeof response === "object" && response !== null && "groupKeySetIDs" in response
                     ? (response as { groupKeySetIDs?: unknown }).groupKeySetIDs
                     : undefined;
-            const listed = Array.isArray(indices) ? indices : [];
+            // Exactly the IPK, not merely "without the removed set": an empty list, or one naming a set
+            // nobody wrote, would satisfy the weaker claim while saying the TH lost track of its keys.
+            const listed = Array.isArray(indices) ? indices.map(Number) : undefined;
+            const onlyIpk = listed !== undefined && listed.length === 1 && listed[0] === IPK_KEY_SET_ID;
             record(
                 cx,
                 {
                     type: "response",
-                    verdict: Array.isArray(indices) && !listed.includes(GROUP_KEY_SET_ID) ? "pass" : "fail",
-                    detail: `KeySetReadAllIndicesResponse lists ${describe(indices)}, after removing ${GROUP_KEY_SET_ID}`,
+                    verdict: onlyIpk ? "pass" : "fail",
+                    detail:
+                        `KeySetReadAllIndicesResponse lists ${describe(indices)}; after removing ` +
+                        `${GROUP_KEY_SET_ID} only the IPK's ${IPK_KEY_SET_ID} may remain`,
                 },
                 "the indices the TH reports after the removal",
             );

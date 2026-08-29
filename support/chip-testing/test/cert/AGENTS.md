@@ -2227,21 +2227,28 @@ Sending a group command is **available on both controllers** and simply unexerci
   (`ModelCommand::RunCommand` → `SendGroupCommand`), and `any command-by-id` inherits it. The mask
   matches matter.js's `GroupId.isGroupNodeId` exactly.
 
-What is missing is the receiver's side of the plan's step 5, which asks to validate four things about
-the message. Only the first is observable today:
+What is missing is a **witness** for the receiver's side of the plan's step 5, which asks to validate
+four things about the message. Only the first reaches a log line:
 
 - **DSIZ is group** — visible: a group session renders as `group#<id>` in `exchange.via`, so every
   inbound invoke line says it.
-- **The destination group id** — not logged. `destGroupId` is read off the packet header only to feed
-  `SessionManager`'s group-message observable, which has no log listener.
-- **The IPv6 destination `FF35:0040:FD<fabric-id>00:<group-id>`** — not capturable at all. The UDP
-  layer surfaces only the *sender's* address and port (`UdpTransport`'s `onData` takes `rinfo`); there
-  is no `IP_PKTINFO`-style destination capture anywhere in the net layer.
+- **The destination group id** — not logged, though matter.js does use it: `GroupSession.subjectFor`
+  resolves it into the subject access control checks against, and `SessionManager.onGroupMessage`
+  emits it for every group invoke.
+- **The IPv6 destination `FF35:0040:FD<fabric-id>00:<group-id>`** — not captured from the received
+  packet at all. The UDP layer surfaces only the *sender's* address and port (`UdpTransport`'s
+  `onData` takes `rinfo`), with no `IP_PKTINFO`-style destination capture; the `destIp` on that event
+  is filled by the sending path.
 - **UDP port 5540** — implicit in the bound socket, never stated in a log line.
 
-So a TC written today could claim "the TH received this on a group session" and nothing more, while
-the plan's step is about the addressing. Two ways forward, both decisions rather than work items:
-capture the destination address in the UDP layer so the log can carry it, or enable the Groupcast
-cluster on the test device and use its `groupcastTesting` event, which is the only place matter.js
-exposes the received group id programmatically. Until one of those exists, this TC would be an
-unfalsifiable pass of exactly the kind this directory keeps finding.
+So the open question is which witness to build, and it is a decision rather than a work item:
+
+- **Log the destination.** The receiving path holds the group id already; the multicast address it
+  would first have to capture.
+- **Observe `SessionManager.onGroupMessage` in-process.** A matterjs-flavor device runs inside the
+  test process, so a check could listen to it directly — stronger about the group id than any log
+  line, but a different kind of evidence from a device log, and unavailable on the chip flavors, so
+  the TC would prove different things on different legs.
+
+Until one of those exists, a TC written here could claim "the TH received this on a group session"
+and nothing about the addressing the step is actually about.
