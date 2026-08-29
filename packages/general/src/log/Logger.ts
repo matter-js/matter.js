@@ -16,17 +16,24 @@ import { LogLevel } from "./LogLevel.js";
 
 /**
  * Destinations that have failed, so a persistently broken destination reports once rather than on every message.
+ *
+ * Keyed by the destination itself rather than its name because {@link Logger.destinations} entries are replaceable; a
+ * replacement installed under a failed destination's name must still report.
  */
-const failedDestinations = new Set<string>();
+const failedDestinations = new WeakSet<LogDestination>();
 
-function reportDestinationError(name: string, error: unknown) {
-    if (failedDestinations.has(name)) {
+function reportDestinationError(name: string, dest: LogDestination, error: unknown) {
+    if (failedDestinations.has(dest)) {
         return;
     }
-    failedDestinations.add(name);
+    failedDestinations.add(dest);
 
-    // There is nowhere to log a logging failure, so this is the one place the console is the fallback
-    console.error(`Log destination "${name}" threw and will not be reported again:`, error);
+    try {
+        // There is nowhere to log a logging failure, so this is the one place the console is the fallback
+        console.error(`Log destination "${name}" threw and will not be reported again:`, error);
+    } catch {
+        // The fallback is the last reporting channel available; if it fails there is nowhere left to report
+    }
 }
 
 /**
@@ -253,7 +260,7 @@ export class Logger {
                 // A destination is installed by the application and may fail for reasons of its own.  Logging is
                 // incidental to whatever the caller was doing, so the failure must not propagate into it, and the
                 // remaining destinations still receive the message
-                reportDestinationError(name, error);
+                reportDestinationError(name, dest, error);
             }
         }
     }
