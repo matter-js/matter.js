@@ -18,9 +18,11 @@ export interface RotateGroupKeyParams {
     groupKeySetId: number;
     newEpochKey: Uint8Array;
     /**
-     * Unique per rotation operation: a new `rotationId` starts a new rotation. Re-issuing a live one is refused
-     * unless the request carries the `externalId` that rotation was started under; once it is terminal, the same
-     * `rotationId` may be run again.
+     * Operator-facing label for this rotation, carried into its record and its log lines.
+     *
+     * It takes no part in identity: a key set has one slot, so any rotation of it conflicts with a live one
+     * whatever this says, and once that run retires the next rotation may reuse this label or change it. To
+     * correlate a rotation with a request, pass `externalId` to `run`.
      */
     rotationId: string;
     groupKeySecurityPolicy?: GroupKeyManagement.GroupKeySecurityPolicy;

@@ -22,11 +22,11 @@ export interface RunStoreSnapshot {
 }
 
 /**
- * The run table: identity allocation, the live slot index, retired records and tombstones.
+ * The run table: identity allocation, the live slot index and retired records.
  *
- * Deliberately free of any dependency on a node, a gate or a clock, so the invariants that four review rounds
- * kept breaking — allocation monotonicity, one owner per slot, ordering by retirement rather than by start —
- * are testable without driving a task. The manager owns persistence and calls {@link snapshot} to write.
+ * Deliberately free of any dependency on a node, a gate or a clock, so its invariants — allocation
+ * monotonicity, one owner per slot, ordering by retirement rather than by start — are testable without
+ * driving a task. The manager owns persistence and calls {@link snapshot} to write.
  */
 export class RunStore {
     #nextRunId = 1;

@@ -714,4 +714,42 @@ describe("cancel robustness", () => {
 
         await node.close();
     });
+
+    it("leaves a retired run unchanged when its cancel cannot be recorded", async () => {
+        const environment = new Environment("test");
+        const peer = new FakePeer("rw");
+        TestTaskManager.peers.set("rw", peer);
+        TestTaskManager.reconcilerPeer = peer;
+
+        // Completes on its own, so the run retires with a changeSet a later cancel can act on.
+        SyntheticTask.phasesByTag["retiredwrite"] = [
+            {
+                name: "touch",
+                run: async ctx => {
+                    await ctx.setIntent(ctx.resolvePeer("rw"), "groupMembership", "R", {});
+                },
+            },
+        ];
+
+        const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-retired-write" });
+        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        let manager!: TestTaskManager;
+        await node.act(a => {
+            manager = a.get(TestTaskManager);
+        });
+        const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "retiredwrite" }));
+        await pumpUntil("the run retires", () => manager.tasks.length === 0);
+
+        // The node crashes, so the write fails inside the state transaction — after the point where the record
+        // for a retired run is re-read. A closed mutex fails earlier and would not exercise this at all.
+        node.construction.setStatus(Lifecycle.Status.Crashed);
+        await expect(MockTime.resolve(manager.cancel(handle.runId))).rejected;
+
+        // The rollback was staged and then discarded, so the run must not go on naming it: a record pointing
+        // at a rollback nothing created could never be rolled back again.
+        expect(manager.get(handle.runId)?.status.revertRunId).equals(undefined);
+        expect(manager.get(handle.runId)?.status.state).equals("completed");
+
+        await node.close();
+    });
 });
