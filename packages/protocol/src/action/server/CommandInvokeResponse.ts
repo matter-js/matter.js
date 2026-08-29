@@ -447,10 +447,13 @@ export class CommandInvokeResponse<
                 requestTlv.validate(request);
             }
             const response = await invoker(request, this.session);
+
+            // A response the schema cannot represent must roll back with its command rather than leave state
+            // committed behind a failure status
+            const encodedResponse = responseTlv.encodeTlv(response);
             await this.session.transaction?.commit();
 
             this.#successCount++;
-            const encodedResponse = responseTlv.encodeTlv(response);
             if (encodedResponse.length === 0) {
                 this.#addStatus(path, commandRef, Status.Success);
             } else {
@@ -465,31 +468,42 @@ export class CommandInvokeResponse<
                 });
             }
         } catch (error) {
-            await this.session.transaction?.rollback();
-            const sre = StatusResponseError.of(error);
-            if (sre) {
-                this.#errorCount++;
+            // Spec 1.6 §8.8.3.2.1: Invoke Execution yields only a CommandStatusIB or a CommandDataIB, so this command
+            // owes a status even if handling the error itself fails
+            let status = Status.Failure;
+            let clusterStatus: number | undefined;
 
-                let errorCode = sre.code;
-                const errorLogText = `Error ${Diagnostic.hex(errorCode)}${
-                    sre.clusterCode !== undefined ? `/${Diagnostic.hex(sre.clusterCode)}` : ""
-                } while invoking command: ${sre.message}`;
+            try {
+                await this.session.transaction?.rollback();
 
-                if (sre instanceof ValidationError) {
-                    logger.info(
-                        `Validation-${errorLogText}${sre.fieldName !== undefined ? ` in field ${sre.fieldName}` : ""}`,
-                    );
-                    if (errorCode === Status.InvalidAction) {
-                        errorCode = Status.InvalidCommand;
-                    }
+                const sre = StatusResponseError.of(error);
+                if (sre === undefined) {
+                    logger.error(`Unhandled error invoking command ${this.node.inspectPath(path)}:`, error);
                 } else {
-                    logger.info(errorLogText);
-                }
+                    status = sre.code;
+                    clusterStatus = sre.clusterCode;
 
-                this.#addStatus(path, commandRef, errorCode, sre.clusterCode);
-                return;
+                    const errorLogText = `Error ${Diagnostic.hex(status)}${
+                        clusterStatus !== undefined ? `/${Diagnostic.hex(clusterStatus)}` : ""
+                    } while invoking command: ${sre.message}`;
+
+                    if (sre instanceof ValidationError) {
+                        logger.info(
+                            `Validation-${errorLogText}${sre.fieldName !== undefined ? ` in field ${sre.fieldName}` : ""}`,
+                        );
+                        if (status === Status.InvalidAction) {
+                            status = Status.InvalidCommand;
+                        }
+                    } else {
+                        logger.info(errorLogText);
+                    }
+                }
+            } catch (secondary) {
+                logger.error("Secondary error handling invoke failure:", secondary);
             }
-            throw error;
+
+            this.#errorCount++;
+            this.#addStatus(path, commandRef, status, clusterStatus);
         }
     }
 

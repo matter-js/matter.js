@@ -6,11 +6,14 @@
 
 import { ClientBehavior } from "#behavior/cluster/ClientBehavior.js";
 import { OnOffClient, OnOffServer } from "#behaviors/on-off";
+import { ChimeDevice } from "#devices/chime";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/index.js";
+import { MatterFlowError } from "@matter/general";
 import { AccessLevel } from "@matter/model";
 import { CommandInvokeResponse, Invoke, InvokeRequest, InvokeResult } from "@matter/protocol";
 import { ClusterId, CommandId, EndpointNumber, Status, StatusResponseError } from "@matter/types";
+import { Chime } from "@matter/types/clusters/chime";
 import { OnOff } from "@matter/types/clusters/on-off";
 import { MockServerNode } from "./mock-server-node.js";
 
@@ -299,6 +302,150 @@ describe("CommandInvokeResponse", () => {
                 path: { clusterId: 6, commandId: 1, endpointId: 1 },
                 status: Status.Failure,
                 clusterStatus: 0x42,
+                commandRef: undefined,
+            },
+        ]);
+    });
+
+    it("reports an error with no defined status code as a per-command FAILURE", async () => {
+        class ThrowingOnOffServer extends OnOffServer {
+            override on(): never {
+                throw new MatterFlowError("boom");
+            }
+        }
+        const device = new Endpoint(OnOffLightDevice.with(ThrowingOnOffServer));
+        const node = await MockServerNode.createOnline(undefined, { device });
+        const response = await invokeCmd(
+            node,
+            Invoke.ConcreteCommandRequest({
+                endpoint: device,
+                cluster: OnOff,
+                command: "on",
+            }),
+        );
+
+        expect(response.data).deep.equals([
+            {
+                kind: "cmd-status",
+                path: { clusterId: 6, commandId: 1, endpointId: 1 },
+                status: Status.Failure,
+                clusterStatus: undefined,
+                commandRef: undefined,
+            },
+        ]);
+        expect(response.counts).deep.equals({ status: 1, success: 0, existent: 1 });
+    });
+
+    it("reports a plain Error escaping a handler as a per-command FAILURE", async () => {
+        class ThrowingOnOffServer extends OnOffServer {
+            override on(): never {
+                throw new Error("boom");
+            }
+        }
+        const device = new Endpoint(OnOffLightDevice.with(ThrowingOnOffServer));
+        const node = await MockServerNode.createOnline(undefined, { device });
+        const response = await invokeCmd(
+            node,
+            Invoke.ConcreteCommandRequest({
+                endpoint: device,
+                cluster: OnOff,
+                command: "on",
+            }),
+        );
+
+        expect(response.data).deep.equals([
+            {
+                kind: "cmd-status",
+                path: { clusterId: 6, commandId: 1, endpointId: 1 },
+                status: Status.Failure,
+                clusterStatus: undefined,
+                commandRef: undefined,
+            },
+        ]);
+        expect(response.counts).deep.equals({ status: 1, success: 0, existent: 1 });
+    });
+
+    it("keeps sibling results and continues the batch when one command throws", async () => {
+        let thrown = false;
+        class ThrowingOnOffServer extends OnOffServer {
+            override on() {
+                if (thrown) {
+                    return super.on();
+                }
+                thrown = true;
+                throw new MatterFlowError("boom");
+            }
+        }
+        const device = new Endpoint(OnOffLightDevice.with(ThrowingOnOffServer));
+        const node = await MockServerNode.createOnline(undefined, { device });
+
+        const response = await invokeCmdRaw(node, {
+            invokeRequests: [
+                {
+                    commandPath: { endpointId: EndpointNumber(1), clusterId: ClusterId(6), commandId: CommandId(0) },
+                    commandRef: 1,
+                },
+                {
+                    commandPath: { endpointId: EndpointNumber(1), clusterId: ClusterId(6), commandId: CommandId(1) },
+                    commandRef: 2,
+                },
+                {
+                    commandPath: { endpointId: EndpointNumber(1), clusterId: ClusterId(6), commandId: CommandId(2) },
+                    commandRef: 3,
+                },
+            ],
+        });
+
+        expect(response.data).deep.equals([
+            {
+                kind: "cmd-status",
+                path: { clusterId: 6, commandId: 0, endpointId: 1 },
+                status: Status.Success,
+                clusterStatus: undefined,
+                commandRef: 1,
+            },
+            {
+                kind: "cmd-status",
+                path: { clusterId: 6, commandId: 1, endpointId: 1 },
+                status: Status.Failure,
+                clusterStatus: undefined,
+                commandRef: 2,
+            },
+            {
+                kind: "cmd-status",
+                path: { clusterId: 6, commandId: 2, endpointId: 1 },
+                status: Status.Success,
+                clusterStatus: undefined,
+                commandRef: 3,
+            },
+        ]);
+        expect(response.counts).deep.equals({ status: 1, success: 2, existent: 3 });
+        expect(device.state.onOff.onOff).equals(true);
+    });
+
+    it("reports an unimplemented mandatory command as UNSUPPORTED_COMMAND and omits it from AcceptedCommandList", async () => {
+        const device = new Endpoint(ChimeDevice, {
+            chime: { installedChimeSounds: [{ chimeId: 0, name: "Ding" }], selectedChime: 0 },
+        });
+        const node = await MockServerNode.createOnline(undefined, { device });
+
+        expect(device.globalsOf("chime").acceptedCommandList).deep.equals([]);
+
+        const response = await invokeCmd(
+            node,
+            Invoke.ConcreteCommandRequest({
+                endpoint: device,
+                cluster: Chime.Cluster,
+                command: "playChimeSound",
+            }),
+        );
+
+        expect(response.data).deep.equals([
+            {
+                kind: "cmd-status",
+                path: { clusterId: Chime.Cluster.id, commandId: 0, endpointId: 1 },
+                status: Status.UnsupportedCommand,
+                clusterStatus: undefined,
                 commandRef: undefined,
             },
         ]);

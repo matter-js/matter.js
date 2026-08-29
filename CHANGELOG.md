@@ -18,8 +18,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A certification run's `result.json` no longer reports a passing verdict for a run that failed
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
 
+- @matter/node
+    - Fix: A mandatory command a cluster leaves unimplemented is no longer dispatched; an invoke answers `UNSUPPORTED_COMMAND`, matching what the cluster advertises in `AcceptedCommandList`
+
 - @matter/protocol
     - Enhancement: An interaction can be abandoned by the caller: `ClientRequest.abort` takes an `AbortSignal`, honored for read, write, invoke and subscribe
+    - Fix: An error escaping a command handler with no defined status code answers that command with `FAILURE` inside the `InvokeResponse` instead of terminating the message with a status response, so the other commands of a batch invoke keep their results. Under `SuppressResponse` such a command now sends no response at all, as for any other generated status
     - Fix: A device that returns an empty or malformed DAC, PAI, attestation elements or Certification Declaration during commissioning now fails attestation with a finding that names the unreadable field, instead of an opaque decoder message
     - Fix: A certificate extension matter.js does not interpret is no longer decoded, so a proprietary extension can no longer fail the whole certificate; an extension matter.js does read is rejected with a `CertificateError` when its value is missing
 

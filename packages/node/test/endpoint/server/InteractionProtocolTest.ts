@@ -9,8 +9,10 @@
 import { AdministratorCommissioningServer } from "#behaviors/administrator-commissioning";
 import { OnOffServer } from "#behaviors/on-off";
 import { WiFiNetworkDiagnosticsServer } from "#behaviors/wi-fi-network-diagnostics";
+import { OnOffLightDevice } from "#devices/on-off-light";
+import { Endpoint } from "#endpoint/Endpoint.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
-import { Observable } from "@matter/general";
+import { MatterFlowError, Observable } from "@matter/general";
 import { Specification } from "@matter/model";
 import {
     BaseDataReport,
@@ -1112,6 +1114,12 @@ async function fillIterableDataReport(data: {
     return dataReport;
 }
 
+class ThrowingOnOffServer extends OnOffServer {
+    override on(): never {
+        throw new MatterFlowError("boom");
+    }
+}
+
 class EventedOnOffServer extends OnOffServer {
     declare events: EventedOnOffServer.Events;
 
@@ -1876,6 +1884,78 @@ describe("InteractionProtocol", () => {
             // Note: moreChunkedMessages is set by the messenger, not the handler
             expect(triggeredOn).equals(true);
             expect(triggeredOff).equals(true);
+            expect(onOffState).equals(false);
+        });
+
+        it("keeps already-sent chunks when a command on a later endpoint throws", async () => {
+            await createNode(200);
+            initilizeOnOff();
+
+            const device = new Endpoint(OnOffLightDevice.with(ThrowingOnOffServer));
+            await node.add(device);
+
+            // Fill endpoint 0 so its chunk exceeds the payload limit and is transmitted before endpoint 1 runs
+            const invokeRequests = new Array<InvokeRequest["invokeRequests"][number]>();
+            for (let i = 0; i < 100; i++) {
+                invokeRequests.push({
+                    commandPath: {
+                        endpointId: EndpointNumber(0),
+                        clusterId: ClusterId(6),
+                        commandId: CommandId(100 + i),
+                    },
+                    commandFields: TlvNoArguments.encodeTlv(undefined),
+                    commandRef: i + 1,
+                });
+            }
+            invokeRequests.push({
+                commandPath: { endpointId: EndpointNumber(1), clusterId: ClusterId(6), commandId: CommandId(1) },
+                commandFields: TlvNoArguments.encodeTlv(undefined),
+                commandRef: 101,
+            });
+
+            const exchange = await createDummyMessageExchange(node);
+            const { messenger, getResponse, getChunks } = createMockInvokeMessenger();
+
+            await interactionProtocol.handleInvokeRequest(
+                exchange,
+                { ...INVOKE_COMMAND_REQUEST_MULTI, invokeRequests },
+                messenger,
+                interaction.BarelyMockedMessage,
+            );
+
+            const chunks = getChunks();
+            expect(chunks.length).greaterThan(0);
+
+            const responses = [...chunks, getResponse()!].flatMap(result =>
+                result.invokeResponses.map(encoded => TlvInvokeResponseData.decodeTlv(encoded)),
+            );
+            expect(responses.length).equals(101);
+
+            expect(responses.find(response => response.status?.commandRef === 101)?.status?.status.status).equals(
+                Status.Failure,
+            );
+            expect(
+                chunks.flatMap(chunk => chunk.invokeResponses.map(encoded => TlvInvokeResponseData.decodeTlv(encoded)))
+                    .length,
+            ).greaterThan(0);
+        });
+
+        it("sends no response under SuppressResponse when a command throws", async () => {
+            node.eventsOf(EventedOnOffServer).onCalled.on(() => {
+                throw new MatterFlowError("boom");
+            });
+
+            const exchange = await createDummyMessageExchange(node);
+            const { messenger, getResponse, getChunks } = createMockInvokeMessenger();
+            await interactionProtocol.handleInvokeRequest(
+                exchange,
+                INVOKE_ON_OFF_SUPPRESSED,
+                messenger,
+                interaction.BarelyMockedMessage,
+            );
+
+            expect(getResponse()).equals(undefined);
+            expect(getChunks().length).equals(0);
             expect(onOffState).equals(false);
         });
 
