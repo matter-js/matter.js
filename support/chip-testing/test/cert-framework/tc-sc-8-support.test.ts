@@ -1,0 +1,191 @@
+/**
+ * @license
+ * Copyright 2022-2026 Matter.js Authors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import type { CertDevice, CertStepContext, CheckRecord, PicsFile, Subject } from "@matter/testing";
+import { LineQueue, LogFollower } from "@matter/testing";
+import { recordTcpInvoke, recordTcpSession, TcpSessionRef } from "../cert/tc-sc-8-support.js";
+import { CertCheckFailedError } from "../cert/tc-support.js";
+
+/** GeneralDiagnostics, and its TimeSnapshot command, which TC-SC-8.5 invokes. */
+const CLUSTER = 0x33;
+const COMMAND = 0x1;
+const ENDPOINT = 0;
+
+const SESSION = "@1:86c217a36142d632•c8b8";
+const OTHER_SESSION = "@1:86c217a36142d632•9f2c";
+
+function at(millis: number) {
+    const iso = new Date(1786711488_000 + millis).toISOString();
+    return `${iso.slice(0, 10)} ${iso.slice(11, 23)}`;
+}
+
+const pairingRequest = (session = SESSION) =>
+    `${at(0)} INFO CaseServer •unsecured#${session}(tcp)⇵2c56 Pairing request « tcp://[fe80::1%en0]«60111`;
+const newSession = (session = SESSION) =>
+    `${at(1)} INFO CaseServer ${session}(tcp) New session with @1:86c217a36142d632 2↔1 address: tcp://[fe80::1%en0]«60111`;
+
+const invokeRequest = (session = SESSION, path = "0.generalDiagnostics.timeSnapshot", flags = "") =>
+    `${at(2)} INFO InteractionServer Invoke « ${session}(tcp)⇵2c57 ${flags}invokes: ${path}`;
+const invokeFinal = (session = SESSION, commands = 1) =>
+    `${at(3)} DEBUG InteractionServer Invoke (final) » ${session}(tcp)⇵2c57 commands: ${commands}`;
+const invokeResponse = (session = SESSION) =>
+    `${at(4)} DEBUG MessageChannel Message » for: I/InvokeResponse id: ${session}(tcp)⇵2c57✉018c0504 type: 0x1/0x9 size: 42`;
+
+/** A device whose log is exactly `lines`, and a recorder that keeps what a helper records. */
+async function withDut<T>(lines: string[], body: (cx: CertStepContext, checks: CheckRecord[]) => Promise<T>) {
+    const source = new LineQueue();
+    const log = new LogFollower(source.follow(), "dut");
+    for (const text of lines) {
+        source.push(text);
+    }
+    // The log ends where these lines do, so a pattern that cannot match fails at once rather than
+    // waiting out the follower's budget
+    source.close();
+
+    const subject = {
+        id: "dut",
+        app: "all-clusters",
+        commissioning: { kind: "on-network", passcode: 20202021, discriminator: 3840, qrPairingCode: "" },
+        pics: undefined as unknown as PicsFile,
+        async initialize() {},
+        async start() {},
+        async stop() {},
+        async close() {},
+        async snapshot() {
+            return {};
+        },
+        async restore() {},
+        async backchannel() {},
+    } satisfies Subject;
+
+    const dut: CertDevice = { ...subject, flavor: "matterjs", log, exit: new Promise(() => {}) };
+
+    const checks = new Array<CheckRecord>();
+    const cx: CertStepContext = {
+        controllers: {},
+        devices: { dut },
+        recorder: {
+            beginStep() {},
+            check(record) {
+                checks.push(record);
+            },
+            endStep() {
+                return [];
+            },
+            async flush() {
+                return "";
+            },
+        },
+    };
+
+    try {
+        return await body(cx, checks);
+    } finally {
+        await log.close();
+    }
+}
+
+describe("recordTcpSession", () => {
+    it("returns the session tag the DUT's own line names", async () => {
+        await withDut([pairingRequest(), newSession()], async (cx, checks) => {
+            expect(await recordTcpSession(cx, 0, "runs over TCP")).equal(SESSION);
+            expect(checks).length(1);
+            expect(checks[0].verdict).equal("pass");
+        });
+    });
+
+    it("records a failing check, rather than only throwing, for a session line naming no session", async () => {
+        const anonymous = `${at(1)} INFO CaseServer (tcp) New session with a peer`;
+
+        await withDut([pairingRequest(), anonymous], async (cx, checks) => {
+            await expect(recordTcpSession(cx, 0, "runs over TCP")).rejectedWith(CertCheckFailedError);
+            expect(checks.map(check => check.verdict)).deep.equal(["pass", "fail"]);
+        });
+    });
+});
+
+describe("recordTcpInvoke", () => {
+    async function invoke(lines: string[], session = SESSION) {
+        return withDut(lines, async (cx, checks) => {
+            await recordTcpInvoke(cx, session, ENDPOINT, CLUSTER, COMMAND, 0, "invoked over TCP").catch(() => {});
+            return checks;
+        });
+    }
+
+    it("passes for an invoke dispatched and answered on the session", async () => {
+        const checks = await invoke([invokeRequest(), invokeFinal(), invokeResponse()]);
+
+        expect(checks).length(1);
+        expect(checks[0].verdict).equal("pass");
+    });
+
+    it("passes for a timed invoke, whose flags matter.js writes before the path", async () => {
+        const checks = await invoke([
+            invokeRequest(SESSION, "0.generalDiagnostics.timeSnapshot", "timedRequest "),
+            invokeFinal(),
+            invokeResponse(),
+        ]);
+
+        expect(checks[0].verdict).equal("pass");
+    });
+
+    it("fails for the same command on another session", async () => {
+        const checks = await invoke([
+            invokeRequest(OTHER_SESSION),
+            invokeFinal(OTHER_SESSION),
+            invokeResponse(OTHER_SESSION),
+        ]);
+
+        expect(checks[0].verdict).equal("fail");
+    });
+
+    it("fails for another command on the session", async () => {
+        const checks = await invoke([
+            invokeRequest(SESSION, "0.generalDiagnostics.testEventTrigger"),
+            invokeFinal(),
+            invokeResponse(),
+        ]);
+
+        expect(checks[0].verdict).equal("fail");
+    });
+
+    it("fails for the same command on another endpoint", async () => {
+        const checks = await invoke([
+            invokeRequest(SESSION, "1.generalDiagnostics.timeSnapshot"),
+            invokeFinal(),
+            invokeResponse(),
+        ]);
+
+        expect(checks[0].verdict).equal("fail");
+    });
+
+    it("does not take a response carrying more commands than the one invoked", async () => {
+        const checks = await invoke([invokeRequest(), invokeFinal(SESSION, 12), invokeResponse()]);
+
+        expect(checks[0].verdict).equal("fail");
+    });
+
+    it("fails when the DUT never answered the invoke", async () => {
+        const checks = await invoke([invokeRequest()]);
+
+        expect(checks[0].verdict).equal("fail");
+    });
+});
+
+describe("TcpSessionRef", () => {
+    it("refuses to answer before a session was captured", () => {
+        expect(() => new TcpSessionRef().require()).throw(CertCheckFailedError);
+    });
+
+    it("forgets the session a finalizer cleared", () => {
+        const session = new TcpSessionRef();
+        session.set(SESSION);
+        expect(session.require()).equal(SESSION);
+
+        session.clear();
+        expect(() => session.require()).throw(CertCheckFailedError);
+    });
+});

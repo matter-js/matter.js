@@ -2297,3 +2297,38 @@ is large-payload-capable by construction, so the two cases would rest on the sam
 witness is behavioural and belongs to `TC-SC-8.6` — a wildcard read arriving in a single `ReportData`,
 which UDP's ~1232-byte budget could not carry. `TC-SC-8.3`/`8.4` additionally need a way to sever just
 the TCP connection mid-test.
+
+## An interaction over the TCP session, bound to that session (`TC-SC-8.5`)
+
+`TC-SC-8.5` adds one step to `TC-SC-8.1`'s: an invoke over the session step 1 established. Three
+things make that step's evidence say more than "an invoke happened".
+
+**The step binds its evidence to the session, not to the transport.** `recordTcpSession` returns the
+DUT's own tag for the session it matched (`@<fabric>:<node>•<id>`, which `(tcp)` follows) and the test
+keeps it in a `TcpSessionRef`; `recordTcpInvoke` then builds every pattern around that literal tag. A
+pattern that only asked for `(tcp)` would be satisfied by any TCP-backed session, which is the claim
+the plan does *not* make.
+
+**The command is `GeneralDiagnostics.TimeSnapshot`.** It carries a response of its own — the plan asks
+for a command *response*, not a status — and changes nothing on the DUT, so a rerun does not depend on
+what the previous run left behind.
+
+**Every step of a TCP case owes the controller refusal, not just the first**, so `tcpStep()` wraps a
+step's body with it rather than each step's author remembering. Without the refusal, the chip-tool leg
+skipped step 1 and then *failed* step 2 on `th has no active commissioned node ref` — a failed run
+whose real cause is that the controller cannot establish a TCP session at all. A step that depends on
+a skipped step has to refuse for the same reason the skipped one did.
+
+Mutations that prove the step: pass a command id one higher (`TIME_SNAPSHOT_ID + 1`) and the log check
+times out with the response check still passing; substitute a bogus session tag and it times out on the
+invoke line. The controller-side response check (`TimeSnapshotResponse` carrying a `systemTimeMs`) is
+what proves the response reached the TH.
+
+`test/cert-framework/tc-sc-8-support.test.ts` covers the helpers hermetically — the session-tag
+extraction, and each way `recordTcpInvoke`'s patterns can be satisfied by the wrong thing (another
+session, another command, another endpoint, a response carrying more commands, no answer at all) —
+so a regex regression surfaces without docker and without a chip binary.
+
+Step 1's expected outcome here is the plan's "the session allows large payloads", which nothing logs —
+a TCP-backed session is large-payload-capable by construction, so this step's evidence is 8.1's and the
+distinct witness belongs to `TC-SC-8.6`, as the note above records for `TC-SC-8.2`.

@@ -706,13 +706,21 @@ export function sameMessageFrom(flavor: string, earlier: CheckRecord, mark: numb
  * command itself — a command path has no `state.` segment (`resolvePathForNode`).
  */
 function matterjsInvokePath(endpoint: number, cluster: number, command: number): RegExp {
+    return new RegExp(`InteractionServer Invoke «.*invokes: .*?${matterjsCommandPath(endpoint, cluster, command)}`);
+}
+
+/**
+ * The command path itself, bounded so it cannot match as part of a longer path, for a caller building
+ * its own line around it.
+ */
+export function matterjsCommandPath(endpoint: number, cluster: number, command: number): string {
     const model = Matter.clusters(cluster);
     const path = [
         `${endpoint}`,
         matterjsElement(model?.name, cluster),
         matterjsElement(model?.commands(command)?.name, command),
     ].join("\\.");
-    return new RegExp(`InteractionServer Invoke «.*invokes: .*?${MATTERJS_PATH_START}${path}${MATTERJS_PATH_END}`);
+    return `${MATTERJS_PATH_START}${path}${MATTERJS_PATH_END}`;
 }
 
 /**
@@ -889,7 +897,7 @@ export interface CommandFieldValue {
 }
 
 /** `value` as a pattern matching itself and nothing else. */
-function literally(value: string): string {
+export function literally(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 

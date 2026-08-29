@@ -7,7 +7,16 @@
 import { Matter } from "@matter/model";
 import type { CertNodeRef, CertStepContext, DeviceFlavor } from "@matter/testing";
 import { resolveControllerImplementation, UnsupportedByControllerError } from "@matter/testing";
-import { CommissionedRefs, expectSequence, LOG_TIMEOUT, record, requireId } from "./tc-support.js";
+import {
+    CertCheckFailedError,
+    CommissionedRefs,
+    expectSequence,
+    literally,
+    LOG_TIMEOUT,
+    matterjsCommandPath,
+    record,
+    requireId,
+} from "./tc-support.js";
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
 const BASIC_INFORMATION_ID = requireId(BASIC_INFORMATION.id, "BasicInformation cluster");
@@ -64,7 +73,7 @@ export async function commissionOverTcp(cx: CertStepContext, commissioned: Commi
  * existing UDP session and no TCP connection is ever set up. The refusal comes before the step acts,
  * so the case is recorded as skipped rather than failing on evidence the controller could not produce.
  */
-function requireTcpCapableController() {
+export function requireTcpCapableController() {
     const implementation = resolveControllerImplementation();
     if (implementation !== "matterjs") {
         throw new UnsupportedByControllerError(
@@ -80,20 +89,80 @@ function requireTcpCapableController() {
  * Confirms the DUT's own log shows the CASE session it just accepted running over TCP: matter.js
  * renders a session's transport in the session tag and names the channel the peer connected on, so
  * `(tcp)` beside a `tcp://` address is the device saying the connection underneath is a TCP one.
+ *
+ * Returns the DUT's own tag for that session, so a later step can bind its evidence to this session
+ * rather than to any session that happens to be a TCP one.
  */
-export async function recordTcpSession(cx: CertStepContext, from: number, what: string) {
+export async function recordTcpSession(cx: CertStepContext, from: number, what: string): Promise<string> {
     const dut = cx.devices.dut;
+    const check = await expectSequence(
+        dut.log,
+        dut.flavor,
+        "CASE session established over a TCP connection",
+        {
+            matterjs: {
+                ordered: [/CaseServer .*\(tcp\).*Pairing request « tcp:\/\//, /CaseServer .*\(tcp\).*New session with/],
+            },
+        },
+        from,
+        LOG_TIMEOUT,
+    );
+    record(cx, check, what);
+
+    const tag = check.matched === undefined ? undefined : SESSION_TAG.exec(check.matched)?.[1];
+    if (tag === undefined) {
+        const detail = `the DUT's session line names no TCP session: ${check.matched}`;
+        cx.recorder.check({
+            type: "device-log",
+            verdict: "fail",
+            pattern: SESSION_TAG.source,
+            detail,
+            logLine: check.logLine,
+        });
+        throw new CertCheckFailedError(detail);
+    }
+
+    return tag;
+}
+
+/**
+ * The session part of a matter.js session tag — `@<fabric>:<node>•<id>`, which the transport marker
+ * `(tcp)` follows.
+ */
+const SESSION_TAG = /(@[0-9a-f]+:[0-9a-f]+•[0-9a-f]+)\(tcp\)/;
+
+/**
+ * Confirms the DUT dispatched `endpoint`/`cluster`/`command` on `session` and answered it there: the
+ * request line names the command the TH sent, the dispatch line says the DUT finished it, and the
+ * message line is the `InvokeResponse` going back out. Every one of them carries the session tag,
+ * which is what makes this the session step 1 established rather than any TCP-backed one.
+ */
+export async function recordTcpInvoke(
+    cx: CertStepContext,
+    session: string,
+    endpoint: number,
+    cluster: number,
+    command: number,
+    from: number,
+    what: string,
+) {
+    const dut = cx.devices.dut;
+    const onSession = `${literally(session)}\\(tcp\\)⇵[0-9a-f]+`;
+    const path = matterjsCommandPath(endpoint, cluster, command);
     record(
         cx,
         await expectSequence(
             dut.log,
             dut.flavor,
-            "CASE session established over a TCP connection",
+            `an invoke of ${endpoint}/${cluster}/${command} answered with an InvokeResponse on ${session}`,
             {
                 matterjs: {
                     ordered: [
-                        /CaseServer .*\(tcp\).*Pairing request « tcp:\/\//,
-                        /CaseServer .*\(tcp\).*New session with/,
+                        // The invoke line carries the timed/suppress-response flags between the session
+                        // and its path, and drops them when neither is set
+                        new RegExp(`InteractionServer Invoke « ${onSession}.*invokes: .*?${path}`),
+                        new RegExp(`InteractionServer Invoke \\(final\\) » ${onSession} commands: 1(?!\\d)`),
+                        new RegExp(`Message » for: I/InvokeResponse id: ${onSession}`),
                     ],
                 },
             },
@@ -104,11 +173,50 @@ export async function recordTcpSession(cx: CertStepContext, from: number, what: 
     );
 }
 
+/** Where a TCP case keeps the session its first step established, for the steps that follow. */
+export class TcpSessionRef {
+    #tag?: string;
+
+    set(tag: string) {
+        this.#tag = tag;
+    }
+
+    require(): string {
+        if (this.#tag === undefined) {
+            throw new CertCheckFailedError("no TCP session was captured");
+        }
+        return this.#tag;
+    }
+
+    clear() {
+        this.#tag = undefined;
+    }
+}
+
+/**
+ * Applies {@link requireTcpCapableController} to a step, which every step of a TCP case owes: a step
+ * that skipped it refuses on the commissioning an earlier step never did instead, and reports a
+ * failure where the truth is that the controller cannot establish such a session at all.
+ */
+export function tcpStep(run: (cx: CertStepContext) => Promise<void>) {
+    return async (cx: CertStepContext) => {
+        requireTcpCapableController();
+        await run(cx);
+    };
+}
+
 /** Every TCP case starts the same way, so its first step is shared rather than copied. */
-export function tcpSessionStep(commissioned: CommissionedRefs<"th">) {
+export function tcpSessionStep(commissioned: CommissionedRefs<"th">, session?: TcpSessionRef) {
     return async (cx: CertStepContext) => {
         const { from } = await commissionOverTcp(cx, commissioned);
-        await recordTcpSession(cx, from, "the session the TH established with the DUT runs over TCP");
+
+        // The session evidence is recorded whether or not the case captures the tag
+        const tag = await recordTcpSession(
+            cx,
+            from,
+            "the session the TH established with the DUT runs over TCP, which is what makes it large-payload-capable",
+        );
+        session?.set(tag);
     };
 }
 
