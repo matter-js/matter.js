@@ -13,6 +13,7 @@ import {
     answersWithStatus,
     CertCheckFailedError,
     CommissionedRefs,
+    describeValue,
     expectCommandInvoke,
     expectMessageWithPath,
     LOG_TIMEOUT,
@@ -48,14 +49,6 @@ const PRIVILEGE_OPERATE = 3;
 const AUTH_MODE_GROUP = 3;
 
 const commissioned = new CommissionedRefs();
-
-/**
- * A value as evidence text. `JSON.stringify` throws on a `bigint`, and a key set's epoch start times
- * are `epoch-us`, so a step reporting what the TH answered would otherwise fail on its own evidence.
- */
-function describe(value: unknown): string {
-    return JSON.stringify(value, (_key, member) => (typeof member === "bigint" ? `${member}` : member)) ?? "undefined";
-}
 
 function attributeId(cluster: typeof GROUP_KEY_MANAGEMENT, attributeName: string): number {
     return requireId(cluster.attributes.require(attributeName).id, `${cluster.name}.${attributeName}`);
@@ -107,7 +100,7 @@ async function invokeAndCheck(
     cx.recorder.check({
         type: "response",
         verdict: "pass",
-        detail: response === undefined ? "status=Success" : `status=Success, response=${describe(response)}`,
+        detail: response === undefined ? "status=Success" : `status=Success, response=${describeValue(response)}`,
     });
 
     if (answersWithStatus(cluster, commandName)) {
@@ -119,7 +112,7 @@ async function invokeAndCheck(
                 verdict: payloadStatus === 0 ? "pass" : "fail",
                 detail:
                     payloadStatus === undefined
-                        ? `${commandName} answered ${describe(response)}, which carries no status`
+                        ? `${commandName} answered ${describeValue(response)}, which carries no status`
                         : `${commandName} response status=${payloadStatus}`,
             },
             `${cluster.name}.${commandName} response status`,
@@ -157,7 +150,9 @@ async function keepsGroupNames(node: CertNodeApi): Promise<boolean> {
     if (typeof value === "object" && value !== null && GROUP_NAMES_PROPERTY in value) {
         return Boolean(value[GROUP_NAMES_PROPERTY]);
     }
-    throw new CertCheckFailedError(`TH answered Groups FeatureMap with ${describe(value)}, which names no features`);
+    throw new CertCheckFailedError(
+        `TH answered Groups FeatureMap with ${describeValue(value)}, which names no features`,
+    );
 }
 
 /** The ACL the TH already holds for this fabric, which a new entry is appended to rather than replacing. */
@@ -168,7 +163,7 @@ async function readAcl(node: CertNodeApi): Promise<unknown[]> {
         attribute: attributeId(ACCESS_CONTROL, "acl"),
     });
     if (!Array.isArray(value)) {
-        throw new CertCheckFailedError(`TH answered its ACL with ${describe(value)}, not a list`);
+        throw new CertCheckFailedError(`TH answered its ACL with ${describeValue(value)}, not a list`);
     }
     return value;
 }
@@ -329,7 +324,7 @@ certTest("TC-SC-6.1", {
                 {
                     type: "response",
                     verdict: bound ? "pass" : "fail",
-                    detail: `GroupKeyMap reads back as ${describe(readBack)}`,
+                    detail: `GroupKeyMap reads back as ${describeValue(readBack)}`,
                 },
                 "the binding the TH kept",
             );
@@ -393,7 +388,7 @@ certTest("TC-SC-6.1", {
                     type: "response",
                     verdict: Number(groupId) === GROUP.id && named ? "pass" : "fail",
                     detail:
-                        `ViewGroupResponse answers for group ${describe(groupId)} named ${describe(groupName)}; ` +
+                        `ViewGroupResponse answers for group ${describeValue(groupId)} named ${describeValue(groupName)}; ` +
                         `the TH ${keepsNames ? "keeps" : "does not keep"} group names`,
                 },
                 "the group the TH reports, and its name",
@@ -438,7 +433,7 @@ certTest("TC-SC-6.1", {
                 {
                     type: "response",
                     verdict: read?.groupKeySetId === GROUP_KEY_SET_ID ? "pass" : "fail",
-                    detail: `KeySetReadResponse carries key set ${describe(read?.groupKeySetId)}`,
+                    detail: `KeySetReadResponse carries key set ${describeValue(read?.groupKeySetId)}`,
                 },
                 "the key set the TH reports back",
             );
@@ -499,7 +494,7 @@ certTest("TC-SC-6.1", {
                     type: "response",
                     verdict: onlyIpk ? "pass" : "fail",
                     detail:
-                        `KeySetReadAllIndicesResponse lists ${describe(indices)}; after removing ` +
+                        `KeySetReadAllIndicesResponse lists ${describeValue(indices)}; after removing ` +
                         `${GROUP_KEY_SET_ID} only the IPK's ${IPK_KEY_SET_ID} may remain`,
                 },
                 "the indices the TH reports after the removal",

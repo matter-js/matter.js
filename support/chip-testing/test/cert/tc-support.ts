@@ -126,7 +126,8 @@ export async function runCleanups(...cleanups: (() => Promise<void>)[]): Promise
     }
 }
 
-function describeError(e: unknown): string {
+/** An error as evidence text, naming its class as well as its message. */
+export function describeError(e: unknown): string {
     return e instanceof Error ? `${e.constructor.name}: ${e.message}` : String(e);
 }
 
@@ -706,13 +707,21 @@ export function sameMessageFrom(flavor: string, earlier: CheckRecord, mark: numb
  * command itself — a command path has no `state.` segment (`resolvePathForNode`).
  */
 function matterjsInvokePath(endpoint: number, cluster: number, command: number): RegExp {
+    return new RegExp(`InteractionServer Invoke «.*invokes: .*?${matterjsCommandPath(endpoint, cluster, command)}`);
+}
+
+/**
+ * The command path itself, bounded so it cannot match as part of a longer path, for a caller building
+ * its own line around it.
+ */
+export function matterjsCommandPath(endpoint: number, cluster: number, command: number): string {
     const model = Matter.clusters(cluster);
     const path = [
         `${endpoint}`,
         matterjsElement(model?.name, cluster),
         matterjsElement(model?.commands(command)?.name, command),
     ].join("\\.");
-    return new RegExp(`InteractionServer Invoke «.*invokes: .*?${MATTERJS_PATH_START}${path}${MATTERJS_PATH_END}`);
+    return `${MATTERJS_PATH_START}${path}${MATTERJS_PATH_END}`;
 }
 
 /**
@@ -888,8 +897,17 @@ export interface CommandFieldValue {
     value: number | bigint | string;
 }
 
+/**
+ * `value` as evidence text. `JSON.stringify` throws on a `bigint`, and Matter carries plenty of them
+ * (an `epoch-us`, a node id, a `systime-ms`), so a step reporting what a device answered would
+ * otherwise fail on its own evidence.
+ */
+export function describeValue(value: unknown): string {
+    return JSON.stringify(value, (_key, member) => (typeof member === "bigint" ? `${member}` : member)) ?? "undefined";
+}
+
 /** `value` as a pattern matching itself and nothing else. */
-function literally(value: string): string {
+export function literally(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
