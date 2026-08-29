@@ -11,6 +11,7 @@ import { RunId } from "./types.js";
 export interface TaskCtor {
     new (runId: RunId, slotKey: string, params: any, persisted?: Partial<TaskPersistence>): Task;
     slotKeyFor(params: any): string;
+    undoes(params: any): RunId | undefined;
 }
 
 export class TaskRegistry {
@@ -26,6 +27,10 @@ export class TaskRegistry {
 
     slotKeyFor(type: string, params: unknown): string {
         return this.#ctorFor(type).slotKeyFor(params);
+    }
+
+    undoes(type: string, params: unknown): RunId | undefined {
+        return this.#ctorFor(type).undoes(params);
     }
 
     create(type: string, runId: RunId, slotKey: string, params: unknown, persisted?: Partial<TaskPersistence>): Task {

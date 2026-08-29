@@ -32,6 +32,10 @@ export class Revert extends Task<RevertParams> {
         this.revertOf ??= params.originalRunId;
     }
 
+    static override undoes(params: RevertParams): RunId {
+        return params.originalRunId;
+    }
+
     static override slotKeyFor(params: RevertParams): string {
         return `revert:${params.originalRunId}`;
     }
