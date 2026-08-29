@@ -112,7 +112,7 @@ describe("Fabric", () => {
 
     describe("setLabel", () => {
         // Spec 1.6 §11.18.6.11: the Label field is constrained to "max 32" with no minimum, and any label that does
-        // not collide with another fabric's SHALL be accepted
+        // not collide with another fabric's label SHALL be accepted
         it("accepts an empty label", async () => {
             const fabric = await TestFabric();
 
