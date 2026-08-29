@@ -106,6 +106,16 @@ export abstract class Task<P = unknown> {
     }
 
     /**
+     * Whether a caller may start this type through {@link TaskManagerBehavior.run}.
+     *
+     * A rollback is false: it exists to undo a specific run, and only the manager knows that the run's driver
+     * has been stopped first. A caller able to conjure one could start it against work still in flight.
+     */
+    static get callerCreatable(): boolean {
+        return true;
+    }
+
+    /**
      * The run this task undoes, if it is a rollback. A rollback rewrites the intents of that run, so it
      * contends for *that* run's slot rather than for its own, and the manager excludes it there.
      */

@@ -32,6 +32,10 @@ export class Revert extends Task<RevertParams> {
         this.revertOf ??= params.originalRunId;
     }
 
+    static override get callerCreatable(): boolean {
+        return false;
+    }
+
     static override undoes(params: RevertParams): RunId {
         return params.originalRunId;
     }

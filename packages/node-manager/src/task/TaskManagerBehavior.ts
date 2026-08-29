@@ -252,6 +252,11 @@ export class TaskManagerBehavior extends Behavior {
      * The `externalId` is also the id the caller can {@link get} and {@link cancel} its task under.
      */
     run(type: string, params: unknown, opts?: { externalId?: string }): TaskHandle {
+        if (!this.internal.registry.callerCreatable(type)) {
+            throw new ImplementationError(
+                `Task type "${type}" undoes another run and is created by cancel(), not by run()`,
+            );
+        }
         const { task, joined } = this.#spawn(type, params, { externalId: opts?.externalId });
         if (!joined) {
             this.#track(task);
@@ -329,10 +334,12 @@ export class TaskManagerBehavior extends Behavior {
         //    that now owns the slot, rewrite the same intents at once.
         const undone = this.internal.registry.undoes(type, params);
         if (undone !== undefined) {
-            const undoneSlot = (runs.liveRun(undone) ?? runs.retiredRun(undone))?.slotKey;
+            const undoneSlot = (runs.liveRun(undone) ?? runs.retiredRun(undone) ?? runs.pendingRun(undone))?.slotKey;
             if (undoneSlot !== undefined) {
                 const holder = runs.ownerOf(undoneSlot);
-                // The run being undone still owns its slot while its own cancel prepares this rollback.
+                // A rollback is only ever prepared by cancel, which has already stopped the run's driver, so
+                // the run still holding its own slot here is expected. Any other holder is live work this
+                // rollback would rewrite underneath.
                 if (holder !== undefined && holder.runId !== undone) {
                     throw new TaskConflictError(
                         `Rollback of ${runLabel(undone)} rejected: slot ${undoneSlot} is held by ${runLabel(holder.runId)}`,
@@ -420,6 +427,58 @@ export class TaskManagerBehavior extends Behavior {
     }
 
     /**
+     * Start a fresh rollback for a run whose previous one did not finish.
+     *
+     * A rollback is created by {@link cancel}, so retrying one cannot be an ordinary `run`: only the manager
+     * knows the original's driver is stopped and that no other rollback of its slot is in flight. Refuses
+     * while the recorded rollback is still going, since that one may yet succeed.
+     */
+    async retryRollback(runId: RunId): Promise<TaskHandle> {
+        const live = this.internal.runs.liveRun(runId);
+        const retired = this.internal.runs.retiredRun(runId);
+        if (live === undefined && retired === undefined) {
+            throw new TaskNotFoundError(`Cannot retry the rollback of ${runLabel(runId)}: no run answers to it`);
+        }
+        const previous = live?.revertRunId ?? retired?.revertRunId;
+        if (previous === undefined) {
+            throw new ImplementationError(`${runLabel(runId)} has no rollback to retry`);
+        }
+        const inFlight = this.internal.runs.liveRun(previous);
+        if (inFlight !== undefined) {
+            throw new TaskConflictError(
+                `Cannot retry the rollback of ${runLabel(runId)}: ${runLabel(previous)} is still in flight`,
+                previous,
+            );
+        }
+
+        const original = live ?? this.#reconstitute(retired!);
+        original.revertRunId = undefined;
+        const revert = this.#prepareRevert(original);
+        if (revert.task === undefined) {
+            throw new ImplementationError(`${runLabel(runId)} has nothing to roll back`);
+        }
+        try {
+            await this.#persist(original, revert.task);
+        } catch (e) {
+            original.revertRunId = previous;
+            revert.discard();
+            throw e;
+        }
+        revert.start();
+        return this.#handle(revert.task);
+    }
+
+    /** Rebuild a retired run from its record, which undo needs because revertibility is the task's decision. */
+    #reconstitute(record: TaskPersistence): Task {
+        if (!this.internal.registry.has(record.type)) {
+            throw new TaskTypeNotRegisteredError(
+                `Cannot act on ${runLabel(record.runId)}: task type "${record.type}" is not registered`,
+            );
+        }
+        return this.internal.registry.create(record.type, record.runId, record.slotKey, record.params, record);
+    }
+
+    /**
      * Cancel a task: stop forward driving, then spawn a revert task that rolls back the changeSet as an ordinary
      * task (parks on offline peers, resumes after restart). Does not await the revert — the caller observes it
      * via the returned handle.
@@ -450,12 +509,7 @@ export class TaskManagerBehavior extends Behavior {
             if (retired.state === "cancelled") {
                 return undefined;
             }
-            if (!this.internal.registry.has(retired.type)) {
-                throw new TaskTypeNotRegisteredError(
-                    `Cannot cancel ${runLabel(runId)}: task type "${retired.type}" is not registered`,
-                );
-            }
-            task = this.internal.registry.create(retired.type, retired.runId, retired.slotKey, retired.params, retired);
+            task = this.#reconstitute(retired);
         }
         // A rollback this run already recorded is the answer, wherever it now lives: reporting it as unknown
         // would make re-cancelling fail the moment its rollback finishes.
