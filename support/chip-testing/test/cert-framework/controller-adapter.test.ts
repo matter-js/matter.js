@@ -622,7 +622,7 @@ describe("ControllerAdapter registry", () => {
             resetControllerAdapterFactoryForTesting("chip-tool");
             registerControllerAdapterFactory(
                 "chip-tool",
-                id => new ChipToolControllerAdapter(id),
+                (id, options) => new ChipToolControllerAdapter(id, options),
                 CHIP_TOOL_CONTROLLER_PICS,
             );
         }
@@ -719,6 +719,33 @@ describe("ControllerAdapter registry", () => {
         }
     });
 
+    it("hands a test's transport request to the factory", () => {
+        // A TC that needs TCP declares it, and the adapter must see it before it starts — a controller
+        // cannot change a session's transport afterwards.
+        env.MATTER_CERT_CONTROLLER = "chip-tool";
+        resetControllerAdapterFactoryForTesting("chip-tool");
+
+        const seen = new Array<unknown>();
+        try {
+            registerControllerAdapterFactory("chip-tool", (id, options) => {
+                seen.push(options?.transport);
+                return fakeControllerAdapter(id);
+            });
+
+            createControllerAdapter("with-tcp", { transport: "tcp" });
+            createControllerAdapter("without");
+
+            expect(seen).deep.equal(["tcp", undefined]);
+        } finally {
+            resetControllerAdapterFactoryForTesting("chip-tool");
+            registerControllerAdapterFactory(
+                "chip-tool",
+                (id, options) => new ChipToolControllerAdapter(id, options),
+                CHIP_TOOL_CONTROLLER_PICS,
+            );
+        }
+    });
+
     it("reports no declarations for an implementation registered without them", () => {
         resetControllerAdapterFactoryForTesting("chip-tool");
 
@@ -729,7 +756,7 @@ describe("ControllerAdapter registry", () => {
             resetControllerAdapterFactoryForTesting("chip-tool");
             registerControllerAdapterFactory(
                 "chip-tool",
-                id => new ChipToolControllerAdapter(id),
+                (id, options) => new ChipToolControllerAdapter(id, options),
                 CHIP_TOOL_CONTROLLER_PICS,
             );
         }
