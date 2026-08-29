@@ -9,6 +9,9 @@
     },
     "references": [
         {
+            "path": "../../../packages/general/src"
+        },
+        {
             "path": "../../../packages/main/src"
         },
         {
