@@ -9,10 +9,12 @@ import { Matter } from "@matter/model";
 import type { CertNodeRef, CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import type { CommandFieldValue } from "./tc-support.js";
+import type { LogExpectClaim } from "./tc-support.js";
 import {
     answersWithStatus,
     CommissionedRefs,
     expectCommandInvoke,
+    expectSequence,
     LOG_TIMEOUT,
     record,
     requireId,
@@ -37,6 +39,22 @@ const GROUP = { id: 0x0001, name: "gp1" };
 const SCENE_ID = 0x01;
 const COPIED_SCENE_ID = 0x02;
 const SCENE_NAME = "scene1";
+
+/**
+ * The scene's stored state, which the plan names as ID 4's shape: a list of `ExtensionFieldSetStruct`,
+ * each a `ClusterID` and an `AttributeValueList`. OnOff's `OnOff` attribute is the one both THs carry
+ * on this endpoint, so the set the DUT sends is one a TH could actually apply.
+ */
+const ON_OFF_CLUSTER_ID = requireId(Matter.clusters.require("OnOff").id, "OnOff cluster");
+const ON_OFF_ATTRIBUTE_ID = requireId(Matter.clusters.require("OnOff").attributes.require("onOff").id, "OnOff.onOff");
+const SCENE_ON_OFF_VALUE = 1;
+
+const EXTENSION_FIELD_SETS = [
+    {
+        clusterId: ON_OFF_CLUSTER_ID,
+        attributeValueList: [{ attributeId: ON_OFF_ATTRIBUTE_ID, valueUnsigned8: SCENE_ON_OFF_VALUE }],
+    },
+];
 
 /** Well inside the field's `max 60,000,000` (§ 1.4.9.2), and small enough to leave no transition running. */
 const TRANSITION_TIME = 0;
@@ -81,7 +99,7 @@ async function invokeAndCheck(
     commandName: string,
     args: object,
     fields: CommandFieldValue[],
-): Promise<unknown> {
+): Promise<{ response: unknown; from: number }> {
     const th = cx.devices.th;
     const from = th.log.mark();
 
@@ -126,7 +144,18 @@ async function invokeAndCheck(
     );
     record(cx, logCheck, `CommandDataIB log for ScenesManagement.${commandName}`);
 
-    return response;
+    return { response, from };
+}
+
+/**
+ * Checks a payload the per-field matcher cannot state: it matches one line per field, and a list or a
+ * bitmap is neither one line on chip nor a plain integer on matter.js. The two flavors are given their
+ * own lines rather than the field's value, since they do not merely format it differently — chip
+ * numbers the nested fields and matter.js names them.
+ */
+async function expectPayloadLines(cx: CertStepContext, from: number, label: string, claim: LogExpectClaim) {
+    const th = cx.devices.th;
+    record(cx, await expectSequence(th.log, th.flavor, label, claim, from, LOG_TIMEOUT), label);
 }
 
 certTest("TC-S-3.1", { plan: "scenes.adoc", pics: ["S.C"], app: "all-clusters" })
@@ -193,7 +222,7 @@ certTest("TC-S-3.1", { plan: "scenes.adoc", pics: ["S.C"], app: "all-clusters" }
         1,
         "DUT issues an AddScene command to the Test Harness.",
         commissioned.withRef("dut", async (cx, ref) => {
-            await invokeAndCheck(
+            const { from } = await invokeAndCheck(
                 cx,
                 ref,
                 "addScene",
@@ -202,7 +231,7 @@ certTest("TC-S-3.1", { plan: "scenes.adoc", pics: ["S.C"], app: "all-clusters" }
                     sceneId: SCENE_ID,
                     transitionTime: TRANSITION_TIME,
                     sceneName: SCENE_NAME,
-                    extensionFieldSetStructs: [],
+                    extensionFieldSetStructs: EXTENSION_FIELD_SETS,
                 },
                 [
                     { id: 0, value: GROUP.id },
@@ -211,13 +240,31 @@ certTest("TC-S-3.1", { plan: "scenes.adoc", pics: ["S.C"], app: "all-clusters" }
                     { id: 3, value: SCENE_NAME },
                 ],
             );
+
+            await expectPayloadLines(cx, from, "AddScene ExtensionFieldSetStructs (ID 4)", {
+                chip: {
+                    ordered: [
+                        /0x4 = \[\s*$/,
+                        new RegExp(`0x0 = ${ON_OFF_CLUSTER_ID} \\(unsigned\\),`),
+                        /0x1 = \[\s*$/,
+                        new RegExp(`0x0 = ${ON_OFF_ATTRIBUTE_ID} \\(unsigned\\),`),
+                        new RegExp(`0x1 = ${SCENE_ON_OFF_VALUE} \\(unsigned\\),`),
+                    ],
+                },
+                matterjs: [
+                    new RegExp(
+                        `extensionFieldSetStructs: \\{ clusterId: ${ON_OFF_CLUSTER_ID}, attributeValueList: ` +
+                            `\\[ \\{ attributeId: ${ON_OFF_ATTRIBUTE_ID}, valueUnsigned8: ${SCENE_ON_OFF_VALUE} \\} \\]`,
+                    ),
+                ],
+            });
         }),
         {
             pics: "S.C.C00.Tx",
             expected:
                 "Test Harness receives the AddScene command from the DUT, carrying GroupID, SceneID, " +
-                "TransitionTime and SceneName. ExtensionFieldSetStructs is a list, which the log renders " +
-                "across lines rather than as one field.",
+                "TransitionTime, SceneName and an ExtensionFieldSetStructs list whose ClusterID and " +
+                "AttributeValueList the TH's log shows.",
         },
     )
     .step(
@@ -313,10 +360,9 @@ certTest("TC-S-3.1", { plan: "scenes.adoc", pics: ["S.C"], app: "all-clusters" }
         8,
         "DUT issues a CopyScene command to the Test Harness.",
         commissioned.withRef("dut", async (cx, ref) => {
-            // Mode is a bitmap, which the two logs render differently from a plain integer, so the
-            // copy's own scene and group ids carry the evidence. `copyAllScenes` is left clear, which
-            // is the case the plan's own parameter note describes as "otherwise this bit is set to 0".
-            await invokeAndCheck(
+            // `copyAllScenes` is left clear, which is the case the plan's own parameter note describes
+            // as "otherwise this bit is set to 0".
+            const { from } = await invokeAndCheck(
                 cx,
                 ref,
                 "copyScene",
@@ -334,12 +380,17 @@ certTest("TC-S-3.1", { plan: "scenes.adoc", pics: ["S.C"], app: "all-clusters" }
                     { id: 4, value: COPIED_SCENE_ID },
                 ],
             );
+
+            await expectPayloadLines(cx, from, "CopyScene Mode (ID 0) with CopyAllScenes clear", {
+                chip: [/0x0 = 0 \(unsigned\),/],
+                matterjs: [/mode: \{ copyAllScenes: false \}/],
+            });
         }),
         {
             pics: "S.C.C40.Tx",
             expected:
-                "Test Harness receives the CopyScene command from the DUT, carrying the source and destination " +
-                "group and scene ids. Mode is a bitmap, which the log renders differently from an integer.",
+                "Test Harness receives the CopyScene command from the DUT, carrying Mode with CopyAllScenes " +
+                "clear and the source and destination group and scene ids.",
         },
     )
     .finalize(cx => commissioned.decommissionAll(cx));
