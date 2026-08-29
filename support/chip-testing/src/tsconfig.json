@@ -9,13 +9,28 @@
     },
     "references": [
         {
+            "path": "../../../packages/general/src"
+        },
+        {
             "path": "../../../packages/main/src"
         },
         {
             "path": "../../../packages/matter.js/src"
         },
         {
+            "path": "../../../packages/model/src"
+        },
+        {
+            "path": "../../../packages/nodejs/src"
+        },
+        {
+            "path": "../../../packages/protocol/src"
+        },
+        {
             "path": "../../../packages/testing/src"
+        },
+        {
+            "path": "../../../packages/types/src"
         }
     ]
 }

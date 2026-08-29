@@ -64,6 +64,7 @@
         "test": "matter-test -w",
         "lint": "oxlint --type-aware --tsconfig tsconfig.json examples packages support",
         "validate-dts": "node support/tools/check-dts.mjs",
+        "validate-deps": "node support/tools/check-deps.mjs",
         "lint-fix": "oxlint --fix --type-aware --tsconfig tsconfig.json examples packages support",
         "format": "oxfmt \"packages/**/*.ts\" \"examples/**/*.ts\" \"support/**/*.ts\"",
         "format-verify": "oxfmt --check \"packages/**/*.ts\" \"examples/**/*.ts\" \"support/**/*.ts\"",
