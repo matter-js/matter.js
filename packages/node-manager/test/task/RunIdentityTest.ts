@@ -6,13 +6,13 @@
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { TaskConflictError, TaskTypeNotRegisteredError } from "#task/errors.js";
-import { TaskPersistence } from "#task/Task.js";
+import { Task, TaskPersistence } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { RunId, TaskPhase } from "#task/types.js";
 import { Environment } from "@matter/general";
 import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
-import { FakePeer, SyntheticTask } from "./helpers.js";
+import { FakePeer, recordFor, SyntheticTask } from "./helpers.js";
 
 /** Resolves peers to fakes, so a phase records a real changeSet and its rollback has something to undo. */
 class TestTaskManager extends TaskManagerBehavior {
@@ -25,6 +25,11 @@ class TestTaskManager extends TaskManagerBehavior {
     protected override taskReconciler(): ReconcilerBehavior {
         return TestTaskManager.reconcilerPeer as unknown as ReconcilerBehavior;
     }
+
+    /** Hands out an identity without running anything, to reproduce a stop before the first record. */
+    get internalRunStore() {
+        return this.internal.runs;
+    }
 }
 
 const RootEndpoint = MockServerNode.RootEndpoint.with(TestTaskManager);
@@ -35,6 +40,27 @@ function touchingPeer(id: string) {
     TestTaskManager.peers.set(id, peer);
     TestTaskManager.reconcilerPeer = peer;
     return peer;
+}
+
+async function pumpUntil(name: string, condition: () => Promise<boolean>) {
+    for (let i = 0; i < 10_000; i++) {
+        if (await condition()) {
+            return;
+        }
+        await MockTime.advance(1);
+    }
+    throw new Error(`Condition "${name}" never held`);
+}
+
+/** A second type, so a request for a different slot can try to take a pending run's external id. */
+class OtherTask extends Task<{ tag: string }> {
+    override readonly type = "other";
+    override get phases(): TaskPhase[] {
+        return [];
+    }
+    static override slotKeyFor(params: { tag: string }) {
+        return `other:${params.tag}`;
+    }
 }
 
 /** A phase that records one intent and never settles, so the run stays live and owns its slot. */
@@ -471,7 +497,6 @@ describe("run identity", () => {
         await using node = await makeNode(undefined, "reverseorder");
         const peer = touchingPeer("reverseorder");
         SyntheticTask.phasesByTag["reverseorder"] = [touchPhase("reverseorder")];
-        SyntheticTask.phasesByTag["holdit"] = [gateForever("reverseorder")];
         await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
 
         const older = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "reverseorder" }));
@@ -481,10 +506,18 @@ describe("run identity", () => {
         await settle(node, "synthetic:reverseorder");
         peer.dropItem("groupMembership", "X");
 
-        // A newer run takes the slot and stays live. Undoing the older run now would rewrite the intents the
-        // newer one is working on.
+        // A newer run takes the slot and is held live on a gate that never settles, so reaching the conflict
+        // does not depend on scheduling. Swapped only now, so the older run above still completes and retires.
+        SyntheticTask.phasesByTag["reverseorder"] = [gateForever("reverseorder")];
         const newer = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "reverseorder" }));
         expect(newer.runId).not.equals(older.runId);
+        await pumpUntil(
+            "the newer run owns the slot",
+            async () => (await node.act(a => a.get(TestTaskManager).tasks.some(t => t.runId === newer.runId))) === true,
+        );
+        // Asserted rather than assumed: the conflict this test is about exists only while the newer run holds
+        // the slot, so a setup that quietly let it finish would prove nothing.
+        expect(await node.act(a => a.get(TestTaskManager).tasks.map(t => t.runId))).contains(newer.runId);
 
         let refusal: unknown;
         try {
@@ -493,5 +526,95 @@ describe("run identity", () => {
             refusal = e;
         }
         expect(refusal).instanceOf(TaskConflictError);
+    });
+
+    it("gives every concurrent cancel of a run the same rollback", async () => {
+        await using node = await makeNode(undefined, "racecancel");
+        const peer = touchingPeer("racecancel");
+        SyntheticTask.phasesByTag["racecancel"] = [touchPhase("racecancel")];
+        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+
+        const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "racecancel" }));
+        for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
+            await MockTime.advance(1);
+        }
+        peer.setReachable(false);
+
+        // Both callers pass the "already has a rollback" check before either creates one. The loser must be
+        // told about the rollback that was created, not told there was nothing to roll back.
+        const [first, second] = await MockTime.resolve(
+            Promise.all([
+                node.act(a => a.get(TestTaskManager).cancel(handle.runId)),
+                node.act(a => a.get(TestTaskManager).cancel(handle.runId)),
+            ]),
+            { macrotasks: true },
+        );
+        expect(first).not.equals(undefined);
+        expect(second).not.equals(undefined);
+        expect(second?.runId).equals(first?.runId);
+    });
+
+    it("does not re-issue an identity handed out before its run was ever recorded", async () => {
+        const environment = persistentEnvironment();
+        touchingPeer("reserve");
+        SyntheticTask.phasesByTag["reserve"] = [touchPhase("reserve")];
+
+        let issued: RunId;
+        {
+            await using node = await makeNode(environment, "reserve");
+            await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            const first = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "reserve" }));
+            await settle(node, "synthetic:reserve");
+
+            // A second identity is handed out and the process stops before its run is ever recorded — the
+            // window `run()` being synchronous creates.
+            issued = await node.act(a => a.get(TestTaskManager).internalRunStore.allocate());
+            expect(issued).greaterThan(first.runId);
+        }
+
+        await using node = await makeNode(environment, "reserve");
+        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        const next = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "reserve" }));
+        // The identity was durable when it was issued, so unrelated work cannot be given it after a restart.
+        expect(next.runId).greaterThan(issued);
+    });
+
+    it("keeps a run awaiting resume in charge of the name it answers to", async () => {
+        const environment = persistentEnvironment();
+        touchingPeer("awaiting");
+        SyntheticTask.phasesByTag["awaiting"] = [gateForever("awaiting")];
+
+        let parked: RunId;
+        {
+            await using node = await makeNode(environment, "awaiting");
+            await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            const handle = await node.act(a =>
+                a.get(TestTaskManager).run("synthetic", { tag: "awaiting" }, { externalId: "held" }),
+            );
+            parked = handle.runId;
+            await pumpUntil(
+                "the run records its intent",
+                async () =>
+                    (await node.act(a => recordFor(a.get(TestTaskManager).state.runs, "synthetic:awaiting"))) !==
+                    undefined,
+            );
+        }
+
+        // Nothing registers "synthetic" on this start, so that run cannot be instantiated yet. It is still
+        // unfinished work that has already written to a peer: it answers lookups, and a different slot may not
+        // take the name it answers to, or the run would come back answering to nothing.
+        await using node = await makeNode(environment, "awaiting");
+        await node.act(a => a.get(TestTaskManager).register("other", OtherTask));
+        expect(await node.act(a => a.get(TestTaskManager).get(parked)?.status.slotKey)).equals("synthetic:awaiting");
+        expect(await node.act(a => a.get(TestTaskManager).forExternalId("held")?.runId)).equals(parked);
+
+        let refusal: unknown;
+        try {
+            await node.act(a => a.get(TestTaskManager).run("other", { tag: "awaiting" }, { externalId: "held" }));
+        } catch (e) {
+            refusal = e;
+        }
+        expect(refusal).instanceOf(TaskConflictError);
+        expect((refusal as TaskConflictError).owner).equals(parked);
     });
 });

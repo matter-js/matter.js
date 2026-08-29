@@ -15,6 +15,16 @@ export function isTerminal(state: TaskState): boolean {
     return TERMINAL_STATES.has(state);
 }
 
+/**
+ * How far ahead of itself the identity counter is persisted.
+ *
+ * `run()` is synchronous, so a run's identity is handed out before any write. Persisting the counter this far
+ * ahead means an identity is already durable when it is issued, and a process that stops before the run's
+ * first record lands cannot re-issue it to unrelated work. The cost is that a restart abandons whatever is
+ * left of the block, so identities are sparse rather than consecutive.
+ */
+export const RUN_ID_RESERVATION = 64;
+
 export interface RunStoreSnapshot {
     runs: Record<string, TaskPersistence>;
     nextRunId: number;
@@ -34,6 +44,12 @@ export class RunStore {
     readonly #live = new Map<RunId, Task>();
     readonly #slots = new Map<string, RunId>();
     readonly #retired = new Map<RunId, TaskPersistence>();
+    /**
+     * Persisted non-terminal runs this start has not instantiated yet, because nothing has registered their
+     * type. They are work in progress, so they answer lookups and hold their slot: a record that were invisible
+     * could have its slot taken by new work and would then never resume, orphaning the intents it already wrote.
+     */
+    readonly #pending = new Map<RunId, TaskPersistence>();
 
     /**
      * Load persisted state. `externalId` is not persisted as an index of its own: it is derived from the
@@ -55,6 +71,7 @@ export class RunStore {
             if (isTerminal(record.state)) {
                 this.#retired.set(record.runId, record);
             } else {
+                this.#pending.set(record.runId, record);
                 resumable.push(record);
             }
         }
@@ -81,10 +98,35 @@ export class RunStore {
         return RunId(this.#nextRunId++);
     }
 
+    /** The counter as it must be recorded: far enough ahead that issued identities are already durable. */
+    get reservedRunId(): number {
+        return this.#nextRunId + RUN_ID_RESERVATION;
+    }
+
     /** The run that currently owns `slotKey`, if any. */
     ownerOf(slotKey: string): Task | undefined {
         const runId = this.#slots.get(slotKey);
         return runId === undefined ? undefined : this.#live.get(runId);
+    }
+
+    /** A persisted run awaiting resume that holds `slotKey`. */
+    pendingOwnerOf(slotKey: string): TaskPersistence | undefined {
+        for (const record of this.#pending.values()) {
+            if (record.slotKey === slotKey) {
+                return record;
+            }
+        }
+        return undefined;
+    }
+
+    /** Records awaiting resume, in ascending runId — the only order defined for resume. */
+    get pending(): TaskPersistence[] {
+        return [...this.#pending.values()].sort((a, b) => a.runId - b.runId);
+    }
+
+    /** Take a record out of the pending tier once resume has decided what to do with it. */
+    resolvePending(runId: RunId): void {
+        this.#pending.delete(runId);
     }
 
     /** Register a run as live and give it ownership of its slot. */
@@ -163,11 +205,21 @@ export class RunStore {
         return this.#retired.get(runId);
     }
 
+    pendingRun(runId: RunId): TaskPersistence | undefined {
+        return this.#pending.get(runId);
+    }
+
     /** The run a caller-supplied external id names, preferring a live holder over a retired one. */
     findByExternalId(externalId: string): { runId: RunId; live?: Task } | undefined {
         for (const task of this.#live.values()) {
             if (task.externalId === externalId) {
                 return { runId: task.runId, live: task };
+            }
+        }
+        // Before retired records: a run awaiting resume is unfinished work, and its name still belongs to it.
+        for (const record of this.#pending.values()) {
+            if (record.externalId === externalId) {
+                return { runId: record.runId };
             }
         }
         let newest: TaskPersistence | undefined;
@@ -185,11 +237,21 @@ export class RunStore {
         return undefined;
     }
 
-    /** A live run holding `externalId` whose slot is not `slotKey`, which no request may take that name from. */
-    conflictingExternalIdHolder(externalId: string, slotKey: string): Task | undefined {
+    /**
+     * A run holding `externalId` whose slot is not `slotKey`, which no request may take that name from.
+     *
+     * Includes runs awaiting resume: they are unfinished work whose name still belongs to them, and letting a
+     * different slot take it would leave the resumed run answering to nothing.
+     */
+    conflictingExternalIdHolder(externalId: string, slotKey: string): { runId: RunId; slotKey: string } | undefined {
         for (const task of this.#live.values()) {
             if (task.externalId === externalId && task.slotKey !== slotKey) {
                 return task;
+            }
+        }
+        for (const record of this.#pending.values()) {
+            if (record.externalId === externalId && record.slotKey !== slotKey) {
+                return record;
             }
         }
         return undefined;
@@ -221,6 +283,9 @@ export class RunStore {
             runs[runKey(task.runId)] = task.toPersistence();
         }
         for (const [runId, record] of this.#retired) {
+            runs[runKey(runId)] = record;
+        }
+        for (const [runId, record] of this.#pending) {
             runs[runKey(runId)] = record;
         }
         return { runs, nextRunId: this.#nextRunId, nextRetireSeq: this.#nextRetireSeq };

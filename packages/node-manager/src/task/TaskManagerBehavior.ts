@@ -85,12 +85,11 @@ export class TaskManagerBehavior extends Behavior {
         this.internal.registry = new TaskRegistry();
         this.internal.runs = new RunStore();
         this.internal.gates = new Map();
-        const { resumable, discarded } = this.internal.runs.load({
+        const { discarded } = this.internal.runs.load({
             runs: this.state.runs,
             nextRunId: this.state.nextRunId,
             nextRetireSeq: this.state.nextRetireSeq,
         });
-        this.internal.resumable = resumable;
         if (discarded > 0) {
             logger.warn(`Discarded ${discarded} task record(s) predating per-run identity`);
         }
@@ -111,12 +110,7 @@ export class TaskManagerBehavior extends Behavior {
 
     /** Records still awaiting resume, in ascending runId — the only order defined for resume. */
     get #resumable(): TaskPersistence[] {
-        return [...this.internal.resumable].sort((a, b) => a.runId - b.runId);
-    }
-
-    /** Forget a record once resume has taken its decision, so no later pass reconsiders it. */
-    #resumed(record: TaskPersistence): void {
-        this.internal.resumable = this.internal.resumable.filter(r => r.runId !== record.runId);
+        return this.internal.runs.pending;
     }
 
     /** Built-in task types registered before the resume pass. */
@@ -170,7 +164,7 @@ export class TaskManagerBehavior extends Behavior {
                 logger.warn(`Not resuming run ${record.runId}: slot ${record.slotKey} is owned by run ${owner.runId}`);
                 continue;
             }
-            this.#resumed(record);
+            this.internal.runs.resolvePending(record.runId);
             try {
                 const task = this.internal.registry.create(type, record.runId, record.slotKey, record.params, record);
                 this.internal.runs.admit(task);
@@ -269,7 +263,17 @@ export class TaskManagerBehavior extends Behavior {
         // 1. Driving started now would outlive the dispose drain and write to peers after close.
         this.#refuseIfClosing(`Task ${slotKey} cannot start`);
 
-        // 2. The slot's owner joins the caller that already asked for this work, and refuses everyone else.
+        // 2. A persisted run awaiting resume still owns its slot. Letting new work take it would leave that
+        //    run unresumable and its already-written intents with no owner.
+        const awaiting = runs.pendingOwnerOf(slotKey);
+        if (awaiting !== undefined) {
+            throw new TaskConflictError(
+                `Task ${slotKey} rejected: ${runLabel(awaiting.runId)} holds this slot and is awaiting resume; register its type "${awaiting.type}" to continue it`,
+                awaiting.runId,
+            );
+        }
+
+        // 3. The slot's owner joins the caller that already asked for this work, and refuses everyone else.
         const owner = runs.ownerOf(slotKey);
         if (owner !== undefined) {
             if (this.internal.cancelling.has(owner.runId)) {
@@ -287,7 +291,7 @@ export class TaskManagerBehavior extends Behavior {
             return { task: owner, joined: true };
         }
 
-        // 3. An external id is one-to-one: a live run of another slot must not lose the name it answers to.
+        // 4. An external id is one-to-one: a live run of another slot must not lose the name it answers to.
         if (seed.externalId !== undefined) {
             const holder = runs.conflictingExternalIdHolder(seed.externalId, slotKey);
             if (holder !== undefined) {
@@ -298,7 +302,7 @@ export class TaskManagerBehavior extends Behavior {
             }
         }
 
-        // 4. A rollback rewrites exactly the intents a re-run would re-apply, so the two must never overlap —
+        // 5. A rollback rewrites exactly the intents a re-run would re-apply, so the two must never overlap —
         //    and the rollback in flight need not be undoing the most recent run of the slot.
         const pendingRevert = runs.pendingRevertOfSlot(slotKey);
         if (pendingRevert !== undefined) {
@@ -308,7 +312,7 @@ export class TaskManagerBehavior extends Behavior {
             );
         }
 
-        // 5. A rollback contends for the slot of the run it undoes, not for its own: its slot is unique per
+        // 6. A rollback contends for the slot of the run it undoes, not for its own: its slot is unique per
         //    run, so checking that alone would let two rollbacks of one slot, or a rollback and the newer run
         //    that now owns the slot, rewrite the same intents at once.
         const undone = this.internal.registry.undoes(type, params);
@@ -344,7 +348,7 @@ export class TaskManagerBehavior extends Behavior {
         if (live !== undefined) {
             return this.#handle(live);
         }
-        const record = this.internal.runs.retiredRun(runId);
+        const record = this.internal.runs.retiredRun(runId) ?? this.internal.runs.pendingRun(runId);
         return record === undefined ? undefined : this.#recordHandle(record);
     }
 
@@ -510,7 +514,10 @@ export class TaskManagerBehavior extends Behavior {
         this.internal.runs.commitRetirement(task);
         // The rollback mutates peers, so it may not drive before the record that names it is durable.
         revert.start();
-        return revert.task === undefined ? undefined : this.#handle(revert.task);
+        // Resolved from the run's own link rather than from what this call prepared: a second cancel that
+        // raced this one finds the rollback already recorded, and must be told about it rather than told
+        // there was nothing to roll back.
+        return task.revertRunId === undefined ? undefined : this.get(task.revertRunId);
     }
 
     // Teardown starts at the node, not at this behavior: `Construction.close` applies `Destroying` before it runs
@@ -758,7 +765,8 @@ export class TaskManagerBehavior extends Behavior {
         // other runs' uncommitted in-flight state as though it were durable.
         const written = paired === undefined ? [task] : [task, paired];
         const records = written.map(t => [runKey(t.runId), t.toPersistence()] as const);
-        const { nextRunId, nextRetireSeq } = this.internal.runs.snapshot();
+        const { nextRetireSeq } = this.internal.runs.snapshot();
+        const reservedRunId = this.internal.runs.reservedRunId;
         await this.endpoint.act(agent => {
             const self = agent.get(TaskManagerBehavior);
             const runs = { ...self.state.runs };
@@ -768,7 +776,7 @@ export class TaskManagerBehavior extends Behavior {
             self.state.runs = runs;
             // High-water marks: never `consumed + 1`, or a write that lands out of allocation order lowers the
             // counter below a durable identity and a crash re-issues it.
-            self.state.nextRunId = Math.max(self.state.nextRunId, nextRunId);
+            self.state.nextRunId = Math.max(self.state.nextRunId, reservedRunId);
             self.state.nextRetireSeq = Math.max(self.state.nextRetireSeq, nextRetireSeq);
         });
         // Only now: a retired record refreshed before the write would keep a change the write never made, and
@@ -804,11 +812,6 @@ export namespace TaskManagerBehavior {
     export class Internal {
         registry!: TaskRegistry;
         runs!: RunStore;
-        /**
-         * Persisted non-terminal records this start has not resumed yet, because their type is registered
-         * later. Held here rather than re-read from state, which no longer contains what has not been loaded.
-         */
-        resumable: TaskPersistence[] = [];
         gates!: Map<RunId, GateState>;
         driving = new Map<RunId, Promise<void>>();
         cancelling = new Set<RunId>();
