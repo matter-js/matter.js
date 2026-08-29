@@ -370,7 +370,12 @@ export namespace Certificate {
                     continue;
             }
 
-            const valueNode = DerCodec.decode(extElements[valueIndex]._bytes);
+            const value = extElements[valueIndex];
+            if (value === undefined || value._tag !== DerType.OctetString) {
+                throw new CertificateError(`Extension ${oidValue} is missing its value octet string`);
+            }
+
+            const valueNode = DerCodec.decode(value._bytes);
 
             switch (oidValue) {
                 case X509.Extensions.BASIC_CONSTRAINTS:

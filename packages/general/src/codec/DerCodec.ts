@@ -448,6 +448,9 @@ export class DerCodec {
         let length = reader.readUInt8();
         if ((length & 0x80) !== 0) {
             let lengthLength = length & 0x7f;
+            if (lengthLength === 0) {
+                throw new DerError("DER forbids the indefinite-length encoding");
+            }
             if (lengthLength > MAX_LENGTH_BYTES) {
                 throw new DerError(`DER length of ${lengthLength} bytes exceeds the ${MAX_LENGTH_BYTES} byte maximum`);
             }

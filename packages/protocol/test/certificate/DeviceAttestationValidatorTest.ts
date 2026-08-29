@@ -184,6 +184,19 @@ describe("DeviceAttestationValidator", () => {
             ).to.be.rejectedWith(DeviceAttestationError, /Device returned an empty DAC certificate/);
         });
 
+        it("throws CertificateUnparseable when the DAC parses but its public key does not", async () => {
+            const dclService = await setupDclService();
+
+            // Flip the uncompressed-point marker of the DAC's public key, leaving every DER length intact
+            const brokenKeyDac = Bytes.of(dacDer).slice();
+            const marker = Bytes.toHex(brokenKeyDac).indexOf("03420004") / 2 + 3;
+            brokenKeyDac[marker] = 0x05;
+
+            await expect(
+                DeviceAttestationValidator.validate(buildContext(dclService), buildData({ dac: brokenKeyDac })),
+            ).to.be.rejectedWith(DeviceAttestationError, /DAC whose public key cannot be read/);
+        });
+
         it("throws CertificateUnparseable when the device returns a truncated PAI", async () => {
             const dclService = await setupDclService();
 

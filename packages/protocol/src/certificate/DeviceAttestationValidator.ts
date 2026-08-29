@@ -198,7 +198,11 @@ export namespace DeviceAttestationValidator {
         }
 
         // Step 7: Attestation Signature verification
-        const dacPublicKey = PublicKey(dac.cert.ellipticCurvePublicKey);
+        const dacPublicKey = parsePeerValue(
+            DeviceAttestationCheck.CertificateUnparseable,
+            "Device returned a DAC whose public key cannot be read",
+            () => PublicKey(dac.cert.ellipticCurvePublicKey),
+        );
         try {
             await crypto.verifyEcdsa(
                 dacPublicKey,
@@ -279,7 +283,11 @@ export namespace DeviceAttestationValidator {
 
             try {
                 await crypto.verifyEcdsa(
-                    PublicKey(pai.cert.ellipticCurvePublicKey),
+                    parsePeerValue(
+                        DeviceAttestationCheck.CertificateUnparseable,
+                        "Device returned a PAI whose public key cannot be read",
+                        () => PublicKey(pai.cert.ellipticCurvePublicKey),
+                    ),
                     dac.asUnsignedDer(),
                     dac.signature,
                 );

@@ -253,6 +253,30 @@ describe("DnsCodec", () => {
             expect(result?.answers[0].value).equal("192.168.1.1");
         });
 
+        it("keeps the readable records of a message whose record value has a bad name pointer", () => {
+            // A PTR record whose RDATA is a compression pointer past the end of the message, then a valid A record
+            const message = Bytes.fromHex(
+                "000084000000000200000000" +
+                    "0162056c6f63616c00" +
+                    "000c" +
+                    "0001" +
+                    "0000003c" +
+                    "0002" +
+                    "c0ff" +
+                    "0161056c6f63616c00" +
+                    "0001" +
+                    "0001" +
+                    "0000003c" +
+                    "0004" +
+                    "c0a80101",
+            );
+
+            const result = DnsCodec.decode(message);
+
+            expect(result?.answers).to.have.length(1);
+            expect(result?.answers[0].name).equal("a.local");
+        });
+
         it("decodes message with private record type", () => {
             const result = DnsCodec.decode(RESULT_WITH_PRIVATE_TYPE);
 

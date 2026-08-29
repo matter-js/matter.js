@@ -262,6 +262,21 @@ describe("Certificates", () => {
             return reencode(cert);
         }
 
+        it("rejects a certificate whose recognized extension has no value octet string", () => {
+            // basicConstraints (2.5.29.19) marked critical but carrying no value
+            const valuelessExtension = DerCodec.decode(
+                DerCodec.encode({
+                    oid: { _tag: DerType.ObjectIdentifier as number, _bytes: Bytes.fromHex("551d13") },
+                    critical: { _tag: DerType.Boolean as number, _bytes: Bytes.fromHex("ff") },
+                }),
+            );
+
+            expect(() => Rcac.fromAsn1(withExtension(EXTERNAL_TEST_CERTIFICATES.RCAC_ASN1, valuelessExtension))).throws(
+                CertificateError,
+                /missing its value octet string/,
+            );
+        });
+
         it("parses a certificate whose unrecognized extension holds bytes that are not DER", () => {
             // OID 2.5.29.99 is not one we read, and 0xff is not a valid DER tag
             const opaqueExtension = DerCodec.decode(

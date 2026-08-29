@@ -114,6 +114,11 @@ describe("DerCodec", () => {
             expect(() => DerCodec.decode(b$`048480000000`)).throws(DerError, /DER data is truncated/);
         });
 
+        it("rejects the indefinite-length encoding", () => {
+            // OCTET STRING with the BER indefinite-length marker, which DER forbids
+            expect(() => DerCodec.decode(b$`0480ffff`)).throws(DerError, /indefinite-length/);
+        });
+
         it("rejects a long-form length longer than a safe integer", () => {
             // OCTET STRING with a 7-byte length
             expect(() => DerCodec.decode(b$`0487ffffffffffffff`)).throws(DerError, /exceeds the 6 byte maximum/);

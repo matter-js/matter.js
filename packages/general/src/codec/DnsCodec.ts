@@ -11,7 +11,7 @@ import { Seconds } from "#time/TimeUnit.js";
 import { isObject } from "#util/index.js";
 import { InternalError, NotImplementedError, UnexpectedDataError } from "../MatterError.js";
 import { Bytes, Endian } from "../util/Bytes.js";
-import { DataReader, DataReadError } from "../util/DataReader.js";
+import { DataReader } from "../util/DataReader.js";
 import { DataWriter } from "../util/DataWriter.js";
 import { ipv4BytesToString, ipv4ToBytes, ipv6BytesToString, ipv6ToBytes, isIPv4, isIPv6 } from "../util/Ip.js";
 
@@ -277,7 +277,7 @@ export class DnsCodec {
         try {
             value = this.decodeRecordValue(valueBytes, recordType, message);
         } catch (error) {
-            if (!(error instanceof DataReadError)) {
+            if (!(error instanceof UnexpectedDataError)) {
                 throw error;
             }
             return undefined;
