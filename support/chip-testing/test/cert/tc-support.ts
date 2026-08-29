@@ -896,6 +896,15 @@ export interface CommandFieldValue {
     value: number | bigint | string;
 }
 
+/**
+ * `value` as evidence text. `JSON.stringify` throws on a `bigint`, and Matter carries plenty of them
+ * (an `epoch-us`, a node id, a `systime-ms`), so a step reporting what a device answered would
+ * otherwise fail on its own evidence.
+ */
+export function describeValue(value: unknown): string {
+    return JSON.stringify(value, (_key, member) => (typeof member === "bigint" ? `${member}` : member)) ?? "undefined";
+}
+
 /** `value` as a pattern matching itself and nothing else. */
 export function literally(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

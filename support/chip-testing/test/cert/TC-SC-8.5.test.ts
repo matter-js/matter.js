@@ -8,7 +8,7 @@ import { Matter } from "@matter/model";
 import type { CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import {
-    recordTcpInvoke,
+    tcpInvokeCheck,
     TCP_FLAVORS,
     TCP_PICS,
     TCP_ROLES,
@@ -16,7 +16,7 @@ import {
     tcpSessionStep,
     tcpStep,
 } from "./tc-sc-8-support.js";
-import { CommissionedRefs, record, requireId } from "./tc-support.js";
+import { CommissionedRefs, describeValue, recordAll, requireId } from "./tc-support.js";
 
 const GENERAL_DIAGNOSTICS = Matter.clusters.require("GeneralDiagnostics");
 const GENERAL_DIAGNOSTICS_ID = requireId(GENERAL_DIAGNOSTICS.id, "GeneralDiagnostics cluster");
@@ -55,28 +55,25 @@ async function invokeOverTcp(cx: CertStepContext) {
     const response = await node.invoke("GeneralDiagnostics", "timeSnapshot", {}, ROOT_ENDPOINT);
 
     const systemTimeMs = systemTimeMsOf(response);
-    record(
-        cx,
-        {
-            type: "response",
-            verdict: systemTimeMs === undefined ? "fail" : "pass",
-            detail:
-                systemTimeMs === undefined
-                    ? `the DUT answered TimeSnapshot with ${JSON.stringify(response)}, which carries no SystemTimeMs`
-                    : `TimeSnapshotResponse systemTimeMs=${systemTimeMs}`,
-        },
-        "the TH received the command response",
-    );
+    const invoked = await tcpInvokeCheck(cx, tag, ROOT_ENDPOINT, GENERAL_DIAGNOSTICS_ID, TIME_SNAPSHOT_ID, from);
 
-    await recordTcpInvoke(
-        cx,
-        tag,
-        ROOT_ENDPOINT,
-        GENERAL_DIAGNOSTICS_ID,
-        TIME_SNAPSHOT_ID,
-        from,
-        "the DUT dispatched the command and answered it on the session step 1 established",
-    );
+    recordAll(cx, [
+        {
+            check: () => ({
+                type: "response",
+                verdict: systemTimeMs === undefined ? "fail" : "pass",
+                detail:
+                    systemTimeMs === undefined
+                        ? `the DUT answered TimeSnapshot with ${describeValue(response)}, which carries no SystemTimeMs`
+                        : `TimeSnapshotResponse systemTimeMs=${systemTimeMs}`,
+            }),
+            what: "the TH received the command response",
+        },
+        {
+            check: () => invoked,
+            what: "the DUT dispatched the command and answered it on the session step 1 established",
+        },
+    ]);
 }
 
 certTest("TC-SC-8.5", {

@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { CertDevice, CertStepContext, CheckRecord, PicsFile, Subject } from "@matter/testing";
-import { LineQueue, LogFollower } from "@matter/testing";
+import type { CertDevice, CertStepContext, CheckRecord, Subject } from "@matter/testing";
+import { LineQueue, LogFollower, PicsFile } from "@matter/testing";
 import { recordTcpInvoke, recordTcpSession, TcpSessionRef } from "../cert/tc-sc-8-support.js";
 import { CertCheckFailedError } from "../cert/tc-support.js";
 
@@ -49,7 +49,7 @@ async function withDut<T>(lines: string[], body: (cx: CertStepContext, checks: C
         id: "dut",
         app: "all-clusters",
         commissioning: { kind: "on-network", passcode: 20202021, discriminator: 3840, qrPairingCode: "" },
-        pics: undefined as unknown as PicsFile,
+        pics: new PicsFile([]),
         async initialize() {},
         async start() {},
         async stop() {},
@@ -110,7 +110,14 @@ describe("recordTcpSession", () => {
 describe("recordTcpInvoke", () => {
     async function invoke(lines: string[], session = SESSION) {
         return withDut(lines, async (cx, checks) => {
-            await recordTcpInvoke(cx, session, ENDPOINT, CLUSTER, COMMAND, 0, "invoked over TCP").catch(() => {});
+            try {
+                await recordTcpInvoke(cx, session, ENDPOINT, CLUSTER, COMMAND, 0, "invoked over TCP");
+            } catch (e) {
+                // A failing check is what several of these cases assert; anything else is a real error
+                if (!(e instanceof CertCheckFailedError)) {
+                    throw e;
+                }
+            }
             return checks;
         });
     }

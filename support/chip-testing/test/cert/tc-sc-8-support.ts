@@ -5,7 +5,7 @@
  */
 
 import { Matter } from "@matter/model";
-import type { CertNodeRef, CertStepContext, DeviceFlavor } from "@matter/testing";
+import type { CertNodeRef, CertStepContext, CheckRecord, DeviceFlavor } from "@matter/testing";
 import { resolveControllerImplementation, UnsupportedByControllerError } from "@matter/testing";
 import {
     CertCheckFailedError,
@@ -137,6 +137,38 @@ const SESSION_TAG = /(@[0-9a-f]+:[0-9a-f]+•[0-9a-f]+)\(tcp\)/;
  * message line is the `InvokeResponse` going back out. Every one of them carries the session tag,
  * which is what makes this the session step 1 established rather than any TCP-backed one.
  */
+export async function tcpInvokeCheck(
+    cx: CertStepContext,
+    session: string,
+    endpoint: number,
+    cluster: number,
+    command: number,
+    from: number,
+): Promise<CheckRecord> {
+    const dut = cx.devices.dut;
+    const onSession = `${literally(session)}\\(tcp\\)⇵[0-9a-f]+`;
+    const path = matterjsCommandPath(endpoint, cluster, command);
+    return expectSequence(
+        dut.log,
+        dut.flavor,
+        `an invoke of ${endpoint}/${cluster}/${command} answered with an InvokeResponse on ${session}`,
+        {
+            matterjs: {
+                ordered: [
+                    // The invoke line carries the timed/suppress-response flags between the session
+                    // and its path, and drops them when neither is set
+                    new RegExp(`InteractionServer Invoke « ${onSession}.*invokes: .*?${path}`),
+                    new RegExp(`InteractionServer Invoke \\(final\\) » ${onSession} commands: 1(?!\\d)`),
+                    new RegExp(`Message » for: I/InvokeResponse id: ${onSession}`),
+                ],
+            },
+        },
+        from,
+        LOG_TIMEOUT,
+    );
+}
+
+/** {@link tcpInvokeCheck}, recorded as the step's evidence. */
 export async function recordTcpInvoke(
     cx: CertStepContext,
     session: string,
@@ -146,31 +178,7 @@ export async function recordTcpInvoke(
     from: number,
     what: string,
 ) {
-    const dut = cx.devices.dut;
-    const onSession = `${literally(session)}\\(tcp\\)⇵[0-9a-f]+`;
-    const path = matterjsCommandPath(endpoint, cluster, command);
-    record(
-        cx,
-        await expectSequence(
-            dut.log,
-            dut.flavor,
-            `an invoke of ${endpoint}/${cluster}/${command} answered with an InvokeResponse on ${session}`,
-            {
-                matterjs: {
-                    ordered: [
-                        // The invoke line carries the timed/suppress-response flags between the session
-                        // and its path, and drops them when neither is set
-                        new RegExp(`InteractionServer Invoke « ${onSession}.*invokes: .*?${path}`),
-                        new RegExp(`InteractionServer Invoke \\(final\\) » ${onSession} commands: 1(?!\\d)`),
-                        new RegExp(`Message » for: I/InvokeResponse id: ${onSession}`),
-                    ],
-                },
-            },
-            from,
-            LOG_TIMEOUT,
-        ),
-        what,
-    );
+    record(cx, await tcpInvokeCheck(cx, session, endpoint, cluster, command, from), what);
 }
 
 /** Where a TCP case keeps the session its first step established, for the steps that follow. */
@@ -206,17 +214,16 @@ export function tcpStep(run: (cx: CertStepContext) => Promise<void>) {
 }
 
 /** Every TCP case starts the same way, so its first step is shared rather than copied. */
-export function tcpSessionStep(commissioned: CommissionedRefs<"th">, session?: TcpSessionRef) {
+export function tcpSessionStep(commissioned: CommissionedRefs<"th">, session: TcpSessionRef) {
     return async (cx: CertStepContext) => {
         const { from } = await commissionOverTcp(cx, commissioned);
-
-        // The session evidence is recorded whether or not the case captures the tag
-        const tag = await recordTcpSession(
-            cx,
-            from,
-            "the session the TH established with the DUT runs over TCP, which is what makes it large-payload-capable",
+        session.set(
+            await recordTcpSession(
+                cx,
+                from,
+                "the session the TH established with the DUT runs over TCP, which is what makes it large-payload-capable",
+            ),
         );
-        session?.set(tag);
     };
 }
 
