@@ -2183,3 +2183,72 @@ group the fabric's key map must already carry. What it adds:
   anchored on the mark the invoke took, which is what lets the step assert the nested `ClusterID` and
   `AttributeValueList` the plan actually names. Sending an empty list would have been the quieter
   mistake: the step would pass while exercising none of the shape it is about.
+
+## The group-messaging block splits in two (`TC-SC-6.1` runnable, `TC-SC-5.3` not)
+
+`TC-SC-6.1` ("adding member to a group") is entirely **unicast** — KeySetWrite, a GroupKeyMap write,
+AddGroup, ViewGroup, KeySetRead, KeySetRemove, KeySetReadAllIndices — so it needed no new capability
+at all, only three more client PICS declarations (`G.C.C01.Tx`, `GRPKEY.C.C03.Tx`, `GRPKEY.C.C04.Tx`;
+the last two are absent from the device file entirely, and an absent key evaluates false). `TC-SC-5.3`
+is the one that needs the DUT to *send* a groupcast, and it is blocked on evidence rather than on
+sending — see the note below.
+
+What the steps rest on, beyond the log:
+
+- **Step 1a writes an ACL entry, and the read-modify-write is load-bearing.** The entry the plan wants
+  is `AuthMode: Group` with the group id as its subject, but the ACL also carries the DUT's own
+  administer entry — writing the group entry alone revokes the access every later step needs. Read,
+  append, write.
+- **An ACL subject is a `uint64`, so it comes back as a `bigint`** from one controller and a `number`
+  from another. Compare the value, not the type: a `subjects.includes(1)` against `[1n]` is false, and
+  reads as "the write did not take" rather than as a decoding difference.
+- **`JSON.stringify` throws on a `bigint`.** A key set's epoch start times are `epoch-us`, so a step
+  reporting what the TH answered fails on its own evidence — the run error is
+  `Do not know how to serialize a BigInt`, and it names no field. Evidence text for a response that
+  may carry one goes through a replacer.
+- **KeySetRemove then KeySetReadAllIndices is what makes the removal checkable**: the indices must no
+  longer list the removed set (only the IPK's 0 remains). Without that, both steps would rest on the
+  TH having logged a command it could equally have ignored.
+- **Steps 6 and 7 are declared `notApplicable`, not omitted.** The plan skips them where the TH's root
+  endpoint has no Groupcast cluster, and neither TH has one — matter.js's all-clusters device
+  registers none, and chip's all-clusters ZAP enables none. Declaring them keeps the plan's own
+  numbering in the evidence and states why the run jumps from 5 to 8.
+
+## `TC-SC-5.3` is blocked on what the receiver can show, not on sending (assessed 2026-08-29)
+
+Sending a group command is **available on both controllers** and simply unexercised:
+
+- matter.js: `NodeId.fromGroupId(GroupId(id))` addresses a group, `Peers.forAddress` then yields a
+  `ClientGroup` rather than a `ClientNode`, and `ClientGroupInteraction` supports `invoke` and `write`
+  (it forces `suppressResponse` and refuses reads, subscriptions and timed requests). Nothing in the
+  repository drives this over a real socket today — `BindingIntegrationTest` says so in its own comment,
+  because the mock network has no multicast loopback.
+- chip-tool: a destination id of `0xFFFF'FFFF'FFFF'0000 | groupId` *is* the group form
+  (`ModelCommand::RunCommand` → `SendGroupCommand`), and `any command-by-id` inherits it. The mask
+  matches matter.js's `GroupId.isGroupNodeId` exactly.
+
+What is missing is a **witness** for the receiver's side of the plan's step 5, which asks to validate
+four things about the message. Only the first reaches a log line:
+
+- **DSIZ is group** — visible: a group session renders as `group#<id>` in `exchange.via`, so every
+  inbound invoke line says it.
+- **The destination group id** — not logged, though matter.js does use it: `GroupSession.subjectFor`
+  resolves it into the subject access control checks against, and `SessionManager.onGroupMessage`
+  emits it for every group invoke.
+- **The IPv6 destination `FF35:0040:FD<fabric-id>00:<group-id>`** — not captured from the received
+  packet at all. The UDP layer surfaces only the *sender's* address and port (`UdpTransport`'s
+  `onData` takes `rinfo`), with no `IP_PKTINFO`-style destination capture; the `destIp` on that event
+  is filled by the sending path.
+- **UDP port 5540** — implicit in the bound socket, never stated in a log line.
+
+So the open question is which witness to build, and it is a decision rather than a work item:
+
+- **Log the destination.** The receiving path holds the group id already; the multicast address it
+  would first have to capture.
+- **Observe `SessionManager.onGroupMessage` in-process.** A matterjs-flavor device runs inside the
+  test process, so a check could listen to it directly — stronger about the group id than any log
+  line, but a different kind of evidence from a device log, and unavailable on the chip flavors, so
+  the TC would prove different things on different legs.
+
+Until one of those exists, a TC written here could claim "the TH received this on a group session"
+and nothing about the addressing the step is actually about.
