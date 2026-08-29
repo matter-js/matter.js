@@ -110,6 +110,30 @@ describe("chip-tool json codec", () => {
         expect(matterToChipJson(2.5, MEASURED_VALUE_ATTRIBUTE, CARBON_DIOXIDE_CONCENTRATION, "hex")).to.equal("f:2.5");
     });
 
+    it("carries the widest integer a Matter field can hold, which fits chip-tool's buffer exactly", () => {
+        // 18446744073709551615 and -9223372036854775808 are both 20 characters, the most chip-tool
+        // keeps of a prefixed value.
+        expect(matterToChipJson(18446744073709551615n, UP_TIME_ATTRIBUTE, GENERAL_DIAGNOSTICS, "hex")).to.equal(
+            "u:18446744073709551615",
+        );
+        expect(
+            matterToChipJson(-9223372036854775808n, VOLTAGE_ATTRIBUTE, ELECTRICAL_POWER_MEASUREMENT, "hex"),
+        ).to.equal("s:-9223372036854775808");
+    });
+
+    it("refuses a float chip-tool's buffer would silently truncate", () => {
+        // The largest finite double renders as 23 characters; chip-tool would keep 20 and parse a
+        // well-formed number that is not this one.
+        expect(() =>
+            matterToChipJson(Number.MAX_VALUE, MEASURED_VALUE_ATTRIBUTE, CARBON_DIOXIDE_CONCENTRATION, "hex"),
+        ).to.throw(ImplementationError, /characters/);
+
+        // 21 characters, just past the budget, and computed so the literal keeps its precision.
+        expect(() =>
+            matterToChipJson(Math.PI * 1e-10, MEASURED_VALUE_ATTRIBUTE, CARBON_DIOXIDE_CONCENTRATION, "hex"),
+        ).to.throw(ImplementationError);
+    });
+
     it("refuses a non-integral value on an integer field, naming the field", () => {
         expect(() => matterToChipJson(1.5, UP_TIME_ATTRIBUTE, GENERAL_DIAGNOSTICS, "hex")).to.throw(
             ImplementationError,

@@ -263,13 +263,33 @@ const CHIP_TOOL_PLAIN_UNSIGNED_MAX = 0xffffffffn;
 const CHIP_TOOL_PLAIN_SIGNED_MIN = -0x80000000n;
 
 /**
+ * How much of a prefixed value chip-tool keeps: each of its `u:`/`s:`/`f:`/`d:` parsers copies the
+ * text after the prefix into a `char[21]` before `stoull`/`stoll`/`stof`/`stod`, and `CopyString`
+ * truncates to fit rather than failing. The widest integer a Matter field can hold survives exactly —
+ * `18446744073709551615` and `-9223372036854775808` are both 20 characters — but a float need not:
+ * the largest finite double renders as 23. Truncation there is silent and yields a well-formed number
+ * that is not the one asked for, so a value this cannot carry is refused instead.
+ */
+const CHIP_TOOL_PREFIXED_TEXT_MAX = 20;
+
+/**
  * The value chip-tool encodes as the TLV type `model` declares. `u:`/`s:`/`f:`/`d:` are its own
  * prefixes for stating that type explicitly, which is the only way to reach a type its inference
  * cannot; a value it already infers correctly stays a plain JSON number.
  */
 function chipTypedNumber(value: number | bigint, kind: ConvKind, model: ValueModel): unknown {
+    const prefixed = (prefix: string, text: string) => {
+        if (text.length > CHIP_TOOL_PREFIXED_TEXT_MAX) {
+            throw new ImplementationError(
+                `Field "${model.name}" value ${text} is ${text.length} characters, more than the ` +
+                    `${CHIP_TOOL_PREFIXED_TEXT_MAX} chip-tool keeps of a "${prefix}:" value`,
+            );
+        }
+        return `${prefix}:${text}`;
+    };
+
     if (kind === ConvKind.Float || kind === ConvKind.Double) {
-        return `${kind === ConvKind.Float ? "f" : "d"}:${value}`;
+        return prefixed(kind === ConvKind.Float ? "f" : "d", `${value}`);
     }
 
     if (typeof value === "number" && !Number.isInteger(value)) {
@@ -280,13 +300,13 @@ function chipTypedNumber(value: number | bigint, kind: ConvKind, model: ValueMod
     if (kind === ConvKind.Signed) {
         // A non-negative value is the case that looks safe and is not: `isUInt()` runs first, so zero
         // and every positive int32 would go out as an unsigned element.
-        return magnitude >= 0 || magnitude < CHIP_TOOL_PLAIN_SIGNED_MIN ? `s:${magnitude}` : value;
+        return magnitude >= 0 || magnitude < CHIP_TOOL_PLAIN_SIGNED_MIN ? prefixed("s", `${magnitude}`) : value;
     }
 
     if (magnitude < 0) {
         throw new ImplementationError(`Field "${model.name}" is unsigned but was given ${value}`);
     }
-    return magnitude > CHIP_TOOL_PLAIN_UNSIGNED_MAX ? `u:${magnitude}` : value;
+    return magnitude > CHIP_TOOL_PLAIN_UNSIGNED_MAX ? prefixed("u", `${magnitude}`) : value;
 }
 
 /** chip-tool's prefixes for stating a value's type, which it reads before it reads a char string. */

@@ -2151,3 +2151,10 @@ reads the prefix before it reads a string).
 This was latent for every field the suite might send through chip-tool whose value leaves the 32-bit
 window — a node id, an event number, a timestamp, a negative int64, any float — not only this TC's
 epoch keys.
+
+The prefixed form has a budget of its own: each of those parsers copies the text after the prefix into
+a `char[21]` and `CopyString` truncates to fit rather than failing, so **20 characters survive**. The
+widest integer a Matter field can hold fits exactly (`18446744073709551615` and
+`-9223372036854775808` are 20 characters each), but a float need not — the largest finite double
+renders as 23, and `stod` on the truncated text yields a well-formed number that is not the one asked
+for. A value that would not survive is refused rather than silently changed.
