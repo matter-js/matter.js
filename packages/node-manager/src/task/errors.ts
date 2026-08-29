@@ -44,6 +44,12 @@ export class TaskNotFoundError extends TaskError {}
  */
 export class TaskTypeNotRegisteredError extends TaskError {}
 
+/**
+ * More runs were started than the durable identity reservation covers, before any of their records landed.
+ * Handing out an unreserved identity would let the next start re-issue it, so the request is refused instead.
+ */
+export class TaskIdentityExhaustedError extends TaskError {}
+
 /** A task refused to run because a member's current intent violates a required precondition. */
 export class RotationPreconditionError extends TaskError {}
 

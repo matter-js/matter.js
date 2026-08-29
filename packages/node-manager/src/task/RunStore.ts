@@ -5,6 +5,7 @@
  */
 
 import { ImplementationError } from "@matter/general";
+import { TaskIdentityExhaustedError } from "./errors.js";
 import { runKey, Task, TaskPersistence } from "./Task.js";
 import { RetireSeq, RunId, TaskState } from "./types.js";
 
@@ -40,6 +41,8 @@ export interface RunStoreSnapshot {
  */
 export class RunStore {
     #nextRunId = 1;
+    /** Identities below this are durable: the persisted counter is at least this high. */
+    #reservedBelow = 1;
     #nextRetireSeq = 1;
     readonly #live = new Map<RunId, Task>();
     readonly #slots = new Map<string, RunId>();
@@ -78,6 +81,8 @@ export class RunStore {
         // The persisted counter is a high-water mark, so it is authoritative where present; seeding above the
         // highest surviving id covers a store whose counter predates this scheme.
         this.#nextRunId = Math.max(snapshot?.nextRunId ?? 1, highest + 1);
+        // Whatever the last start persisted is what is durable; anything beyond it must be reserved again.
+        this.#reservedBelow = Math.max(snapshot?.nextRunId ?? 1, this.#nextRunId);
         this.#nextRetireSeq = Math.max(
             snapshot?.nextRetireSeq ?? 1,
             ...[...this.#retired.values()].map(r => (r.retireSeq ?? 0) + 1),
@@ -93,14 +98,29 @@ export class RunStore {
         return this.#nextRetireSeq;
     }
 
-    /** Claim the next identity. Callers allocate only after a request has passed admission. */
+    /**
+     * Claim the next identity. Callers allocate only after a request has passed admission.
+     *
+     * Refuses rather than hand out an identity the last write did not cover: an unreserved identity is one the
+     * next start can give to different work, which is the whole hazard the reservation exists to remove.
+     */
     allocate(): RunId {
+        if (this.#nextRunId >= this.#reservedBelow) {
+            throw new TaskIdentityExhaustedError(
+                `No durable run identity available: ${this.#nextRunId} is beyond the reservation ${this.#reservedBelow}. Retry once a record has been written.`,
+            );
+        }
         return RunId(this.#nextRunId++);
     }
 
-    /** The counter as it must be recorded: far enough ahead that issued identities are already durable. */
+    /** The counter as it must be recorded to cover the identities this store will hand out next. */
     get reservedRunId(): number {
         return this.#nextRunId + RUN_ID_RESERVATION;
+    }
+
+    /** Note that a reservation has been recorded, so identities below it may now be issued. */
+    noteReserved(through: number): void {
+        this.#reservedBelow = Math.max(this.#reservedBelow, through);
     }
 
     /** The run that currently owns `slotKey`, if any. */

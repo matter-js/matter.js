@@ -5,7 +5,8 @@
  */
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
-import { TaskConflictError, TaskTypeNotRegisteredError } from "#task/errors.js";
+import { TaskConflictError, TaskIdentityExhaustedError, TaskTypeNotRegisteredError } from "#task/errors.js";
+import { RUN_ID_RESERVATION } from "#task/RunStore.js";
 import { Task, TaskPersistence } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { RunId, TaskPhase } from "#task/types.js";
@@ -616,5 +617,47 @@ describe("run identity", () => {
         }
         expect(refusal).instanceOf(TaskConflictError);
         expect((refusal as TaskConflictError).owner).equals(parked);
+    });
+
+    it("reserves the very first identity of a fresh store", async () => {
+        const environment = persistentEnvironment();
+        touchingPeer("fresh");
+        SyntheticTask.phasesByTag["fresh"] = [touchPhase("fresh")];
+
+        let issued: RunId;
+        {
+            // Nothing has ever been written here, so without a reservation at startup the first identity
+            // would be handed out uncovered and the next start would give it to different work.
+            await using node = await makeNode(environment, "fresh");
+            await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            issued = await node.act(a => a.get(TestTaskManager).internalRunStore.allocate());
+        }
+
+        await using node = await makeNode(environment, "fresh");
+        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        const next = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "fresh" }));
+        expect(next.runId).greaterThan(issued);
+    });
+
+    it("refuses an identity the reservation does not cover rather than issuing it", async () => {
+        await using node = await makeNode(undefined, "burst");
+        touchingPeer("burst");
+        SyntheticTask.phasesByTag["burst"] = [touchPhase("burst")];
+        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+
+        // Exhaust the block without letting any record land. An identity beyond it is one the next start can
+        // re-issue, so allocation refuses instead of handing out something it cannot promise.
+        let exhausted: unknown;
+        await node.act(a => {
+            const store = a.get(TestTaskManager).internalRunStore;
+            try {
+                for (let i = 0; i < RUN_ID_RESERVATION + 5; i++) {
+                    store.allocate();
+                }
+            } catch (e) {
+                exhausted = e;
+            }
+        });
+        expect(exhausted).instanceOf(TaskIdentityExhaustedError);
     });
 });
