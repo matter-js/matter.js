@@ -622,7 +622,7 @@ describe("ControllerAdapter registry", () => {
             resetControllerAdapterFactoryForTesting("chip-tool");
             registerControllerAdapterFactory(
                 "chip-tool",
-                id => new ChipToolControllerAdapter(id),
+                (id, options) => new ChipToolControllerAdapter(id, options),
                 CHIP_TOOL_CONTROLLER_PICS,
             );
         }
@@ -756,7 +756,7 @@ describe("ControllerAdapter registry", () => {
             resetControllerAdapterFactoryForTesting("chip-tool");
             registerControllerAdapterFactory(
                 "chip-tool",
-                id => new ChipToolControllerAdapter(id),
+                (id, options) => new ChipToolControllerAdapter(id, options),
                 CHIP_TOOL_CONTROLLER_PICS,
             );
         }

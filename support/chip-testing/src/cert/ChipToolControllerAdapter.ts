@@ -1,14 +1,4 @@
 /**
- * chip-tool decides a session's transport at CASE setup: `--allow-large-payload 1` makes it ask for a
- * TCP-backed one, which it can only get where the peer advertises a TCP server
- * (`OperationalSessionSetup`). The flag lives on chip-tool's shared model-command base, so it applies
- * to read, write and invoke alike.
- */
-function largePayloadArg(transport?: ControllerTransport) {
-    return transport === "tcp" ? " --allow-large-payload 1" : "";
-}
-
-/**
  * @license
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
@@ -183,6 +173,16 @@ function quoteArg(value: string) {
         return value;
     }
     return `'${value.replace(/[\\']/g, match => `\\${match}`)}'`;
+}
+
+/**
+ * chip-tool decides a session's transport when it establishes one, so every interaction a test might
+ * begin with carries this: `--allow-large-payload 1` asks for a TCP-backed session, which chip-tool
+ * can only get where the peer advertises a TCP server (`OperationalSessionSetup`). The flag lives on
+ * chip-tool's shared model-command base, so read, write, invoke, event read and subscribe all take it.
+ */
+function largePayloadArg(transport?: ControllerTransport) {
+    return transport === "tcp" ? " --allow-large-payload 1" : "";
 }
 
 /** chip-tool's own name for the timed-interaction timeout, on `command-by-id` and `write-by-id` alike. */
