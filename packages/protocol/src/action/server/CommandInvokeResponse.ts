@@ -476,12 +476,20 @@ export class CommandInvokeResponse<
             try {
                 const sre = StatusResponseError.of(error);
 
+                if (sre !== undefined) {
+                    status = sre.code;
+                    clusterStatus = sre.clusterCode;
+                    if (sre instanceof ValidationError && status === Status.InvalidAction) {
+                        status = Status.InvalidCommand;
+                    }
+                }
+
+                // Discarding the command's state must not be contingent on logging succeeding
+                await this.session.transaction?.rollback();
+
                 if (sre === undefined) {
                     logger.error(`Unhandled error invoking command ${this.node.inspectPath(path)}:`, error);
                 } else {
-                    status = sre.code;
-                    clusterStatus = sre.clusterCode;
-
                     const errorLogText = `Error ${Diagnostic.hex(status)}${
                         clusterStatus !== undefined ? `/${Diagnostic.hex(clusterStatus)}` : ""
                     } while invoking command: ${sre.message}`;
@@ -490,15 +498,10 @@ export class CommandInvokeResponse<
                         logger.info(
                             `Validation-${errorLogText}${sre.fieldName !== undefined ? ` in field ${sre.fieldName}` : ""}`,
                         );
-                        if (status === Status.InvalidAction) {
-                            status = Status.InvalidCommand;
-                        }
                     } else {
                         logger.info(errorLogText);
                     }
                 }
-
-                await this.session.transaction?.rollback();
             } catch (secondary) {
                 logger.error("Secondary error handling invoke failure:", secondary);
             }
