@@ -2252,3 +2252,48 @@ So the open question is which witness to build, and it is a decision rather than
 
 Until one of those exists, a TC written here could claim "the TH received this on a group session"
 and nothing about the addressing the step is actually about.
+
+## The TCP cases invert the topology, and a controller must be asked for TCP before it starts
+
+`TC-SC-8.x` is the first block where the **DUT is the device** — the plan's preconditions say "DUT is a
+TCP server, TH is a TCP client" — so these tests name their roles the plan's way
+(`controllers: { th: … }`, `devices: { dut: … }`) and read `cx.devices.dut`'s log. Nothing else in the
+DSL changes: the controller still commissions the device, which is the same direction as always. The
+role *kind* (`"dut"`/`"helper"`) is only a label; nothing consumes it.
+
+**A transport is a property of the session, so it is requested before the controller starts.**
+`certTest`'s `transport: "tcp"` reaches the adapter through the factory (`ControllerAdapterOptions`),
+because a controller cannot change a session's transport afterwards. Only a test that needs TCP asks
+for it — every other test keeps the transport its evidence and timing were written against.
+
+What each side does with the request:
+
+- **matter.js controller** gets `network: { tcp: true, transportPreference: "tcp" }`, a *soft*
+  preference: it uses TCP where the peer's `SUPPORTED_TRANSPORTS.tcpServer` says it can, and silently
+  falls back to UDP otherwise. The hard `requiredTransport` lever exists in the protocol layer but is
+  not surfaced, so a test cannot yet assert "TCP or fail" — which is why the evidence below is the
+  device's, not the controller's.
+- **chip-tool** gets `--allow-large-payload 1` on every model command it builds — read, write, invoke,
+  event read and both subscribes, since it decides a session's transport when it establishes one and a
+  test may begin with any of them — and it is **not enough**: chip-tool
+  keeps using the session commissioning established, so the flag reaches the DUT over that UDP session
+  and no TCP connection is set up. The support module refuses the case up front with
+  `UnsupportedByControllerError`, so a chip-tool leg is recorded skipped with that reason instead of
+  passing on a transport nobody used.
+
+**The evidence is the DUT's own session line.** matter.js renders a session's transport in its tag and
+names the channel the peer connected on, so `CaseServer …(tcp) … Pairing request « tcp://…` followed by
+`New session with …` is the device saying the connection underneath is TCP. Removing `transport: "tcp"`
+from the test makes that check time out, which is the mutation that proves it.
+
+**Only the matterjs device flavor can host these cases today.** chip's all-clusters app as built here
+does not advertise TCP support, so even a TCP-preferring controller falls back to UDP against it and
+the case would claim a transport nobody used. `flavors: ["matterjs"]` states that, and the test skips
+before activation on the chip flavors.
+
+**What is not yet written, and why.** `TC-SC-8.2` ("the session allows large payloads") has no witness
+distinct from 8.1's on this stack: nothing logs a session's maximum payload, and a TCP-backed session
+is large-payload-capable by construction, so the two cases would rest on the same line. Its real
+witness is behavioural and belongs to `TC-SC-8.6` — a wildcard read arriving in a single `ReportData`,
+which UDP's ~1232-byte budget could not carry. `TC-SC-8.3`/`8.4` additionally need a way to sever just
+the TCP connection mid-test.

@@ -12,6 +12,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/testing
+    - Enhancement: A certification test requests a transport preference for its controllers via `certTest`'s `transport` option; `"tcp"` asks for a TCP-backed session where the peer supports one, and adapters receive the request through `ControllerAdapterOptions`
     - Enhancement: A certification step whose check could not be evaluated ends `"unverified"` and fails the run, unless the check states why the claim cannot be observed
     - Enhancement: Per-step certification PICS is evaluated on chip device flavors too, and `result.json` reports how many steps their PICS excluded
     - Fix: A certification run's `result.json` no longer reports a passing verdict for a run that failed
