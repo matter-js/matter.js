@@ -12,6 +12,7 @@ export interface TaskCtor {
     new (runId: RunId, slotKey: string, params: any, persisted?: Partial<TaskPersistence>): Task;
     slotKeyFor(params: any): string;
     undoes(params: any): RunId | undefined;
+    readonly callerCreatable: boolean;
 }
 
 export class TaskRegistry {
@@ -31,6 +32,10 @@ export class TaskRegistry {
 
     undoes(type: string, params: unknown): RunId | undefined {
         return this.#ctorFor(type).undoes(params);
+    }
+
+    callerCreatable(type: string): boolean {
+        return this.#ctorFor(type).callerCreatable;
     }
 
     create(type: string, runId: RunId, slotKey: string, params: unknown, persisted?: Partial<TaskPersistence>): Task {

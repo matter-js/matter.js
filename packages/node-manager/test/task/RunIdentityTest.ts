@@ -10,7 +10,7 @@ import { RUN_ID_RESERVATION } from "#task/RunStore.js";
 import { Task, TaskPersistence } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { RunId, TaskPhase } from "#task/types.js";
-import { Environment } from "@matter/general";
+import { Environment, ImplementationError } from "@matter/general";
 import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
 import { FakePeer, recordFor, SyntheticTask } from "./helpers.js";
@@ -405,35 +405,23 @@ describe("run identity", () => {
         expect(again?.status.revertOf).equals(handle.runId);
     });
 
-    it("refuses a re-run against a rollback started through the public run path", async () => {
-        await using node = await makeNode(undefined, "publicrevert");
-        const peer = touchingPeer("publicrevert");
-        SyntheticTask.phasesByTag["publicrevert"] = [touchPhase("publicrevert")];
+    it("refuses to start a rollback through run(), which only cancel may create", async () => {
+        await using node = await makeNode(undefined, "norun");
+        touchingPeer("norun");
+        SyntheticTask.phasesByTag["norun"] = [touchPhase("norun")];
         await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
 
-        const forward = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "publicrevert" }));
-        for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
-            await MockTime.advance(1);
-        }
-        await settle(node, "synthetic:publicrevert");
+        const forward = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "norun" }));
 
-        // A rollback issued through the public API — how a failed one is retried — must exclude a re-run of the
-        // work it is undoing just as the manager's own does. It parks on an unreachable peer so it stays live.
-        peer.setReachable(false);
-        await node.act(a =>
-            a.get(TestTaskManager).run("revert", {
-                originalRunId: forward.runId,
-                entries: [{ peerId: "publicrevert", kind: "groupMembership", key: "X" }],
-            }),
-        );
-
+        // Only cancel knows the run's driver has been stopped. A caller able to conjure a rollback could start
+        // one against work still writing to a peer, which no admission check can tell from a prepared one.
         let refusal: unknown;
         try {
-            await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "publicrevert" }));
+            await node.act(a => a.get(TestTaskManager).run("revert", { originalRunId: forward.runId, entries: [] }));
         } catch (e) {
             refusal = e;
         }
-        expect(refusal).instanceOf(TaskConflictError);
+        expect(refusal).instanceOf(ImplementationError);
     });
 
     it("answers a repeated cancel from the record when the task type is not registered", async () => {
