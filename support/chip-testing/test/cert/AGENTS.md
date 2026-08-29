@@ -2033,3 +2033,49 @@ hand over just the first result of a batch. On any other controller the shortfal
 own defect, so the check stands unaccepted and fails the run. A report carrying a value nobody wrote is
 still a failure. What this gives up: a controller that delivered the values out of order is no longer
 caught, which the plan never asked about anyway.
+
+## An operator-prompted step, when the DUT is a controller the test drives (`TC-LVL-8.1`)
+
+The plan's single step reads "TH prompts the operator to make the DUT send one or more supported
+commands". There is no operator here and the DUT is a controller this suite drives, so the step
+itself is the prompt: it makes the DUT send the commands, and the TH's log is the evidence, exactly
+as in every other DUT-as-client TC.
+
+**Know what the "consistent with the attribute values reported by the TH" clause can and cannot
+buy.** The obvious reading — read `MinLevel`/`MaxLevel`, derive the commanded level from them — reads
+as strong evidence and is not: with the Lighting feature the spec *fixes* those bounds at 1 and 254
+(§ 1.6.6.4, § 1.6.6.5), both THs are lighting devices, and 1-254 is also what any hard-coded
+fallback would use. A first draft did exactly this, and hard-coding the bounds left the run passing
+with byte-identical evidence. What the reads are worth is the two claims that can actually fail:
+
+- the TH reports bounds a conforming device may report — `MinLevel` is `max 254` and `MaxLevel` is
+  `minLevel to 254`, so **0 is a legal minimum** for a device without Lighting, and only a Lighting
+  device is pinned to 1-254. A precondition demanding `min >= 1` outright would fail a legal TH;
+- the level the DUT sends stays inside what the TH reported, whatever that turns out to be.
+
+`MinLevel`/`MaxLevel` are optional in general but not for this TC: its Required Devices row asks for
+a TH "exposing all optional attributes", so an absent one fails the precondition rather than falling
+back to a constant. A fallback here would be a branch no leg exercises, reporting a provenance
+nobody checked.
+
+The check that carries the step is the **read-back**: `CurrentLevel` after the command. It is what
+catches a well-formed, successfully-acked command the TH silently ignored — swapping
+`MoveToLevelWithOnOff` for a plain `MoveToLevel` produces exactly that (a command reaching a TH that
+is off has no effect unless the Options bits say otherwise, § 1.6.4.1.3, § 1.6.6.9), and nothing else
+in the test notices. For the read-back to mean anything the commanded level must differ from the one
+the TH already holds, and `CurrentLevel` is persistent on the chip TH — so the level is chosen
+against the value read first, not fixed.
+
+Two limits worth stating rather than hiding:
+
+- Only the level is TH-derived. `Move`'s rate and `Step`'s step size are spec-legal constants; the
+  plan does not tie them to an attribute, and `DefaultMoveRate` is not read.
+- `Stop` has no fields but its Options bits, so its evidence is the command path alone — on the
+  matter.js flavor that is a single `InteractionServer Invoke` line.
+
+A bitmap attribute does not read back as a number. Both adapters decode one through the model into an
+object of named bits, so a `FeatureMap` read answers `{ onOff: true, lighting: true, frequency: false }`
+and a `& bit` test against it is always falsy — read the named bit instead.
+
+No PICS work: CHIP's register defines no per-command client keys for LevelControl, so `LVL.C` (which
+the device file already answers 1) is the only gate, and choosing which commands to send is ours.
