@@ -277,10 +277,8 @@ export class DerCodec {
         try {
             return this.#decodeRec(new DataReader(data));
         } catch (cause) {
-            if (cause instanceof DataReadError) {
-                throw new DerError(`DER data is truncated: ${cause.message}`, { cause });
-            }
-            throw cause;
+            DataReadError.accept(cause);
+            throw new DerError(`DER data is truncated: ${cause.message}`, { cause });
         }
     }
 

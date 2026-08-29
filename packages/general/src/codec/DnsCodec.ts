@@ -277,9 +277,7 @@ export class DnsCodec {
         try {
             value = this.decodeRecordValue(valueBytes, recordType, message);
         } catch (error) {
-            if (!(error instanceof UnexpectedDataError)) {
-                throw error;
-            }
+            UnexpectedDataError.accept(error);
             return undefined;
         }
 

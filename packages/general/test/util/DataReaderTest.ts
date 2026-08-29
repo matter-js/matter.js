@@ -412,7 +412,10 @@ describe("DataReader", () => {
         it("rejects a negative read size", () => {
             const reader = new DataReader(new Uint8Array([0x12, 0x34]));
 
-            expect(() => reader.readByteArray(-1)).throws(DataReadError, "Read size -1 is not a non-negative integer");
+            expect(() => reader.readByteArray(-1)).throws(
+                DataReadError,
+                "Read size -1 must be zero or more whole bytes",
+            );
             expect(reader.offset).equal(0);
         });
 

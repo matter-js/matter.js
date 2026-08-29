@@ -98,7 +98,7 @@ export class DataReader<E extends Endian = Endian.Big> {
 
     private getOffsetAndAdvance(size: number) {
         if (!Number.isInteger(size) || size < 0) {
-            throw new DataReadError(`Read size ${size} is not a non-negative integer`);
+            throw new DataReadError(`Read size ${size} must be zero or more whole bytes`);
         }
         const result = this.#offset;
         const end = result + size;
