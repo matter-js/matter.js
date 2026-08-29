@@ -10,6 +10,7 @@ import { resolveControllerImplementation, UnsupportedByControllerError } from "@
 import {
     CertCheckFailedError,
     CommissionedRefs,
+    describeError,
     describeValue,
     expectSequence,
     literally,
@@ -177,6 +178,28 @@ export async function tcpInvokeCheck(
     command: number,
     from: number,
 ): Promise<CheckRecord> {
+    return (await tcpInvokeEvidence(cx, session, endpoint, cluster, command, from)).check;
+}
+
+/**
+ * What {@link tcpInvokeCheck} observed, for a step that has more to say about the same invoke: the
+ * exchange it used and the last line of it the DUT wrote, so a further check bounds itself to this
+ * interaction rather than to whatever else the log holds.
+ */
+export interface TcpInvokeEvidence {
+    check: CheckRecord;
+    exchange?: string;
+    lastLine?: number;
+}
+
+export async function tcpInvokeEvidence(
+    cx: CertStepContext,
+    session: string,
+    endpoint: number,
+    cluster: number,
+    command: number,
+    from: number,
+): Promise<TcpInvokeEvidence> {
     const dut = cx.devices.dut;
     const onSession = `${literally(session)}\\(tcp\\)`;
     const path = matterjsCommandPath(endpoint, cluster, command);
@@ -197,7 +220,7 @@ export async function tcpInvokeCheck(
         LOG_TIMEOUT,
     );
     if (invoked.verdict !== "pass" || invoked.matched === undefined || invoked.logLine === undefined) {
-        return invoked;
+        return { check: invoked };
     }
 
     // The answer has to be this invoke's own, and an exchange is what makes it so: a second invoke on
@@ -205,16 +228,18 @@ export async function tcpInvokeCheck(
     const exchange = EXCHANGE.exec(invoked.matched)?.[1];
     if (exchange === undefined) {
         return {
-            type: "device-log",
-            verdict: "fail",
-            pattern: EXCHANGE.source,
-            detail: `the DUT's invoke line names no exchange: ${invoked.matched}`,
-            logLine: invoked.logLine,
+            check: {
+                type: "device-log",
+                verdict: "fail",
+                pattern: EXCHANGE.source,
+                detail: `the DUT's invoke line names no exchange: ${invoked.matched}`,
+                logLine: invoked.logLine,
+            },
         };
     }
 
     const onExchange = `${onSession}⇵${exchange}`;
-    return expectSequence(
+    const answered = await expectSequence(
         dut.log,
         dut.flavor,
         `${what} answered with an InvokeResponse on exchange ${exchange}`,
@@ -229,6 +254,8 @@ export async function tcpInvokeCheck(
         invoked.logLine + 1,
         LOG_TIMEOUT,
     );
+
+    return { check: answered, exchange, lastLine: answered.logLine ?? invoked.logLine };
 }
 
 /** The exchange a matter.js log line names. */
@@ -257,7 +284,7 @@ export async function recordTcpInvoke(
 const LARGE_PAYLOAD_FLOOR = 1280;
 
 /** The payload size matter.js prints on a message line — the encoded message, without its framing. */
-const REPORT_SIZE = /\bsize: (\d+)\b/;
+const MESSAGE_SIZE = /\bsize: (\d+)\b/;
 
 /** How much of a matched line the evidence keeps; a wildcard read's report line carries its whole payload in hex. */
 const EVIDENCE_LIMIT = 300;
@@ -321,7 +348,7 @@ export async function wildcardReadInOneReportCheck(
     const lines = dut.log.lines;
     const reports = lines.slice(request.logLine + 1).filter(line => !line.synthetic && report.test(line.text));
 
-    const sizes = reports.map(line => Number(REPORT_SIZE.exec(line.text)?.[1] ?? Number.NaN));
+    const sizes = reports.map(line => Number(MESSAGE_SIZE.exec(line.text)?.[1] ?? Number.NaN));
     const single = reports.length === 1 && sizes[0] > LARGE_PAYLOAD_FLOOR;
     return {
         type: "device-log",
@@ -339,23 +366,37 @@ export async function recordWildcardReadInOneReport(cx: CertStepContext, session
 }
 
 /**
- * Confirms the request the TH sent on `session` was one an MRP session could equally have carried:
- * the case this belongs to is about a *regularly sized* interaction choosing the TCP session that
- * already exists, so a payload only TCP could carry would prove the wrong thing.
+ * What an MRP message may carry: the IPv6 minimum MTU less the headers matter.js accounts for in its
+ * own UDP limit. A request at or below this is one MRP could equally have delivered, which is what a
+ * case about *choosing* the existing TCP session has to establish — the floor
+ * {@link LARGE_PAYLOAD_FLOOR} sets for a large payload is a different, looser number and would let a
+ * request MRP could not have carried pass as one it could.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 4.4.4
+ */
+const MRP_PAYLOAD_LIMIT = 1232;
+
+/**
+ * Confirms the request the DUT received on `exchange` was one an MRP session could equally have
+ * carried: the case this belongs to is about a *regularly sized* interaction choosing the TCP session
+ * that already exists, so a payload only TCP could carry would prove the wrong thing.
+ *
+ * `exchange` is the one {@link tcpInvokeEvidence} matched, so the size measured belongs to the invoke
+ * the step checked rather than to whatever else the session carried.
  */
 export async function regularSizedRequestCheck(
     cx: CertStepContext,
     session: string,
+    exchange: string,
     from: number,
 ): Promise<CheckRecord> {
     const dut = cx.devices.dut;
+    const pattern = new RegExp(`Message « for: I/InvokeRequest .*\\bid: ${literally(session)}\\(tcp\\)⇵${exchange}✉`);
     const request = await expectSequence(
         dut.log,
         dut.flavor,
-        `an InvokeRequest received on ${session}`,
-        {
-            matterjs: [new RegExp(`Message « for: I/InvokeRequest .*\\bid: ${literally(session)}\\(tcp\\)⇵[0-9a-f]+✉`)],
-        },
+        pattern.source,
+        { matterjs: [pattern] },
         from,
         LOG_TIMEOUT,
     );
@@ -363,40 +404,82 @@ export async function regularSizedRequestCheck(
         return request;
     }
 
-    const size = Number(REPORT_SIZE.exec(request.matched)?.[1] ?? Number.NaN);
+    const size = Number(MESSAGE_SIZE.exec(request.matched)?.[1] ?? Number.NaN);
     return {
         type: "device-log",
-        verdict: size > 0 && size <= LARGE_PAYLOAD_FLOOR ? "pass" : "fail",
-        pattern: request.pattern,
-        detail: `the InvokeRequest carried ${size} bytes, which MRP could have carried too`,
+        verdict: size > 0 && size <= MRP_PAYLOAD_LIMIT ? "pass" : "fail",
+        pattern: pattern.source,
+        detail: `the InvokeRequest carried ${size} bytes, against an MRP limit of ${MRP_PAYLOAD_LIMIT}`,
         matched: request.matched.slice(0, EVIDENCE_LIMIT),
         logLine: request.logLine,
     };
 }
 
 /**
- * Confirms the DUT accepted no further connection or session while `from` was open: the case this
- * belongs to claims the interaction reused the session already established, and an interaction that
- * caused a second one would satisfy every other check just as well.
+ * Confirms the DUT accepted no further CASE session between `from` and `until`: the case this belongs
+ * to claims the interaction reused the session already established, and an interaction that caused a
+ * second one would satisfy every other check just as well.
+ *
+ * `until` is the last line of the interaction itself, so the window is the interaction's own and is
+ * non-empty by construction — a scan to the end of the buffer would report a session the DUT accepted
+ * afterwards, and an unanchored one could pass on a log that had not arrived yet.
+ *
+ * A second TCP *connection* carrying the same session is not observable here: matter.js logs no
+ * accept, and a session re-attached to a new connection still renders `(tcp)`.
  */
-export async function noFurtherSessionCheck(cx: CertStepContext, from: number): Promise<CheckRecord> {
+export async function noFurtherSessionCheck(cx: CertStepContext, from: number, until: number): Promise<CheckRecord> {
     const dut = cx.devices.dut;
     if (dut.flavor !== "matterjs") {
         return { type: "device-log", verdict: "unverified" };
     }
 
     await dut.log.settled();
-    const opened = dut.log.lines.slice(from).filter(line => !line.synthetic && FURTHER_SESSION.test(line.text));
+    const opened = dut.log
+        .window(from, until + 1 - from)
+        .filter(line => !line.synthetic && FURTHER_SESSION.test(line.text));
 
     return {
         type: "device-log",
         verdict: opened.length ? "fail" : "pass",
         pattern: FURTHER_SESSION.source,
-        detail: opened.length
-            ? `the DUT accepted ${opened.length} further pairing request(s) while the interaction ran`
-            : "the DUT accepted no further pairing request while the interaction ran",
+        detail: `${opened.length} further pairing request(s) between log lines ${from} and ${until}`,
         matched: opened[0]?.text.slice(0, EVIDENCE_LIMIT),
         logLine: opened[0]?.index,
+    };
+}
+
+/**
+ * The `SystemTimeMs` a `TimeSnapshotResponse` carries, or undefined for an answer that is not one.
+ * `GeneralDiagnostics.TimeSnapshot` is what the TCP cases invoke: it carries a response of its own,
+ * which is what "a command response" means, and changes nothing on the DUT, so a rerun does not
+ * depend on what the previous one left behind.
+ */
+export function systemTimeMsOf(response: unknown): number | bigint | undefined {
+    if (typeof response !== "object" || response === null || !("systemTimeMs" in response)) {
+        return undefined;
+    }
+    const value = response.systemTimeMs;
+    return typeof value === "number" || typeof value === "bigint" ? value : undefined;
+}
+
+/** What a step records for the answer to a `TimeSnapshot` it invoked. */
+export function timeSnapshotResponseCheck(response: unknown, refusal: unknown): CheckRecord {
+    if (refusal !== undefined) {
+        return {
+            type: "response",
+            verdict: "fail",
+            detail: `the DUT refused TimeSnapshot: ${describeError(refusal)}`,
+        };
+    }
+
+    const systemTimeMs = systemTimeMsOf(response);
+    return {
+        type: "response",
+        verdict: systemTimeMs === undefined ? "fail" : "pass",
+        detail:
+            systemTimeMs === undefined
+                ? `the DUT answered TimeSnapshot with ${describeValue(response)}, which carries no SystemTimeMs`
+                : `TimeSnapshotResponse systemTimeMs=${systemTimeMs}`,
     };
 }
 

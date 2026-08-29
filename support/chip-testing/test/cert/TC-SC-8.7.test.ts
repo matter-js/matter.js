@@ -14,11 +14,12 @@ import {
     TCP_PICS,
     TCP_ROLES,
     TcpSessionRef,
-    tcpInvokeCheck,
+    tcpInvokeEvidence,
     tcpSessionStep,
     tcpStep,
+    timeSnapshotResponseCheck,
 } from "./tc-sc-8-support.js";
-import { CommissionedRefs, describeError, recordAll, requireId } from "./tc-support.js";
+import { CommissionedRefs, recordAll, requireId } from "./tc-support.js";
 
 const GENERAL_DIAGNOSTICS = Matter.clusters.require("GeneralDiagnostics");
 const GENERAL_DIAGNOSTICS_ID = requireId(GENERAL_DIAGNOSTICS.id, "GeneralDiagnostics cluster");
@@ -44,32 +45,26 @@ async function invokeOverExistingSession(cx: CertStepContext) {
     const dut = cx.devices.dut;
     const from = await dut.log.markSettled();
 
+    let response: unknown;
     let refusal: unknown;
     try {
-        await node.invoke("GeneralDiagnostics", "timeSnapshot", {}, ROOT_ENDPOINT);
+        response = await node.invoke("GeneralDiagnostics", "timeSnapshot", {}, ROOT_ENDPOINT);
     } catch (e) {
         refusal = e;
     }
 
-    const sized = await regularSizedRequestCheck(cx, tag, from);
-    const invoked = await tcpInvokeCheck(cx, tag, ROOT_ENDPOINT, GENERAL_DIAGNOSTICS_ID, TIME_SNAPSHOT_ID, from);
-    const alone = await noFurtherSessionCheck(cx, from);
+    const invoked = await tcpInvokeEvidence(cx, tag, ROOT_ENDPOINT, GENERAL_DIAGNOSTICS_ID, TIME_SNAPSHOT_ID, from);
+    const sized =
+        invoked.exchange === undefined ? undefined : await regularSizedRequestCheck(cx, tag, invoked.exchange, from);
+    const alone = invoked.lastLine === undefined ? undefined : await noFurtherSessionCheck(cx, from, invoked.lastLine);
 
     recordAll(cx, [
-        {
-            check: () => ({
-                type: "response",
-                verdict: refusal === undefined ? "pass" : "fail",
-                detail:
-                    refusal === undefined
-                        ? "the TH received the command response"
-                        : `the DUT refused TimeSnapshot: ${describeError(refusal)}`,
-            }),
-            what: "the TH received the command response",
-        },
-        { check: () => sized, what: "the request was one MRP could have carried" },
-        { check: () => invoked, what: "the DUT answered it on the session step 1 established" },
-        { check: () => alone, what: "no further session was established for it" },
+        { check: () => timeSnapshotResponseCheck(response, refusal), what: "the TH received the command response" },
+        { check: () => invoked.check, what: "the DUT answered it on the session step 1 established" },
+        // Both of the remaining claims are about the interaction the invoke check identified, so
+        // neither can be settled once that check has failed to identify it
+        ...(sized === undefined ? [] : [{ check: () => sized, what: "the request was one MRP could have carried" }]),
+        ...(alone === undefined ? [] : [{ check: () => alone, what: "no further session was established for it" }]),
     ]);
 }
 
