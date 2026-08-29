@@ -93,6 +93,9 @@ export class TaskManagerBehavior extends Behavior {
         if (discarded > 0) {
             logger.warn(`Discarded ${discarded} task record(s) predating per-run identity`);
         }
+        // Reserved here rather than on the first record write: on a fresh store nothing has been written yet,
+        // so without this the very first identity would be handed out uncovered.
+        this.#reserveIdentities();
         this.#registerBuiltins();
         // Driving acts on the node, so the resume pass must wait until the node is online.
         if (this.#rootNode.lifecycle.isOnline) {
@@ -123,6 +126,15 @@ export class TaskManagerBehavior extends Behavior {
 
     #registerBuiltins(): void {
         this.registerBuiltins();
+    }
+
+    /** Record how far identities are reserved, so allocation may run ahead of the next record write. */
+    #reserveIdentities(): void {
+        const reservedRunId = this.internal.runs.reservedRunId;
+        if (this.state.nextRunId < reservedRunId) {
+            this.state.nextRunId = reservedRunId;
+        }
+        this.internal.runs.noteReserved(this.state.nextRunId);
     }
 
     get #rootNode(): ServerNode {
@@ -767,6 +779,7 @@ export class TaskManagerBehavior extends Behavior {
         const records = written.map(t => [runKey(t.runId), t.toPersistence()] as const);
         const { nextRetireSeq } = this.internal.runs.snapshot();
         const reservedRunId = this.internal.runs.reservedRunId;
+        this.internal.runs.noteReserved(reservedRunId);
         await this.endpoint.act(agent => {
             const self = agent.get(TaskManagerBehavior);
             const runs = { ...self.state.runs };
