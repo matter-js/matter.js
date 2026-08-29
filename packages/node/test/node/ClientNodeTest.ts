@@ -1352,7 +1352,7 @@ describe("ClientNode", () => {
                 const write = ep1Client.setStateOf(OnOffClient, { startUpOnOff: OnOff.StartUpOnOff.Toggle });
                 for (let i = 0; i < 80; i++) {
                     await MockTime.advance(Seconds(1));
-                    await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+                    await MockTime.macrotask;
                 }
                 await write;
             });
@@ -1377,7 +1377,7 @@ describe("ClientNode", () => {
                 // nothing left to send
                 for (let i = 0; i < 3; i++) {
                     await MockTime.advance(Millis(100));
-                    await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+                    await MockTime.macrotask;
                 }
 
                 // The device applied the write and reported it; only the write response was lost.  A report carrying
@@ -1391,7 +1391,7 @@ describe("ClientNode", () => {
 
                 for (let i = 0; i < 80; i++) {
                     await MockTime.advance(Seconds(1));
-                    await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+                    await MockTime.macrotask;
                 }
                 await write;
             });
