@@ -10,6 +10,7 @@ import { resolveControllerImplementation, UnsupportedByControllerError } from "@
 import {
     CertCheckFailedError,
     CommissionedRefs,
+    describeValue,
     expectSequence,
     literally,
     LOG_TIMEOUT,
@@ -95,34 +96,62 @@ export function requireTcpCapableController() {
  */
 export async function recordTcpSession(cx: CertStepContext, from: number, what: string): Promise<string> {
     const dut = cx.devices.dut;
-    const check = await expectSequence(
+
+    const pairing = await expectSequence(
         dut.log,
         dut.flavor,
-        "CASE session established over a TCP connection",
-        {
-            matterjs: {
-                ordered: [/CaseServer .*\(tcp\).*Pairing request « tcp:\/\//, /CaseServer .*\(tcp\).*New session with/],
-            },
-        },
+        "a pairing request over a TCP connection",
+        { matterjs: [/CaseServer .*\(tcp\).*Pairing request « (tcp:\/\/\S+)/] },
         from,
         LOG_TIMEOUT,
     );
-    record(cx, check, what);
+    record(cx, pairing, `${what}: the DUT accepted a TCP connection`);
+    if (pairing.verdict !== "pass" || pairing.matched === undefined || pairing.logLine === undefined) {
+        throw new CertCheckFailedError(`the DUT's pairing request is not on the record: ${describeValue(pairing)}`);
+    }
 
-    const tag = check.matched === undefined ? undefined : SESSION_TAG.exec(check.matched)?.[1];
+    // The peer's own address is the only token both lines carry, and without it a second CASE
+    // establishment on this device supplies the session line and the wrong session is captured
+    const channel = PEER_CHANNEL.exec(pairing.matched)?.[1];
+    if (channel === undefined) {
+        throw failedCheck(
+            cx,
+            PEER_CHANNEL.source,
+            `the pairing request names no channel: ${pairing.matched}`,
+            pairing.logLine,
+        );
+    }
+
+    const established = await expectSequence(
+        dut.log,
+        dut.flavor,
+        `a CASE session established over the TCP connection from ${channel}`,
+        { matterjs: [new RegExp(`CaseServer .*\\(tcp\\).*New session with .*address: ${literally(channel)}(?!\\S)`)] },
+        pairing.logLine + 1,
+        LOG_TIMEOUT,
+    );
+    record(cx, established, what);
+    if (established.verdict !== "pass" || established.matched === undefined) {
+        throw new CertCheckFailedError(`the DUT's session line is not on the record: ${describeValue(established)}`);
+    }
+
+    const tag = SESSION_TAG.exec(established.matched)?.[1];
     if (tag === undefined) {
-        const detail = `the DUT's session line names no TCP session: ${check.matched}`;
-        cx.recorder.check({
-            type: "device-log",
-            verdict: "fail",
-            pattern: SESSION_TAG.source,
-            detail,
-            logLine: check.logLine,
-        });
-        throw new CertCheckFailedError(detail);
+        throw failedCheck(
+            cx,
+            SESSION_TAG.source,
+            `the DUT's session line names no TCP session: ${established.matched}`,
+            established.logLine,
+        );
     }
 
     return tag;
+}
+
+/** Records `detail` as a failed device-log check and returns the error a caller throws. */
+function failedCheck(cx: CertStepContext, pattern: string, detail: string, logLine?: number) {
+    cx.recorder.check({ type: "device-log", verdict: "fail", pattern, detail, logLine });
+    return new CertCheckFailedError(detail);
 }
 
 /**
@@ -130,6 +159,9 @@ export async function recordTcpSession(cx: CertStepContext, from: number, what: 
  * `(tcp)` follows.
  */
 const SESSION_TAG = /(@[0-9a-f]+:[0-9a-f]+•[0-9a-f]+)\(tcp\)/;
+
+/** The channel a peer connected on, as both the pairing line and the session line render it. */
+const PEER_CHANNEL = /(tcp:\/\/\S+)/;
 
 /**
  * Confirms the DUT dispatched `endpoint`/`cluster`/`command` on `session` and answered it there: the
@@ -146,27 +178,61 @@ export async function tcpInvokeCheck(
     from: number,
 ): Promise<CheckRecord> {
     const dut = cx.devices.dut;
-    const onSession = `${literally(session)}\\(tcp\\)⇵[0-9a-f]+`;
+    const onSession = `${literally(session)}\\(tcp\\)`;
     const path = matterjsCommandPath(endpoint, cluster, command);
-    return expectSequence(
+    const what = `an invoke of ${endpoint}/${cluster}/${command} on ${session}`;
+
+    const invoked = await expectSequence(
         dut.log,
         dut.flavor,
-        `an invoke of ${endpoint}/${cluster}/${command} answered with an InvokeResponse on ${session}`,
+        what,
         {
-            matterjs: {
-                ordered: [
-                    // The invoke line carries the timed/suppress-response flags between the session
-                    // and its path, and drops them when neither is set
-                    new RegExp(`InteractionServer Invoke « ${onSession}.*invokes: .*?${path}`),
-                    new RegExp(`InteractionServer Invoke \\(final\\) » ${onSession} commands: 1(?!\\d)`),
-                    new RegExp(`Message » for: I/InvokeResponse id: ${onSession}`),
-                ],
-            },
+            matterjs: [
+                // The invoke line carries the timed/suppress-response flags between the session and
+                // its path, and drops them when neither is set
+                new RegExp(`InteractionServer Invoke « ${onSession}⇵[0-9a-f]+.*invokes: .*?${path}`),
+            ],
         },
         from,
         LOG_TIMEOUT,
     );
+    if (invoked.verdict !== "pass" || invoked.matched === undefined || invoked.logLine === undefined) {
+        return invoked;
+    }
+
+    // The answer has to be this invoke's own, and an exchange is what makes it so: a second invoke on
+    // the same session would otherwise supply the response lines
+    const exchange = EXCHANGE.exec(invoked.matched)?.[1];
+    if (exchange === undefined) {
+        return {
+            type: "device-log",
+            verdict: "fail",
+            pattern: EXCHANGE.source,
+            detail: `the DUT's invoke line names no exchange: ${invoked.matched}`,
+            logLine: invoked.logLine,
+        };
+    }
+
+    const onExchange = `${onSession}⇵${exchange}`;
+    return expectSequence(
+        dut.log,
+        dut.flavor,
+        `${what} answered with an InvokeResponse on exchange ${exchange}`,
+        {
+            matterjs: {
+                ordered: [
+                    new RegExp(`InteractionServer Invoke \\(final\\) » ${onExchange} commands: 1(?!\\d)`),
+                    new RegExp(`Message » for: I/InvokeResponse .*\\bid: ${onExchange}✉`),
+                ],
+            },
+        },
+        invoked.logLine + 1,
+        LOG_TIMEOUT,
+    );
 }
+
+/** The exchange a matter.js log line names. */
+const EXCHANGE = /⇵([0-9a-f]+)/;
 
 /** {@link tcpInvokeCheck}, recorded as the step's evidence. */
 export async function recordTcpInvoke(

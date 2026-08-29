@@ -126,7 +126,8 @@ export async function runCleanups(...cleanups: (() => Promise<void>)[]): Promise
     }
 }
 
-function describeError(e: unknown): string {
+/** An error as evidence text, naming its class as well as its message. */
+export function describeError(e: unknown): string {
     return e instanceof Error ? `${e.constructor.name}: ${e.message}` : String(e);
 }
 

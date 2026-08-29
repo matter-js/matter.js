@@ -27,12 +27,18 @@ const pairingRequest = (session = SESSION) =>
 const newSession = (session = SESSION) =>
     `${at(1)} INFO CaseServer ${session}(tcp) New session with @1:86c217a36142d632 2↔1 address: tcp://[fe80::1%en0]«60111`;
 
-const invokeRequest = (session = SESSION, path = "0.generalDiagnostics.timeSnapshot", flags = "") =>
-    `${at(2)} INFO InteractionServer Invoke « ${session}(tcp)⇵2c57 ${flags}invokes: ${path}`;
-const invokeFinal = (session = SESSION, commands = 1) =>
-    `${at(3)} DEBUG InteractionServer Invoke (final) » ${session}(tcp)⇵2c57 commands: ${commands}`;
-const invokeResponse = (session = SESSION) =>
-    `${at(4)} DEBUG MessageChannel Message » for: I/InvokeResponse id: ${session}(tcp)⇵2c57✉018c0504 type: 0x1/0x9 size: 42`;
+const INVOKE_EXCHANGE = "2c57";
+
+const invokeRequest = (
+    session = SESSION,
+    path = "0.generalDiagnostics.timeSnapshot",
+    flags = "",
+    exchange = INVOKE_EXCHANGE,
+) => `${at(2)} INFO InteractionServer Invoke « ${session}(tcp)⇵${exchange} ${flags}invokes: ${path}`;
+const invokeFinal = (session = SESSION, commands = 1, exchange = INVOKE_EXCHANGE) =>
+    `${at(3)} DEBUG InteractionServer Invoke (final) » ${session}(tcp)⇵${exchange} commands: ${commands}`;
+const invokeResponse = (session = SESSION, exchange = INVOKE_EXCHANGE) =>
+    `${at(4)} DEBUG MessageChannel Message » for: I/InvokeResponse id: ${session}(tcp)⇵${exchange}✉018c0504 type: 0x1/0x9 size: 42`;
 
 /** A device whose log is exactly `lines`, and a recorder that keeps what a helper records. */
 async function withDut<T>(lines: string[], body: (cx: CertStepContext, checks: CheckRecord[]) => Promise<T>) {
@@ -92,17 +98,25 @@ describe("recordTcpSession", () => {
     it("returns the session tag the DUT's own line names", async () => {
         await withDut([pairingRequest(), newSession()], async (cx, checks) => {
             expect(await recordTcpSession(cx, 0, "runs over TCP")).equal(SESSION);
-            expect(checks).length(1);
-            expect(checks[0].verdict).equal("pass");
+            expect(checks.map(check => check.verdict)).deep.equal(["pass", "pass"]);
+        });
+    });
+
+    it("does not pair the pairing request with another connection's session line", async () => {
+        const other = `${at(1)} INFO CaseServer @1:86c217a36142d632•9f2c(tcp) New session with @1:86c217a36142d632 2↔1 address: tcp://[fe80::2%en0]«60999`;
+
+        await withDut([pairingRequest(), other], async (cx, checks) => {
+            await expect(recordTcpSession(cx, 0, "runs over TCP")).rejectedWith(CertCheckFailedError);
+            expect(checks.map(check => check.verdict)).deep.equal(["pass", "fail"]);
         });
     });
 
     it("records a failing check, rather than only throwing, for a session line naming no session", async () => {
-        const anonymous = `${at(1)} INFO CaseServer (tcp) New session with a peer`;
+        const anonymous = `${at(1)} INFO CaseServer (tcp) New session with a peer 2↔1 address: tcp://[fe80::1%en0]«60111`;
 
         await withDut([pairingRequest(), anonymous], async (cx, checks) => {
             await expect(recordTcpSession(cx, 0, "runs over TCP")).rejectedWith(CertCheckFailedError);
-            expect(checks.map(check => check.verdict)).deep.equal(["pass", "fail"]);
+            expect(checks.map(check => check.verdict)).deep.equal(["pass", "pass", "fail"]);
         });
     });
 });
@@ -171,6 +185,16 @@ describe("recordTcpInvoke", () => {
 
     it("does not take a response carrying more commands than the one invoked", async () => {
         const checks = await invoke([invokeRequest(), invokeFinal(SESSION, 12), invokeResponse()]);
+
+        expect(checks[0].verdict).equal("fail");
+    });
+
+    it("does not take another exchange's answer for this invoke's", async () => {
+        const checks = await invoke([
+            invokeRequest(),
+            invokeFinal(SESSION, 1, "2c58"),
+            invokeResponse(SESSION, "2c58"),
+        ]);
 
         expect(checks[0].verdict).equal("fail");
     });
