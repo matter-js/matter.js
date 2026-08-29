@@ -37,7 +37,8 @@
         "@matter/intermediate-models": "*",
         "@matter/model": "*",
         "@matter/protocol": "*",
-        "@matter/types": "*"
+        "@matter/types": "*",
+        "@nacho-iot/js-tools": "^0.2.0"
     },
     "devDependencies": {
         "@matter/testing": "*",
