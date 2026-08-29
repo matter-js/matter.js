@@ -308,7 +308,11 @@ describe("regularSizedRequestCheck", () => {
     });
 
     it("fails for a request larger than MRP's own payload limit, though smaller than the large-payload floor", async () => {
-        expect((await sized([invokeMessage(1250)])).verdict).equal("fail");
+        expect((await sized([invokeMessage(1200)])).verdict).equal("fail");
+    });
+
+    it("passes for the largest payload MRP could still have carried", async () => {
+        expect((await sized([invokeMessage(1178)])).verdict).equal("pass");
     });
 
     it("fails for a request line stating no size", async () => {

@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { MAX_UDP_MESSAGE_SIZE } from "@matter/general";
 import { Matter } from "@matter/model";
+import { MATTER_MESSAGE_OVERHEAD } from "@matter/protocol";
 import type { CertNodeRef, CertStepContext, CheckRecord, DeviceFlavor } from "@matter/testing";
 import { resolveControllerImplementation, UnsupportedByControllerError } from "@matter/testing";
 import {
@@ -366,15 +368,15 @@ export async function recordWildcardReadInOneReport(cx: CertStepContext, session
 }
 
 /**
- * What an MRP message may carry: the IPv6 minimum MTU less the headers matter.js accounts for in its
- * own UDP limit. A request at or below this is one MRP could equally have delivered, which is what a
- * case about *choosing* the existing TCP session has to establish — the floor
- * {@link LARGE_PAYLOAD_FLOOR} sets for a large payload is a different, looser number and would let a
- * request MRP could not have carried pass as one it could.
+ * What an MRP message may carry as payload, which is what a device's message line reports: the UDP
+ * channel's own budget less the Matter header and MIC the exchange subtracts from it. Derived from
+ * the constants the production path uses rather than written out, so it cannot drift from them.
  *
- * @see {@link MatterSpecification.v16.Core} § 4.4.4
+ * A different, tighter number than {@link LARGE_PAYLOAD_FLOOR}, and not interchangeable with it: that
+ * floor is the IPv6 MTU, above which nothing MRP-sized fits, while a request has to fit *this* before
+ * a case may call it one MRP could equally have carried.
  */
-const MRP_PAYLOAD_LIMIT = 1232;
+const MRP_PAYLOAD_LIMIT = MAX_UDP_MESSAGE_SIZE - MATTER_MESSAGE_OVERHEAD;
 
 /**
  * Confirms the request the DUT received on `exchange` was one an MRP session could equally have

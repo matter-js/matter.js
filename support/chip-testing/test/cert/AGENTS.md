@@ -2369,8 +2369,12 @@ rather than causing a new one. The controller is therefore asked for nothing spe
 invoke, no large payload — and the step's evidence is what distinguishes the case:
 
 - **The request is one MRP could have carried.** `regularSizedRequestCheck` reads the size off the
-  DUT's own `I/InvokeRequest` message line and requires it at or below the same floor `TC-SC-8.6`
-  requires its report to exceed. A payload only TCP could carry would prove the opposite of this case.
+  DUT's own `I/InvokeRequest` message line and requires it at or below what MRP may carry. That is a
+  **different limit** from the one `TC-SC-8.6` requires its report to exceed, and the two are not
+  interchangeable: 1280 is the IPv6 MTU, so above it nothing MRP-sized fits and it serves as 8.6's
+  floor, while a request has to fit MRP's own budget — the UDP limit less Matter's header and MIC
+  overhead — before this case may call it regularly sized. A payload only TCP could carry would prove
+  the opposite of this case.
 - **The answer came back on step 1's session**, through the same exchange-correlated check `TC-SC-8.5`
   uses.
 - **No further session was established.** `noFurtherSessionCheck` scans the window for any
