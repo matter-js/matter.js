@@ -283,11 +283,7 @@ export namespace DeviceAttestationValidator {
 
             try {
                 await crypto.verifyEcdsa(
-                    parsePeerValue(
-                        DeviceAttestationCheck.CertificateUnparseable,
-                        "Device returned a PAI whose public key cannot be read",
-                        () => PublicKey(pai.cert.ellipticCurvePublicKey),
-                    ),
+                    PublicKey(pai.cert.ellipticCurvePublicKey),
                     dac.asUnsignedDer(),
                     dac.signature,
                 );
