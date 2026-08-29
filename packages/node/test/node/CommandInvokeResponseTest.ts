@@ -12,7 +12,7 @@ import { Endpoint } from "#endpoint/index.js";
 import { MatterFlowError } from "@matter/general";
 import { AccessLevel } from "@matter/model";
 import { CommandInvokeResponse, Invoke, InvokeRequest, InvokeResult } from "@matter/protocol";
-import { ClusterId, CommandId, EndpointNumber, Status, StatusResponseError } from "@matter/types";
+import { ClusterId, CommandId, EndpointNumber, Status, StatusResponseError, TlvUInt8 } from "@matter/types";
 import { Chime } from "@matter/types/clusters/chime";
 import { OnOff } from "@matter/types/clusters/on-off";
 import { MockServerNode } from "./mock-server-node.js";
@@ -445,6 +445,35 @@ describe("CommandInvokeResponse", () => {
                 kind: "cmd-status",
                 path: { clusterId: Chime.Cluster.id, commandId: 0, endpointId: 1 },
                 status: Status.UnsupportedCommand,
+                clusterStatus: undefined,
+                commandRef: undefined,
+            },
+        ]);
+    });
+
+    it("reports a payload that does not match the command schema as INVALID_COMMAND", async () => {
+        const device = new Endpoint(OnOffLightDevice);
+        const node = await MockServerNode.createOnline(undefined, { device });
+
+        // OnWithTimedOff expects a structure; a bare integer cannot decode against it
+        const response = await invokeCmdRaw(node, {
+            invokeRequests: [
+                {
+                    commandPath: {
+                        endpointId: EndpointNumber(1),
+                        clusterId: ClusterId(6),
+                        commandId: CommandId(0x42),
+                    },
+                    commandFields: TlvUInt8.encodeTlv(5),
+                },
+            ],
+        });
+
+        expect(response.data).deep.equals([
+            {
+                kind: "cmd-status",
+                path: { clusterId: 6, commandId: 0x42, endpointId: 1 },
+                status: Status.InvalidCommand,
                 clusterStatus: undefined,
                 commandRef: undefined,
             },
