@@ -2174,7 +2174,12 @@ group the fabric's key map must already carry. What it adds:
   (promoted to `tc-support.ts` when this became the second TC to need them) gate on it. A command
   whose schema mandates a status and answers without one fails rather than skipping the check.
 - **`EpochKey2`/`EpochStartTime2` go as null**, which the plan asks for and both adapters carry.
-- **A list or bitmap field carries no log assertion.** `AddScene`'s `ExtensionFieldSetStructs` and
-  `CopyScene`'s `Mode` are rendered across lines (chip) or as named bits (matter.js), and
-  `expectCommandInvoke` matches one line per field; the surrounding scalar fields carry the evidence.
-  Say so in the step's `expected` rather than leaving a reader to assume the whole payload was checked.
+- **A list or bitmap field needs its own lines, not a field entry.** `expectCommandInvoke` matches one
+  line per field, and neither shape is one line on both flavors: chip nests a list across lines and
+  numbers its members, while matter.js prints the whole nested value inline and names them
+  (`extensionFieldSetStructs: { clusterId: 6, attributeValueList: [ { attributeId: 0, valueUnsigned8: 1 } ] }`).
+  A bitmap diverges the same way — chip prints `0x0 = 0 (unsigned),` where matter.js prints
+  `mode: { copyAllScenes: false }`. So these go through `expectSequence` with per-flavor lines instead,
+  anchored on the mark the invoke took, which is what lets the step assert the nested `ClusterID` and
+  `AttributeValueList` the plan actually names. Sending an empty list would have been the quieter
+  mistake: the step would pass while exercising none of the shape it is about.
