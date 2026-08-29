@@ -176,10 +176,12 @@ export class TaskManagerBehavior extends Behavior {
                 logger.warn(`Not resuming run ${record.runId}: slot ${record.slotKey} is owned by run ${owner.runId}`);
                 continue;
             }
-            this.internal.runs.resolvePending(record.runId);
             try {
                 const task = this.internal.registry.create(type, record.runId, record.slotKey, record.params, record);
                 this.internal.runs.admit(task);
+                // Dropped from pending only now: a record whose task could not be built is still unfinished
+                // work, and forgetting it here would free its slot and hide it from lookup for this process.
+                this.internal.runs.resolvePending(record.runId);
                 this.#redrive(task);
             } catch (e) {
                 logger.error(`Cannot resume run ${record.runId}`, e);
@@ -344,6 +346,13 @@ export class TaskManagerBehavior extends Behavior {
                     throw new TaskConflictError(
                         `Rollback of ${runLabel(undone)} rejected: slot ${undoneSlot} is held by ${runLabel(holder.runId)}`,
                         holder.runId,
+                    );
+                }
+                const superseder = runs.supersederOf(undone);
+                if (superseder !== undefined) {
+                    throw new TaskConflictError(
+                        `Rollback of ${runLabel(undone)} rejected: ${runLabel(superseder.runId)} has since committed slot ${undoneSlot}, so the values this would restore are historical`,
+                        superseder.runId,
                     );
                 }
                 const sibling = runs.pendingRevertOfSlot(undoneSlot);
