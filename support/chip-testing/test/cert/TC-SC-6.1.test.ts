@@ -39,6 +39,10 @@ const GROUP_KEY_SET_ID = 1;
 /** The fabric's own IPK key set, which commissioning writes and no step removes (Matter Core § 11.2.2). */
 const IPK_KEY_SET_ID = 0;
 
+/** The Groups feature that decides whether a `ViewGroupResponse` may answer with an empty name. */
+const GROUP_NAMES_PROPERTY = "groupNames";
+const GROUP_NAMES_FEATURE = 1 << 0;
+
 /** `AccessControlEntryPrivilegeEnum.Operate` and `AccessControlEntryAuthModeEnum.Group`. */
 const PRIVILEGE_OPERATE = 3;
 const AUTH_MODE_GROUP = 3;
@@ -135,6 +139,25 @@ async function invokeAndCheck(
     record(cx, logCheck, `CommandDataIB log for ${cluster.name}.${commandName}`);
 
     return response;
+}
+
+/**
+ * Whether the TH's Groups cluster keeps group names. A feature map is a bitmap, and both adapters
+ * decode a bitmap through the model into an object of named bits rather than the raw number.
+ */
+async function keepsGroupNames(node: CertNodeApi): Promise<boolean> {
+    const value = await node.readAttribute({
+        endpoint: GROUPS_ENDPOINT,
+        cluster: GROUPS_ID,
+        attribute: attributeId(GROUPS, "featureMap"),
+    });
+    if (typeof value === "number") {
+        return (value & GROUP_NAMES_FEATURE) !== 0;
+    }
+    if (typeof value === "object" && value !== null && GROUP_NAMES_PROPERTY in value) {
+        return Boolean(value[GROUP_NAMES_PROPERTY]);
+    }
+    throw new CertCheckFailedError(`TH answered Groups FeatureMap with ${describe(value)}, which names no features`);
 }
 
 /** The ACL the TH already holds for this fabric, which a new entry is appended to rather than replacing. */
@@ -354,19 +377,24 @@ certTest("TC-SC-6.1", {
                 [{ id: 0, value: GROUP.id }],
             );
 
-            // The plan allows either name: a TH without the GroupNames feature answers an empty string.
-            // The group id is not optional though — a response for another group would otherwise pass.
+            // The plan allows an empty name only from a TH without the GroupNames feature, so which
+            // answer is acceptable is read from the TH rather than allowed unconditionally — both THs
+            // configured here keep names, and an unconditional allowance could not fail for either.
+            // The group id is not optional either: a response for another group would otherwise pass.
             const { groupId, groupName } =
                 typeof response === "object" && response !== null
                     ? (response as { groupId?: unknown; groupName?: unknown })
                     : {};
-            const named = groupName === GROUP.name || groupName === "";
+            const keepsNames = await keepsGroupNames(cx.controllers.dut.node(ref));
+            const named = groupName === GROUP.name || (!keepsNames && groupName === "");
             record(
                 cx,
                 {
                     type: "response",
                     verdict: Number(groupId) === GROUP.id && named ? "pass" : "fail",
-                    detail: `ViewGroupResponse answers for group ${describe(groupId)} named ${describe(groupName)}`,
+                    detail:
+                        `ViewGroupResponse answers for group ${describe(groupId)} named ${describe(groupName)}; ` +
+                        `the TH ${keepsNames ? "keeps" : "does not keep"} group names`,
                 },
                 "the group the TH reports, and its name",
             );
