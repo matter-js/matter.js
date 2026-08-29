@@ -37,7 +37,8 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 // packages excluded from the workspace.
 const PACKAGE_ROOTS = ["packages", "support", "examples"];
 
-const SOURCE_DIRS = ["src", "test"];
+// `bin` holds published entry points, which import as freely as anything under `src`.
+const SOURCE_DIRS = ["src", "test", "bin"];
 
 const SOURCE_FILE = /\.[cm]?[jt]sx?$/;
 
