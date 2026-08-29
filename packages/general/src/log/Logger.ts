@@ -15,6 +15,21 @@ import { LogFormat } from "./LogFormat.js";
 import { LogLevel } from "./LogLevel.js";
 
 /**
+ * Destinations that have failed, so a persistently broken destination reports once rather than on every message.
+ */
+const failedDestinations = new Set<string>();
+
+function reportDestinationError(name: string, error: unknown) {
+    if (failedDestinations.has(name)) {
+        return;
+    }
+    failedDestinations.add(name);
+
+    // There is nowhere to log a logging failure, so this is the one place the console is the fallback
+    console.error(`Log destination "${name}" threw and will not be reported again:`, error);
+}
+
+/**
  * matter.js logging API
  *
  * Usage:
@@ -222,17 +237,24 @@ export class Logger {
                 dest.context = Diagnostic.Context();
             }
 
-            dest.context.run(() =>
-                dest.add(
-                    Diagnostic.message({
-                        now: Time.now,
-                        facility: this.#name,
-                        level,
-                        prefix: nestingPrefix(),
-                        values,
-                    }),
-                ),
-            );
+            try {
+                dest.context.run(() =>
+                    dest.add(
+                        Diagnostic.message({
+                            now: Time.now,
+                            facility: this.#name,
+                            level,
+                            prefix: nestingPrefix(),
+                            values,
+                        }),
+                    ),
+                );
+            } catch (error) {
+                // A destination is installed by the application and may fail for reasons of its own.  Logging is
+                // incidental to whatever the caller was doing, so the failure must not propagate into it, and the
+                // remaining destinations still receive the message
+                reportDestinationError(name, error);
+            }
         }
     }
 

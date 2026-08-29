@@ -227,6 +227,32 @@ describe("Logger", () => {
         });
     });
 
+    describe("failing destination", () => {
+        it("does not propagate a destination error to the caller and still reaches other destinations", () => {
+            const reached = new Array<string>();
+            const consoleError = console.error;
+            console.error = () => {};
+
+            Logger.destinations.failing = LogDestination();
+            Logger.destinations.failing.add = () => {
+                throw new Error("destination is broken");
+            };
+            Logger.destinations.surviving = LogDestination();
+            Logger.destinations.surviving.add = message => {
+                reached.push(String(message));
+            };
+
+            try {
+                expect(() => Logger.get("FailingDestinationTest").error("hello")).not.throws();
+                expect(reached.length).equals(1);
+            } finally {
+                console.error = consoleError;
+                delete Logger.destinations.failing;
+                delete Logger.destinations.surviving;
+            }
+        });
+    });
+
     describe("nesting", () => {
         it("nests once", () => {
             Logger.nest(() => {
