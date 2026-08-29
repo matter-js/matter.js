@@ -35,10 +35,10 @@ export const TCP_ROLES = {
 
 /**
  * Commissions the DUT and then uses the session, which is what the plan's "initiates a CASE session
- * establishment ... requesting a session supporting large payloads" amounts to for each controller:
- * matter.js prefers TCP for every session once asked, while chip-tool decides per interaction, so its
- * TCP session is the one the first large-payload-capable read establishes. Commissioning alone would
- * leave the chip-tool leg on the UDP session pairing set up.
+ * establishment ... requesting a session supporting large payloads" amounts to here: matter.js
+ * prefers TCP for every session once asked, so commissioning establishes the session this case is
+ * about and the read exercises it. Only matter.js reaches this point — see
+ * {@link requireTcpCapableController}.
  */
 export async function commissionOverTcp(cx: CertStepContext, commissioned: CommissionedRefs<"th">) {
     requireTcpCapableController();

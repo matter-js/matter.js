@@ -901,9 +901,11 @@ export class InProcessControllerAdapter implements ControllerAdapter {
                 network: {
                     autoStartCommissionedPeers: false,
 
-                    // A TC that needs TCP asks for it; every other run keeps the transport its
-                    // evidence and timing were written against.
-                    ...(this.#transport === "tcp" ? { tcp: true, transportPreference: "tcp" as const } : {}),
+                    // Outgoing only: this controller is a TCP client, and `tcp: true` would also have it
+                    // listen and advertise as a TCP server, which no cert test asks of a controller.
+                    ...(this.#transport === "tcp"
+                        ? { tcp: { outgoing: true }, transportPreference: "tcp" as const }
+                        : {}),
                 },
                 subscriptions: { persistenceEnabled: false },
             });

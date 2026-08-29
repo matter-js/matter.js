@@ -1194,7 +1194,11 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
         this.log = new LogFollower(this.#logStream.follow(), id);
     }
 
-    /** How this adapter's sessions reach their peers, which a model command states per invocation. */
+    /**
+     * The transport this adapter's test *asked* for, which each model command states per invocation.
+     * Not what the sessions do: chip-tool keeps using the session commissioning established, so this
+     * reads `"tcp"` while the interactions still travel over that UDP session.
+     */
     get transport() {
         return this.#transport;
     }
