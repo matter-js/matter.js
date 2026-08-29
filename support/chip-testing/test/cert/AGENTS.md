@@ -2273,7 +2273,9 @@ What each side does with the request:
   falls back to UDP otherwise. The hard `requiredTransport` lever exists in the protocol layer but is
   not surfaced, so a test cannot yet assert "TCP or fail" — which is why the evidence below is the
   device's, not the controller's.
-- **chip-tool** gets `--allow-large-payload 1` on its model commands, and it is **not enough**: chip-tool
+- **chip-tool** gets `--allow-large-payload 1` on every model command it builds — read, write, invoke,
+  event read and both subscribes, since it decides a session's transport when it establishes one and a
+  test may begin with any of them — and it is **not enough**: chip-tool
   keeps using the session commissioning established, so the flag reaches the DUT over that UDP session
   and no TCP connection is set up. The support module refuses the case up front with
   `UnsupportedByControllerError`, so a chip-tool leg is recorded skipped with that reason instead of

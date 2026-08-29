@@ -178,16 +178,16 @@ describe("ChipToolControllerAdapter", function () {
         }
     });
 
-    async function start() {
-        const started = new ChipToolControllerAdapter("dut");
+    async function start(options?: { transport?: "tcp" }) {
+        const started = new ChipToolControllerAdapter("dut", options);
         adapter = started;
         await started.start();
         return started;
     }
 
     /** Commissions a node and clears the recorded frames, so a test asserts only on its own command. */
-    async function commissioned(): Promise<{ ref: string; node: CertNodeApi }> {
-        const started = await start();
+    async function commissioned(options?: { transport?: "tcp" }): Promise<{ ref: string; node: CertNodeApi }> {
+        const started = await start(options);
         const ref = await started.commission({ passcode: 20202021, discriminator: 3840 });
         fake.commands.splice(0);
         fake.frames.splice(0);
@@ -388,6 +388,50 @@ describe("ChipToolControllerAdapter", function () {
         expect(await node.readAttribute({ endpoint: 0, cluster: BASIC_INFORMATION.id, attribute: VENDOR_ID.id })).equal(
             0xfff1,
         );
+        expect(fake.commands).deep.equal([`any read-by-id 0x28 0x2 ${ref} 0`]);
+    });
+
+    it("asks for a large-payload session on every interaction when the test requested TCP", async () => {
+        // chip-tool decides a session's transport when it establishes one, so a test that begins with
+        // a read must carry the flag as much as one that begins with an invoke.
+        const { ref, node } = await commissioned({ transport: "tcp" });
+
+        fake.reply = () => ({
+            results: [
+                {
+                    clusterId: BASIC_INFORMATION.id,
+                    endpointId: 0,
+                    attributeId: requireId(VENDOR_ID.id, "vendorId"),
+                    value: 0xfff1,
+                },
+            ],
+        });
+        await node.readAttribute({ endpoint: 0, cluster: BASIC_INFORMATION.id, attribute: VENDOR_ID.id });
+
+        fake.reply = () => ({ results: [] });
+        await node.invoke("OnOff", "on", {}, 1);
+
+        expect(fake.commands).deep.equal([
+            `any read-by-id 0x28 0x2 ${ref} 0 --allow-large-payload 1`,
+            `any command-by-id 0x6 0x1 {} ${ref} 1 --allow-large-payload 1`,
+        ]);
+    });
+
+    it("sends no large-payload flag for a test that did not ask for TCP", async () => {
+        const { ref, node } = await commissioned();
+
+        fake.reply = () => ({
+            results: [
+                {
+                    clusterId: BASIC_INFORMATION.id,
+                    endpointId: 0,
+                    attributeId: requireId(VENDOR_ID.id, "vendorId"),
+                    value: 0xfff1,
+                },
+            ],
+        });
+        await node.readAttribute({ endpoint: 0, cluster: BASIC_INFORMATION.id, attribute: VENDOR_ID.id });
+
         expect(fake.commands).deep.equal([`any read-by-id 0x28 0x2 ${ref} 0`]);
     });
 

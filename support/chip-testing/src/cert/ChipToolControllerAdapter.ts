@@ -1,4 +1,14 @@
 /**
+ * chip-tool decides a session's transport at CASE setup: `--allow-large-payload 1` makes it ask for a
+ * TCP-backed one, which it can only get where the peer advertises a TCP server
+ * (`OperationalSessionSetup`). The flag lives on chip-tool's shared model-command base, so it applies
+ * to read, write and invoke alike.
+ */
+function largePayloadArg(transport?: ControllerTransport) {
+    return transport === "tcp" ? " --allow-large-payload 1" : "";
+}
+
+/**
  * @license
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
@@ -176,16 +186,6 @@ function quoteArg(value: string) {
 }
 
 /** chip-tool's own name for the timed-interaction timeout, on `command-by-id` and `write-by-id` alike. */
-/**
- * chip-tool decides a session's transport at CASE setup: `--allow-large-payload 1` makes it ask for a
- * TCP-backed one, which it can only get where the peer advertises a TCP server
- * (`OperationalSessionSetup`). The flag lives on chip-tool's shared model-command base, so it applies
- * to read, write and invoke alike.
- */
-function largePayloadArg(transport?: ControllerTransport) {
-    return transport === "tcp" ? " --allow-large-payload 1" : "";
-}
-
 function timedArg(options?: TimedInteractionOptions) {
     const timeout = timedInteractionTimeoutOf(options);
     return timeout === undefined ? "" : ` --timedInteractionTimeoutMs ${timeout}`;
@@ -985,7 +985,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
         // chip-tool zips its cluster/event/endpoint id lists element-wise, as it does for attributes
         let command =
             `any read-event-by-id ${paths.map(eventClusterArg).join(",")} ${paths.map(eventArg).join(",")} ` +
-            `${this.#node} ${paths.map(eventEndpointArg).join(",")}`;
+            `${this.#node} ${paths.map(eventEndpointArg).join(",")}${largePayloadArg(this.#adapter.transport)}`;
         if (options?.fabricFiltered === false) {
             command += " --fabric-filtered false";
         }
@@ -1078,7 +1078,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
         // (`InteractionModelConfig::GetAttributePaths`), so equal-length lists express any path set.
         let command =
             `any read-by-id ${paths.map(clusterArg).join(",")} ${paths.map(attributeArg).join(",")} ` +
-            `${this.#node} ${paths.map(endpointArg).join(",")}`;
+            `${this.#node} ${paths.map(endpointArg).join(",")}${largePayloadArg(this.#adapter.transport)}`;
         if (options?.fabricFiltered === false) {
             command += " --fabric-filtered false";
         }
@@ -1112,6 +1112,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
             command += ` --data-version ${versions.join(",")}`;
         }
         command += timedArg(options);
+        command += largePayloadArg(this.#adapter.transport);
 
         return this.#adapter.execute(command, { attributes: entries.map(({ path }) => path) });
     }
@@ -1357,7 +1358,7 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
         const reply = await this.execute(
             `any subscribe-by-id ${clusterArg(path)} ${attributeArg(path)} ` +
                 `${opts.minIntervalFloorSeconds} ${opts.maxIntervalCeilingSeconds} ${node} ` +
-                `${endpointArg(path)} --keepSubscriptions true`,
+                `${endpointArg(path)} --keepSubscriptions true${largePayloadArg(this.#transport)}`,
             { attributes: [path] },
         );
         assertNoFailure(reply, `subscribe ${JSON.stringify(path)}`);
@@ -1390,7 +1391,7 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
         let command =
             `any subscribe-event-by-id ${paths.map(eventClusterArg).join(",")} ${paths.map(eventArg).join(",")} ` +
             `${opts.minIntervalFloorSeconds} ${opts.maxIntervalCeilingSeconds} ${node} ` +
-            `${paths.map(eventEndpointArg).join(",")} --keepSubscriptions true`;
+            `${paths.map(eventEndpointArg).join(",")} --keepSubscriptions true${largePayloadArg(this.#transport)}`;
         if (opts.fabricFiltered === false) {
             command += " --fabric-filtered false";
         }

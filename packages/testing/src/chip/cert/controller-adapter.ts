@@ -449,9 +449,6 @@ export interface ManualPairingCodeFields {
 }
 
 /**
- * Builds a {@link ControllerAdapter} for the given id (e.g. "dut", "th_cr2").
- */
-/**
  * How a controller reaches its peers. `"tcp"` asks for a TCP-backed session, which a large-payload
  * interaction requires; omitted, a controller keeps the transport every other TC's evidence and
  * timing were written against.
@@ -463,6 +460,9 @@ export interface ControllerAdapterOptions {
     transport?: ControllerTransport;
 }
 
+/**
+ * Builds a {@link ControllerAdapter} for the given id (e.g. "dut", "th_cr2").
+ */
 export type ControllerAdapterFactory = (id: string, options?: ControllerAdapterOptions) => ControllerAdapter;
 
 const factories = new Map<ControllerImplementation, ControllerAdapterFactory>();
