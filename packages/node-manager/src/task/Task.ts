@@ -106,6 +106,14 @@ export abstract class Task<P = unknown> {
     }
 
     /**
+     * The run this task undoes, if it is a rollback. A rollback rewrites the intents of that run, so it
+     * contends for *that* run's slot rather than for its own, and the manager excludes it there.
+     */
+    static undoes(_params: unknown): RunId | undefined {
+        return undefined;
+    }
+
+    /**
      * The target this task intends to change, derived from type and params. At most one non-terminal run may
      * exist per slot key. Subclasses override with their own key.
      */

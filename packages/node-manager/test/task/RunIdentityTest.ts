@@ -37,6 +37,18 @@ function touchingPeer(id: string) {
     return peer;
 }
 
+/** A phase that records one intent and never settles, so the run stays live and owns its slot. */
+function gateForever(peerId: string): TaskPhase {
+    return {
+        name: "hold",
+        run: async ctx => {
+            const peer = ctx.resolvePeer(peerId);
+            await ctx.setIntent(peer, "groupMembership", "X", {});
+            await ctx.awaitCommitted([{ peer, kind: "groupMembership", key: "X" }]);
+        },
+    };
+}
+
 /** A phase that records one intent and returns, so the run completes with a non-empty changeSet. */
 function touchPhase(peerId: string): TaskPhase {
     return {
@@ -420,5 +432,66 @@ describe("run identity", () => {
         await using node = await makeNode(environment, "norereg");
         const again = await node.act(a => a.get(TestTaskManager).cancel(runId));
         expect(again?.runId).equals(rollbackId);
+    });
+
+    it("refuses a second rollback of a slot another rollback is already undoing", async () => {
+        await using node = await makeNode(undefined, "tworollbacks");
+        const peer = touchingPeer("tworollbacks");
+        SyntheticTask.phasesByTag["tworollbacks"] = [touchPhase("tworollbacks")];
+        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+
+        const runs = new Array<RunId>();
+        for (let round = 0; round < 2; round++) {
+            const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "tworollbacks" }));
+            for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
+                await MockTime.advance(1);
+            }
+            await settle(node, "synthetic:tworollbacks");
+            peer.dropItem("groupMembership", "X");
+            runs.push(handle.runId);
+        }
+
+        // Each rollback has a slot of its own, so nothing about their own slots keeps them apart. They rewrite
+        // the same intents, so the second must be refused against the slot they both undo.
+        peer.setReachable(false);
+        const first = await node.act(a => a.get(TestTaskManager).cancel(runs[0]));
+        expect(first).not.equals(undefined);
+
+        let refusal: unknown;
+        try {
+            await node.act(a => a.get(TestTaskManager).cancel(runs[1]));
+        } catch (e) {
+            refusal = e;
+        }
+        expect(refusal).instanceOf(TaskConflictError);
+        expect((refusal as TaskConflictError).owner).equals(first?.runId);
+    });
+
+    it("refuses a rollback of a retired run whose slot a newer run now owns", async () => {
+        await using node = await makeNode(undefined, "reverseorder");
+        const peer = touchingPeer("reverseorder");
+        SyntheticTask.phasesByTag["reverseorder"] = [touchPhase("reverseorder")];
+        SyntheticTask.phasesByTag["holdit"] = [gateForever("reverseorder")];
+        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+
+        const older = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "reverseorder" }));
+        for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
+            await MockTime.advance(1);
+        }
+        await settle(node, "synthetic:reverseorder");
+        peer.dropItem("groupMembership", "X");
+
+        // A newer run takes the slot and stays live. Undoing the older run now would rewrite the intents the
+        // newer one is working on.
+        const newer = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "reverseorder" }));
+        expect(newer.runId).not.equals(older.runId);
+
+        let refusal: unknown;
+        try {
+            await node.act(a => a.get(TestTaskManager).cancel(older.runId));
+        } catch (e) {
+            refusal = e;
+        }
+        expect(refusal).instanceOf(TaskConflictError);
     });
 });

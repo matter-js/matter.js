@@ -308,6 +308,31 @@ export class TaskManagerBehavior extends Behavior {
             );
         }
 
+        // 5. A rollback contends for the slot of the run it undoes, not for its own: its slot is unique per
+        //    run, so checking that alone would let two rollbacks of one slot, or a rollback and the newer run
+        //    that now owns the slot, rewrite the same intents at once.
+        const undone = this.internal.registry.undoes(type, params);
+        if (undone !== undefined) {
+            const undoneSlot = (runs.liveRun(undone) ?? runs.retiredRun(undone))?.slotKey;
+            if (undoneSlot !== undefined) {
+                const holder = runs.ownerOf(undoneSlot);
+                // The run being undone still owns its slot while its own cancel prepares this rollback.
+                if (holder !== undefined && holder.runId !== undone) {
+                    throw new TaskConflictError(
+                        `Rollback of ${runLabel(undone)} rejected: slot ${undoneSlot} is held by ${runLabel(holder.runId)}`,
+                        holder.runId,
+                    );
+                }
+                const sibling = runs.pendingRevertOfSlot(undoneSlot);
+                if (sibling !== undefined) {
+                    throw new TaskConflictError(
+                        `Rollback of ${runLabel(undone)} rejected: rollback ${runLabel(sibling.runId)} is already undoing slot ${undoneSlot}`,
+                        sibling.runId,
+                    );
+                }
+            }
+        }
+
         const task = this.internal.registry.create(type, runs.allocate(), slotKey, params, seed);
         runs.admit(task);
         return { task, joined: false };
@@ -383,8 +408,9 @@ export class TaskManagerBehavior extends Behavior {
      * task (parks on offline peers, resumes after restart). Does not await the revert — the caller observes it
      * via the returned handle.
      *
-     * Each outcome has exactly one meaning: a handle is the rollback, `undefined` is a task with nothing to roll
-     * back, and {@link TaskNotFoundError} is an id no live task answers to.
+     * Each outcome has exactly one meaning: a handle is the rollback, `undefined` is a run with nothing to roll
+     * back, and {@link TaskNotFoundError} is an identity no run answers to — live or retired, since a finished
+     * run keeps the changeSet its rollback needs.
      *
      * Throws {@link TaskManagerClosingError} if shutdown intervenes before the cancel can be recorded; the task
      * then keeps its non-terminal state and the cancel must be re-issued after the next start.
@@ -451,9 +477,13 @@ export class TaskManagerBehavior extends Behavior {
         try {
             revert = this.#prepareRevert(task);
         } catch (e) {
-            // The abort above stopped the driver and dropped its gate. A task the manager declines to cancel keeps
-            // its state, so it must keep its driver too, or it sits non-terminal with nothing left to advance it.
-            this.#redrive(task);
+            // The abort above stopped the driver and dropped its gate. A task the manager declines to cancel
+            // keeps its state, so it must keep its driver too, or it sits non-terminal with nothing left to
+            // advance it. A retired run was reconstituted from its record and never had a driver here; driving
+            // it would write that reconstituted state back over whatever the record now holds.
+            if (this.internal.runs.isLive(task.runId)) {
+                this.#redrive(task);
+            }
             throw e;
         }
         const stateBeforeCancel = task.progress.state;
@@ -470,9 +500,11 @@ export class TaskManagerBehavior extends Behavior {
             task.progress.state = stateBeforeCancel;
             this.internal.runs.abandonRetirement(task);
             revert.discard();
-            // A cancel that did not happen leaves the task as it was, driver included, or it sits non-terminal
-            // with nothing left to advance it.
-            this.#redrive(task);
+            // A cancel that did not happen leaves the task as it was, driver included. A retired run has no
+            // driver to restore, and driving its reconstituted copy would overwrite the stored record.
+            if (this.internal.runs.isLive(task.runId)) {
+                this.#redrive(task);
+            }
             throw e;
         }
         this.internal.runs.commitRetirement(task);
