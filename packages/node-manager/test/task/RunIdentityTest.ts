@@ -365,4 +365,60 @@ describe("run identity", () => {
         expect(again?.runId).equals(rollback?.runId);
         expect(again?.status.revertOf).equals(handle.runId);
     });
+
+    it("refuses a re-run against a rollback started through the public run path", async () => {
+        await using node = await makeNode(undefined, "publicrevert");
+        const peer = touchingPeer("publicrevert");
+        SyntheticTask.phasesByTag["publicrevert"] = [touchPhase("publicrevert")];
+        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+
+        const forward = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "publicrevert" }));
+        for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
+            await MockTime.advance(1);
+        }
+        await settle(node, "synthetic:publicrevert");
+
+        // A rollback issued through the public API — how a failed one is retried — must exclude a re-run of the
+        // work it is undoing just as the manager's own does. It parks on an unreachable peer so it stays live.
+        peer.setReachable(false);
+        await node.act(a =>
+            a.get(TestTaskManager).run("revert", {
+                originalRunId: forward.runId,
+                entries: [{ peerId: "publicrevert", kind: "groupMembership", key: "X" }],
+            }),
+        );
+
+        let refusal: unknown;
+        try {
+            await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "publicrevert" }));
+        } catch (e) {
+            refusal = e;
+        }
+        expect(refusal).instanceOf(TaskConflictError);
+    });
+
+    it("answers a repeated cancel from the record when the task type is not registered", async () => {
+        const environment = persistentEnvironment();
+        touchingPeer("norereg");
+        SyntheticTask.phasesByTag["norereg"] = [touchPhase("norereg")];
+
+        let runId: RunId;
+        let rollbackId: RunId;
+        {
+            await using node = await makeNode(environment, "norereg");
+            await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "norereg" }));
+            runId = handle.runId;
+            await settle(node, "synthetic:norereg");
+            const rollback = await node.act(a => a.get(TestTaskManager).cancel(runId));
+            rollbackId = rollback!.runId;
+            await settle(node, `revert:${runId}`);
+        }
+
+        // Nothing registers the type on this start. Deciding on a NEW rollback would need the task, because
+        // revertibility is the task's decision — but a run that already recorded one is answered by its record.
+        await using node = await makeNode(environment, "norereg");
+        const again = await node.act(a => a.get(TestTaskManager).cancel(runId));
+        expect(again?.runId).equals(rollbackId);
+    });
 });

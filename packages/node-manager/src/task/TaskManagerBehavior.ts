@@ -399,6 +399,15 @@ export class TaskManagerBehavior extends Behavior {
             // Undo of finished work reads the retained changeSet, so the run has to be reconstituted:
             // `revertible` is a subclass decision (a realized rotation declines it) and a record cannot
             // answer it.
+            // A run that already recorded a rollback, or that was already cancelled with none, is answered by
+            // its record. Only deciding on a NEW rollback needs the task, because revertibility is the task's
+            // decision — so registration is required there and nowhere else.
+            if (retired.revertRunId !== undefined) {
+                return this.get(retired.revertRunId);
+            }
+            if (retired.state === "cancelled") {
+                return undefined;
+            }
             if (!this.internal.registry.has(retired.type)) {
                 throw new TaskTypeNotRegisteredError(
                     `Cannot cancel ${runLabel(runId)}: task type "${retired.type}" is not registered`,
@@ -717,9 +726,6 @@ export class TaskManagerBehavior extends Behavior {
         // other runs' uncommitted in-flight state as though it were durable.
         const written = paired === undefined ? [task] : [task, paired];
         const records = written.map(t => [runKey(t.runId), t.toPersistence()] as const);
-        for (const t of written) {
-            this.internal.runs.refresh(t);
-        }
         const { nextRunId, nextRetireSeq } = this.internal.runs.snapshot();
         await this.endpoint.act(agent => {
             const self = agent.get(TaskManagerBehavior);
@@ -733,6 +739,11 @@ export class TaskManagerBehavior extends Behavior {
             self.state.nextRunId = Math.max(self.state.nextRunId, nextRunId);
             self.state.nextRetireSeq = Math.max(self.state.nextRetireSeq, nextRetireSeq);
         });
+        // Only now: a retired record refreshed before the write would keep a change the write never made, and
+        // a run would go on naming a rollback that does not exist.
+        for (const t of written) {
+            this.internal.runs.refresh(t);
+        }
     }
 
     override async [Symbol.asyncDispose]() {

@@ -5,7 +5,7 @@
  */
 
 import { ClientNode } from "@matter/node";
-import { Task } from "./Task.js";
+import { Task, TaskPersistence } from "./Task.js";
 import { ChangeEntry, RunId, TaskContext, TaskPhase } from "./types.js";
 
 export const REVERT_TYPE = "revert";
@@ -23,6 +23,14 @@ export interface RevertParams {
  */
 export class Revert extends Task<RevertParams> {
     readonly type = REVERT_TYPE;
+
+    constructor(runId: RunId, slotKey: string, params: RevertParams, persisted?: Partial<TaskPersistence>) {
+        super(runId, slotKey, params, persisted);
+        // The link to the run being undone comes from the params, so a rollback started or retried through the
+        // public `run` path carries it too. Exclusion of a re-run matches on this link; a rollback without one
+        // would let the forward work it is undoing start again underneath it.
+        this.revertOf ??= params.originalRunId;
+    }
 
     static override slotKeyFor(params: RevertParams): string {
         return `revert:${params.originalRunId}`;
