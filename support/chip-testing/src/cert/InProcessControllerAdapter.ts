@@ -138,6 +138,12 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "S.C.C05.Tx": 1,
     "S.C.C06.Tx": 1,
     "S.C.C40.Tx": 1,
+
+    // GroupKeyManagement and Groups client commands TC-SC-6.1 sends beyond what the device file already
+    // answers 1 for. The file describes a device, which is neither a group-key nor a groups client.
+    "G.C.C01.Tx": 1,
+    "GRPKEY.C.C03.Tx": 1,
+    "GRPKEY.C.C04.Tx": 1,
 };
 
 const adapterStreams = new Map<string, LineQueue>();
