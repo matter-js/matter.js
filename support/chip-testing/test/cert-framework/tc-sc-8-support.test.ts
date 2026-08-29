@@ -6,7 +6,12 @@
 
 import type { CertDevice, CertStepContext, CheckRecord, Subject } from "@matter/testing";
 import { LineQueue, LogFollower, PicsFile } from "@matter/testing";
-import { recordTcpInvoke, recordTcpSession, TcpSessionRef } from "../cert/tc-sc-8-support.js";
+import {
+    recordTcpInvoke,
+    recordTcpSession,
+    wildcardReadInOneReportCheck,
+    TcpSessionRef,
+} from "../cert/tc-sc-8-support.js";
 import { CertCheckFailedError } from "../cert/tc-support.js";
 
 /** GeneralDiagnostics, and its TimeSnapshot command, which TC-SC-8.5 invokes. */
@@ -201,6 +206,81 @@ describe("recordTcpInvoke", () => {
 
     it("fails when the DUT never answered the invoke", async () => {
         const checks = await invoke([invokeRequest()]);
+
+        expect(checks[0].verdict).equal("fail");
+    });
+});
+
+describe("wildcardReadInOneReportCheck", () => {
+    const EXCHANGE = "9200";
+
+    const wildcardRead = (session = SESSION, exchange = EXCHANGE, paths = "*.*.*") =>
+        `${at(5)} DEBUG InteractionServer Read « ${session}(tcp)⇵${exchange} fabricFiltered attributes: ${paths} events: none`;
+    const reportData = (bytes: number, session = SESSION, exchange = EXCHANGE) =>
+        `${at(6)} DEBUG MessageChannel Message » for: I/ReportData suppressResponse attr: 838 id: ${session}(tcp)⇵${exchange}✉08e2433e type: 0x1/0x5 size: ${bytes} payload: 1536`;
+
+    async function report(lines: string[]) {
+        return withDut(lines, async cx => [await wildcardReadInOneReportCheck(cx, SESSION, 0)]);
+    }
+
+    it("passes for one report larger than an MRP message may be", async () => {
+        const checks = await report([wildcardRead(), reportData(27432)]);
+
+        expect(checks[0].verdict).equal("pass");
+        expect(checks[0].detail).contains("27432");
+    });
+
+    it("fails for a report an MRP session could have carried", async () => {
+        const checks = await report([wildcardRead(), reportData(1280)]);
+
+        expect(checks[0].verdict).equal("fail");
+    });
+
+    it("fails when the device chunked the report", async () => {
+        const checks = await report([wildcardRead(), reportData(20000), reportData(7432)]);
+
+        expect(checks[0].verdict).equal("fail");
+        expect(checks[0].detail).contains("2 ReportData");
+    });
+
+    it("does not take a report sent on another exchange", async () => {
+        const checks = await report([wildcardRead(), reportData(27432, SESSION, "9201")]);
+
+        expect(checks[0].verdict).equal("fail");
+    });
+
+    it("does not take a report of the same exchange on another session", async () => {
+        const checks = await report([wildcardRead(), reportData(27432, OTHER_SESSION)]);
+
+        expect(checks[0].verdict).equal("fail");
+    });
+
+    it("fails a report line that states no size", async () => {
+        const sizeless = `${at(6)} DEBUG MessageChannel Message » for: I/ReportData suppressResponse attr: 838 id: ${SESSION}(tcp)⇵${EXCHANGE}✉08e2433e type: 0x1/0x5 payload: 1536`;
+        const checks = await report([wildcardRead(), sizeless]);
+
+        expect(checks[0].verdict).equal("fail");
+    });
+
+    it("keeps the evidence short, though the report line carries its whole payload", async () => {
+        const long = `${reportData(27432)}${"ab".repeat(30000)}`;
+        const checks = await report([wildcardRead(), long]);
+
+        expect(checks[0].verdict).equal("pass");
+        expect(checks[0].matched?.length).most(300);
+    });
+
+    it("does not take a read of one attribute for the wildcard read", async () => {
+        const checks = await report([
+            wildcardRead(SESSION, EXCHANGE, "0.basicInformation.state.vendorName"),
+            reportData(27432),
+        ]);
+
+        expect(checks[0].verdict).equal("fail");
+    });
+
+    it("does not take another session's wildcard read", async () => {
+        const checks = await report([wildcardRead(OTHER_SESSION), reportData(27432, OTHER_SESSION)]);
 
         expect(checks[0].verdict).equal("fail");
     });

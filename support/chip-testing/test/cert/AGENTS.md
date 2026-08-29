@@ -2294,9 +2294,9 @@ before activation on the chip flavors.
 **What is not yet written, and why.** `TC-SC-8.2` ("the session allows large payloads") has no witness
 distinct from 8.1's on this stack: nothing logs a session's maximum payload, and a TCP-backed session
 is large-payload-capable by construction, so the two cases would rest on the same line. Its real
-witness is behavioural and belongs to `TC-SC-8.6` — a wildcard read arriving in a single `ReportData`,
-which UDP's ~1232-byte budget could not carry. `TC-SC-8.3`/`8.4` additionally need a way to sever just
-the TCP connection mid-test.
+witness is behavioural, and `TC-SC-8.6` below now carries it — a wildcard read arriving in a single
+`ReportData`, which UDP's ~1232-byte budget could not carry. `TC-SC-8.3`/`8.4` additionally need a way
+to sever just the TCP connection mid-test.
 
 ## An interaction over the TCP session, bound to that session (`TC-SC-8.5`)
 
@@ -2332,3 +2332,31 @@ so a regex regression surfaces without docker and without a chip binary.
 Step 1's expected outcome here is the plan's "the session allows large payloads", which nothing logs —
 a TCP-backed session is large-payload-capable by construction, so this step's evidence is 8.1's and the
 distinct witness belongs to `TC-SC-8.6`, as the note above records for `TC-SC-8.2`.
+
+## The large-payload witness the earlier TCP cases lack (`TC-SC-8.6`)
+
+`TC-SC-8.6` is the case that actually observes a large payload, and it is what `TC-SC-8.2`'s note
+above defers to: step 2 reads every attribute of every cluster and requires the DUT's answer to be a
+**single** `ReportData` too large for an MRP session. Against the matter.js all-clusters device that is
+838 attributes in one report of 27432 payload bytes — twenty times the 1280-byte floor the check uses,
+which is the IPv6 minimum MTU and so conservative, MRP's own budget being smaller (~1232 bytes). The
+size on the line is the encoded message, without its framing, so the wire message is larger still.
+
+Three things the check has to get right, each covered hermetically:
+
+- **The read is identified by its own path, not by the search window.** The pattern requires
+  `attributes: *.*.*` on the session, so a read of one attribute — which commissioning itself performs
+  moments earlier — cannot stand in for it.
+- **The reports are counted, not merely found.** A device that chunked would still log a first report
+  matching any "is there a report" pattern. The check takes every report on the read's own exchange
+  between the request and a settled mark, and requires exactly one.
+- **The size is read off the message, not assumed.** matter.js prints `size: <bytes>` on the message
+  line, and anything at or below the floor — or a line stating no size at all — fails.
+
+The first report is waited for, and only then is the buffer settled and the rest counted. Settling
+alone bounds the follower's pump lag, not the device: a chunking device emits its remaining chunks
+immediately after the first, so waiting for one report is what makes counting them trustworthy.
+
+The evidence keeps only the first 300 characters of the matched line. matter.js renders a message's
+whole payload as hex, so an unbounded `matched` would put ~55 000 characters of one report into the
+evidence bundle.

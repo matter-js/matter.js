@@ -247,6 +247,97 @@ export async function recordTcpInvoke(
     record(cx, await tcpInvokeCheck(cx, session, endpoint, cluster, command, from), what);
 }
 
+/**
+ * Above this, a report cannot have crossed an MRP session: 1280 bytes is the IPv6 minimum MTU, and
+ * MRP's own payload budget is smaller still (~1232 bytes once the headers are counted), so a payload
+ * larger than this is conservative evidence of a large-payload session either way.
+ *
+ * @see {@link MatterSpecification.v141.Core} § 4.4.4
+ */
+const LARGE_PAYLOAD_FLOOR = 1280;
+
+/** The payload size matter.js prints on a message line — the encoded message, without its framing. */
+const REPORT_SIZE = /\bsize: (\d+)\b/;
+
+/** How much of a matched line the evidence keeps; a wildcard read's report line carries its whole payload in hex. */
+const EVIDENCE_LIMIT = 300;
+
+/**
+ * Confirms the DUT answered the wildcard read that arrived on `session` with a **single**
+ * `ReportData` too large for an MRP session to have carried — the behaviour a large-payload session
+ * exists for, and the only witness of it this stack produces: nothing logs a session's maximum
+ * payload, while a report that both exceeds {@link LARGE_PAYLOAD_FLOOR} and was never chunked could
+ * not have crossed one.
+ */
+export async function wildcardReadInOneReportCheck(
+    cx: CertStepContext,
+    session: string,
+    from: number,
+): Promise<CheckRecord> {
+    const dut = cx.devices.dut;
+    const onSession = `${literally(session)}\\(tcp\\)`;
+
+    const request = await expectSequence(
+        dut.log,
+        dut.flavor,
+        `a read of every attribute on ${session}`,
+        // The path is what tells this read from any other on the session — commissioning performs a
+        // single-attribute read moments earlier
+        { matterjs: [new RegExp(`InteractionServer Read « ${onSession}⇵[0-9a-f]+ .*attributes: \\*\\.\\*\\.\\*`)] },
+        from,
+        LOG_TIMEOUT,
+    );
+    if (request.verdict !== "pass" || request.matched === undefined || request.logLine === undefined) {
+        return request;
+    }
+
+    const exchange = EXCHANGE.exec(request.matched)?.[1];
+    if (exchange === undefined) {
+        return {
+            type: "device-log",
+            verdict: "fail",
+            pattern: EXCHANGE.source,
+            detail: `the DUT's read line names no exchange: ${request.matched}`,
+            logLine: request.logLine,
+        };
+    }
+
+    const report = new RegExp(`Message » for: I/ReportData .*\\bid: ${onSession}⇵${exchange}✉`);
+    const first = await expectSequence(
+        dut.log,
+        dut.flavor,
+        `a ReportData answering the read on exchange ${exchange}`,
+        { matterjs: [report] },
+        request.logLine + 1,
+        LOG_TIMEOUT,
+    );
+    if (first.verdict !== "pass") {
+        return first;
+    }
+
+    // Waiting for the first report is what makes the count trustworthy: a device that chunks emits
+    // the rest immediately after it, and settling only bounds the pump's own lag
+    await dut.log.settled();
+    const lines = dut.log.lines;
+    const reports = lines.slice(request.logLine + 1).filter(line => !line.synthetic && report.test(line.text));
+
+    const sizes = reports.map(line => Number(REPORT_SIZE.exec(line.text)?.[1] ?? Number.NaN));
+    const single = reports.length === 1 && sizes[0] > LARGE_PAYLOAD_FLOOR;
+    return {
+        type: "device-log",
+        verdict: single ? "pass" : "fail",
+        pattern: report.source,
+        detail: `${reports.length} ReportData on exchange ${exchange}, of ${sizes.join(", ") || "no"} bytes`,
+        matched: reports[0]?.text.slice(0, EVIDENCE_LIMIT),
+        logLine: reports[0]?.index,
+    };
+}
+
+/** {@link wildcardReadInOneReportCheck}, recorded as the step's evidence. */
+export async function recordWildcardReadInOneReport(cx: CertStepContext, session: string, from: number, what: string) {
+    record(cx, await wildcardReadInOneReportCheck(cx, session, from), what);
+}
+
 /** Where a TCP case keeps the session its first step established, for the steps that follow. */
 export class TcpSessionRef {
     #tag?: string;
