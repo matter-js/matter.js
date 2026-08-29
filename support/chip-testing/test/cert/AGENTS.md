@@ -2345,8 +2345,8 @@ size on the line is the encoded message, without its framing, so the wire messag
 Three things the check has to get right, each covered hermetically:
 
 - **The read is identified by its own path, not by the search window.** The pattern requires
-  `attributes: *.*.*` on the session, so a read of one attribute — which commissioning itself performs
-  moments earlier — cannot stand in for it.
+  `attributes: *.*.*` on the session, so a read of one attribute — which step 1 performs moments
+  earlier, to exercise the session it established — cannot stand in for it.
 - **The reports are counted, not merely found.** A device that chunked would still log a first report
   matching any "is there a report" pattern. The check takes every report on the read's own exchange
   between the request and a settled mark, and requires exactly one.
@@ -2360,3 +2360,25 @@ immediately after the first, so waiting for one report is what makes counting th
 The evidence keeps only the first 300 characters of the matched line. matter.js renders a message's
 whole payload as hex, so an unbounded `matched` would put ~55 000 characters of one report into the
 evidence bundle.
+
+## An interaction that could have gone either way, on the session that exists (`TC-SC-8.7`)
+
+`TC-SC-8.7` asks for something the two cases before it do not: a **regularly sized** interaction, one
+neither transport is required for, that nonetheless travels on the TCP session already established
+rather than causing a new one. The controller is therefore asked for nothing special — an ordinary
+invoke, no large payload — and the step's evidence is what distinguishes the case:
+
+- **The request is one MRP could have carried.** `regularSizedRequestCheck` reads the size off the
+  DUT's own `I/InvokeRequest` message line and requires it at or below the same floor `TC-SC-8.6`
+  requires its report to exceed. A payload only TCP could carry would prove the opposite of this case.
+- **The answer came back on step 1's session**, through the same exchange-correlated check `TC-SC-8.5`
+  uses.
+- **No further session was established.** `noFurtherSessionCheck` scans the window for any
+  `CaseServer … Pairing request` — over *any* transport, since the failure this guards against is the
+  controller quietly opening an MRP session for a small interaction. Without it, every other check
+  here is equally satisfied by a run that made a second session and used it.
+
+Nothing in the controller expresses "either transport is usable" as a request flag: matter.js's
+`transportPreference` is set once, for the session, and the protocol layer's hard `requiredTransport`
+lever is not surfaced. So the plan's step text describes what an ordinary invoke already is on this
+stack, and the case's substance lives entirely in the three checks above.

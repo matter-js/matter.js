@@ -7,8 +7,10 @@
 import type { CertDevice, CertStepContext, CheckRecord, Subject } from "@matter/testing";
 import { LineQueue, LogFollower, PicsFile } from "@matter/testing";
 import {
+    noFurtherSessionCheck,
     recordTcpInvoke,
     recordTcpSession,
+    regularSizedRequestCheck,
     wildcardReadInOneReportCheck,
     TcpSessionRef,
 } from "../cert/tc-sc-8-support.js";
@@ -283,6 +285,57 @@ describe("wildcardReadInOneReportCheck", () => {
         const checks = await report([wildcardRead(OTHER_SESSION), reportData(27432, OTHER_SESSION)]);
 
         expect(checks[0].verdict).equal("fail");
+    });
+});
+
+describe("regularSizedRequestCheck", () => {
+    const invokeMessage = (bytes: number | undefined, session = SESSION) =>
+        `${at(2)} DEBUG MessageExchange Message « for: I/InvokeRequest id: ${session}(tcp)⇵${INVOKE_EXCHANGE}✉0ca20aa0 type: 0x1/0x8${bytes === undefined ? "" : ` size: ${bytes}`} payload: 1528`;
+
+    async function sized(lines: string[]) {
+        return withDut(lines, async cx => regularSizedRequestCheck(cx, SESSION, 0));
+    }
+
+    it("passes for a request an MRP session could equally have carried", async () => {
+        const check = await sized([invokeMessage(29)]);
+
+        expect(check.verdict).equal("pass");
+        expect(check.detail).contains("29 bytes");
+    });
+
+    it("fails for a request no MRP session could have carried", async () => {
+        expect((await sized([invokeMessage(5000)])).verdict).equal("fail");
+    });
+
+    it("fails for a request line stating no size", async () => {
+        expect((await sized([invokeMessage(undefined)])).verdict).equal("fail");
+    });
+
+    it("does not take another session's request", async () => {
+        expect((await sized([invokeMessage(29, OTHER_SESSION)])).verdict).equal("fail");
+    });
+});
+
+describe("noFurtherSessionCheck", () => {
+    const unrelated = `${at(2)} DEBUG MessageExchange New exchange « ${SESSION}(tcp)⇵2c57 protocol: 1`;
+
+    it("passes when the DUT accepted no further connection", async () => {
+        const check = await withDut([unrelated], async cx => noFurtherSessionCheck(cx, 0));
+
+        expect(check.verdict).equal("pass");
+    });
+
+    it("fails when a second session was established while the interaction ran", async () => {
+        const check = await withDut([unrelated, pairingRequest()], async cx => noFurtherSessionCheck(cx, 0));
+
+        expect(check.verdict).equal("fail");
+        expect(check.detail).contains("1 further pairing");
+    });
+
+    it("ignores a pairing request that preceded the window", async () => {
+        const check = await withDut([pairingRequest(), unrelated], async cx => noFurtherSessionCheck(cx, 1));
+
+        expect(check.verdict).equal("pass");
     });
 });
 

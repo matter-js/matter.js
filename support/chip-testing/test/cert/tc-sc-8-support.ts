@@ -252,7 +252,7 @@ export async function recordTcpInvoke(
  * MRP's own payload budget is smaller still (~1232 bytes once the headers are counted), so a payload
  * larger than this is conservative evidence of a large-payload session either way.
  *
- * @see {@link MatterSpecification.v141.Core} § 4.4.4
+ * @see {@link MatterSpecification.v16.Core} § 4.4.4
  */
 const LARGE_PAYLOAD_FLOOR = 1280;
 
@@ -281,8 +281,8 @@ export async function wildcardReadInOneReportCheck(
         dut.log,
         dut.flavor,
         `a read of every attribute on ${session}`,
-        // The path is what tells this read from any other on the session — commissioning performs a
-        // single-attribute read moments earlier
+        // The path is what tells this read from any other on the session — step 1 reads a single
+        // attribute moments earlier
         { matterjs: [new RegExp(`InteractionServer Read « ${onSession}⇵[0-9a-f]+ .*attributes: \\*\\.\\*\\.\\*`)] },
         from,
         LOG_TIMEOUT,
@@ -337,6 +337,71 @@ export async function wildcardReadInOneReportCheck(
 export async function recordWildcardReadInOneReport(cx: CertStepContext, session: string, from: number, what: string) {
     record(cx, await wildcardReadInOneReportCheck(cx, session, from), what);
 }
+
+/**
+ * Confirms the request the TH sent on `session` was one an MRP session could equally have carried:
+ * the case this belongs to is about a *regularly sized* interaction choosing the TCP session that
+ * already exists, so a payload only TCP could carry would prove the wrong thing.
+ */
+export async function regularSizedRequestCheck(
+    cx: CertStepContext,
+    session: string,
+    from: number,
+): Promise<CheckRecord> {
+    const dut = cx.devices.dut;
+    const request = await expectSequence(
+        dut.log,
+        dut.flavor,
+        `an InvokeRequest received on ${session}`,
+        {
+            matterjs: [new RegExp(`Message « for: I/InvokeRequest .*\\bid: ${literally(session)}\\(tcp\\)⇵[0-9a-f]+✉`)],
+        },
+        from,
+        LOG_TIMEOUT,
+    );
+    if (request.verdict !== "pass" || request.matched === undefined) {
+        return request;
+    }
+
+    const size = Number(REPORT_SIZE.exec(request.matched)?.[1] ?? Number.NaN);
+    return {
+        type: "device-log",
+        verdict: size > 0 && size <= LARGE_PAYLOAD_FLOOR ? "pass" : "fail",
+        pattern: request.pattern,
+        detail: `the InvokeRequest carried ${size} bytes, which MRP could have carried too`,
+        matched: request.matched.slice(0, EVIDENCE_LIMIT),
+        logLine: request.logLine,
+    };
+}
+
+/**
+ * Confirms the DUT accepted no further connection or session while `from` was open: the case this
+ * belongs to claims the interaction reused the session already established, and an interaction that
+ * caused a second one would satisfy every other check just as well.
+ */
+export async function noFurtherSessionCheck(cx: CertStepContext, from: number): Promise<CheckRecord> {
+    const dut = cx.devices.dut;
+    if (dut.flavor !== "matterjs") {
+        return { type: "device-log", verdict: "unverified" };
+    }
+
+    await dut.log.settled();
+    const opened = dut.log.lines.slice(from).filter(line => !line.synthetic && FURTHER_SESSION.test(line.text));
+
+    return {
+        type: "device-log",
+        verdict: opened.length ? "fail" : "pass",
+        pattern: FURTHER_SESSION.source,
+        detail: opened.length
+            ? `the DUT accepted ${opened.length} further pairing request(s) while the interaction ran`
+            : "the DUT accepted no further pairing request while the interaction ran",
+        matched: opened[0]?.text.slice(0, EVIDENCE_LIMIT),
+        logLine: opened[0]?.index,
+    };
+}
+
+/** A CASE session establishment beginning, over any transport. */
+const FURTHER_SESSION = /CaseServer .*Pairing request «/;
 
 /** Where a TCP case keeps the session its first step established, for the steps that follow. */
 export class TcpSessionRef {
