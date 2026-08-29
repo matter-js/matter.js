@@ -673,6 +673,21 @@ describe("ControllerAdapter registry", () => {
         }
     });
 
+    it("declares the group-administration client commands TC-SC-6.1 sends", () => {
+        // ViewGroup is 0 in the device file; the two GroupKeyManagement keys are absent from it
+        // entirely, and an absent key evaluates false, so either omission skips a step silently.
+        const keys = ["G.C.C01.Tx", "GRPKEY.C.C03.Tx", "GRPKEY.C.C04.Tx"];
+        const asDevice = new PicsFile(["G.C.C01.Tx=0"]);
+
+        for (const implementation of ["matterjs", "chip-tool"] as const) {
+            const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
+
+            for (const key of keys) {
+                expect(new PicsExpression(key).evaluate(forRun), `${implementation} ${key}`).equal(true);
+            }
+        }
+    });
+
     it("declares the client-side capabilities the device's own PICS file answers for a device", () => {
         // Every command TC-ACT-3.2 gates a step on, since a declaration missing from the middle of the
         // range skips that step as quietly as one missing from either end.
