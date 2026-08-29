@@ -281,12 +281,15 @@ export namespace DeviceAttestationValidator {
                 );
             }
 
+            // Reading the key inside the try below would relabel its failure as a chain failure
+            const paiPublicKey = parsePeerValue(
+                DeviceAttestationCheck.CertificateUnparseable,
+                "Device returned a PAI whose public key cannot be read",
+                () => PublicKey(pai.cert.ellipticCurvePublicKey),
+            );
+
             try {
-                await crypto.verifyEcdsa(
-                    PublicKey(pai.cert.ellipticCurvePublicKey),
-                    dac.asUnsignedDer(),
-                    dac.signature,
-                );
+                await crypto.verifyEcdsa(paiPublicKey, dac.asUnsignedDer(), dac.signature);
             } catch (error) {
                 throw new DeviceAttestationError(
                     DeviceAttestationCheck.CertificateChainInvalid,

@@ -5,7 +5,11 @@
  */
 
 import { AttestationCertificateManager } from "#certificate/AttestationCertificateManager.js";
-import { TestCert_PAA_NoVID_Cert } from "#certificate/ChipPAAuthorities.js";
+import {
+    TestCert_PAA_NoVID_Cert,
+    TestCert_PAA_NoVID_PrivateKey,
+    TestCert_PAA_NoVID_PublicKey,
+} from "#certificate/ChipPAAuthorities.js";
 import {
     DeviceAttestationCheck,
     DeviceAttestationError,
@@ -195,6 +199,45 @@ describe("DeviceAttestationValidator", () => {
             await expect(
                 DeviceAttestationValidator.validate(buildContext(dclService), buildData({ dac: brokenKeyDac })),
             ).to.be.rejectedWith(DeviceAttestationError, /DAC whose public key cannot be read/);
+        });
+
+        it("throws CertificateUnparseable when the PAI is signed but its public key is unreadable", async () => {
+            const dclService = await setupDclService();
+
+            // The PAA must vouch for the broken key, or PAI signature verification rejects it first
+            const source = Pai.fromAsn1(paiDer).cert;
+            const brokenKey = Bytes.of(source.ellipticCurvePublicKey).slice();
+            brokenKey[0] = 0x05;
+            const brokenPai = new Pai({
+                serialNumber: source.serialNumber,
+                signatureAlgorithm: source.signatureAlgorithm,
+                publicKeyAlgorithm: source.publicKeyAlgorithm,
+                ellipticCurveIdentifier: source.ellipticCurveIdentifier,
+                issuer: source.issuer,
+                notBefore: source.notBefore,
+                notAfter: source.notAfter,
+                subject: source.subject,
+                ellipticCurvePublicKey: brokenKey,
+                extensions: source.extensions,
+            });
+            await brokenPai.sign(
+                crypto,
+                PrivateKey(TestCert_PAA_NoVID_PrivateKey, { publicKey: TestCert_PAA_NoVID_PublicKey }),
+            );
+
+            let error: DeviceAttestationError | undefined;
+            try {
+                await DeviceAttestationValidator.validate(
+                    buildContext(dclService),
+                    buildData({ pai: brokenPai.asSignedDer() }),
+                );
+            } catch (caught) {
+                error = caught as DeviceAttestationError;
+            }
+
+            // The check must survive: reading the key inside the verification try relabels it CertificateChainInvalid
+            expect(error?.failure).equal(DeviceAttestationCheck.CertificateUnparseable);
+            expect(error!.message).match(/PAI whose public key cannot be read/);
         });
 
         it("throws CertificateUnparseable when the device returns a truncated PAI", async () => {
