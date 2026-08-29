@@ -5,7 +5,7 @@
  */
 
 import { Endian } from "#util/Bytes.js";
-import { DataReader } from "#util/DataReader.js";
+import { DataReader, DataReadError } from "#util/DataReader.js";
 
 describe("DataReader", () => {
     describe("constructor", () => {
@@ -357,7 +357,7 @@ describe("DataReader", () => {
 
             expect(() => {
                 reader.offset = 5;
-            }).throws(Error, "Offset 5 is out of bounds");
+            }).throws(DataReadError, "Offset 5 is out of bounds");
         });
 
         it("allows setting to buffer length", () => {
@@ -374,8 +374,74 @@ describe("DataReader", () => {
             const buffer = new Uint8Array([0x12, 0x34]);
             const reader = new DataReader(buffer);
 
-            // Reading past end throws an error
-            expect(() => reader.readUInt32()).throws();
+            expect(() => reader.readUInt32()).throws(
+                DataReadError,
+                "Read of 4 bytes at offset 0 exceeds the 2 byte buffer",
+            );
+        });
+
+        it("throws when a byte array read passes the end", () => {
+            const buffer = new Uint8Array([0x12, 0x34]);
+            const reader = new DataReader(buffer);
+
+            expect(() => reader.readByteArray(3)).throws(
+                DataReadError,
+                "Read of 3 bytes at offset 0 exceeds the 2 byte buffer",
+            );
+        });
+
+        it("throws when a string read passes the end", () => {
+            const buffer = new Uint8Array([0x41, 0x42]);
+            const reader = new DataReader(buffer);
+
+            expect(() => reader.readUtf8String(5)).throws(
+                DataReadError,
+                "Read of 5 bytes at offset 0 exceeds the 2 byte buffer",
+            );
+        });
+
+        it("throws when reading from an empty buffer", () => {
+            const reader = new DataReader(new Uint8Array(0));
+
+            expect(() => reader.readUInt8()).throws(
+                DataReadError,
+                "Read of 1 bytes at offset 0 exceeds the 0 byte buffer",
+            );
+        });
+
+        it("rejects a negative read size", () => {
+            const reader = new DataReader(new Uint8Array([0x12, 0x34]));
+
+            expect(() => reader.readByteArray(-1)).throws(
+                DataReadError,
+                "Read size -1 must be zero or more whole bytes",
+            );
+            expect(reader.offset).equal(0);
+        });
+
+        it("rejects a negative offset", () => {
+            const reader = new DataReader(new Uint8Array([0x12, 0x34]));
+
+            expect(() => {
+                reader.offset = -1;
+            }).throws(DataReadError, "Offset -1 is out of bounds");
+        });
+
+        it("leaves the offset untouched when a read fails", () => {
+            const reader = new DataReader(new Uint8Array([0x12, 0x34]));
+
+            reader.readUInt8();
+            expect(() => reader.readUInt32()).throws(DataReadError);
+            expect(reader.offset).equal(1);
+            expect(reader.remainingBytesCount).equal(1);
+        });
+
+        it("reads exactly to the end", () => {
+            const buffer = new Uint8Array([0x12, 0x34]);
+            const reader = new DataReader(buffer);
+
+            expect(reader.readByteArray(2)).deep.equal(buffer);
+            expect(reader.remainingBytesCount).equal(0);
         });
 
         it("handles reading from empty buffer", () => {

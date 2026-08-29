@@ -5,7 +5,11 @@
  */
 
 import { AttestationCertificateManager } from "#certificate/AttestationCertificateManager.js";
-import { TestCert_PAA_NoVID_Cert } from "#certificate/ChipPAAuthorities.js";
+import {
+    TestCert_PAA_NoVID_Cert,
+    TestCert_PAA_NoVID_PrivateKey,
+    TestCert_PAA_NoVID_PublicKey,
+} from "#certificate/ChipPAAuthorities.js";
 import {
     DeviceAttestationCheck,
     DeviceAttestationError,
@@ -164,6 +168,117 @@ describe("DeviceAttestationValidator", () => {
 
             // Should not throw
             await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
+        });
+    });
+
+    describe("malformed peer certificates", () => {
+        it("throws CertificateUnparseable when the device returns an empty PAI", async () => {
+            const dclService = await setupDclService();
+
+            await expect(
+                DeviceAttestationValidator.validate(buildContext(dclService), buildData({ pai: new Uint8Array(0) })),
+            ).to.be.rejectedWith(DeviceAttestationError, /Device returned an empty PAI certificate/);
+        });
+
+        it("throws CertificateUnparseable when the device returns an empty DAC", async () => {
+            const dclService = await setupDclService();
+
+            await expect(
+                DeviceAttestationValidator.validate(buildContext(dclService), buildData({ dac: new Uint8Array(0) })),
+            ).to.be.rejectedWith(DeviceAttestationError, /Device returned an empty DAC certificate/);
+        });
+
+        it("throws CertificateUnparseable when the DAC parses but its public key does not", async () => {
+            const dclService = await setupDclService();
+
+            // Flip the uncompressed-point marker of the DAC's public key, leaving every DER length intact
+            const brokenKeyDac = Bytes.of(dacDer).slice();
+            const marker = Bytes.toHex(brokenKeyDac).indexOf("03420004") / 2 + 3;
+            brokenKeyDac[marker] = 0x05;
+
+            await expect(
+                DeviceAttestationValidator.validate(buildContext(dclService), buildData({ dac: brokenKeyDac })),
+            ).to.be.rejectedWith(DeviceAttestationError, /DAC whose public key cannot be read/);
+        });
+
+        it("throws CertificateUnparseable when the PAI is signed but its public key is unreadable", async () => {
+            const dclService = await setupDclService();
+
+            // The PAA must vouch for the broken key, or PAI signature verification rejects it first
+            const source = Pai.fromAsn1(paiDer).cert;
+            const brokenKey = Bytes.of(source.ellipticCurvePublicKey).slice();
+            brokenKey[0] = 0x05;
+            const brokenPai = new Pai({
+                serialNumber: source.serialNumber,
+                signatureAlgorithm: source.signatureAlgorithm,
+                publicKeyAlgorithm: source.publicKeyAlgorithm,
+                ellipticCurveIdentifier: source.ellipticCurveIdentifier,
+                issuer: source.issuer,
+                notBefore: source.notBefore,
+                notAfter: source.notAfter,
+                subject: source.subject,
+                ellipticCurvePublicKey: brokenKey,
+                extensions: source.extensions,
+            });
+            await brokenPai.sign(
+                crypto,
+                PrivateKey(TestCert_PAA_NoVID_PrivateKey, { publicKey: TestCert_PAA_NoVID_PublicKey }),
+            );
+
+            let error: DeviceAttestationError | undefined;
+            try {
+                await DeviceAttestationValidator.validate(
+                    buildContext(dclService),
+                    buildData({ pai: brokenPai.asSignedDer() }),
+                );
+            } catch (caught) {
+                error = caught as DeviceAttestationError;
+            }
+
+            // The check must survive: reading the key inside the verification try relabels it CertificateChainInvalid
+            expect(error?.failure).equal(DeviceAttestationCheck.CertificateUnparseable);
+            expect(error!.message).match(/PAI whose public key cannot be read/);
+        });
+
+        it("throws CertificateUnparseable when the device returns a truncated PAI", async () => {
+            const dclService = await setupDclService();
+
+            const truncatedPai = Bytes.of(paiDer).slice(0, 20);
+
+            let error: DeviceAttestationError | undefined;
+            try {
+                await DeviceAttestationValidator.validate(buildContext(dclService), buildData({ pai: truncatedPai }));
+            } catch (caught) {
+                error = caught as DeviceAttestationError;
+            }
+
+            expect(error).instanceOf(DeviceAttestationError);
+            expect(error!.failure).equal(DeviceAttestationCheck.CertificateUnparseable);
+            expect(error!.message).match(/PAI certificate that cannot be parsed/);
+        });
+    });
+
+    describe("malformed attestation elements", () => {
+        it("throws AttestationElementsUnparseable when the elements are not valid TLV", async () => {
+            const dclService = await setupDclService();
+
+            await expect(
+                DeviceAttestationValidator.validate(
+                    buildContext(dclService),
+                    buildData({ attestationElements: Bytes.fromHex("15300102") }),
+                ),
+            ).to.be.rejectedWith(DeviceAttestationError, /attestation elements that cannot be decoded/);
+        });
+
+        it("throws CertificationDeclarationUnparseable when the CD field holds something else", async () => {
+            const dclService = await setupDclService();
+
+            // A device that answers with a leaked buffer in place of the Certification Declaration
+            const attestation = await buildAttestationWithCd(Bytes.fromHex("6c6f63616c686f73743a3131333131"));
+
+            await expect(
+                DeviceAttestationValidator.validate(buildContext(dclService), buildData(attestation)),
+            ).to.be.rejectedWith(DeviceAttestationError, /Certification Declaration that cannot be parsed/);
         });
     });
 
