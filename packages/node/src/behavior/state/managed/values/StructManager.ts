@@ -229,7 +229,16 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 value = Internal.unmanage(value);
 
                 // Modify the value
-                if (isFabricScopedList && Array.isArray(value) && Array.isArray(previousValue)) {
+                if (isFabricScopedList && Array.isArray(value)) {
+                    // The merge must run through the proxy even for an absent member; it is what filters by fabric
+                    // and supplies the accessing fabric
+                    if (previousValue === undefined) {
+                        target[key] = [];
+                        if (storedKey !== undefined && storedKey !== key) {
+                            delete target[storedKey];
+                        }
+                    }
+
                     // In the case of fabric-scoped write to established list we use the managed proxy to perform update
                     // as it will sort through values and only modify those with correct fabricIndex
                     const proxy = self[memberKeyFor(pk, name, id)] as Val.List;

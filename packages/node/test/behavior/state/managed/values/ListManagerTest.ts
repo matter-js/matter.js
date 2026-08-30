@@ -6,6 +6,7 @@
 
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { MaybePromise } from "@matter/general";
+import { Val } from "@matter/protocol";
 import { FabricIndex, NodeId } from "@matter/types";
 import { MockExchange } from "../../../../node/mock-exchange.js";
 import { TestStruct, aclEndpoint, listOf, structOf } from "./value-utils.js";
@@ -20,6 +21,39 @@ export interface TwoLists {
     list2: ValueList;
     subList1: ValueSubList;
     subList2: ValueSubList;
+}
+
+/**
+ * A fabric-scoped list whose entry spells its index with the FabricIndex seed field, which states mandatory
+ * conformance.  The manager supplies the index, so a caller that omits it must still be accepted.
+ */
+export async function testMandatoryFabricIndex(
+    actor: (list: ValueList, ref: Val.Struct) => MaybePromise,
+    defaults: Val.Struct = { list: [] },
+) {
+    const struct = TestStruct(
+        {
+            list: listOf(
+                structOf({
+                    fabricIndex: "FabricIndex",
+                    value: "uint8",
+                }),
+                { access: "F" },
+            ),
+        },
+        defaults,
+    );
+
+    const cx = {
+        fabricFiltered: true,
+        exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
+        node: aclEndpoint(),
+    };
+
+    return struct.online2(cx, cx, async ({ cx1, ref1 }) => {
+        await actor(ref1.list as ValueList, ref1);
+        await cx1.transaction.commit();
+    });
 }
 
 export async function testFabricScoped(actor: (struct: TestStruct, lists: TwoLists) => MaybePromise) {
@@ -433,6 +467,41 @@ describe("ListManager", () => {
                 { fabricIndex: 1, value: 5 },
                 { fabricIndex: 1, value: 7 },
             ]);
+        });
+    });
+
+    describe("entry with mandatory fabricIndex", () => {
+        it("accepts an entry assigned by index", async () => {
+            await testMandatoryFabricIndex(list => {
+                list[0] = { value: 1 };
+            });
+        });
+
+        it("accepts an entry appended with push", async () => {
+            await testMandatoryFabricIndex(list => {
+                list.push({ value: 2 });
+            });
+        });
+
+        it("accepts a whole list assigned over an existing one", async () => {
+            await testMandatoryFabricIndex((list, ref) => {
+                list[0] = { value: 1 };
+                ref.list = [{ value: 2 }, { value: 3 }];
+            });
+        });
+
+        it("accepts a whole list assigned to a member that had none", async () => {
+            await testMandatoryFabricIndex((_list, ref) => {
+                ref.list = [{ value: 4 }];
+                expect(ref.list).deep.equals([{ fabricIndex: 1, value: 4 }]);
+            }, {});
+        });
+
+        it("supplies the accessing fabric for an entry that omits it", async () => {
+            await testMandatoryFabricIndex(list => {
+                list[0] = { value: 3 };
+                expect(list[0]).deep.equals({ fabricIndex: 1, value: 3 });
+            });
         });
     });
 });
