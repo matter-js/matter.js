@@ -39,7 +39,7 @@ import type {
     SubscribeOptions,
     TimedInteractionOptions,
 } from "@matter/testing";
-import type { PicsValues } from "@matter/testing";
+import type { ControllerAdapterOptions, ControllerTransport, PicsValues } from "@matter/testing";
 import { LineQueue, LogFollower, UnsupportedByControllerError } from "@matter/testing";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -87,6 +87,33 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     "ACT.C.C09.Tx": 1,
     "ACT.C.C0a.Tx": 1,
     "ACT.C.C0b.Tx": 1,
+
+    // The Groups client commands this run's DUT sends, its preconditions' AddGroup included. The CHIP
+    // PICS file answers 0 for these because it describes a device, which is not a Groups client; here
+    // the client is the controller.
+    "G.C.C00.Tx": 1,
+    "G.C.C02.Tx": 1,
+    "G.C.C03.Tx": 1,
+    "G.C.C04.Tx": 1,
+    "G.C.C05.Tx": 1,
+
+    // Every ScenesManagement client command TC-S-3.1 sends. The CHIP PICS file answers 0 for the
+    // cluster and each command because it describes a device, which is not a scenes client.
+    "S.C": 1,
+    "S.C.C00.Tx": 1,
+    "S.C.C01.Tx": 1,
+    "S.C.C02.Tx": 1,
+    "S.C.C03.Tx": 1,
+    "S.C.C04.Tx": 1,
+    "S.C.C05.Tx": 1,
+    "S.C.C06.Tx": 1,
+    "S.C.C40.Tx": 1,
+
+    // GroupKeyManagement and Groups client commands TC-SC-6.1 sends beyond what the device file already
+    // answers 1 for. The file describes a device, which is neither a group-key nor a groups client.
+    "G.C.C01.Tx": 1,
+    "GRPKEY.C.C03.Tx": 1,
+    "GRPKEY.C.C04.Tx": 1,
 };
 
 const WILDCARD_CLUSTER = 0xffffffff;
@@ -146,6 +173,16 @@ function quoteArg(value: string) {
         return value;
     }
     return `'${value.replace(/[\\']/g, match => `\\${match}`)}'`;
+}
+
+/**
+ * chip-tool decides a session's transport when it establishes one, so every interaction a test might
+ * begin with carries this: `--allow-large-payload 1` asks for a TCP-backed session, which chip-tool
+ * can only get where the peer advertises a TCP server (`OperationalSessionSetup`). The flag lives on
+ * chip-tool's shared model-command base, so read, write, invoke, event read and subscribe all take it.
+ */
+function largePayloadArg(transport?: ControllerTransport) {
+    return transport === "tcp" ? " --allow-large-payload 1" : "";
 }
 
 /** chip-tool's own name for the timed-interaction timeout, on `command-by-id` and `write-by-id` alike. */
@@ -741,7 +778,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
 
         const reply = await this.#adapter.execute(
             `any command-by-id ${hex(clusterId)} ${hex(commandModel.id)} ${quoteArg(fields)} ` +
-                `${this.#node} ${endpoint}${timedArg(options)}`,
+                `${this.#node} ${endpoint}${timedArg(options)}${largePayloadArg(this.#adapter.transport)}`,
         );
 
         const operation = `invoke ${clusterModel.name}.${commandModel.name}`;
@@ -948,7 +985,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
         // chip-tool zips its cluster/event/endpoint id lists element-wise, as it does for attributes
         let command =
             `any read-event-by-id ${paths.map(eventClusterArg).join(",")} ${paths.map(eventArg).join(",")} ` +
-            `${this.#node} ${paths.map(eventEndpointArg).join(",")}`;
+            `${this.#node} ${paths.map(eventEndpointArg).join(",")}${largePayloadArg(this.#adapter.transport)}`;
         if (options?.fabricFiltered === false) {
             command += " --fabric-filtered false";
         }
@@ -1041,7 +1078,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
         // (`InteractionModelConfig::GetAttributePaths`), so equal-length lists express any path set.
         let command =
             `any read-by-id ${paths.map(clusterArg).join(",")} ${paths.map(attributeArg).join(",")} ` +
-            `${this.#node} ${paths.map(endpointArg).join(",")}`;
+            `${this.#node} ${paths.map(endpointArg).join(",")}${largePayloadArg(this.#adapter.transport)}`;
         if (options?.fabricFiltered === false) {
             command += " --fabric-filtered false";
         }
@@ -1075,6 +1112,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
             command += ` --data-version ${versions.join(",")}`;
         }
         command += timedArg(options);
+        command += largePayloadArg(this.#adapter.transport);
 
         return this.#adapter.execute(command, { attributes: entries.map(({ path }) => path) });
     }
@@ -1130,6 +1168,7 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
     readonly #subscriptions = new Array<LiveSubscription>();
     readonly #eventSubscriptions = new Array<LiveEventSubscription>();
     readonly #commissionerName: ChipToolCommissionerName;
+    readonly #transport?: ControllerTransport;
     #storageDirectory?: string;
     #client?: ChipToolClient;
     #nextNodeId = FIRST_NODE_ID;
@@ -1137,7 +1176,7 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
     readonly #globalFabricIds = new Map<string, Promise<GlobalFabricId>>();
     #closed = false;
 
-    constructor(id: string) {
+    constructor(id: string, options?: ControllerAdapterOptions) {
         const commissionerName = COMMISSIONER_NAMES.find(name => !claimedCommissioners.has(name));
         if (commissionerName === undefined) {
             throw new InternalError(
@@ -1149,9 +1188,19 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
         }
 
         this.id = id;
+        this.#transport = options?.transport;
         this.#commissionerName = commissionerName;
         claimedCommissioners.set(commissionerName, this);
         this.log = new LogFollower(this.#logStream.follow(), id);
+    }
+
+    /**
+     * The transport this adapter's test *asked* for, which each model command states per invocation.
+     * Not what the sessions do: chip-tool keeps using the session commissioning established, so this
+     * reads `"tcp"` while the interactions still travel over that UDP session.
+     */
+    get transport() {
+        return this.#transport;
     }
 
     /** The commissioner identity this adapter's chip-tool process was launched with. */
@@ -1313,7 +1362,7 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
         const reply = await this.execute(
             `any subscribe-by-id ${clusterArg(path)} ${attributeArg(path)} ` +
                 `${opts.minIntervalFloorSeconds} ${opts.maxIntervalCeilingSeconds} ${node} ` +
-                `${endpointArg(path)} --keepSubscriptions true`,
+                `${endpointArg(path)} --keepSubscriptions true${largePayloadArg(this.#transport)}`,
             { attributes: [path] },
         );
         assertNoFailure(reply, `subscribe ${JSON.stringify(path)}`);
@@ -1346,7 +1395,7 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
         let command =
             `any subscribe-event-by-id ${paths.map(eventClusterArg).join(",")} ${paths.map(eventArg).join(",")} ` +
             `${opts.minIntervalFloorSeconds} ${opts.maxIntervalCeilingSeconds} ${node} ` +
-            `${paths.map(eventEndpointArg).join(",")} --keepSubscriptions true`;
+            `${paths.map(eventEndpointArg).join(",")} --keepSubscriptions true${largePayloadArg(this.#transport)}`;
         if (opts.fabricFiltered === false) {
             command += " --fabric-filtered false";
         }

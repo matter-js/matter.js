@@ -29,6 +29,7 @@ import {
 } from "./cert-context.js";
 import { CertTest, registerCertTestFactory } from "./cert-test.js";
 import { chipImageBase, ChipDockerSubject, ChipLocalSubject, resolveChipLocalAppDir } from "./chip-app-subject.js";
+import type { ControllerTransport } from "./controller-adapter.js";
 import { ControllerAdapter, controllerPicsOverridesFor, createControllerAdapter } from "./controller-adapter.js";
 import { ControllerImplementation, resolveControllerImplementation, resolveDeviceFlavor } from "./device-config.js";
 import { EvidenceRecorder } from "./evidence.js";
@@ -60,6 +61,13 @@ export interface CertTestOptions {
     controllers?: Record<string, "dut" | "helper">;
     /** Role name → app name. Default: `{ th: options.app }`. */
     devices?: Record<string, string>;
+
+    /**
+     * How this test's controllers reach their peers. `"tcp"` asks for a TCP-backed session, which the
+     * TCP test cases are about and which a large-payload interaction requires. Omitted, a controller
+     * keeps the transport every other test's evidence and timing were written against.
+     */
+    transport?: ControllerTransport;
 }
 
 export interface CertStepOptions {
@@ -211,6 +219,7 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
         app: options.app,
         appVariant: options.appVariant,
         flavors: options.flavors,
+        transport: options.transport,
         steps: new Array<CertStepDefinition>(),
     };
 
@@ -638,7 +647,7 @@ class WiredCertTest extends CertTest {
             const controllerImplementation = resolveControllerImplementation();
 
             for (const name of Object.keys(this.#controllerRoles)) {
-                const controller = createControllerAdapter(name);
+                const controller = createControllerAdapter(name, { transport: this.definition.transport });
                 controllers[name] = controller;
                 this.#openControllers = controllers;
                 await controller.start();

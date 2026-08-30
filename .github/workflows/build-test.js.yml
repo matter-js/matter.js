@@ -32,6 +32,7 @@ jobs:
       uses: ./.github/actions/prepare-env
     - run: npm run format-verify
     - run: npm run lint
+    - run: npm run validate-deps
 
   build-non-linux:
     needs: [ check-and-lint ]

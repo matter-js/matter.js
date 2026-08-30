@@ -190,8 +190,8 @@ export class Fabric {
     }
 
     async setLabel(label: string) {
-        if (label.length === 0 || label.length > 32) {
-            throw new ImplementationError("Fabric label must be between 1 and 32 characters long.");
+        if (label.length > 32) {
+            throw new ImplementationError("Fabric label must be at most 32 characters long.");
         }
         if (this.#label === label) {
             return;
@@ -589,8 +589,8 @@ export class FabricBuilder {
     }
 
     setLabel(label: string) {
-        if (label.length === 0 || label.length > 32) {
-            throw new ImplementationError("Fabric label must be between 1 and 32 characters long.");
+        if (label.length > 32) {
+            throw new ImplementationError("Fabric label must be at most 32 characters long.");
         }
         this.#label = label;
         return this;
