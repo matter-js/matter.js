@@ -22,6 +22,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A mandatory command a cluster leaves unimplemented is no longer dispatched; an invoke answers `UNSUPPORTED_COMMAND`, matching what the cluster advertises in `AcceptedCommandList`
 
 - @matter/protocol
+    - Fix: A command whose payload does not match the command's schema is answered with `INVALID_COMMAND` instead of `FAILURE`
     - Fix: `UpdateFabricLabel` accepts an empty label, as the specification's `max 32` constraint sets no minimum; it previously failed the command
     - Enhancement: An interaction can be abandoned by the caller: `ClientRequest.abort` takes an `AbortSignal`, honored for read, write, invoke and subscribe
     - Fix: An error escaping a command handler with no defined status code answers that command with `FAILURE` inside the `InvokeResponse` instead of terminating the message with a status response, so the other commands of a batch invoke keep their results. Under `SuppressResponse` such a command now sends no response at all, as for any other generated status

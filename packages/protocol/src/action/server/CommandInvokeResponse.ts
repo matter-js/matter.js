@@ -17,6 +17,7 @@ import {
     EndpointNumber,
     FabricIndex,
     Status,
+    StatusResponse,
     StatusResponseError,
     TlvSchema,
     TlvStream,
@@ -511,8 +512,20 @@ export class CommandInvokeResponse<
         if (value === undefined) {
             return undefined; // The validation will fail if the schema expected data
         }
+
+        let decoded;
+        try {
+            decoded = tlv.decodeTlv(value);
+        } catch (error) {
+            // A payload that does not match the command's schema is a fault in the request, not in this node
+            StatusResponseError.reject(error);
+            throw new StatusResponse.InvalidCommandError(
+                `Command payload does not match the command schema: ${error instanceof Error ? error.message : error}`,
+            );
+        }
+
         return tlv.injectField(
-            tlv.decodeTlv(value),
+            decoded,
             <number>FabricIndexField.id,
             this.#fabricIndex,
             () => true, // We always inject the current fabricIndex for invokes
