@@ -227,6 +227,86 @@ describe("Logger", () => {
         });
     });
 
+    describe("failing destination", () => {
+        function withFailingDestination(test: (reached: string[], reports: () => number) => void) {
+            const reached = new Array<string>();
+            let reports = 0;
+            const consoleError = console.error;
+            console.error = () => {
+                reports++;
+            };
+
+            Logger.destinations.failing = LogDestination();
+            Logger.destinations.failing.add = () => {
+                throw new Error("destination is broken");
+            };
+            Logger.destinations.surviving = LogDestination();
+            Logger.destinations.surviving.add = message => {
+                reached.push(String(message));
+            };
+
+            try {
+                test(reached, () => reports);
+            } finally {
+                console.error = consoleError;
+                delete Logger.destinations.failing;
+                delete Logger.destinations.surviving;
+            }
+        }
+
+        it("does not propagate a destination error to the caller and still reaches other destinations", () => {
+            withFailingDestination(reached => {
+                expect(() => Logger.get("FailingDestinationTest").error("hello")).not.throws();
+                expect(reached.length).equals(1);
+            });
+        });
+
+        it("reports a persistently failing destination once", () => {
+            withFailingDestination((reached, reports) => {
+                const logger = Logger.get("FailingDestinationTest");
+                logger.error("one");
+                logger.error("two");
+
+                expect(reached.length).equals(2);
+                expect(reports()).equals(1);
+            });
+        });
+
+        it("reports a replacement installed under a failed destination's name", () => {
+            withFailingDestination((_reached, reports) => {
+                const logger = Logger.get("FailingDestinationTest");
+                logger.error("one");
+                expect(reports()).equals(1);
+
+                Logger.destinations.failing = LogDestination();
+                Logger.destinations.failing.add = () => {
+                    throw new Error("replacement is broken too");
+                };
+
+                logger.error("two");
+                expect(reports()).equals(2);
+            });
+        });
+
+        it("survives a fallback that throws", () => {
+            const consoleError = console.error;
+            console.error = () => {
+                throw new Error("console is broken too");
+            };
+            Logger.destinations.failing = LogDestination();
+            Logger.destinations.failing.add = () => {
+                throw new Error("destination is broken");
+            };
+
+            try {
+                expect(() => Logger.get("FailingDestinationTest").error("hello")).not.throws();
+            } finally {
+                console.error = consoleError;
+                delete Logger.destinations.failing;
+            }
+        });
+    });
+
     describe("nesting", () => {
         it("nests once", () => {
             Logger.nest(() => {
