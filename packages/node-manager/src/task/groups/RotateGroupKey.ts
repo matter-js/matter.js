@@ -9,8 +9,8 @@ import { ClientNode, DesiredStateBehavior, itemMapKey } from "@matter/node";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import type { GroupKeyGrant } from "../../reconcile/GroupKeyItemKind.js";
 import { RotationPreconditionError } from "../errors.js";
-import { Task } from "../Task.js";
-import { TaskContext, TaskPhase } from "../types.js";
+import { TaskDefinition } from "../Task.js";
+import { TaskContext } from "../types.js";
 
 export const ROTATE_GROUP_KEY_TYPE = "rotateGroupKey";
 
@@ -49,164 +49,162 @@ const ACTIVATE_INDEX = 1;
  * dropping it is clean. Recover a bad realized rotation by rotating to a NEW key, not by reverting;
  * {@link revertible} declines cancel and auto-rollback past that point.
  */
-export class RotateGroupKey extends Task<RotateGroupKeyParams> {
-    readonly type = ROTATE_GROUP_KEY_TYPE;
+export const RotateGroupKey: TaskDefinition<RotateGroupKeyParams> = {
+    type: ROTATE_GROUP_KEY_TYPE,
 
     // Keyed on the key set alone, so one-live-run-per-slot is what makes rotations of a key set mutually
     // exclusive: two concurrent rotations would race the single shared groupKey slot, each observing the
     // other's committed state and advancing on the wrong struct.
-    static override slotKeyFor(params: RotateGroupKeyParams): string {
+    slotKeyFor(params) {
         return `${ROTATE_GROUP_KEY_TYPE}:${params.groupKeySetId}`;
-    }
+    },
 
-    override get revertible(): boolean {
-        return this.progress.phaseIndex < ACTIVATE_INDEX;
-    }
+    revertible(run) {
+        return run.phaseIndex < ACTIVATE_INDEX;
+    },
 
-    override get notRevertibleReason(): string {
-        return "a realized group-key rotation is forward-only — rotate to a new key instead of reverting";
-    }
+    notRevertibleReason: "a realized group-key rotation is forward-only — rotate to a new key instead of reverting",
 
-    get phases(): TaskPhase[] {
+    phases(params) {
         return [
-            { name: "distribute", run: ctx => this.#phase(ctx, "distribute") },
-            { name: "activate", run: ctx => this.#phase(ctx, "activate") },
-            { name: "cleanup", run: ctx => this.#phase(ctx, "cleanup") },
+            { name: "distribute", run: ctx => runPhase(ctx, params, "distribute") },
+            { name: "activate", run: ctx => runPhase(ctx, params, "activate") },
+            { name: "cleanup", run: ctx => runPhase(ctx, params, "cleanup") },
         ];
-    }
+    },
+};
 
-    async #phase(ctx: TaskContext, phase: RotationPhase): Promise<void> {
-        const key = String(this.params.groupKeySetId);
-        const members = ctx.peersWithIntent("groupKey", key);
-        if (members.length === 0) {
-            return;
-        }
-        // distribute is the first phase, so validating here refuses the whole rotation before any intent is mutated.
-        if (phase === "distribute") {
-            for (const peer of members) {
-                const current = this.#currentIntent(peer);
-                if (current !== undefined && !this.#isRotatable(current)) {
-                    throw new RotationPreconditionError(
-                        `Cannot rotate group key set ${this.params.groupKeySetId} on peer ${peer.id}: ` +
-                            `member holds a multi-epoch keyset (slot 1/2 populated). Rotation requires a ` +
-                            `single-key steady state; multi-epoch keysets are unsupported.`,
-                    );
-                }
-            }
-        }
-        // A member is re-derived per phase, so one whose intent appeared after distribute would activate without
-        // holding the new key and could not decrypt traffic from members that already flipped to it.
-        if (phase === "activate") {
-            const late = this.#memberWithoutNewKey(ctx, key);
-            if (late !== undefined) {
-                throw new RotationPreconditionError(
-                    `Cannot activate group key set ${this.params.groupKeySetId}: peer ${late.id} does not hold ` +
-                        `this rotation's new key, so it joined the key set after the distribute phase. The ` +
-                        `distributed keys remain dormant; rotate again with this same new key so every member ` +
-                        `receives it before activation.`,
-                );
-            }
-        }
+async function runPhase(ctx: TaskContext, p: RotateGroupKeyParams, phase: RotationPhase): Promise<void> {
+    const key = String(p.groupKeySetId);
+    const members = ctx.peersWithIntent("groupKey", key);
+    if (members.length === 0) {
+        return;
+    }
+    // distribute is the first phase, so validating here refuses the whole rotation before any intent is mutated.
+    if (phase === "distribute") {
         for (const peer of members) {
-            await ctx.setIntent(peer, "groupKey", key, this.#struct(peer, phase), "converge");
-        }
-        await ctx.awaitCommitted(members.map(peer => ({ peer, kind: "groupKey", key })));
-        // The writes and the barrier above both yield, and provisioning a group takes no lock on its key set, so
-        // the member set can grow after the check at phase entry.
-        if (phase === "activate") {
-            const late = this.#memberWithoutNewKey(ctx, key);
-            if (late !== undefined) {
+            const current = currentIntent(peer, p);
+            if (current !== undefined && !isRotatable(current, p)) {
                 throw new RotationPreconditionError(
-                    `Cannot complete activation of group key set ${this.params.groupKeySetId}: peer ${late.id} ` +
-                        `joined the key set during the activate phase and does not hold this rotation's new key, ` +
-                        `so it cannot decrypt traffic from the members that already transmit with it. The old key ` +
-                        `is still present on those members; rotate again with this same new key, which covers ` +
-                        `every current member.`,
+                    `Cannot rotate group key set ${p.groupKeySetId} on peer ${peer.id}: ` +
+                        `member holds a multi-epoch keyset (slot 1/2 populated). Rotation requires a ` +
+                        `single-key steady state; multi-epoch keysets are unsupported.`,
                 );
             }
         }
     }
-
-    /** A member holding an intent for this key set that does not carry this rotation's new key, if there is one. */
-    #memberWithoutNewKey(ctx: TaskContext, key: string): ClientNode | undefined {
-        for (const peer of ctx.peersWithIntent("groupKey", key)) {
-            const current = this.#currentIntent(peer);
-            if (current === undefined || !this.#holdsNewKey(current)) {
-                return peer;
-            }
+    // A member is re-derived per phase, so one whose intent appeared after distribute would activate without
+    // holding the new key and could not decrypt traffic from members that already flipped to it.
+    if (phase === "activate") {
+        const late = memberWithoutNewKey(ctx, p, key);
+        if (late !== undefined) {
+            throw new RotationPreconditionError(
+                `Cannot activate group key set ${p.groupKeySetId}: peer ${late.id} does not hold ` +
+                    `this rotation's new key, so it joined the key set after the distribute phase. The ` +
+                    `distributed keys remain dormant; rotate again with this same new key so every member ` +
+                    `receives it before activation.`,
+            );
         }
-        return undefined;
     }
-
-    #currentIntent(peer: ClientNode): GroupKeyGrant | undefined {
-        const key = itemMapKey("groupKey", String(this.params.groupKeySetId));
-        return peer.stateOf(DesiredStateBehavior).items[key]?.intent as GroupKeyGrant | undefined;
+    for (const peer of members) {
+        await ctx.setIntent(peer, "groupKey", key, struct(peer, p, phase), "converge");
     }
-
-    // A single-key steady state is the required starting point; a member already carrying THIS rotation's new key in
-    // slot 1 is our own distribute output on a park/resume re-drive, not a foreign multi-epoch keyset, so accept it.
-    #isRotatable(current: GroupKeyGrant): boolean {
-        return isSingleKeySteadyState(current) || this.#holdsNewKey(current);
-    }
-
-    /** Whether the member carries this rotation's new key in slot 1 — the output of distribute or of activate. */
-    #holdsNewKey(current: GroupKeyGrant): boolean {
-        const slot1 = current.epochKey1;
-        return slot1 !== null && slot1 !== undefined && Bytes.areEqual(slot1, this.params.newEpochKey);
-    }
-
-    #struct(peer: ClientNode, phase: RotationPhase): GroupKeyGrant {
-        const id = this.params.groupKeySetId;
-        const current = this.#currentIntent(peer);
-        const policy =
-            this.params.groupKeySecurityPolicy ??
-            current?.groupKeySecurityPolicy ??
-            GroupKeyManagement.GroupKeySecurityPolicy.TrustFirst;
-
-        // epochStartTime is unix-µs in this codebase (see FabricGroups.addGroupEpoch: Time.nowMs * 1000).
-        const nowUs = BigInt(Time.nowMs) * 1000n;
-        const opKey = current?.epochKey0 ?? this.params.newEpochKey;
-        const opStart = toBigInt(current?.epochStartTime0) ?? nowUs - 1n;
-        // A non-monotonic device clock could tie or invert op/new ordering; keep new strictly above op.
-        const newStart = opStart < nowUs ? nowUs : opStart + 1n;
-        const futureStart = nowUs + FAR_FUTURE_US;
-
-        const base = { groupKeySetId: id, groupKeySecurityPolicy: policy };
-
-        switch (phase) {
-            case "distribute":
-                return {
-                    ...base,
-                    epochKey0: opKey,
-                    epochStartTime0: opStart,
-                    epochKey1: this.params.newEpochKey,
-                    epochStartTime1: futureStart,
-                    epochKey2: null,
-                    epochStartTime2: null,
-                };
-            case "activate":
-                return {
-                    ...base,
-                    epochKey0: opKey,
-                    epochStartTime0: opStart,
-                    epochKey1: this.params.newEpochKey,
-                    epochStartTime1: newStart,
-                    epochKey2: peer.env.get(Crypto).randomBytes(16),
-                    epochStartTime2: futureStart,
-                };
-            case "cleanup":
-                // The sole surviving key must be selectable on ANY device clock; a device whose clock lags
-                // newStart would have no non-future key and fail group TX. opStart is firmly past for all.
-                return {
-                    ...base,
-                    epochKey0: this.params.newEpochKey,
-                    epochStartTime0: opStart,
-                    epochKey1: null,
-                    epochStartTime1: null,
-                    epochKey2: null,
-                    epochStartTime2: null,
-                };
+    await ctx.awaitCommitted(members.map(peer => ({ peer, kind: "groupKey", key })));
+    // The writes and the barrier above both yield, and provisioning a group takes no lock on its key set, so
+    // the member set can grow after the check at phase entry.
+    if (phase === "activate") {
+        const late = memberWithoutNewKey(ctx, p, key);
+        if (late !== undefined) {
+            throw new RotationPreconditionError(
+                `Cannot complete activation of group key set ${p.groupKeySetId}: peer ${late.id} ` +
+                    `joined the key set during the activate phase and does not hold this rotation's new key, ` +
+                    `so it cannot decrypt traffic from the members that already transmit with it. The old key ` +
+                    `is still present on those members; rotate again with this same new key, which covers ` +
+                    `every current member.`,
+            );
         }
+    }
+}
+
+/** A member holding an intent for this key set that does not carry this rotation's new key, if there is one. */
+function memberWithoutNewKey(ctx: TaskContext, p: RotateGroupKeyParams, key: string): ClientNode | undefined {
+    for (const peer of ctx.peersWithIntent("groupKey", key)) {
+        const current = currentIntent(peer, p);
+        if (current === undefined || !holdsNewKey(current, p)) {
+            return peer;
+        }
+    }
+    return undefined;
+}
+
+function currentIntent(peer: ClientNode, p: RotateGroupKeyParams): GroupKeyGrant | undefined {
+    const key = itemMapKey("groupKey", String(p.groupKeySetId));
+    return peer.stateOf(DesiredStateBehavior).items[key]?.intent as GroupKeyGrant | undefined;
+}
+
+// A single-key steady state is the required starting point; a member already carrying THIS rotation's new key in
+// slot 1 is our own distribute output on a park/resume re-drive, not a foreign multi-epoch keyset, so accept it.
+function isRotatable(current: GroupKeyGrant, p: RotateGroupKeyParams): boolean {
+    return isSingleKeySteadyState(current) || holdsNewKey(current, p);
+}
+
+/** Whether the member carries this rotation's new key in slot 1 — the output of distribute or of activate. */
+function holdsNewKey(current: GroupKeyGrant, p: RotateGroupKeyParams): boolean {
+    const slot1 = current.epochKey1;
+    return slot1 !== null && slot1 !== undefined && Bytes.areEqual(slot1, p.newEpochKey);
+}
+
+function struct(peer: ClientNode, p: RotateGroupKeyParams, phase: RotationPhase): GroupKeyGrant {
+    const id = p.groupKeySetId;
+    const current = currentIntent(peer, p);
+    const policy =
+        p.groupKeySecurityPolicy ??
+        current?.groupKeySecurityPolicy ??
+        GroupKeyManagement.GroupKeySecurityPolicy.TrustFirst;
+
+    // epochStartTime is unix-µs in this codebase (see FabricGroups.addGroupEpoch: Time.nowMs * 1000).
+    const nowUs = BigInt(Time.nowMs) * 1000n;
+    const opKey = current?.epochKey0 ?? p.newEpochKey;
+    const opStart = toBigInt(current?.epochStartTime0) ?? nowUs - 1n;
+    // A non-monotonic device clock could tie or invert op/new ordering; keep new strictly above op.
+    const newStart = opStart < nowUs ? nowUs : opStart + 1n;
+    const futureStart = nowUs + FAR_FUTURE_US;
+
+    const base = { groupKeySetId: id, groupKeySecurityPolicy: policy };
+
+    switch (phase) {
+        case "distribute":
+            return {
+                ...base,
+                epochKey0: opKey,
+                epochStartTime0: opStart,
+                epochKey1: p.newEpochKey,
+                epochStartTime1: futureStart,
+                epochKey2: null,
+                epochStartTime2: null,
+            };
+        case "activate":
+            return {
+                ...base,
+                epochKey0: opKey,
+                epochStartTime0: opStart,
+                epochKey1: p.newEpochKey,
+                epochStartTime1: newStart,
+                epochKey2: peer.env.get(Crypto).randomBytes(16),
+                epochStartTime2: futureStart,
+            };
+        case "cleanup":
+            // The sole surviving key must be selectable on ANY device clock; a device whose clock lags
+            // newStart would have no non-future key and fail group TX. opStart is firmly past for all.
+            return {
+                ...base,
+                epochKey0: p.newEpochKey,
+                epochStartTime0: opStart,
+                epochKey1: null,
+                epochStartTime1: null,
+                epochKey2: null,
+                epochStartTime2: null,
+            };
     }
 }
 

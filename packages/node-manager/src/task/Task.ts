@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError } from "@matter/general";
 import { ChangeEntry, PlannedChange, RetireSeq, RunId, TaskPhase, TaskState, TaskStatus } from "./types.js";
 
 export interface TaskPersistence {
@@ -35,10 +34,89 @@ export function runKey(runId: RunId): string {
     return String(runId);
 }
 
-export abstract class Task<P = unknown> {
-    abstract readonly type: string;
-    abstract readonly phases: TaskPhase[];
+/**
+ * A run as anything may read it: a live run and a stored record both satisfy this.
+ *
+ * Definitions answer questions about runs through this view rather than through either concrete form, so
+ * asking a live run a question never materialises its storage record, and asking a finished one never
+ * rebuilds it as an object.
+ */
+export interface RunView {
+    readonly runId: RunId;
+    readonly slotKey: string;
+    readonly type: string;
+    readonly phaseIndex: number;
+    readonly state: TaskState;
+    readonly changeSet: readonly ChangeEntry[];
+    readonly externalId?: string;
+    readonly error?: string;
+    readonly retireSeq?: RetireSeq;
+    readonly revertRunId?: RunId;
+    readonly revertOf?: RunId;
+}
 
+/**
+ * What a type of work *is*: pure, immutable, and registered once.
+ *
+ * Deliberately separate from the run that executes it. A definition answers questions about work that has not
+ * started — what target it claims, whether a caller may start it — and questions about work that has finished,
+ * such as whether a retired record may still be rolled back. Welding those to an instance forced a finished
+ * run to be rebuilt as an object before it could be asked anything.
+ */
+export interface TaskDefinition<P = unknown> {
+    readonly type: string;
+
+    /**
+     * The target this work intends to change, derived from params. At most one non-terminal run may own a slot.
+     */
+    slotKeyFor(params: P): string;
+
+    /** The phases one run of this work executes, in order. */
+    phases(params: P): TaskPhase[];
+
+    /**
+     * Reject params this definition cannot interpret, throwing to say why.
+     *
+     * Called as a run is built, including when one is rebuilt from storage — which is the case that matters: a
+     * record written by an older version of a task type may no longer make sense to it, and a definition that
+     * says so leaves the run unresumed and visible rather than driving it on parameters it cannot honour.
+     */
+    validate?(params: P): void;
+
+    /**
+     * Whether a caller may start this type through `run`.
+     *
+     * A rollback is false: it exists to undo a specific run, and only the manager knows that run's driver has
+     * been stopped first. A caller able to conjure one could start it against work still in flight.
+     */
+    readonly callerCreatable?: boolean;
+
+    /**
+     * The run this work undoes, if it is a rollback. A rollback rewrites the intents of that run, so it
+     * contends for *that* run's slot rather than for its own, and the manager excludes it there.
+     */
+    undoes?(params: P): RunId | undefined;
+
+    /** Intents this work will create, derived from params, for pre-flight capacity admission. Removals omit. */
+    plannedChanges?(params: P): PlannedChange[];
+
+    /**
+     * Whether cancel or failure may roll back the given run of this work. False once a run passes a point of no
+     * return whose forward effect cannot be undone; the manager then declines cancel and suppresses
+     * auto-rollback.
+     *
+     * Answered from the record rather than from a live object, so a run that finished before this start can be
+     * asked the same question.
+     */
+    revertible?(run: RunView, params: P): boolean;
+
+    /** Operator-facing reason a cancel is declined while {@link revertible} is false. */
+    readonly notRevertibleReason?: string;
+}
+
+/** One run of a {@link TaskDefinition}: its identity, its parameters and how far it has got. */
+export class Task<P = unknown> implements RunView {
+    readonly definition: TaskDefinition<P>;
     readonly runId: RunId;
     readonly slotKey: string;
     readonly params: P;
@@ -53,7 +131,17 @@ export abstract class Task<P = unknown> {
     revertRunId?: RunId;
     revertOf?: RunId;
 
-    constructor(runId: RunId, slotKey: string, params: P, persisted?: Partial<TaskPersistence>) {
+    #phases?: TaskPhase[];
+
+    constructor(
+        definition: TaskDefinition<P>,
+        runId: RunId,
+        slotKey: string,
+        params: P,
+        persisted?: Partial<TaskPersistence>,
+    ) {
+        definition.validate?.(params);
+        this.definition = definition;
         this.runId = runId;
         this.slotKey = slotKey;
         this.params = params;
@@ -63,7 +151,24 @@ export abstract class Task<P = unknown> {
         this.error = persisted?.error;
         this.retireSeq = persisted?.retireSeq;
         this.revertRunId = persisted?.revertRunId;
-        this.revertOf = persisted?.revertOf;
+        this.revertOf = persisted?.revertOf ?? definition.undoes?.(params);
+    }
+
+    get type(): string {
+        return this.definition.type;
+    }
+
+    get phaseIndex(): number {
+        return this.progress.phaseIndex;
+    }
+
+    get state(): TaskState {
+        return this.progress.state;
+    }
+
+    /** Built once: a driver indexes into this list across phases and must see one stable set. */
+    get phases(): TaskPhase[] {
+        return (this.#phases ??= this.definition.phases(this.params));
     }
 
     toString(): string {
@@ -84,51 +189,6 @@ export abstract class Task<P = unknown> {
             revertOf: this.revertOf,
             detail: "full",
         };
-    }
-
-    /**
-     * Whether cancel/failure may spawn a revert of this task's changeSet. False once a task passes a
-     * point of no return whose forward effect cannot be rolled back; the manager then declines cancel and
-     * suppresses auto-rollback.
-     */
-    get revertible(): boolean {
-        return true;
-    }
-
-    /** Operator-facing reason a cancel is declined while {@link revertible} is false; overridden per task type. */
-    get notRevertibleReason(): string {
-        return "it has passed its point of no return";
-    }
-
-    /** Intents this task will create, derived from params, for pre-flight capacity admission. Removals omit. */
-    plannedChanges(): PlannedChange[] {
-        return new Array<PlannedChange>();
-    }
-
-    /**
-     * Whether a caller may start this type through {@link TaskManagerBehavior.run}.
-     *
-     * A rollback is false: it exists to undo a specific run, and only the manager knows that the run's driver
-     * has been stopped first. A caller able to conjure one could start it against work still in flight.
-     */
-    static get callerCreatable(): boolean {
-        return true;
-    }
-
-    /**
-     * The run this task undoes, if it is a rollback. A rollback rewrites the intents of that run, so it
-     * contends for *that* run's slot rather than for its own, and the manager excludes it there.
-     */
-    static undoes(_params: unknown): RunId | undefined {
-        return undefined;
-    }
-
-    /**
-     * The target this task intends to change, derived from type and params. At most one non-terminal run may
-     * exist per slot key. Subclasses override with their own key.
-     */
-    static slotKeyFor(_params: unknown): string {
-        throw new ImplementationError("slotKeyFor must be implemented by the Task subclass");
     }
 
     toPersistence(): TaskPersistence {

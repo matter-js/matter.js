@@ -121,7 +121,7 @@ describe("Task lifecycle", () => {
             ];
 
             const node1 = await makeNode(environment);
-            await node1.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            await node1.act(a => a.get(TestTaskManager).register(SyntheticTask));
             await node1.act(a => a.get(TestTaskManager).run("synthetic", { tag: "resume" }));
 
             // Phase 0 completes, then phase 1 gates (device does not "have" the item yet) and suspends.
@@ -143,7 +143,7 @@ describe("Task lifecycle", () => {
             TestTaskManager.peers.set("rp", peer2);
             TestTaskManager.reconcilerPeer = peer2;
 
-            await node2.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            await node2.act(a => a.get(TestTaskManager).register(SyntheticTask));
             await awaitState(node2, "synthetic:resume", "completed");
             const status = await node2.act(a => statusOfSlot(a.get(TestTaskManager), "synthetic:resume"));
             expect(status?.state).equals("completed");
@@ -159,7 +159,7 @@ describe("Task lifecycle", () => {
             SyntheticTask.phasesByTag["parked"] = [gatePhase("pp", "groupMembership", "1")];
 
             const node1 = await makeNode(environment);
-            await node1.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            await node1.act(a => a.get(TestTaskManager).register(SyntheticTask));
             await node1.act(a => a.get(TestTaskManager).run("synthetic", { tag: "parked" }));
             await awaitState(node1, "synthetic:parked", "parked");
             expect(requireRecordFor(node1.stateOf(TestTaskManager).runs, "synthetic:parked").state).equals("parked");
@@ -171,7 +171,7 @@ describe("Task lifecycle", () => {
             TestTaskManager.peers.set("pp", peer2);
             TestTaskManager.reconcilerPeer = peer2;
 
-            await node2.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            await node2.act(a => a.get(TestTaskManager).register(SyntheticTask));
             await awaitState(node2, "synthetic:parked", "completed");
             await node2.close();
         });
@@ -185,14 +185,14 @@ describe("Task lifecycle", () => {
             SyntheticTask.phasesByTag["alias"] = [gatePhase("xp", "groupMembership", "1")];
 
             const node1 = await makeNode(environment);
-            await node1.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            await node1.act(a => a.get(TestTaskManager).register(SyntheticTask));
             await node1.act(a => a.get(TestTaskManager).run("synthetic", { tag: "alias" }, { externalId: "owner" }));
             await awaitState(node1, "synthetic:alias", "parked");
             expect(requireRecordFor(node1.stateOf(TestTaskManager).runs, "synthetic:alias").externalId).equals("owner");
             await node1.close();
 
             const node2 = await makeNode(environment);
-            await node2.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            await node2.act(a => a.get(TestTaskManager).register(SyntheticTask));
             expect(await node2.act(a => a.get(TestTaskManager).forExternalId("owner")?.status.slotKey)).equals(
                 "synthetic:alias",
             );
@@ -224,7 +224,7 @@ describe("Task lifecycle", () => {
             ];
 
             const node = await makeNode(environment);
-            await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
             await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "reject" }));
 
             // The gate parks on its observers: OK commits, R stays pending.
@@ -276,7 +276,7 @@ describe("Task lifecycle", () => {
             ];
 
             const node = await makeNode(environment);
-            await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
             await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "cancel" }));
             await awaitState(node, "synthetic:cancel", "completed");
 
@@ -314,7 +314,7 @@ describe("Task lifecycle", () => {
             SyntheticTask.phasesByTag["rerun"] = [gatePhase("rr", "groupMembership", "1")];
 
             const node = await makeNode(environment);
-            await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
             await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "rerun" }));
             await awaitState(node, "synthetic:rerun", "completed");
 
@@ -355,7 +355,7 @@ describe("Task lifecycle", () => {
             SyntheticTask.phasesByTag["aliascancel"] = [gatePhase("ac", "groupMembership", "X")];
 
             const node = await makeNode(environment);
-            await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
             await node.act(a =>
                 a.get(TestTaskManager).run("synthetic", { tag: "aliascancel" }, { externalId: "owner" }),
             );
@@ -394,7 +394,7 @@ describe("Task lifecycle", () => {
             SyntheticTask.phasesByTag["inflight"] = [gatePhase("ip", "groupMembership", "X")];
 
             const node = await makeNode(environment);
-            await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
             await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "inflight" }));
             // Wait until the gate phase has set its intent: the gate is now in-flight and parked on observers.
             for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
@@ -442,7 +442,7 @@ describe("Task lifecycle", () => {
             ];
 
             const node = await makeNode(environment);
-            await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
             const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "blockedrollback" }));
 
             // No identity is left for a rollback, so the manager cannot prepare one when this run fails.
@@ -468,7 +468,7 @@ describe("Task lifecycle", () => {
             SyntheticTask.phasesByTag["blockedcancel"] = [gatePhase("cr2", "groupMembership", "K")];
 
             const node = await makeNode(environment);
-            await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
             const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "blockedcancel" }));
             await awaitState(node, "synthetic:blockedcancel", "parked");
 

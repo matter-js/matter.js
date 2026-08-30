@@ -8,8 +8,9 @@ import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { TaskConflictError, TaskNotRevertibleError } from "#task/errors.js";
 import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
 import { ROTATE_GROUP_KEY_TYPE, RotateGroupKey, RotateGroupKeyParams } from "#task/groups/RotateGroupKey.js";
+import { TaskDefinition } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
-import { TaskPhase } from "#task/types.js";
+import { TaskContext } from "#task/types.js";
 import { Bytes, Crypto, MockCrypto, Seconds } from "@matter/general";
 import { ClientNode, DesiredStateBehavior, itemMapKey, NetworkClient, ServerNode } from "@matter/node";
 import { GroupKeyManagementServer } from "@matter/node/behaviors/group-key-management";
@@ -75,15 +76,16 @@ let afterWriteA: ((starts: bigint[]) => void) | undefined;
 let armBarrier = false;
 let releaseDistribute: (() => void) | undefined;
 
-class BarrierRotateGroupKey extends RotateGroupKey {
-    override get phases(): TaskPhase[] {
-        return super.phases.map(phase => {
+const BarrierRotateGroupKey: TaskDefinition<RotateGroupKeyParams> = {
+    ...RotateGroupKey,
+    phases(params) {
+        return RotateGroupKey.phases(params).map(phase => {
             if (phase.name !== "distribute") {
                 return phase;
             }
             return {
                 name: phase.name,
-                run: async ctx => {
+                run: async (ctx: TaskContext) => {
                     await phase.run(ctx);
                     if (armBarrier) {
                         await new Promise<void>(resolve => {
@@ -93,8 +95,8 @@ class BarrierRotateGroupKey extends RotateGroupKey {
                 },
             };
         });
-    }
-}
+    },
+};
 
 /** A device root whose GroupKeyManagementServer records every keySetWrite's start-time set into `sink`. */
 function recordingRoot(sink: bigint[][], afterWrite?: (starts: bigint[]) => void) {
@@ -546,7 +548,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         expect(Bytes.areEqual(deviceKey0(deviceA, GROUP_KEY_SET_ID), OP_KEY)).equals(true);
 
         // Swap in the barrier variant (both members stay online) so distribute commits and then pauses.
-        await controller.act(a => a.get(TaskManagerBehavior).register(ROTATE_GROUP_KEY_TYPE, BarrierRotateGroupKey));
+        await controller.act(a => a.get(TaskManagerBehavior).register(BarrierRotateGroupKey));
         armBarrier = true;
         writesA.length = writesB.length = 0;
 

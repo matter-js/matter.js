@@ -6,22 +6,21 @@
 
 import { TaskCancelledSignal, TaskFailedError } from "#task/errors.js";
 import { GateControl, RunningTaskContext } from "#task/RunningTaskContext.js";
-import { Task } from "#task/Task.js";
-import { TaskState } from "#task/types.js";
+import { Task, TaskDefinition } from "#task/Task.js";
+import { TaskPhase, TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
 import { Observable } from "@matter/general";
 import { ClientNode, itemMapKey } from "@matter/node";
 import { FakePeer } from "./helpers.js";
 
-class GateTask extends Task {
-    override readonly type = "gate-test";
-    override get phases() {
-        return [];
-    }
-}
+const GateTask: TaskDefinition = {
+    type: "gate-test",
+    slotKeyFor: () => "gate-test:1",
+    phases: () => new Array<TaskPhase>(),
+};
 
 function makeContext(peer: FakePeer, gate?: GateControl, setState?: (state: TaskState) => void) {
-    const task = new GateTask(RunId(1), "gate-test:1", {});
+    const task = new Task(GateTask, RunId(1), "gate-test:1", {});
     const states = new Array<TaskState>();
     const record =
         setState ??

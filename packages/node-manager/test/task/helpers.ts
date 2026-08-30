@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Task, TaskPersistence } from "#task/Task.js";
+import { Task, TaskDefinition, TaskPersistence } from "#task/Task.js";
 import { TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { PlannedChange, RunId, TaskPhase, TaskStatus } from "#task/types.js";
 import { Immutable, Observable } from "@matter/general";
@@ -16,20 +16,63 @@ function recoverable(code?: number): boolean {
     return code === Status.Timeout || code === Status.Busy;
 }
 
-/** A synthetic task whose phases are supplied inline; for unit-testing the manager/driver. */
-export class SyntheticTask extends Task<{ tag: string }> {
-    static phasesByTag: Record<string, TaskPhase[]> = {};
-    static plannedChangesByTag: Record<string, PlannedChange[]> = {};
-    override readonly type = "synthetic";
-    override get phases() {
-        return SyntheticTask.phasesByTag[this.params.tag] ?? new Array<TaskPhase>();
-    }
-    override plannedChanges(): PlannedChange[] {
-        return SyntheticTask.plannedChangesByTag[this.params.tag] ?? new Array<PlannedChange>();
-    }
-    static override slotKeyFor(params: { tag: string }) {
+/**
+ * A synthetic task definition whose phases are supplied inline, for unit-testing the manager/driver. The
+ * lookup tables live on the definition object itself (rather than a module-level export) so every existing
+ * `SyntheticTask.phasesByTag[...] = ...` call site keeps working unchanged.
+ */
+export const SyntheticTask: TaskDefinition<{ tag: string }> & {
+    phasesByTag: Record<string, TaskPhase[]>;
+    plannedChangesByTag: Record<string, PlannedChange[]>;
+} = {
+    type: "synthetic",
+    phasesByTag: {},
+    plannedChangesByTag: {},
+    slotKeyFor(params) {
         return `synthetic:${params.tag}`;
+    },
+    phases(params) {
+        return SyntheticTask.phasesByTag[params.tag] ?? new Array<TaskPhase>();
+    },
+    plannedChanges(params) {
+        return SyntheticTask.plannedChangesByTag[params.tag] ?? new Array<PlannedChange>();
+    },
+};
+
+/** The live Task the manager built for `runId`. Valid in the synchronous continuation right after `run()`
+ * returns, before any phase has had a chance to advance the driver past this tick. */
+export function liveTask(manager: TaskManagerBehavior, runId: RunId): Task {
+    const task = manager.internal.runs.liveRun(runId);
+    if (task === undefined) {
+        throw new Error(`No live run #${runId}`);
     }
+    return task;
+}
+
+/**
+ * Runs `hook` with every record a task's own `toPersistence` produces, in place of subclassing Task: Task is
+ * concrete now, so observing what one run writes means patching the instance the manager already built rather
+ * than overriding a method on a subclass.
+ */
+export function onPersisted(task: Task, hook: (record: TaskPersistence) => void): void {
+    const original = task.toPersistence.bind(task);
+    task.toPersistence = () => {
+        const record = original();
+        hook(record);
+        return record;
+    };
+}
+
+/** Fires `onCompleted` once, the first time `runId`'s task persists a "completed" record — after the task is
+ * terminal but before its driver settles and hands back the slot. */
+export function onTerminalWrite(manager: TaskManagerBehavior, runId: RunId, onCompleted: () => void): void {
+    let fired = false;
+    onPersisted(liveTask(manager, runId), record => {
+        if (!fired && record.state === "completed") {
+            fired = true;
+            onCompleted();
+        }
+    });
 }
 
 /**

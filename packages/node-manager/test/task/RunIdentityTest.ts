@@ -7,13 +7,13 @@
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { TaskConflictError, TaskIdentityExhaustedError, TaskTypeNotRegisteredError } from "#task/errors.js";
 import { RUN_ID_RESERVATION, RunStore } from "#task/RunStore.js";
-import { Task, TaskPersistence } from "#task/Task.js";
+import { TaskDefinition, TaskPersistence } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { RunId, TaskPhase } from "#task/types.js";
 import { Environment, ImplementationError } from "@matter/general";
 import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
-import { FakePeer, recordFor, SyntheticTask } from "./helpers.js";
+import { FakePeer, onTerminalWrite, recordFor, SyntheticTask } from "./helpers.js";
 
 /** Resolves peers to fakes, so a phase records a real changeSet and its rollback has something to undo. */
 class TestTaskManager extends TaskManagerBehavior {
@@ -53,34 +53,37 @@ async function pumpUntil(name: string, condition: () => Promise<boolean>) {
     throw new Error(`Condition "${name}" never held`);
 }
 
-/** Refuses to be rebuilt from its persisted parameters, as a custom task validating them might. */
-class UnbuildableTask extends Task<{ tag: string }> {
-    static rejectConstruction = false;
-    override readonly type = "unbuildable";
-    override get phases(): TaskPhase[] {
-        return [];
-    }
-    static override slotKeyFor(params: { tag: string }) {
+/**
+ * Refuses to be rebuilt from its persisted parameters, as a custom task validating them might. `undoes` is the
+ * only definition method Task's constructor calls, for both a fresh build and a resumed one, so it doubles as
+ * that validation point here.
+ */
+const UnbuildableTask: TaskDefinition<{ tag: string }> & { rejectConstruction: boolean } = {
+    type: "unbuildable",
+    rejectConstruction: false,
+    slotKeyFor(params) {
         return `unbuildable:${params.tag}`;
-    }
-    constructor(runId: RunId, slotKey: string, params: { tag: string }, persisted?: Partial<TaskPersistence>) {
-        super(runId, slotKey, params, persisted);
+    },
+    phases() {
+        return new Array<TaskPhase>();
+    },
+    validate() {
         if (UnbuildableTask.rejectConstruction) {
             throw new ImplementationError("malformed persisted parameters");
         }
-    }
-}
+    },
+};
 
 /** A second type, so a request for a different slot can try to take a pending run's external id. */
-class OtherTask extends Task<{ tag: string }> {
-    override readonly type = "other";
-    override get phases(): TaskPhase[] {
-        return [];
-    }
-    static override slotKeyFor(params: { tag: string }) {
+const OtherTask: TaskDefinition<{ tag: string }> = {
+    type: "other",
+    slotKeyFor(params) {
         return `other:${params.tag}`;
-    }
-}
+    },
+    phases() {
+        return new Array<TaskPhase>();
+    },
+};
 
 /** A phase that records one intent and never settles, so the run stays live and owns its slot. */
 function gateForever(peerId: string): TaskPhase {
@@ -102,21 +105,6 @@ function touchPhase(peerId: string): TaskPhase {
             await ctx.setIntent(ctx.resolvePeer(peerId), "groupMembership", "X", {});
         },
     };
-}
-
-/** Fires while a terminal record is being serialized — after the task is terminal, before its driver settles. */
-class UnwindHookedTask extends SyntheticTask {
-    static atTerminalWrite?: () => void;
-
-    override toPersistence(): TaskPersistence {
-        const record = super.toPersistence();
-        if (record.state === "completed") {
-            const hook = UnwindHookedTask.atTerminalWrite;
-            UnwindHookedTask.atTerminalWrite = undefined;
-            hook?.();
-        }
-        return record;
-    }
 }
 
 async function makeNode(environment?: Environment, id = "run-identity") {
@@ -157,7 +145,7 @@ describe("run identity", () => {
     it("gives a re-run of a terminal slot a new runId and leaves the prior record intact", async () => {
         await using node = await makeNode();
         SyntheticTask.phasesByTag["rerun"] = [{ name: "a", run: async () => {} }];
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
         const first = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "rerun" }));
         await settle(node, "synthetic:rerun");
@@ -179,7 +167,7 @@ describe("run identity", () => {
         touchingPeer("churn");
         // A changeSet is what makes a cancel produce a rollback record, so the phase must really touch a peer.
         SyntheticTask.phasesByTag["churn"] = [touchPhase("churn")];
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
         const peer = TestTaskManager.peers.get("churn")!;
         const runIds = new Array<number>();
@@ -219,7 +207,7 @@ describe("run identity", () => {
     it("lists only non-terminal runs in tasks", async () => {
         await using node = await makeNode();
         SyntheticTask.phasesByTag["retire"] = [{ name: "a", run: async () => {} }];
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
         await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "retire" }));
         await settle(node, "synthetic:retire");
@@ -234,14 +222,14 @@ describe("run identity", () => {
         let runId: RunId;
         {
             await using node = await makeNode(environment, "restart");
-            await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
             const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "survive" }));
             runId = handle.status.runId;
             await settle(node, "synthetic:survive");
         }
 
         await using node = await makeNode(environment, "restart");
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
         const status = await node.act(a => a.get(TestTaskManager).get(runId)?.status);
         expect(status?.state).equals("completed");
     });
@@ -253,22 +241,22 @@ describe("run identity", () => {
         let firstRunId: number;
         {
             await using node = await makeNode(environment, "counter");
-            await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
             const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "counter" }));
             firstRunId = handle.status.runId;
             await settle(node, "synthetic:counter");
         }
 
         await using node = await makeNode(environment, "counter");
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
         const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "counter" }));
         expect(handle.status.runId).greaterThan(firstRunId);
     });
 
     it("refuses a re-run of a slot while the previous run's driver is still unwinding", async () => {
         await using node = await makeNode(undefined, "unwind");
-        UnwindHookedTask.phasesByTag["unwind"] = [{ name: "a", run: async () => {} }];
-        await node.act(a => a.get(TestTaskManager).register("synthetic", UnwindHookedTask));
+        SyntheticTask.phasesByTag["unwind"] = [{ name: "a", run: async () => {} }];
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
         let manager!: TaskManagerBehavior;
         await node.act(a => {
@@ -278,20 +266,18 @@ describe("run identity", () => {
         // The re-run is attempted from inside the first run's terminal write: it is terminal there, but its
         // driver has not settled, so it still owns the slot and the re-run must be refused.
         let outcome: unknown = "hook never ran";
-        UnwindHookedTask.atTerminalWrite = () => {
-            try {
-                manager.run("synthetic", { tag: "unwind" });
-                outcome = "admitted";
-            } catch (e) {
-                outcome = e;
-            }
-        };
-        try {
-            await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "unwind" }));
-            await settle(node, "synthetic:unwind");
-        } finally {
-            UnwindHookedTask.atTerminalWrite = undefined;
-        }
+        await node.act(a => {
+            const handle = a.get(TestTaskManager).run("synthetic", { tag: "unwind" });
+            onTerminalWrite(a.get(TestTaskManager), handle.status.runId, () => {
+                try {
+                    manager.run("synthetic", { tag: "unwind" });
+                    outcome = "admitted";
+                } catch (e) {
+                    outcome = e;
+                }
+            });
+        });
+        await settle(node, "synthetic:unwind");
 
         expect(outcome).instanceOf(TaskConflictError);
     });
@@ -304,7 +290,7 @@ describe("run identity", () => {
         let runId: RunId;
         {
             await using node = await makeNode(environment, "undo");
-            await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
             const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "undo" }));
             runId = handle.runId;
             await settle(node, "synthetic:undo");
@@ -313,7 +299,7 @@ describe("run identity", () => {
         // The undo path for finished work reads the retained changeSet, so it has to survive the restart and
         // the run has to be reconstituted to answer whether it may be rolled back at all.
         await using node = await makeNode(environment, "undo");
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
         const rollback = await node.act(a => a.get(TestTaskManager).cancel(runId));
         expect(rollback?.status.revertOf).equals(runId);
     });
@@ -326,7 +312,7 @@ describe("run identity", () => {
         let runId: RunId;
         {
             await using node = await makeNode(environment, "unregistered");
-            await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
             const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "unregistered" }));
             runId = handle.runId;
             await settle(node, "synthetic:unregistered");
@@ -345,7 +331,7 @@ describe("run identity", () => {
         await using node = await makeNode(undefined, "extid");
         SyntheticTask.phasesByTag["holder"] = [{ name: "a", run: async () => new Promise<void>(() => {}) }];
         SyntheticTask.phasesByTag["other"] = [{ name: "a", run: async () => {} }];
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
         const held = await node.act(a =>
             a.get(TestTaskManager).run("synthetic", { tag: "holder" }, { externalId: "mine" }),
@@ -367,7 +353,7 @@ describe("run identity", () => {
         await using node = await makeNode(undefined, "older");
         const peer = touchingPeer("older");
         SyntheticTask.phasesByTag["older"] = [touchPhase("older")];
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
         // Two completed runs of one slot, so the rollback in flight is not the newest run's.
         const first = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "older" }));
@@ -404,7 +390,7 @@ describe("run identity", () => {
         await using node = await makeNode(undefined, "recancel");
         const peer = touchingPeer("recancel");
         SyntheticTask.phasesByTag["recancel"] = [touchPhase("recancel")];
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
         const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "recancel" }));
         for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
@@ -427,7 +413,7 @@ describe("run identity", () => {
         await using node = await makeNode(undefined, "norun");
         touchingPeer("norun");
         SyntheticTask.phasesByTag["norun"] = [touchPhase("norun")];
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
         const forward = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "norun" }));
 
@@ -451,7 +437,7 @@ describe("run identity", () => {
         let rollbackId: RunId;
         {
             await using node = await makeNode(environment, "norereg");
-            await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
             const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "norereg" }));
             runId = handle.runId;
             await settle(node, "synthetic:norereg");
@@ -471,7 +457,7 @@ describe("run identity", () => {
         await using node = await makeNode(undefined, "superseded");
         const peer = touchingPeer("superseded");
         SyntheticTask.phasesByTag["superseded"] = [touchPhase("superseded")];
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
         const runs = new Array<RunId>();
         for (let round = 0; round < 2; round++) {
@@ -505,7 +491,7 @@ describe("run identity", () => {
         await using node = await makeNode(undefined, "reverseorder");
         const peer = touchingPeer("reverseorder");
         SyntheticTask.phasesByTag["reverseorder"] = [touchPhase("reverseorder")];
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
         const older = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "reverseorder" }));
         for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
@@ -540,7 +526,7 @@ describe("run identity", () => {
         await using node = await makeNode(undefined, "racecancel");
         const peer = touchingPeer("racecancel");
         SyntheticTask.phasesByTag["racecancel"] = [touchPhase("racecancel")];
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
         const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "racecancel" }));
         for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
@@ -570,7 +556,7 @@ describe("run identity", () => {
         let issued: RunId;
         {
             await using node = await makeNode(environment, "reserve");
-            await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
             const first = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "reserve" }));
             await settle(node, "synthetic:reserve");
 
@@ -581,7 +567,7 @@ describe("run identity", () => {
         }
 
         await using node = await makeNode(environment, "reserve");
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
         const next = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "reserve" }));
         // The identity was durable when it was issued, so unrelated work cannot be given it after a restart.
         expect(next.runId).greaterThan(issued);
@@ -595,7 +581,7 @@ describe("run identity", () => {
         let parked: RunId;
         {
             await using node = await makeNode(environment, "awaiting");
-            await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
             const handle = await node.act(a =>
                 a.get(TestTaskManager).run("synthetic", { tag: "awaiting" }, { externalId: "held" }),
             );
@@ -612,7 +598,7 @@ describe("run identity", () => {
         // unfinished work that has already written to a peer: it answers lookups, and a different slot may not
         // take the name it answers to, or the run would come back answering to nothing.
         await using node = await makeNode(environment, "awaiting");
-        await node.act(a => a.get(TestTaskManager).register("other", OtherTask));
+        await node.act(a => a.get(TestTaskManager).register(OtherTask));
         expect(await node.act(a => a.get(TestTaskManager).get(parked)?.status.slotKey)).equals("synthetic:awaiting");
         expect(await node.act(a => a.get(TestTaskManager).forExternalId("held")?.runId)).equals(parked);
 
@@ -636,12 +622,12 @@ describe("run identity", () => {
             // Nothing has ever been written here, so without a reservation at startup the first identity
             // would be handed out uncovered and the next start would give it to different work.
             await using node = await makeNode(environment, "fresh");
-            await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+            await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
             issued = await node.act(a => a.get(TestTaskManager).internalRunStore.allocate());
         }
 
         await using node = await makeNode(environment, "fresh");
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
         const next = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "fresh" }));
         expect(next.runId).greaterThan(issued);
     });
@@ -677,7 +663,7 @@ describe("run identity", () => {
         await using node = await makeNode(undefined, "burst");
         touchingPeer("burst");
         SyntheticTask.phasesByTag["burst"] = [touchPhase("burst")];
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
         // Exhaust the block without letting any record land. An identity beyond it is one the next start can
         // re-issue, so allocation refuses instead of handing out something it cannot promise.
@@ -702,7 +688,7 @@ describe("run identity", () => {
         {
             await using node = await makeNode(environment, "unbuildable");
             UnbuildableTask.rejectConstruction = false;
-            await node.act(a => a.get(TestTaskManager).register("unbuildable", UnbuildableTask));
+            await node.act(a => a.get(TestTaskManager).register(UnbuildableTask));
             const handle = await node.act(a => a.get(TestTaskManager).run("unbuildable", { tag: "u" }));
             parked = handle.runId;
             await pumpUntil(
@@ -716,7 +702,7 @@ describe("run identity", () => {
         // written down, so forgetting it here would free its slot and hide it for the rest of this process.
         await using node = await makeNode(environment, "unbuildable");
         UnbuildableTask.rejectConstruction = true;
-        await node.act(a => a.get(TestTaskManager).register("unbuildable", UnbuildableTask));
+        await node.act(a => a.get(TestTaskManager).register(UnbuildableTask));
 
         expect(await node.act(a => a.get(TestTaskManager).get(parked)?.status.slotKey)).equals("unbuildable:u");
         UnbuildableTask.rejectConstruction = false;

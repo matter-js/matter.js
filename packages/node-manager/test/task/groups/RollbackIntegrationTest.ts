@@ -6,9 +6,9 @@
 
 import { TaskFailedError } from "#task/errors.js";
 import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
-import { Task } from "#task/Task.js";
+import { TaskDefinition } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
-import { TaskContext, TaskPhase } from "#task/types.js";
+import { TaskContext } from "#task/types.js";
 import { DesiredStateBehavior, itemMapKey, NetworkClient, ServerNode } from "@matter/node";
 import { GroupKeyManagementClient, GroupKeyManagementServer } from "@matter/node/behaviors/group-key-management";
 import { GroupsServer } from "@matter/node/behaviors/groups";
@@ -53,55 +53,54 @@ const FAILING_ID = `${FAILING_TYPE}:peer1:${0x101}`;
  * Provisions the three AddNodeToGroup intents, then fails hard. Used to drive auto-rollback: the manager
  * spawns `revert:<id>` to undo the recorded changeSet.
  */
-class FailingProvision extends Task<AddNodeToGroupParams> {
-    readonly type = FAILING_TYPE;
+const FailingProvision: TaskDefinition<AddNodeToGroupParams> = {
+    type: FAILING_TYPE,
 
-    static override slotKeyFor(params: AddNodeToGroupParams): string {
+    slotKeyFor(params) {
         return `${FAILING_TYPE}:${params.peerId}:${params.groupId}`;
-    }
+    },
 
-    get phases(): TaskPhase[] {
-        return [{ name: "provision", run: ctx => this.#provision(ctx) }];
-    }
+    phases(params) {
+        return [{ name: "provision", run: ctx => provision(ctx, params) }];
+    },
+};
 
-    async #provision(ctx: TaskContext): Promise<void> {
-        const p = this.params;
-        const peer = ctx.resolvePeer(p.peerId);
-        const groupId = GroupId(p.groupId);
+async function provision(ctx: TaskContext, p: AddNodeToGroupParams): Promise<void> {
+    const peer = ctx.resolvePeer(p.peerId);
+    const groupId = GroupId(p.groupId);
 
-        await ctx.setIntent(
-            peer,
-            "groupKey",
-            String(p.groupKeySetId),
-            {
-                groupKeySetId: p.groupKeySetId,
-                groupKeySecurityPolicy: p.groupKeySecurityPolicy,
-                epochKey0: p.epochKey0,
-                epochStartTime0: p.epochStartTime0,
-                epochKey1: null,
-                epochStartTime1: null,
-                epochKey2: null,
-                epochStartTime2: null,
-            },
-            "converge",
-        );
-        await ctx.setIntent(
-            peer,
-            "groupKeyMap",
-            String(p.groupId),
-            { groupId, groupKeySetId: p.groupKeySetId },
-            "converge",
-        );
-        await ctx.setIntent(
-            peer,
-            "endpointGroupMembership",
-            String(p.groupId),
-            { localEndpoint: p.endpoint, groupId, groupName: p.groupName },
-            "converge",
-        );
+    await ctx.setIntent(
+        peer,
+        "groupKey",
+        String(p.groupKeySetId),
+        {
+            groupKeySetId: p.groupKeySetId,
+            groupKeySecurityPolicy: p.groupKeySecurityPolicy,
+            epochKey0: p.epochKey0,
+            epochStartTime0: p.epochStartTime0,
+            epochKey1: null,
+            epochStartTime1: null,
+            epochKey2: null,
+            epochStartTime2: null,
+        },
+        "converge",
+    );
+    await ctx.setIntent(
+        peer,
+        "groupKeyMap",
+        String(p.groupId),
+        { groupId, groupKeySetId: p.groupKeySetId },
+        "converge",
+    );
+    await ctx.setIntent(
+        peer,
+        "endpointGroupMembership",
+        String(p.groupId),
+        { localEndpoint: p.endpoint, groupId, groupName: p.groupName },
+        "converge",
+    );
 
-        throw new TaskFailedError("forced provisioning failure");
-    }
+    throw new TaskFailedError("forced provisioning failure");
 }
 
 const ControllerRoot = MockServerNode.RootEndpoint.with(TaskManagerBehavior);
@@ -156,7 +155,7 @@ describe("Rollback task integration (single peer)", () => {
         });
         const peer = await subscribedPeer(controller, "peer1");
 
-        await controller.act(agent => agent.get(TaskManagerBehavior).register(FAILING_TYPE, FailingProvision));
+        await controller.act(agent => agent.get(TaskManagerBehavior).register(FailingProvision));
         await controller.act(agent => agent.get(TaskManagerBehavior).run(FAILING_TYPE, PARAMS));
         await awaitState(controller, FAILING_ID, "failed");
 
@@ -276,7 +275,7 @@ describe("Rollback task integration (single peer)", () => {
         // Peer unreachable: failingProvision still sets intents, then the spawned revert parks on the offline peer.
         await MockTime.resolve(subscription.active.emit(false), { macrotasks: true });
 
-        await controller.act(agent => agent.get(TaskManagerBehavior).register(FAILING_TYPE, FailingProvision));
+        await controller.act(agent => agent.get(TaskManagerBehavior).register(FailingProvision));
         await controller.act(agent => agent.get(TaskManagerBehavior).run(FAILING_TYPE, PARAMS));
         await awaitState(controller, FAILING_ID, "failed");
         await awaitState(
@@ -289,7 +288,7 @@ describe("Rollback task integration (single peer)", () => {
         await MockTime.resolve(controller.close(), { macrotasks: true });
 
         const controller2 = await site.addNode(ControllerRoot, { id, index: 1 });
-        await controller2.act(agent => agent.get(TaskManagerBehavior).register(FAILING_TYPE, FailingProvision));
+        await controller2.act(agent => agent.get(TaskManagerBehavior).register(FailingProvision));
         const resumed = await controller2.act(
             agent => revertRecordOf(agent.get(TaskManagerBehavior).state.runs, FAILING_ID)?.state,
         );
