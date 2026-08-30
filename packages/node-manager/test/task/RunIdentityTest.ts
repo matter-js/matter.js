@@ -6,7 +6,7 @@
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { TaskConflictError, TaskIdentityExhaustedError, TaskTypeNotRegisteredError } from "#task/errors.js";
-import { RUN_ID_RESERVATION } from "#task/RunStore.js";
+import { RUN_ID_RESERVATION, RunStore } from "#task/RunStore.js";
 import { Task, TaskPersistence } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { RunId, TaskPhase } from "#task/types.js";
@@ -644,6 +644,33 @@ describe("run identity", () => {
         await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
         const next = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "fresh" }));
         expect(next.runId).greaterThan(issued);
+    });
+
+    it("discards a terminal record that reached storage without its place in the retirement order", () => {
+        const store = new RunStore();
+        const { resumable, discarded } = store.load({
+            runs: {
+                // Written by a build that recorded the outcome and the order separately, and stopped between
+                // the two. It has no position, so it would sort ahead of every sequenced run of its slot.
+                "run:1": { runId: 1, slotKey: "synthetic:a", type: "synthetic", state: "completed", changeSet: [] },
+                "run:2": {
+                    runId: 2,
+                    slotKey: "synthetic:a",
+                    type: "synthetic",
+                    state: "completed",
+                    retireSeq: 1,
+                    changeSet: [],
+                },
+            } as unknown as Record<string, TaskPersistence>,
+            nextRunId: 3,
+            nextRetireSeq: 2,
+        });
+
+        expect(discarded).equals(1);
+        expect(resumable.length).equals(0);
+        // Only the sequenced run survives, so nothing in the table can be misordered against it.
+        expect(store.retiredRun(RunId(1))).equals(undefined);
+        expect(store.retiredRun(RunId(2))?.retireSeq).equals(1);
     });
 
     it("refuses an identity the reservation does not cover rather than issuing it", async () => {

@@ -134,6 +134,7 @@ export class TaskManagerBehavior extends Behavior {
         if (this.state.nextRunId < reservedRunId) {
             this.state.nextRunId = reservedRunId;
         }
+        // Written in this same transaction, so the boundary it establishes is durable with it.
         this.internal.runs.noteReserved(this.state.nextRunId);
     }
 
@@ -210,14 +211,14 @@ export class TaskManagerBehavior extends Behavior {
     }
 
     /**
-     * Release a settled run: drop its bookkeeping, stamp its retirement and record it.
+     * Release a settled run: hand back its slot and drop its bookkeeping.
      *
      * The slot is released here rather than when the state turned terminal, because a task is terminal before
      * its driver stops: a re-run admitted any earlier would start writing to the peer while this run's unwind
-     * is still in flight. The record is written as part of the same step, so `retireSeq` — which orders history
-     * and eviction — is durable rather than living only in memory until the next unrelated write.
+     * is still in flight. The retirement order is stamped when the outcome is assigned and travels with the
+     * write that records it, so nothing is written here.
      */
-    async #retire(task: Task): Promise<void> {
+    #retire(task: Task): void {
         try {
             // A cancel awaiting this driver owns the run's terminal state, so it owns the retirement too: the
             // run is still `running` here, and retiring it now would record it mid-cancel.
@@ -225,17 +226,9 @@ export class TaskManagerBehavior extends Behavior {
                 return;
             }
             // A non-terminal run otherwise reaches here through shutdown, which leaves it for the next start.
-            if (!isTerminal(task.progress.state)) {
-                return;
-            }
-            // Stamped, written, and only then moved. The run keeps its slot for the whole of the write, so a
-            // re-run cannot be admitted against a retirement that never landed.
-            this.internal.runs.stampRetirement(task);
-            try {
-                await this.#persist(task);
-            } catch (e) {
-                this.internal.runs.abandonRetirement(task);
-                logger.warn(`Cannot record retirement of ${runLabel(task.runId)}`, e);
+            // An outcome whose write was refused carries no stamp, so the run keeps its slot rather than
+            // retiring behind a record storage does not have.
+            if (!isTerminal(task.progress.state) || task.retireSeq === undefined) {
                 return;
             }
             this.internal.runs.commitRetirement(task);
@@ -732,7 +725,13 @@ export class TaskManagerBehavior extends Behavior {
             }
             if (task.progress.state === "running") {
                 task.progress.state = "completed";
-                await this.#persist(task);
+                this.internal.runs.stampRetirement(task);
+                try {
+                    await this.#persist(task);
+                } catch (e) {
+                    this.internal.runs.abandonRetirement(task);
+                    throw e;
+                }
             }
         } catch (e) {
             // Shutdown leaves the task non-terminal for resume; cancel is finalized by cancel() itself.
@@ -759,9 +758,11 @@ export class TaskManagerBehavior extends Behavior {
             } catch (revertError) {
                 logger.error(`${runLabel(task.runId)}: cannot roll back`, revertError);
             }
+            this.internal.runs.stampRetirement(task);
             try {
                 await this.#persist(task, revert.task);
             } catch (persistError) {
+                this.internal.runs.abandonRetirement(task);
                 revert.discard();
                 logger.error(`${runLabel(task.runId)}: failed to persist failure state`, persistError);
                 return;
@@ -842,7 +843,6 @@ export class TaskManagerBehavior extends Behavior {
         const records = written.map(t => [runKey(t.runId), t.toPersistence()] as const);
         const { nextRetireSeq } = this.internal.runs.snapshot();
         const reservedRunId = this.internal.runs.reservedRunId;
-        this.internal.runs.noteReserved(reservedRunId);
         await this.endpoint.act(agent => {
             const self = agent.get(TaskManagerBehavior);
             const runs = { ...self.state.runs };
@@ -855,8 +855,11 @@ export class TaskManagerBehavior extends Behavior {
             self.state.nextRunId = Math.max(self.state.nextRunId, reservedRunId);
             self.state.nextRetireSeq = Math.max(self.state.nextRetireSeq, nextRetireSeq);
         });
-        // Only now: a retired record refreshed before the write would keep a change the write never made, and
-        // a run would go on naming a rollback that does not exist.
+        // Only now, and for the same reason in both cases: a value advanced before the write survives a write
+        // that never landed. A retired record refreshed early would keep a change storage does not have, and a
+        // reservation noted early would let the next identity be issued beyond what storage covers — which the
+        // next start would then re-issue to different work.
+        this.internal.runs.noteReserved(reservedRunId);
         for (const t of written) {
             this.internal.runs.refresh(t);
         }
