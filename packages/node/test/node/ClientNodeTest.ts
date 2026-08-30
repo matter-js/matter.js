@@ -2841,8 +2841,8 @@ describe("ClientNode", () => {
 
             await drain(structure.mutate(request, readResult(descriptorServerListReport(10))));
 
-            // LevelControl is absent from EP1's server list, so its store holds only the property-named values the
-            // remote API delivers -- the key shape a mirroring node sees
+            // LevelControl is absent from EP1's server list, so no protocol update seeds its store: the wire changes
+            // below are its only input, as they are for a mirroring node
             const levelControlType = () => {
                 const endpoint = structure.endpointFor(EP1);
                 return endpoint === undefined
