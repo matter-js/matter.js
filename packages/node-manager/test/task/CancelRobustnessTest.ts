@@ -54,6 +54,11 @@ class TestTaskManager extends TaskManagerBehavior {
         return execution !== undefined && !execution.settled;
     }
 
+    /** Whether this process holds responsibility for the run — driving it, or having just stopped. */
+    isAttached(runId: RunId): boolean {
+        return this.internal.runs.executionOf(runId) !== undefined;
+    }
+
     /**
      * Refuse every further write, with the node otherwise healthy. Distinct from shutdown: this is the storage
      * failure a cancel can hit while the manager is running normally.
@@ -413,9 +418,10 @@ describe("cancel robustness", () => {
         // a synchronous check before the enqueue cannot see the shutdown that begins after it.
         const release = await node1.act(a => a.get(TestTaskManager).holdPersistMutex());
         const cancelling = node1.act(a => cancelSlot(a.get(TestTaskManager), "synthetic:queued"));
-        await pumpUntil(
-            "cancel write enqueued",
-            () => requireStatusOfSlot(manager, "synthetic:queued").state === "cancelled",
+        // The cancel is accepted before its write is enqueued, and the run adopts the cancelled state only once
+        // that write lands — so acceptance, not state, is what says the window is open.
+        await pumpUntil("cancel write enqueued", () =>
+            manager.isCancelling(requireRunIdOfSlot(manager, "synthetic:queued")),
         );
 
         const closing = node1.close();
@@ -550,7 +556,8 @@ describe("cancel robustness", () => {
         node.construction.setStatus(Lifecycle.Status.Crashed);
         releasePhase();
         await pumpUntil("drive settled", () => !manager.isDriven(requireRunIdOfSlot(manager, "synthetic:failwrite")));
-        expect(requireStatusOfSlot(manager, "synthetic:failwrite").state).equals("failed");
+        // The failure was never recorded, so the run does not claim it: memory says what storage has.
+        expect(requireStatusOfSlot(manager, "synthetic:failwrite").state).equals("running");
 
         // A rollback the record does not name must not exist: it would block every future run of the id, and
         // nothing would ever drive it.
@@ -767,10 +774,10 @@ describe("cancel robustness", () => {
         expect(manager.get(handle.runId)?.status.state).does.not.equal("cancelled");
         expect(manager.get(handle.runId)?.status.revertRunId).equals(undefined);
 
-        await pumpUntil("the redriven task reaches an outcome", () => {
-            const state = manager.get(handle.runId)?.status.state;
-            return state === "failed" || state === "completed";
-        });
+        // Its driver is back. It cannot reach an outcome while storage refuses, because an outcome is only
+        // adopted once it is recorded — which is the point: memory never claims one, so what it is given back
+        // is responsibility for the run rather than a state.
+        expect(manager.isAttached(handle.runId)).equals(true);
 
         await node.close();
     });

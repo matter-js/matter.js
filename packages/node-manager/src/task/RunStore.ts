@@ -252,16 +252,19 @@ export class RunStore {
     }
 
     /**
-     * Stamp a settled run's place in the retirement order.
+     * The place in the retirement order this run would take, or `undefined` if it is not the slot's owner or
+     * already has one.
      *
-     * Called as the state becomes terminal, so the write that records the outcome carries the order with it. A
-     * terminal record that reached storage without one would sort ahead of every sequenced run of its slot, and
-     * {@link supersederOf} would then let an older run's rollback overwrite it.
+     * Allocated for the write that records the outcome, so the two land together: a terminal record that
+     * reached storage without an order would sort ahead of every sequenced run of its slot, and
+     * {@link supersederOf} would then let an older run's rollback overwrite it. A refused write leaves a gap in
+     * the sequence, which costs nothing — the order only ever has to be increasing.
      */
-    stampRetirement(record: RunRecord): void {
-        if (this.#slots.get(record.slotKey) === record.runId && record.retireSeq === undefined) {
-            record.retireSeq = RetireSeq(this.#nextRetireSeq++);
+    nextRetirement(record: RunRecord): RetireSeq | undefined {
+        if (this.#slots.get(record.slotKey) !== record.runId || record.retireSeq !== undefined) {
+            return undefined;
         }
+        return RetireSeq(this.#nextRetireSeq++);
     }
 
     /** Hand back a retired run's slot, once the write carrying its outcome has landed. */
@@ -270,11 +273,6 @@ export class RunStore {
             this.#slots.delete(record.slotKey);
         }
         this.#executions.delete(record.runId);
-    }
-
-    /** Drop a retirement whose record never landed. The run keeps its slot and stays exactly as it was. */
-    abandonRetirement(record: RunRecord): void {
-        record.retireSeq = undefined;
     }
 
     /** Forget a run that was never persisted, so a refused write leaves nothing for a later resume to find. */
@@ -306,6 +304,22 @@ export class RunStore {
                 (other.retireSeq ?? 0) > retiredAt
             ) {
                 return other;
+            }
+        }
+        return undefined;
+    }
+
+    /**
+     * The rollback that undoes `runId`, if one exists — whether or not the run's own record names it yet.
+     *
+     * Derived rather than remembered: a rollback is linked by identity from the moment it is admitted, so a
+     * second cancel racing the first finds the rollback already being prepared instead of trying to create
+     * another one.
+     */
+    rollbackOf(runId: RunId): RunRecord | undefined {
+        for (const record of this.#records.values()) {
+            if (record.revertOf === runId) {
+                return record;
             }
         }
         return undefined;
