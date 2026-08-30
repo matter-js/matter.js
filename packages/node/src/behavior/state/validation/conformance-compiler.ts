@@ -87,7 +87,7 @@ export function astToFunction(
     supervisor: RootSupervisor,
     options?: astToFunction.Options,
 ): ValueSupervisor.Validate | undefined {
-    const ast = schema.conformance.ast;
+    const ast = schema.effectiveConformance.ast;
     const { featuresAvailable, featuresSupported } = FeatureSet.normalize(
         supervisor.featureMap,
         supervisor.supportedFeatures,
@@ -127,7 +127,7 @@ export function astToFunction(
     };
 
     // Compile the AST
-    const isNullable = schema.quality.nullable;
+    const isNullable = schema.effectiveQuality.nullable;
     const compiledNode = compile(ast);
 
     let validator: ValueSupervisor.Validate | undefined;
@@ -780,7 +780,7 @@ export function astToFunction(
             }
 
             // Enum choice indicates support for the value; it should not affect validation
-            let ast = member.conformance.ast;
+            let ast = member.effectiveConformance.ast;
             if (ast.type === Conformance.Special.Choice) {
                 ast = ast.param.expr;
             }

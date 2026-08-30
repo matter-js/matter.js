@@ -6,6 +6,7 @@
 
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { MaybePromise } from "@matter/general";
+import { ConformanceError, Val } from "@matter/protocol";
 import { FabricIndex, NodeId } from "@matter/types";
 import { MockExchange } from "../../../../node/mock-exchange.js";
 import { TestStruct, aclEndpoint, listOf, structOf } from "./value-utils.js";
@@ -20,6 +21,39 @@ export interface TwoLists {
     list2: ValueList;
     subList1: ValueSubList;
     subList2: ValueSubList;
+}
+
+/**
+ * A fabric-scoped list whose entry spells its index with the FabricIndex seed field, which states mandatory
+ * conformance.  The manager supplies the index, so a caller that omits it must still be accepted.
+ */
+export async function testMandatoryFabricIndex(
+    actor: (list: ValueList, ref: Val.Struct) => MaybePromise,
+    defaults: Val.Struct = { list: [] },
+) {
+    const struct = TestStruct(
+        {
+            list: listOf(
+                structOf({
+                    fabricIndex: "FabricIndex",
+                    value: "uint8",
+                }),
+                { access: "F" },
+            ),
+        },
+        defaults,
+    );
+
+    const cx = {
+        fabricFiltered: true,
+        exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
+        node: aclEndpoint(),
+    };
+
+    return struct.online2(cx, cx, async ({ cx1, ref1 }) => {
+        await actor(ref1.list as ValueList, ref1);
+        await cx1.transaction.commit();
+    });
 }
 
 export async function testFabricScoped(actor: (struct: TestStruct, lists: TwoLists) => MaybePromise) {
@@ -433,6 +467,120 @@ describe("ListManager", () => {
                 { fabricIndex: 1, value: 5 },
                 { fabricIndex: 1, value: 7 },
             ]);
+        });
+    });
+
+    describe("list that is not fabric-scoped", () => {
+        // The same write paths as the fabric-scoped cases, where nothing completes an entry on the caller's behalf
+        async function testPlainList(
+            actor: (list: ValueList, ref: Val.Struct) => MaybePromise,
+            defaults: Val.Struct = { list: [] },
+        ) {
+            const struct = TestStruct({ list: listOf(structOf({ value: "uint8" })) }, defaults);
+
+            await struct.online(
+                {
+                    exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
+                    node: aclEndpoint(),
+                },
+                async ref => {
+                    await actor(ref.list as ValueList, ref);
+                },
+            );
+
+            return struct;
+        }
+
+        it("accepts an entry assigned by index", async () => {
+            const struct = await testPlainList(list => {
+                list[0] = { value: 1 };
+            });
+
+            struct.expect({ list: [{ value: 1 }] });
+        });
+
+        it("accepts a whole list assigned to a member that had none", async () => {
+            const struct = await testPlainList((_list, ref) => {
+                ref.list = [{ value: 2 }];
+            }, {});
+
+            struct.expect({ list: [{ value: 2 }] });
+        });
+
+        it("rejects an invalid entry assigned by index", async () => {
+            const struct = await testPlainList(list => {
+                expect(() => (list[0] = { value: 99999 })).throw();
+            });
+
+            struct.expect({ list: [] });
+        });
+
+        it("leaves a member that had no list absent when an entry is rejected", async () => {
+            const struct = await testPlainList((_list, ref) => {
+                expect(() => (ref.list = [{ value: 99999 }])).throw();
+                expect(ref.list).undefined;
+            }, {});
+
+            expect(struct.fields.list).undefined;
+        });
+
+        it("supplies no fabric for an entry that omits a mandatory fabricIndex", async () => {
+            const struct = TestStruct(
+                { list: listOf(structOf({ fabricIndex: "FabricIndex", value: "uint8" })) },
+                { list: [] },
+            );
+
+            await struct.online(
+                {
+                    exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
+                    node: aclEndpoint(),
+                },
+                ref => {
+                    expect(() => ((ref.list as ValueList)[0] = { value: 1 })).throw(ConformanceError);
+                },
+            );
+        });
+    });
+
+    describe("entry with mandatory fabricIndex", () => {
+        it("accepts an entry assigned by index", async () => {
+            await testMandatoryFabricIndex(list => {
+                list[0] = { value: 1 };
+            });
+        });
+
+        it("accepts an entry appended with push", async () => {
+            await testMandatoryFabricIndex(list => {
+                list.push({ value: 2 });
+            });
+        });
+
+        it("accepts a whole list assigned over an existing one", async () => {
+            await testMandatoryFabricIndex((list, ref) => {
+                list[0] = { value: 1 };
+                ref.list = [{ value: 2 }, { value: 3 }];
+            });
+        });
+
+        it("accepts a whole list assigned to a member that had none", async () => {
+            await testMandatoryFabricIndex((_list, ref) => {
+                ref.list = [{ value: 4 }];
+                expect(ref.list).deep.equals([{ fabricIndex: 1, value: 4 }]);
+            }, {});
+        });
+
+        it("leaves a member that had no list absent when an entry is rejected", async () => {
+            await testMandatoryFabricIndex((_list, ref) => {
+                expect(() => (ref.list = [{ value: 99999 }])).throw();
+                expect(ref.list).undefined;
+            }, {});
+        });
+
+        it("supplies the accessing fabric for an entry that omits it", async () => {
+            await testMandatoryFabricIndex(list => {
+                list[0] = { value: 3 };
+                expect(list[0]).deep.equals({ fabricIndex: 1, value: 3 });
+            });
         });
     });
 });
