@@ -4,262 +4,44 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "@matter/main";
-import { Matter } from "@matter/model";
-import type { CertNodeApi, CertNodeRef, CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
-import type { CommandFieldValue } from "./tc-support.js";
 import {
-    answersWithStatus,
-    CertCheckFailedError,
-    CommissionedRefs,
-    describeValue,
-    expectCommandInvoke,
-    expectMessageWithPath,
-    LOG_TIMEOUT,
-    record,
-    requireId,
-    responseStatusOf,
-} from "./tc-support.js";
-
-const GROUP_KEY_MANAGEMENT = Matter.clusters.require("GroupKeyManagement");
-const GROUPS = Matter.clusters.require("Groups");
-const ACCESS_CONTROL = Matter.clusters.require("AccessControl");
-
-const GROUP_KEY_MANAGEMENT_ID = requireId(GROUP_KEY_MANAGEMENT.id, "GroupKeyManagement cluster");
-const GROUPS_ID = requireId(GROUPS.id, "Groups cluster");
-const ACCESS_CONTROL_ID = requireId(ACCESS_CONTROL.id, "AccessControl cluster");
-
-/** GroupKeyManagement and AccessControl are root-node clusters; Groups lives on the on/off light. */
-const ROOT_ENDPOINT = 0;
-const GROUPS_ENDPOINT = 1;
-
-const GROUP = { id: 1, name: "GroupOne" };
-const GROUP_KEY_SET_ID = 1;
-
-/** The fabric's own IPK key set, which commissioning writes and no step removes (Matter Core § 11.2.2). */
-const IPK_KEY_SET_ID = 0;
-
-/** The Groups feature that decides whether a `ViewGroupResponse` may answer with an empty name. */
-const GROUP_NAMES_PROPERTY = "groupNames";
-const GROUP_NAMES_FEATURE = 1 << 0;
-
-/** `AccessControlEntryPrivilegeEnum.Operate` and `AccessControlEntryAuthModeEnum.Group`. */
-const PRIVILEGE_OPERATE = 3;
-const AUTH_MODE_GROUP = 3;
+    aclAdmitsGroupStep,
+    addGroupStep,
+    GROUP,
+    GROUP_KEY_MANAGEMENT,
+    GROUP_KEY_MANAGEMENT_ID,
+    GROUP_KEY_SET_ID,
+    GROUPS,
+    GROUPS_ENDPOINT,
+    GROUPS_ID,
+    groupKeyMapStep,
+    invokeAndCheck,
+    IPK_KEY_SET_ID,
+    keepsGroupNames,
+    keyMaterialStep,
+    keySetWriteStep,
+    ROOT_ENDPOINT,
+} from "./tc-group-support.js";
+import { CommissionedRefs, describeValue, record } from "./tc-support.js";
 
 const commissioned = new CommissionedRefs();
-
-function attributeId(cluster: typeof GROUP_KEY_MANAGEMENT, attributeName: string): number {
-    return requireId(cluster.attributes.require(attributeName).id, `${cluster.name}.${attributeName}`);
-}
-
-/**
- * The key set the DUT writes, in the shape the plan's step 1b describes. The start time is a Unix
- * timestamp rather than the plan's own literal, for the reason AGENTS.md records under "An `epoch-us`
- * cannot carry the plan's literal start time"; nothing here depends on its value.
- */
-function groupKeySet() {
-    return {
-        groupKeySetId: GROUP_KEY_SET_ID,
-        groupKeySecurityPolicy: 0,
-        epochKey0: Bytes.fromHex("d0d1d2d3d4d5d6d7d8d9dadbdcdddedf"),
-        epochStartTime0: 1_600_000_000_000_000n,
-        epochKey1: null,
-        epochStartTime1: null,
-        epochKey2: null,
-        epochStartTime2: null,
-    };
-}
-
-/**
- * Invokes a command on the TH and verifies the TH's own log recorded it with the fields sent. A
- * response carrying its own status is checked separately, since a command the cluster refused still
- * resolves.
- */
-async function invokeAndCheck(
-    cx: CertStepContext,
-    ref: CertNodeRef,
-    cluster: typeof GROUP_KEY_MANAGEMENT,
-    clusterId: number,
-    endpoint: number,
-    commandName: string,
-    args: object,
-    fields: CommandFieldValue[],
-): Promise<unknown> {
-    const th = cx.devices.th;
-    const from = th.log.mark();
-
-    let response: unknown;
-    try {
-        response = await cx.controllers.dut.node(ref).invoke(cluster.name, commandName, args, endpoint);
-    } catch (e) {
-        cx.recorder.check({ type: "response", verdict: "fail", detail: String(e) });
-        throw e;
-    }
-    cx.recorder.check({
-        type: "response",
-        verdict: "pass",
-        detail: response === undefined ? "status=Success" : `status=Success, response=${describeValue(response)}`,
-    });
-
-    if (answersWithStatus(cluster, commandName)) {
-        const payloadStatus = responseStatusOf(response);
-        record(
-            cx,
-            {
-                type: "response",
-                verdict: payloadStatus === 0 ? "pass" : "fail",
-                detail:
-                    payloadStatus === undefined
-                        ? `${commandName} answered ${describeValue(response)}, which carries no status`
-                        : `${commandName} response status=${payloadStatus}`,
-            },
-            `${cluster.name}.${commandName} response status`,
-        );
-    }
-
-    const logCheck = await expectCommandInvoke(
-        th.log,
-        th.flavor,
-        endpoint,
-        clusterId,
-        requireId(cluster.commands.require(commandName).id, `${cluster.name}.${commandName}`),
-        fields,
-        from,
-        LOG_TIMEOUT,
-    );
-    record(cx, logCheck, `CommandDataIB log for ${cluster.name}.${commandName}`);
-
-    return response;
-}
-
-/**
- * Whether the TH's Groups cluster keeps group names. A feature map is a bitmap, and both adapters
- * decode a bitmap through the model into an object of named bits rather than the raw number.
- */
-async function keepsGroupNames(node: CertNodeApi): Promise<boolean> {
-    const value = await node.readAttribute({
-        endpoint: GROUPS_ENDPOINT,
-        cluster: GROUPS_ID,
-        attribute: attributeId(GROUPS, "featureMap"),
-    });
-    if (typeof value === "number") {
-        return (value & GROUP_NAMES_FEATURE) !== 0;
-    }
-    if (typeof value === "object" && value !== null && GROUP_NAMES_PROPERTY in value) {
-        return Boolean(value[GROUP_NAMES_PROPERTY]);
-    }
-    throw new CertCheckFailedError(
-        `TH answered Groups FeatureMap with ${describeValue(value)}, which names no features`,
-    );
-}
-
-/** The ACL the TH already holds for this fabric, which a new entry is appended to rather than replacing. */
-async function readAcl(node: CertNodeApi): Promise<unknown[]> {
-    const value = await node.readAttribute({
-        endpoint: ROOT_ENDPOINT,
-        cluster: ACCESS_CONTROL_ID,
-        attribute: attributeId(ACCESS_CONTROL, "acl"),
-    });
-    if (!Array.isArray(value)) {
-        throw new CertCheckFailedError(`TH answered its ACL with ${describeValue(value)}, not a list`);
-    }
-    return value;
-}
-
-/**
- * Whether an ACL entry admits this group — what step 1a asks the DUT to put in place. A subject is a
- * uint64, so it reaches here as a `bigint` on one controller and a `number` on another; the comparison
- * is on the value, not the type.
- */
-function isGroupEntry(entry: unknown): boolean {
-    if (typeof entry !== "object" || entry === null) {
-        return false;
-    }
-    const { authMode, subjects } = entry as { authMode?: unknown; subjects?: unknown };
-    if (Number(authMode) !== AUTH_MODE_GROUP || !Array.isArray(subjects)) {
-        return false;
-    }
-    return subjects.some(subject => {
-        const value = typeof subject === "bigint" || typeof subject === "number" ? Number(subject) : undefined;
-        return value === GROUP.id;
-    });
-}
 
 certTest("TC-SC-6.1", {
     plan: "group_communication.adoc",
     pics: ["MCORE.ROLE.COMMISSIONER", "GRPKEY.C"],
     app: "all-clusters",
 })
-    .step(
-        "1a",
-        "TH should have the ACL entry with the AuthMode as Group by DUT",
-        async cx => {
-            const dut = cx.controllers.dut;
-            const th = cx.devices.th;
-
-            const ref = await dut.commission({
-                passcode: th.commissioning.passcode,
-                discriminator: th.commissioning.discriminator,
-            });
-            commissioned.set("dut", ref);
-
-            const node = dut.node(ref);
-
-            // The DUT's own administer entry is in this list; writing the group entry alone would
-            // revoke the access every later step needs.
-            const existing = await readAcl(node);
-            await node.writeAttribute(
-                { endpoint: ROOT_ENDPOINT, cluster: ACCESS_CONTROL_ID, attribute: attributeId(ACCESS_CONTROL, "acl") },
-                [
-                    ...existing,
-                    { privilege: PRIVILEGE_OPERATE, authMode: AUTH_MODE_GROUP, subjects: [GROUP.id], targets: null },
-                ],
-            );
-
-            const readBack = await readAcl(node);
-            record(
-                cx,
-                {
-                    type: "response",
-                    verdict: readBack.some(isGroupEntry) ? "pass" : "fail",
-                    detail: `ACL holds ${readBack.length} entries, ${
-                        readBack.some(isGroupEntry) ? "one of them admitting" : "none admitting"
-                    } group ${GROUP.id}`,
-                },
-                "the TH's ACL admits the group the DUT is about to add it to",
-            );
-        },
-        {
-            expected:
-                "The TH's ACL carries an entry whose AuthMode is Group and whose subjects name the group, alongside " +
-                "the administer entry the DUT itself uses.",
-        },
-    )
+    .step("1a", "TH should have the ACL entry with the AuthMode as Group by DUT", aclAdmitsGroupStep(commissioned), {
+        expected:
+            "The TH's ACL carries an entry whose AuthMode is Group and whose subjects name the group, alongside " +
+            "the administer entry the DUT itself uses.",
+    })
     .step(
         "1b",
         "DUT generates a random key and EpochKey0 assigned to GroupKeySetID 1, with " +
             "GroupKeySecurityPolicy TrustFirst and an EpochStartTime0",
-        async cx => {
-            const set = groupKeySet();
-            record(
-                cx,
-                {
-                    type: "response",
-                    verdict:
-                        set.groupKeySetId === GROUP_KEY_SET_ID &&
-                        set.groupKeySecurityPolicy === 0 &&
-                        set.epochKey0 !== undefined
-                            ? "pass"
-                            : "fail",
-                    detail:
-                        `key set ${set.groupKeySetId}, policy TrustFirst(${set.groupKeySecurityPolicy}), ` +
-                        `EpochKey0 ${Bytes.toHex(set.epochKey0)}, EpochStartTime0 ${set.epochStartTime0}`,
-                },
-                "the key material the next step writes",
-            );
-        },
+        keyMaterialStep(),
         {
             expected:
                 "The DUT holds a key set the next step can write. This step produces the artifact in-process, so it " +
@@ -269,18 +51,7 @@ certTest("TC-SC-6.1", {
     .step(
         2,
         "DUT sends KeySetWrite command to GroupKeyManagement cluster to TH on EP0",
-        commissioned.withRef("dut", async (cx, ref) => {
-            await invokeAndCheck(
-                cx,
-                ref,
-                GROUP_KEY_MANAGEMENT,
-                GROUP_KEY_MANAGEMENT_ID,
-                ROOT_ENDPOINT,
-                "keySetWrite",
-                { groupKeySet: groupKeySet() },
-                [],
-            );
-        }),
+        keySetWriteStep(commissioned),
         {
             pics: "GRPKEY.C.C00.Tx",
             expected: "Test Harness receives the KeySetWrite command from the DUT.",
@@ -289,46 +60,7 @@ certTest("TC-SC-6.1", {
     .step(
         3,
         "DUT binds GroupID 1 with GroupKeySetID 1 in the GroupKeyMap attribute list on GroupKeyManagement cluster",
-        commissioned.withRef("dut", async (cx, ref) => {
-            const th = cx.devices.th;
-            const from = th.log.mark();
-            const path = {
-                endpoint: ROOT_ENDPOINT,
-                cluster: GROUP_KEY_MANAGEMENT_ID,
-                attribute: attributeId(GROUP_KEY_MANAGEMENT, "groupKeyMap"),
-            };
-
-            await cx.controllers.dut
-                .node(ref)
-                .writeAttribute(path, [{ groupId: GROUP.id, groupKeySetId: GROUP_KEY_SET_ID }]);
-            cx.recorder.check({ type: "response", verdict: "pass", detail: "GroupKeyMap write accepted" });
-
-            record(
-                cx,
-                await expectMessageWithPath(th.log, th.flavor, "write", path, from, LOG_TIMEOUT),
-                "WriteRequestMessage log for GroupKeyManagement.groupKeyMap",
-            );
-
-            const readBack = await cx.controllers.dut.node(ref).readAttribute(path);
-            const bound =
-                Array.isArray(readBack) &&
-                readBack.some(entry => {
-                    if (typeof entry !== "object" || entry === null) {
-                        return false;
-                    }
-                    const { groupId, groupKeySetId } = entry as { groupId?: unknown; groupKeySetId?: unknown };
-                    return groupId === GROUP.id && groupKeySetId === GROUP_KEY_SET_ID;
-                });
-            record(
-                cx,
-                {
-                    type: "response",
-                    verdict: bound ? "pass" : "fail",
-                    detail: `GroupKeyMap reads back as ${describeValue(readBack)}`,
-                },
-                "the binding the TH kept",
-            );
-        }),
+        groupKeyMapStep(commissioned),
         {
             pics: "GRPKEY.C.A0000",
             expected: "Test Harness receives the binding of GroupKeySetID 1 with the GroupID 1 from DUT.",
@@ -337,21 +69,7 @@ certTest("TC-SC-6.1", {
     .step(
         4,
         'DUT sends AddGroup Command to TH with the GroupID 1 and GroupName "GroupOne"',
-        commissioned.withRef("dut", async (cx, ref) => {
-            await invokeAndCheck(
-                cx,
-                ref,
-                GROUPS,
-                GROUPS_ID,
-                GROUPS_ENDPOINT,
-                "addGroup",
-                { groupId: GROUP.id, groupName: GROUP.name },
-                [
-                    { id: 0, value: GROUP.id },
-                    { id: 1, value: GROUP.name },
-                ],
-            );
-        }),
+        addGroupStep(commissioned),
         {
             pics: "G.C.C00.Tx",
             expected: "Test Harness receives the AddGroup command from the DUT.",
