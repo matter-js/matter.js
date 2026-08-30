@@ -2620,6 +2620,15 @@ describe("ClientNode", () => {
             ];
         }
 
+        // Like neoReports but at revision 2 — same featureMap, attribute list and command lists.
+        function neoReportsAtRevision2(version: number): ReadResult.Report[] {
+            return neoReports(version).map(report =>
+                report.kind === "attr-value" && report.path.attributeId === ClusterRevision.id
+                    ? { ...report, value: 2 }
+                    : report,
+            );
+        }
+
         // Like neoReports but with an accepted command (1) added — same featureMap and attribute list.
         function neoReportsWithExtraCommand(version: number): ReadResult.Report[] {
             return [
@@ -2792,6 +2801,35 @@ describe("ClientNode", () => {
             const after = neoType();
             expect(after, "NEO should remain active").not.undefined;
             expect(after, "behavior must be rebuilt to reflect the new attribute set").not.equals(before);
+        });
+
+        it("rebuilds a cluster when the peer changes its revision without a feature change", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const structure = (peer1.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+
+            const neoType = () => {
+                const endpoint = structure.endpointFor(EP1);
+                return endpoint === undefined
+                    ? undefined
+                    : (Object.values(endpoint.behaviors.supported).find(
+                          type => (type as ClusterBehavior.Type).cluster?.id === NEO,
+                      ) as ClusterBehavior.Type | undefined);
+            };
+
+            await drain(structure.mutate(request, readResult(descriptorServerListWithNeoReport(10), neoReports(10))));
+            const before = neoType();
+            expect(before?.cluster.revision, "NEO should report the revision the peer sent").equals(1);
+
+            // Same featureMap, attribute list and command lists, but the peer now reports revision 2.
+            await drain(
+                structure.mutate(request, readResult(descriptorServerListWithNeoReport(11), neoReportsAtRevision2(11))),
+            );
+            const after = neoType();
+            expect(after, "behavior must be rebuilt to reflect the new revision").not.equals(before);
+            expect(after?.cluster.revision, "NEO must report the new revision").equals(2);
         });
 
         it("rebuilds a cluster when the peer changes its accepted command list without a feature change", async () => {
