@@ -64,6 +64,22 @@ const SERVER_LIST_ATTR_NAME = "serverList";
 const PARTS_LIST_ATTR_NAME = "partsList";
 
 /**
+ * Read an attribute from incoming values, which the protocol keys by ID and the remote API by property name.
+ *
+ * Returns the slot the value occupies as well as its value, because an attribute the peer reports as absent is
+ * present with an undefined value.
+ */
+function readIncoming(values: Val.StructMap, id: number, name: string) {
+    if (values.has(id)) {
+        return { present: true, value: values.get(id) };
+    }
+    if (values.has(name)) {
+        return { present: true, value: values.get(name) };
+    }
+    return { present: false, value: undefined };
+}
+
+/**
  * Read a value from store initial values, preferring the numeric attribute ID slot over the property name slot.
  */
 function getStoreValue(values: Record<string | number, unknown> | undefined, id: number, name: string): unknown {
@@ -351,6 +367,8 @@ export class ClientStructure {
                     this.#clustersWithDataThisInteraction.add(cluster);
                     this.#preserveAbsentCluster(endpoint.endpoint, cluster);
 
+                    this.#invalidateOnDefinitionChange(cluster, values);
+
                     await cluster.store.externalSet(values);
                     this.#synchronizeCluster(endpoint, cluster);
                     break;
@@ -544,13 +562,29 @@ export class ClientStructure {
         this.#clustersWithDataThisInteraction.add(cluster);
         this.#preserveAbsentCluster(endpoint.endpoint, cluster);
 
+        this.#invalidateOnDefinitionChange(cluster, attrs.values);
+
+        await cluster.store.externalSet(attrs.values);
+        this.#synchronizeCluster(endpoint, cluster);
+    }
+
+    /**
+     * Discard a behavior whose schema no longer describes the peer.
+     *
+     * The discovered schema is built from the cluster revision, the feature map, the attribute list and the accepted
+     * command list, so a change to any of them has to regenerate it.
+     */
+    #invalidateOnDefinitionChange(cluster: ClusterStructure, values: Val.StructMap) {
+        if (cluster.behavior === undefined) {
+            return;
+        }
+
         // A non-empty AttributeList is authoritative for the attribute set.  An empty list is ignored so it doesn't
-        // churn against the received-attribute fallback.  Detect the change up front, before any feature comparison
-        // clears the behavior, so the outgoing behavior's schema is still available to prune dropped attributes.
-        const attributeList = attrs.values.get(AttributeList.id);
+        // churn against the received-attribute fallback.  Detect the change before discarding the behavior, whose
+        // schema names the attributes to prune.
+        const { value: attributeList } = readIncoming(values, AttributeList.id, "attributeList");
         const newAttributes = Array.isArray(attributeList) && attributeList.length ? attributeList : undefined;
         const attributeSetChanged =
-            !!cluster.behavior &&
             newAttributes !== undefined &&
             !isDeepEqual(
                 cluster.attributes,
@@ -558,40 +592,25 @@ export class ClientStructure {
             );
 
         if (attributeSetChanged) {
-            this.#pruneDroppedAttributes(cluster, newAttributes, attrs.values);
+            this.#pruneDroppedAttributes(cluster, newAttributes, values);
         }
 
-        if (cluster.behavior && attrs.values.has(ClusterRevision.id)) {
-            if (cluster.revision !== attrs.values.get(ClusterRevision.id)) {
-                cluster.behavior = undefined;
-            }
-        }
+        const revision = readIncoming(values, ClusterRevision.id, "clusterRevision");
+        const features = readIncoming(values, FeatureMap.id, "featureMap");
+        const { value: acceptedCommands } = readIncoming(values, AcceptedCommandList.id, "acceptedCommandList");
 
-        if (cluster.behavior && attrs.values.has(FeatureMap.id)) {
-            if (!isDeepEqual(cluster.features, attrs.values.get(FeatureMap.id))) {
-                cluster.behavior = undefined;
-            }
-        }
-
-        if (attributeSetChanged) {
-            cluster.behavior = undefined;
-        }
-
-        if (cluster.behavior && attrs.values.has(AcceptedCommandList.id)) {
-            const acceptedCommands = attrs.values.get(AcceptedCommandList.id);
-            if (
-                Array.isArray(acceptedCommands) &&
+        if (
+            attributeSetChanged ||
+            (revision.present && cluster.revision !== revision.value) ||
+            (features.present && !isDeepEqual(cluster.features, features.value)) ||
+            (Array.isArray(acceptedCommands) &&
                 !isDeepEqual(
                     cluster.commands,
                     [...acceptedCommands].sort((a, b) => a - b),
-                )
-            ) {
-                cluster.behavior = undefined;
-            }
+                ))
+        ) {
+            cluster.behavior = undefined;
         }
-
-        await cluster.store.externalSet(attrs.values);
-        this.#synchronizeCluster(endpoint, cluster);
     }
 
     /**

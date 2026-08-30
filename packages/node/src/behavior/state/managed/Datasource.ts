@@ -22,6 +22,7 @@ import type { Supervision } from "../../supervision/Supervision.js";
 import { GlobalConfig, LocalConfig } from "../../supervision/SupervisionConfig.js";
 import { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
 import { StateType } from "../StateType.js";
+import { memberKeyFor } from "./MemberKeys.js";
 import type { ValReference } from "./ValReference.js";
 
 const logger = Logger.get("Datasource");
@@ -661,21 +662,27 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
         let changes: Map<string, unknown> | undefined;
         let oldValues: Map<string, unknown> | undefined;
 
-        for (const [key, newValue] of potentialChanges) {
-            const name = String(key);
+        // A member occupies one slot per {@link memberKeyFor}.  A writer that addresses it by property name — the
+        // remote API does — must resolve to that same slot, or both keys accumulate and reads are served from
+        // whichever the keying convention prefers.
+        const ids = this.primaryKey === "id" ? this.supervisor.propertyNamesAndIds : undefined;
+
+        for (const [incoming, newValue] of potentialChanges) {
+            const name = String(incoming);
             if (isMetadataKey(name)) {
                 continue;
             }
-            if (isDeepEqual(values[name], newValue)) {
+            const key = String(memberKeyFor(this.primaryKey, name, ids?.get(name)));
+            if (isDeepEqual(values[key], newValue)) {
                 continue;
             }
 
             if (changes === undefined) {
-                changes = new Map([[name, newValue]]);
-                oldValues = new Map([[name, values[name]]]);
+                changes = new Map([[key, newValue]]);
+                oldValues = new Map([[key, values[key]]]);
             } else {
-                changes.set(name, newValue);
-                oldValues!.set(name, values[name]);
+                changes.set(key, newValue);
+                oldValues!.set(key, values[key]);
             }
         }
 
