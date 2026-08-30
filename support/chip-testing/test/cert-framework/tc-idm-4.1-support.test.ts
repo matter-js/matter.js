@@ -216,7 +216,7 @@ class Fixture {
         this.#onUpdate?.(value);
     }
 
-    run(values: boolean[] = VALUES, timeouts: SubscribeAndModifyTimeouts = TIMEOUTS): Promise<void> {
+    run(values: unknown[] = VALUES, timeouts: SubscribeAndModifyTimeouts = TIMEOUTS): Promise<void> {
         return subscribeAndModify(this.cx, "ref", 3, PATH, values, timeouts);
     }
 
@@ -246,6 +246,17 @@ describe("subscribeAndModify", () => {
     it("refuses values a write would not change, which report nothing and would time out unexplained", async () => {
         await withFixture(new Fixture("chip-local", () => {}), async fixture => {
             await expect(fixture.run([true, true])).rejectedWith(ImplementationError);
+        });
+    });
+
+    it("refuses structurally equal values, which is what decides whether the attribute changed", async () => {
+        // Separately allocated and carrying a bigint: reference equality would let this through, and
+        // rendering the offending value with JSON.stringify would throw instead of naming it
+        await withFixture(new Fixture("chip-local", () => {}), async fixture => {
+            await expect(fixture.run([{ nodes: [1n, 2n] }, { nodes: [1n, 2n] }])).rejectedWith(
+                ImplementationError,
+                /repeats at index 1/,
+            );
         });
     });
 
