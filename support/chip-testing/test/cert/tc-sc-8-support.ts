@@ -418,9 +418,9 @@ export async function regularSizedRequestCheck(
 }
 
 /**
- * Confirms the DUT accepted no further CASE session between `from` and `until`: the case this belongs
- * to claims the interaction reused the session already established, and an interaction that caused a
- * second one would satisfy every other check just as well.
+ * Confirms the DUT established no further CASE session between `from` and `until`: the case this
+ * belongs to claims the interaction reused the session already established, and an interaction that
+ * caused a second one would satisfy every other check just as well.
  *
  * `until` is the last line of the interaction itself, so the window is the interaction's own and is
  * non-empty by construction — a scan to the end of the buffer would report a session the DUT accepted
@@ -444,7 +444,7 @@ export async function noFurtherSessionCheck(cx: CertStepContext, from: number, u
         type: "device-log",
         verdict: opened.length ? "fail" : "pass",
         pattern: FURTHER_SESSION.source,
-        detail: `${opened.length} further pairing request(s) between log lines ${from} and ${until}`,
+        detail: `${opened.length} further session(s) established between log lines ${from} and ${until}`,
         matched: opened[0]?.text.slice(0, EVIDENCE_LIMIT),
         logLine: opened[0]?.index,
     };
@@ -485,8 +485,12 @@ export function timeSnapshotResponseCheck(response: unknown, refusal: unknown): 
     };
 }
 
-/** A CASE session establishment beginning, over any transport. */
-const FURTHER_SESSION = /CaseServer .*Pairing request «/;
+/**
+ * A CASE session the DUT established, over any transport. Not the pairing request that precedes it:
+ * matter.js writes that before it has read Sigma1, so an attempt the DUT went on to reject would read
+ * as a session it accepted.
+ */
+const FURTHER_SESSION = /CaseServer .*(?:New|Resumed) session with/;
 
 /** Where a TCP case keeps the session its first step established, for the steps that follow. */
 export class TcpSessionRef {

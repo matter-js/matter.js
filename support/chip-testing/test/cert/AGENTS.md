@@ -2377,10 +2377,16 @@ invoke, no large payload — and the step's evidence is what distinguishes the c
   the opposite of this case.
 - **The answer came back on step 1's session**, through the same exchange-correlated check `TC-SC-8.5`
   uses.
-- **No further session was established.** `noFurtherSessionCheck` scans the window for any
-  `CaseServer … Pairing request` — over *any* transport, since the failure this guards against is the
-  controller quietly opening an MRP session for a small interaction. Without it, every other check
-  here is equally satisfied by a run that made a second session and used it.
+- **No further session was established.** `noFurtherSessionCheck` scans the interaction's own span for
+  a `CaseServer … New session with` or `… Resumed session with` — over *any* transport, since the
+  failure this guards against is the controller quietly opening an MRP session for a small
+  interaction. Without it, every other check here is equally satisfied by a run that made a second
+  session and used it.
+
+  It keys on establishment rather than on the `Pairing request` that precedes it, and the difference
+  matters twice: matter.js writes that line before it has read Sigma1, so an attempt the DUT went on to
+  reject would read as a session it accepted, and an attempt inside the span whose session forms after
+  it would be counted though its establishment falls outside the window this check bounds.
 
 Nothing in the controller expresses "either transport is usable" as a request flag: matter.js's
 `transportPreference` is set once, for the session, and the protocol layer's hard `requiredTransport`

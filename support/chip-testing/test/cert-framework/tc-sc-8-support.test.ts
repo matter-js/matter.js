@@ -337,37 +337,53 @@ describe("regularSizedRequestCheck", () => {
 
 describe("noFurtherSessionCheck", () => {
     const unrelated = `${at(2)} DEBUG MessageExchange New exchange « ${SESSION}(tcp)⇵2c57 protocol: 1`;
+    const established = (session = OTHER_SESSION) =>
+        `${at(3)} INFO CaseServer ${session}(tcp) New session with @1:86c217a36142d632 2↔1 address: tcp://[fe80::2%en0]«60999`;
+    const resumed = (session = OTHER_SESSION) =>
+        `${at(3)} INFO CaseServer ${session}(tcp) Resumed session with @1:86c217a36142d632 2↔1 address: tcp://[fe80::2%en0]«60999`;
 
-    it("passes when the DUT accepted no further connection while the interaction ran", async () => {
+    it("passes when the DUT established no further session while the interaction ran", async () => {
         const check = await withDut([unrelated, unrelated], async cx => noFurtherSessionCheck(cx, 0, 1));
 
         expect(check.verdict).equal("pass");
-        expect(check.detail).contains("0 further pairing");
+        expect(check.detail).contains("0 further session");
     });
 
     it("fails when a second session was established while the interaction ran", async () => {
-        const check = await withDut([unrelated, pairingRequest()], async cx => noFurtherSessionCheck(cx, 0, 1));
+        const check = await withDut([unrelated, established()], async cx => noFurtherSessionCheck(cx, 0, 1));
 
         expect(check.verdict).equal("fail");
-        expect(check.detail).contains("1 further pairing");
+        expect(check.detail).contains("1 further session");
     });
 
-    it("ignores a pairing request that preceded the window", async () => {
-        const check = await withDut([pairingRequest(), unrelated], async cx => noFurtherSessionCheck(cx, 1, 1));
+    it("fails when a session was resumed while the interaction ran", async () => {
+        const check = await withDut([unrelated, resumed()], async cx => noFurtherSessionCheck(cx, 0, 1));
+
+        expect(check.verdict).equal("fail");
+    });
+
+    it("passes for an attempt the DUT never turned into a session", async () => {
+        const check = await withDut([unrelated, pairingRequest()], async cx => noFurtherSessionCheck(cx, 0, 1));
 
         expect(check.verdict).equal("pass");
     });
 
-    it("ignores a pairing request that followed the interaction", async () => {
-        const check = await withDut([unrelated, pairingRequest()], async cx => noFurtherSessionCheck(cx, 0, 0));
+    it("ignores a session established before the window", async () => {
+        const check = await withDut([established(), unrelated], async cx => noFurtherSessionCheck(cx, 1, 1));
+
+        expect(check.verdict).equal("pass");
+    });
+
+    it("ignores a session established after the interaction", async () => {
+        const check = await withDut([unrelated, established()], async cx => noFurtherSessionCheck(cx, 0, 0));
 
         expect(check.verdict).equal("pass");
     });
 
     it("ignores the runner's own step banner", async () => {
-        await withDut([unrelated], async (cx, _checks) => {
+        await withDut([unrelated], async cx => {
             const dut = cx.devices.dut;
-            dut.log.annotate("TC-SC-8.7 — Pairing request « tcp://[fe80::1%en0]«60111");
+            dut.log.annotate("TC-SC-8.7 — CaseServer New session with a peer");
             await dut.log.settled();
 
             expect((await noFurtherSessionCheck(cx, 0, dut.log.lines.length - 1)).verdict).equal("pass");
@@ -375,7 +391,7 @@ describe("noFurtherSessionCheck", () => {
     });
 
     it("states the gap rather than a pass on a device whose log it cannot read", async () => {
-        const check = await withDut([pairingRequest()], async cx => noFurtherSessionCheck(cx, 0, 0), "chip-local");
+        const check = await withDut([established()], async cx => noFurtherSessionCheck(cx, 0, 0), "chip-local");
 
         expect(check.verdict).equal("unverified");
     });
