@@ -782,6 +782,47 @@ describe("cancel robustness", () => {
         await node.close();
     });
 
+    it("leaves no trace of a run whose first write never landed, and says so on its handle", async () => {
+        const environment = new Environment("test");
+        const peer = new FakePeer("unwritten");
+        TestTaskManager.peers.set("unwritten", peer);
+        TestTaskManager.reconcilerPeer = peer;
+        SyntheticTask.phasesByTag["unwritten"] = [
+            {
+                name: "touch",
+                run: async ctx => {
+                    await ctx.setIntent(ctx.resolvePeer("unwritten"), "groupMembership", "U", {});
+                },
+            },
+        ];
+
+        const node = await MockServerNode.create(RootEndpoint, { environment, id: "first-write-refused" });
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+        let manager!: TestTaskManager;
+        await node.act(a => {
+            manager = a.get(TestTaskManager);
+        });
+
+        // One run first, so the persist mutex exists to be closed; then storage refuses before the run under
+        // test has written anything at all.
+        SyntheticTask.phasesByTag["warm"] = [{ name: "noop", run: async () => {} }];
+        await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "warm" }));
+        await pumpUntil("the warm-up run retires", () => manager.tasks.length === 0);
+        await node.act(a => a.get(TestTaskManager).closePersistMutex());
+        const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "unwritten" }));
+
+        await pumpUntil("the run gives up", () => !manager.isAttached(handle.runId));
+
+        // Nothing is left holding the target, and no restart could find the run.
+        expect(manager.get(handle.runId)).equals(undefined);
+        expect(manager.tasks).deep.equals([]);
+
+        // The caller already holds a handle, and it says what happened rather than answering "running" forever.
+        expect(handle.status.state).equals("failed");
+
+        await node.close();
+    });
+
     it("leaves a retired run unchanged when its cancel cannot be recorded", async () => {
         const environment = new Environment("test");
         const peer = new FakePeer("rw");

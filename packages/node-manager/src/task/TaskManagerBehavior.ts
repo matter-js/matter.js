@@ -706,6 +706,7 @@ export class TaskManagerBehavior extends Behavior {
             this.#throwIfAborted(execution);
             // Recorded before the first phase so a crash-resume sees the run.
             await this.#commit({ record });
+            record.recorded = true;
             while (record.phaseIndex < execution.phases.length && record.state === "running") {
                 const phase = execution.phases[record.phaseIndex];
                 const ctx = await this.endpoint.act(agent => this.#contextFor(execution, this.taskReconciler(agent)));
@@ -770,6 +771,15 @@ export class TaskManagerBehavior extends Behavior {
             } catch (persistError) {
                 revert.discard();
                 logger.error(`${runLabel(record.runId)}: failed to persist failure state`, persistError);
+                // Nothing of this run ever reached storage, so it leaves no trace: holding a slot for a run
+                // no restart can find would block that target for the life of the process. The record carries
+                // its outcome out with it, so the handle its caller already holds says what happened — the one
+                // place memory may differ from storage, because there is no longer a record to differ from.
+                if (!record.recorded) {
+                    record.state = "failed";
+                    record.error = error;
+                    this.internal.runs.discard(record);
+                }
                 return;
             }
             // The rollback mutates peers, so it may not drive before the record that names it is durable.

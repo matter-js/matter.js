@@ -49,6 +49,12 @@ export class RunRecord implements RunView {
     revertRunId?: RunId;
     revertOf?: RunId;
 
+    /**
+     * Whether any write of this run has landed. Until one has, the run exists only in this process — a property
+     * of the run rather than of an attempt to drive it, so re-driving one does not forget that it is durable.
+     */
+    recorded = false;
+
     constructor(runId: RunId, slotKey: string, type: string, params: unknown, persisted?: Partial<TaskPersistence>) {
         this.runId = runId;
         this.slotKey = slotKey;
@@ -65,7 +71,9 @@ export class RunRecord implements RunView {
     }
 
     static fromPersistence(record: TaskPersistence): RunRecord {
-        return new RunRecord(record.runId, record.slotKey, record.type, record.params, record);
+        const loaded = new RunRecord(record.runId, record.slotKey, record.type, record.params, record);
+        loaded.recorded = true;
+        return loaded;
     }
 
     /**
