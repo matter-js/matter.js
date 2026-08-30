@@ -2395,3 +2395,46 @@ Nothing in the controller expresses "either transport is usable" as a request fl
 `transportPreference` is set once, for the session, and the protocol layer's hard `requiredTransport`
 lever is not surfaced. So the plan's step text describes what an ordinary invoke already is on this
 stack, and the case's substance lives entirely in the three checks above.
+
+## The group-messaging block, and what sending one actually needed (`TC-SC-5.3`)
+
+`TC-SC-5.3` is the mirror of `TC-SC-6.1`: the same four setup steps — an ACL entry admitting the
+group, a key set, the GroupKeyMap binding, AddGroup — and then, where 6.1 reads that state back over
+unicast, 5.3 sends a **groupcast** through it. The setup is one module (`tc-group-support.ts`) both
+cases use, so the two cannot drift.
+
+**The controller gained a group destination.** `cx.controllers.dut.group(id)` returns a `CertGroupApi`
+with `defineKeySet` and an `invoke` that takes **no endpoint** — a group command's path names only the
+cluster and command, and matter.js refuses a group invoke that names an endpoint. matter.js resolves
+the group as a peer whose node id encodes it (`NodeId.fromGroupId`); chip-tool takes the same thing as
+a destination id of `0xFFFF'FFFF'FFFF'0000 | groupId`.
+
+Four things the plan does not say, each of which failed silently until found:
+
+- **The sender needs the key too.** Writing the key set to the device is half of it; the controller
+  encrypts the groupcast, so it must hold the key as well — which is what the plan's "DUT generates a
+  random key" means in practice. `defineKeySet` does that, and the case calls it in the same step that
+  writes the key set to the device.
+- **On the fabric the sender resolves.** The adapter's own `Fabric` handle is a *different object* for
+  the same fabric index than the one `SessionManager.fabricFor` returns, and group state written on the
+  adapter's copy is invisible to the sending path. The symptom is `No group key set found for groupId`
+  from a controller that provably just provisioned one.
+- **The ACL entry needs Manage, not Operate.** `Groups.AddGroup` is a Manage command. With Operate the
+  message arrives, decrypts and dispatches — and does nothing, because a group message is
+  unacknowledged and nothing reports the refusal. It reads exactly like a multicast that never arrived.
+  `aclAdmitsGroupStep` therefore takes the privilege the case's own later steps need.
+- **Both groups must be in the GroupKeyMap.** `AddGroup` answers `UNSUPPORTED_ACCESS` for a group the
+  fabric's map does not name (Application Clusters § 1.3.7.1), so a case that adds group 2 *through*
+  group 1 binds both in the GroupKeyMap step.
+
+**What step 5 proves.** The plan asks for four things, and the sender's own log carries all four. The
+multicast address is not shape-matched: the DUT's membership line names the group, the fabric and the
+address together, so the address is recomputed from that fabric id and group id and compared byte for
+byte — which also establishes the destination is GroupID 1. The port and address are read from the
+invoke's `dest:` field, and the session tag renders `•group#…`, which is DSIZ naming a group. Beside
+that is the effect: a unicast `ViewGroup(2)` afterwards, which can only succeed if the multicast
+arrived, decrypted under the group key and dispatched.
+
+**A production change came with it.** The group invoke's diagnostic printed the address alone;
+`GroupSession.destination` now renders `[<address>]:<port>` so the log says where a message actually
+went. Steps 6 and 7 stay not-applicable: they need the Groupcast cluster, which neither TH has.

@@ -25,11 +25,13 @@ import type {
     AttributeWriteStatus,
     BatchCommandResult,
     BatchCommandSpec,
+    CertGroupApi,
     CertNodeApi,
     CertNodeRef,
     CommissioningTarget,
     ControllerAdapter,
     EventPathSpec,
+    GroupKeySetSpec,
     EventReadEntry,
     ManualPairingCodeFields,
     OnboardingPayloadFields,
@@ -183,6 +185,15 @@ function quoteArg(value: string) {
  */
 function largePayloadArg(transport?: ControllerTransport) {
     return transport === "tcp" ? " --allow-large-payload 1" : "";
+}
+
+/**
+ * How a group is addressed as a destination: a node id whose upper 48 bits are all ones carries the
+ * group in its lower 16 (Matter Core § 2.5.4), and chip-tool takes that in place of a node id on any
+ * command it sends.
+ */
+function groupDestination(groupId: number): string {
+    return `0x${(0xffffffffffff0000n | BigInt(groupId)).toString(16)}`;
 }
 
 /** chip-tool's own name for the timed-interaction timeout, on `command-by-id` and `write-by-id` alike. */
@@ -748,6 +759,57 @@ function portOverrideFor(id: string) {
         throw new ImplementationError(`Invalid chip-tool port override "${value}" for controller role "${id}"`);
     }
     return port;
+}
+
+/**
+ * Sends a command to a group rather than to a node. chip-tool takes the group's destination id in
+ * place of a node id, and answers nothing: a groupcast is unacknowledged, so its own reply carries no
+ * status and none is awaited.
+ */
+class ChipToolCertGroupApi implements CertGroupApi {
+    readonly #adapter: ChipToolControllerAdapter;
+    readonly #groupId: number;
+
+    constructor(adapter: ChipToolControllerAdapter, groupId: number) {
+        this.#adapter = adapter;
+        this.#groupId = groupId;
+    }
+
+    /**
+     * chip-tool keeps its own group state, which the commands a plan's steps send to the *device* do
+     * not touch: without this its group send fails in `GroupDataProviderImpl` with "item not found".
+     * `groupsettings` is how its commissioner is told about a group and its key, and the three
+     * commands together are what `defineKeySet` means on this controller.
+     */
+    async defineKeySet(keySet: GroupKeySetSpec): Promise<void> {
+        const group = `${this.#groupId}`;
+        const keySetId = `${keySet.groupKeySetId}`;
+
+        await this.#adapter.execute(`groupsettings add-group group${group} ${group}`);
+        await this.#adapter.execute(
+            // Validity 0: the key is current from now, which is what the plan's own epoch start means
+            `groupsettings add-keysets ${keySetId} ${keySet.groupKeySecurityPolicy} 0 ` +
+                `hex:${Bytes.toHex(keySet.epochKey0)}`,
+        );
+        await this.#adapter.execute(`groupsettings bind-keyset ${group} ${keySetId}`);
+    }
+
+    async invoke(cluster: string | number, command: string, args?: object): Promise<void> {
+        const { cluster: clusterModel, clusterId, command: commandModel } = commandModelFor(cluster, command);
+        const fields =
+            args !== undefined && Object.keys(args).length > 0
+                ? stringifyChipJson(matterToChipJson(args, commandModel, clusterModel, "hex"))
+                : "{}";
+
+        const reply = await this.#adapter.execute(
+            `any command-by-id ${hex(clusterId)} ${hex(commandModel.id)} ${quoteArg(fields)} ` +
+                // chip-tool wants an endpoint argument even for a group command, which carries none;
+                // 0 is what its own group tests pass
+                `${groupDestination(this.#groupId)} 0${largePayloadArg(this.#adapter.transport)}`,
+        );
+
+        assertNoFailure(reply, `group invoke ${clusterModel.name}.${commandModel.name}`);
+    }
 }
 
 class ChipToolCertNodeApi implements CertNodeApi {
@@ -1350,6 +1412,10 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
 
     node(ref: CertNodeRef): CertNodeApi {
         return new ChipToolCertNodeApi(this, ref);
+    }
+
+    group(groupId: number): CertGroupApi {
+        return new ChipToolCertGroupApi(this, groupId);
     }
 
     /**

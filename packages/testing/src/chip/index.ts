@@ -51,6 +51,8 @@ export type {
     AttributeWriteStatus,
     BatchCommandResult,
     BatchCommandSpec,
+    CertGroupApi,
+    GroupKeySetSpec,
     CertNodeApi,
     CertNodeRef,
     CommissioningTarget,

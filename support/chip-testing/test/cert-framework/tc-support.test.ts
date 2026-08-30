@@ -1660,6 +1660,9 @@ describe("CommissionedRefs", () => {
             async parseManualPairingCode(): Promise<never> {
                 throw new InternalError("not used in this test");
             },
+            group: (): never => {
+                throw new InternalError("not used by these tests");
+            },
             node: () => nodeFor(role),
         });
 
