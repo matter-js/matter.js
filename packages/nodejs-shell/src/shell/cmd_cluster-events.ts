@@ -76,7 +76,13 @@ function generateEventHandler(
                 // No local event cache; every read is a live interaction round trip, same as the legacy EventClient.
                 const reports = await readEventsRemote(
                     node,
-                    [{ endpointId: endpoint.number, clusterId: ClusterId(clusterId), eventId: EventId(event.id) }],
+                    [
+                        {
+                            endpointId: endpoint.number,
+                            clusterId: ClusterId(clusterId, false),
+                            eventId: EventId(event.id, false),
+                        },
+                    ],
                     true,
                 );
                 const events = reports.map(

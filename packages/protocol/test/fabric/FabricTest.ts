@@ -110,6 +110,33 @@ describe("Fabric", () => {
         });
     });
 
+    describe("setLabel", () => {
+        // Spec 1.6 §11.18.6.11: the Label field is constrained to "max 32" with no minimum, and any label that does
+        // not collide with another fabric's label SHALL be accepted
+        it("accepts an empty label", async () => {
+            const fabric = await TestFabric();
+
+            await fabric.setLabel("");
+
+            expect(fabric.label).equals("");
+        });
+
+        it("accepts a label of the maximum length", async () => {
+            const fabric = await TestFabric();
+            const label = "x".repeat(32);
+
+            await fabric.setLabel(label);
+
+            expect(fabric.label).equals(label);
+        });
+
+        it("rejects a label that exceeds the maximum length", async () => {
+            const fabric = await TestFabric();
+
+            await expect(fabric.setLabel("x".repeat(33))).rejectedWith(/at most 32 characters/);
+        });
+    });
+
     describe("remove from session", () => {
         it("removes all sessions when removing fabric", async () => {
             const DECRYPT_KEY = b$`bacb178b2588443d5d5b1e4559e7accc`;

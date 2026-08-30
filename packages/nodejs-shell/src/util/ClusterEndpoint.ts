@@ -33,7 +33,7 @@ export async function resolveClusterEndpoint(
     }
 
     const behaviorType = node.endpoints.has(endpointId)
-        ? node.endpoints.for(endpointId).behaviors.forCluster(ClusterId(clusterId))
+        ? node.endpoints.for(endpointId).behaviors.forCluster(ClusterId(clusterId, false))
         : undefined;
     if (behaviorType === undefined) {
         console.log(`ERROR: Cluster ${node.peerAddress?.nodeId}/${endpointId}/${clusterId} not found.`);

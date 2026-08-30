@@ -10,13 +10,22 @@
     },
     "references": [
         {
+            "path": "../../../packages/general/src"
+        },
+        {
             "path": "../../../packages/main/src"
         },
         {
             "path": "../../../packages/matter.js/src"
         },
         {
+            "path": "../../../packages/node/src"
+        },
+        {
             "path": "../../../packages/testing/src"
+        },
+        {
+            "path": "../../../packages/types/src"
         }
     ]
 }

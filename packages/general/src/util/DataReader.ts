@@ -4,7 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { UnexpectedDataError } from "../MatterError.js";
 import { Bytes, Endian } from "./Bytes.js";
+
+/** Thrown when a read would extend past the end of the underlying buffer. */
+export class DataReadError extends UnexpectedDataError {}
 
 /** Reader that auto-increments its offset after each read. */
 export class DataReader<E extends Endian = Endian.Big> {
@@ -82,8 +86,8 @@ export class DataReader<E extends Endian = Endian.Big> {
     }
 
     set offset(offset: number) {
-        if (offset > this.#dataView.byteLength) {
-            throw new Error(`Offset ${offset} is out of bounds.`);
+        if (!Number.isInteger(offset) || offset < 0 || offset > this.#dataView.byteLength) {
+            throw new DataReadError(`Offset ${offset} is out of bounds.`);
         }
         this.#offset = offset;
     }
@@ -93,11 +97,17 @@ export class DataReader<E extends Endian = Endian.Big> {
     }
 
     private getOffsetAndAdvance(size: number) {
-        const result = this.#offset;
-        this.#offset += size;
-        if (this.#offset > this.#dataView.byteLength) {
-            this.#offset = this.#dataView.byteLength;
+        if (!Number.isInteger(size) || size < 0) {
+            throw new DataReadError(`Read size ${size} must be zero or more whole bytes`);
         }
+        const result = this.#offset;
+        const end = result + size;
+        if (end > this.#dataView.byteLength) {
+            throw new DataReadError(
+                `Read of ${size} bytes at offset ${result} exceeds the ${this.#dataView.byteLength} byte buffer`,
+            );
+        }
+        this.#offset = end;
         return result;
     }
 }

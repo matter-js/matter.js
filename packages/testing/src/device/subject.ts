@@ -42,6 +42,26 @@ export namespace Subject {
      */
     export interface Options {
         appArgs?: string[];
+
+        /**
+         * Overrides the onboarding identity and operational port this subject would otherwise take
+         * from its flavor's defaults.
+         *
+         * Every flavor defaults to discriminator 3840 / passcode 20202021 / port 5540, which is what
+         * a single-subject run wants and what two subjects in one run cannot share: mDNS discovery
+         * here matches on the long discriminator alone, and two chip apps contend for the port. A
+         * run with more than one subject assigns each its own.
+         */
+        identity?: Identity;
+    }
+
+    /** See {@link Options.identity}. */
+    export interface Identity {
+        discriminator: number;
+        passcode: number;
+
+        /** Operational port. Ignored by a flavor that does not bind one of its own. */
+        port?: number;
     }
 
     export type CommissioningMethod = "onnetwork";

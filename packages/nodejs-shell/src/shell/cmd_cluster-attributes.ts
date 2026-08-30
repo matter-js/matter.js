@@ -65,8 +65,8 @@ function generateAllAttributeHandlersForCluster(yargs: Argv, theNode: MatterNode
                     [
                         {
                             endpointId: EndpointNumber(endpointId),
-                            clusterId: ClusterId(clusterId),
-                            attributeId: attributeId !== undefined ? AttributeId(attributeId) : undefined,
+                            clusterId: ClusterId(clusterId, false),
+                            attributeId: attributeId !== undefined ? AttributeId(attributeId, false) : undefined,
                         },
                     ],
                     fabricFiltered,
@@ -78,7 +78,7 @@ function generateAllAttributeHandlersForCluster(yargs: Argv, theNode: MatterNode
                     path: { attributeId: id },
                     value,
                 } of values) {
-                    const attributeName = ClusterLookup.attributeName(ClusterId(clusterId), id, node.matter);
+                    const attributeName = ClusterLookup.attributeName(ClusterId(clusterId, false), id, node.matter);
                     console.log(
                         `    ${Diagnostic.hex(id)}${attributeName !== undefined ? ` (${attributeName})` : ""}: ${Diagnostic.json(value)}`,
                     );
@@ -221,8 +221,8 @@ async function getAttributeValue(
             [
                 {
                     endpointId: endpoint.number,
-                    clusterId: ClusterId(clusterId),
-                    attributeId: AttributeId(attribute.id),
+                    clusterId: ClusterId(clusterId, false),
+                    attributeId: AttributeId(attribute.id, false),
                 },
             ],
             fabricFiltered,

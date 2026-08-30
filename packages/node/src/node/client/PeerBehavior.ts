@@ -24,7 +24,8 @@ import {
 import { AttributeId, ClusterId, CommandId } from "@matter/types";
 import { ClientCommandMethod } from "./ClientCommandMethod.js";
 
-const BIT_BLOCK_SIZE = Math.log2(Number.MAX_SAFE_INTEGER);
+// A bitwise shift operand is taken modulo 32, so a wider block would alias IDs onto each other
+const BIT_BLOCK_SIZE = 32;
 
 const discoveredCaches = new Map<
     ClusterBehaviorType.CommandFactory,
@@ -316,7 +317,7 @@ function createFingerprint(analysis: DiscoveredShapeAnalysis) {
 
         return Object.entries(blocks)
             .sort(([a], [b]) => a.localeCompare(b))
-            .map(([block, map]) => (block ? `${block}:${map}` : map))
+            .map(([block, map]) => (block ? `${block}:${map >>> 0}` : `${map >>> 0}`))
             .join(",");
     }
 

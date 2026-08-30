@@ -432,7 +432,7 @@ describe("device attestation during commissioning", () => {
                 corruptCachedPaaSkid: TestCert_PAA_NoVID_SKID,
                 blockCachedPaaRefetch: true,
                 onAttestationFailure: false,
-                expectRejection: /Invalid certificate structure/,
+                expectRejection: /DER data is truncated/,
             }));
     });
 

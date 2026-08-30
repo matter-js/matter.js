@@ -16,6 +16,9 @@
         },
         {
             "path": "../../nodejs/src"
+        },
+        {
+            "path": "../../protocol/src"
         }
     ]
 }

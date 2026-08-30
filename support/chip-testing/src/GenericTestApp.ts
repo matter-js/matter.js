@@ -156,6 +156,12 @@ export interface TestInstanceConfig {
     storage?: Storage;
     discriminator?: number;
     passcode?: number;
+
+    /**
+     * Operational port. Defaults to Matter's 5540; a run with more than one instance in the same
+     * process gives each its own, since they would otherwise contend for it.
+     */
+    port?: number;
     domain?: string;
 }
 

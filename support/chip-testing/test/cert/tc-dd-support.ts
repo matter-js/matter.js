@@ -19,6 +19,7 @@ import {
 import { Base38, DiscoveryCapabilitiesBitmap, DiscoveryCapabilitiesSchema } from "@matter/main/types";
 import type { CertNodeRef, CertStepContext, CheckRecord, CommissioningTarget } from "@matter/testing";
 import type { CertDevice } from "@matter/testing";
+import { forFlavor, resolveControllerImplementation } from "@matter/testing";
 import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
 import { expectMdns } from "../../src/cert/mdns-check.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
@@ -37,6 +38,44 @@ import {
     removeFabricSucceeded,
     settleWithin,
 } from "./tc-support.js";
+
+/**
+ * Where a later step's evidence has to start: a log cursor taken before whatever causes the
+ * transition the step will check, once the follower has caught up with what the device already
+ * wrote.
+ *
+ * **The network cannot supply the other half of this.** A commissionable mDNS record can be dated
+ * (`DnssdName` stamps `installedAt`), but not attributed: `DnssdNames` installs records from a
+ * *query's* known-answer list as readily as from a response, so any other commissioner on the LAN
+ * refreshes the date with the device silent — and soliciting for one ourselves attaches the record
+ * we hold as a known answer, which tells the responder to suppress the very reply we want
+ * (`MdnsServer`'s known-answer suppression). A device's own log line is what witnesses a transition
+ * here; see this directory's AGENTS.md.
+ */
+export type TransitionMark = number;
+
+/** Takes a {@link TransitionMark} on `th`, after letting its log pump settle. */
+export async function markTransition(cx: CertStepContext, th = theTh(cx)): Promise<TransitionMark> {
+    return th.log.markSettled();
+}
+
+/**
+ * The device these helpers act on where a plan names only one.
+ *
+ * A plan may now declare several devices under names of its own (`devices: { th1, th2 }`), and then
+ * there is no `th` role at all. Reaching for one is a defect in the calling step rather than anything
+ * the run can recover from, so it says so instead of failing later on a property of `undefined`.
+ */
+function theTh(cx: CertStepContext): CertDevice {
+    const th = cx.devices.th;
+    if (th === undefined) {
+        throw new ImplementationError(
+            `This step's plan declares no "th" device (it has ${Object.keys(cx.devices).join(", ") || "none"}); ` +
+                "a helper acting on one device takes it as a parameter when the plan names more than one",
+        );
+    }
+    return th;
+}
 
 /** Bounds a wait for a line a device prints as it comes up, with a whole commissioning flow ahead of it. */
 export const COMMISSIONING_LOG_TIMEOUT = Seconds(30);
@@ -74,6 +113,51 @@ const SETUP_QR_CODE = /SetupQRCode: \[(MT:[^\]]+)\]/;
 /** chip-all-clusters-app announces a completed commissioning. */
 const COMMISSIONING_COMPLETE = /Commissioning completed successfully/;
 
+/** A device announcing it completed a commissioning, in whichever form its implementation prints. */
+export const COMMISSIONED = { chip: COMMISSIONING_COMPLETE, matterjs: MATTERJS_COMMISSIONED_FABRIC };
+
+/**
+ * Records that `th` did **not** complete a commissioning since `from`, which is how a plan's "only
+ * the other device was commissioned" is stated: the device that must not have joined is the only
+ * thing that can say so.
+ *
+ * A commissionable mDNS probe cannot. It is answered out of the process-global DNS-SD cache, so it
+ * reports a record this run installed several steps earlier just as readily as a live one — see this
+ * directory's AGENTS.md on freshness. The device's own log is not cached and not shared.
+ */
+export async function recordNotCommissioned(
+    cx: CertStepContext,
+    th: CertDevice,
+    from: number,
+    what: string,
+): Promise<void> {
+    // Counting reads the buffer directly, so a completion the device printed moments ago is
+    // invisible until the pump has delivered it — and this runs immediately after a commissioning,
+    // which is exactly when such a line is in flight.
+    await th.log.settled();
+
+    const pattern = forFlavor(COMMISSIONED, th.flavor);
+    if (pattern === undefined) {
+        record(cx, { type: "device-log", verdict: "unverified" }, what);
+        return;
+    }
+
+    const completions = th.log.count(pattern, from);
+    record(
+        cx,
+        {
+            type: "device-log",
+            verdict: completions === 0 ? "pass" : "fail",
+            pattern: String(pattern),
+            detail:
+                completions === 0
+                    ? `${th.id} logged no completed commissioning in this step`
+                    : `${th.id} completed ${completions} commissioning(s) in this step`,
+        },
+        what,
+    );
+}
+
 /**
  * The device announcing that it is now advertising itself commissionable — the transition a plan's
  * "place the TH back into commissioning mode" step asks for, stated by the device rather than
@@ -92,15 +176,24 @@ const ADVERTISING_COMMISSIONABLE = {
  * The onboarding payload the TH publishes for its own setup code. A subject that renders one reports
  * it directly; a chip app only prints it, and the first of the two it prints is the standard
  * commissioning flow's.
+ *
+ * `from` is the log cursor to read it at, and a step after a device restart must supply one: the
+ * default reads the whole log and so returns the payload the *previous* generation printed.
+ *
+ * That is harmless because a subject's identity is fixed at construction and reused on every start —
+ * `ChipLocalSubject.start()` rebuilds `--discriminator`/`--passcode` from `this.commissioning` on each
+ * spawn, and the matter.js instances take theirs from their config — so a `factoryReset` comes back
+ * with the same setup code. It is a property of the harness, not of any device it may run, and it is
+ * what lets `commissionByQr` restore a TH *after* its caller has already read the payload.
  */
-export async function thQrPayload(th: CertDevice): Promise<string> {
+export async function thQrPayload(th: CertDevice, from = 0): Promise<string> {
     if (th.commissioning.qrPairingCode) {
         return th.commissioning.qrPairingCode;
     }
 
     const result = await th.log.expect(
         { chip: SETUP_QR_CODE, matterjs: SETUP_QR_CODE },
-        { flavor: th.flavor, from: 0, timeoutMs: COMMISSIONING_LOG_TIMEOUT },
+        { flavor: th.flavor, from, timeoutMs: COMMISSIONING_LOG_TIMEOUT },
     );
     if (result.verdict === "unverified") {
         throw new InternalError(`${th.flavor} devices neither report nor print an onboarding payload`);
@@ -118,9 +211,8 @@ export async function thQrPayload(th: CertDevice): Promise<string> {
  * parse is the DUT's, not the step's: a step that decoded the payload itself would pass against a
  * controller that cannot read one at all.
  */
-export async function recordParse(cx: CertStepContext, payload: string): Promise<void> {
-    const th = cx.devices.th;
-
+export async function recordParse(cx: CertStepContext, payload: string, th?: CertDevice): Promise<void> {
+    th ??= theTh(cx);
     let parsed;
     try {
         parsed = await cx.controllers.dut.parseQrPayload(payload);
@@ -162,7 +254,7 @@ export const ON_NETWORK_ONLY = DiscoveryCapabilitiesSchema.encode({ onIpNetwork:
  * a BLE-only bitmask, so the precondition does not otherwise hold on that TH at all.
  */
 export async function onNetworkOnlyPayload(cx: CertStepContext): Promise<string> {
-    return qrPayloadWith(await thQrPayload(cx.devices.th), { discoveryCapabilities: ON_NETWORK_ONLY });
+    return qrPayloadWith(await thQrPayload(theTh(cx)), { discoveryCapabilities: ON_NETWORK_ONLY });
 }
 
 /** § 5.1.3.1 Table 59's version string for this revision of the specification. */
@@ -171,8 +263,44 @@ export const STANDARD_VERSION = 0;
 /** § 5.1.3.1 Table 59's standard commissioning flow. */
 export const STANDARD_FLOW = 0;
 
+/** § 5.1.3.1 Table 59's commissioning flows: the device needs a user action before it is commissionable. */
+export const USER_INTENT_FLOW = 1;
+
+/** § 5.1.3.1 Table 59's commissioning flows: the device needs steps the manufacturer defines. */
+export const CUSTOM_FLOW = 2;
+
+/** What a test case calls each flow, so its steps and its checks cannot name different ones. */
+const FLOW_TITLES: Record<number, string> = {
+    [STANDARD_FLOW]: "Standard",
+    [USER_INTENT_FLOW]: "User-Intent",
+    [CUSTOM_FLOW]: "Custom",
+};
+
 /**
- * Records that the DUT reads `payload` as offering `capability` over the standard commissioning flow.
+ * The title `devicediscovery.adoc` gives `flowType`, for a test case declaring the flow it is named
+ * for. Throws for a flow the specification does not define, which in a test case is our own mistake
+ * rather than something a device did.
+ */
+export function flowTitle(flowType: number): string {
+    const title = FLOW_TITLES[flowType];
+    if (title === undefined) {
+        throw new InternalError(`No commissioning flow ${flowType} to name a test case for`);
+    }
+    return title;
+}
+
+/**
+ * How a check's verdict names `flowType`. The § 5.1.3.1 field is two bits wide, so a payload can carry
+ * a flow the specification defines no title for, and a verdict about it has to say which one it saw.
+ */
+export function flowName(flowType: number): string {
+    const title = FLOW_TITLES[flowType];
+    return title === undefined ? `flow ${flowType}` : `the ${title.toLowerCase()} flow`;
+}
+
+/**
+ * Records that the DUT reads `payload` as offering `capability` over the commissioning flow `flowType`
+ * denotes, which defaults to the standard one.
  *
  * The capability is what tells one leg of a per-transport plan from another, and the flow is what such
  * a plan is named for, so both belong in the verdict. Left to the prose, every leg's scan step passes
@@ -183,6 +311,7 @@ export async function recordPayloadOffering(
     cx: CertStepContext,
     payload: string,
     capability: keyof typeof DiscoveryCapabilitiesBitmap,
+    flowType = STANDARD_FLOW,
 ): Promise<void> {
     const parsed = await cx.controllers.dut.parseQrPayload(payload);
     const offered = DiscoveryCapabilitiesSchema.decode(parsed.discoveryCapabilities);
@@ -194,8 +323,8 @@ export async function recordPayloadOffering(
     if (!offered[capability]) {
         wrong.push(`does not offer ${capability}`);
     }
-    if (parsed.flowType !== STANDARD_FLOW) {
-        wrong.push(`carries flowType ${parsed.flowType} rather than the standard flow`);
+    if (parsed.flowType !== flowType) {
+        wrong.push(`carries flowType ${parsed.flowType} rather than ${flowName(flowType)}`);
     }
 
     record(
@@ -210,7 +339,7 @@ export async function recordPayloadOffering(
                     .padStart(8, "0")})` +
                 (wrong.length ? `; the payload ${wrong.join(" and ")}` : ""),
         },
-        `Payload offers ${capability} over the standard flow`,
+        `Payload offers ${capability} over ${flowName(flowType)}`,
     );
 }
 
@@ -309,14 +438,22 @@ function readBits(data: Uint8Array, { offset, length }: { offset: number; length
  * `payload` with the named fields substituted, which is what the negative device-discovery plans ask
  * a tester to produce with a QR generator.
  *
- * The fields go in as bits rather than through matter.js's own encoder, because every value these
- * plans want is one that encoder refuses to write: an unsupported version and the trivial passcodes
- * are exactly what it validates against on the way out (§ 5.1.3.1, § 5.1.7.1). The TLV data that may
- * follow the fixed 11-byte structure is carried through untouched.
+ * The fields go in as bits rather than through matter.js's own encoder. An unsupported version and the
+ * trivial passcodes are exactly what that encoder validates against on the way out (§ 5.1.3.1,
+ * § 5.1.7.1), so it cannot produce them at all; the flow and the discovery capabilities it would write
+ * happily, but no subject this harness runs publishes the values the plans ask for, and a
+ * discriminator naming no device at all is the same case. One substitution path covers all of them.
+ * The TLV data that may follow the fixed 11-byte structure is carried through untouched.
  */
 export function qrPayloadWith(
     payload: string,
-    fields: { version?: number; passcode?: number; discoveryCapabilities?: number },
+    fields: {
+        version?: number;
+        passcode?: number;
+        discoveryCapabilities?: number;
+        flowType?: number;
+        discriminator?: number;
+    },
 ): string {
     if (!payload.startsWith(QR_PREFIX)) {
         throw new InternalError(`Cannot substitute fields into "${payload}", which is not a QR onboarding payload`);
@@ -331,6 +468,12 @@ export function qrPayloadWith(
     }
     if (fields.discoveryCapabilities !== undefined) {
         writeBits(data, DISCOVERY_BITS, fields.discoveryCapabilities);
+    }
+    if (fields.flowType !== undefined) {
+        writeBits(data, FLOW_TYPE_BITS, fields.flowType);
+    }
+    if (fields.discriminator !== undefined) {
+        writeBits(data, DISCRIMINATOR_BITS, fields.discriminator);
     }
     return QR_PREFIX + Base38.encode(data);
 }
@@ -610,6 +753,122 @@ export class CommissioningRefusals {
     }
 }
 
+/**
+ * What the DUT is asked to spend looking for a device that is not there. Only matter.js reaches this,
+ * and it honors the bound — {@link recordDiscriminatorHonored} states the gap and makes no attempt on
+ * chip-tool, which cannot be bounded at all.
+ */
+export const ABSENT_DEVICE_GIVE_UP = Seconds(20);
+
+/**
+ * How long the harness waits for that give-up: the deadline above, plus enough slack that a loaded
+ * runner delivering the rejection late is not read as the DUT having neither onboarded nor refused. A
+ * wait equal to the deadline it waits on observes the attempt still pending and records exactly that,
+ * which is why the two must not be the same value. Erring long only delays reporting a DUT that hangs;
+ * erring short fails a working one.
+ *
+ * Should the chip-tool path ever run the attempt, this has to outlast chip-tool's own give-up instead
+ * — TC-DD-3.17's step 4 documents that as roughly 45 seconds and sets this same pair for it.
+ */
+export const ABSENT_DEVICE_WAIT = Seconds(90);
+
+/** § 5.1.3.1 Table 59's discriminator field, which is what a substituted value has to fit. */
+const DISCRIMINATOR_MASK = 0xfff;
+
+/**
+ * A discriminator no device in this run advertises, derived from the one `payload` names so the
+ * substitution is guaranteed to change the field. Devices take consecutive values from `identityFor`,
+ * so inverting one lands far outside the span however many the plan declares — and a value that did
+ * name a device would turn the check below into an ordinary commissioning.
+ */
+function absentDiscriminator(cx: CertStepContext, payload: string): number {
+    const absent = qrPayloadFields(payload).discriminator ^ DISCRIMINATOR_MASK;
+    for (const device of Object.values(cx.devices)) {
+        if (device.commissioning.discriminator === absent) {
+            throw new InternalError(
+                `Discriminator ${absent} was meant to name no device in this run, but ${device.id} advertises it`,
+            );
+        }
+    }
+    return absent;
+}
+
+/**
+ * Records that the DUT commissions the device its code names rather than whichever commissionable
+ * device it can reach.
+ *
+ * Every other check about a payload asks what the DUT *read*, and a commissioning that succeeds
+ * proves only the passcode, which SPAKE2+ settles on its own. On a network holding one commissionable
+ * device, a commissioner that discarded the discriminator entirely satisfies all of them and onboards
+ * the TH anyway. Offering it the TH's own payload with a discriminator nothing advertises separates
+ * the two: a DUT that uses the field cannot find the device, and one that ignores it commissions and
+ * fails this check.
+ *
+ * Two things the evidence has to carry, because here a refusal is what a pass looks like:
+ *
+ * - The TH has to be observed advertising first, or the DUT gives up because there was nothing to
+ *   find and the check passes on the TH's absence rather than on the DUT's use of the field. This is
+ *   the guard {@link recordVendorOutcome} states for the same reason.
+ * - Only a give-up counts ({@link isCommissioningGiveUp}), where
+ *   {@link CommissioningRefusals.requireNoCommissioning} takes every failure but a payload refusal —
+ *   it serves a plan with no commissionee at all, so anything that is not the code being rejected
+ *   satisfies it. Here the TH is present and the code is well-formed, so a controller that would not
+ *   start would satisfy that looser test while proving nothing.
+ *
+ * The claim is about the commissioner rather than about any one step, so a test case establishes it
+ * once, in a precondition step of its own that no PICS gate can skip.
+ */
+export async function recordDiscriminatorHonored(
+    cx: CertStepContext,
+    refusals: CommissioningRefusals,
+    subject?: CertDevice,
+    /** Overridden by the unit tests, which have no advertisement to observe. */
+    probeCommissionable: (cx: CertStepContext, what: string, th: CertDevice) => Promise<void> = recordCommissionable,
+): Promise<void> {
+    const th = subject ?? theTh(cx);
+    const payload = await thQrPayload(th);
+    const absent = absentDiscriminator(cx, payload);
+
+    if (resolveControllerImplementation() === "chip-tool") {
+        record(
+            cx,
+            {
+                type: "response",
+                verdict: "unverified",
+                detail: `discriminator ${absent} was not offered to the DUT`,
+                accepted:
+                    "chip-tool funnels discovery, PASE, attestation, CASE, timeout and argument-parse failures " +
+                    "alike into one command error, so a give-up cannot be told from a controller that failed for " +
+                    "another reason, and the attempt would cost its own discovery timeout to prove nothing",
+            },
+            "DUT commissions the device its code names",
+        );
+        return;
+    }
+
+    const code = qrPayloadWith(payload, { discriminator: absent });
+
+    await probeCommissionable(cx, `${th.id} advertising before the DUT is offered discriminator ${absent}`, th);
+
+    const label = `commissioning from a code naming discriminator ${absent}`;
+    const attempt = cx.controllers.dut.commission({ qrPairingCode: code, giveUpAfterMs: ABSENT_DEVICE_GIVE_UP });
+    refusals.track(attempt);
+
+    const outcome = await expectRejection(label, attempt, ABSENT_DEVICE_WAIT, isCommissioningGiveUp);
+
+    record(
+        cx,
+        {
+            ...outcome,
+            detail:
+                `${outcome.detail ?? label}; the code is ${th.id}'s own payload with discriminator ` +
+                `${qrPayloadFields(payload).discriminator} replaced by ${absent}, which no device in this run ` +
+                "advertises",
+        },
+        "DUT commissions the device its code names",
+    );
+}
+
 function describeTarget(target: CommissioningTarget): string {
     return target.qrPairingCode ?? target.manualPairingCode ?? JSON.stringify(target);
 }
@@ -651,7 +910,7 @@ export async function thManualPairingCode(
 export async function thCodeParts(
     cx: CertStepContext,
 ): Promise<ManualPairingCodeParts & { vendorId: number; productId: number }> {
-    const th = cx.devices.th;
+    const th = theTh(cx);
     const { vendorId, productId } = await cx.controllers.dut.parseQrPayload(await thQrPayload(th));
     if (vendorId === undefined || productId === undefined) {
         // parseQrPayload reports § 2.5.2/§ 2.5.3's "unspecified" as absent, and Table 64's 21-digit
@@ -677,7 +936,7 @@ export async function thCodeParts(
  * cannot read one.
  */
 export async function recordManualParse(cx: CertStepContext, code: string): Promise<void> {
-    const th = cx.devices.th;
+    const th = theTh(cx);
 
     let parsed;
     try {
@@ -714,8 +973,9 @@ export const SHORT_DISCRIMINATOR_SHIFT = 8;
 export async function recordCommissionable(
     cx: CertStepContext,
     what = "TH advertising as commissionable",
+    th = theTh(cx),
 ): Promise<void> {
-    record(cx, await expectMdns(cx.devices.th, { commissionable: true }, { timeoutMs: MDNS_TIMEOUT }), what);
+    record(cx, await expectMdns(th, { commissionable: true }, { timeoutMs: MDNS_TIMEOUT }), what);
 }
 
 /**
@@ -776,8 +1036,8 @@ export async function recordVendorOutcome(
     /** Overridden by the unit tests, which have no advertisement to observe. */
     probeCommissionable: (cx: CertStepContext, what: string) => Promise<void> = recordCommissionable,
 ): Promise<void> {
-    // The same override the caller passed for this helper's own probe: without it a restore reaching
-    // live mDNS is what a unit test would wait out, and its default is the real probe either way.
+    // Passed on to the restore as well: without it a restore reaching live mDNS is what a unit test
+    // would wait out, and its default is the real probe either way.
     const restored = await restoreCommissioningMode(cx, commissioned, probeCommissionable);
 
     // A rejection is evidence about the code only if the TH was there to be found; without this the
@@ -871,14 +1131,15 @@ export async function recordVendorOutcome(
  * that flavor it says a fabric went, and only the session line says which. A caller with a second
  * admin on the TH would have another fabric's removal satisfy the first check.
  */
-export async function recordUnpair(cx: CertStepContext, commissioned: CommissionedRefs): Promise<number> {
-    const th = cx.devices.th;
+export async function recordUnpair(cx: CertStepContext, commissioned: CommissionedRefs): Promise<TransitionMark> {
+    const th = theTh(cx);
     const ref = commissioned.require("dut");
     const node = cx.controllers.dut.node(ref);
 
     const fabricIndex = await readOwnFabricIndex(node);
 
-    const from = th.log.mark();
+    const since = await markTransition(cx);
+    const from = since;
     await node.decommission();
     commissioned.clear("dut");
     cx.recorder.check({
@@ -894,7 +1155,7 @@ export async function recordUnpair(cx: CertStepContext, commissioned: Commission
         { check: () => expired.check, what: "TH ended the DUT's fabric's sessions" },
     ]);
 
-    return from;
+    return since;
 }
 
 /**
@@ -912,7 +1173,7 @@ export async function recordUnpair(cx: CertStepContext, commissioned: Commission
  * theorised: on a matterjs run the probe passed at 13:05:44.088 and the device published its
  * commissionable record at 13:05:44.123, 35 ms later.
  *
- * `options.from` is where the announcement is searched from, and must precede whatever caused the
+ * `options.since` is where the announcement is searched from, and must precede whatever caused the
  * transition — for a matter.js TH that is the caller's own `decommission()`, which happens before
  * this function is entered, so a mark taken here would already be too late. {@link recordUnpair}
  * returns exactly that mark.
@@ -925,17 +1186,22 @@ export async function recordBackInCommissioningMode(
     cx: CertStepContext,
     options: {
         what?: string;
-        from?: number;
+        since?: TransitionMark;
+        /** The device this acts on, where the plan names more than one. */
+        th?: CertDevice;
         /** Overridden by the unit tests, which have no mDNS to answer. */
         probeCommissionable?: (cx: CertStepContext, what: string) => Promise<void>;
     } = {},
 ): Promise<void> {
-    const th = cx.devices.th;
+    const th = options.th ?? theTh(cx);
     const {
-        what = "TH back in commissioning mode",
-        probeCommissionable = recordCommissionable,
-        from = th.log.mark(),
+        what = "TH advertising as commissionable again",
+        // Bound to this device rather than to the plan's single-device role, which a multi-device
+        // plan does not have
+        probeCommissionable = (cx: CertStepContext, what: string) => recordCommissionable(cx, what, th),
+        since = await markTransition(cx, th),
     } = options;
+    const from = since;
 
     if (th.flavor !== "matterjs") {
         await th.backchannel({ name: "factoryReset" });
@@ -962,8 +1228,9 @@ export async function recordBackInCommissioningMode(
         "TH announced it is advertising commissionable again",
     );
 
-    // The TH advertises itself commissionable on its own schedule, and a discovery started before
-    // that finds only the devices this run is not looking for.
+    // Corroboration only. On its own this is answered by any live record for the TH's discriminator,
+    // including the one it published before it was ever commissioned; the announcement checked above
+    // is what witnesses the transition.
     await probeCommissionable(cx, what);
 }
 
@@ -978,17 +1245,19 @@ async function restoreCommissioningMode(
     cx: CertStepContext,
     commissioned: CommissionedRefs,
     probeCommissionable?: (cx: CertStepContext, what: string) => Promise<void>,
+    subject?: CertDevice,
 ): Promise<boolean> {
     const previous = commissioned.get("dut");
     if (previous === undefined) {
         return false;
     }
 
-    const from = cx.devices.th.log.mark();
+    const th = subject ?? theTh(cx);
+    const since = await markTransition(cx, th);
     await cx.controllers.dut.node(previous).decommission();
     commissioned.clear("dut");
 
-    await recordBackInCommissioningMode(cx, { from, probeCommissionable });
+    await recordBackInCommissioningMode(cx, { since, probeCommissionable, th });
     return true;
 }
 
@@ -1009,21 +1278,37 @@ export async function commissionByQr(
     cx: CertStepContext,
     payload: string,
     commissioned: CommissionedRefs,
+    /**
+     * The device being onboarded, where the plan names more than one. Its node ref is still filed
+     * under the `dut` role, because `CommissionedRefs.decommissionAll` removes a fabric through
+     * `cx.controllers[role]` — so a plan whose devices share one controller gives each device its own
+     * `CommissionedRefs` rather than its own role.
+     */
+    th?: CertDevice,
 ): Promise<void> {
-    await commissionByTarget(cx, { qrPairingCode: payload }, commissioned);
+    await commissionByTarget(cx, { qrPairingCode: payload }, commissioned, th);
 }
 
 async function commissionByTarget(
     cx: CertStepContext,
     target: CommissioningTarget,
     commissioned: CommissionedRefs,
+    subject?: CertDevice,
 ): Promise<void> {
     const dut = cx.controllers.dut;
-    const th = cx.devices.th;
+    const th = subject ?? theTh(cx);
 
-    await restoreCommissioningMode(cx, commissioned);
+    await restoreCommissioningMode(cx, commissioned, undefined, subject);
 
-    const from = th.log.mark();
+    // A commissioner that ignored the code and onboarded whatever it could find writes the same
+    // completion line as one that read it, so the code has to be evidence in its own right
+    if (target.qrPairingCode !== undefined) {
+        await recordParse(cx, target.qrPairingCode, th);
+    }
+
+    // Settled, because the line this waits for names no fabric on either flavor: a completion still
+    // in flight from an earlier commissioning would otherwise satisfy this one
+    const from = await th.log.markSettled();
     let ref;
     try {
         ref = await dut.commission(target);
@@ -1048,7 +1333,7 @@ async function commissionByTarget(
             from,
             COMMISSIONING_LOG_TIMEOUT,
         ),
-        "TH commissioning",
+        `${th.id} commissioning`,
     );
 }
 

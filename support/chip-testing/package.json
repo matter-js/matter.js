@@ -32,12 +32,18 @@
         "test-cert-framework": "MATTER_TEST_SHUTDOWN_TIMEOUT_MS=15000 matter-test --spec=test/cert-framework/**/*.test.ts --report"
     },
     "dependencies": {
+        "@matter/general": "*",
         "@matter/main": "*",
+        "@matter/model": "*",
+        "@matter/nodejs": "*",
+        "@matter/protocol": "*",
+        "@matter/types": "*",
         "@project-chip/matter.js": "*"
     },
     "devDependencies": {
         "@matter/testing": "*",
         "@types/ws": "^8.18.1",
+        "chai": "^6.2.2",
         "ws": "^8.21.2"
     },
     "nacho": {

@@ -1259,6 +1259,7 @@ export class ControllerCommissioningFlow {
 
         let findings: AttestationFinding[];
         let baseError: Error | undefined;
+        let dacPublicKey: ReturnType<typeof PublicKey> | undefined;
         try {
             const result = await DeviceAttestationValidator.validate(
                 {
@@ -1277,6 +1278,7 @@ export class ControllerCommissioningFlow {
                 },
             );
             findings = result.findings;
+            dacPublicKey = result.dacPublicKey;
         } catch (error) {
             // A cancellation (e.g. shutdown/close while the DCL service is consulted) must propagate
             // cleanly rather than be downgraded to an attestation finding.
@@ -1312,8 +1314,18 @@ export class ControllerCommissioningFlow {
             logger.info("Device attestation successfully verified");
         }
 
-        // Extract DAC public key for CSR signature verification in #certificates()
-        this.#dacPublicKey = PublicKey(Dac.fromAsn1(deviceAttestation).cert.ellipticCurvePublicKey);
+        if (dacPublicKey === undefined) {
+            // Attestation failed but policy accepted it, so the key the validator would have returned is missing
+            try {
+                dacPublicKey = PublicKey(Dac.fromAsn1(deviceAttestation).cert.ellipticCurvePublicKey);
+            } catch (cause) {
+                throw new CommissioningError(
+                    "Device attestation was accepted but the DAC cannot be parsed, so the CSR signature cannot be verified",
+                    { cause },
+                );
+            }
+        }
+        this.#dacPublicKey = dacPublicKey;
 
         return {
             code: CommissioningStepResultCode.Success,

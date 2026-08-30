@@ -300,8 +300,8 @@ export function parseWritePayload(value: string, what: string): unknown {
  * {@link parseNumber} both raise one, and both run inside a command handler's `try`.
  *
  * The device cannot produce any of those, so reporting them as the failure the device gave lets a step
- * that expects one pass on our bug. `RangeError` is deliberately absent: `DataReader` clamps its offset
- * rather than failing, so a truncated device message reaches `DataView` and raises one.
+ * that expects one pass on our bug. A truncated device message is not one of ours: `DataReader` raises
+ * `DataReadError`, an {@link UnexpectedDataError}.
  *
  * Cause chains are followed, as {@link StatusResponseError.of} and {@link causedBy} do for the two
  * classifications beside this one — a wrapped {@link ImplementationError} is still ours.

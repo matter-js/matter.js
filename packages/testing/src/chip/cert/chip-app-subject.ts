@@ -44,11 +44,11 @@ const CONTAINER_STOP_TIMEOUT_MS = 30_000;
 // against (see TC-IDM-2.1's AGENTS.md section) never appear at all, on any platform build.
 const TRACE_ARGS = ["--trace_log", "1", "--trace_decode", "1"];
 
-function defaultCommissioning(): Subject.CommissioningParameters {
+function commissioningFor(identity?: Subject.Identity): Subject.CommissioningParameters {
     return {
         kind: "on-network",
-        passcode: DEFAULT_PASSCODE,
-        discriminator: DEFAULT_DISCRIMINATOR,
+        passcode: identity?.passcode ?? DEFAULT_PASSCODE,
+        discriminator: identity?.discriminator ?? DEFAULT_DISCRIMINATOR,
 
         // A real onboarding QR code needs the spec's base38 payload encoder, which lives in
         // matter.js and is out of reach here per the packages/testing dependency invariant.
@@ -56,6 +56,15 @@ function defaultCommissioning(): Subject.CommissioningParameters {
         // via discriminator/passcode instead.
         qrPairingCode: "",
     };
+}
+
+/**
+ * `--secured-device-port` for a subject that was given one. Without it every chip app binds 5540, so
+ * a second one in the same run fails to start — the failure surfaces as the device exiting while a
+ * step runs, which reads as a crash rather than as a port collision.
+ */
+function portArgs(identity?: Subject.Identity): string[] {
+    return identity?.port === undefined ? [] : ["--secured-device-port", String(identity.port)];
 }
 
 /**
@@ -170,9 +179,9 @@ class ChipLocalDevice implements CertDevice {
         this.app = app;
         this.appVariant = appVariant;
         this.id = domain;
-        this.commissioning = defaultCommissioning();
+        this.commissioning = commissioningFor(options?.identity);
         this.log = new LogFollower(this.#hub.follow(), domain);
-        this.#appArgs = options?.appArgs ?? [];
+        this.#appArgs = [...portArgs(options?.identity), ...(options?.appArgs ?? [])];
     }
 
     /**
@@ -498,9 +507,9 @@ export class ChipDockerDevice implements CertDevice {
         this.app = app;
         this.appVariant = appVariant;
         this.id = domain;
-        this.commissioning = defaultCommissioning();
+        this.commissioning = commissioningFor(options?.identity);
         this.log = new LogFollower(this.#hub.follow(), domain);
-        this.#appArgs = options?.appArgs ?? [];
+        this.#appArgs = [...portArgs(options?.identity), ...(options?.appArgs ?? [])];
         this.#docker = docker;
     }
 

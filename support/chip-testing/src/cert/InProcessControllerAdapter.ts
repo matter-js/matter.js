@@ -66,6 +66,8 @@ import type {
     CertNodeRef,
     CommissioningTarget,
     ControllerAdapter,
+    ControllerAdapterOptions,
+    ControllerTransport,
     EventPathSpec,
     EventReadEntry,
     ManualPairingCodeFields,
@@ -117,6 +119,33 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "ACT.C.C09.Tx": 1,
     "ACT.C.C0a.Tx": 1,
     "ACT.C.C0b.Tx": 1,
+
+    // The Groups client commands this run's DUT sends, its preconditions' AddGroup included. The CHIP
+    // PICS file answers 0 for these because it describes a device, which is not a Groups client; here
+    // the client is the controller.
+    "G.C.C00.Tx": 1,
+    "G.C.C02.Tx": 1,
+    "G.C.C03.Tx": 1,
+    "G.C.C04.Tx": 1,
+    "G.C.C05.Tx": 1,
+
+    // Every ScenesManagement client command TC-S-3.1 sends. The CHIP PICS file answers 0 for the
+    // cluster and each command because it describes a device, which is not a scenes client.
+    "S.C": 1,
+    "S.C.C00.Tx": 1,
+    "S.C.C01.Tx": 1,
+    "S.C.C02.Tx": 1,
+    "S.C.C03.Tx": 1,
+    "S.C.C04.Tx": 1,
+    "S.C.C05.Tx": 1,
+    "S.C.C06.Tx": 1,
+    "S.C.C40.Tx": 1,
+
+    // GroupKeyManagement and Groups client commands TC-SC-6.1 sends beyond what the device file already
+    // answers 1 for. The file describes a device, which is neither a group-key nor a groups client.
+    "G.C.C01.Tx": 1,
+    "GRPKEY.C.C03.Tx": 1,
+    "GRPKEY.C.C04.Tx": 1,
 };
 
 const adapterStreams = new Map<string, LineQueue>();
@@ -828,8 +857,9 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     readonly #logStream = new LineQueue();
     #controller?: ServerNode;
     #fabric?: Fabric;
+    readonly #transport?: ControllerTransport;
 
-    constructor(id: string) {
+    constructor(id: string, options?: ControllerAdapterOptions) {
         if (adapterStreams.has(id)) {
             throw new InternalError(
                 `InProcessControllerAdapter "${id}" is already registered; two live adapters with the same id ` +
@@ -839,6 +869,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
         }
 
         this.id = id;
+        this.#transport = options?.transport;
         this.#env = new Environment(`cert-${id}`, Environment.default);
         new MockStorageService(this.#env);
         this.log = new LogFollower(this.#logStream.follow(), id);
@@ -867,7 +898,15 @@ export class InProcessControllerAdapter implements ControllerAdapter {
                 id: this.id,
                 commissioning: { enabled: false },
                 controller: { adminFabricLabel: this.id },
-                network: { autoStartCommissionedPeers: false },
+                network: {
+                    autoStartCommissionedPeers: false,
+
+                    // Outgoing only: this controller is a TCP client, and `tcp: true` would also have it
+                    // listen and advertise as a TCP server, which no cert test asks of a controller.
+                    ...(this.#transport === "tcp"
+                        ? { tcp: { outgoing: true }, transportPreference: "tcp" as const }
+                        : {}),
+                },
                 subscriptions: { persistenceEnabled: false },
             });
             this.#controller = controller;

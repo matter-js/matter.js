@@ -14,7 +14,7 @@ registerDeviceType({
     async create(serverNode: ServerNode, endpoint: EndpointNumber) {
         const ep = new Endpoint(TemperatureSensorDevice, {
             number: endpoint,
-            temperatureMeasurement: { measuredValue: 2500 },
+            temperatureMeasurement: { measuredValue: 2500, minMeasuredValue: -5000, maxMeasuredValue: 10000 },
         });
         await serverNode.add(ep);
         return { endpoint: ep };

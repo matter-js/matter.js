@@ -26,16 +26,24 @@ function line(atMs: number, text: string) {
 
 const T0 = 1786711488_000;
 
-function receipt(atMs: number, category: "S" | "U" | "G", type: string, exchange = "1r") {
+function receipt(
+    atMs: number,
+    category: "S" | "U" | "G",
+    type: string,
+    exchange = "1r",
+    // null omits the field, which a default parameter cannot express: passing undefined would take it
+    session: string | null = "2",
+) {
     return line(
         atMs,
-        `[EM] >>> [E:${exchange} S:2 M:3] (${category}) Msg RX from 1:000000000001B669 --- Type 0001:${type}`,
+        `[EM] >>> [E:${exchange}${session === null ? "" : ` S:${session}`} M:3] (${category}) Msg RX from ` +
+            `1:000000000001B669 --- Type 0001:${type}`,
     );
 }
 
-function timedRequestLines(atMs: number, category: "S" | "U" | "G" = "S") {
+function timedRequestLines(atMs: number, category: "S" | "U" | "G" = "S", session: string | null = "2") {
     return [
-        receipt(atMs, category, "0a (IM:TimedRequest)"),
+        receipt(atMs, category, "0a (IM:TimedRequest)", "1r", session),
         line(atMs, "[DMG] TimedRequestMessage ="),
         line(atMs, "[DMG] {"),
         line(atMs, `[DMG] \tTimeoutMs = 0x${TIMEOUT.toString(16)},`),
@@ -43,10 +51,13 @@ function timedRequestLines(atMs: number, category: "S" | "U" | "G" = "S") {
     ];
 }
 
-function invokeLines(atMs: number, options: { suppressResponse?: boolean; timed?: boolean; exchange?: string } = {}) {
-    const { suppressResponse = true, timed = true, exchange = "1r" } = options;
+function invokeLines(
+    atMs: number,
+    options: { suppressResponse?: boolean; timed?: boolean; exchange?: string; session?: string | null } = {},
+) {
+    const { suppressResponse = true, timed = true, exchange = "1r", session = "2" } = options;
     return [
-        receipt(atMs, "S", "08 (IM:InvokeCommandRequest)", exchange),
+        receipt(atMs, "S", "08 (IM:InvokeCommandRequest)", exchange, session),
         line(atMs, "[DMG] InvokeRequestMessage ="),
         line(atMs, "[DMG] {"),
         ...(suppressResponse ? [line(atMs, "[DMG] \tsuppressResponse = false, ")] : []),
@@ -313,6 +324,21 @@ describe("expectTimedFollowUp", () => {
 
         expect(check.verdict).equal("pass");
         expect(check.detail).contains("20.0ms");
+    });
+
+    it("does not take another session's identically numbered exchange for this one", async () => {
+        // An exchange id is unique only within its session, so a second session can hold one with the
+        // same number at the same time
+        const check = await followUp([...timedRequestLines(T0), ...invokeLines(T0 + 20, { session: "3" })]);
+
+        expect(check.verdict).equal("fail");
+    });
+
+    it("does not attribute a follow-up when neither receive line names a session", async () => {
+        // Both sides absent compares nothing, so the check would fall back to exchange-only attribution
+        const check = await followUp([...timedRequestLines(T0, "S", null), ...invokeLines(T0 + 20, { session: null })]);
+
+        expect(check.verdict).equal("fail");
     });
 
     it("passes when the optional suppressResponse line is absent, as a matter.js write is", async () => {

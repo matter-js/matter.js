@@ -85,7 +85,7 @@ function recordResults(
 async function recordBatchRequest(cx: CertStepContext, from: number, paths: BatchPath[]) {
     const th = cx.devices.th;
     record(cx, await expectBatchRequestPaths(th.log, th.flavor, paths, from, LOG_TIMEOUT), "Invoke request paths");
-    record(cx, expectInvokeCount(th.log, th.flavor, from, 1), "Invoke request count");
+    record(cx, await expectInvokeCount(th.log, th.flavor, from, 1), "Invoke request count");
 }
 
 certTest("TC-IDM-1.3", {
@@ -167,8 +167,8 @@ certTest("TC-IDM-1.3", {
                 detail: "TH device accepted FailAtFault for chip faults 12, 13 and 14",
             });
 
-            record(cx, expectInvokeCount(th.log, th.flavor, from, 3), "Arming invoke count");
-            record(cx, expectNoInjectedFault(th.log, th.flavor, from), "No fault fired while arming");
+            record(cx, await expectInvokeCount(th.log, th.flavor, from, 3), "Arming invoke count");
+            record(cx, await expectNoInjectedFault(th.log, th.flavor, from), "No fault fired while arming");
         },
         { expected: "Each FailAtFault command's response indicates it was successful" },
     )
@@ -188,7 +188,7 @@ certTest("TC-IDM-1.3", {
                 { index: 1, status: Status.Success },
             ]);
             await recordBatchRequest(cx, from, BATCH_PATHS);
-            record(cx, expectNoInjectedFault(th.log, th.flavor, from), "No injected fault");
+            record(cx, await expectNoInjectedFault(th.log, th.flavor, from), "No injected fault");
         },
         {
             expected:
@@ -301,7 +301,7 @@ certTest("TC-IDM-1.3", {
                 detail: `single invoke of OnOff.on on endpoint ${ENDPOINT_1} succeeded`,
             });
             await recordBatchRequest(cx, from, [BATCH_PATHS[0]]);
-            record(cx, expectNoInjectedFault(th.log, th.flavor, from), "No injected fault");
+            record(cx, await expectNoInjectedFault(th.log, th.flavor, from), "No injected fault");
         },
         {
             expected: "On the TH, the received request message has the same path as provided in the command",

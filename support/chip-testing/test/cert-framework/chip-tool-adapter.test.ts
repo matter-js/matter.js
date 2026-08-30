@@ -178,16 +178,16 @@ describe("ChipToolControllerAdapter", function () {
         }
     });
 
-    async function start() {
-        const started = new ChipToolControllerAdapter("dut");
+    async function start(options?: { transport?: "tcp" }) {
+        const started = new ChipToolControllerAdapter("dut", options);
         adapter = started;
         await started.start();
         return started;
     }
 
     /** Commissions a node and clears the recorded frames, so a test asserts only on its own command. */
-    async function commissioned(): Promise<{ ref: string; node: CertNodeApi }> {
-        const started = await start();
+    async function commissioned(options?: { transport?: "tcp" }): Promise<{ ref: string; node: CertNodeApi }> {
+        const started = await start(options);
         const ref = await started.commission({ passcode: 20202021, discriminator: 3840 });
         fake.commands.splice(0);
         fake.frames.splice(0);
@@ -388,6 +388,61 @@ describe("ChipToolControllerAdapter", function () {
         expect(await node.readAttribute({ endpoint: 0, cluster: BASIC_INFORMATION.id, attribute: VENDOR_ID.id })).equal(
             0xfff1,
         );
+        expect(fake.commands).deep.equal([`any read-by-id 0x28 0x2 ${ref} 0`]);
+    });
+
+    it("asks for a large-payload session on every interaction a test might begin with", async () => {
+        // chip-tool decides a session's transport when it establishes one, so whichever interaction a
+        // test starts with has to carry the flag. This asserts the commands, not the replies: each call
+        // is allowed to reject, since a builder is what is under test here.
+        const { ref, node } = await commissioned({ transport: "tcp" });
+        const attribute = {
+            endpoint: 0,
+            cluster: BASIC_INFORMATION.id,
+            attribute: requireId(VENDOR_ID.id, "vendorId"),
+        };
+        const event = { endpoint: 0, cluster: BASIC_INFORMATION.id, event: 0 };
+        const intervals = { minIntervalFloorSeconds: 1, maxIntervalCeilingSeconds: 10 };
+
+        fake.reply = () => ({ results: [] });
+
+        const interactions: [string, () => Promise<unknown>][] = [
+            ["read-by-id", () => node.readAttribute(attribute)],
+            ["write-by-id", () => node.writeAttribute(attribute, 1)],
+            ["command-by-id", () => node.invoke("OnOff", "on", {}, 1)],
+            ["read-event-by-id", () => node.readEvents([event])],
+            ["subscribe-by-id", () => node.subscribe(attribute, intervals)],
+            ["subscribe-event-by-id", () => node.subscribeEvents([event], intervals)],
+        ];
+
+        for (const [, interaction] of interactions) {
+            await interaction().catch(() => undefined);
+        }
+
+        expect(fake.commands.length).equal(interactions.length);
+        for (const [index, [builder]] of interactions.entries()) {
+            const command = fake.commands[index];
+            expect(command, builder).contains(`any ${builder} `);
+            expect(command.endsWith(" --allow-large-payload 1"), `${builder}: ${command}`).equal(true);
+        }
+        expect(fake.commands[0]).equal(`any read-by-id 0x28 0x2 ${ref} 0 --allow-large-payload 1`);
+    });
+
+    it("sends no large-payload flag for a test that did not ask for TCP", async () => {
+        const { ref, node } = await commissioned();
+
+        fake.reply = () => ({
+            results: [
+                {
+                    clusterId: BASIC_INFORMATION.id,
+                    endpointId: 0,
+                    attributeId: requireId(VENDOR_ID.id, "vendorId"),
+                    value: 0xfff1,
+                },
+            ],
+        });
+        await node.readAttribute({ endpoint: 0, cluster: BASIC_INFORMATION.id, attribute: VENDOR_ID.id });
+
         expect(fake.commands).deep.equal([`any read-by-id 0x28 0x2 ${ref} 0`]);
     });
 

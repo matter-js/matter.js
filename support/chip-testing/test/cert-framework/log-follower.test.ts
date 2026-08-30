@@ -110,6 +110,52 @@ describe("LogFollower", () => {
         await follower.close();
     });
 
+    // The hazard mark() has and markSettled() does not: a line the device already wrote but whose
+    // delivery is still in flight lands after a plain mark, and a check then reads it as having been
+    // caused by whatever the caller does next.
+    it("mark() can sit behind a line the source has already produced", async () => {
+        const source = new TestSource();
+        const follower = new LogFollower(source, "dut");
+
+        source.push("device ready");
+        // Deliberately no drain here — this is what a step doing mark()-then-act looks like
+        expect(follower.mark()).equal(0);
+
+        const result = await follower.expect({ chip: /ready/ }, { flavor: "chip", timeoutMs: 2_000 });
+        expect(result.verdict).equal("pass");
+
+        await follower.close();
+    });
+
+    it("markSettled() lets the pump deliver what the source already holds", async () => {
+        const source = new TestSource();
+        const follower = new LogFollower(source, "dut");
+
+        source.push("device ready");
+        expect(await follower.markSettled()).equal(1);
+
+        await expect(follower.expect({ chip: /ready/ }, { flavor: "chip", timeoutMs: 30 })).rejectedWith(
+            CertLogTimeoutError,
+        );
+
+        await follower.close();
+    });
+
+    it("markSettled() still matches a line that arrives after it", async () => {
+        const source = new TestSource();
+        const follower = new LogFollower(source, "dut");
+
+        source.push("earlier");
+        await follower.markSettled();
+        source.push("device ready");
+
+        const result = await follower.expect({ chip: /ready/ }, { flavor: "chip", timeoutMs: 2_000 });
+        expect(result.verdict).equal("pass");
+        expect(result.verdict === "pass" && result.matched.text).equal("device ready");
+
+        await follower.close();
+    });
+
     it("does not match a line emitted before mark()", async () => {
         const source = new TestSource();
         const follower = new LogFollower(source, "dut");

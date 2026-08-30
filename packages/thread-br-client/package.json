@@ -33,6 +33,7 @@
         "@noble/curves": "^2.3.0"
     },
     "devDependencies": {
+        "@matter/main": "*",
         "@matter/testing": "*"
     },
     "files": [

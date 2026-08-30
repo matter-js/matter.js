@@ -401,7 +401,7 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
     const supportedElements = backing.endpoint.behaviors.elementsOf(behavior);
     const nonMandatorySupportedAttributes = new Set<AttributeId>();
     const nonMandatorySupportedEvents = new Set<EventId>();
-    const nonMandatorySupportedCommands = new Set<CommandId>();
+    const supportedCommands = new Set<CommandId>();
 
     let wildcardPathFlags = schema.effectiveQuality.diagnostics ? WildcardPathFlags.skipDiagnosticsClusters : 0;
     if (schema.id & 0xffff0000) {
@@ -524,11 +524,9 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
                 break;
             }
             case "command": {
-                if (
-                    id === CommandId.NONE ||
-                    (!member.effectiveConformance.isMandatory && !supportedElements.commands.has(name)) ||
-                    !member.isRequest
-                ) {
+                // A mandatory command left unimplemented is absent from AcceptedCommandList; dispatching it anyway
+                // would answer an invoke the cluster does not advertise
+                if (id === CommandId.NONE || !supportedElements.commands.has(name) || !member.isRequest) {
                     continue;
                 }
 
@@ -545,15 +543,13 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
 
                 commandList.push(command);
                 commands[id] = command;
-                if (!member.effectiveConformance.isMandatory) {
-                    nonMandatorySupportedCommands.add(id as CommandId);
-                }
+                supportedCommands.add(id as CommandId);
                 break;
             }
         }
     }
 
-    const elementsCacheKey = `a:${[...nonMandatorySupportedAttributes.values()].sort().join(",")},e:${[...nonMandatorySupportedEvents.values()].sort().join(",")},c:${[...nonMandatorySupportedCommands.values()].sort().join(",")}`;
+    const elementsCacheKey = `a:${[...nonMandatorySupportedAttributes.values()].sort().join(",")},e:${[...nonMandatorySupportedEvents.values()].sort().join(",")},c:${[...supportedCommands.values()].sort().join(",")}`;
     const existingCache = behaviorCache.get(behavior)?.get(elementsCacheKey);
     if (existingCache) {
         return existingCache;

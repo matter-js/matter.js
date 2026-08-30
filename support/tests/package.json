@@ -26,12 +26,16 @@
         "test-subscription-leaks": "matter-test --spec=test/leaks/subscription.test.ts"
     },
     "dependencies": {
+        "@matter/general": "*",
         "@matter/main": "*",
+        "@matter/node": "*",
+        "@matter/types": "*",
         "@project-chip/matter.js": "*"
     },
     "devDependencies": {
         "@matter/testing": "*",
         "@memlab/api": "^2.0.4",
+        "@memlab/core": "^2.0.4",
         "@memlab/heap-analysis": "^2.0.4"
     },
     "nacho": {

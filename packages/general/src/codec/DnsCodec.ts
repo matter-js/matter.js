@@ -271,7 +271,15 @@ export class DnsCodec {
         const ttl = Seconds(reader.readUInt32());
         const valueLength = reader.readUInt16();
         const valueBytes = reader.readByteArray(valueLength);
-        const value = this.decodeRecordValue(valueBytes, recordType, message);
+
+        // The reader already stands after this record, so a record we cannot read costs only itself
+        let value: unknown;
+        try {
+            value = this.decodeRecordValue(valueBytes, recordType, message);
+        } catch (error) {
+            UnexpectedDataError.accept(error);
+            return undefined;
+        }
 
         // Validate that the record has required fields
         if (recordType === undefined || value === undefined) {

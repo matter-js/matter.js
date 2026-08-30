@@ -11,6 +11,7 @@
     },
     "main": "src/DeviceNodeFull.ts",
     "dependencies": {
+        "@matter/general": "*",
         "@matter/main": "*",
         "@matter/nodejs": "*"
     },
