@@ -6,7 +6,7 @@
 
 import { TaskCancelledSignal, TaskFailedError } from "#task/errors.js";
 import { GateControl, RunningTaskContext } from "#task/RunningTaskContext.js";
-import { BoundDefinition, Task, TaskDefinition, RunRecord } from "#task/Task.js";
+import { TaskDefinition, RunRecord } from "#task/Task.js";
 import { TaskPhase, TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
 import { Observable } from "@matter/general";
@@ -20,16 +20,16 @@ const GateTask: TaskDefinition = {
 };
 
 function makeContext(peer: FakePeer, gate?: GateControl, setState?: (state: TaskState) => void) {
-    const task = new Task(new BoundDefinition(GateTask, {}), new RunRecord(RunId(1), "gate-test:1", GateTask.type, {}));
+    const record = new RunRecord(RunId(1), "gate-test:1", GateTask.type, {});
     const states = new Array<TaskState>();
-    const record =
+    const applyState =
         setState ??
         ((s: TaskState) => {
-            task.progress.state = s;
+            record.state = s;
             states.push(s);
         });
-    const ctx = new RunningTaskContext(task, () => peer.asNode(), peer, record, gate);
-    return { task, ctx, states };
+    const ctx = new RunningTaskContext(record, () => peer.asNode(), peer, applyState, gate);
+    return { record, ctx, states };
 }
 
 /** The manager's gate control, reduced to what a gate reads: a recorded abort and a wake for it. */
@@ -125,32 +125,32 @@ describe("TaskContext gates", () => {
         peer.addItem("groupMembership", "1", "pending");
         peer.markHas("groupMembership", "1");
         peer.setReachable(false);
-        const { ctx, task, states } = makeContext(peer);
+        const { ctx, record, states } = makeContext(peer);
 
         const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: "groupMembership", key: "1" }]);
 
         await MockTime.resolve(Promise.resolve());
-        expect(task.progress.state).equals("parked");
+        expect(record.state).equals("parked");
 
         peer.setReachable(true);
 
         await MockTime.resolve(gate);
         expect(states).contains("parked");
         expect(states).contains("running");
-        expect(task.progress.state).equals("running");
+        expect(record.state).equals("running");
     });
 
     it("fails once its own evaluation drops the awaited item after an unrecoverable rejection", async () => {
         const peer = new FakePeer("p1");
         peer.addItem("groupMembership", "1", "pending");
         peer.markRejects("groupMembership", "1");
-        const { ctx, task } = makeContext(peer);
+        const { ctx, record } = makeContext(peer);
 
         const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: "groupMembership", key: "1" }]);
 
         await expect(MockTime.resolve(gate)).rejectedWith(TaskFailedError);
         expect(peer.items[itemMapKey("groupMembership", "1")]).equals(undefined);
-        expect(task.progress.state).does.not.equal("completed");
+        expect(record.state).does.not.equal("completed");
         // The failure takes two reconcile passes: one to record the rejection, the next to give up on the item.
         expect(peer.reconciles).greaterThan(1);
     });
@@ -160,7 +160,7 @@ describe("TaskContext gates", () => {
         peer.addItem("groupMembership", "1", "pending");
         peer.markFailsRecoverably("groupMembership", "1", 2);
         peer.markHas("groupMembership", "1");
-        const { ctx, task } = makeContext(peer);
+        const { ctx, record } = makeContext(peer);
 
         let settled = false;
         let failure: unknown;
@@ -180,7 +180,7 @@ describe("TaskContext gates", () => {
         expect(settled).equals(true);
         await MockTime.resolve(gate);
         expect(peer.items[itemMapKey("groupMembership", "1")]?.status.state).equals("committed");
-        expect(task.progress.state).equals("running");
+        expect(record.state).equals("running");
         // Two failing applies and the retry that succeeds: the gate resolved through the retry path.
         expect(peer.reconciles).greaterThan(2);
     });
@@ -283,7 +283,7 @@ describe("TaskContext gates", () => {
         const peer = new FakePeer("p1");
         peer.addItem("groupMembership", "1", "committed");
         peer.setReachable(false);
-        const { ctx, task } = makeContext(peer);
+        const { ctx, record } = makeContext(peer);
 
         let settled = false;
         const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: "groupMembership", key: "1" }]).then(() => {
@@ -292,7 +292,7 @@ describe("TaskContext gates", () => {
 
         await MockTime.resolve(Promise.resolve());
         expect(settled).equals(false);
-        expect(task.progress.state).equals("parked");
+        expect(record.state).equals("parked");
 
         peer.setReachable(true);
         await MockTime.resolve(gate);

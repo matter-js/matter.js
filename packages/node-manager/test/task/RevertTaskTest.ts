@@ -6,25 +6,23 @@
 
 import { Revert, RevertParams } from "#task/Revert.js";
 import { RunningTaskContext } from "#task/RunningTaskContext.js";
-import { BoundDefinition, Task, RunRecord } from "#task/Task.js";
+import { BoundDefinition, RunRecord } from "#task/Task.js";
 import { TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
 import { itemMapKey } from "@matter/node";
 import { FakePeer } from "./helpers.js";
 
 function runRevert(peer: FakePeer, params: RevertParams, referenced = new Set<string>()) {
-    const task = new Task(
-        new BoundDefinition(Revert, params),
-        new RunRecord(RunId(1), "revert:1", Revert.type, params),
-    );
+    const bound = new BoundDefinition(Revert, params);
+    const record = new RunRecord(RunId(1), "revert:1", bound.type, params);
     const setState = (s: TaskState) => {
-        task.progress.state = s;
+        record.state = s;
     };
     (peer as unknown as { itemKind(kind: string): unknown }).itemKind = (kind: string) => ({
         isReferenced: (_n: unknown, key: string) => referenced.has(`${kind}:${key}`),
     });
-    const ctx = new RunningTaskContext(task, () => peer.asNode(), peer, setState);
-    return task.phases[0].run(ctx);
+    const ctx = new RunningTaskContext(record, () => peer.asNode(), peer, setState);
+    return bound.phases()[0].run(ctx);
 }
 
 describe("Revert task", () => {

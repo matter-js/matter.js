@@ -6,7 +6,7 @@
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { TaskConflictError, TaskFailedError, TaskManagerClosingError } from "#task/errors.js";
-import { Task } from "#task/Task.js";
+import { RunRecord } from "#task/Task.js";
 import { TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { TaskPhase, TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
@@ -16,7 +16,7 @@ import { MockServerNode } from "@matter/node/testing";
 import {
     cancelSlot,
     FakePeer,
-    liveTask,
+    liveRecord,
     onPersisted,
     recordFor,
     requireRecordFor,
@@ -45,12 +45,13 @@ class TestTaskManager extends TaskManagerBehavior {
 
     /** True once cancel() has accepted the request, before it settles. */
     isCancelling(runId: RunId): boolean {
-        return this.internal.cancelling.has(runId);
+        return this.internal.runs.executionOf(runId)?.cancelling === true;
     }
 
     /** True while a task's drive promise has not settled. */
     isDriven(runId: RunId): boolean {
-        return this.internal.driving.has(runId);
+        const execution = this.internal.runs.executionOf(runId);
+        return execution !== undefined && !execution.settled;
     }
 
     /**
@@ -85,22 +86,22 @@ class TestTaskManager extends TaskManagerBehavior {
 }
 
 /**
- * Keeps a run's Task instance reachable and traces every state it persists, so a test can inspect it after the
- * node is gone.
+ * Keeps a run's record reachable and traces every state it persists, so a test can inspect it after the node
+ * is gone.
  */
-const tracedRuns = new Map<string, { task: Task; persistedStates: TaskState[] }>();
+const tracedRuns = new Map<string, { record: RunRecord; persistedStates: TaskState[] }>();
 
 function traceRun(manager: TestTaskManager, runId: RunId): void {
-    const task = liveTask(manager, runId);
-    if (tracedRuns.has(task.slotKey)) {
-        throw new InternalError(`Slot ${task.slotKey} is already traced`);
+    const record = liveRecord(manager, runId);
+    if (tracedRuns.has(record.slotKey)) {
+        throw new InternalError(`Slot ${record.slotKey} is already traced`);
     }
     const persistedStates = new Array<TaskState>();
-    onPersisted(task, record => persistedStates.push(record.state));
-    tracedRuns.set(task.slotKey, { task, persistedStates });
+    onPersisted(record, persisted => persistedStates.push(persisted.state));
+    tracedRuns.set(record.slotKey, { record, persistedStates });
 }
 
-function tracedRun(slotKey: string): { task: Task; persistedStates: TaskState[] } {
+function tracedRun(slotKey: string): { record: RunRecord; persistedStates: TaskState[] } {
     const found = tracedRuns.get(slotKey);
     if (found === undefined) {
         throw new InternalError(`No traced run for slot ${slotKey}`);
@@ -378,9 +379,9 @@ describe("cancel robustness", () => {
         await MockTime.resolve(closing);
 
         // The task keeps a resumable state: nothing claims the cancel took effect.
-        const { task } = tracedRun("synthetic:shutrace");
-        expect(task.progress.state).equals("running");
-        expect(task.revertRunId).equals(undefined);
+        const { record } = tracedRun("synthetic:shutrace");
+        expect(record.state).equals("running");
+        expect(record.revertRunId).equals(undefined);
 
         // Storage must agree: non-terminal, no dangling revert.
         const node2 = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-shutrace" });
@@ -425,9 +426,9 @@ describe("cancel robustness", () => {
         await MockTime.resolve(closing);
 
         // The refused write leaves no trace: state as it was, no rollback linked, none live, nothing rolled back.
-        const { task } = tracedRun("synthetic:queued");
-        expect(task.progress.state).equals("running");
-        expect(task.revertRunId).equals(undefined);
+        const { record } = tracedRun("synthetic:queued");
+        expect(record.state).equals("running");
+        expect(record.revertRunId).equals(undefined);
         expect(manager.tasks.map(t => t.status.slotKey)).deep.equals(["synthetic:queued"]);
         expect(peer.removeOrder).deep.equals([]);
 
@@ -504,9 +505,9 @@ describe("cancel robustness", () => {
             TestTaskManager.atShutdown = undefined;
         }
 
-        const { task } = tracedRun("synthetic:shutfail");
-        expect(task.progress.state).equals("running");
-        expect(task.revertRunId).equals(undefined);
+        const { record } = tracedRun("synthetic:shutfail");
+        expect(record.state).equals("running");
+        expect(record.revertRunId).equals(undefined);
 
         const node2 = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-shutfail" });
         const persisted = node2.stateOf(TestTaskManager).runs;
@@ -676,9 +677,9 @@ describe("cancel robustness", () => {
             TestTaskManager.atShutdown = undefined;
         }
 
-        const { task } = tracedRun("synthetic:predispose");
-        expect(task.progress.state).equals("running");
-        expect(task.error).equals(undefined);
+        const { record } = tracedRun("synthetic:predispose");
+        expect(record.state).equals("running");
+        expect(record.error).equals(undefined);
         expect(peer.items[itemMapKey("groupMembership", "Y")]).equals(undefined);
 
         // Suspending before the first persist means there is nothing to resume: the task is gone after a restart.
@@ -687,6 +688,51 @@ describe("cancel robustness", () => {
         const node2 = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-predispose" });
         expect(recordFor(node2.stateOf(TestTaskManager).runs, "synthetic:predispose")).equals(undefined);
         await node2.close();
+    });
+
+    it("refuses to join a run whose driver stopped before its outcome was recorded", async () => {
+        const environment = new Environment("test");
+        const peer = new FakePeer("settling");
+        TestTaskManager.peers.set("settling", peer);
+        TestTaskManager.reconcilerPeer = peer;
+        SyntheticTask.phasesByTag["settling"] = [
+            {
+                name: "touch",
+                run: async ctx => {
+                    await ctx.setIntent(ctx.resolvePeer("settling"), "groupMembership", "S", {});
+                },
+            },
+        ];
+
+        const node = await MockServerNode.create(RootEndpoint, { environment, id: "settling-join" });
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+        let manager!: TestTaskManager;
+        await node.act(a => {
+            manager = a.get(TestTaskManager);
+        });
+        await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "settling" }, { externalId: "mine" }));
+
+        // Storage refuses from here on, with the node still running, so the run's outcome never reaches a
+        // record. Its driver stops all the same, and it keeps the slot it can no longer retire from.
+        await node.act(a => a.get(TestTaskManager).closePersistMutex());
+        await pumpUntil(
+            "the run stops driving",
+            () => manager.tasks.length === 1 && !manager.isDriven(requireRunIdOfSlot(manager, "synthetic:settling")),
+        );
+
+        // Re-issuing the same request must not be handed a run nothing is advancing.
+        let refused: unknown;
+        await node.act(a => {
+            try {
+                a.get(TestTaskManager).run(SyntheticTask, { tag: "settling" }, { externalId: "mine" });
+            } catch (e) {
+                refused = e;
+            }
+        });
+        expect(refused).instanceOf(TaskConflictError);
+        expect((refused as TaskConflictError).message).contains("settling");
+
+        await node.close();
     });
 
     it("keeps a task driveable when the write recording its cancel is refused", async () => {

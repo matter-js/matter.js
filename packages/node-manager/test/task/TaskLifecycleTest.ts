@@ -59,9 +59,10 @@ class TestTaskManager extends TaskManagerBehavior {
         }
     }
 
-    /** True while a drive of `id` owns this id's gate and driving entries. */
+    /** True while a drive of `id` has not settled. */
     isDriven(runId: RunId): boolean {
-        return this.internal.driving.has(runId) && this.internal.gates.has(runId);
+        const execution = this.internal.runs.executionOf(runId);
+        return execution !== undefined && !execution.settled;
     }
 }
 
@@ -484,8 +485,8 @@ describe("Task lifecycle", () => {
                 requireRecordFor(node.stateOf(TestTaskManager).runs, "synthetic:blockedcancel").state,
             ).does.not.equal("cancelled");
 
-            // The abort stopped the driver and dropped the gate; declining the cancel must give both back, or
-            // the task sits non-terminal with nothing left to advance it until a restart.
+            // The abort stopped the driver; declining the cancel must leave the run with a fresh one, or it
+            // sits non-terminal with nothing left to advance it until a restart.
             expect(await node.act(a => a.get(TestTaskManager).isDriven(handle.runId))).equals(true);
 
             // ...and it still converges once the device has the item, which it cannot do without a driver.

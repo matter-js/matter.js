@@ -9,7 +9,7 @@ import { asError, Logger, ObserverGroup } from "@matter/general";
 import { ClientNode, DesiredStateBehavior, itemMapKey, ItemMode, ManagedItem, NetworkClient } from "@matter/node";
 import { SustainedSubscription } from "@matter/protocol";
 import { TaskFailedError, TaskPeerUnavailableError } from "./errors.js";
-import { runLabel, Task } from "./Task.js";
+import { runLabel, RunRecord } from "./Task.js";
 import { TaskContext, TaskState } from "./types.js";
 
 const logger = Logger.get("TaskContext");
@@ -30,7 +30,7 @@ export interface GateControl {
  */
 export class RunningTaskContext implements TaskContext {
     constructor(
-        protected readonly task: Task,
+        protected readonly record: RunRecord,
         protected readonly peerResolver: (peerId: string) => ClientNode | undefined,
         protected readonly reconciler: ReconcilerSurface,
         protected readonly setState: (state: TaskState) => void,
@@ -41,7 +41,9 @@ export class RunningTaskContext implements TaskContext {
     resolvePeer(peerId: string): ClientNode {
         const peer = this.peerResolver(peerId);
         if (peer === undefined) {
-            throw new TaskPeerUnavailableError(`Task ${runLabel(this.task.runId)}: peer "${peerId}" is not available`);
+            throw new TaskPeerUnavailableError(
+                `Task ${runLabel(this.record.runId)}: peer "${peerId}" is not available`,
+            );
         }
         return peer;
     }
@@ -66,17 +68,17 @@ export class RunningTaskContext implements TaskContext {
 
     // First touch wins: records the pre-task state so a revert restores that, not an intermediate touch.
     #record(peer: ClientNode, kind: string, key: string) {
-        if (this.task.changeSet.some(e => e.peerId === peer.id && e.kind === kind && e.key === key)) {
+        if (this.record.changeSet.some(e => e.peerId === peer.id && e.kind === kind && e.key === key)) {
             return;
         }
         const existing = peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)];
         const prior = existing === undefined ? undefined : { intent: existing.intent, mode: existing.mode };
-        this.task.changeSet.push({ peerId: peer.id, kind, key, prior });
+        this.record.changeSet.push({ peerId: peer.id, kind, key, prior });
     }
 
     async removeIntentIfUnreferenced(peer: ClientNode, kind: string, key: string): Promise<boolean> {
         if (this.reconciler.itemKind(kind)?.isReferenced?.(peer, key)) {
-            logger.debug(`Task ${runLabel(this.task.runId)}: keep ${kind}:${key} on ${peer.id} (still referenced)`);
+            logger.debug(`Task ${runLabel(this.record.runId)}: keep ${kind}:${key} on ${peer.id} (still referenced)`);
             return false;
         }
         await this.removeIntent(peer, kind, key);
@@ -99,7 +101,7 @@ export class RunningTaskContext implements TaskContext {
         const gone = items.find(i => this.#itemState(i.peer, i.kind, i.key) === undefined);
         if (gone !== undefined) {
             throw new TaskFailedError(
-                `Task ${runLabel(this.task.runId)}: awaited intent ${gone.kind}:${gone.key} on ${gone.peer.id} is gone — ` +
+                `Task ${runLabel(this.record.runId)}: awaited intent ${gone.kind}:${gone.key} on ${gone.peer.id} is gone — ` +
                     `the reconciler dropped it, so it can no longer commit`,
             );
         }
@@ -125,7 +127,7 @@ export class RunningTaskContext implements TaskContext {
                     // still represents a real failure; surface it rather than dropping it silently.
                     if (err !== undefined) {
                         logger.warn(
-                            `Task ${runLabel(this.task.runId)}: ignoring late gate-evaluation error after settle:`,
+                            `Task ${runLabel(this.record.runId)}: ignoring late gate-evaluation error after settle:`,
                             err,
                         );
                     }
