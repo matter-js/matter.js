@@ -4,9 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Logger } from "@matter/general";
 import type { ClientNode } from "@matter/node";
-import { ItemKindRegistry, ItemState, ManagedItem } from "@matter/node";
+import { ItemKindRegistry, ItemState, ManagedItem, UnknownItemKindError } from "@matter/node";
 import { PlannedAction } from "./planActions.js";
+
+const logger = Logger.get("Reconciler");
 
 /**
  * Interface for the I/O operations the executor needs to perform on a peer's desired state.
@@ -50,9 +53,10 @@ export async function executeActions(
             case "apply":
             case "retry":
                 try {
-                    if (kind !== undefined) {
-                        await kind.apply(target.node, item);
+                    if (kind === undefined) {
+                        throw new UnknownItemKindError(`No item kind registered for "${item.kind}"`);
                     }
+                    await kind.apply(target.node, item);
                     // A revert that flipped the intent to delete during this apply must win: a status
                     // write here would resurrect the item the revert is trying to remove.
                     if (target.currentState(item.kind, item.key) === "deletePending") {
@@ -62,6 +66,9 @@ export async function executeActions(
                 } catch (e) {
                     if (target.currentState(item.kind, item.key) === "deletePending") {
                         break;
+                    }
+                    if (e instanceof UnknownItemKindError) {
+                        logger.warn(`${item.kind}:${item.key} on ${target.node.id} will not commit:`, e);
                     }
                     await target.updateStatus(item.kind, item.key, "commitFailed", extractStatusCode(e));
                 }
