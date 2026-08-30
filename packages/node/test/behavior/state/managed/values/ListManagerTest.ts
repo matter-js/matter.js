@@ -5,6 +5,7 @@
  */
 
 import { ActionContext } from "#behavior/context/ActionContext.js";
+import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { MaybePromise } from "@matter/general";
 import { ConformanceError, Val } from "@matter/protocol";
 import { FabricIndex, NodeId } from "@matter/types";
@@ -574,6 +575,22 @@ describe("ListManager", () => {
                 expect(() => (ref.list = [{ value: 99999 }])).throw();
                 expect(ref.list).undefined;
             }, {});
+        });
+
+        // A behavior populating a fabric-scoped attribute at startup has no session, so nothing supplies the fabric
+        it("refuses an entry stored with no session to supply the fabric", async () => {
+            const struct = TestStruct(
+                { list: listOf(structOf({ fabricIndex: "FabricIndex", value: "uint8" }), { access: "F" }) },
+                {},
+            );
+
+            await LocalActorContext.act("test", async cx => {
+                const ref = struct.reference(cx);
+                expect(() => (ref.list = [{ value: 1 }])).throw(ConformanceError);
+                expect(ref.list).undefined;
+            });
+
+            expect(struct.fields.list).undefined;
         });
 
         it("supplies the accessing fabric for an entry that omits it", async () => {
