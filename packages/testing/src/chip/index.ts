@@ -56,6 +56,8 @@ export type {
     CommissioningTarget,
     ControllerAdapter,
     ControllerAdapterFactory,
+    ControllerAdapterOptions,
+    ControllerTransport,
     EventPathSpec,
     EventReadEntry,
     ManualPairingCodeFields,

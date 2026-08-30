@@ -4,7 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, ImplementationError, InternalError, NotImplementedError, UnexpectedDataError } from "@matter/main";
+import {
+    Bytes,
+    DataReadError,
+    ImplementationError,
+    InternalError,
+    NotImplementedError,
+    UnexpectedDataError,
+} from "@matter/main";
 import { Status, StatusResponseError } from "@matter/main/types";
 import { Matter } from "@matter/model";
 import { expect } from "chai";
@@ -164,8 +171,8 @@ describe("isOwnFailure", () => {
         expect(isOwnFailure(new UnexpectedDataError("the device answered something else"))).equal(false);
     });
 
-    it("leaves a RangeError alone, which a truncated device message raises through DataReader", () => {
-        expect(isOwnFailure(new RangeError("Offset is outside the bounds of the DataView"))).equal(false);
+    it("leaves the DataReadError a truncated device message raises alone", () => {
+        expect(isOwnFailure(new DataReadError("Read of 4 bytes at offset 0 exceeds the 2 byte buffer"))).equal(false);
     });
 });
 

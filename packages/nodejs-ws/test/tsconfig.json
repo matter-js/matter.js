@@ -20,6 +20,9 @@
             "path": "../../nodejs/src"
         },
         {
+            "path": "../../protocol/src"
+        },
+        {
             "path": "../src"
         }
     ]

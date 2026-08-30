@@ -427,7 +427,9 @@ export class BtpSessionHandler {
                 } bytes from Rest of message: ${remainingMessageLength}`,
             );
 
-            const segmentPayload = currentProcessedMessage.readByteArray(this.fragmentSize - btpHeaderLength);
+            const segmentPayload = currentProcessedMessage.readByteArray(
+                Math.min(this.fragmentSize - btpHeaderLength, remainingMessageLength),
+            );
 
             const ackNumberToSend = hasAckNumber ? this.prevIncomingSequenceNumber : undefined;
             const btpPacket = {

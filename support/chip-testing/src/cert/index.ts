@@ -24,8 +24,16 @@ import { NodeTestInstance } from "../NodeTestInstance.js";
 import { CHIP_TOOL_CONTROLLER_PICS, ChipToolControllerAdapter } from "./ChipToolControllerAdapter.js";
 import { InProcessControllerAdapter, MATTERJS_CONTROLLER_PICS } from "./InProcessControllerAdapter.js";
 
-registerControllerAdapterFactory("matterjs", id => new InProcessControllerAdapter(id), MATTERJS_CONTROLLER_PICS);
-registerControllerAdapterFactory("chip-tool", id => new ChipToolControllerAdapter(id), CHIP_TOOL_CONTROLLER_PICS);
+registerControllerAdapterFactory(
+    "matterjs",
+    (id, options) => new InProcessControllerAdapter(id, options),
+    MATTERJS_CONTROLLER_PICS,
+);
+registerControllerAdapterFactory(
+    "chip-tool",
+    (id, options) => new ChipToolControllerAdapter(id, options),
+    CHIP_TOOL_CONTROLLER_PICS,
+);
 
 // EvidenceRecorder (packages/testing, generic) has no knowledge of this package's own directory
 // layout; this is the seam cert-dsl.ts documents for choosing an outDir. matter-test's working
