@@ -7,7 +7,7 @@
 import { Task, TaskDefinition, TaskPersistence } from "#task/Task.js";
 import { TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { PlannedChange, RunId, TaskPhase, TaskStatus } from "#task/types.js";
-import { Immutable, Observable } from "@matter/general";
+import { Immutable, InternalError, Observable } from "@matter/general";
 import { ClientNode, DesiredStateBehavior, ItemKind, ItemMode, ItemState, ManagedItem, itemMapKey } from "@matter/node";
 import { Status } from "@matter/types";
 
@@ -17,9 +17,8 @@ function recoverable(code?: number): boolean {
 }
 
 /**
- * A synthetic task definition whose phases are supplied inline, for unit-testing the manager/driver. The
- * lookup tables live on the definition object itself (rather than a module-level export) so every existing
- * `SyntheticTask.phasesByTag[...] = ...` call site keeps working unchanged.
+ * A synthetic task definition whose phases are supplied inline, for unit-testing the manager/driver. A test
+ * populates the tables below for the tag it runs under, so one definition serves every case.
  */
 export const SyntheticTask: TaskDefinition<{ tag: string }> & {
     phasesByTag: Record<string, TaskPhase[]>;
@@ -39,20 +38,21 @@ export const SyntheticTask: TaskDefinition<{ tag: string }> & {
     },
 };
 
-/** The live Task the manager built for `runId`. Valid in the synchronous continuation right after `run()`
- * returns, before any phase has had a chance to advance the driver past this tick. */
+/**
+ * The live Task the manager built for `runId`. Valid in the synchronous continuation right after `run()`
+ * returns, before any phase has had a chance to advance the driver past this tick.
+ */
 export function liveTask(manager: TaskManagerBehavior, runId: RunId): Task {
     const task = manager.internal.runs.liveRun(runId);
     if (task === undefined) {
-        throw new Error(`No live run #${runId}`);
+        throw new InternalError(`No live run #${runId}`);
     }
     return task;
 }
 
 /**
- * Runs `hook` with every record a task's own `toPersistence` produces, in place of subclassing Task: Task is
- * concrete now, so observing what one run writes means patching the instance the manager already built rather
- * than overriding a method on a subclass.
+ * Runs `hook` with every record one task writes, by patching that instance alone — so a test observes the run
+ * it started and not every run of its type.
  */
 export function onPersisted(task: Task, hook: (record: TaskPersistence) => void): void {
     const original = task.toPersistence.bind(task);

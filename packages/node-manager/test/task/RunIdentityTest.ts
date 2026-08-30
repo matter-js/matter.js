@@ -293,8 +293,7 @@ describe("run identity", () => {
             await settle(node, "synthetic:undo");
         }
 
-        // The undo path for finished work reads the retained changeSet, so it has to survive the restart and
-        // the run has to be reconstituted to answer whether it may be rolled back at all.
+        // Undo of finished work reads the retained changeSet, so the record has to survive the restart.
         await using node = await makeNode(environment, "undo");
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
         const rollback = await node.act(a => a.get(TestTaskManager).cancel(runId));

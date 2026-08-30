@@ -248,12 +248,13 @@ export class TaskManagerBehavior extends Behavior {
      * The `externalId` is also the id the caller can {@link get} and {@link cancel} its task under.
      */
     run<P>(definition: TaskDefinition<P>, params: P, opts?: { externalId?: string }): TaskHandle {
-        // Resume after a restart has only the type name to go on, so work may not start under a definition the
-        // manager could not find again.
+        // The definition names the work and types its params; the registered definition of that name is what
+        // runs. Executing the caller's object instead would let a lookalike claim a registered type's name and
+        // bypass its rules, and would drive phases that a restart — which has only the name — could not resume.
         if (!this.internal.registry.has(definition.type)) {
             throw new ImplementationError(`Task type "${definition.type}" must be registered before it is run`);
         }
-        const bound = new BoundDefinition(definition, params);
+        const bound = this.internal.registry.interpret(definition.type, params);
         if (!bound.callerCreatable) {
             throw new ImplementationError(
                 `Task type "${definition.type}" undoes another run and is created by cancel(), not by run()`,
@@ -477,7 +478,10 @@ export class TaskManagerBehavior extends Behavior {
         return this.#handle(revert.task);
     }
 
-    /** Rebuild a retired run from its record, which undo needs because revertibility is the task's decision. */
+    /**
+     * A writable copy of a retired run, for the one thing a record cannot do: carry a mutation until it is
+     * written. Questions about a retired run are answered from its record.
+     */
     #reconstitute(record: TaskPersistence): Task {
         if (!this.internal.registry.has(record.type)) {
             throw new TaskTypeNotRegisteredError(
