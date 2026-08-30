@@ -41,7 +41,11 @@ export interface RunStoreSnapshot {
  */
 export class RunStore {
     #nextRunId = 1;
-    /** Identities below this are durable: the persisted counter is at least this high. */
+    /**
+     * Identities below this are durable. Advanced only by {@link noteReserved}, which the manager calls once
+     * the write carrying the counter has landed — never before it, or a refused write leaves a boundary
+     * standing that storage does not back and the next start re-issues everything beyond it.
+     */
     #reservedBelow = 1;
     #nextRetireSeq = 1;
     readonly #live = new Map<RunId, Task>();
@@ -71,6 +75,14 @@ export class RunStore {
                 continue;
             }
             highest = Math.max(highest, record.runId);
+            // A terminal record carries its place in the retirement order, because the write that records an
+            // outcome stamps it. One without is from a build that wrote the outcome and the order separately;
+            // it has no position, so it would sort ahead of every sequenced run of its slot and let an older
+            // run's rollback overwrite it.
+            if (isTerminal(record.state) && record.retireSeq === undefined) {
+                discarded++;
+                continue;
+            }
             if (isTerminal(record.state)) {
                 this.#retired.set(record.runId, record);
             } else {
@@ -113,14 +125,14 @@ export class RunStore {
         return RunId(this.#nextRunId++);
     }
 
+    /** Note that a reservation is now durable, so identities below it may be issued. */
+    noteReserved(through: number): void {
+        this.#reservedBelow = Math.max(this.#reservedBelow, through);
+    }
+
     /** The counter as it must be recorded to cover the identities this store will hand out next. */
     get reservedRunId(): number {
         return this.#nextRunId + RUN_ID_RESERVATION;
-    }
-
-    /** Note that a reservation has been recorded, so identities below it may now be issued. */
-    noteReserved(through: number): void {
-        this.#reservedBelow = Math.max(this.#reservedBelow, through);
     }
 
     /** The run that currently owns `slotKey`, if any. */
@@ -162,9 +174,14 @@ export class RunStore {
     }
 
     /**
-     * Stamp a settled run's place in the retirement order, without moving it. Retirement is only real once the
-     * record carrying it is durable, so the caller writes first and then {@link commitRetirement}: nothing but
-     * this one field is staged, and {@link abandonRetirement} undoes it if the write is refused.
+     * Stamp a settled run's place in the retirement order, without moving it.
+     *
+     * Called as the state becomes terminal, so the write that records the outcome carries the order with it. A
+     * terminal record that reached storage without one would sort ahead of every sequenced run of its slot, and
+     * {@link supersederOf} would then let an older run's rollback overwrite it.
+     *
+     * {@link abandonRetirement} undoes the stamp if that write is refused, and {@link commitRetirement} hands
+     * back the slot once it lands.
      */
     stampRetirement(task: Task): void {
         if (this.#live.has(task.runId) && task.retireSeq === undefined) {

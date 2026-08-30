@@ -43,7 +43,10 @@ class TestTaskManager extends TaskManagerBehavior {
      * Consume every identity the reservation covers, so the next rollback the manager tries to prepare is
      * refused. Reaches the preparation-failure path on a healthy node, which shutdown otherwise hides.
      */
-    exhaustIdentities(): void {
+    async exhaustIdentities(): Promise<void> {
+        // A write still in flight opens the reservation further when it lands, so drain them first: exhausting
+        // against a boundary that is about to move leaves an identity the manager can still allocate.
+        await this.internal.persistMutex;
         for (;;) {
             try {
                 this.internal.runs.allocate();
