@@ -5,6 +5,7 @@
  */
 
 import { InternalError, Millis, Seconds } from "@matter/main";
+import { ImplementationError } from "@matter/main";
 import type {
     CertDevice,
     CertNodeApi,
@@ -242,6 +243,12 @@ async function withFixture(fixture: Fixture, body: (fixture: Fixture) => Promise
 }
 
 describe("subscribeAndModify", () => {
+    it("refuses values a write would not change, which report nothing and would time out unexplained", async () => {
+        await withFixture(new Fixture("chip-local", () => {}), async fixture => {
+            await expect(fixture.run([true, true])).rejectedWith(ImplementationError);
+        });
+    });
+
     it("completes when each write is reported twice and other subscriptions report alongside", async () => {
         const fixture = new Fixture("chip-local", (f, _index, value) => {
             // The sibling report ahead of ours carries no ack of its own: a wait that anchored on

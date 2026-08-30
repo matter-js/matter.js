@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Millis, Seconds, Time } from "@matter/main";
+import { Duration, ImplementationError, Millis, Seconds, Time } from "@matter/main";
 import { resolveControllerImplementation } from "@matter/testing";
 import type { AttributePathSpec, CertNodeRef, CertStepContext } from "@matter/testing";
 import {
@@ -105,6 +105,17 @@ export async function subscribeAndModify<Value>(
     values: Value[],
     timeouts: SubscribeAndModifyTimeouts = {},
 ): Promise<void> {
+    // A write that does not change the attribute produces no report, so the step would wait out its
+    // report budget and fail for a reason the evidence cannot name
+    const repeated = values.findIndex((value, index) => index > 0 && values[index - 1] === value);
+    if (repeated > 0) {
+        throw new ImplementationError(
+            `subscribeAndModify needs values that differ from their predecessor; ${JSON.stringify(
+                values[repeated],
+            )} repeats at index ${repeated}`,
+        );
+    }
+
     const th = cx.devices.th;
     const node = cx.controllers.dut.node(ref);
     const establish = timeouts.establish ?? LOG_TIMEOUT;

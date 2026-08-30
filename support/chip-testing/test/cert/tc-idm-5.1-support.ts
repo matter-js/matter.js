@@ -27,7 +27,7 @@ const TIMED_REQUEST_FLAG = /timedRequest = true,\s*$/;
  * the session it came over: `(S)` secure unicast, `(U)` unencrypted unicast, `(G)` secure groupcast
  * (`src/messaging/README.md`).
  */
-const RECEIPT_LINE = /\[E:(\d+[ir])[^\]]*\] \((S|U|G)\) Msg RX from/;
+const RECEIPT_LINE = /\[E:(\d+[ir])(?: S:(\d+))?[^\]]*\] \((S|U|G)\) Msg RX from/;
 
 // How far back from a message's decode dump its own receive line may sit. chip prints the two a
 // handful of lines apart; the bound is what stops a search that finds nothing nearby from
@@ -99,7 +99,8 @@ function receiptBefore(log: LogFollower, index: number): Receipt | undefined {
         index: line.index,
         text: line.text,
         exchange: match[1],
-        category: match[2] as Receipt["category"],
+        session: match[2],
+        category: match[3] as Receipt["category"],
         pattern: String(RECEIPT_LINE),
     };
 }
@@ -406,7 +407,10 @@ export async function expectTimedFollowUp(
             }
             cursor = block.last.index + 1;
 
-            if (receiptBefore(log, block.last.index)?.exchange !== receipt.exchange) {
+            // An exchange id is unique only within its session, so a follow-up is this timed request's
+            // only when both agree
+            const candidate = receiptBefore(log, block.last.index);
+            if (candidate?.exchange !== receipt.exchange || candidate.session !== receipt.session) {
                 continue;
             }
 
