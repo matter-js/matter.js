@@ -410,9 +410,6 @@ export interface ControllerAdapter {
      * Addresses a group rather than a node, for a case whose subject is the groupcast itself
      * (TC-SC-5.3 step 5). The fabric's group key set and the group's membership are established by
      * ordinary unicast commands first; this only decides how the command that follows is addressed.
-     *
-     * A controller that cannot send a groupcast throws {@link UnsupportedByControllerError} here
-     * rather than from the invoke, so a step is refused before it acts.
      */
     group(groupId: number): CertGroupApi;
 

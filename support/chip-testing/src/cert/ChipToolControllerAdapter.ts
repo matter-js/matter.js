@@ -190,10 +190,11 @@ function largePayloadArg(transport?: ControllerTransport) {
 /**
  * How a group is addressed as a destination: a node id whose upper 48 bits are all ones carries the
  * group in its lower 16 (Matter Core § 2.5.4), and chip-tool takes that in place of a node id on any
- * command it sends.
+ * command it sends. Built through {@link NodeId.fromGroupId} so a group id neither controller may use
+ * is refused the same way on both.
  */
 function groupDestination(groupId: number): string {
-    return `0x${(0xffffffffffff0000n | BigInt(groupId)).toString(16)}`;
+    return `0x${NodeId.fromGroupId(groupId).toString(16)}`;
 }
 
 /** chip-tool's own name for the timed-interaction timeout, on `command-by-id` and `write-by-id` alike. */
@@ -785,13 +786,25 @@ class ChipToolCertGroupApi implements CertGroupApi {
         const group = `${this.#groupId}`;
         const keySetId = `${keySet.groupKeySetId}`;
 
-        await this.#adapter.execute(`groupsettings add-group group${group} ${group}`);
-        await this.#adapter.execute(
-            // Validity 0: the key is current from now, which is what the plan's own epoch start means
-            `groupsettings add-keysets ${keySetId} ${keySet.groupKeySecurityPolicy} 0 ` +
-                `hex:${Bytes.toHex(keySet.epochKey0)}`,
+        // Each reply is checked: `execute` decodes chip-tool's answer rather than throwing on it, and a
+        // provisioning step that silently did nothing surfaces much later as a groupcast that seems
+        // never to have arrived
+        assertCommandSucceeded(
+            await this.#adapter.execute(`groupsettings add-group group${group} ${group}`),
+            "groupsettings add-group",
         );
-        await this.#adapter.execute(`groupsettings bind-keyset ${group} ${keySetId}`);
+        assertCommandSucceeded(
+            await this.#adapter.execute(
+                // Validity 0: the key is current from now, which is what the plan's own epoch start means
+                `groupsettings add-keysets ${keySetId} ${keySet.groupKeySecurityPolicy} 0 ` +
+                    `hex:${Bytes.toHex(keySet.epochKey0)}`,
+            ),
+            "groupsettings add-keysets",
+        );
+        assertCommandSucceeded(
+            await this.#adapter.execute(`groupsettings bind-keyset ${group} ${keySetId}`),
+            "groupsettings bind-keyset",
+        );
     }
 
     async invoke(cluster: string | number, command: string, args?: object): Promise<void> {
@@ -805,7 +818,9 @@ class ChipToolCertGroupApi implements CertGroupApi {
             `any command-by-id ${hex(clusterId)} ${hex(commandModel.id)} ${quoteArg(fields)} ` +
                 // chip-tool wants an endpoint argument even for a group command, which carries none;
                 // 0 is what its own group tests pass
-                `${groupDestination(this.#groupId)} 0${largePayloadArg(this.#adapter.transport)}`,
+                // No large-payload flag: a groupcast is UDP multicast, so the TCP preference a
+                // transport option expresses cannot apply to it
+                `${groupDestination(this.#groupId)} 0`,
         );
 
         assertNoFailure(reply, `group invoke ${clusterModel.name}.${commandModel.name}`);

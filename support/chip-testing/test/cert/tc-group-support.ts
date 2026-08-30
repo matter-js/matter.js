@@ -264,13 +264,18 @@ export function keyMaterialStep() {
 }
 
 /**
- * The plan's KeySetWrite step. The controller provisions itself with the same key set it writes to the
- * device: the plan has it *generate* the key, and a controller that only told the device about it
- * could not encrypt a groupcast with it.
+ * The plan's KeySetWrite step.
+ *
+ * `alsoProvisionSender` has the controller keep the key set it writes, which the plan means by having
+ * it *generate* the key: a controller that only told the device about the key cannot encrypt a
+ * groupcast with it. Only a case that sends one asks for this — provisioning also makes the controller
+ * join the group's multicast address, which is failure surface a case that never sends does not need.
  */
-export function keySetWriteStep(commissioned: CommissionedRefs) {
+export function keySetWriteStep(commissioned: CommissionedRefs, alsoProvisionSender = false) {
     return commissioned.withRef("dut", async (cx: CertStepContext, ref: CertNodeRef) => {
-        await cx.controllers.dut.group(GROUP.id).defineKeySet(groupKeySet());
+        if (alsoProvisionSender) {
+            await cx.controllers.dut.group(GROUP.id).defineKeySet(groupKeySet());
+        }
 
         await invokeAndCheck(
             cx,
@@ -375,23 +380,47 @@ export function groupMulticastAddress(fabricId: bigint, groupId: number): Uint8A
     return bytes;
 }
 
-/** An IPv6 address as its sixteen bytes, or undefined for text that is not one. */
+/**
+ * An IPv6 address as its sixteen bytes, or undefined for text this cannot read as one.
+ *
+ * Written here rather than taken from `@matter/general`'s `ipv6ToBytes`, which answers *something* for
+ * text that is not an address at all — this one gates a certification claim, so it validates each
+ * group and the width of a `::` before it believes the text.
+ */
 export function ipv6Bytes(address: string): Uint8Array | undefined {
-    const [head, tail] = address.split("::", 2);
-    const parse = (part: string) => (part === "" ? [] : part.split(":").map(group => Number.parseInt(group, 16)));
-    const left = parse(head);
-    const right = tail === undefined ? [] : parse(tail);
-    if ([...left, ...right].some(group => !Number.isInteger(group) || group < 0 || group > 0xffff)) {
+    const halves = address.split("::");
+    if (halves.length > 2) {
         return undefined;
     }
-    const groups =
-        tail === undefined ? left : [...left, ...new Array<number>(8 - left.length - right.length).fill(0), ...right];
-    if (groups.length !== 8) {
+
+    const parse = (part: string) => {
+        if (part === "") {
+            return [];
+        }
+        const groups = part.split(":");
+        if (groups.some(group => !/^[0-9a-f]{1,4}$/i.test(group))) {
+            return undefined;
+        }
+        return groups.map(group => Number.parseInt(group, 16));
+    };
+
+    const left = parse(halves[0]);
+    const right = halves.length === 2 ? parse(halves[1]) : [];
+    if (left === undefined || right === undefined) {
+        return undefined;
+    }
+
+    // A `::` stands for at least one group of zeros, so an address that already has eight without it
+    // is not one this compression can appear in
+    const zeros = halves.length === 2 ? 8 - left.length - right.length : 0;
+    if (zeros < (halves.length === 2 ? 1 : 0) || left.length + zeros + right.length !== 8) {
         return undefined;
     }
 
     const bytes = new Uint8Array(16);
     const view = new DataView(bytes.buffer);
-    groups.forEach((group, index) => view.setUint16(index * 2, group));
+    [...left, ...new Array<number>(zeros).fill(0), ...right].forEach((group, index) =>
+        view.setUint16(index * 2, group),
+    );
     return bytes;
 }

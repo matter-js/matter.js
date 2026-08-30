@@ -219,7 +219,7 @@ describe("SecureSession", () => {
                 messageCounter: new MessageCounter(fabric.crypto),
             });
 
-            expect(session.destination).equal(`[${session.multicastAddress}]:5540`);
+            expect(session.destination).equal("[ff35:40:fd45:6789:abcd:ef12:3400:2]:5540");
         });
 
         it("matches a cached session by fabric, session id and operational key, not by id alone", async () => {
