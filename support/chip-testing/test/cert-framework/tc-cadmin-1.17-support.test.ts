@@ -85,6 +85,15 @@ describe("TC-CADMIN-1.17's post-removal refusal predicate", () => {
         );
     });
 
+    it("does not accept a status the removal does not explain", () => {
+        expect(isPostRemovalRefusal(new StatusResponseError("writeAttribute failed", Status.ConstraintError))).equal(
+            false,
+        );
+        expect(isPostRemovalRefusal(new StatusResponseError("writeAttribute failed", Status.InvalidCommand))).equal(
+            false,
+        );
+    });
+
     it("accepts a failed connection to a device that no longer serves the fabric", () => {
         expect(isPostRemovalRefusal(new PeerCommunicationError("Cannot establish a session"))).equal(true);
     });
