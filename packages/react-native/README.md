@@ -13,6 +13,10 @@ try to use it feel free to report where the process stops for you with which err
 
 ## Dependencies
 
+`react-native` itself is not declared as a dependency of this package. It is supplied by the
+application, which cannot run this package without it, and declaring it here would install a second
+copy alongside the application's own.
+
 This package uses the following react-native libraries to provide the needed functionality:
 - react-native-quick-crypto
 - react-native-ble-plx

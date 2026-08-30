@@ -12,18 +12,31 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/testing
+    - Enhancement: A certification test requests a transport preference for its controllers via `certTest`'s `transport` option; `"tcp"` asks for a TCP-backed session where the peer supports one, and adapters receive the request through `ControllerAdapterOptions`
     - Enhancement: A certification step whose check could not be evaluated ends `"unverified"` and fails the run, unless the check states why the claim cannot be observed
     - Enhancement: Per-step certification PICS is evaluated on chip device flavors too, and `result.json` reports how many steps their PICS excluded
     - Fix: A certification run's `result.json` no longer reports a passing verdict for a run that failed
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
 
+- @matter/node
+    - Fix: A mandatory command a cluster leaves unimplemented is no longer dispatched; an invoke answers `UNSUPPORTED_COMMAND`, matching what the cluster advertises in `AcceptedCommandList`
+
 - @matter/protocol
+    - Fix: A command whose payload does not match the command's schema is answered with `INVALID_COMMAND` instead of `FAILURE`
+    - Fix: `UpdateFabricLabel` accepts an empty label, as the specification's `max 32` constraint sets no minimum; it previously failed the command
     - Enhancement: An interaction can be abandoned by the caller: `ClientRequest.abort` takes an `AbortSignal`, honored for read, write, invoke and subscribe
+    - Fix: An error escaping a command handler with no defined status code answers that command with `FAILURE` inside the `InvokeResponse` instead of terminating the message with a status response, so the other commands of a batch invoke keep their results. Under `SuppressResponse` such a command now sends no response at all, as for any other generated status
+    - Fix: A device that returns an empty or malformed DAC, PAI, attestation elements or Certification Declaration during commissioning now fails attestation with a finding that names the unreadable field, instead of an opaque decoder message
+    - Fix: A certificate extension matter.js does not interpret is no longer decoded, so a proprietary extension can no longer fail the whole certificate; an extension matter.js does read is rejected with a `CertificateError` when its value is missing
 
 - @project-chip/matter.js
     - Enhancement: `InteractionClient`'s read, write, invoke and subscribe options take an `abort` signal, forwarded to the interaction
 
 - @matter/general
+    - Fix: A log destination that throws no longer propagates the failure into the code that logged; the remaining destinations still receive the message and the broken destination is reported once
+    - Fix: `DataReader` throws `DataReadError` when a read would pass the end of the buffer; `readByteArray` and `readUtf8String` no longer return short data
+    - Fix: `DerCodec.decode` reports truncated input as `DerError` instead of a `RangeError`, and rejects a length that overflows or uses the indefinite-length encoding instead of decoding a value as present and empty
+    - Fix: One unreadable record in an mDNS message no longer discards the whole message
     - Enhancement: `Transaction.lock()` takes an exclusive lock on resources without a promise where they are free, and waits instead of throwing where another transaction holds them
     - Breaking: `DnssdNames.Context.goodbyeProtectionWindow` and `DnssdNames.defaults.goodbyeProtectionWindow` are now `evictionDelay`, and `DnssdName.deleteRecord` no longer takes an `ifOlderThan` argument
     - Feature: Added generic WebSocket proxy framing (`net/ws-proxy`: hello handshake, JSON command/event envelope, binary frame codec) shared by WS-based proxy protocols
@@ -42,6 +55,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The `Symbol.metadata` polyfill no longer conflicts with `lib.esnext.decorators` in the published declarations
 
 - @matter/model
+    - Fix: TemperatureMeasurement's MinMeasuredValue and MaxMeasuredValue now default to `null` ("range unavailable"), like the other measurement clusters, instead of -27315 and 32767, and carry the constraints the specification states rather than hand-written ones
     - Fix: A device type requiring several instances of one component, such as `BatteryStorage` with two electrical sensors and two power sources, no longer reports each instance as a duplicate of the others
     - Enhancement: The model build reports an instance number stated on a requirement other than a component device type, where the specification numbers nothing
     - Enhancement: A model element's `extend()` can remove an inherited quality, stated as `!N` in the quality definition; the removal survives further extension, and a definition that extends one carrying a removal may state the quality again
@@ -162,6 +176,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A level change that couples to On/Off no longer leaves the coupling blocked when its transaction rolls back
     - Fix: A cluster's feature selection is recorded as persisted only once the store accepted the values it travels with, so a failed write no longer leaves a later feature change undetected
     - Fix: Validating a state class that serves properties dynamically passes it the endpoint, as every other caller does
+    - Fix: A peer that reports a cluster ID outside the ranges the specification allows no longer fails node initialization
+    - Adjustment: A cluster ID is validated when a server behavior is created rather than when a cluster namespace is built, so a peer's ID stays as reported
+    - Fix: Two peer clusters whose attribute or command IDs differ by 32 no longer share one generated behavior
 
 - @matter/matter.js
     - Adjustment: The duplicate "BLE is not enabled" log lines are gone; a node reports missing BLE support once, where it decides on it
@@ -181,6 +198,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Stopping an advertisement that was still waiting for the Bluetooth adapter retracts it, so the adapter powering on no longer starts an advertisement that was already given up on
 
 - @matter/nodejs-shell
+    - Fix: A cluster whose ID lies outside the ranges the specification allows is addressable instead of raising an error
     - Feature: Added `--cleanup-legacy-storage` to irreversibly remove the leftover pre-0.16 storage artifacts once they have been migrated to the current format
     - Fix: Attribute changes log one line per attribute, naming the attribute, instead of one line per cluster report carrying every changed attribute of that report
     - Fix: Attribute, event and connection-state log lines are recognized by the web UI again, so node tiles and device values update; event lines name the peer and render their timestamp according to the wire variant the device sent
@@ -205,6 +223,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The `storage.clear` variable now clears the storage on start as it does on Node.js
 
 - @matter/types
+    - Adjustment: `ClusterType()` no longer validates the cluster ID of the model it is given
     - Breaking: `ModelBounds.createNumberBounds()` states a bound as a `bigint` where it lies beyond the safe integers, and states both `min` and `max` where it previously omitted an absent bound; `createLengthBounds()` still states a number, as a length counts what a message can carry
     - Breaking: `TlvNumericSchema.bound()` states the base type of the schema it bounds in `baseTypeMin` and `baseTypeMax`, where it previously stated the bound; the bound is stated by `min` and `max`. The class gains a protected `constrain()`
     - Breaking: A bounded 64 bit schema states its datatype again, so a legacy `ClusterType()` cluster derives the type and constraint of such an attribute instead of neither, and enforces a range it previously left open

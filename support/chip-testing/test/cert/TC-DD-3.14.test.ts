@@ -7,13 +7,14 @@
 import { certTest } from "@matter/testing";
 import {
     checkGeneratedPayload,
-    CommissioningRefusals,
     commissionByQr,
+    CommissioningRefusals,
     INVALID_PASSCODES,
     onNetworkOnlyPayload,
     qrPayloadWith,
     qrPayloadWithPrefix,
     recordDiscoveryCapabilityAbsent,
+    recordDiscriminatorHonored,
     recordGeneratedPayload,
     recordParse,
     thQrPayload,
@@ -34,6 +35,16 @@ certTest("TC-DD-3.14", {
     pics: ["MCORE.ROLE.COMMISSIONER", "MCORE.DD.QR_COMMISSIONING"],
     app: "all-clusters",
 })
+    .step(
+        "0",
+        "Precondition: the DUT is a commissioner that uses the discriminator its onboarding code names.",
+        cx => recordDiscriminatorHonored(cx, refusals),
+        {
+            expected:
+                "DUT does not commission the TH from a code naming a discriminator no device advertises. " +
+                "Every later step's commissioning rests on this.",
+        },
+    )
     .step(
         1,
         "Locate and scan/read the Commissionee's QR code using DUT",
@@ -91,7 +102,8 @@ certTest("TC-DD-3.14", {
         "3.b",
         "Scan/read the QR code of the TH device using the DUT",
         async cx => {
-            await commissionByQr(cx, await onNetworkOnlyPayload(cx), commissioned);
+            const payload = await onNetworkOnlyPayload(cx);
+            await commissionByQr(cx, payload, commissioned);
         },
         {
             pics: "MCORE.DD.DISCOVERY_BLE",

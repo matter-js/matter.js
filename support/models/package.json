@@ -37,6 +37,7 @@
     },
     "homepage": "https://github.com/matter-js/matter.js#readme",
     "devDependencies": {
+        "@matter/general": "*",
         "@matter/model": "*",
         "@matter/testing": "*"
     }

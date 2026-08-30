@@ -5,6 +5,7 @@
  */
 
 import type { Subject } from "../../device/subject.js";
+import type { ControllerTransport } from "./controller-adapter.js";
 import type { ControllerAdapter } from "./controller-adapter.js";
 import type { LogFollower } from "./log-follower.js";
 
@@ -214,4 +215,9 @@ export interface CertTestDefinition {
     steps: CertStepDefinition[];
     /** Cleanup the engine runs after the last step whatever happened to it (see `cert-dsl.ts`'s `finalize`). */
     finalize?: (cx: CertStepContext) => Promise<void>;
+    /**
+     * How this test's controllers reach their peers. A TC needing a TCP-backed session declares it
+     * here; every other test keeps the transport its evidence and timing were written against.
+     */
+    transport?: ControllerTransport;
 }

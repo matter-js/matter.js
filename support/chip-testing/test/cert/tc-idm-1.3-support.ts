@@ -8,7 +8,13 @@ import { Duration, ImplementationError } from "@matter/main";
 import type { CheckRecord, LogFollower } from "@matter/testing";
 import { CertLogClosedError, CertLogTimeoutError } from "@matter/testing";
 import { ChipFault } from "./fault-injection.js";
-import { commandPathIBSequence, expectAdjacentLines, expectSequence, INVOKE_REQUEST_MESSAGE } from "./tc-support.js";
+import {
+    commandPathIBSequence,
+    expectAdjacentLines,
+    expectSequence,
+    INVOKE_REQUEST_MESSAGE,
+    literally,
+} from "./tc-support.js";
 
 /** A concrete command path of a batched invoke. */
 export interface BatchPath {
@@ -43,10 +49,6 @@ const FAULT_DESCRIPTIONS = new Map<number, string>([
     [ChipFault.imInvokeSkipSecondResponse, "Single InvokeResponseMessages. Dropping response to second request"],
 ]);
 
-function escapeForPattern(text: string) {
-    return text.replace(/[.*+?^${}()|[\]\\]/g, match => `\\${match}`);
-}
-
 function descriptionOf(fault: number) {
     const description = FAULT_DESCRIPTIONS.get(fault);
     if (description === undefined) {
@@ -60,10 +62,7 @@ function descriptionOf(fault: number) {
  * description of the response it substitutes.
  */
 export function injectedFaultSequence(fault: number): RegExp[] {
-    return [
-        FAULT_INJECTED_LINE,
-        new RegExp(`Injecting the following response:${escapeForPattern(descriptionOf(fault))}`),
-    ];
+    return [FAULT_INJECTED_LINE, new RegExp(`Injecting the following response:${literally(descriptionOf(fault))}`)];
 }
 
 /**

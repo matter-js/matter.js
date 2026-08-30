@@ -12,6 +12,9 @@
             "path": "../../general/src"
         },
         {
+            "path": "../../main/src"
+        },
+        {
             "path": "../../protocol/src"
         },
         {
