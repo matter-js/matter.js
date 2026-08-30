@@ -12,7 +12,7 @@ describe("IDM", () => {
         "IDM/10.4",
         // Our AllClustersApp has extra clusters on endpoints for testing; pass fail_on_extra_clusters:False below
         "IDM/10.5",
-        // IDM 1.5. tests the ReportDelay feature added in Matter 1.7
+        // IDM 1.5 tests the ReportDelay feature added in Matter 1.7
         "IDM/1.5",
     );
     chip("IDM/*/run1").exclude(
