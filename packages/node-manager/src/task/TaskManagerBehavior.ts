@@ -18,14 +18,14 @@ import {
     TaskSuspendedSignal,
     TaskTypeNotRegisteredError,
 } from "./errors.js";
-import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup } from "./groups/AddNodeToGroup.js";
-import { REMOVE_NODE_FROM_GROUP_TYPE, RemoveNodeFromGroup } from "./groups/RemoveNodeFromGroup.js";
-import { ROTATE_GROUP_KEY_TYPE, RotateGroupKey } from "./groups/RotateGroupKey.js";
+import { AddNodeToGroup } from "./groups/AddNodeToGroup.js";
+import { RemoveNodeFromGroup } from "./groups/RemoveNodeFromGroup.js";
+import { RotateGroupKey } from "./groups/RotateGroupKey.js";
 import { Revert, REVERT_TYPE } from "./Revert.js";
 import { GateControl, RunningTaskContext } from "./RunningTaskContext.js";
 import { isTerminal, RunStore } from "./RunStore.js";
-import { runKey, runLabel, Task, TaskPersistence } from "./Task.js";
-import { TaskCtor, TaskRegistry } from "./TaskRegistry.js";
+import { runKey, runLabel, Task, TaskDefinition, TaskPersistence } from "./Task.js";
+import { TaskRegistry } from "./TaskRegistry.js";
 import { PlannedChange, RunId, TaskState, TaskStatus } from "./types.js";
 
 const logger = Logger.get("TaskManager");
@@ -118,10 +118,10 @@ export class TaskManagerBehavior extends Behavior {
 
     /** Built-in task types registered before the resume pass. */
     protected registerBuiltins(): void {
-        this.internal.registry.register(ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup);
-        this.internal.registry.register(REMOVE_NODE_FROM_GROUP_TYPE, RemoveNodeFromGroup);
-        this.internal.registry.register(ROTATE_GROUP_KEY_TYPE, RotateGroupKey);
-        this.internal.registry.register(REVERT_TYPE, Revert);
+        this.internal.registry.register(AddNodeToGroup);
+        this.internal.registry.register(RemoveNodeFromGroup);
+        this.internal.registry.register(RotateGroupKey);
+        this.internal.registry.register(Revert);
     }
 
     #registerBuiltins(): void {
@@ -149,12 +149,12 @@ export class TaskManagerBehavior extends Behavior {
         return this.internal.persistMutex;
     }
 
-    register(type: string, ctor: TaskCtor): void {
+    register<P>(definition: TaskDefinition<P>): void {
         // Resuming drives a phase, which the dispose drain may already have passed and no persist can record.
-        this.#refuseIfClosing(`Task type "${type}" cannot be registered`);
-        this.internal.registry.register(type, ctor);
+        this.#refuseIfClosing(`Task type "${definition.type}" cannot be registered`);
+        this.internal.registry.register(definition);
         // Apps register custom task types after construction; resume their persisted, non-terminal tasks now.
-        this.#resumeType(type);
+        this.#resumeType(definition.type);
     }
 
     /**
@@ -523,8 +523,10 @@ export class TaskManagerBehavior extends Behavior {
         }
 
         // A task past its point of no return declines cancel with zero side effects (gate untouched, state kept).
-        if (!task.revertible) {
-            throw new TaskNotRevertibleError(`${runLabel(task.runId)} is not revertible: ${task.notRevertibleReason}`);
+        if (!this.internal.registry.revertible(task, task.params)) {
+            throw new TaskNotRevertibleError(
+                `${runLabel(task.runId)} is not revertible: ${this.internal.registry.notRevertibleReason(task.type)}`,
+            );
         }
 
         // Stop forward driving so the changeset is final before we revert it. The flag also covers the
@@ -609,7 +611,7 @@ export class TaskManagerBehavior extends Behavior {
             return NO_REVERT;
         }
         // Past a task's point of no return there is nothing to roll back to; suppress auto-rollback too.
-        if (!task.revertible) {
+        if (!this.internal.registry.revertible(task, task.params)) {
             return NO_REVERT;
         }
         // Already rolled back once: cancel resolves the recorded rollback itself, so there is nothing to
@@ -664,7 +666,7 @@ export class TaskManagerBehavior extends Behavior {
      * Runs before the first persist/phase; the thrown error ends the task `failed` with an empty changeSet.
      */
     async #admit(task: Task): Promise<void> {
-        const planned = task.plannedChanges();
+        const planned = this.internal.registry.plannedChanges(task.type, task.params);
         if (planned.length === 0) {
             return;
         }

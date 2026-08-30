@@ -5,21 +5,20 @@
  */
 
 import { RunningTaskContext } from "#task/RunningTaskContext.js";
-import { Task } from "#task/Task.js";
-import { TaskState } from "#task/types.js";
+import { Task, TaskDefinition } from "#task/Task.js";
+import { TaskPhase, TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
 import { itemMapKey } from "@matter/node";
 import { FakePeer } from "./helpers.js";
 
-class CtxTask extends Task {
-    override readonly type = "ctx-test";
-    override get phases() {
-        return [];
-    }
-}
+const CtxTask: TaskDefinition = {
+    type: "ctx-test",
+    slotKeyFor: () => "ctx-test:1",
+    phases: () => new Array<TaskPhase>(),
+};
 
 function makeContext(peer: FakePeer, referenced: boolean) {
-    const task = new CtxTask(RunId(1), "ctx-test:1", {});
+    const task = new Task(CtxTask, RunId(1), "ctx-test:1", {});
     const setState = (s: TaskState) => {
         task.progress.state = s;
     };

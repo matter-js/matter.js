@@ -70,7 +70,7 @@ describe("capacity admission", () => {
         SyntheticTask.phasesByTag["over"] = [{ name: "should-not-run", run: async () => void (ran = true) }];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "adm-over" });
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
         await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "over" }));
 
         await awaitState(node, "synthetic:over", "failed");
@@ -106,7 +106,7 @@ describe("capacity admission", () => {
         SyntheticTask.phasesByTag["member"] = [{ name: "runs", run: async () => void (ran = true) }];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "adm-member" });
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
         await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "member" }));
 
         await awaitState(node, "synthetic:member", "completed");
@@ -125,7 +125,7 @@ describe("capacity admission", () => {
         SyntheticTask.phasesByTag["fits"] = [{ name: "runs", run: async () => void (ran = true) }];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "adm-fits" });
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
         await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "fits" }));
 
         await awaitState(node, "synthetic:fits", "completed");

@@ -69,7 +69,7 @@ describe("auto-rollback", () => {
         ];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "rb" });
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
         await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "boom" }));
 
         await awaitState(node, "synthetic:boom", "failed");
@@ -104,7 +104,7 @@ describe("auto-rollback", () => {
         ];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "rb2" });
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
         // The revert's forward work (awaitGate -> verify-reconcile over its deletePending intent) rejects.
         const realReconcile = peer.reconcile.bind(peer);

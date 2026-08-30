@@ -6,7 +6,7 @@
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { TaskConflictError, TaskFailedError, TaskManagerClosingError } from "#task/errors.js";
-import { TaskPersistence } from "#task/Task.js";
+import { Task } from "#task/Task.js";
 import { TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { TaskPhase, TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
@@ -16,6 +16,8 @@ import { MockServerNode } from "@matter/node/testing";
 import {
     cancelSlot,
     FakePeer,
+    liveTask,
+    onPersisted,
     recordFor,
     requireRecordFor,
     requireRunIdOfSlot,
@@ -82,28 +84,29 @@ class TestTaskManager extends TaskManagerBehavior {
     }
 }
 
-/** SyntheticTask that keeps its instances reachable, so a test can inspect task state after the node is gone. */
-class TracedTask extends SyntheticTask {
-    static instances = new Array<TracedTask>();
+/**
+ * Keeps a run's Task instance reachable and traces every state it persists, so a test can inspect it after the
+ * node is gone. Task is concrete now, so this patches the instance the manager already built (via
+ * `onPersisted`/`liveTask`) rather than subclassing it.
+ */
+const tracedRuns = new Map<string, { task: Task; persistedStates: TaskState[] }>();
 
-    /** The state of every record written for this task, in order. */
-    readonly persistedStates = new Array<TaskState>();
+function traceRun(manager: TestTaskManager, runId: RunId): void {
+    const task = liveTask(manager, runId);
+    if (tracedRuns.has(task.slotKey)) {
+        throw new Error(`Slot ${task.slotKey} is already traced`);
+    }
+    const persistedStates = new Array<TaskState>();
+    onPersisted(task, record => persistedStates.push(record.state));
+    tracedRuns.set(task.slotKey, { task, persistedStates });
+}
 
-    constructor(runId: RunId, slotKey: string, params: { tag: string }, persisted?: Partial<TaskPersistence>) {
-        super(runId, slotKey, params, persisted);
-        TracedTask.instances.push(this);
+function tracedRun(slotKey: string): { task: Task; persistedStates: TaskState[] } {
+    const found = tracedRuns.get(slotKey);
+    if (found === undefined) {
+        throw new Error(`No traced run for slot ${slotKey}`);
     }
-
-    override toPersistence(): TaskPersistence {
-        const record = super.toPersistence();
-        this.persistedStates.push(record.state);
-        return record;
-    }
-    static instance(slotKey: string): TracedTask {
-        const found = TracedTask.instances.filter(t => t.slotKey === slotKey);
-        expect(found.length).equals(1);
-        return found[0];
-    }
+    return found;
 }
 
 /**
@@ -204,8 +207,11 @@ describe("cancel robustness", () => {
         SyntheticTask.phasesByTag["pregate"] = [gatePhase("pg", "groupMembership", "X")];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-pregate" });
-        await node.act(a => a.get(TestTaskManager).register("synthetic", TracedTask));
-        await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "pregate" }));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+        await node.act(a => {
+            const manager = a.get(TestTaskManager);
+            traceRun(manager, manager.run("synthetic", { tag: "pregate" }).status.runId);
+        });
         await pumpUntil("admission in flight", () => state.entered);
 
         const cancelling = node.act(a => cancelSlot(a.get(TestTaskManager), "synthetic:pregate"));
@@ -229,7 +235,7 @@ describe("cancel robustness", () => {
         // The only state ever written is the cancelled one: a task whose cancel is already accepted must not be
         // stored as running, which a crash before the cancel completes would resume. Asserted on the distinct
         // states rather than the sequence, because retirement re-reads the record it just wrote.
-        expect([...new Set(TracedTask.instance("synthetic:pregate").persistedStates)]).deep.equals(["cancelled"]);
+        expect([...new Set(tracedRun("synthetic:pregate").persistedStates)]).deep.equals(["cancelled"]);
 
         await node.close();
     });
@@ -243,7 +249,7 @@ describe("cancel robustness", () => {
         SyntheticTask.phasesByTag["ctxrace"] = [gatePhase("cr", "groupMembership", "Z")];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-ctxrace" });
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
         let cancelling: Promise<TaskHandle | undefined> | undefined;
         TestTaskManager.atContext = manager => {
@@ -277,7 +283,7 @@ describe("cancel robustness", () => {
         SyntheticTask.phasesByTag["durable"] = [gatePhase("dp", "groupMembership", "D")];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-durable" });
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
         await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "durable" }));
         await pumpUntil("task complete", async () => {
             const state = await node.act(a => recordFor(a.get(TestTaskManager).state.runs, "synthetic:durable")?.state);
@@ -304,7 +310,7 @@ describe("cancel robustness", () => {
         TestTaskManager.reconcilerPeer = peer;
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-rerun" });
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
         // The re-run is attempted while the cancelled task unwinds, i.e. while cancel() waits on its drive. It
         // re-issues under the external id the task runs with, so only the cancel in flight can refuse it.
@@ -354,8 +360,11 @@ describe("cancel robustness", () => {
         ];
 
         const node1 = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-shutrace" });
-        await node1.act(a => a.get(TestTaskManager).register("synthetic", TracedTask));
-        await node1.act(a => a.get(TestTaskManager).run("synthetic", { tag: "shutrace" }));
+        await node1.act(a => a.get(TestTaskManager).register(SyntheticTask));
+        await node1.act(a => {
+            const manager = a.get(TestTaskManager);
+            traceRun(manager, manager.run("synthetic", { tag: "shutrace" }).status.runId);
+        });
         await pumpUntil("intent written", () => peer.items[itemMapKey("groupMembership", "S")] !== undefined);
 
         // Cancel is accepted while the node is still up, then shutdown takes over the unwind.
@@ -370,7 +379,7 @@ describe("cancel robustness", () => {
         await MockTime.resolve(closing);
 
         // The task keeps a resumable state: nothing claims the cancel took effect.
-        const task = TracedTask.instance("synthetic:shutrace");
+        const { task } = tracedRun("synthetic:shutrace");
         expect(task.progress.state).equals("running");
         expect(task.revertRunId).equals(undefined);
 
@@ -392,12 +401,12 @@ describe("cancel robustness", () => {
         SyntheticTask.phasesByTag["queued"] = [gatePhase("qw", "groupMembership", "Q")];
 
         const node1 = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-queued" });
-        await node1.act(a => a.get(TestTaskManager).register("synthetic", TracedTask));
+        await node1.act(a => a.get(TestTaskManager).register(SyntheticTask));
         let manager!: TestTaskManager;
         await node1.act(a => {
             manager = a.get(TestTaskManager);
         });
-        await node1.act(a => a.get(TestTaskManager).run("synthetic", { tag: "queued" }));
+        traceRun(manager, manager.run("synthetic", { tag: "queued" }).status.runId);
         await pumpUntil("intent written", () => peer.items[itemMapKey("groupMembership", "Q")] !== undefined);
 
         // Hold the mutex so the cancel's write cannot run when it is enqueued, then start shutdown in that window:
@@ -417,7 +426,7 @@ describe("cancel robustness", () => {
         await MockTime.resolve(closing);
 
         // The refused write leaves no trace: state as it was, no rollback linked, none live, nothing rolled back.
-        const task = TracedTask.instance("synthetic:queued");
+        const { task } = tracedRun("synthetic:queued");
         expect(task.progress.state).equals("running");
         expect(task.revertRunId).equals(undefined);
         expect(manager.tasks.map(t => t.status.slotKey)).deep.equals(["synthetic:queued"]);
@@ -441,7 +450,7 @@ describe("cancel robustness", () => {
         SyntheticTask.phasesByTag["crashed"] = [gatePhase("cd", "groupMembership", "C")];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-crashed" });
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
         let manager!: TestTaskManager;
         await node.act(a => {
             manager = a.get(TestTaskManager);
@@ -481,8 +490,11 @@ describe("cancel robustness", () => {
         ];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-shutfail" });
-        await node.act(a => a.get(TestTaskManager).register("synthetic", TracedTask));
-        await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "shutfail" }));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+        await node.act(a => {
+            const manager = a.get(TestTaskManager);
+            traceRun(manager, manager.run("synthetic", { tag: "shutfail" }).status.runId);
+        });
         await pumpUntil("phase in flight", () => phaseEntered);
 
         // The phase completes as shutdown drains the driver, so its next persist meets a closing endpoint.
@@ -493,7 +505,7 @@ describe("cancel robustness", () => {
             TestTaskManager.atShutdown = undefined;
         }
 
-        const task = TracedTask.instance("synthetic:shutfail");
+        const { task } = tracedRun("synthetic:shutfail");
         expect(task.progress.state).equals("running");
         expect(task.revertRunId).equals(undefined);
 
@@ -526,7 +538,7 @@ describe("cancel robustness", () => {
         ];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-failwrite" });
-        await node.act(a => a.get(TestTaskManager).register("synthetic", TracedTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
         let manager!: TestTaskManager;
         await node.act(a => {
             manager = a.get(TestTaskManager);
@@ -558,7 +570,7 @@ describe("cancel robustness", () => {
         SyntheticTask.phasesByTag["shutstart"] = [gatePhase("sb", "groupMembership", "B")];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-shutstart" });
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
         let started: unknown = "not attempted";
         TestTaskManager.atShutdown = manager => {
@@ -611,7 +623,7 @@ describe("cancel robustness", () => {
         let liveAfterRegister = -1;
         ShutdownRegistrarBehavior.atClose = manager => {
             try {
-                registered = manager.register("synthetic", SyntheticTask);
+                registered = manager.register(SyntheticTask);
             } catch (e) {
                 registered = e;
             }
@@ -630,7 +642,7 @@ describe("cancel robustness", () => {
 
         // The refusal costs the task nothing: the next start resumes it as usual.
         const node2 = await MockServerNode.create(RegistrarRootEndpoint, { environment, id: "cancel-shutresume" });
-        await node2.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node2.act(a => a.get(TestTaskManager).register(SyntheticTask));
         await pumpUntil("resumed task complete", async () => {
             const state = await node2.act(
                 a => recordFor(a.get(TestTaskManager).state.runs, "synthetic:shutresume")?.state,
@@ -650,8 +662,11 @@ describe("cancel robustness", () => {
         SyntheticTask.phasesByTag["predispose"] = [gatePhase("pd", "groupMembership", "Y")];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-predispose" });
-        await node.act(a => a.get(TestTaskManager).register("synthetic", TracedTask));
-        await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "predispose" }));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+        await node.act(a => {
+            const manager = a.get(TestTaskManager);
+            traceRun(manager, manager.run("synthetic", { tag: "predispose" }).status.runId);
+        });
         await pumpUntil("admission in flight", () => state.entered);
 
         // Release the task into the pre-gate window as shutdown begins, before the abort pass.
@@ -662,7 +677,7 @@ describe("cancel robustness", () => {
             TestTaskManager.atShutdown = undefined;
         }
 
-        const task = TracedTask.instance("synthetic:predispose");
+        const { task } = tracedRun("synthetic:predispose");
         expect(task.progress.state).equals("running");
         expect(task.error).equals(undefined);
         expect(peer.items[itemMapKey("groupMembership", "Y")]).equals(undefined);
@@ -684,7 +699,7 @@ describe("cancel robustness", () => {
         SyntheticTask.phasesByTag["cancelwrite"] = [gatePhase("cw", "groupMembership", "W")];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-write-refused" });
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
         let manager!: TestTaskManager;
         await node.act(a => {
             manager = a.get(TestTaskManager);
@@ -732,7 +747,7 @@ describe("cancel robustness", () => {
         ];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-retired-write" });
-        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
         let manager!: TestTaskManager;
         await node.act(a => {
             manager = a.get(TestTaskManager);

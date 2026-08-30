@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Task } from "#task/Task.js";
+import { TaskDefinition } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
-import { TaskContext, TaskPhase } from "#task/types.js";
+import { TaskContext } from "#task/types.js";
 import { ClientNode, DesiredStateBehavior, itemMapKey } from "@matter/node";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import { awaitRun } from "./helpers.js";
@@ -15,22 +15,22 @@ const TYPO_TYPE = "typoIntent";
 const PEER_ID = "peer1";
 
 /** Sets an intent under an unregistered kind name (as a caller-side typo would), then waits for it to commit. */
-class TypoIntentTask extends Task<{ peerId: string }> {
-    readonly type = TYPO_TYPE;
+const TypoIntentTask: TaskDefinition<{ peerId: string }> = {
+    type: TYPO_TYPE,
 
-    static override slotKeyFor(params: { peerId: string }): string {
+    slotKeyFor(params) {
         return `${TYPO_TYPE}:${params.peerId}`;
-    }
+    },
 
-    get phases(): TaskPhase[] {
-        return [{ name: "set-typo-intent", run: ctx => this.#run(ctx) }];
-    }
+    phases(params) {
+        return [{ name: "set-typo-intent", run: ctx => run(ctx, params) }];
+    },
+};
 
-    async #run(ctx: TaskContext): Promise<void> {
-        const peer = ctx.resolvePeer(this.params.peerId);
-        await ctx.setIntent(peer, "groupKy", "1", {});
-        await ctx.awaitCommitted([{ peer, kind: "groupKy", key: "1" }]);
-    }
+async function run(ctx: TaskContext, params: { peerId: string }): Promise<void> {
+    const peer = ctx.resolvePeer(params.peerId);
+    await ctx.setIntent(peer, "groupKy", "1", {});
+    await ctx.awaitCommitted([{ peer, kind: "groupKy", key: "1" }]);
 }
 
 const ControllerRoot = MockServerNode.RootEndpoint.with(TaskManagerBehavior);
@@ -49,7 +49,7 @@ describe("an item whose kind is not registered", () => {
         const { controller } = await site.addCommissionedPair({ controller: { type: ControllerRoot } });
         const peer = await subscribedPeer(controller, PEER_ID);
 
-        await controller.act(agent => agent.get(TaskManagerBehavior).register(TYPO_TYPE, TypoIntentTask));
+        await controller.act(agent => agent.get(TaskManagerBehavior).register(TypoIntentTask));
         const handle = await controller.act(agent =>
             agent.get(TaskManagerBehavior).run(TYPO_TYPE, { peerId: PEER_ID }),
         );
