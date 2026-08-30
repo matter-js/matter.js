@@ -408,9 +408,14 @@ export async function expectTimedFollowUp(
             cursor = block.last.index + 1;
 
             // An exchange id is unique only within its session, so a follow-up is this timed request's
-            // only when both agree
+            // only when both agree — and a receive line naming no session cannot establish that
             const candidate = receiptBefore(log, block.last.index);
-            if (candidate?.exchange !== receipt.exchange || candidate.session !== receipt.session) {
+            if (
+                receipt.session === undefined ||
+                candidate?.session === undefined ||
+                candidate.exchange !== receipt.exchange ||
+                candidate.session !== receipt.session
+            ) {
                 continue;
             }
 

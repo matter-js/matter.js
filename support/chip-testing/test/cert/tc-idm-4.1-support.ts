@@ -4,11 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, ImplementationError, Millis, Seconds, Time } from "@matter/main";
+import { Duration, ImplementationError, isDeepEqual, Millis, Seconds, Time } from "@matter/main";
 import { resolveControllerImplementation } from "@matter/testing";
 import type { AttributePathSpec, CertNodeRef, CertStepContext } from "@matter/testing";
 import {
     CertCheckFailedError,
+    describeValue,
     expectMessageWithPath,
     expectReportAck,
     expectSubscriptionId,
@@ -106,13 +107,13 @@ export async function subscribeAndModify<Value>(
     timeouts: SubscribeAndModifyTimeouts = {},
 ): Promise<void> {
     // A write that does not change the attribute produces no report, so the step would wait out its
-    // report budget and fail for a reason the evidence cannot name
-    const repeated = values.findIndex((value, index) => index > 0 && values[index - 1] === value);
+    // report budget and fail for a reason the evidence cannot name. Deep equality, because that is what
+    // decides whether the attribute changed (`Datasource`'s own report suppression)
+    const repeated = values.findIndex((value, index) => index > 0 && isDeepEqual(values[index - 1], value));
     if (repeated > 0) {
         throw new ImplementationError(
-            `subscribeAndModify needs values that differ from their predecessor; ${JSON.stringify(
-                values[repeated],
-            )} repeats at index ${repeated}`,
+            `subscribeAndModify needs values that differ from their predecessor; ` +
+                `${describeValue(values[repeated])} repeats at index ${repeated}`,
         );
     }
 
