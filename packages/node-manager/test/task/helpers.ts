@@ -43,7 +43,7 @@ export const SyntheticTask: TaskDefinition<{ tag: string }> & {
  * returns, before any phase has had a chance to advance the driver past this tick.
  */
 export function liveTask(manager: TaskManagerBehavior, runId: RunId): Task {
-    const task = manager.internal.runs.liveRun(runId);
+    const task = manager.internal.runs.taskOf(runId);
     if (task === undefined) {
         throw new InternalError(`No live run #${runId}`);
     }

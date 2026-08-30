@@ -24,7 +24,17 @@ import { RotateGroupKey } from "./groups/RotateGroupKey.js";
 import { Revert, REVERT_TYPE } from "./Revert.js";
 import { GateControl, RunningTaskContext } from "./RunningTaskContext.js";
 import { isTerminal, RunStore } from "./RunStore.js";
-import { BoundDefinition, runKey, runLabel, RunView, Task, TaskDefinition, TaskPersistence } from "./Task.js";
+import {
+    BoundDefinition,
+    runKey,
+    runLabel,
+    RunRecord,
+    RunView,
+    statusOf,
+    Task,
+    TaskDefinition,
+    TaskPersistence,
+} from "./Task.js";
 import { TaskRegistry } from "./TaskRegistry.js";
 import { PlannedChange, RunId, TaskState, TaskStatus } from "./types.js";
 
@@ -112,8 +122,8 @@ export class TaskManagerBehavior extends Behavior {
     }
 
     /** Records still awaiting resume, in ascending runId — the only order defined for resume. */
-    get #resumable(): TaskPersistence[] {
-        return this.internal.runs.pending;
+    get #resumable(): RunRecord[] {
+        return this.internal.runs.resumable;
     }
 
     /** Built-in task types registered before the resume pass. */
@@ -173,17 +183,17 @@ export class TaskManagerBehavior extends Behavior {
                 continue;
             }
             const owner = this.internal.runs.ownerOf(record.slotKey);
-            if (owner !== undefined) {
+            // A record holds its own slot from load, so only a foreign owner blocks its resume.
+            if (owner !== undefined && owner.runId !== record.runId) {
                 logger.warn(`Not resuming run ${record.runId}: slot ${record.slotKey} is owned by run ${owner.runId}`);
                 continue;
             }
             try {
                 const bound = this.internal.registry.interpret(record.type, record.params);
-                const task = new Task(bound, record.runId, record.slotKey, record);
-                this.internal.runs.admit(task);
-                // Dropped from pending only now: a record whose task could not be built is still unfinished
-                // work, and forgetting it here would free its slot and hide it from lookup for this process.
-                this.internal.runs.resolvePending(record.runId);
+                const task = new Task(bound, record);
+                // A record whose task cannot be built stays awaiting resume: it is still unfinished work, and
+                // forgetting it would free its slot and hide it from lookup for this process.
+                this.internal.runs.instantiate(task);
                 this.#redrive(task);
             } catch (e) {
                 logger.error(`Cannot resume run ${record.runId}`, e);
@@ -289,19 +299,18 @@ export class TaskManagerBehavior extends Behavior {
         // 1. Driving started now would outlive the dispose drain and write to peers after close.
         this.#refuseIfClosing(`Task ${slotKey} cannot start`);
 
-        // 2. A persisted run awaiting resume still owns its slot. Letting new work take it would leave that
-        //    run unresumable and its already-written intents with no owner.
-        const awaiting = runs.pendingOwnerOf(slotKey);
-        if (awaiting !== undefined) {
-            throw new TaskConflictError(
-                `Task ${slotKey} rejected: ${runLabel(awaiting.runId)} holds this slot and is awaiting resume; register its type "${awaiting.type}" to continue it`,
-                awaiting.runId,
-            );
-        }
-
-        // 3. The slot's owner joins the caller that already asked for this work, and refuses everyone else.
+        // 2. The slot has one owner, whether or not this process has instantiated it. A record awaiting resume
+        //    still owns its slot: letting new work take it would leave that run unresumable and its
+        //    already-written intents with no owner.
         const owner = runs.ownerOf(slotKey);
         if (owner !== undefined) {
+            const ownerTask = runs.taskOf(owner.runId);
+            if (ownerTask === undefined) {
+                throw new TaskConflictError(
+                    `Task ${slotKey} rejected: ${runLabel(owner.runId)} holds this slot and is awaiting resume; register its type "${owner.type}" to continue it`,
+                    owner.runId,
+                );
+            }
             if (this.internal.cancelling.has(owner.runId)) {
                 throw new TaskConflictError(
                     `Task ${slotKey} rejected: a cancel of ${runLabel(owner.runId)} is still in flight`,
@@ -310,11 +319,11 @@ export class TaskManagerBehavior extends Behavior {
             }
             if (seed.externalId === undefined || seed.externalId !== owner.externalId) {
                 throw new TaskConflictError(
-                    `Task ${slotKey} rejected: slot held by ${runLabel(owner.runId)} (${owner.progress.state})`,
+                    `Task ${slotKey} rejected: slot held by ${runLabel(owner.runId)} (${owner.state})`,
                     owner.runId,
                 );
             }
-            return { task: owner, joined: true };
+            return { task: ownerTask, joined: true };
         }
 
         // 4. An external id is one-to-one: a live run of another slot must not lose the name it answers to.
@@ -343,7 +352,7 @@ export class TaskManagerBehavior extends Behavior {
         //    that now owns the slot, rewrite the same intents at once.
         const undone = bound.undoes;
         if (undone !== undefined) {
-            const undoneSlot = (runs.liveRun(undone) ?? runs.retiredRun(undone) ?? runs.pendingRun(undone))?.slotKey;
+            const undoneSlot = runs.get(undone)?.slotKey;
             if (undoneSlot !== undefined) {
                 const holder = runs.ownerOf(undoneSlot);
                 // A rollback is only ever prepared by cancel, which has already stopped the run's driver, so
@@ -372,19 +381,20 @@ export class TaskManagerBehavior extends Behavior {
             }
         }
 
-        const task = new Task(bound, runs.allocate(), slotKey, seed);
-        runs.admit(task);
+        const record = new RunRecord(runs.allocate(), slotKey, bound.type, bound.params, seed);
+        const task = new Task(bound, record);
+        runs.admit(record, task);
         return { task, joined: false };
     }
 
     /** Resolve a run across every tier: live, then retired, then tombstone. */
     get(runId: RunId): TaskHandle | undefined {
-        const live = this.internal.runs.liveRun(runId);
+        const live = this.internal.runs.taskOf(runId);
         if (live !== undefined) {
             return this.#handle(live);
         }
-        const record = this.internal.runs.retiredRun(runId) ?? this.internal.runs.pendingRun(runId);
-        return record === undefined ? undefined : this.#recordHandle(record);
+        const record = this.internal.runs.get(runId);
+        return record === undefined ? undefined : this.#handle(record);
     }
 
     /**
@@ -399,7 +409,7 @@ export class TaskManagerBehavior extends Behavior {
 
     /** Runs that still own their slot. A retired run answers {@link get} but is not live work. */
     get tasks(): TaskHandle[] {
-        return this.internal.runs.live.map(t => this.#handle(t));
+        return this.internal.runs.live.map(record => this.#handle(record));
     }
 
     /** Retired records, newest retirement first. */
@@ -408,36 +418,19 @@ export class TaskManagerBehavior extends Behavior {
             throw new ImplementationError(`history limit must be an integer, got ${limit}`);
         }
         const records = this.internal.runs.retired;
-        return (limit === undefined ? records : records.slice(0, Math.max(0, limit))).map(r => this.#recordHandle(r));
+        return (limit === undefined ? records : records.slice(0, Math.max(0, limit))).map(r => this.#handle(r));
     }
 
-    #handle(task: Task): TaskHandle {
-        // A held handle must keep answering for the task it names; a snapshot would freeze at creation time.
-        return {
-            runId: task.runId,
-            get status() {
-                return task.status;
-            },
-        };
-    }
-
-    #recordHandle(record: TaskPersistence): TaskHandle {
+    /**
+     * A handle reads through the record, which keeps one identity for the run's lifetime — so a held handle
+     * keeps answering as the run changes, including changes made after it retired.
+     */
+    #handle(run: Task | RunRecord): TaskHandle {
+        const record = run instanceof Task ? run.record : run;
         return {
             runId: record.runId,
             get status(): TaskStatus {
-                return {
-                    runId: record.runId,
-                    slotKey: record.slotKey,
-                    type: record.type,
-                    state: record.state,
-                    phaseIndex: record.phaseIndex,
-                    externalId: record.externalId,
-                    error: record.error,
-                    retireSeq: record.retireSeq,
-                    revertRunId: record.revertRunId,
-                    revertOf: record.revertOf,
-                    detail: "full",
-                };
+                return statusOf(record);
             },
         };
     }
@@ -450,8 +443,8 @@ export class TaskManagerBehavior extends Behavior {
      * while the recorded rollback is still going, since that one may yet succeed.
      */
     async retryRollback(runId: RunId): Promise<TaskHandle> {
-        const live = this.internal.runs.liveRun(runId);
-        const retired = this.internal.runs.retiredRun(runId);
+        const live = this.internal.runs.taskOf(runId);
+        const retired = this.internal.runs.get(runId);
         if (live === undefined && retired === undefined) {
             throw new TaskNotFoundError(`Cannot retry the rollback of ${runLabel(runId)}: no run answers to it`);
         }
@@ -459,7 +452,7 @@ export class TaskManagerBehavior extends Behavior {
         if (previous === undefined) {
             throw new ImplementationError(`${runLabel(runId)} has no rollback to retry`);
         }
-        const inFlight = this.internal.runs.liveRun(previous);
+        const inFlight = this.internal.runs.taskOf(previous);
         if (inFlight !== undefined) {
             throw new TaskConflictError(
                 `Cannot retry the rollback of ${runLabel(runId)}: ${runLabel(previous)} is still in flight`,
@@ -488,18 +481,15 @@ export class TaskManagerBehavior extends Behavior {
      * A writable copy of a retired run, for the one thing a record cannot do: carry a mutation until it is
      * written. Questions about a retired run are answered from its record.
      */
-    #reconstitute(record: TaskPersistence): Task {
+    #reconstitute(record: RunRecord): Task {
         if (!this.internal.registry.has(record.type)) {
             throw new TaskTypeNotRegisteredError(
                 `Cannot act on ${runLabel(record.runId)}: task type "${record.type}" is not registered`,
             );
         }
-        return new Task(
-            this.internal.registry.interpret(record.type, record.params),
-            record.runId,
-            record.slotKey,
-            record,
-        );
+        // Deliberately not instantiated: a writable copy of a finished run is not this process driving it, and
+        // the paths that ask whether a run has a driver must keep answering no.
+        return new Task(this.internal.registry.interpret(record.type, record.params), record);
     }
 
     /**
@@ -515,8 +505,8 @@ export class TaskManagerBehavior extends Behavior {
      * then keeps its non-terminal state and the cancel must be re-issued after the next start.
      */
     async cancel(runId: RunId): Promise<TaskHandle | undefined> {
-        let task = this.internal.runs.liveRun(runId);
-        const retired = task === undefined ? this.internal.runs.retiredRun(runId) : undefined;
+        let task = this.internal.runs.taskOf(runId);
+        const retired = task === undefined ? this.internal.runs.get(runId) : undefined;
         if (task === undefined && retired === undefined) {
             throw new TaskNotFoundError(`Cannot cancel ${runLabel(runId)}: no run answers to it`);
         }
@@ -580,7 +570,7 @@ export class TaskManagerBehavior extends Behavior {
             // keeps its state, so it must keep its driver too, or it sits non-terminal with nothing left to
             // advance it. A retired run was reconstituted from its record and never had a driver here; driving
             // it would write that reconstituted state back over whatever the record now holds.
-            if (this.internal.runs.isLive(task.runId)) {
+            if (this.internal.runs.isInstantiated(task.runId)) {
                 this.#redrive(task);
             }
             throw e;
@@ -601,7 +591,7 @@ export class TaskManagerBehavior extends Behavior {
             revert.discard();
             // A cancel that did not happen leaves the task as it was, driver included. A retired run has no
             // driver to restore, and driving its reconstituted copy would overwrite the stored record.
-            if (this.internal.runs.isLive(task.runId)) {
+            if (this.internal.runs.isInstantiated(task.runId)) {
                 this.#redrive(task);
             }
             throw e;
@@ -881,14 +871,9 @@ export class TaskManagerBehavior extends Behavior {
             self.state.nextRunId = Math.max(self.state.nextRunId, reservedRunId);
             self.state.nextRetireSeq = Math.max(self.state.nextRetireSeq, nextRetireSeq);
         });
-        // Only now, and for the same reason in both cases: a value advanced before the write survives a write
-        // that never landed. A retired record refreshed early would keep a change storage does not have, and a
-        // reservation noted early would let the next identity be issued beyond what storage covers — which the
-        // next start would then re-issue to different work.
+        // Only now: a reservation noted before the write would let the next identity be issued beyond what
+        // storage covers, and the next start would re-issue it to different work.
         this.internal.runs.noteReserved(reservedRunId);
-        for (const t of written) {
-            this.internal.runs.refresh(t);
-        }
     }
 
     override async [Symbol.asyncDispose]() {
