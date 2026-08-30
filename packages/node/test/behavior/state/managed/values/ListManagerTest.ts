@@ -6,7 +6,7 @@
 
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { MaybePromise } from "@matter/general";
-import { Val } from "@matter/protocol";
+import { ConformanceError, Val } from "@matter/protocol";
 import { FabricIndex, NodeId } from "@matter/types";
 import { MockExchange } from "../../../../node/mock-exchange.js";
 import { TestStruct, aclEndpoint, listOf, structOf } from "./value-utils.js";
@@ -467,6 +467,78 @@ describe("ListManager", () => {
                 { fabricIndex: 1, value: 5 },
                 { fabricIndex: 1, value: 7 },
             ]);
+        });
+    });
+
+    describe("list that is not fabric-scoped", () => {
+        // The same write paths as the fabric-scoped cases, where nothing completes an entry on the caller's behalf
+        async function testPlainList(
+            actor: (list: ValueList, ref: Val.Struct) => MaybePromise,
+            defaults: Val.Struct = { list: [] },
+        ) {
+            const struct = TestStruct({ list: listOf(structOf({ value: "uint8" })) }, defaults);
+
+            await struct.online(
+                {
+                    exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
+                    node: aclEndpoint(),
+                },
+                async ref => {
+                    await actor(ref.list as ValueList, ref);
+                },
+            );
+
+            return struct;
+        }
+
+        it("accepts an entry assigned by index", async () => {
+            const struct = await testPlainList(list => {
+                list[0] = { value: 1 };
+            });
+
+            struct.expect({ list: [{ value: 1 }] });
+        });
+
+        it("accepts a whole list assigned to a member that had none", async () => {
+            const struct = await testPlainList((_list, ref) => {
+                ref.list = [{ value: 2 }];
+            }, {});
+
+            struct.expect({ list: [{ value: 2 }] });
+        });
+
+        it("rejects an invalid entry assigned by index", async () => {
+            const struct = await testPlainList(list => {
+                expect(() => (list[0] = { value: 99999 })).throw();
+            });
+
+            struct.expect({ list: [] });
+        });
+
+        it("leaves a member that had no list absent when an entry is rejected", async () => {
+            const struct = await testPlainList((_list, ref) => {
+                expect(() => (ref.list = [{ value: 99999 }])).throw();
+                expect(ref.list).undefined;
+            }, {});
+
+            expect(struct.fields.list).undefined;
+        });
+
+        it("supplies no fabric for an entry that omits a mandatory fabricIndex", async () => {
+            const struct = TestStruct(
+                { list: listOf(structOf({ fabricIndex: "FabricIndex", value: "uint8" })) },
+                { list: [] },
+            );
+
+            await struct.online(
+                {
+                    exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
+                    node: aclEndpoint(),
+                },
+                ref => {
+                    expect(() => ((ref.list as ValueList)[0] = { value: 1 })).throw(ConformanceError);
+                },
+            );
         });
     });
 
