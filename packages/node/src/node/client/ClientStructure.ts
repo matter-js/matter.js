@@ -8,6 +8,7 @@ import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import type { ClusterBehaviorType } from "#behavior/cluster/ClusterBehaviorType.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { memberValueOf } from "#behavior/state/managed/MemberKeys.js";
+import { memberKeyFor } from "#behavior/state/managed/MemberKeys.js";
 import type { ValReference } from "#behavior/state/managed/ValReference.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
@@ -64,22 +65,6 @@ const SERVER_LIST_ATTR_NAME = "serverList";
 const PARTS_LIST_ATTR_NAME = "partsList";
 
 /**
- * Read an attribute from incoming values, which the protocol keys by ID and the remote API by property name.
- *
- * Returns the slot the value occupies as well as its value, because an attribute the peer reports as absent is
- * present with an undefined value.
- */
-function readIncoming(values: Val.StructMap, id: number, name: string) {
-    if (values.has(id)) {
-        return { present: true, value: values.get(id) };
-    }
-    if (values.has(name)) {
-        return { present: true, value: values.get(name) };
-    }
-    return { present: false, value: undefined };
-}
-
-/**
  * Read a value from store initial values, preferring the numeric attribute ID slot over the property name slot.
  */
 function getStoreValue(values: Record<string | number, unknown> | undefined, id: number, name: string): unknown {
@@ -101,6 +86,9 @@ export class ClientStructure {
     #subscribedFabricFiltered?: boolean;
     #pendingChanges = new Map<EndpointStructure, PendingChange>();
     #pendingStructureEvents = Array<PendingEvent>();
+
+    // Keyed by cluster ID; a cluster's schema does not change for the life of the structure
+    #attributeIds = new Map<ClusterId, Map<string, number>>();
     #delayedClusterEvents = new Array<ReadResult.EventValue>();
     #clustersWithDataThisInteraction = new Set<ClusterStructure>();
     #events: ClientStructureEvents;
@@ -346,7 +334,9 @@ export class ClientStructure {
     /**
      * Apply {@link StateStream.WireChange}s to the structure.
      *
-     * Values are keyed by property name (not attribute ID).
+     * A wire change addresses members by property name.  A client behavior's container keys them by attribute ID, so
+     * this is where the two representations meet: values convert on the way in and {@link StateStream.WireChange}
+     * stays name-keyed on the way out.
      */
     async applyWireChanges(changes: StateStream.WireChange[]) {
         this.#clustersWithDataThisInteraction.clear();
@@ -358,8 +348,9 @@ export class ClientStructure {
                     const endpoint = this.#endpointFor(endpointNumber);
                     const cluster = this.#clusterForBehavior(endpoint, change.behavior);
 
+                    const values = this.#canonicalize(cluster, change.changes as Record<string, unknown>);
+
                     // Include version in externalSet values so DatasourceCache can update it
-                    const values = new Map(Object.entries(change.changes as Record<string, unknown>)) as Val.StructMap;
                     if (typeof change.version === "number") {
                         values.set(DatasourceCache.VERSION_KEY, change.version);
                     }
@@ -569,6 +560,42 @@ export class ClientStructure {
     }
 
     /**
+     * Convert values a wire change addresses by property name to the keys the cluster's container uses.
+     *
+     * A name the cluster's schema does not define is left as it is; it addresses no member and so has no other key.
+     */
+    #canonicalize(cluster: ClusterStructure, changes: Record<string, unknown>) {
+        const ids = this.#attributeIdsFor(cluster.id);
+        const values = new Map() as Val.StructMap;
+
+        for (const [name, value] of Object.entries(changes)) {
+            values.set(memberKeyFor("id", name, ids.get(name)), value);
+        }
+
+        return values;
+    }
+
+    /**
+     * The attribute ID each of a cluster's property names addresses.
+     */
+    #attributeIdsFor(clusterId: ClusterId) {
+        let ids = this.#attributeIds.get(clusterId);
+        if (ids !== undefined) {
+            return ids;
+        }
+
+        ids = new Map<string, number>();
+        for (const attr of this.#node.matter.clusters(clusterId)?.attributes ?? []) {
+            if (attr.id !== undefined) {
+                ids.set(attr.propertyName, attr.id);
+            }
+        }
+        this.#attributeIds.set(clusterId, ids);
+
+        return ids;
+    }
+
+    /**
      * Discard a behavior whose schema no longer describes the peer.
      *
      * The discovered schema is built from the cluster revision, the feature map, the attribute list and the accepted
@@ -582,7 +609,7 @@ export class ClientStructure {
         // A non-empty AttributeList is authoritative for the attribute set.  An empty list is ignored so it doesn't
         // churn against the received-attribute fallback.  Detect the change before discarding the behavior, whose
         // schema names the attributes to prune.
-        const { value: attributeList } = readIncoming(values, AttributeList.id, "attributeList");
+        const attributeList = values.get(AttributeList.id);
         const newAttributes = Array.isArray(attributeList) && attributeList.length ? attributeList : undefined;
         const attributeSetChanged =
             newAttributes !== undefined &&
@@ -595,14 +622,12 @@ export class ClientStructure {
             this.#pruneDroppedAttributes(cluster, newAttributes, values);
         }
 
-        const revision = readIncoming(values, ClusterRevision.id, "clusterRevision");
-        const features = readIncoming(values, FeatureMap.id, "featureMap");
-        const { value: acceptedCommands } = readIncoming(values, AcceptedCommandList.id, "acceptedCommandList");
+        const acceptedCommands = values.get(AcceptedCommandList.id);
 
         if (
             attributeSetChanged ||
-            (revision.present && cluster.revision !== revision.value) ||
-            (features.present && !isDeepEqual(cluster.features, features.value)) ||
+            (values.has(ClusterRevision.id) && cluster.revision !== values.get(ClusterRevision.id)) ||
+            (values.has(FeatureMap.id) && !isDeepEqual(cluster.features, values.get(FeatureMap.id))) ||
             (Array.isArray(acceptedCommands) &&
                 !isDeepEqual(
                     cluster.commands,
