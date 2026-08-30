@@ -53,11 +53,7 @@ async function pumpUntil(name: string, condition: () => Promise<boolean>) {
     throw new Error(`Condition "${name}" never held`);
 }
 
-/**
- * Refuses to be rebuilt from its persisted parameters, as a custom task validating them might. `undoes` is the
- * only definition method Task's constructor calls, for both a fresh build and a resumed one, so it doubles as
- * that validation point here.
- */
+/** Refuses to be rebuilt from its persisted parameters, as a custom task validating them might. */
 const UnbuildableTask: TaskDefinition<{ tag: string }> & { rejectConstruction: boolean } = {
     type: "unbuildable",
     rejectConstruction: false,

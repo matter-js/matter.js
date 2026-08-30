@@ -24,7 +24,7 @@ import { RotateGroupKey } from "./groups/RotateGroupKey.js";
 import { Revert, REVERT_TYPE } from "./Revert.js";
 import { GateControl, RunningTaskContext } from "./RunningTaskContext.js";
 import { isTerminal, RunStore } from "./RunStore.js";
-import { runKey, runLabel, Task, TaskDefinition, TaskPersistence } from "./Task.js";
+import { runKey, runLabel, RunView, Task, TaskDefinition, TaskPersistence } from "./Task.js";
 import { TaskRegistry } from "./TaskRegistry.js";
 import { PlannedChange, RunId, TaskState, TaskStatus } from "./types.js";
 
@@ -494,40 +494,43 @@ export class TaskManagerBehavior extends Behavior {
      */
     async cancel(runId: RunId): Promise<TaskHandle | undefined> {
         let task = this.internal.runs.liveRun(runId);
-        if (task === undefined) {
-            const retired = this.internal.runs.retiredRun(runId);
-            if (retired === undefined) {
-                throw new TaskNotFoundError(`Cannot cancel ${runLabel(runId)}: no run answers to it`);
-            }
-            // Undo of finished work reads the retained changeSet, so the run has to be reconstituted:
-            // `revertible` is a subclass decision (a realized rotation declines it) and a record cannot
-            // answer it.
-            // A run that already recorded a rollback, or that was already cancelled with none, is answered by
-            // its record. Only deciding on a NEW rollback needs the task, because revertibility is the task's
-            // decision — so registration is required there and nowhere else.
-            if (retired.revertRunId !== undefined) {
-                return this.get(retired.revertRunId);
-            }
-            if (retired.state === "cancelled") {
-                return undefined;
-            }
-            task = this.#reconstitute(retired);
+        const retired = task === undefined ? this.internal.runs.retiredRun(runId) : undefined;
+        if (task === undefined && retired === undefined) {
+            throw new TaskNotFoundError(`Cannot cancel ${runLabel(runId)}: no run answers to it`);
         }
+
+        // Every decision below reads the run as a view, which a live run and a retired record both satisfy, so a
+        // cancel that is answered or declined never rebuilds a finished run as an object.
+        const view: RunView = task ?? retired!;
+        const params = task === undefined ? retired!.params : task.params;
+
         // A rollback this run already recorded is the answer, wherever it now lives: reporting it as unknown
         // would make re-cancelling fail the moment its rollback finishes.
-        if (task.revertRunId !== undefined) {
-            return this.get(task.revertRunId);
+        if (view.revertRunId !== undefined) {
+            return this.get(view.revertRunId);
         }
-        if (task.progress.state === "cancelled") {
+        if (view.state === "cancelled") {
             return undefined;
         }
 
-        // A task past its point of no return declines cancel with zero side effects (gate untouched, state kept).
-        if (!this.internal.registry.revertible(task, task.params)) {
-            throw new TaskNotRevertibleError(
-                `${runLabel(task.runId)} is not revertible: ${this.internal.registry.notRevertibleReason(task.type)}`,
+        // Deciding on a NEW rollback is the task's decision, so this is the one place a retired run's type must
+        // be registered.
+        if (task === undefined && !this.internal.registry.has(view.type)) {
+            throw new TaskTypeNotRegisteredError(
+                `Cannot act on ${runLabel(view.runId)}: task type "${view.type}" is not registered`,
             );
         }
+
+        // A task past its point of no return declines cancel with zero side effects (gate untouched, state kept).
+        if (!this.internal.registry.revertible(view, params)) {
+            throw new TaskNotRevertibleError(
+                `${runLabel(view.runId)} is not revertible: ${this.internal.registry.notRevertibleReason(view.type)}`,
+            );
+        }
+
+        // Only now, and only for a finished run: the writable copy exists solely to carry the mutation that
+        // follows, never to answer a question.
+        task ??= this.#reconstitute(retired!);
 
         // Stop forward driving so the changeset is final before we revert it. The flag also covers the
         // between-phase gap the gate cannot: the driver checks it synchronously before advancing a phase.
