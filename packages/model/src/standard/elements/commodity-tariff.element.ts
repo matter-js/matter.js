@@ -226,8 +226,7 @@ export const CommodityTariff = Cluster(
         Field({ name: "Duration", id: 0x2, type: "uint16", conformance: "O", constraint: "max 1500 - startTime" }),
         Field({ name: "RandomizationOffset", id: 0x3, type: "int16", conformance: "[RNDM]" }),
         Field({
-            name: "RandomizationType", id: 0x4, type: "DayEntryRandomizationTypeEnum", conformance: "[RNDM]",
-            default: 0
+            name: "RandomizationType", id: 0x4, type: "DayEntryRandomizationTypeEnum", conformance: "[RNDM]"
         })
     ),
 

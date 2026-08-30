@@ -18,6 +18,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A certification run's `result.json` no longer reports a passing verdict for a run that failed
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
 
+- @matter/model
+    - Fix: `CommodityTariff.DayEntryStruct.RandomizationType` no longer declares a `default` value that conflicted with its own `[RNDM]` conformance gate; a `dayEntries` list entry that omits `RandomizationType` when `Randomization` is unsupported no longer fails validation for a value the write never asked to set
+
 - @matter/node
     - Fix: Validation honors the conformance and quality an element inherits, so an element overridden by an operational extension is no longer judged as if it stated neither
     - Fix: A write from local code that adds an entry to a fabric-scoped list without a `fabricIndex` now fails validation instead of storing an entry that belongs to no fabric. Writes from a peer are unaffected — the accessing fabric is supplied for them
