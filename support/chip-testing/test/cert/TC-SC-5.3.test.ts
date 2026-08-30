@@ -288,7 +288,9 @@ certTest("TC-SC-5.3", {
     )
     .step(
         4,
-        'DUT sends AddGroup Command to TH on EP0 with GroupID 1 and GroupName "GroupOne"',
+        // The plan writes EP0 here, but Groups is not a root-node cluster: on both THs it lives on the
+        // on/off light, so that is the endpoint the step exercises and the endpoint the report names
+        'DUT sends AddGroup Command to TH on EP1 with GroupID 1 and GroupName "GroupOne"',
         addGroupStep(commissioned),
         {
             pics: "G.C.C00.Tx",

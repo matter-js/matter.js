@@ -2195,7 +2195,10 @@ binding, AddGroup — and that opening lives in `tc-group-support.ts` rather tha
 `GRPKEY.C.C03.Tx`, `GRPKEY.C.C04.Tx`; the last two are absent from the device file entirely, and an
 absent key evaluates false).
 
-What its steps rest on, beyond the log:
+Note the endpoint: `Groups` is not a root-node cluster, so both cases send `AddGroup`/`ViewGroup` to
+the on/off light rather than to endpoint 0, whatever the plan's own step text says. A step's text names
+the endpoint it exercises, because that is what the certification report describes.
+
 ## The TCP cases invert the topology, and a controller must be asked for TCP before it starts
 
 `TC-SC-8.x` is the first block where the **DUT is the device** — the plan's preconditions say "DUT is a
@@ -2371,13 +2374,18 @@ Four things the plan does not say, each of which failed silently until found:
   fabric's map does not name (Application Clusters § 1.3.7.1), so a case that adds group 2 *through*
   group 1 binds both in the GroupKeyMap step.
 
-**What step 5 proves.** The plan asks for four things, and the sender's own log carries all four. The
-multicast address is not shape-matched: the DUT's membership line names the group, the fabric and the
-address together, so the address is recomputed from that fabric id and group id and compared byte for
-byte — which also establishes the destination is GroupID 1. The port and address are read from the
-invoke's `dest:` field, and and the session tag renders `•group#…`. That last one is the sender saying which
-*kind* of session it used, not a read of the packet's own DSIZ field — which is what makes it evidence
-for the claim rather than the claim itself, and the step's expected outcome says so.
+**What step 5 proves, and on which controller.** The plan asks for four things, and a **matter.js**
+sender's log carries all four. The multicast address is not shape-matched: the DUT's membership line
+names the group, the fabric and the address together, so the address is recomputed from that fabric id
+and group id and compared byte for byte — which also establishes the destination is GroupID 1. The port
+and address are read from the invoke's `dest:` field, and the session tag renders `•group#…`. That last
+one is the sender saying which *kind* of session it used, not a read of the packet's own DSIZ field —
+which is what makes it evidence for the claim rather than the claim itself, and the step's expected
+outcome says so.
+
+**chip-tool shows less, and says so.** Its log names the group it sent to (`Sending command to group
+0x1`) and nothing about where the message went, so on that controller the address-and-port half is
+recorded `unverified` with that reason rather than passing. The arrival evidence below runs on both.
 
 The arrival is proved three ways, because the first is what makes the last mean anything: the TH does
 not hold group 2 beforehand, the TH's own log shows it dispatching the AddGroup with the group and name
@@ -2387,8 +2395,10 @@ that follows it, so without that wait the read races the device.
 
 A group command's path is endpoint-wildcarded on the wire (`invokes: *.0x4.0x0`), so the dispatch is
 identified by the endpoint it *reached*: matter.js names endpoint, cluster, command and fields on its
-`ProtocolService Invoke «` line, and chip prints `Received command for Endpoint=1 Cluster=0x0000_0004
-Command=0x0000_0000`.
+`ProtocolService Invoke «` line, and chip prints `Received Groupcast Message with GroupId 0x0001`
+followed by `Processing group command for Endpoint=1 Cluster=0x0000_0004 Command=0x0000_0000`. chip's
+first line is worth knowing about — it names the group id read off the *packet*, which is the
+receiver's own view of the destination, and the only place in this suite where that appears.
 
 **A production change came with it.** The group invoke's diagnostic printed the address alone;
 `GroupSession.destination` now renders `[<address>]:<port>` so the log says where a message actually
