@@ -69,13 +69,14 @@ export class RunRecord implements RunView {
     }
 
     /**
-     * A snapshot for storage.
+     * A snapshot for storage, optionally carrying state this run has not adopted yet.
      *
-     * `changeSet` is copied rather than shared: a snapshot taken for one write would otherwise alias an array a
-     * running phase appends to, and the write would carry entries it never intended.
+     * The one place a snapshot is produced, so what a write carries and what an observer sees are the same
+     * thing. `changeSet` is copied rather than shared: a snapshot taken for one write would otherwise alias an
+     * array a running phase appends to, and the write would carry entries it never intended.
      */
-    toPersistence(): TaskPersistence {
-        return {
+    toPersistence(next?: Partial<TaskPersistence>): TaskPersistence {
+        const persisted: TaskPersistence = {
             runId: this.runId,
             slotKey: this.slotKey,
             type: this.type,
@@ -89,6 +90,15 @@ export class RunRecord implements RunView {
             revertRunId: this.revertRunId,
             revertOf: this.revertOf,
         };
+        // Only what `next` actually carries: a field it leaves undefined means "unchanged", and spreading it
+        // would erase the value the run already holds. Clearing a field is not expressible, and nothing needs
+        // it — a transition that must remove something says so with a value.
+        for (const [key, value] of Object.entries(next ?? {})) {
+            if (value !== undefined) {
+                Object.assign(persisted, { [key]: value });
+            }
+        }
+        return persisted;
     }
 }
 

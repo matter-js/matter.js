@@ -57,6 +57,12 @@ interface SpawnedExecution {
     joined: boolean;
 }
 
+/** One run's intended next durable state, applied to the run only once the write carrying it has landed. */
+interface RunChange {
+    record: RunRecord;
+    next?: Partial<TaskPersistence>;
+}
+
 export class TaskManagerBehavior extends Behavior {
     static override readonly id = "taskManager";
     static override readonly early = true;
@@ -464,17 +470,13 @@ export class TaskManagerBehavior extends Behavior {
         }
 
         const bound = this.#boundFor(record, this.internal.runs.executionOf(runId));
-        record.revertRunId = undefined;
-        const revert = this.#prepareRevert(record, bound);
+        const revert = this.#prepareRevert(record, bound, { ignoreRecordedRollback: true });
         if (revert.record === undefined) {
-            // Declining leaves the record as it was: it still names the rollback this call was asked to retry.
-            record.revertRunId = previous;
             throw new ImplementationError(`${runLabel(runId)} has nothing to roll back`);
         }
         try {
-            await this.#persist(record, revert.record);
+            await this.#commit({ record, next: { revertRunId: revert.record.runId } }, { record: revert.record });
         } catch (e) {
-            record.revertRunId = previous;
             revert.discard();
             throw e;
         }
@@ -552,19 +554,23 @@ export class TaskManagerBehavior extends Behavior {
             }
             throw e;
         }
-        const stateBeforeCancel = record.state;
         // running/parked → cancelled; an already-terminal (completed/failed) run keeps its truthful state.
-        if (stateBeforeCancel === "running" || stateBeforeCancel === "parked") {
-            record.state = "cancelled";
-        }
-        // Stamped before the write so one transaction carries the cancelled state, the retirement order and
-        // the rollback that undoes it; the slot moves only once that write is durable.
-        this.internal.runs.stampRetirement(record);
+        const outcome = record.state === "running" || record.state === "parked" ? "cancelled" : record.state;
+        // One transaction carries the cancelled state, the retirement order and the rollback that undoes it;
+        // the slot moves only once that write is durable.
         try {
-            await this.#persist(record, revert.record);
+            await this.#commit(
+                {
+                    record,
+                    next: {
+                        state: outcome,
+                        retireSeq: this.internal.runs.nextRetirement(record),
+                        revertRunId: revert.record?.runId ?? record.revertRunId,
+                    },
+                },
+                ...(revert.record === undefined ? [] : [{ record: revert.record }]),
+            );
         } catch (e) {
-            record.state = stateBeforeCancel;
-            this.internal.runs.abandonRetirement(record);
             revert.discard();
             // A cancel that did not happen leaves the run as it was, driver included. A run this process was
             // never attached to has no driver to restore, and driving one would overwrite the stored record.
@@ -576,10 +582,11 @@ export class TaskManagerBehavior extends Behavior {
         this.internal.runs.commitRetirement(record);
         // The rollback mutates peers, so it may not drive before the record that names it is durable.
         revert.start();
-        // Resolved from the run's own link rather than from what this call prepared: a second cancel that
-        // raced this one finds the rollback already recorded, and must be told about it rather than told
-        // there was nothing to roll back.
-        return record.revertRunId === undefined ? undefined : this.get(record.revertRunId);
+        // Resolved from the rollback that exists rather than from what this call prepared: a second cancel that
+        // raced this one must be told about the rollback the first created, not told there was nothing to roll
+        // back — and it may reach here before the write recording the link has landed.
+        const rollback = this.internal.runs.rollbackOf(record.runId)?.runId ?? record.revertRunId;
+        return rollback === undefined ? undefined : this.get(rollback);
     }
 
     // Teardown starts at the node, not at this behavior: `Construction.close` applies `Destroying` before it runs
@@ -597,7 +604,11 @@ export class TaskManagerBehavior extends Behavior {
     }
 
     /** Create (or reuse) the revert task for `record`, linking both directions, without driving it. */
-    #prepareRevert(record: RunRecord, bound: BoundDefinition): PreparedRevert {
+    #prepareRevert(
+        record: RunRecord,
+        bound: BoundDefinition,
+        opts?: { ignoreRecordedRollback?: boolean },
+    ): PreparedRevert {
         // A failed revert surfaces as `failed` for operator attention; reverting a revert would recurse unbounded.
         if (record.type === REVERT_TYPE) {
             return NO_REVERT;
@@ -606,10 +617,14 @@ export class TaskManagerBehavior extends Behavior {
         if (!bound.revertible(record)) {
             return NO_REVERT;
         }
-        // Already rolled back once: cancel resolves the recorded rollback itself, so there is nothing to
-        // prepare, write or start here.
-        if (record.revertRunId !== undefined) {
-            return NO_REVERT;
+        // Already rolled back once, or being rolled back right now: cancel resolves that rollback itself, so
+        // there is nothing to prepare, write or start here. Asking the table rather than the run's own link
+        // covers the window before the write recording that link has landed, where a second cancel would
+        // otherwise try to create a rollback of its own. Retrying is the one caller that means to replace it.
+        if (opts?.ignoreRecordedRollback !== true) {
+            if (record.revertRunId !== undefined || this.internal.runs.rollbackOf(record.runId) !== undefined) {
+                return NO_REVERT;
+            }
         }
         if (record.changeSet.length === 0) {
             return NO_REVERT;
@@ -620,17 +635,15 @@ export class TaskManagerBehavior extends Behavior {
             new BoundDefinition(Revert, { originalRunId: record.runId, entries: record.changeSet }),
             { revertOf: record.runId },
         );
-        record.revertRunId = revert.runId;
+        // The link is not set here: it is part of the state the caller's write carries, so a refused write
+        // leaves the run not naming a rollback that was never recorded.
         // A joined rollback is already live and driving, so it is not ours to start or to forget.
         if (joined) {
             return { record: revert.record, discard() {}, start() {} };
         }
         return {
             record: revert.record,
-            discard: () => {
-                record.revertRunId = undefined;
-                this.internal.runs.discard(revert.record);
-            },
+            discard: () => this.internal.runs.discard(revert.record),
             start: () => this.#track(revert),
         };
     }
@@ -691,8 +704,8 @@ export class TaskManagerBehavior extends Behavior {
         try {
             await this.#admit(execution); // fail-fast before any node is touched
             this.#throwIfAborted(execution);
-            // Persist before first phase so a crash-resume sees the task.
-            await this.#persist(record);
+            // Recorded before the first phase so a crash-resume sees the run.
+            await this.#commit({ record });
             while (record.phaseIndex < execution.phases.length && record.state === "running") {
                 const phase = execution.phases[record.phaseIndex];
                 const ctx = await this.endpoint.act(agent => this.#contextFor(execution, this.taskReconciler(agent)));
@@ -705,18 +718,14 @@ export class TaskManagerBehavior extends Behavior {
                 if (execution.cancelling) {
                     throw new TaskCancelledSignal(`Task ${runLabel(record.runId)} cancelled`);
                 }
-                record.phaseIndex += 1;
-                await this.#persist(record);
+                await this.#commit({ record, next: { phaseIndex: record.phaseIndex + 1 } });
             }
             if (record.state === "running") {
-                record.state = "completed";
-                this.internal.runs.stampRetirement(record);
-                try {
-                    await this.#persist(record);
-                } catch (e) {
-                    this.internal.runs.abandonRetirement(record);
-                    throw e;
-                }
+                // One write carries the outcome and its place in the retirement order.
+                await this.#commit({
+                    record,
+                    next: { state: "completed", retireSeq: this.internal.runs.nextRetirement(record) },
+                });
             }
         } catch (e) {
             // Shutdown leaves the task non-terminal for resume; cancel is finalized by cancel() itself.
@@ -732,8 +741,7 @@ export class TaskManagerBehavior extends Behavior {
                 );
                 return;
             }
-            record.state = "failed";
-            record.error = e instanceof Error ? e.message : String(e);
+            const error = e instanceof Error ? e.message : String(e);
             logger.error(`${runLabel(record.runId)} failed`, e);
             // Neither a rollback this manager refuses nor a failing persist may re-reject the (otherwise handled)
             // drive promise: that turns into an unhandled rejection and a cancel awaiting this task throws.
@@ -743,11 +751,23 @@ export class TaskManagerBehavior extends Behavior {
             } catch (revertError) {
                 logger.error(`${runLabel(record.runId)}: cannot roll back`, revertError);
             }
-            this.internal.runs.stampRetirement(record);
+            // The failure, its place in the retirement order and the rollback that undoes it land together, or
+            // not at all: written separately, a crash between them leaves a run promising a rollback nothing
+            // created.
             try {
-                await this.#persist(record, revert.record);
+                await this.#commit(
+                    {
+                        record,
+                        next: {
+                            state: "failed",
+                            error,
+                            retireSeq: this.internal.runs.nextRetirement(record),
+                            revertRunId: revert.record?.runId,
+                        },
+                    },
+                    ...(revert.record === undefined ? [] : [{ record: revert.record }]),
+                );
             } catch (persistError) {
-                this.internal.runs.abandonRetirement(record);
                 revert.discard();
                 logger.error(`${runLabel(record.runId)}: failed to persist failure state`, persistError);
                 return;
@@ -764,8 +784,11 @@ export class TaskManagerBehavior extends Behavior {
             if (record.state === state || (record.state !== "running" && record.state !== "parked")) {
                 return;
             }
+            // Advisory, so memory leads and the write trails: the driver's loop reads this synchronously, and
+            // waiting for a write to land would let it see a stale `parked` after the gate resolved and stop
+            // with nothing left to advance the run. A lost note costs nothing — resume re-derives it.
             record.state = state;
-            this.#mutex.run(() => this.#writeRecord(record));
+            this.#mutex.run(() => this.#writeRecords([{ record }]));
         };
         return new RunningTaskContext(
             record,
@@ -800,20 +823,32 @@ export class TaskManagerBehavior extends Behavior {
 
     // Serialized through the mutex: a spawned revert drives (and persists) concurrently with the original's
     // own persist, so direct concurrent state writes would conflict on the synchronous transaction lock.
-    async #persist(record: RunRecord, paired?: RunRecord): Promise<void> {
-        await this.#mutex.produce(() => this.#writeRecord(record, paired));
+    /**
+     * Record these runs' intended next state in one transaction, and adopt it only once the write has landed.
+     *
+     * The unit is the transaction, not the field: a run's outcome and its place in the retirement order must
+     * land together or a crash between them leaves a record that load discards, and a run and the rollback it
+     * names must land together or the run promises a rollback nothing created.
+     *
+     * Nothing is mutated before the write, so a refused write needs no compensation — the run is as it was
+     * because it was never changed.
+     */
+    async #commit(...changes: RunChange[]): Promise<void> {
+        await this.#mutex.produce(() => this.#writeRecords(changes));
     }
 
-    // A run that names a revert and the revert itself go into one transaction: written separately, a crash
-    // between the two loses the rollback while the forward record still promises it.
-    async #writeRecord(record: RunRecord, paired?: RunRecord): Promise<void> {
+    async #writeRecords(changes: RunChange[]): Promise<void> {
         // Serialized with the write, so a shutdown that began while this queued behind the mutex cannot slip past.
-        this.#refuseIfClosing(`${runLabel(record.runId)} state cannot be recorded`);
+        this.#refuseIfClosing(`${runLabel(changes[0].record.runId)} state cannot be recorded`);
         // Only the named runs are written. Republishing the whole table from memory would erase records this
         // process never loaded — a persisted run whose type nothing has registered yet — and would publish
         // other runs' uncommitted in-flight state as though it were durable.
-        const written = paired === undefined ? [record] : [record, paired];
-        const records = written.map(r => [runKey(r.runId), r.toPersistence()] as const);
+        //
+        // Built here rather than at the call site: a snapshot taken before this write queued would carry state
+        // an earlier transition has since superseded.
+        const records = changes.map(
+            change => [runKey(change.record.runId), change.record.toPersistence(change.next)] as const,
+        );
         const nextRetireSeq = this.internal.runs.nextRetireSeq;
         const reservedRunId = this.internal.runs.reservedRunId;
         await this.endpoint.act(agent => {
@@ -828,9 +863,17 @@ export class TaskManagerBehavior extends Behavior {
             self.state.nextRunId = Math.max(self.state.nextRunId, reservedRunId);
             self.state.nextRetireSeq = Math.max(self.state.nextRetireSeq, nextRetireSeq);
         });
-        // Only now: a reservation noted before the write would let the next identity be issued beyond what
-        // storage covers, and the next start would re-issue it to different work.
+        // Only now: a value adopted before the write survives a write that never landed. The reservation would
+        // let the next identity be issued beyond what storage covers, and a run would carry state its record
+        // does not have.
         this.internal.runs.noteReserved(reservedRunId);
+        for (const change of changes) {
+            for (const [key, value] of Object.entries(change.next ?? {})) {
+                if (value !== undefined) {
+                    Object.assign(change.record, { [key]: value });
+                }
+            }
+        }
     }
 
     override async [Symbol.asyncDispose]() {
