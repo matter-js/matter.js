@@ -5,15 +5,16 @@
  */
 
 import { ImplementationError } from "@matter/general";
-import { NOT_REVERTIBLE_REASON, RunView, Task, TaskDefinition, TaskPersistence } from "./Task.js";
-import { PlannedChange, RunId } from "./types.js";
+import { BoundDefinition, TaskDefinition } from "./Task.js";
 
 export class TaskRegistry {
     #definitions = new Map<string, TaskDefinition<unknown>>();
 
     /**
      * Definitions are stored type-erased. Their members are declared as methods, whose parameters TypeScript
-     * treats bivariantly, so a definition for concrete params is assignable here without a cast.
+     * treats bivariantly, so a definition for concrete params is assignable here without a cast — and so the
+     * compiler cannot object to untyped params reaching them either. {@link interpret} is the only way out of
+     * this map for that reason.
      */
     register<P>(definition: TaskDefinition<P>): void {
         this.#definitions.set(definition.type, definition);
@@ -23,45 +24,17 @@ export class TaskRegistry {
         return this.#definitions.has(type);
     }
 
-    slotKeyFor(type: string, params: unknown): string {
-        return this.#definitionFor(type).slotKeyFor(params);
-    }
-
-    undoes(type: string, params: unknown): RunId | undefined {
-        return this.#definitionFor(type).undoes?.(params);
-    }
-
-    callerCreatable(type: string): boolean {
-        return this.#definitionFor(type).callerCreatable ?? true;
-    }
-
-    plannedChanges(type: string, params: unknown): PlannedChange[] {
-        return this.#definitionFor(type).plannedChanges?.(params) ?? new Array<PlannedChange>();
-    }
-
     /**
-     * Whether a stored record may still be rolled back.
+     * Bind stored params to the definition registered for their type, refusing params it cannot interpret.
      *
-     * Only for a run this process is not running: a live run answers from the definition it was built with, so
-     * a definition registered since cannot overrule it.
+     * The one way a record's untyped params reach a definition. Everything a definition is asked about a run is
+     * asked of the result, so no caller can route around the check by holding the params itself.
      */
-    revertible(run: RunView, params: unknown): boolean {
-        return this.#definitionFor(run.type).revertible?.(run, params) ?? true;
-    }
-
-    notRevertibleReason(type: string): string {
-        return this.#definitionFor(type).notRevertibleReason ?? NOT_REVERTIBLE_REASON;
-    }
-
-    create(type: string, runId: RunId, slotKey: string, params: unknown, persisted?: Partial<TaskPersistence>): Task {
-        return new Task(this.#definitionFor(type), runId, slotKey, params, persisted);
-    }
-
-    #definitionFor(type: string): TaskDefinition<unknown> {
+    interpret(type: string, params: unknown): BoundDefinition {
         const definition = this.#definitions.get(type);
         if (definition === undefined) {
             throw new ImplementationError(`No task registered for type "${type}"`);
         }
-        return definition;
+        return new BoundDefinition(definition, params);
     }
 }

@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
+import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
 import { membershipKey } from "#task/groups/keys.js";
-import { REMOVE_NODE_FROM_GROUP_TYPE } from "#task/groups/RemoveNodeFromGroup.js";
+import { REMOVE_NODE_FROM_GROUP_TYPE, RemoveNodeFromGroup } from "#task/groups/RemoveNodeFromGroup.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { DesiredStateBehavior, itemMapKey, ServerNode } from "@matter/node";
 import { GroupKeyManagementClient, GroupKeyManagementServer } from "@matter/node/behaviors/group-key-management";
@@ -88,12 +88,12 @@ describe("RemoveNodeFromGroup task integration (single peer)", () => {
         });
         const peer = await subscribedPeer(controller, "peer1");
 
-        await controller.act(a => a.get(TaskManagerBehavior).run("addNodeToGroup", addParams(GROUP_A, SHARED_KEY_SET)));
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParams(GROUP_A, SHARED_KEY_SET)));
         await awaitState(controller, addTaskId(GROUP_A), "completed");
         expect(isMember(device, GROUP_A)).equals(true);
 
         await controller.act(a =>
-            a.get(TaskManagerBehavior).run("removeNodeFromGroup", { peerId: "peer1", endpoint: 1, groupId: GROUP_A }),
+            a.get(TaskManagerBehavior).run(RemoveNodeFromGroup, { peerId: "peer1", endpoint: 1, groupId: GROUP_A }),
         );
         await awaitState(controller, removeTaskId(GROUP_A), "completed");
 
@@ -111,13 +111,13 @@ describe("RemoveNodeFromGroup task integration (single peer)", () => {
         });
         const peer = await subscribedPeer(controller, "peer1");
 
-        await controller.act(a => a.get(TaskManagerBehavior).run("addNodeToGroup", addParams(GROUP_A, SHARED_KEY_SET)));
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParams(GROUP_A, SHARED_KEY_SET)));
         await awaitState(controller, addTaskId(GROUP_A), "completed");
-        await controller.act(a => a.get(TaskManagerBehavior).run("addNodeToGroup", addParams(GROUP_B, SHARED_KEY_SET)));
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParams(GROUP_B, SHARED_KEY_SET)));
         await awaitState(controller, addTaskId(GROUP_B), "completed");
 
         await controller.act(a =>
-            a.get(TaskManagerBehavior).run("removeNodeFromGroup", { peerId: "peer1", endpoint: 1, groupId: GROUP_A }),
+            a.get(TaskManagerBehavior).run(RemoveNodeFromGroup, { peerId: "peer1", endpoint: 1, groupId: GROUP_A }),
         );
         await awaitState(controller, removeTaskId(GROUP_A), "completed");
 
@@ -149,12 +149,12 @@ describe("RemoveNodeFromGroup task integration (single peer)", () => {
         expect(limit).equals(4);
         for (let i = 0; i < limit; i++) {
             const groupId = 0x201 + i;
-            await controller.act(a => a.get(TaskManagerBehavior).run("addNodeToGroup", addParams(groupId, 50 + i)));
+            await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParams(groupId, 50 + i)));
             await awaitState(controller, addTaskId(groupId), "completed");
         }
 
         const overGroup = 0x201 + limit;
-        await controller.act(a => a.get(TaskManagerBehavior).run("addNodeToGroup", addParams(overGroup, 50 + limit)));
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParams(overGroup, 50 + limit)));
         await awaitState(controller, addTaskId(overGroup), "failed");
 
         const error = await controller.act(

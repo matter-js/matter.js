@@ -6,7 +6,7 @@
 
 import { TaskCancelledSignal, TaskFailedError } from "#task/errors.js";
 import { GateControl, RunningTaskContext } from "#task/RunningTaskContext.js";
-import { Task, TaskDefinition } from "#task/Task.js";
+import { BoundDefinition, Task, TaskDefinition } from "#task/Task.js";
 import { TaskPhase, TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
 import { Observable } from "@matter/general";
@@ -20,7 +20,7 @@ const GateTask: TaskDefinition = {
 };
 
 function makeContext(peer: FakePeer, gate?: GateControl, setState?: (state: TaskState) => void) {
-    const task = new Task(GateTask, RunId(1), "gate-test:1", {});
+    const task = new Task(new BoundDefinition(GateTask, {}), RunId(1), "gate-test:1");
     const states = new Array<TaskState>();
     const record =
         setState ??

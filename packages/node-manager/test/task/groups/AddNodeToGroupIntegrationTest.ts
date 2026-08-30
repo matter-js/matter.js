@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
+import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { DesiredStateBehavior, itemMapKey, NetworkClient, ServerNode } from "@matter/node";
 import { GroupKeyManagementServer } from "@matter/node/behaviors/group-key-management";
@@ -86,7 +86,7 @@ describe("AddNodeToGroup task integration (single peer)", () => {
         });
         const peer = await subscribedPeer(controller, "peer1");
 
-        await controller.act(agent => agent.get(TaskManagerBehavior).run("addNodeToGroup", PARAMS));
+        await controller.act(agent => agent.get(TaskManagerBehavior).run(AddNodeToGroup, PARAMS));
         await awaitState(controller, TASK_ID, "completed");
 
         expect(itemState(peer, "groupKey", String(GROUP_KEY_SET_ID))).equals("committed");
@@ -109,7 +109,7 @@ describe("AddNodeToGroup task integration (single peer)", () => {
         // unreachable peer is skipped by #evaluate so the predicate stays unsatisfied and the gate waits.
         await MockTime.resolve(subscription.active.emit(false), { macrotasks: true });
 
-        await controller.act(agent => agent.get(TaskManagerBehavior).run("addNodeToGroup", PARAMS));
+        await controller.act(agent => agent.get(TaskManagerBehavior).run(AddNodeToGroup, PARAMS));
         await awaitState(controller, TASK_ID, "parked");
         expect(isMember(device)).equals(false);
 
@@ -127,7 +127,7 @@ describe("AddNodeToGroup task integration (single peer)", () => {
         });
         const peer = await subscribedPeer(controller, "peer1");
 
-        await controller.act(agent => agent.get(TaskManagerBehavior).run("addNodeToGroup", PARAMS));
+        await controller.act(agent => agent.get(TaskManagerBehavior).run(AddNodeToGroup, PARAMS));
         await awaitState(controller, TASK_ID, "completed");
         expect(isMember(device)).equals(true);
 
@@ -170,7 +170,7 @@ describe("AddNodeToGroup task integration (single peer)", () => {
         const subscription = peer.behaviors.internalsOf(NetworkClient).activeSubscription as SustainedSubscription;
         await MockTime.resolve(subscription.active.emit(false), { macrotasks: true });
 
-        await controller.act(agent => agent.get(TaskManagerBehavior).run("addNodeToGroup", PARAMS));
+        await controller.act(agent => agent.get(TaskManagerBehavior).run(AddNodeToGroup, PARAMS));
         await awaitState(controller, TASK_ID, "parked");
         const id = controller.id;
         await MockTime.resolve(controller.close(), { macrotasks: true });
@@ -205,10 +205,10 @@ describe("AddNodeToGroup task integration (single peer)", () => {
         const idEp1 = `${ADD_NODE_TO_GROUP_TYPE}:peer1:${0x101}:1`;
         const idEp2 = `${ADD_NODE_TO_GROUP_TYPE}:peer1:${0x101}:2`;
 
-        await controller.act(a => a.get(TaskManagerBehavior).run("addNodeToGroup", { ...PARAMS, endpoint: 1 }));
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, { ...PARAMS, endpoint: 1 }));
         await awaitState(controller, idEp1, "completed");
 
-        await controller.act(a => a.get(TaskManagerBehavior).run("addNodeToGroup", { ...PARAMS, endpoint: 2 }));
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, { ...PARAMS, endpoint: 2 }));
         await awaitState(controller, idEp2, "completed");
 
         expect(itemState(peer, "endpointGroupMembership", `${0x101}:1`)).equals("committed");

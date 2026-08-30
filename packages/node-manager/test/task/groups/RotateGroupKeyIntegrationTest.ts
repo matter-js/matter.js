@@ -6,7 +6,7 @@
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { TaskConflictError, TaskNotRevertibleError } from "#task/errors.js";
-import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
+import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
 import { ROTATE_GROUP_KEY_TYPE, RotateGroupKey, RotateGroupKeyParams } from "#task/groups/RotateGroupKey.js";
 import { TaskDefinition } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
@@ -247,7 +247,7 @@ async function twoMemberGroup(site: MockSite, options: { addB?: boolean } = {}) 
     await subscribedPeer(controller, peerB.id);
 
     for (const peer of addB ? peers : peers.slice(0, 1)) {
-        await controller.act(a => a.get(TaskManagerBehavior).run("addNodeToGroup", addParamsFor(peer.id)));
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(peer.id)));
         await awaitState(controller, addTaskId(peer.id), "completed");
     }
 
@@ -275,7 +275,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         // Record only the rotation, not the provisioning write.
         writesA.length = writesB.length = 0;
 
-        await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        await controller.act(a => a.get(TaskManagerBehavior).run(RotateGroupKey, ROTATE_PARAMS));
         await awaitState(controller, ROTATE_SLOT, "completed");
 
         // Cleanup back-dates the sole surviving key to the ORIGINAL op start, so the final device start-set is
@@ -303,11 +303,11 @@ describe("RotateGroupKey task integration (two members)", () => {
 
         // Park the rotation at distribute so the second member can join the key set mid-rotation.
         await MockTime.resolve(subscriptionOf(peerA).active.emit(false), { macrotasks: true });
-        await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        await controller.act(a => a.get(TaskManagerBehavior).run(RotateGroupKey, ROTATE_PARAMS));
         await awaitParkedInPhase(controller, ROTATE_SLOT, 0);
 
         writesA.length = writesB.length = 0;
-        await controller.act(a => a.get(TaskManagerBehavior).run("addNodeToGroup", addParamsFor(peerB.id)));
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(peerB.id)));
         await awaitState(controller, addTaskId(peerB.id), "completed");
 
         await MockTime.resolve(subscriptionOf(peerA).active.emit(true), { macrotasks: true });
@@ -338,11 +338,11 @@ describe("RotateGroupKey task integration (two members)", () => {
             }
         };
 
-        await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        await controller.act(a => a.get(TaskManagerBehavior).run(RotateGroupKey, ROTATE_PARAMS));
         await awaitParkedInPhase(controller, ROTATE_SLOT, 1);
 
         writesA.length = writesB.length = 0;
-        await controller.act(a => a.get(TaskManagerBehavior).run("addNodeToGroup", addParamsFor(peerB.id)));
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(peerB.id)));
         await awaitState(controller, addTaskId(peerB.id), "completed");
 
         await MockTime.resolve(subscriptionA.active.emit(true), { macrotasks: true });
@@ -366,7 +366,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         // The remedy the failure prescribes must work: rotating to a DIFFERENT key is refused while the members
         // still carry the dormant one, so only the same key can finish what this rotation started.
         const other = await controller.act(a =>
-            a.get(TaskManagerBehavior).run("rotateGroupKey", {
+            a.get(TaskManagerBehavior).run(RotateGroupKey, {
                 groupKeySetId: GROUP_KEY_SET_ID,
                 newEpochKey: new Uint8Array(16).fill(0xef),
                 rotationId: "rOther",
@@ -379,7 +379,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         // Re-issued with the same new key, distribute covers the whole current member set, so the late member is
         // carried through the rotation with everyone else.
         await controller.act(a =>
-            a.get(TaskManagerBehavior).run("rotateGroupKey", { ...ROTATE_PARAMS, rotationId: "r2" }),
+            a.get(TaskManagerBehavior).run(RotateGroupKey, { ...ROTATE_PARAMS, rotationId: "r2" }),
         );
         await awaitState(controller, ROTATE_SLOT, "completed");
         for (const device of [deviceA, deviceB]) {
@@ -396,7 +396,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         const subscriptionB = subscriptionOf(peerB);
         await MockTime.resolve(subscriptionB.active.emit(false), { macrotasks: true });
 
-        await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        await controller.act(a => a.get(TaskManagerBehavior).run(RotateGroupKey, ROTATE_PARAMS));
         await awaitState(controller, ROTATE_SLOT, "parked");
 
         // Let any reachable-peer work settle; the barrier still cannot advance past distribute while B is offline.
@@ -433,7 +433,7 @@ describe("RotateGroupKey task integration (two members)", () => {
 
         // Park the rotation (member B offline), then close the controller mid-rotation.
         await MockTime.resolve(subscriptionOf(peerB).active.emit(false), { macrotasks: true });
-        await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        await controller.act(a => a.get(TaskManagerBehavior).run(RotateGroupKey, ROTATE_PARAMS));
         await awaitState(controller, ROTATE_SLOT, "parked");
         const id = controller.id;
         await MockTime.resolve(controller.close(), { macrotasks: true });
@@ -458,7 +458,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         await using site = new MockSite();
         const { controller, deviceA, peerA } = await twoMemberGroup(site);
 
-        await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        await controller.act(a => a.get(TaskManagerBehavior).run(RotateGroupKey, ROTATE_PARAMS));
         await awaitState(controller, ROTATE_SLOT, "completed");
         expect(deviceStarts(deviceA, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
 
@@ -502,7 +502,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         const subscriptionB = subscriptionOf(peerB);
         await MockTime.resolve(subscriptionB.active.emit(false), { macrotasks: true });
 
-        await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        await controller.act(a => a.get(TaskManagerBehavior).run(RotateGroupKey, ROTATE_PARAMS));
         await awaitState(controller, ROTATE_SLOT, "parked");
 
         // Distribute has pushed the 2-key struct to the still-online member A; activate has not begun.
@@ -552,7 +552,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         armBarrier = true;
         writesA.length = writesB.length = 0;
 
-        await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        await controller.act(a => a.get(TaskManagerBehavior).run(BarrierRotateGroupKey, ROTATE_PARAMS));
 
         // Pump until distribute has committed on both members and the driver is paused at the barrier.
         for (let i = 0; i < 2_000 && releaseDistribute === undefined; i++) {
@@ -607,7 +607,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         const KEY_B = new Uint8Array(16).fill(0xb2);
 
         const first = await controller.act(a =>
-            a.get(TaskManagerBehavior).run("rotateGroupKey", {
+            a.get(TaskManagerBehavior).run(RotateGroupKey, {
                 groupKeySetId: GROUP_KEY_SET_ID,
                 newEpochKey: KEY_A,
                 rotationId: "r1",
@@ -621,7 +621,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         // The recovery path — rotating a bad key to another — is a second run of the same slot, admitted once
         // the first has retired. Each run keeps its own record; waiting on the slot would match the first.
         const second = await controller.act(a =>
-            a.get(TaskManagerBehavior).run("rotateGroupKey", {
+            a.get(TaskManagerBehavior).run(RotateGroupKey, {
                 groupKeySetId: GROUP_KEY_SET_ID,
                 newEpochKey: KEY_B,
                 rotationId: "r2",
@@ -640,14 +640,14 @@ describe("RotateGroupKey task integration (two members)", () => {
 
         // Park r1 non-terminal (member B offline during distribute).
         await MockTime.resolve(subscriptionOf(peerB).active.emit(false), { macrotasks: true });
-        await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        await controller.act(a => a.get(TaskManagerBehavior).run(RotateGroupKey, ROTATE_PARAMS));
         await awaitState(controller, ROTATE_SLOT, "parked");
 
         const OTHER_KEY = new Uint8Array(16).fill(0xef);
         let refusal: unknown;
         try {
             await controller.act(async a =>
-                a.get(TaskManagerBehavior).run("rotateGroupKey", {
+                a.get(TaskManagerBehavior).run(RotateGroupKey, {
                     groupKeySetId: GROUP_KEY_SET_ID,
                     newEpochKey: OTHER_KEY,
                     rotationId: "r2",
@@ -675,7 +675,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         // Park r1 at distribute (member B offline), then cancel it — this spawns a revert that also parks (B still
         // offline), so a live non-terminal revert now holds the key set.
         await MockTime.resolve(subscriptionOf(peerB).active.emit(false), { macrotasks: true });
-        await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        await controller.act(a => a.get(TaskManagerBehavior).run(RotateGroupKey, ROTATE_PARAMS));
         await awaitState(controller, ROTATE_SLOT, "parked");
         await MockTime.resolve(
             controller.act(a => cancelSlot(a.get(TaskManagerBehavior), ROTATE_SLOT)),
@@ -691,7 +691,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         const OTHER_KEY = new Uint8Array(16).fill(0xef);
         await expect(
             controller.act(async a =>
-                a.get(TaskManagerBehavior).run("rotateGroupKey", {
+                a.get(TaskManagerBehavior).run(RotateGroupKey, {
                     groupKeySetId: GROUP_KEY_SET_ID,
                     newEpochKey: OTHER_KEY,
                     rotationId: "r2",
@@ -713,21 +713,21 @@ describe("RotateGroupKey task integration (two members)", () => {
         // Park so the task stays live/non-terminal across both issues.
         await MockTime.resolve(subscriptionOf(peerB).active.emit(false), { macrotasks: true });
         const first = await controller.act(a =>
-            a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS, { externalId: "nightly" }),
+            a.get(TaskManagerBehavior).run(RotateGroupKey, ROTATE_PARAMS, { externalId: "nightly" }),
         );
         expect(first.status.slotKey).equals(ROTATE_SLOT);
         await awaitState(controller, ROTATE_SLOT, "parked");
 
         // `act` returns a MaybePromise, so normalize before asserting on the rejection.
         await expect(
-            (async () => controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS)))(),
+            (async () => controller.act(a => a.get(TaskManagerBehavior).run(RotateGroupKey, ROTATE_PARAMS)))(),
         ).rejectedWith(TaskConflictError);
 
         // The owner reaches the parked rotation itself: a replacement task under the same id would answer as
         // freshly running and leave the parked one driving with nothing observing it.
         const before = await controller.act(a => a.get(TaskManagerBehavior).tasks.length);
         const again = await controller.act(a =>
-            a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS, { externalId: "nightly" }),
+            a.get(TaskManagerBehavior).run(RotateGroupKey, ROTATE_PARAMS, { externalId: "nightly" }),
         );
         expect(again.runId).equals(first.runId);
         expect(again.status.state).equals("parked");
@@ -750,7 +750,7 @@ describe("RotateGroupKey task integration (two members)", () => {
             }
         };
 
-        await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        await controller.act(a => a.get(TaskManagerBehavior).run(RotateGroupKey, ROTATE_PARAMS));
         await awaitParkedInPhase(controller, ROTATE_SLOT, 1); // parked in activate, not distribute
 
         // Distribute committed the 2-key struct on both members (old key still present); activate never wrote.
@@ -782,7 +782,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         await using site = new MockSite();
         const { controller, deviceA, deviceB } = await twoMemberGroup(site);
 
-        await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        await controller.act(a => a.get(TaskManagerBehavior).run(RotateGroupKey, ROTATE_PARAMS));
         await awaitState(controller, ROTATE_SLOT, "completed");
 
         // The rotation realized the NEW key on both members (start-set matches the original, material does not).

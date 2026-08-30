@@ -5,7 +5,7 @@
  */
 
 import { RunningTaskContext } from "#task/RunningTaskContext.js";
-import { Task, TaskDefinition } from "#task/Task.js";
+import { BoundDefinition, Task, TaskDefinition } from "#task/Task.js";
 import { TaskPhase, TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
 import { FakePeer } from "./helpers.js";
@@ -17,7 +17,7 @@ const CsTask: TaskDefinition = {
 };
 
 function makeContext(peer: FakePeer) {
-    const task = new Task(CsTask, RunId(1), "cs-test:1", {});
+    const task = new Task(new BoundDefinition(CsTask, {}), RunId(1), "cs-test:1");
     const setState = (s: TaskState) => {
         task.progress.state = s;
     };

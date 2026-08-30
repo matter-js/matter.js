@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
-import { ROTATE_GROUP_KEY_TYPE, RotateGroupKeyParams } from "#task/groups/RotateGroupKey.js";
+import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
+import { ROTATE_GROUP_KEY_TYPE, RotateGroupKey, RotateGroupKeyParams } from "#task/groups/RotateGroupKey.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { Bytes } from "@matter/general";
 import { DesiredStateBehavior, itemMapKey, ServerNode } from "@matter/node";
@@ -109,12 +109,12 @@ describe("RotateGroupKey task integration (single member)", () => {
         await subscribedPeer(controller, "peer1");
 
         // Provision the operational key set (the "op") first, then rotate it.
-        await controller.act(a => a.get(TaskManagerBehavior).run("addNodeToGroup", ADD_PARAMS));
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, ADD_PARAMS));
         await awaitState(controller, ADD_ID, "completed");
         expect(deviceStarts(device, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
 
         writes.length = 0; // ignore the provisioning write; record only the rotation
-        await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        await controller.act(a => a.get(TaskManagerBehavior).run(RotateGroupKey, ROTATE_PARAMS));
         await awaitState(controller, ROTATE_SLOT, "completed");
 
         // Three phases, each a distinct start-time set that write-if-set-differs actually wrote.
@@ -168,7 +168,7 @@ describe("RotateGroupKey task integration (single member)", () => {
         });
         const peer = await subscribedPeer(controller, "peer1");
 
-        await controller.act(a => a.get(TaskManagerBehavior).run("addNodeToGroup", ADD_PARAMS));
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, ADD_PARAMS));
         await awaitState(controller, ADD_ID, "completed");
 
         // Seed a committed multi-epoch intent (slot 1 populated) directly, without emitting itemChanged so no
@@ -191,7 +191,7 @@ describe("RotateGroupKey task integration (single member)", () => {
         });
 
         writes.length = 0;
-        await controller.act(a => a.get(TaskManagerBehavior).run("rotateGroupKey", ROTATE_PARAMS));
+        await controller.act(a => a.get(TaskManagerBehavior).run(RotateGroupKey, ROTATE_PARAMS));
         await awaitState(controller, ROTATE_SLOT, "failed");
 
         const status = await controller.act(a => statusOfSlot(a.get(TaskManagerBehavior), ROTATE_SLOT));
@@ -214,7 +214,7 @@ describe("RotateGroupKey task integration (single member)", () => {
         await subscribedPeer(controller, "peer1");
 
         await controller.act(a =>
-            a.get(TaskManagerBehavior).run("rotateGroupKey", { ...ROTATE_PARAMS, groupKeySetId: 99 }),
+            a.get(TaskManagerBehavior).run(RotateGroupKey, { ...ROTATE_PARAMS, groupKeySetId: 99 }),
         );
         await awaitState(controller, `${ROTATE_GROUP_KEY_TYPE}:99`, "completed");
         expect(writes.length).equals(0);

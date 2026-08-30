@@ -117,12 +117,63 @@ export interface TaskDefinition<P = unknown> {
     readonly notRevertibleReason?: string;
 }
 
+/**
+ * A definition together with parameters it has accepted.
+ *
+ * Parameters reach this layer untyped — from a caller, and from storage where an older version of a task type
+ * may have written them — while a definition's members are declared for its own parameter type. Constructing
+ * this is the single point at which the one becomes the other, and the only point that may refuse. Nothing
+ * below asks a definition anything about parameters it has not accepted, because there is no other way to
+ * reach it.
+ */
+export class BoundDefinition<P = unknown> {
+    readonly definition: TaskDefinition<P>;
+    readonly params: P;
+
+    get type(): string {
+        return this.definition.type;
+    }
+
+    constructor(definition: TaskDefinition<P>, params: P) {
+        definition.validate?.(params);
+        this.definition = definition;
+        this.params = params;
+    }
+
+    get slotKey(): string {
+        return this.definition.slotKeyFor(this.params);
+    }
+
+    get callerCreatable(): boolean {
+        return this.definition.callerCreatable ?? true;
+    }
+
+    get undoes(): RunId | undefined {
+        return this.definition.undoes?.(this.params);
+    }
+
+    get notRevertibleReason(): string {
+        return this.definition.notRevertibleReason ?? NOT_REVERTIBLE_REASON;
+    }
+
+    plannedChanges(): PlannedChange[] {
+        return this.definition.plannedChanges?.(this.params) ?? new Array<PlannedChange>();
+    }
+
+    revertible(run: RunView): boolean {
+        return this.definition.revertible?.(run, this.params) ?? true;
+    }
+
+    phases(): TaskPhase[] {
+        return this.definition.phases(this.params);
+    }
+}
+
 /** One run of a {@link TaskDefinition}: its identity, its parameters and how far it has got. */
 export class Task<P = unknown> implements RunView {
-    readonly definition: TaskDefinition<P>;
+    readonly bound: BoundDefinition<P>;
     readonly runId: RunId;
     readonly slotKey: string;
-    readonly params: P;
 
     /** Id the caller of `run` asked for this task under, so it can observe and cancel the work it asked for. */
     readonly externalId?: string;
@@ -136,29 +187,29 @@ export class Task<P = unknown> implements RunView {
 
     #phases?: TaskPhase[];
 
-    constructor(
-        definition: TaskDefinition<P>,
-        runId: RunId,
-        slotKey: string,
-        params: P,
-        persisted?: Partial<TaskPersistence>,
-    ) {
-        definition.validate?.(params);
-        this.definition = definition;
+    constructor(bound: BoundDefinition<P>, runId: RunId, slotKey: string, persisted?: Partial<TaskPersistence>) {
+        this.bound = bound;
         this.runId = runId;
         this.slotKey = slotKey;
-        this.params = params;
         this.externalId = persisted?.externalId;
         this.progress = { phaseIndex: persisted?.phaseIndex ?? 0, state: persisted?.state ?? "running" };
         this.changeSet = persisted?.changeSet ?? new Array<ChangeEntry>();
         this.error = persisted?.error;
         this.retireSeq = persisted?.retireSeq;
         this.revertRunId = persisted?.revertRunId;
-        this.revertOf = persisted?.revertOf ?? definition.undoes?.(params);
+        this.revertOf = persisted?.revertOf ?? bound.undoes;
+    }
+
+    get definition(): TaskDefinition<P> {
+        return this.bound.definition;
+    }
+
+    get params(): P {
+        return this.bound.params;
     }
 
     get type(): string {
-        return this.definition.type;
+        return this.bound.type;
     }
 
     /**
@@ -169,11 +220,11 @@ export class Task<P = unknown> implements RunView {
      * declared forward-only.
      */
     get revertible(): boolean {
-        return this.definition.revertible?.(this, this.params) ?? true;
+        return this.bound.revertible(this);
     }
 
     get notRevertibleReason(): string {
-        return this.definition.notRevertibleReason ?? NOT_REVERTIBLE_REASON;
+        return this.bound.notRevertibleReason;
     }
 
     get phaseIndex(): number {
@@ -186,7 +237,7 @@ export class Task<P = unknown> implements RunView {
 
     /** Built once: a driver indexes into this list across phases and must see one stable set. */
     get phases(): TaskPhase[] {
-        return (this.#phases ??= this.definition.phases(this.params));
+        return (this.#phases ??= this.bound.phases());
     }
 
     toString(): string {
