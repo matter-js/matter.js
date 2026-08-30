@@ -20,6 +20,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Fix: A mandatory command a cluster leaves unimplemented is no longer dispatched; an invoke answers `UNSUPPORTED_COMMAND`, matching what the cluster advertises in `AcceptedCommandList`
+    - Fix: A discovered peer cluster records the `ClusterRevision` the peer reports rather than the standard cluster's, and peers differing only in revision no longer share a behavior
 
 - @matter/protocol
     - Fix: A command whose payload does not match the command's schema is answered with `INVALID_COMMAND` instead of `FAILURE`
