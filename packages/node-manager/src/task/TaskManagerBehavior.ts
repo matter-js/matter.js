@@ -248,11 +248,17 @@ export class TaskManagerBehavior extends Behavior {
      * The `externalId` is also the id the caller can {@link get} and {@link cancel} its task under.
      */
     run<P>(definition: TaskDefinition<P>, params: P, opts?: { externalId?: string }): TaskHandle {
-        // The definition names the work and types its params; the registered definition of that name is what
-        // runs. Executing the caller's object instead would let a lookalike claim a registered type's name and
-        // bypass its rules, and would drive phases that a restart — which has only the name — could not resume.
-        if (!this.internal.registry.has(definition.type)) {
-            throw new ImplementationError(`Task type "${definition.type}" must be registered before it is run`);
+        // The definition must be the registered one, not merely share its name. Identity is what makes the
+        // parameter type mean anything: a different definition of the same name would type its caller's params
+        // and then hand them to the registered definition, which declares its own. It is also what stops a
+        // lookalike bypassing a registered name's rules, or driving phases a restart could not resume from the
+        // name alone.
+        if (!this.internal.registry.isRegistered(definition)) {
+            throw new ImplementationError(
+                this.internal.registry.has(definition.type)
+                    ? `Task type "${definition.type}" is registered to a different definition than the one given`
+                    : `Task type "${definition.type}" must be registered before it is run`,
+            );
         }
         const bound = this.internal.registry.interpret(definition.type, params);
         if (!bound.callerCreatable) {

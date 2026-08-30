@@ -10,8 +10,8 @@ import { RotateGroupKey } from "#task/groups/RotateGroupKey.js";
 import { BoundDefinition, Task, TaskDefinition } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { TaskRegistry } from "#task/TaskRegistry.js";
-import { RetireSeq, RunId } from "#task/types.js";
-import { Environment } from "@matter/general";
+import { RetireSeq, RunId, TaskPhase } from "#task/types.js";
+import { Environment, ImplementationError } from "@matter/general";
 import { ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
 import {
@@ -123,6 +123,30 @@ describe("TaskManagerBehavior", () => {
 
         await awaitTaskDone(node, "synthetic:held");
         expect(handle.status.state).equals("completed");
+    });
+
+    it("refuses a definition that only shares a registered name", async () => {
+        await using node = await makeNode();
+        await node.act(agent => agent.get(TaskManagerBehavior).register(SyntheticTask));
+
+        // Declares different params under a registered name. Its own type checks, so nothing stops the call
+        // being written; what it must not do is hand a number to the definition that actually runs.
+        const lookalike: TaskDefinition<number> = {
+            type: SyntheticTask.type,
+            slotKeyFor(tag) {
+                return `synthetic:${tag}`;
+            },
+            phases() {
+                return new Array<TaskPhase>();
+            },
+        };
+
+        await expect((async () => node.act(agent => agent.get(TaskManagerBehavior).run(lookalike, 1)))()).rejectedWith(
+            ImplementationError,
+        );
+
+        // Nothing was admitted under the name it borrowed.
+        expect(await node.act(agent => agent.get(TaskManagerBehavior).tasks.length)).equals(0);
     });
 
     it("refuses an anonymous re-run of a live task, and re-runs a terminal one", async () => {

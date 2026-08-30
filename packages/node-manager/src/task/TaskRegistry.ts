@@ -24,6 +24,11 @@ export class TaskRegistry {
         return this.#definitions.has(type);
     }
 
+    /** Whether `definition` is the one registered under its own name, rather than another of the same name. */
+    isRegistered(definition: TaskDefinition<never>): boolean {
+        return this.#definitions.get(definition.type) === definition;
+    }
+
     /**
      * Bind stored params to the definition registered for their type, refusing params it cannot interpret.
      *
