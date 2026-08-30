@@ -10,7 +10,7 @@ import { Task } from "#task/Task.js";
 import { TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { TaskPhase, TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
-import { CrashedDependencyError, Environment, Lifecycle, MaybePromise } from "@matter/general";
+import { CrashedDependencyError, Environment, InternalError, Lifecycle, MaybePromise } from "@matter/general";
 import { Behavior, ClientNode, ItemKind, itemMapKey } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
 import {
@@ -86,15 +86,14 @@ class TestTaskManager extends TaskManagerBehavior {
 
 /**
  * Keeps a run's Task instance reachable and traces every state it persists, so a test can inspect it after the
- * node is gone. Task is concrete now, so this patches the instance the manager already built (via
- * `onPersisted`/`liveTask`) rather than subclassing it.
+ * node is gone.
  */
 const tracedRuns = new Map<string, { task: Task; persistedStates: TaskState[] }>();
 
 function traceRun(manager: TestTaskManager, runId: RunId): void {
     const task = liveTask(manager, runId);
     if (tracedRuns.has(task.slotKey)) {
-        throw new Error(`Slot ${task.slotKey} is already traced`);
+        throw new InternalError(`Slot ${task.slotKey} is already traced`);
     }
     const persistedStates = new Array<TaskState>();
     onPersisted(task, record => persistedStates.push(record.state));
@@ -104,7 +103,7 @@ function traceRun(manager: TestTaskManager, runId: RunId): void {
 function tracedRun(slotKey: string): { task: Task; persistedStates: TaskState[] } {
     const found = tracedRuns.get(slotKey);
     if (found === undefined) {
-        throw new Error(`No traced run for slot ${slotKey}`);
+        throw new InternalError(`No traced run for slot ${slotKey}`);
     }
     return found;
 }

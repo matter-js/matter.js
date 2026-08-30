@@ -61,10 +61,9 @@ export interface RunView {
 /**
  * What a type of work *is*: pure, immutable, and registered once.
  *
- * Deliberately separate from the run that executes it. A definition answers questions about work that has not
- * started — what target it claims, whether a caller may start it — and questions about work that has finished,
- * such as whether a retired record may still be rolled back. Welding those to an instance forced a finished
- * run to be rebuilt as an object before it could be asked anything.
+ * Separate from the run that executes it, because it answers questions about work that has not started — what
+ * target it claims, whether a caller may start it — and about work that has finished, such as whether a retired
+ * record may still be rolled back. Neither has a run to be asked of.
  */
 export interface TaskDefinition<P = unknown> {
     readonly type: string;
