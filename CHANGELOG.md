@@ -33,6 +33,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `InteractionClient`'s read, write, invoke and subscribe options take an `abort` signal, forwarded to the interaction
 
 - @matter/general
+    - Fix: A log destination that throws no longer propagates the failure into the code that logged; the remaining destinations still receive the message and the broken destination is reported once
     - Fix: `DataReader` throws `DataReadError` when a read would pass the end of the buffer; `readByteArray` and `readUtf8String` no longer return short data
     - Fix: `DerCodec.decode` reports truncated input as `DerError` instead of a `RangeError`, and rejects a length that overflows or uses the indefinite-length encoding instead of decoding a value as present and empty
     - Fix: One unreadable record in an mDNS message no longer discards the whole message
