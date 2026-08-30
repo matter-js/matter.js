@@ -27,6 +27,71 @@ export interface TaskPersistence {
 /** Reason a cancel is declined when a definition states none of its own. */
 export const NOT_REVERTIBLE_REASON = "it has passed its point of no return";
 
+/**
+ * One run, in one shape, whatever phase it is in.
+ *
+ * Mutable, and one object identity for the run's lifetime: a handle closes over the record it was given and
+ * keeps answering as the run changes, and nothing replaces a record with a fresh copy that leaves earlier
+ * readers behind.
+ */
+export class RunRecord implements RunView {
+    readonly runId: RunId;
+    readonly slotKey: string;
+    readonly type: string;
+    readonly externalId?: string;
+
+    params: unknown;
+    phaseIndex: number;
+    state: TaskState;
+    changeSet: ChangeEntry[];
+    error?: string;
+    retireSeq?: RetireSeq;
+    revertRunId?: RunId;
+    revertOf?: RunId;
+
+    constructor(runId: RunId, slotKey: string, type: string, params: unknown, persisted?: Partial<TaskPersistence>) {
+        this.runId = runId;
+        this.slotKey = slotKey;
+        this.type = type;
+        this.params = params;
+        this.externalId = persisted?.externalId;
+        this.phaseIndex = persisted?.phaseIndex ?? 0;
+        this.state = persisted?.state ?? "running";
+        this.changeSet = persisted?.changeSet ?? new Array<ChangeEntry>();
+        this.error = persisted?.error;
+        this.retireSeq = persisted?.retireSeq;
+        this.revertRunId = persisted?.revertRunId;
+        this.revertOf = persisted?.revertOf;
+    }
+
+    static fromPersistence(record: TaskPersistence): RunRecord {
+        return new RunRecord(record.runId, record.slotKey, record.type, record.params, record);
+    }
+
+    /**
+     * A snapshot for storage.
+     *
+     * `changeSet` is copied rather than shared: a snapshot taken for one write would otherwise alias an array a
+     * running phase appends to, and the write would carry entries it never intended.
+     */
+    toPersistence(): TaskPersistence {
+        return {
+            runId: this.runId,
+            slotKey: this.slotKey,
+            type: this.type,
+            params: this.params,
+            phaseIndex: this.phaseIndex,
+            state: this.state,
+            externalId: this.externalId,
+            changeSet: [...this.changeSet],
+            error: this.error,
+            retireSeq: this.retireSeq,
+            revertRunId: this.revertRunId,
+            revertOf: this.revertOf,
+        };
+    }
+}
+
 /** How a run reads in a log or an error. A display convention, never an address. */
 export function runLabel(runId: RunId): string {
     return `run #${runId}`;
@@ -168,35 +233,22 @@ export class BoundDefinition<P = unknown> {
     }
 }
 
-/** One run of a {@link TaskDefinition}: its identity, its parameters and how far it has got. */
+/**
+ * A run this process has instantiated: its record, and the definition bound to the params that record carries.
+ *
+ * Holds no state of its own — every field lives on the record, so there is one in-memory shape for a run
+ * whether or not this process is driving it.
+ */
 export class Task<P = unknown> implements RunView {
     readonly bound: BoundDefinition<P>;
-    readonly runId: RunId;
-    readonly slotKey: string;
-
-    /** Id the caller of `run` asked for this task under, so it can observe and cancel the work it asked for. */
-    readonly externalId?: string;
-
-    progress: { phaseIndex: number; state: TaskState };
-    changeSet: ChangeEntry[];
-    error?: string;
-    retireSeq?: RetireSeq;
-    revertRunId?: RunId;
-    revertOf?: RunId;
+    readonly record: RunRecord;
 
     #phases?: TaskPhase[];
 
-    constructor(bound: BoundDefinition<P>, runId: RunId, slotKey: string, persisted?: Partial<TaskPersistence>) {
+    constructor(bound: BoundDefinition<P>, record: RunRecord) {
         this.bound = bound;
-        this.runId = runId;
-        this.slotKey = slotKey;
-        this.externalId = persisted?.externalId;
-        this.progress = { phaseIndex: persisted?.phaseIndex ?? 0, state: persisted?.state ?? "running" };
-        this.changeSet = persisted?.changeSet ?? new Array<ChangeEntry>();
-        this.error = persisted?.error;
-        this.retireSeq = persisted?.retireSeq;
-        this.revertRunId = persisted?.revertRunId;
-        this.revertOf = persisted?.revertOf ?? bound.undoes;
+        this.record = record;
+        this.record.revertOf ??= bound.undoes;
     }
 
     get definition(): TaskDefinition<P> {
@@ -207,31 +259,79 @@ export class Task<P = unknown> implements RunView {
         return this.bound.params;
     }
 
+    get runId(): RunId {
+        return this.record.runId;
+    }
+
+    get slotKey(): string {
+        return this.record.slotKey;
+    }
+
     get type(): string {
-        return this.bound.type;
+        return this.record.type;
+    }
+
+    get externalId(): string | undefined {
+        return this.record.externalId;
+    }
+
+    /** The record, under the name the driver reads it by. Mutating this mutates the run. */
+    get progress(): RunRecord {
+        return this.record;
+    }
+
+    get phaseIndex(): number {
+        return this.record.phaseIndex;
+    }
+
+    get state(): TaskState {
+        return this.record.state;
+    }
+
+    get changeSet(): ChangeEntry[] {
+        return this.record.changeSet;
+    }
+
+    get error(): string | undefined {
+        return this.record.error;
+    }
+
+    set error(value: string | undefined) {
+        this.record.error = value;
+    }
+
+    get retireSeq(): RetireSeq | undefined {
+        return this.record.retireSeq;
+    }
+
+    set retireSeq(value: RetireSeq | undefined) {
+        this.record.retireSeq = value;
+    }
+
+    get revertRunId(): RunId | undefined {
+        return this.record.revertRunId;
+    }
+
+    set revertRunId(value: RunId | undefined) {
+        this.record.revertRunId = value;
+    }
+
+    get revertOf(): RunId | undefined {
+        return this.record.revertOf;
     }
 
     /**
      * Whether this run may still be rolled back, answered by the definition it was built with.
      *
      * Resolving the type again would let a definition registered after this run started decide a question its
-     * own definition already answered — re-registering a type could then roll back work the running definition
-     * declared forward-only.
+     * own definition already answered.
      */
     get revertible(): boolean {
-        return this.bound.revertible(this);
+        return this.bound.revertible(this.record);
     }
 
     get notRevertibleReason(): string {
         return this.bound.notRevertibleReason;
-    }
-
-    get phaseIndex(): number {
-        return this.progress.phaseIndex;
-    }
-
-    get state(): TaskState {
-        return this.progress.state;
     }
 
     /** Built once: a driver indexes into this list across phases and must see one stable set. */
@@ -244,35 +344,27 @@ export class Task<P = unknown> implements RunView {
     }
 
     get status(): TaskStatus {
-        return {
-            runId: this.runId,
-            slotKey: this.slotKey,
-            type: this.type,
-            state: this.progress.state,
-            phaseIndex: this.progress.phaseIndex,
-            externalId: this.externalId,
-            error: this.error,
-            retireSeq: this.retireSeq,
-            revertRunId: this.revertRunId,
-            revertOf: this.revertOf,
-            detail: "full",
-        };
+        return statusOf(this.record);
     }
 
     toPersistence(): TaskPersistence {
-        return {
-            runId: this.runId,
-            slotKey: this.slotKey,
-            type: this.type,
-            params: this.params,
-            phaseIndex: this.progress.phaseIndex,
-            state: this.progress.state,
-            externalId: this.externalId,
-            changeSet: this.changeSet,
-            error: this.error,
-            retireSeq: this.retireSeq,
-            revertRunId: this.revertRunId,
-            revertOf: this.revertOf,
-        };
+        return this.record.toPersistence();
     }
+}
+
+/** How a run reads to a caller, from its record alone. */
+export function statusOf(record: RunView): TaskStatus {
+    return {
+        runId: record.runId,
+        slotKey: record.slotKey,
+        type: record.type,
+        state: record.state,
+        phaseIndex: record.phaseIndex,
+        externalId: record.externalId,
+        error: record.error,
+        retireSeq: record.retireSeq,
+        revertRunId: record.revertRunId,
+        revertOf: record.revertOf,
+        detail: "full",
+    };
 }

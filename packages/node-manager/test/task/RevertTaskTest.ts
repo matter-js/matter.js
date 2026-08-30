@@ -6,14 +6,17 @@
 
 import { Revert, RevertParams } from "#task/Revert.js";
 import { RunningTaskContext } from "#task/RunningTaskContext.js";
-import { BoundDefinition, Task } from "#task/Task.js";
+import { BoundDefinition, Task, RunRecord } from "#task/Task.js";
 import { TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
 import { itemMapKey } from "@matter/node";
 import { FakePeer } from "./helpers.js";
 
 function runRevert(peer: FakePeer, params: RevertParams, referenced = new Set<string>()) {
-    const task = new Task(new BoundDefinition(Revert, params), RunId(1), "revert:1");
+    const task = new Task(
+        new BoundDefinition(Revert, params),
+        new RunRecord(RunId(1), "revert:1", Revert.type, params),
+    );
     const setState = (s: TaskState) => {
         task.progress.state = s;
     };

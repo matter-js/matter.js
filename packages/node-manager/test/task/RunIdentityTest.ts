@@ -651,8 +651,8 @@ describe("run identity", () => {
         expect(discarded).equals(1);
         expect(resumable.length).equals(0);
         // Only the sequenced run survives, so nothing in the table can be misordered against it.
-        expect(store.retiredRun(RunId(1))).equals(undefined);
-        expect(store.retiredRun(RunId(2))?.retireSeq).equals(1);
+        expect(store.get(RunId(1))).equals(undefined);
+        expect(store.get(RunId(2))?.retireSeq).equals(1);
     });
 
     it("refuses an identity the reservation does not cover rather than issuing it", async () => {

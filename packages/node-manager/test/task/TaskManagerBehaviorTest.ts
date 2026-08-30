@@ -7,7 +7,7 @@
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { TaskConflictError, TaskFailedError, TaskNotFoundError } from "#task/errors.js";
 import { RotateGroupKey } from "#task/groups/RotateGroupKey.js";
-import { BoundDefinition, Task, TaskDefinition } from "#task/Task.js";
+import { BoundDefinition, Task, TaskDefinition, RunRecord } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { TaskRegistry } from "#task/TaskRegistry.js";
 import { RetireSeq, RunId, TaskPhase } from "#task/types.js";
@@ -261,18 +261,24 @@ describe("TaskManagerBehavior", () => {
 
         const rotateParams = { groupKeySetId: 42, newEpochKey: new Uint8Array(16), rotationId: "r1" };
         const rotatableAt = (phaseIndex: number) => {
-            const run = new Task(new BoundDefinition(RotateGroupKey, rotateParams), RunId(1), "rotateGroupKey:42", {
-                phaseIndex,
-                state: "running",
-            });
-            return registry.interpret(run.type, run.params).revertible(run);
+            const run = new Task(
+                new BoundDefinition(RotateGroupKey, rotateParams),
+                new RunRecord(RunId(1), "rotateGroupKey:42", RotateGroupKey.type, rotateParams, {
+                    phaseIndex,
+                    state: "running",
+                }),
+            );
+            return registry.interpret(run.type, run.params).revertible(run.record);
         };
         expect(rotatableAt(0)).equals(true); // distribute in flight — new key dormant, revert is clean
         expect(rotatableAt(1)).equals(false); // activate in flight — new key going live, point of no return
         expect(rotatableAt(2)).equals(false); // cleanup in flight
         expect(rotatableAt(3)).equals(false); // completed
 
-        const plain = new Task(new BoundDefinition(SyntheticTask, { tag: "x" }), RunId(1), "synthetic:x");
+        const plain = new Task(
+            new BoundDefinition(SyntheticTask, { tag: "x" }),
+            new RunRecord(RunId(1), "synthetic:x", SyntheticTask.type, { tag: "x" }),
+        );
         expect(registry.interpret(plain.type, plain.params).revertible(plain)).equals(true);
 
         // The generic decline reason must not leak a specific task type's domain language.
