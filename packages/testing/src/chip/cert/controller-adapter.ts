@@ -449,9 +449,21 @@ export interface ManualPairingCodeFields {
 }
 
 /**
+ * How a controller reaches its peers. `"tcp"` asks for a TCP-backed session, which a large-payload
+ * interaction requires; omitted, a controller keeps the transport every other TC's evidence and
+ * timing were written against.
+ */
+export type ControllerTransport = "tcp";
+
+/** What a test asks of the controller before it starts. */
+export interface ControllerAdapterOptions {
+    transport?: ControllerTransport;
+}
+
+/**
  * Builds a {@link ControllerAdapter} for the given id (e.g. "dut", "th_cr2").
  */
-export type ControllerAdapterFactory = (id: string) => ControllerAdapter;
+export type ControllerAdapterFactory = (id: string, options?: ControllerAdapterOptions) => ControllerAdapter;
 
 const factories = new Map<ControllerImplementation, ControllerAdapterFactory>();
 const controllerPics = new Map<ControllerImplementation, PicsValues>();
@@ -500,7 +512,7 @@ export function controllerPicsOverridesFor(implementation: ControllerImplementat
  * Constructs a {@link ControllerAdapter} for `role`, via the factory registered for the run's
  * {@link resolveControllerImplementation | selected implementation}.
  */
-export function createControllerAdapter(role: string): ControllerAdapter {
+export function createControllerAdapter(role: string, options?: ControllerAdapterOptions): ControllerAdapter {
     const implementation = resolveControllerImplementation();
     const factory = factories.get(implementation);
     if (!factory) {
@@ -510,7 +522,7 @@ export function createControllerAdapter(role: string): ControllerAdapter {
                 "before running a cert test",
         );
     }
-    return factory(role);
+    return factory(role, options);
 }
 
 /**

@@ -12,7 +12,7 @@ import { IcdManagementClient, IcdManagementServer } from "#behaviors/icd-managem
 import { ClientNode } from "#node/ClientNode.js";
 import { ServerNode } from "#node/index.js";
 import { ImplementationError, Millis, Minutes, Seconds, ServerAddressIp, Time } from "@matter/general";
-import { MockSite, seedPeerCache, subscribedPeer } from "@matter/node/testing";
+import { MockSite, seedPeerCache, settled, subscribedPeer } from "@matter/node/testing";
 import {
     ClientSubscribe,
     FabricManager,
@@ -284,7 +284,7 @@ describe("IcdClient", () => {
             await device.act(agent => agent.get(DslsIcdServer).setOperatingMode(IcdManagement.OperatingMode.Lit));
             await commission(controller, device);
             const peer1 = await subscribedPeer(controller, "peer1");
-            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            await settled(controller, peer1);
 
             expect(peer1.stateOf(IcdClient).registered).false;
         });
@@ -295,7 +295,7 @@ describe("IcdClient", () => {
                 device: { type: RootWithDslsIcd, icdManagement: LIT_CONFIG },
             });
             const peer1 = await subscribedPeer(controller, "peer1");
-            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            await settled(controller, peer1);
 
             expect(peer1.stateOf(IcdClient).registered).false;
         });
@@ -321,7 +321,7 @@ describe("IcdClient", () => {
             // behavior the wrong registration lands well within this window (empirically by the 6th step).
             for (let i = 0; i < 15; i++) {
                 await MockTime.advance(Millis(200));
-                await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+                await settled(controller, peer1);
             }
 
             expect(peer1.stateOf(IcdClient).registered).false;
@@ -334,7 +334,7 @@ describe("IcdClient", () => {
                 device: { type: RootWithDslsIcd, icdManagement: LIT_CONFIG },
             });
             const peer1 = await subscribedPeer(controller, "peer1");
-            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            await settled(controller, peer1);
             expect(peer1.stateOf(IcdClient).registered).false;
 
             const modeChanged = new Promise<void>(resolve =>
@@ -415,7 +415,7 @@ describe("IcdClient", () => {
             peer1.eventsOf(IcdClient).checkedIn.on(observer);
 
             await wakeDevice(device);
-            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            await settled(controller, peer1);
             peer1.eventsOf(IcdClient).checkedIn.off(observer);
 
             // The replayed Check-In is dropped at the fabric layer: no event, no client-state change.
@@ -456,7 +456,7 @@ describe("IcdClient", () => {
             await wakeDevice(device);
             await MockTime.resolve(refreshed, { macrotasks: true });
             // keyRefreshed emits inside the refresh transaction; let it commit before reading state.
-            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            await settled(controller, peer1);
 
             const state = peer1.stateOf(IcdClient);
             // counterStart advancing proves the re-key registerClient round-trip ran (MockCrypto.randomBytes is
@@ -694,11 +694,12 @@ describe("IcdClient", () => {
             await reRegisterWithSubject(peer1, SubjectId(NodeId(0xabcdn)));
 
             await MockTime.advance(Seconds(3700));
-            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            // One task turn: this observes the lapse itself, as the subscription's next report re-arms availability
+            await MockTime.macrotask;
             expect(peer1.stateOf(IcdClient).available).false;
 
             await wakeDevice(device);
-            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            await settled(controller, peer1);
 
             expect(peer1.stateOf(IcdClient).available).true;
             expect(wakefulnessOf(controller, peer1)!.available.value).true;
@@ -717,7 +718,7 @@ describe("IcdClient", () => {
             expect(wakefulnessOf(controller, peer1)!.requiresAwait).false;
 
             await MockTime.advance(Seconds(3700));
-            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            await settled(controller, peer1);
             expect(peer1.stateOf(IcdClient).available).true;
         });
 
@@ -789,7 +790,8 @@ describe("IcdClient", () => {
             });
 
             await peer1.act(agent => agent.get(IcdClient).unregister());
-            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            // One task turn: registration is mandatory for a LIT peer, so auto-registration re-registers after this
+            await MockTime.macrotask;
 
             expect(peer1.stateOf(IcdClient).registered).false;
             expect(missed).equals(0);
@@ -831,7 +833,7 @@ describe("IcdClient", () => {
 
             // activeModeThreshold is 5s, so absent the StayActive extension awake would already have lapsed by now.
             await MockTime.advance(Seconds(30));
-            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            await settled(controller, peer1);
             expect(wakefulness.awake.value).true;
         });
 
@@ -892,11 +894,12 @@ describe("IcdClient", () => {
             expect(await peer1.act(agent => agent.get(IcdClient).awake)).equals(true); // seeded on register
 
             await MockTime.advance(Seconds(3700)); // past idle+margin, no check-in
-            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            // One task turn: this observes the lapse itself, as the subscription's next report re-arms the peer
+            await MockTime.macrotask;
             expect(await peer1.act(agent => agent.get(IcdClient).awake)).equals(false);
 
             await wakeDevice(device); // device Check-In re-arms awake
-            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            await settled(peer1);
             expect(await peer1.act(agent => agent.get(IcdClient).awake)).equals(true);
         });
     });
@@ -966,7 +969,7 @@ describe("IcdClient", () => {
                 device: { type: RootWithDslsIcd, icdManagement: LIT_CONFIG },
             });
             const peer1 = await subscribedPeer(controller, "peer1");
-            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            await settled(controller, peer1);
 
             // Established while SIT/unfed: no wakefulness exists, so the underlying subscription runs as plain sustained.
             expect(peer1.stateOf(IcdClient).registered).false;
@@ -987,7 +990,7 @@ describe("IcdClient", () => {
             await settleAutoRegistration(peer1);
             for (let i = 0; i < 5; i++) {
                 await MockTime.advance(Millis(200));
-                await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+                await settled(controller, peer1);
             }
 
             expect(peer1.stateOf(IcdClient).registered).true;

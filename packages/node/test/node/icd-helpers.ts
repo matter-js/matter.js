@@ -9,6 +9,7 @@ import { IcdManagementServer } from "#behaviors/icd-management";
 import { ClientNode } from "#node/ClientNode.js";
 import { ServerNode } from "#node/index.js";
 import { Crypto, MockCrypto, Seconds } from "@matter/general";
+import { settled } from "@matter/node/testing";
 import { FabricManager } from "@matter/protocol";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 
@@ -25,7 +26,7 @@ export const LIT_CONFIG = {
 export async function wakeDevice(device: ServerNode) {
     await device.act(agent => agent.get(IcdManagementServer).enterIdleMode());
     await device.act(agent => agent.get(IcdManagementServer).requestActiveMode());
-    await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+    await settled(device);
 }
 
 export async function commission(controller: ServerNode, device: ServerNode) {

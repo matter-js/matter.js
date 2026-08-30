@@ -160,7 +160,7 @@ function declineFor(endpointId: EndpointNumber, clusterId: ClusterId, behaviorId
 
     return {
         kind: "attr-status",
-        path: { endpointId, clusterId, attributeId: AttributeId(attributeId) },
+        path: { endpointId, clusterId, attributeId: AttributeId(attributeId, false) },
         status: AttributeModel.globalIds.has(attributeId) ? Status.UnsupportedWrite : Status.UnsupportedAttribute,
     } satisfies WriteResult.AttributeStatus;
 }

@@ -527,8 +527,8 @@ export class ServerSubscription implements Subscription {
                         for (const [endpointId, clusters] of Object.entries(attributeFilter)) {
                             for (const [clusterId, attributes] of Object.entries(clusters)) {
                                 this.#addOutstandingAttributes(
-                                    EndpointNumber(parseInt(endpointId)),
-                                    ClusterId(parseInt(clusterId)),
+                                    EndpointNumber(parseInt(endpointId), false),
+                                    ClusterId(parseInt(clusterId), false),
                                     Array.from(attributes),
                                 );
                             }

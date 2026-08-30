@@ -139,7 +139,8 @@ describe("Peers load failures", () => {
         );
         expect(warnings.length).equals(1);
 
-        await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+        // A turn for any rejection to surface; there is no completion to wait for
+        await MockTime.macrotask;
         expect(tracker.rejections.filter(reason => `${reason}`.includes("Behaviors have errors"))).deep.equals([]);
     });
 });

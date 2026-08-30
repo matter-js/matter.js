@@ -11,7 +11,7 @@ import { OperationalCredentialsClient } from "#behaviors/operational-credentials
 import { ServerNode } from "#node/index.js";
 import { Bytes, Crypto, Millis } from "@matter/general";
 import { AccessLevel } from "@matter/model";
-import { MockExchange, MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
+import { MockExchange, MockServerNode, MockSite, settled, subscribedPeer } from "@matter/node/testing";
 import {
     activeSubscriptionSubjects,
     Advertiser,
@@ -176,7 +176,7 @@ describe("IcdManagementServer", () => {
                 if (icdCounter === undefined) throw new Error("icdCounter not initialized");
                 icdCounter.increment();
             });
-            await MockTime.resolve(Promise.resolve());
+            await settled(device);
 
             const after = device.stateOf(IcdManagementServer).icdCounter;
             expect(after).equals(before + 1);
@@ -755,7 +755,7 @@ describe("IcdManagementServer", () => {
                 key: Bytes.fromHex("d0d1d2d3d4d5d6d7d8d9dadbdcdddedf"),
                 clientType: IcdManagement.ClientType.Permanent,
             });
-            await MockTime.resolve(Promise.resolve());
+            await settled(device);
 
             expect(device.stateOf(litServer).operatingMode).equals(IcdManagement.OperatingMode.Lit);
             expect(refreshCount).greaterThan(0);
@@ -789,7 +789,7 @@ describe("IcdManagementServer", () => {
                 key: Bytes.fromHex("d0d1d2d3d4d5d6d7d8d9dadbdcdddedf"),
                 clientType: IcdManagement.ClientType.Permanent,
             });
-            await MockTime.resolve(Promise.resolve());
+            await settled(device);
             expect(device.stateOf(litServer).operatingMode).equals(IcdManagement.OperatingMode.Lit);
 
             const deviceAdvertiser = device.env.get(DeviceAdvertiser);
@@ -801,7 +801,7 @@ describe("IcdManagementServer", () => {
             };
 
             await cmds.unregisterClient({ checkInNodeId });
-            await MockTime.resolve(Promise.resolve());
+            await settled(device);
 
             expect(device.stateOf(litServer).operatingMode).equals(IcdManagement.OperatingMode.Sit);
             expect(refreshAfterUnregister).greaterThan(0);
@@ -836,7 +836,7 @@ describe("IcdManagementServer", () => {
                 key: Bytes.fromHex("d0d1d2d3d4d5d6d7d8d9dadbdcdddedf"),
                 clientType: IcdManagement.ClientType.Permanent,
             });
-            await MockTime.resolve(Promise.resolve());
+            await settled(device);
 
             // Still SIT after registration — non-LITS server never flips to LIT.
             await deviceAdvertiser.refreshOperationalAdvertisement(fabric);
@@ -914,7 +914,18 @@ describe("IcdManagementServer", () => {
             IcdManagement.Feature.UserActiveModeTrigger,
             IcdManagement.Feature.DynamicSitLitSupport,
         );
-        const RootWithDsls = ServerNode.RootEndpoint.with(dslsServer);
+        const RootWithDsls = MockServerNode.RootEndpoint.with(dslsServer);
+
+        /**
+         * A DSLS device with a fabric but no controller.  A commissioned controller auto-registers as a Check-In
+         * client for a LIT peer, and a registration drives the operating mode to LIT on its own, which would mask the
+         * forced-mode behavior these tests assert.
+         */
+        async function dslsDevice() {
+            const device = await MockServerNode.createOnline(RootWithDsls, { icdManagement: DSLS_CONFIG });
+            await device.addFabric();
+            return device;
+        }
 
         const DSLS_CONFIG = {
             operatingMode: IcdManagement.OperatingMode.Sit,
@@ -925,10 +936,7 @@ describe("IcdManagementServer", () => {
         } as const;
 
         it("setOperatingMode(Lit) with no registrations forces LIT and refreshes advertisement", async () => {
-            await using site = new MockSite();
-            const { device } = await site.addCommissionedPair({
-                device: { type: RootWithDsls, icdManagement: DSLS_CONFIG },
-            });
+            await using device = await dslsDevice();
 
             const deviceAdvertiser = device.env.get(DeviceAdvertiser);
             let refreshCount = 0;
@@ -939,7 +947,7 @@ describe("IcdManagementServer", () => {
             };
 
             await device.act(agent => agent.get(dslsServer).setOperatingMode(IcdManagement.OperatingMode.Lit));
-            await MockTime.resolve(Promise.resolve());
+            await settled(device);
 
             expect(device.stateOf(dslsServer).operatingMode).equals(IcdManagement.OperatingMode.Lit);
             expect(refreshCount).greaterThan(0);
@@ -958,14 +966,11 @@ describe("IcdManagementServer", () => {
         });
 
         it("setOperatingMode(Sit) after forced LIT switches back to SIT and refreshes advertisement", async () => {
-            await using site = new MockSite();
-            const { device } = await site.addCommissionedPair({
-                device: { type: RootWithDsls, icdManagement: DSLS_CONFIG },
-            });
+            await using device = await dslsDevice();
 
             // Force to LIT first.
             await device.act(agent => agent.get(dslsServer).setOperatingMode(IcdManagement.OperatingMode.Lit));
-            await MockTime.resolve(Promise.resolve());
+            await settled(device);
             expect(device.stateOf(dslsServer).operatingMode).equals(IcdManagement.OperatingMode.Lit);
 
             const deviceAdvertiser = device.env.get(DeviceAdvertiser);
@@ -978,7 +983,7 @@ describe("IcdManagementServer", () => {
 
             // Switch back to SIT.
             await device.act(agent => agent.get(dslsServer).setOperatingMode(IcdManagement.OperatingMode.Sit));
-            await MockTime.resolve(Promise.resolve());
+            await settled(device);
 
             expect(device.stateOf(dslsServer).operatingMode).equals(IcdManagement.OperatingMode.Sit);
             expect(refreshCount).greaterThan(0);
@@ -996,14 +1001,11 @@ describe("IcdManagementServer", () => {
         });
 
         it("withdrawForcedOperatingMode reverts a forced LIT to the registration-driven mode and refreshes", async () => {
-            await using site = new MockSite();
-            const { device } = await site.addCommissionedPair({
-                device: { type: RootWithDsls, icdManagement: DSLS_CONFIG },
-            });
+            await using device = await dslsDevice();
 
             // Force LIT with no registrations.
             await device.act(agent => agent.get(dslsServer).setOperatingMode(IcdManagement.OperatingMode.Lit));
-            await MockTime.resolve(Promise.resolve());
+            await settled(device);
             expect(device.stateOf(dslsServer).operatingMode).equals(IcdManagement.OperatingMode.Lit);
 
             const deviceAdvertiser = device.env.get(DeviceAdvertiser);
@@ -1016,8 +1018,9 @@ describe("IcdManagementServer", () => {
 
             // Withdraw the override → registration-driven mode; no registrations means SIT.
             await device.act(agent => agent.get(dslsServer).withdrawForcedOperatingMode());
-            await MockTime.resolve(Promise.resolve());
+            await settled(device);
 
+            expect(device.stateOf(dslsServer).registeredClients).empty;
             expect(device.stateOf(dslsServer).operatingMode).equals(IcdManagement.OperatingMode.Sit);
             expect(refreshCount).greaterThan(0);
         });
@@ -1076,7 +1079,7 @@ describe("IcdManagementServer", () => {
 
             // No registrations → registration-driven mode is SIT; requesting SIT is allowed without DSLS.
             await device.act(agent => agent.get(litServer).setOperatingMode(IcdManagement.OperatingMode.Sit));
-            await MockTime.resolve(Promise.resolve());
+            await settled(device);
 
             expect(device.stateOf(litServer).operatingMode).equals(IcdManagement.OperatingMode.Sit);
         });
@@ -1222,7 +1225,8 @@ describe("IcdManagementServer", () => {
         async function wake(device: ServerNode) {
             await device.act(agent => agent.get(IcdManagementServer).enterIdleMode());
             await device.act(agent => agent.get(IcdManagementServer).requestActiveMode());
-            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+
+            await settled(device);
         }
 
         async function commissionedRecordingPair() {
@@ -1403,7 +1407,7 @@ describe("IcdManagementServer", () => {
             // UAT resets the back-off; the wake it triggers sends immediately.
             await device.act(agent => agent.get(IcdManagementServer).enterIdleMode());
             await device.act(agent => agent.get(IcdManagementServer).triggerUserActiveMode());
-            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            await settled(device);
 
             expect(sent.length).equals(beforeSuppressed + 1);
         });

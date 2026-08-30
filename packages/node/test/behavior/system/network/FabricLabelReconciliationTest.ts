@@ -13,7 +13,7 @@ async function reconcile(peer: Awaited<ReturnType<typeof subscribedPeer>>, until
     peer.behaviors.internalsOf(NetworkClient).fabricLabelReconciled = false;
     peer.eventsOf(NetworkClient).subscriptionAlive.emit();
     for (let i = 0; i < 20 && !until(); i++) {
-        await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+        await MockTime.macrotask;
     }
 }
 

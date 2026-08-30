@@ -8,9 +8,11 @@ import { DiscoveryCapabilitiesSchema } from "@matter/main/types";
 import { certTest } from "@matter/testing";
 import {
     commissionByQr,
+    CommissioningRefusals,
     ON_NETWORK_ONLY,
     qrPayloadWith,
     recordCommissionable,
+    recordDiscriminatorHonored,
     recordGeneratedPayload,
     recordParse,
     recordPayloadOffering,
@@ -18,7 +20,7 @@ import {
     STANDARD_VERSION,
     thQrPayload,
 } from "./tc-dd-support.js";
-import { CommissionedRefs } from "./tc-support.js";
+import { CommissionedRefs, runCleanups } from "./tc-support.js";
 
 /**
  * Why the two transport-specific commissioning steps cannot be run rather than skipped.
@@ -40,12 +42,23 @@ const BLE_ONLY = DiscoveryCapabilitiesSchema.encode({ ble: true });
 const WIFI_PAF_ONLY = DiscoveryCapabilitiesSchema.encode({ wifiPublicActionFrame: true });
 
 const commissioned = new CommissionedRefs();
+const refusals = new CommissioningRefusals();
 
 certTest("TC-DD-3.11", {
     plan: "devicediscovery.adoc",
     pics: ["MCORE.ROLE.COMMISSIONER", "MCORE.DD.QR_COMMISSIONING", "MCORE.DD.STANDARD_COMM_FLOW"],
     app: "all-clusters",
 })
+    .step(
+        "0",
+        "Precondition: the DUT is a commissioner that uses the discriminator its onboarding code names.",
+        cx => recordDiscriminatorHonored(cx, refusals),
+        {
+            expected:
+                "DUT does not commission the TH from a code naming a discriminator no device advertises. " +
+                "Every later step's commissioning rests on this.",
+        },
+    )
     .step(
         "1.a",
         "Standard Commissioning Flow: Use a Commissionee with a QR code that has the Custom Flow field set to 0 " +
@@ -176,9 +189,9 @@ certTest("TC-DD-3.11", {
         "Using the DUT, parse the TH's QR code and follow any steps needed for the Commissioner/Commissionee to " +
             "complete the commissioning process using IP Network",
         async cx => {
-            // The parse and the capability it offers are step 3.b's claims, and 3.b is where the
-            // PICS gate for them sits; recording them again here would put a pass for a skipped
-            // step's claim in the same bundle
+            // The capability offering is step 3.b's claim and 3.b is where its PICS gate sits;
+            // recording it again here would put a pass for a skipped step's claim in the same bundle.
+            // The parse below it is `commissionByQr`'s own, about the code this commissioning used
             const payload = qrPayloadWith(await thQrPayload(cx.devices.th), {
                 discoveryCapabilities: ON_NETWORK_ONLY,
             });
@@ -187,4 +200,9 @@ certTest("TC-DD-3.11", {
         },
         { expected: "DUT parses QR code and DUT commissions TH to the Matter network" },
     )
-    .finalize(cx => commissioned.decommissionAll(cx));
+    .finalize(cx =>
+        runCleanups(
+            () => refusals.settle(cx),
+            () => commissioned.decommissionAll(cx),
+        ),
+    );
