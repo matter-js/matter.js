@@ -8,11 +8,13 @@ import { Matter } from "@matter/model";
 import type { CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import {
-    tcpInvokeCheck,
+    noFurtherSessionCheck,
+    regularSizedRequestCheck,
     TCP_FLAVORS,
     TCP_PICS,
     TCP_ROLES,
     TcpSessionRef,
+    tcpInvokeEvidence,
     tcpSessionStep,
     tcpStep,
     timeSnapshotResponseCheck,
@@ -26,18 +28,17 @@ const TIME_SNAPSHOT_ID = requireId(
     "GeneralDiagnostics.timeSnapshot",
 );
 
-/** GeneralDiagnostics is a root-node cluster. */
 const ROOT_ENDPOINT = 0;
 
 const commissioned = new CommissionedRefs<"th">();
 const session = new TcpSessionRef();
 
 /**
- * `TimeSnapshot` is the command this case sends because it carries a response of its own and changes
- * nothing on the DUT: the plan asks only that a command response comes back, and a command that also
- * mutates the device would make a retry of this case depend on the state the previous one left.
+ * The controller asks for nothing here beyond an ordinary invoke — no large payload, no transport of
+ * its own — which is what the plan means by a request either transport could carry. What the step
+ * then proves is that it went out on the session step 1 established rather than causing a new one.
  */
-async function invokeOverTcp(cx: CertStepContext) {
+async function invokeOverExistingSession(cx: CertStepContext) {
     const node = cx.controllers.th.node(commissioned.require("th"));
     const tag = session.require();
 
@@ -52,18 +53,22 @@ async function invokeOverTcp(cx: CertStepContext) {
         refusal = e;
     }
 
-    const invoked = await tcpInvokeCheck(cx, tag, ROOT_ENDPOINT, GENERAL_DIAGNOSTICS_ID, TIME_SNAPSHOT_ID, from);
+    const invoked = await tcpInvokeEvidence(cx, tag, ROOT_ENDPOINT, GENERAL_DIAGNOSTICS_ID, TIME_SNAPSHOT_ID, from);
+    const sized =
+        invoked.exchange === undefined ? undefined : await regularSizedRequestCheck(cx, tag, invoked.exchange, from);
+    const alone = invoked.lastLine === undefined ? undefined : await noFurtherSessionCheck(cx, from, invoked.lastLine);
 
     recordAll(cx, [
         { check: () => timeSnapshotResponseCheck(response, refusal), what: "the TH received the command response" },
-        {
-            check: () => invoked,
-            what: "the DUT dispatched the command and answered it on the session step 1 established",
-        },
+        { check: () => invoked.check, what: "the DUT answered it on the session step 1 established" },
+        // Both of the remaining claims are about the interaction the invoke check identified, so
+        // neither can be settled once that check has failed to identify it
+        ...(sized === undefined ? [] : [{ check: () => sized, what: "the request was one MRP could have carried" }]),
+        ...(alone === undefined ? [] : [{ check: () => alone, what: "no further session was established for it" }]),
     ]);
 }
 
-certTest("TC-SC-8.5", {
+certTest("TC-SC-8.7", {
     plan: "securechannel.adoc",
     pics: TCP_PICS,
     app: "all-clusters",
@@ -79,9 +84,14 @@ certTest("TC-SC-8.5", {
             expected: "Verify that the session established with DUT allows large payloads.",
         },
     )
-    .step(2, "TH initiates an InvokeCommandRequest with DUT over the established session", tcpStep(invokeOverTcp), {
-        expected: "Verify Command response received successfully at TH.",
-    })
+    .step(
+        2,
+        "TH initiates a regularly-sized InvokeCommandRequest with DUT, specifying that either a MRP or TCP-based session is usable.",
+        tcpStep(invokeOverExistingSession),
+        {
+            expected: "Verify Command response received successfully at TH over the existing TCP-based session.",
+        },
+    )
     .finalize(async cx => {
         session.clear();
         await commissioned.decommissionAll(cx);

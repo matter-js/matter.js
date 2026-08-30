@@ -4,11 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { CertDevice, CertStepContext, CheckRecord, Subject } from "@matter/testing";
+import type { CertDevice, CertStepContext, CheckRecord, DeviceFlavor, Subject } from "@matter/testing";
 import { LineQueue, LogFollower, PicsFile } from "@matter/testing";
 import {
+    noFurtherSessionCheck,
     recordTcpInvoke,
     recordTcpSession,
+    regularSizedRequestCheck,
     wildcardReadInOneReportCheck,
     TcpSessionRef,
 } from "../cert/tc-sc-8-support.js";
@@ -46,7 +48,11 @@ const invokeResponse = (session = SESSION, exchange = INVOKE_EXCHANGE) =>
     `${at(4)} DEBUG MessageChannel Message » for: I/InvokeResponse id: ${session}(tcp)⇵${exchange}✉018c0504 type: 0x1/0x9 size: 42`;
 
 /** A device whose log is exactly `lines`, and a recorder that keeps what a helper records. */
-async function withDut<T>(lines: string[], body: (cx: CertStepContext, checks: CheckRecord[]) => Promise<T>) {
+async function withDut<T>(
+    lines: string[],
+    body: (cx: CertStepContext, checks: CheckRecord[]) => Promise<T>,
+    flavor: DeviceFlavor = "matterjs",
+) {
     const source = new LineQueue();
     const log = new LogFollower(source.follow(), "dut");
     for (const text of lines) {
@@ -72,7 +78,7 @@ async function withDut<T>(lines: string[], body: (cx: CertStepContext, checks: C
         async backchannel() {},
     } satisfies Subject;
 
-    const dut: CertDevice = { ...subject, flavor: "matterjs", log, exit: new Promise(() => {}) };
+    const dut: CertDevice = { ...subject, flavor, log, exit: new Promise(() => {}) };
 
     const checks = new Array<CheckRecord>();
     const cx: CertStepContext = {
@@ -256,7 +262,7 @@ describe("wildcardReadInOneReportCheck", () => {
     });
 
     it("fails a report line that states no size", async () => {
-        const sizeless = `${at(6)} DEBUG MessageChannel Message » for: I/ReportData suppressResponse attr: 838 id: ${SESSION}(tcp)⇵${EXCHANGE}✉08e2433e type: 0x1/0x5 payload: 1536`;
+        const sizeless = `${at(6)} DEBUG MessageChannel Message » for: I/ReportData suppressResponse attr: 838 id: ${SESSION}(tcp)⇵${EXCHANGE}✉08e2433e type: 0x1/0x5`;
         const checks = await report([wildcardRead(), sizeless]);
 
         expect(checks[0].verdict).equal("fail");
@@ -283,6 +289,111 @@ describe("wildcardReadInOneReportCheck", () => {
         const checks = await report([wildcardRead(OTHER_SESSION), reportData(27432, OTHER_SESSION)]);
 
         expect(checks[0].verdict).equal("fail");
+    });
+});
+
+describe("regularSizedRequestCheck", () => {
+    const invokeMessage = (bytes: number | undefined, session = SESSION, exchange = INVOKE_EXCHANGE) =>
+        `${at(2)} DEBUG MessageExchange Message « for: I/InvokeRequest id: ${session}(tcp)⇵${exchange}✉0ca20aa0 type: 0x1/0x8${bytes === undefined ? "" : ` size: ${bytes} payload: 1528`}`;
+
+    async function sized(lines: string[]) {
+        return withDut(lines, async cx => regularSizedRequestCheck(cx, SESSION, INVOKE_EXCHANGE, 0));
+    }
+
+    it("passes for a request an MRP session could equally have carried", async () => {
+        const check = await sized([invokeMessage(29)]);
+
+        expect(check.verdict).equal("pass");
+        expect(check.detail).contains("29 bytes");
+    });
+
+    it("fails for a request larger than MRP's own payload limit, though smaller than the large-payload floor", async () => {
+        expect((await sized([invokeMessage(1200)])).verdict).equal("fail");
+    });
+
+    it("passes for the largest payload MRP could still have carried", async () => {
+        expect((await sized([invokeMessage(1178)])).verdict).equal("pass");
+    });
+
+    it("fails for a request line stating no size", async () => {
+        expect((await sized([invokeMessage(undefined)])).verdict).equal("fail");
+    });
+
+    it("does not take another session's request", async () => {
+        expect((await sized([invokeMessage(29, OTHER_SESSION)])).verdict).equal("fail");
+    });
+
+    it("does not take another exchange's request", async () => {
+        expect((await sized([invokeMessage(29, SESSION, "2c58")])).verdict).equal("fail");
+    });
+
+    it("keeps the evidence short, though a request line carries its whole payload", async () => {
+        const check = await sized([`${invokeMessage(29)}${"ab".repeat(30000)}`]);
+
+        expect(check.verdict).equal("pass");
+        expect(check.matched?.length).most(300);
+    });
+});
+
+describe("noFurtherSessionCheck", () => {
+    const unrelated = `${at(2)} DEBUG MessageExchange New exchange « ${SESSION}(tcp)⇵2c57 protocol: 1`;
+    const established = (session = OTHER_SESSION) =>
+        `${at(3)} INFO CaseServer ${session}(tcp) New session with @1:86c217a36142d632 2↔1 address: tcp://[fe80::2%en0]«60999`;
+    const resumed = (session = OTHER_SESSION) =>
+        `${at(3)} INFO CaseServer ${session}(tcp) Resumed session with @1:86c217a36142d632 2↔1 address: tcp://[fe80::2%en0]«60999`;
+
+    it("passes when the DUT established no further session while the interaction ran", async () => {
+        const check = await withDut([unrelated, unrelated], async cx => noFurtherSessionCheck(cx, 0, 1));
+
+        expect(check.verdict).equal("pass");
+        expect(check.detail).contains("0 further session");
+    });
+
+    it("fails when a second session was established while the interaction ran", async () => {
+        const check = await withDut([unrelated, established()], async cx => noFurtherSessionCheck(cx, 0, 1));
+
+        expect(check.verdict).equal("fail");
+        expect(check.detail).contains("1 further session");
+    });
+
+    it("fails when a session was resumed while the interaction ran", async () => {
+        const check = await withDut([unrelated, resumed()], async cx => noFurtherSessionCheck(cx, 0, 1));
+
+        expect(check.verdict).equal("fail");
+    });
+
+    it("passes for an attempt the DUT never turned into a session", async () => {
+        const check = await withDut([unrelated, pairingRequest()], async cx => noFurtherSessionCheck(cx, 0, 1));
+
+        expect(check.verdict).equal("pass");
+    });
+
+    it("ignores a session established before the window", async () => {
+        const check = await withDut([established(), unrelated], async cx => noFurtherSessionCheck(cx, 1, 1));
+
+        expect(check.verdict).equal("pass");
+    });
+
+    it("ignores a session established after the interaction", async () => {
+        const check = await withDut([unrelated, established()], async cx => noFurtherSessionCheck(cx, 0, 0));
+
+        expect(check.verdict).equal("pass");
+    });
+
+    it("ignores the runner's own step banner", async () => {
+        await withDut([unrelated], async cx => {
+            const dut = cx.devices.dut;
+            dut.log.annotate("TC-SC-8.7 — CaseServer New session with a peer");
+            await dut.log.settled();
+
+            expect((await noFurtherSessionCheck(cx, 0, dut.log.lines.length - 1)).verdict).equal("pass");
+        });
+    });
+
+    it("states the gap rather than a pass on a device whose log it cannot read", async () => {
+        const check = await withDut([established()], async cx => noFurtherSessionCheck(cx, 0, 0), "chip-local");
+
+        expect(check.verdict).equal("unverified");
     });
 });
 
