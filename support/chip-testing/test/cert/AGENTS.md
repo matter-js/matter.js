@@ -1194,11 +1194,13 @@ What the plan asks to verify, and how each part is evidenced:
   `(U)` unencrypted unicast, `(G)` secure groupcast (`src/messaging/README.md`). `expectUnicastReceipt`
   scans *backward* from the decode dump for the nearest `Msg RX from` line, which is this message's own
   since chip logs one message at a time.
-- **The follow-up is the one this request opened** — matched by chip's own exchange id, read off both
-  messages' receive lines, not by "the next message after the timed request". A retry of this
-  interaction, or a second administrator's own timed interaction with the same TH, otherwise stands in
-  for it: the check then passes on someone else's evidence, or fails on a span measured between two
-  different interactions. This is the same rule the subscription checks follow (see "Anchor a
+- **The follow-up is the one this request opened** — matched by the session *and* exchange chip names
+  on both messages' receive lines (`[E:<exchange> S:<session> …]`), not by "the next message after the
+  timed request". A retry of this interaction, or a second administrator's own timed interaction with
+  the same TH, otherwise stands in for it: the check then passes on someone else's evidence, or fails
+  on a span measured between two different interactions. Both halves are needed because an exchange id
+  is unique only within its session, so a session that re-establishes mid-run can hold one with a
+  number a previous session already used. This is the same rule the subscription checks follow (see "Anchor a
   subscription ack on its own subscription id"), and it is why `expectUnicastReceipt` and the follow-up
   check share one receive-line lookup.
 - **The follow-up carried `timedRequest = true`** — matched by *proximity*, not adjacency: chip prints

@@ -561,6 +561,12 @@ export class ClientStructure {
             this.#pruneDroppedAttributes(cluster, newAttributes, attrs.values);
         }
 
+        if (cluster.behavior && attrs.values.has(ClusterRevision.id)) {
+            if (cluster.revision !== attrs.values.get(ClusterRevision.id)) {
+                cluster.behavior = undefined;
+            }
+        }
+
         if (cluster.behavior && attrs.values.has(FeatureMap.id)) {
             if (!isDeepEqual(cluster.features, attrs.values.get(FeatureMap.id))) {
                 cluster.behavior = undefined;
