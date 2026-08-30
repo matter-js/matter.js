@@ -2379,9 +2379,12 @@ invoke, no large payload — and the step's evidence is what distinguishes the c
   uses.
 - **No further session was established.** `noFurtherSessionCheck` scans the interaction's own span for
   a `CaseServer … New session with` or `… Resumed session with` — over *any* transport, since the
-  failure this guards against is the controller quietly opening an MRP session for a small
-  interaction. Without it, every other check here is equally satisfied by a run that made a second
-  session and used it.
+  failure this guards against is the controller opening an MRP session for a small interaction.
+
+  What it adds is narrower than it looks, and worth stating exactly: the checks above are bound to
+  step 1's own session tag, so an interaction that *travelled* on a second session would already fail
+  them. This one covers the remaining case — a second session created alongside, whether or not this
+  interaction used it — which is what the plan's "use whichever one is available" rules out.
 
   It keys on establishment rather than on the `Pairing request` that precedes it, and the difference
   matters twice: matter.js writes that line before it has read Sigma1, so an attempt the DUT went on to
