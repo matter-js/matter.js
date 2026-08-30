@@ -5,7 +5,7 @@
  */
 
 import { ImplementationError } from "@matter/general";
-import { RunView, Task, TaskDefinition, TaskPersistence } from "./Task.js";
+import { NOT_REVERTIBLE_REASON, RunView, Task, TaskDefinition, TaskPersistence } from "./Task.js";
 import { PlannedChange, RunId } from "./types.js";
 
 export class TaskRegistry {
@@ -40,17 +40,17 @@ export class TaskRegistry {
     }
 
     /**
-     * Whether a run may still be rolled back, asked of its record.
+     * Whether a stored record may still be rolled back.
      *
-     * Takes the view both a live run and a stored record satisfy, so neither has to be converted into the
-     * other to be asked.
+     * Only for a run this process is not running: a live run answers from the definition it was built with, so
+     * a definition registered since cannot overrule it.
      */
     revertible(run: RunView, params: unknown): boolean {
         return this.#definitionFor(run.type).revertible?.(run, params) ?? true;
     }
 
     notRevertibleReason(type: string): string {
-        return this.#definitionFor(type).notRevertibleReason ?? "it has passed its point of no return";
+        return this.#definitionFor(type).notRevertibleReason ?? NOT_REVERTIBLE_REASON;
     }
 
     create(type: string, runId: RunId, slotKey: string, params: unknown, persisted?: Partial<TaskPersistence>): Task {
