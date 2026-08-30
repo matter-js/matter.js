@@ -24,6 +24,9 @@ export interface TaskPersistence {
     revertOf?: RunId;
 }
 
+/** Reason a cancel is declined when a definition states none of its own. */
+export const NOT_REVERTIBLE_REASON = "it has passed its point of no return";
+
 /** How a run reads in a log or an error. A display convention, never an address. */
 export function runLabel(runId: RunId): string {
     return `run #${runId}`;
@@ -156,6 +159,21 @@ export class Task<P = unknown> implements RunView {
 
     get type(): string {
         return this.definition.type;
+    }
+
+    /**
+     * Whether this run may still be rolled back, answered by the definition it was built with.
+     *
+     * Resolving the type again would let a definition registered after this run started decide a question its
+     * own definition already answered — re-registering a type could then roll back work the running definition
+     * declared forward-only.
+     */
+    get revertible(): boolean {
+        return this.definition.revertible?.(this, this.params) ?? true;
+    }
+
+    get notRevertibleReason(): string {
+        return this.definition.notRevertibleReason ?? NOT_REVERTIBLE_REASON;
     }
 
     get phaseIndex(): number {

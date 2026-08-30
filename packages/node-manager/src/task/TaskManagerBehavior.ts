@@ -522,10 +522,12 @@ export class TaskManagerBehavior extends Behavior {
         }
 
         // A task past its point of no return declines cancel with zero side effects (gate untouched, state kept).
-        if (!this.internal.registry.revertible(view, params)) {
-            throw new TaskNotRevertibleError(
-                `${runLabel(view.runId)} is not revertible: ${this.internal.registry.notRevertibleReason(view.type)}`,
-            );
+        // A live run answers from its own definition; only a record has to resolve one by type.
+        const revertible = task !== undefined ? task.revertible : this.internal.registry.revertible(view, params);
+        if (!revertible) {
+            const reason =
+                task !== undefined ? task.notRevertibleReason : this.internal.registry.notRevertibleReason(view.type);
+            throw new TaskNotRevertibleError(`${runLabel(view.runId)} is not revertible: ${reason}`);
         }
 
         // Only now, and only for a finished run: the writable copy exists solely to carry the mutation that
@@ -614,7 +616,7 @@ export class TaskManagerBehavior extends Behavior {
             return NO_REVERT;
         }
         // Past a task's point of no return there is nothing to roll back to; suppress auto-rollback too.
-        if (!this.internal.registry.revertible(task, task.params)) {
+        if (!task.revertible) {
             return NO_REVERT;
         }
         // Already rolled back once: cancel resolves the recorded rollback itself, so there is nothing to
