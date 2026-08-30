@@ -497,6 +497,13 @@ describe("ListManager", () => {
             }, {});
         });
 
+        it("leaves a member that had no list absent when an entry is rejected", async () => {
+            await testMandatoryFabricIndex((_list, ref) => {
+                expect(() => (ref.list = [{ value: 99999 }])).throw();
+                expect(ref.list).undefined;
+            }, {});
+        });
+
         it("supplies the accessing fabric for an entry that omits it", async () => {
             await testMandatoryFabricIndex(list => {
                 list[0] = { value: 3 };
