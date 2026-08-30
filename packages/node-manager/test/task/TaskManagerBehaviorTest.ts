@@ -7,7 +7,7 @@
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { TaskConflictError, TaskFailedError, TaskNotFoundError } from "#task/errors.js";
 import { RotateGroupKey } from "#task/groups/RotateGroupKey.js";
-import { Task, TaskDefinition } from "#task/Task.js";
+import { BoundDefinition, Task, TaskDefinition } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { TaskRegistry } from "#task/TaskRegistry.js";
 import { RetireSeq, RunId } from "#task/types.js";
@@ -105,7 +105,7 @@ describe("TaskManagerBehavior", () => {
         await node.act(async agent => {
             agent.get(TaskManagerBehavior).register(SyntheticTask);
         });
-        await node.act(agent => agent.get(TaskManagerBehavior).run("synthetic", { tag: "ok" }));
+        await node.act(agent => agent.get(TaskManagerBehavior).run(SyntheticTask, { tag: "ok" }));
         await awaitTaskDone(node, "synthetic:ok");
         expect(ran).deep.equals(["a", "b"]);
         const status = await node.act(a => statusOfSlot(a.get(TaskManagerBehavior), "synthetic:ok"));
@@ -118,7 +118,7 @@ describe("TaskManagerBehavior", () => {
         await node.act(async agent => {
             agent.get(TaskManagerBehavior).register(SyntheticTask);
         });
-        const handle = await node.act(agent => agent.get(TaskManagerBehavior).run("synthetic", { tag: "held" }));
+        const handle = await node.act(agent => agent.get(TaskManagerBehavior).run(SyntheticTask, { tag: "held" }));
         expect(handle.status.state).equals("running");
 
         await awaitTaskDone(node, "synthetic:held");
@@ -141,7 +141,7 @@ describe("TaskManagerBehavior", () => {
         ];
         await node.act(agent => agent.get(TaskManagerBehavior).register(SyntheticTask));
 
-        const h1 = await node.act(a => a.get(TaskManagerBehavior).run("synthetic", { tag: "dup" }));
+        const h1 = await node.act(a => a.get(TaskManagerBehavior).run(SyntheticTask, { tag: "dup" }));
         await pumpUntil("first run in flight", () => runs === 1);
 
         try {
@@ -149,7 +149,7 @@ describe("TaskManagerBehavior", () => {
             // parameter, so the live task's outcome is not necessarily the outcome asked for.
             // `act` returns a MaybePromise, so normalize before asserting on the rejection.
             await expect(
-                (async () => node.act(a => a.get(TaskManagerBehavior).run("synthetic", { tag: "dup" })))(),
+                (async () => node.act(a => a.get(TaskManagerBehavior).run(SyntheticTask, { tag: "dup" })))(),
             ).rejectedWith(TaskConflictError);
             expect(runs).equals(1);
             expect(await node.act(a => a.get(TaskManagerBehavior).tasks.length)).equals(1);
@@ -159,7 +159,7 @@ describe("TaskManagerBehavior", () => {
         await awaitTaskDone(node, "synthetic:dup");
 
         // A terminal task does not hold its id, so the request runs again under it.
-        const h3 = await node.act(a => a.get(TaskManagerBehavior).run("synthetic", { tag: "dup" }));
+        const h3 = await node.act(a => a.get(TaskManagerBehavior).run(SyntheticTask, { tag: "dup" }));
         expect(h3.runId).not.equals(h1.runId);
         expect(h3.status.slotKey).equals(h1.status.slotKey);
         await pumpUntil("re-run in flight", () => runs === 2);
@@ -187,13 +187,13 @@ describe("TaskManagerBehavior", () => {
         await node.act(a => a.get(TaskManagerBehavior).register(SyntheticTask));
 
         const first = await node.act(a =>
-            a.get(TaskManagerBehavior).run("synthetic", { tag: "mine" }, { externalId: "owner" }),
+            a.get(TaskManagerBehavior).run(SyntheticTask, { tag: "mine" }, { externalId: "owner" }),
         );
         await pumpUntil("task in flight", () => runs === 1);
 
         try {
             const again = await node.act(a =>
-                a.get(TaskManagerBehavior).run("synthetic", { tag: "mine" }, { externalId: "owner" }),
+                a.get(TaskManagerBehavior).run(SyntheticTask, { tag: "mine" }, { externalId: "owner" }),
             );
             expect(again.runId).equals(first.runId);
             expect(await node.act(a => a.get(TaskManagerBehavior).tasks.length)).equals(1);
@@ -209,7 +209,7 @@ describe("TaskManagerBehavior", () => {
             await expect(
                 (async () =>
                     node.act(a =>
-                        a.get(TaskManagerBehavior).run("synthetic", { tag: "mine" }, { externalId: "other" }),
+                        a.get(TaskManagerBehavior).run(SyntheticTask, { tag: "mine" }, { externalId: "other" }),
                     ))(),
             ).rejectedWith(TaskConflictError);
             expect(runs).equals(1);
@@ -224,7 +224,7 @@ describe("TaskManagerBehavior", () => {
         await using node = await makeNode();
         SyntheticTask.phasesByTag["ext"] = [{ name: "a", run: async () => {} }];
         await node.act(a => a.get(TaskManagerBehavior).register(SyntheticTask));
-        await node.act(a => a.get(TaskManagerBehavior).run("synthetic", { tag: "ext" }, { externalId: "myref" }));
+        await node.act(a => a.get(TaskManagerBehavior).run(SyntheticTask, { tag: "ext" }, { externalId: "myref" }));
         await awaitTaskDone(node, "synthetic:ext");
         const found = await node.act(a => a.get(TaskManagerBehavior).forExternalId("myref"));
         expect(found?.status.externalId).equals("myref");
@@ -235,25 +235,25 @@ describe("TaskManagerBehavior", () => {
         registry.register(RotateGroupKey);
         registry.register(SyntheticTask);
 
+        const rotateParams = { groupKeySetId: 42, newEpochKey: new Uint8Array(16), rotationId: "r1" };
         const rotatableAt = (phaseIndex: number) => {
-            const params = { groupKeySetId: 42, newEpochKey: new Uint8Array(16), rotationId: "r1" };
-            const run = new Task(RotateGroupKey, RunId(1), "rotateGroupKey:42", params, {
+            const run = new Task(new BoundDefinition(RotateGroupKey, rotateParams), RunId(1), "rotateGroupKey:42", {
                 phaseIndex,
                 state: "running",
             });
-            return registry.revertible(run, params);
+            return registry.interpret(run.type, run.params).revertible(run);
         };
         expect(rotatableAt(0)).equals(true); // distribute in flight — new key dormant, revert is clean
         expect(rotatableAt(1)).equals(false); // activate in flight — new key going live, point of no return
         expect(rotatableAt(2)).equals(false); // cleanup in flight
         expect(rotatableAt(3)).equals(false); // completed
 
-        const plain = new Task(SyntheticTask, RunId(1), "synthetic:x", { tag: "x" });
-        expect(registry.revertible(plain, plain.params)).equals(true);
+        const plain = new Task(new BoundDefinition(SyntheticTask, { tag: "x" }), RunId(1), "synthetic:x");
+        expect(registry.interpret(plain.type, plain.params).revertible(plain)).equals(true);
 
         // The generic decline reason must not leak a specific task type's domain language.
-        expect(registry.notRevertibleReason("synthetic")).does.not.contain("rotation");
-        expect(registry.notRevertibleReason("rotateGroupKey")).contains("forward-only");
+        expect(registry.interpret("synthetic", { tag: "x" }).notRevertibleReason).does.not.contain("rotation");
+        expect(registry.interpret("rotateGroupKey", rotateParams).notRevertibleReason).contains("forward-only");
     });
 
     it("suppresses auto-rollback for a non-revertible task but not a revertible one", async () => {
@@ -289,7 +289,7 @@ describe("TaskManagerBehavior", () => {
 
         await node.act(a => {
             const manager = a.get(TaskManagerBehavior);
-            const handle = manager.run("hardFail", { tag: "revertible", revertible: true });
+            const handle = manager.run(HardFail, { tag: "revertible", revertible: true });
             changeSetTarget = liveTask(manager, handle.status.runId);
         });
         await awaitTaskDone(node, "hardFail:revertible");
@@ -305,7 +305,7 @@ describe("TaskManagerBehavior", () => {
 
         await node.act(a => {
             const manager = a.get(TaskManagerBehavior);
-            const handle = manager.run("hardFail", { tag: "final", revertible: false });
+            const handle = manager.run(HardFail, { tag: "final", revertible: false });
             changeSetTarget = liveTask(manager, handle.status.runId);
         });
         await awaitTaskDone(node, "hardFail:final");
@@ -340,10 +340,10 @@ describe("TaskManagerBehavior", () => {
         let outcome: unknown = "hook never ran";
         await node.act(a => {
             const tm = a.get(TracingTaskManager);
-            const handle = tm.run("synthetic", { tag: "race" });
+            const handle = tm.run(SyntheticTask, { tag: "race" });
             onTerminalWrite(tm, handle.status.runId, () => {
                 try {
-                    manager.run("synthetic", { tag: "race" });
+                    manager.run(SyntheticTask, { tag: "race" });
                     outcome = "admitted";
                 } catch (e) {
                     outcome = e;
@@ -364,7 +364,7 @@ describe("TaskManagerBehavior", () => {
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "tm-cancel-unknown" });
         SyntheticTask.phasesByTag["nothing"] = [{ name: "a", run: async () => {} }];
         await node.act(a => a.get(TaskManagerBehavior).register(SyntheticTask));
-        await node.act(a => a.get(TaskManagerBehavior).run("synthetic", { tag: "nothing" }));
+        await node.act(a => a.get(TaskManagerBehavior).run(SyntheticTask, { tag: "nothing" }));
         await awaitTaskDone(node, "synthetic:nothing");
 
         // A task that touched nothing has nothing to roll back, and says so.
@@ -412,7 +412,7 @@ describe("TaskManagerBehavior", () => {
         await using node = await makeNode();
         SyntheticTask.phasesByTag["persist"] = [{ name: "a", run: async () => {} }];
         await node.act(a => a.get(TaskManagerBehavior).register(SyntheticTask));
-        await node.act(a => a.get(TaskManagerBehavior).run("synthetic", { tag: "persist" }));
+        await node.act(a => a.get(TaskManagerBehavior).run(SyntheticTask, { tag: "persist" }));
         await awaitTaskDone(node, "synthetic:persist");
         const persisted = node.stateOf(TaskManagerBehavior).runs;
         const record = requireRecordFor(persisted, "synthetic:persist");

@@ -6,6 +6,7 @@
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { TaskConflictError, TaskIdentityExhaustedError, TaskTypeNotRegisteredError } from "#task/errors.js";
+import { Revert } from "#task/Revert.js";
 import { RUN_ID_RESERVATION, RunStore } from "#task/RunStore.js";
 import { TaskDefinition, TaskPersistence } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
@@ -143,11 +144,11 @@ describe("run identity", () => {
         SyntheticTask.phasesByTag["rerun"] = [{ name: "a", run: async () => {} }];
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
-        const first = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "rerun" }));
+        const first = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "rerun" }));
         await settle(node, "synthetic:rerun");
         const firstRunId = first.status.runId;
 
-        const second = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "rerun" }));
+        const second = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "rerun" }));
         await settle(node, "synthetic:rerun");
 
         expect(second.status.runId).not.equals(firstRunId);
@@ -168,7 +169,7 @@ describe("run identity", () => {
         const peer = TestTaskManager.peers.get("churn")!;
         const runIds = new Array<number>();
         for (let round = 0; round < 2; round++) {
-            const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "churn" }));
+            const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "churn" }));
             runIds.push(handle.runId);
 
             // Cancel only once the phase has actually touched the peer: a run with an empty changeSet has
@@ -205,7 +206,7 @@ describe("run identity", () => {
         SyntheticTask.phasesByTag["retire"] = [{ name: "a", run: async () => {} }];
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
-        await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "retire" }));
+        await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "retire" }));
         await settle(node, "synthetic:retire");
 
         expect(await node.act(a => a.get(TestTaskManager).tasks.length)).equals(0);
@@ -219,7 +220,7 @@ describe("run identity", () => {
         {
             await using node = await makeNode(environment, "restart");
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
-            const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "survive" }));
+            const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "survive" }));
             runId = handle.status.runId;
             await settle(node, "synthetic:survive");
         }
@@ -238,14 +239,14 @@ describe("run identity", () => {
         {
             await using node = await makeNode(environment, "counter");
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
-            const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "counter" }));
+            const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "counter" }));
             firstRunId = handle.status.runId;
             await settle(node, "synthetic:counter");
         }
 
         await using node = await makeNode(environment, "counter");
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
-        const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "counter" }));
+        const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "counter" }));
         expect(handle.status.runId).greaterThan(firstRunId);
     });
 
@@ -263,10 +264,10 @@ describe("run identity", () => {
         // driver has not settled, so it still owns the slot and the re-run must be refused.
         let outcome: unknown = "hook never ran";
         await node.act(a => {
-            const handle = a.get(TestTaskManager).run("synthetic", { tag: "unwind" });
+            const handle = a.get(TestTaskManager).run(SyntheticTask, { tag: "unwind" });
             onTerminalWrite(a.get(TestTaskManager), handle.status.runId, () => {
                 try {
-                    manager.run("synthetic", { tag: "unwind" });
+                    manager.run(SyntheticTask, { tag: "unwind" });
                     outcome = "admitted";
                 } catch (e) {
                     outcome = e;
@@ -287,7 +288,7 @@ describe("run identity", () => {
         {
             await using node = await makeNode(environment, "undo");
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
-            const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "undo" }));
+            const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "undo" }));
             runId = handle.runId;
             await settle(node, "synthetic:undo");
         }
@@ -309,7 +310,7 @@ describe("run identity", () => {
         {
             await using node = await makeNode(environment, "unregistered");
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
-            const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "unregistered" }));
+            const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "unregistered" }));
             runId = handle.runId;
             await settle(node, "synthetic:unregistered");
         }
@@ -330,13 +331,13 @@ describe("run identity", () => {
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
         const held = await node.act(a =>
-            a.get(TestTaskManager).run("synthetic", { tag: "holder" }, { externalId: "mine" }),
+            a.get(TestTaskManager).run(SyntheticTask, { tag: "holder" }, { externalId: "mine" }),
         );
 
         // An external id is one-to-one, so a different slot may not take the name a live run answers to.
         let refusal: unknown;
         try {
-            await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "other" }, { externalId: "mine" }));
+            await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "other" }, { externalId: "mine" }));
         } catch (e) {
             refusal = e;
         }
@@ -352,14 +353,14 @@ describe("run identity", () => {
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
         // Two completed runs of one slot, so the rollback in flight is not the newest run's.
-        const first = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "older" }));
+        const first = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "older" }));
         for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
             await MockTime.advance(1);
         }
         await settle(node, "synthetic:older");
         peer.dropItem("groupMembership", "X");
 
-        const second = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "older" }));
+        const second = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "older" }));
         for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
             await MockTime.advance(1);
         }
@@ -374,7 +375,7 @@ describe("run identity", () => {
         // A rollback rewrites exactly the intents a re-run would re-apply, whichever run of the slot it undoes.
         let refusal: unknown;
         try {
-            await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "older" }));
+            await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "older" }));
         } catch (e) {
             refusal = e;
         }
@@ -388,7 +389,7 @@ describe("run identity", () => {
         SyntheticTask.phasesByTag["recancel"] = [touchPhase("recancel")];
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
-        const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "recancel" }));
+        const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "recancel" }));
         for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
             await MockTime.advance(1);
         }
@@ -411,13 +412,13 @@ describe("run identity", () => {
         SyntheticTask.phasesByTag["norun"] = [touchPhase("norun")];
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
-        const forward = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "norun" }));
+        const forward = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "norun" }));
 
         // Only cancel knows the run's driver has been stopped. A caller able to conjure a rollback could start
         // one against work still writing to a peer, which no admission check can tell from a prepared one.
         let refusal: unknown;
         try {
-            await node.act(a => a.get(TestTaskManager).run("revert", { originalRunId: forward.runId, entries: [] }));
+            await node.act(a => a.get(TestTaskManager).run(Revert, { originalRunId: forward.runId, entries: [] }));
         } catch (e) {
             refusal = e;
         }
@@ -434,7 +435,7 @@ describe("run identity", () => {
         {
             await using node = await makeNode(environment, "norereg");
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
-            const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "norereg" }));
+            const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "norereg" }));
             runId = handle.runId;
             await settle(node, "synthetic:norereg");
             const rollback = await node.act(a => a.get(TestTaskManager).cancel(runId));
@@ -457,7 +458,7 @@ describe("run identity", () => {
 
         const runs = new Array<RunId>();
         for (let round = 0; round < 2; round++) {
-            const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "superseded" }));
+            const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "superseded" }));
             for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
                 await MockTime.advance(1);
             }
@@ -489,7 +490,7 @@ describe("run identity", () => {
         SyntheticTask.phasesByTag["reverseorder"] = [touchPhase("reverseorder")];
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
-        const older = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "reverseorder" }));
+        const older = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "reverseorder" }));
         for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
             await MockTime.advance(1);
         }
@@ -499,7 +500,7 @@ describe("run identity", () => {
         // A newer run takes the slot and is held live on a gate that never settles, so reaching the conflict
         // does not depend on scheduling. Swapped only now, so the older run above still completes and retires.
         SyntheticTask.phasesByTag["reverseorder"] = [gateForever("reverseorder")];
-        const newer = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "reverseorder" }));
+        const newer = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "reverseorder" }));
         expect(newer.runId).not.equals(older.runId);
         await pumpUntil(
             "the newer run owns the slot",
@@ -524,7 +525,7 @@ describe("run identity", () => {
         SyntheticTask.phasesByTag["racecancel"] = [touchPhase("racecancel")];
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
-        const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "racecancel" }));
+        const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "racecancel" }));
         for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
             await MockTime.advance(1);
         }
@@ -553,7 +554,7 @@ describe("run identity", () => {
         {
             await using node = await makeNode(environment, "reserve");
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
-            const first = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "reserve" }));
+            const first = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "reserve" }));
             await settle(node, "synthetic:reserve");
 
             // A second identity is handed out and the process stops before its run is ever recorded — the
@@ -564,7 +565,7 @@ describe("run identity", () => {
 
         await using node = await makeNode(environment, "reserve");
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
-        const next = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "reserve" }));
+        const next = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "reserve" }));
         // The identity was durable when it was issued, so unrelated work cannot be given it after a restart.
         expect(next.runId).greaterThan(issued);
     });
@@ -579,7 +580,7 @@ describe("run identity", () => {
             await using node = await makeNode(environment, "awaiting");
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
             const handle = await node.act(a =>
-                a.get(TestTaskManager).run("synthetic", { tag: "awaiting" }, { externalId: "held" }),
+                a.get(TestTaskManager).run(SyntheticTask, { tag: "awaiting" }, { externalId: "held" }),
             );
             parked = handle.runId;
             await pumpUntil(
@@ -600,7 +601,7 @@ describe("run identity", () => {
 
         let refusal: unknown;
         try {
-            await node.act(a => a.get(TestTaskManager).run("other", { tag: "awaiting" }, { externalId: "held" }));
+            await node.act(a => a.get(TestTaskManager).run(OtherTask, { tag: "awaiting" }, { externalId: "held" }));
         } catch (e) {
             refusal = e;
         }
@@ -624,7 +625,7 @@ describe("run identity", () => {
 
         await using node = await makeNode(environment, "fresh");
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
-        const next = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "fresh" }));
+        const next = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "fresh" }));
         expect(next.runId).greaterThan(issued);
     });
 
@@ -685,7 +686,7 @@ describe("run identity", () => {
             await using node = await makeNode(environment, "unbuildable");
             UnbuildableTask.rejectConstruction = false;
             await node.act(a => a.get(TestTaskManager).register(UnbuildableTask));
-            const handle = await node.act(a => a.get(TestTaskManager).run("unbuildable", { tag: "u" }));
+            const handle = await node.act(a => a.get(TestTaskManager).run(UnbuildableTask, { tag: "u" }));
             parked = handle.runId;
             await pumpUntil(
                 "the run is recorded",
@@ -704,7 +705,7 @@ describe("run identity", () => {
         UnbuildableTask.rejectConstruction = false;
         let refusal: unknown;
         try {
-            await node.act(a => a.get(TestTaskManager).run("unbuildable", { tag: "u" }));
+            await node.act(a => a.get(TestTaskManager).run(UnbuildableTask, { tag: "u" }));
         } catch (e) {
             refusal = e;
         }

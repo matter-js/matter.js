@@ -51,7 +51,7 @@ describe("an item whose kind is not registered", () => {
 
         await controller.act(agent => agent.get(TaskManagerBehavior).register(TypoIntentTask));
         const handle = await controller.act(agent =>
-            agent.get(TaskManagerBehavior).run(TYPO_TYPE, { peerId: PEER_ID }),
+            agent.get(TaskManagerBehavior).run(TypoIntentTask, { peerId: PEER_ID }),
         );
 
         await awaitRun(controller, TaskManagerBehavior, handle.runId, "failed");

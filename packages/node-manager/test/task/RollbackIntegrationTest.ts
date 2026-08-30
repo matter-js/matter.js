@@ -70,7 +70,7 @@ describe("auto-rollback", () => {
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "rb" });
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
-        await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "boom" }));
+        await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "boom" }));
 
         await awaitState(node, "synthetic:boom", "failed");
         const original = requireRecordFor(node.stateOf(TestTaskManager).runs, "synthetic:boom");
@@ -115,7 +115,7 @@ describe("auto-rollback", () => {
             return realReconcile(n, options);
         };
 
-        await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "boom2" }));
+        await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "boom2" }));
 
         await awaitState(node, "synthetic:boom2", "failed");
         const original = requireRecordFor(node.stateOf(TestTaskManager).runs, "synthetic:boom2");

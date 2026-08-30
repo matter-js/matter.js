@@ -122,7 +122,7 @@ describe("Task lifecycle", () => {
 
             const node1 = await makeNode(environment);
             await node1.act(a => a.get(TestTaskManager).register(SyntheticTask));
-            await node1.act(a => a.get(TestTaskManager).run("synthetic", { tag: "resume" }));
+            await node1.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "resume" }));
 
             // Phase 0 completes, then phase 1 gates (device does not "have" the item yet) and suspends.
             await awaitPhase(node1, "synthetic:resume", 1);
@@ -160,7 +160,7 @@ describe("Task lifecycle", () => {
 
             const node1 = await makeNode(environment);
             await node1.act(a => a.get(TestTaskManager).register(SyntheticTask));
-            await node1.act(a => a.get(TestTaskManager).run("synthetic", { tag: "parked" }));
+            await node1.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "parked" }));
             await awaitState(node1, "synthetic:parked", "parked");
             expect(requireRecordFor(node1.stateOf(TestTaskManager).runs, "synthetic:parked").state).equals("parked");
             await node1.close();
@@ -186,7 +186,7 @@ describe("Task lifecycle", () => {
 
             const node1 = await makeNode(environment);
             await node1.act(a => a.get(TestTaskManager).register(SyntheticTask));
-            await node1.act(a => a.get(TestTaskManager).run("synthetic", { tag: "alias" }, { externalId: "owner" }));
+            await node1.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "alias" }, { externalId: "owner" }));
             await awaitState(node1, "synthetic:alias", "parked");
             expect(requireRecordFor(node1.stateOf(TestTaskManager).runs, "synthetic:alias").externalId).equals("owner");
             await node1.close();
@@ -225,7 +225,7 @@ describe("Task lifecycle", () => {
 
             const node = await makeNode(environment);
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
-            await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "reject" }));
+            await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "reject" }));
 
             // The gate parks on its observers: OK commits, R stays pending.
             for (let i = 0; i < 10_000 && !peer.itemRemoved.isObserved; i++) {
@@ -277,7 +277,7 @@ describe("Task lifecycle", () => {
 
             const node = await makeNode(environment);
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
-            await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "cancel" }));
+            await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "cancel" }));
             await awaitState(node, "synthetic:cancel", "completed");
 
             const handle = await node.act(a => cancelSlot(a.get(TestTaskManager), "synthetic:cancel"));
@@ -315,7 +315,7 @@ describe("Task lifecycle", () => {
 
             const node = await makeNode(environment);
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
-            await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "rerun" }));
+            await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "rerun" }));
             await awaitState(node, "synthetic:rerun", "completed");
 
             // The peer goes away, so the rollback parks instead of finishing.
@@ -333,7 +333,7 @@ describe("Task lifecycle", () => {
 
             // Re-running now would re-apply exactly the intents the rollback is removing.
             await expect(
-                (async () => node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "rerun" })))(),
+                (async () => node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "rerun" })))(),
             ).rejectedWith(TaskConflictError);
 
             peer.setReachable(true);
@@ -357,7 +357,7 @@ describe("Task lifecycle", () => {
             const node = await makeNode(environment);
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
             await node.act(a =>
-                a.get(TestTaskManager).run("synthetic", { tag: "aliascancel" }, { externalId: "owner" }),
+                a.get(TestTaskManager).run(SyntheticTask, { tag: "aliascancel" }, { externalId: "owner" }),
             );
             for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
                 await MockTime.advance(1);
@@ -395,7 +395,7 @@ describe("Task lifecycle", () => {
 
             const node = await makeNode(environment);
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
-            await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "inflight" }));
+            await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "inflight" }));
             // Wait until the gate phase has set its intent: the gate is now in-flight and parked on observers.
             for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
                 await MockTime.advance(1);
@@ -443,7 +443,7 @@ describe("Task lifecycle", () => {
 
             const node = await makeNode(environment);
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
-            const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "blockedrollback" }));
+            const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "blockedrollback" }));
 
             // No identity is left for a rollback, so the manager cannot prepare one when this run fails.
             await node.act(a => a.get(TestTaskManager).exhaustIdentities());
@@ -469,7 +469,7 @@ describe("Task lifecycle", () => {
 
             const node = await makeNode(environment);
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
-            const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "blockedcancel" }));
+            const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "blockedcancel" }));
             await awaitState(node, "synthetic:blockedcancel", "parked");
 
             await node.act(a => a.get(TestTaskManager).exhaustIdentities());

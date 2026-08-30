@@ -5,7 +5,7 @@
  */
 
 import { TaskFailedError } from "#task/errors.js";
-import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
+import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
 import { TaskDefinition } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { TaskContext } from "#task/types.js";
@@ -156,7 +156,7 @@ describe("Rollback task integration (single peer)", () => {
         const peer = await subscribedPeer(controller, "peer1");
 
         await controller.act(agent => agent.get(TaskManagerBehavior).register(FailingProvision));
-        await controller.act(agent => agent.get(TaskManagerBehavior).run(FAILING_TYPE, PARAMS));
+        await controller.act(agent => agent.get(TaskManagerBehavior).run(FailingProvision, PARAMS));
         await awaitState(controller, FAILING_ID, "failed");
 
         const revertId = await controller.act(
@@ -192,7 +192,7 @@ describe("Rollback task integration (single peer)", () => {
         });
         const peer = await subscribedPeer(controller, "peer1");
 
-        await controller.act(agent => agent.get(TaskManagerBehavior).run(ADD_NODE_TO_GROUP_TYPE, PARAMS));
+        await controller.act(agent => agent.get(TaskManagerBehavior).run(AddNodeToGroup, PARAMS));
         await awaitState(controller, TASK_ID, "completed");
         expect(isMember(device)).equals(true);
 
@@ -254,7 +254,7 @@ describe("Rollback task integration (single peer)", () => {
         );
         expect(keySetCount(device, GROUP_KEY_SET_ID)).equals(1);
 
-        await controller.act(agent => agent.get(TaskManagerBehavior).run(ADD_NODE_TO_GROUP_TYPE, PARAMS));
+        await controller.act(agent => agent.get(TaskManagerBehavior).run(AddNodeToGroup, PARAMS));
         await awaitState(controller, TASK_ID, "completed");
 
         expect(isMember(device)).equals(true);
@@ -276,7 +276,7 @@ describe("Rollback task integration (single peer)", () => {
         await MockTime.resolve(subscription.active.emit(false), { macrotasks: true });
 
         await controller.act(agent => agent.get(TaskManagerBehavior).register(FailingProvision));
-        await controller.act(agent => agent.get(TaskManagerBehavior).run(FAILING_TYPE, PARAMS));
+        await controller.act(agent => agent.get(TaskManagerBehavior).run(FailingProvision, PARAMS));
         await awaitState(controller, FAILING_ID, "failed");
         await awaitState(
             controller,
@@ -324,13 +324,9 @@ describe("Rollback task integration (single peer)", () => {
         const idEp1 = `${ADD_NODE_TO_GROUP_TYPE}:peer1:${0x101}:1`;
         const idEp2 = `${ADD_NODE_TO_GROUP_TYPE}:peer1:${0x101}:2`;
 
-        await controller.act(agent =>
-            agent.get(TaskManagerBehavior).run(ADD_NODE_TO_GROUP_TYPE, { ...PARAMS, endpoint: 1 }),
-        );
+        await controller.act(agent => agent.get(TaskManagerBehavior).run(AddNodeToGroup, { ...PARAMS, endpoint: 1 }));
         await awaitState(controller, idEp1, "completed");
-        await controller.act(agent =>
-            agent.get(TaskManagerBehavior).run(ADD_NODE_TO_GROUP_TYPE, { ...PARAMS, endpoint: 2 }),
-        );
+        await controller.act(agent => agent.get(TaskManagerBehavior).run(AddNodeToGroup, { ...PARAMS, endpoint: 2 }));
         await awaitState(controller, idEp2, "completed");
 
         await MockTime.resolve(

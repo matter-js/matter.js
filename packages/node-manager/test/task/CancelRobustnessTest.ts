@@ -210,7 +210,7 @@ describe("cancel robustness", () => {
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
         await node.act(a => {
             const manager = a.get(TestTaskManager);
-            traceRun(manager, manager.run("synthetic", { tag: "pregate" }).status.runId);
+            traceRun(manager, manager.run(SyntheticTask, { tag: "pregate" }).status.runId);
         });
         await pumpUntil("admission in flight", () => state.entered);
 
@@ -257,7 +257,7 @@ describe("cancel robustness", () => {
             cancelling = cancelSlot(manager, "synthetic:ctxrace");
         };
         try {
-            await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "ctxrace" }));
+            await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "ctxrace" }));
             await pumpUntil("cancel issued from phase context", () => cancelling !== undefined);
         } finally {
             TestTaskManager.atContext = undefined;
@@ -284,7 +284,7 @@ describe("cancel robustness", () => {
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-durable" });
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
-        await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "durable" }));
+        await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "durable" }));
         await pumpUntil("task complete", async () => {
             const state = await node.act(a => recordFor(a.get(TestTaskManager).state.runs, "synthetic:durable")?.state);
             return state === "completed";
@@ -319,7 +319,7 @@ describe("cancel robustness", () => {
             slowUnwindGatePhase("cx", "groupMembership", "C", async () => {
                 try {
                     rerun = await node.act(a =>
-                        a.get(TestTaskManager).run("synthetic", { tag: "cancelrerun" }, { externalId: "own" }),
+                        a.get(TestTaskManager).run(SyntheticTask, { tag: "cancelrerun" }, { externalId: "own" }),
                     );
                 } catch (e) {
                     rerun = e;
@@ -327,7 +327,7 @@ describe("cancel robustness", () => {
             }),
         ];
 
-        await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "cancelrerun" }, { externalId: "own" }));
+        await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "cancelrerun" }, { externalId: "own" }));
         await pumpUntil("intent written", () => peer.items[itemMapKey("groupMembership", "C")] !== undefined);
 
         const handle = await MockTime.resolve(
@@ -363,7 +363,7 @@ describe("cancel robustness", () => {
         await node1.act(a => a.get(TestTaskManager).register(SyntheticTask));
         await node1.act(a => {
             const manager = a.get(TestTaskManager);
-            traceRun(manager, manager.run("synthetic", { tag: "shutrace" }).status.runId);
+            traceRun(manager, manager.run(SyntheticTask, { tag: "shutrace" }).status.runId);
         });
         await pumpUntil("intent written", () => peer.items[itemMapKey("groupMembership", "S")] !== undefined);
 
@@ -406,7 +406,7 @@ describe("cancel robustness", () => {
         await node1.act(a => {
             manager = a.get(TestTaskManager);
         });
-        traceRun(manager, manager.run("synthetic", { tag: "queued" }).status.runId);
+        traceRun(manager, manager.run(SyntheticTask, { tag: "queued" }).status.runId);
         await pumpUntil("intent written", () => peer.items[itemMapKey("groupMembership", "Q")] !== undefined);
 
         // Hold the mutex so the cancel's write cannot run when it is enqueued, then start shutdown in that window:
@@ -455,7 +455,7 @@ describe("cancel robustness", () => {
         await node.act(a => {
             manager = a.get(TestTaskManager);
         });
-        await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "crashed" }));
+        await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "crashed" }));
         await pumpUntil("task complete", async () => {
             const state = await node.act(a => recordFor(a.get(TestTaskManager).state.runs, "synthetic:crashed")?.state);
             return state === "completed";
@@ -493,7 +493,7 @@ describe("cancel robustness", () => {
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
         await node.act(a => {
             const manager = a.get(TestTaskManager);
-            traceRun(manager, manager.run("synthetic", { tag: "shutfail" }).status.runId);
+            traceRun(manager, manager.run(SyntheticTask, { tag: "shutfail" }).status.runId);
         });
         await pumpUntil("phase in flight", () => phaseEntered);
 
@@ -543,7 +543,7 @@ describe("cancel robustness", () => {
         await node.act(a => {
             manager = a.get(TestTaskManager);
         });
-        await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "failwrite" }));
+        await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "failwrite" }));
         await pumpUntil("phase in flight", () => phaseEntered);
 
         // The task fails against a crashed node, so neither the failure nor a rollback of it can be recorded.
@@ -575,7 +575,7 @@ describe("cancel robustness", () => {
         let started: unknown = "not attempted";
         TestTaskManager.atShutdown = manager => {
             try {
-                started = manager.run("synthetic", { tag: "shutstart" });
+                started = manager.run(SyntheticTask, { tag: "shutstart" });
             } catch (e) {
                 started = e;
             }
@@ -665,7 +665,7 @@ describe("cancel robustness", () => {
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
         await node.act(a => {
             const manager = a.get(TestTaskManager);
-            traceRun(manager, manager.run("synthetic", { tag: "predispose" }).status.runId);
+            traceRun(manager, manager.run(SyntheticTask, { tag: "predispose" }).status.runId);
         });
         await pumpUntil("admission in flight", () => state.entered);
 
@@ -704,7 +704,7 @@ describe("cancel robustness", () => {
         await node.act(a => {
             manager = a.get(TestTaskManager);
         });
-        const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "cancelwrite" }));
+        const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "cancelwrite" }));
 
         // Wait until the phase has touched the peer, so the cancel has a changeSet to roll back.
         for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "W")] === undefined; i++) {
@@ -752,7 +752,7 @@ describe("cancel robustness", () => {
         await node.act(a => {
             manager = a.get(TestTaskManager);
         });
-        const handle = await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "retiredwrite" }));
+        const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "retiredwrite" }));
         await pumpUntil("the run retires", () => manager.tasks.length === 0);
 
         // The node crashes, so the write fails inside the state transaction — after the point where the record

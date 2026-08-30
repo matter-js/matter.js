@@ -24,7 +24,7 @@ import { RotateGroupKey } from "./groups/RotateGroupKey.js";
 import { Revert, REVERT_TYPE } from "./Revert.js";
 import { GateControl, RunningTaskContext } from "./RunningTaskContext.js";
 import { isTerminal, RunStore } from "./RunStore.js";
-import { runKey, runLabel, RunView, Task, TaskDefinition, TaskPersistence } from "./Task.js";
+import { BoundDefinition, runKey, runLabel, RunView, Task, TaskDefinition, TaskPersistence } from "./Task.js";
 import { TaskRegistry } from "./TaskRegistry.js";
 import { PlannedChange, RunId, TaskState, TaskStatus } from "./types.js";
 
@@ -178,7 +178,8 @@ export class TaskManagerBehavior extends Behavior {
                 continue;
             }
             try {
-                const task = this.internal.registry.create(type, record.runId, record.slotKey, record.params, record);
+                const bound = this.internal.registry.interpret(record.type, record.params);
+                const task = new Task(bound, record.runId, record.slotKey, record);
                 this.internal.runs.admit(task);
                 // Dropped from pending only now: a record whose task could not be built is still unfinished
                 // work, and forgetting it here would free its slot and hide it from lookup for this process.
@@ -246,13 +247,19 @@ export class TaskManagerBehavior extends Behavior {
      * an id a live task already holds is refused rather than silently resolving onto work it did not ask for.
      * The `externalId` is also the id the caller can {@link get} and {@link cancel} its task under.
      */
-    run(type: string, params: unknown, opts?: { externalId?: string }): TaskHandle {
-        if (!this.internal.registry.callerCreatable(type)) {
+    run<P>(definition: TaskDefinition<P>, params: P, opts?: { externalId?: string }): TaskHandle {
+        // Resume after a restart has only the type name to go on, so work may not start under a definition the
+        // manager could not find again.
+        if (!this.internal.registry.has(definition.type)) {
+            throw new ImplementationError(`Task type "${definition.type}" must be registered before it is run`);
+        }
+        const bound = new BoundDefinition(definition, params);
+        if (!bound.callerCreatable) {
             throw new ImplementationError(
-                `Task type "${type}" undoes another run and is created by cancel(), not by run()`,
+                `Task type "${definition.type}" undoes another run and is created by cancel(), not by run()`,
             );
         }
-        const { task, joined } = this.#spawn(type, params, { externalId: opts?.externalId });
+        const { task, joined } = this.#spawn(bound, { externalId: opts?.externalId });
         if (!joined) {
             this.#track(task);
         }
@@ -264,8 +271,8 @@ export class TaskManagerBehavior extends Behavior {
      * Registers a new task as live but does not drive it: a task whose record must be durable before it touches a
      * peer starts with {@link #track} once the write lands.
      */
-    #spawn(type: string, params: unknown, seed: Partial<TaskPersistence>): SpawnedTask {
-        const slotKey = this.internal.registry.slotKeyFor(type, params);
+    #spawn(bound: BoundDefinition, seed: Partial<TaskPersistence>): SpawnedTask {
+        const slotKey = bound.slotKey;
         const runs = this.internal.runs;
 
         // Steps run in a fixed order because the order decides which refusal a caller sees, and because a
@@ -327,7 +334,7 @@ export class TaskManagerBehavior extends Behavior {
         // 6. A rollback contends for the slot of the run it undoes, not for its own: its slot is unique per
         //    run, so checking that alone would let two rollbacks of one slot, or a rollback and the newer run
         //    that now owns the slot, rewrite the same intents at once.
-        const undone = this.internal.registry.undoes(type, params);
+        const undone = bound.undoes;
         if (undone !== undefined) {
             const undoneSlot = (runs.liveRun(undone) ?? runs.retiredRun(undone) ?? runs.pendingRun(undone))?.slotKey;
             if (undoneSlot !== undefined) {
@@ -358,7 +365,7 @@ export class TaskManagerBehavior extends Behavior {
             }
         }
 
-        const task = this.internal.registry.create(type, runs.allocate(), slotKey, params, seed);
+        const task = new Task(bound, runs.allocate(), slotKey, seed);
         runs.admit(task);
         return { task, joined: false };
     }
@@ -477,7 +484,12 @@ export class TaskManagerBehavior extends Behavior {
                 `Cannot act on ${runLabel(record.runId)}: task type "${record.type}" is not registered`,
             );
         }
-        return this.internal.registry.create(record.type, record.runId, record.slotKey, record.params, record);
+        return new Task(
+            this.internal.registry.interpret(record.type, record.params),
+            record.runId,
+            record.slotKey,
+            record,
+        );
     }
 
     /**
@@ -523,11 +535,9 @@ export class TaskManagerBehavior extends Behavior {
 
         // A task past its point of no return declines cancel with zero side effects (gate untouched, state kept).
         // A live run answers from its own definition; only a record has to resolve one by type.
-        const revertible = task !== undefined ? task.revertible : this.internal.registry.revertible(view, params);
-        if (!revertible) {
-            const reason =
-                task !== undefined ? task.notRevertibleReason : this.internal.registry.notRevertibleReason(view.type);
-            throw new TaskNotRevertibleError(`${runLabel(view.runId)} is not revertible: ${reason}`);
+        const bound = task?.bound ?? this.internal.registry.interpret(view.type, params);
+        if (!bound.revertible(view)) {
+            throw new TaskNotRevertibleError(`${runLabel(view.runId)} is not revertible: ${bound.notRevertibleReason}`);
         }
 
         // Only now, and only for a finished run: the writable copy exists solely to carry the mutation that
@@ -630,8 +640,7 @@ export class TaskManagerBehavior extends Behavior {
         // `revertOf` is seeded on every rollback the manager creates, retries included: it is the identity
         // link that refuses a re-run of the original, and a rollback that lacks it excludes nothing.
         const { task: revert, joined } = this.#spawn(
-            REVERT_TYPE,
-            { originalRunId: task.runId, entries: task.changeSet },
+            new BoundDefinition(Revert, { originalRunId: task.runId, entries: task.changeSet }),
             { revertOf: task.runId },
         );
         task.revertRunId = revert.runId;
@@ -671,7 +680,7 @@ export class TaskManagerBehavior extends Behavior {
      * Runs before the first persist/phase; the thrown error ends the task `failed` with an empty changeSet.
      */
     async #admit(task: Task): Promise<void> {
-        const planned = this.internal.registry.plannedChanges(task.type, task.params);
+        const planned = task.bound.plannedChanges();
         if (planned.length === 0) {
             return;
         }

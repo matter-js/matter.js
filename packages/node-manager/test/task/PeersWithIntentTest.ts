@@ -6,7 +6,7 @@
 
 import { ReconcilerSurface } from "#reconcile/ReconcilerSurface.js";
 import { RunningTaskContext } from "#task/RunningTaskContext.js";
-import { Task, TaskDefinition } from "#task/Task.js";
+import { BoundDefinition, Task, TaskDefinition } from "#task/Task.js";
 import { TaskPhase, TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
 import { FakePeer } from "./helpers.js";
@@ -36,7 +36,7 @@ describe("peersWithIntent", () => {
         e.addItem("groupKey", "43", "committed"); // live, but a different key
 
         const all = [a, b, c, d, e];
-        const task = new Task(PwiTask, RunId(1), "pwi-test:1", {});
+        const task = new Task(new BoundDefinition(PwiTask, {}), RunId(1), "pwi-test:1");
         const ctx = new RunningTaskContext(
             task,
             id => all.find(p => p.id === id)?.asNode(),

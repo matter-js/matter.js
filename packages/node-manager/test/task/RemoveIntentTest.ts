@@ -5,7 +5,7 @@
  */
 
 import { RunningTaskContext } from "#task/RunningTaskContext.js";
-import { Task, TaskDefinition } from "#task/Task.js";
+import { BoundDefinition, Task, TaskDefinition } from "#task/Task.js";
 import { TaskPhase, TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
 import { itemMapKey } from "@matter/node";
@@ -18,7 +18,7 @@ const CtxTask: TaskDefinition = {
 };
 
 function makeContext(peer: FakePeer, referenced: boolean) {
-    const task = new Task(CtxTask, RunId(1), "ctx-test:1", {});
+    const task = new Task(new BoundDefinition(CtxTask, {}), RunId(1), "ctx-test:1");
     const setState = (s: TaskState) => {
         task.progress.state = s;
     };
