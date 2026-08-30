@@ -6,7 +6,8 @@
 
 import { ImplementationError } from "@matter/general";
 import { TaskIdentityExhaustedError } from "./errors.js";
-import { runKey, RunRecord, Task, TaskPersistence } from "./Task.js";
+import { Execution } from "./Execution.js";
+import { runKey, RunRecord, TaskPersistence } from "./Task.js";
 import { RetireSeq, RunId, TaskState } from "./types.js";
 
 const TERMINAL_STATES: ReadonlySet<TaskState> = new Set<TaskState>(["completed", "failed", "cancelled"]);
@@ -53,12 +54,12 @@ export class RunStore {
     readonly #records = new Map<RunId, RunRecord>();
 
     /**
-     * Runs this process has instantiated. A record without one is awaiting resume: unfinished work whose type
-     * nothing has registered yet, or whose node is not online. It still holds its slot, because a record that
-     * were invisible could have its slot taken by new work and would then never resume, orphaning the intents
-     * it already wrote.
+     * Runs this process is responsible for. A record without one is awaiting resume: unfinished work whose
+     * type nothing has registered yet, or whose node is not online. It still holds its slot, because a record
+     * that were invisible could have its slot taken by new work and would then never resume, orphaning the
+     * intents it already wrote.
      */
-    readonly #tasks = new Map<RunId, Task>();
+    readonly #executions = new Map<RunId, Execution>();
 
     /**
      * Who owns each slot. Maintained rather than derived: a slot is released at the retirement commit, and
@@ -149,14 +150,19 @@ export class RunStore {
         return this.#records.get(runId);
     }
 
-    /** The run this process instantiated for `runId`, if it did. */
-    taskOf(runId: RunId): Task | undefined {
-        return this.#tasks.get(runId);
+    /** This process's responsibility for `runId`, if it has one. */
+    executionOf(runId: RunId): Execution | undefined {
+        return this.#executions.get(runId);
     }
 
-    /** Whether this process is driving `runId` rather than merely holding its record. */
-    isInstantiated(runId: RunId): boolean {
-        return this.#tasks.has(runId);
+    /** Whether this process is responsible for `runId` rather than merely holding its record. */
+    isAttached(runId: RunId): boolean {
+        return this.#executions.has(runId);
+    }
+
+    /** Every run this process is responsible for. */
+    get executions(): Execution[] {
+        return [...this.#executions.values()];
     }
 
     /** The run that owns `slotKey`, driving or awaiting resume. */
@@ -176,7 +182,7 @@ export class RunStore {
     /** Records awaiting resume, in ascending runId — the only order defined for resume. */
     get resumable(): RunRecord[] {
         return [...this.#records.values()]
-            .filter(record => !isTerminal(record.state) && !this.#tasks.has(record.runId))
+            .filter(record => !isTerminal(record.state) && !this.#executions.has(record.runId))
             .sort((a, b) => a.runId - b.runId);
     }
 
@@ -216,7 +222,7 @@ export class RunStore {
     }
 
     /** Register a run and give it ownership of its slot. In memory only: nothing is durable yet. */
-    admit(record: RunRecord, task?: Task): void {
+    admit(record: RunRecord, execution?: Execution): void {
         const owner = this.#slots.get(record.slotKey);
         if (owner !== undefined && owner !== record.runId) {
             throw new ImplementationError(
@@ -225,17 +231,24 @@ export class RunStore {
         }
         this.#records.set(record.runId, record);
         this.#slots.set(record.slotKey, record.runId);
-        if (task !== undefined) {
-            this.#tasks.set(record.runId, task);
+        if (execution !== undefined) {
+            this.#executions.set(record.runId, execution);
         }
     }
 
-    /** Note that this process has instantiated a record it already holds. */
-    instantiate(task: Task): void {
-        if (!this.#records.has(task.runId)) {
-            throw new ImplementationError(`Run ${task.runId} has no record to instantiate`);
+    /** Take responsibility for a record this store already holds. */
+    attach(execution: Execution): void {
+        // Identity, not merely presence: an execution over a record the table replaced would write a run's
+        // progress into an object nothing else reads.
+        if (this.#records.get(execution.runId) !== execution.record) {
+            throw new ImplementationError(`Run ${execution.runId} has no record to drive`);
         }
-        this.#tasks.set(task.runId, task);
+        this.#executions.set(execution.runId, execution);
+    }
+
+    /** Give up responsibility without retiring — a run left for the next start. */
+    detach(runId: RunId): void {
+        this.#executions.delete(runId);
     }
 
     /**
@@ -256,7 +269,7 @@ export class RunStore {
         if (this.#slots.get(record.slotKey) === record.runId) {
             this.#slots.delete(record.slotKey);
         }
-        this.#tasks.delete(record.runId);
+        this.#executions.delete(record.runId);
     }
 
     /** Drop a retirement whose record never landed. The run keeps its slot and stays exactly as it was. */
@@ -267,7 +280,7 @@ export class RunStore {
     /** Forget a run that was never persisted, so a refused write leaves nothing for a later resume to find. */
     discard(record: RunRecord): void {
         this.#records.delete(record.runId);
-        this.#tasks.delete(record.runId);
+        this.#executions.delete(record.runId);
         if (this.#slots.get(record.slotKey) === record.runId) {
             this.#slots.delete(record.slotKey);
         }

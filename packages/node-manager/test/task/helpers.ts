@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Task, TaskDefinition, TaskPersistence } from "#task/Task.js";
+import { RunRecord, TaskDefinition, TaskPersistence } from "#task/Task.js";
 import { TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { PlannedChange, RunId, TaskPhase, TaskStatus } from "#task/types.js";
 import { Immutable, InternalError, Observable } from "@matter/general";
@@ -39,36 +39,36 @@ export const SyntheticTask: TaskDefinition<{ tag: string }> & {
 };
 
 /**
- * The live Task the manager built for `runId`. Valid in the synchronous continuation right after `run()`
- * returns, before any phase has had a chance to advance the driver past this tick.
+ * The record backing the run this process is driving for `runId`. Valid in the synchronous continuation right
+ * after `run()` returns, before any phase has had a chance to advance the driver past this tick.
  */
-export function liveTask(manager: TaskManagerBehavior, runId: RunId): Task {
-    const task = manager.internal.runs.taskOf(runId);
-    if (task === undefined) {
+export function liveRecord(manager: TaskManagerBehavior, runId: RunId): RunRecord {
+    const execution = manager.internal.runs.executionOf(runId);
+    if (execution === undefined) {
         throw new InternalError(`No live run #${runId}`);
     }
-    return task;
+    return execution.record;
 }
 
 /**
- * Runs `hook` with every record one task writes, by patching that instance alone — so a test observes the run
- * it started and not every run of its type.
+ * Runs `hook` with every persisted snapshot one record writes, by patching that instance alone — so a test
+ * observes the run it started and not every run of its type.
  */
-export function onPersisted(task: Task, hook: (record: TaskPersistence) => void): void {
-    const original = task.toPersistence.bind(task);
-    task.toPersistence = () => {
-        const record = original();
-        hook(record);
-        return record;
+export function onPersisted(record: RunRecord, hook: (persisted: TaskPersistence) => void): void {
+    const original = record.toPersistence.bind(record);
+    record.toPersistence = () => {
+        const persisted = original();
+        hook(persisted);
+        return persisted;
     };
 }
 
-/** Fires `onCompleted` once, the first time `runId`'s task persists a "completed" record — after the task is
- * terminal but before its driver settles and hands back the slot. */
+/** Fires `onCompleted` once, the first time `runId`'s record persists a "completed" snapshot — after the run
+ * is terminal but before its driver settles and hands back the slot. */
 export function onTerminalWrite(manager: TaskManagerBehavior, runId: RunId, onCompleted: () => void): void {
     let fired = false;
-    onPersisted(liveTask(manager, runId), record => {
-        if (!fired && record.state === "completed") {
+    onPersisted(liveRecord(manager, runId), persisted => {
+        if (!fired && persisted.state === "completed") {
             fired = true;
             onCompleted();
         }
@@ -266,26 +266,26 @@ export class FakePeer {
 
 /** Behavior state reaches a test through the project's deep-immutable view, so helpers read that shape. */
 type RunRecords = Immutable<Record<string, TaskPersistence>>;
-type RunRecord = Immutable<TaskPersistence>;
+type PersistedRecord = Immutable<TaskPersistence>;
 
 /**
  * Persisted records for a slot, newest run first. Records are per-run now, so a slot can hold several; a test
  * that means "the record for this slot" wants {@link recordFor}, and one that means a specific attempt should
  * name its runId.
  */
-export function recordsFor(runs: RunRecords, slotKey: string): readonly RunRecord[] {
+export function recordsFor(runs: RunRecords, slotKey: string): readonly PersistedRecord[] {
     return Object.values(runs)
         .filter(r => r.slotKey === slotKey)
         .sort((a, b) => b.runId - a.runId);
 }
 
 /** The newest persisted record for a slot, or undefined if no run of it was ever recorded. */
-export function recordFor(runs: RunRecords, slotKey: string): RunRecord | undefined {
+export function recordFor(runs: RunRecords, slotKey: string): PersistedRecord | undefined {
     return recordsFor(runs, slotKey)[0];
 }
 
 /** The newest record for a slot, failing with the slot name when there is none. */
-export function requireRecordFor(runs: RunRecords, slotKey: string): RunRecord {
+export function requireRecordFor(runs: RunRecords, slotKey: string): PersistedRecord {
     const record = recordFor(runs, slotKey);
     if (record === undefined) {
         throw new Error(`No persisted run of slot ${slotKey}`);
@@ -301,13 +301,13 @@ export function requireRecordFor(runs: RunRecords, slotKey: string): RunRecord {
  * then be checking the predicate that selected it, which is how a migration ends up with a test that cannot
  * fail. Resolving through the forward link keeps the two sides independent.
  */
-export function revertRecordOf(runs: RunRecords, slotKey: string): RunRecord | undefined {
+export function revertRecordOf(runs: RunRecords, slotKey: string): PersistedRecord | undefined {
     const revertRunId = recordFor(runs, slotKey)?.revertRunId;
     return revertRunId === undefined ? undefined : runs[String(revertRunId)];
 }
 
 /** Every persisted rollback of any run of `slotKey`, for asserting that none exists. */
-export function revertRecordsOf(runs: RunRecords, slotKey: string): readonly RunRecord[] {
+export function revertRecordsOf(runs: RunRecords, slotKey: string): readonly PersistedRecord[] {
     const undone = new Set(recordsFor(runs, slotKey).map(r => r.runId));
     return Object.values(runs).filter(r => r.revertOf !== undefined && undone.has(r.revertOf));
 }

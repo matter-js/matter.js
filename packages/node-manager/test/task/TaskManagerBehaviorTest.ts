@@ -7,7 +7,7 @@
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { TaskConflictError, TaskFailedError, TaskNotFoundError } from "#task/errors.js";
 import { RotateGroupKey } from "#task/groups/RotateGroupKey.js";
-import { BoundDefinition, Task, TaskDefinition, RunRecord } from "#task/Task.js";
+import { TaskDefinition, RunRecord } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { TaskRegistry } from "#task/TaskRegistry.js";
 import { RetireSeq, RunId, TaskPhase } from "#task/types.js";
@@ -17,7 +17,7 @@ import { MockServerNode } from "@matter/node/testing";
 import {
     cancelSlot,
     handleOfSlot,
-    liveTask,
+    liveRecord,
     onTerminalWrite,
     recordFor,
     requireRecordFor,
@@ -33,9 +33,10 @@ const RootEndpoint = MockServerNode.RootEndpoint.with(TaskManagerBehavior);
 class TracingTaskManager extends TaskManagerBehavior {
     static override readonly schema = TaskManagerBehavior.schema;
 
-    /** True while a drive of `id` owns this id's gate and driving entries. */
+    /** True while a drive of `id` has not settled. */
     isDriven(runId: RunId): boolean {
-        return this.internal.driving.has(runId) && this.internal.gates.has(runId);
+        const execution = this.internal.runs.executionOf(runId);
+        return execution !== undefined && !execution.settled;
     }
 }
 
@@ -261,25 +262,19 @@ describe("TaskManagerBehavior", () => {
 
         const rotateParams = { groupKeySetId: 42, newEpochKey: new Uint8Array(16), rotationId: "r1" };
         const rotatableAt = (phaseIndex: number) => {
-            const run = new Task(
-                new BoundDefinition(RotateGroupKey, rotateParams),
-                new RunRecord(RunId(1), "rotateGroupKey:42", RotateGroupKey.type, rotateParams, {
-                    phaseIndex,
-                    state: "running",
-                }),
-            );
-            return registry.interpret(run.type, run.params).revertible(run.record);
+            const record = new RunRecord(RunId(1), "rotateGroupKey:42", RotateGroupKey.type, rotateParams, {
+                phaseIndex,
+                state: "running",
+            });
+            return registry.interpret(record.type, record.params).revertible(record);
         };
         expect(rotatableAt(0)).equals(true); // distribute in flight — new key dormant, revert is clean
         expect(rotatableAt(1)).equals(false); // activate in flight — new key going live, point of no return
         expect(rotatableAt(2)).equals(false); // cleanup in flight
         expect(rotatableAt(3)).equals(false); // completed
 
-        const plain = new Task(
-            new BoundDefinition(SyntheticTask, { tag: "x" }),
-            new RunRecord(RunId(1), "synthetic:x", SyntheticTask.type, { tag: "x" }),
-        );
-        expect(registry.interpret(plain.type, plain.params).revertible(plain)).equals(true);
+        const plainRecord = new RunRecord(RunId(1), "synthetic:x", SyntheticTask.type, { tag: "x" });
+        expect(registry.interpret(plainRecord.type, plainRecord.params).revertible(plainRecord)).equals(true);
 
         // The generic decline reason must not leak a specific task type's domain language.
         expect(registry.interpret("synthetic", { tag: "x" }).notRevertibleReason).does.not.contain("rotation");
@@ -289,10 +284,10 @@ describe("TaskManagerBehavior", () => {
     it("suppresses auto-rollback for a non-revertible task but not a revertible one", async () => {
         await using node = await makeNode();
 
-        // The phase needs a changeSet entry so a failure has something to roll back, but has no peer to
-        // record one through `ctx.setIntent`. Task is concrete now, so this reaches into the live instance the
-        // manager already built (as `onPersisted`/`liveTask` do elsewhere) rather than pushing via `this`.
-        let changeSetTarget: Task | undefined;
+        // The phase needs a changeSet entry so a failure has something to roll back, but has no peer to record
+        // one through `ctx.setIntent`. It reaches into the record the manager already built (as
+        // `onTerminalWrite`/`liveRecord` do elsewhere), fetched via `changeSetTarget` after `run()` returns.
+        let changeSetTarget: RunRecord | undefined;
 
         const HardFail: TaskDefinition<{ tag: string; revertible: boolean }> = {
             type: "hardFail",
@@ -320,7 +315,7 @@ describe("TaskManagerBehavior", () => {
         await node.act(a => {
             const manager = a.get(TaskManagerBehavior);
             const handle = manager.run(HardFail, { tag: "revertible", revertible: true });
-            changeSetTarget = liveTask(manager, handle.status.runId);
+            changeSetTarget = liveRecord(manager, handle.status.runId);
         });
         await awaitTaskDone(node, "hardFail:revertible");
         const revertible = await node.act(a => statusOfSlot(a.get(TaskManagerBehavior), "hardFail:revertible"));
@@ -336,7 +331,7 @@ describe("TaskManagerBehavior", () => {
         await node.act(a => {
             const manager = a.get(TaskManagerBehavior);
             const handle = manager.run(HardFail, { tag: "final", revertible: false });
-            changeSetTarget = liveTask(manager, handle.status.runId);
+            changeSetTarget = liveRecord(manager, handle.status.runId);
         });
         await awaitTaskDone(node, "hardFail:final");
         const nonRevertible = await node.act(a => statusOfSlot(a.get(TaskManagerBehavior), "hardFail:final"));

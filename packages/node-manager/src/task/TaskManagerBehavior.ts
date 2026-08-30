@@ -5,7 +5,7 @@
  */
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
-import { asError, ImplementationError, Lifecycle, Logger, Mutex, Observable } from "@matter/general";
+import { asError, ImplementationError, Lifecycle, Logger, Mutex } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import { Agent, Behavior, ClientNode, DesiredStateBehavior, itemMapKey, Node, ServerNode } from "@matter/node";
 import {
@@ -18,23 +18,14 @@ import {
     TaskSuspendedSignal,
     TaskTypeNotRegisteredError,
 } from "./errors.js";
+import { Execution, GateState } from "./Execution.js";
 import { AddNodeToGroup } from "./groups/AddNodeToGroup.js";
 import { RemoveNodeFromGroup } from "./groups/RemoveNodeFromGroup.js";
 import { RotateGroupKey } from "./groups/RotateGroupKey.js";
 import { Revert, REVERT_TYPE } from "./Revert.js";
 import { GateControl, RunningTaskContext } from "./RunningTaskContext.js";
 import { isTerminal, RunStore } from "./RunStore.js";
-import {
-    BoundDefinition,
-    runKey,
-    runLabel,
-    RunRecord,
-    RunView,
-    statusOf,
-    Task,
-    TaskDefinition,
-    TaskPersistence,
-} from "./Task.js";
+import { BoundDefinition, runKey, runLabel, RunRecord, statusOf, TaskDefinition, TaskPersistence } from "./Task.js";
 import { TaskRegistry } from "./TaskRegistry.js";
 import { PlannedChange, RunId, TaskState, TaskStatus } from "./types.js";
 
@@ -52,7 +43,7 @@ export interface TaskHandle {
  * rollback whose record was refused, {@link start} begins driving one whose record is durable.
  */
 interface PreparedRevert {
-    readonly task?: Task;
+    readonly record?: RunRecord;
     discard(): void;
     start(): void;
 }
@@ -61,8 +52,8 @@ interface PreparedRevert {
 const NO_REVERT: PreparedRevert = { discard() {}, start() {} };
 
 /** A task registered as live, and whether the caller joined a live task that is already being driven. */
-interface SpawnedTask {
-    task: Task;
+interface SpawnedExecution {
+    execution: Execution;
     joined: boolean;
 }
 
@@ -94,7 +85,6 @@ export class TaskManagerBehavior extends Behavior {
         this.endpoint.behaviors.require(ReconcilerBehavior);
         this.internal.registry = new TaskRegistry();
         this.internal.runs = new RunStore();
-        this.internal.gates = new Map();
         const { discarded } = this.internal.runs.load({
             runs: this.state.runs,
             nextRunId: this.state.nextRunId,
@@ -190,11 +180,9 @@ export class TaskManagerBehavior extends Behavior {
             }
             try {
                 const bound = this.internal.registry.interpret(record.type, record.params);
-                const task = new Task(bound, record);
-                // A record whose task cannot be built stays awaiting resume: it is still unfinished work, and
-                // forgetting it would free its slot and hide it from lookup for this process.
-                this.internal.runs.instantiate(task);
-                this.#redrive(task);
+                // A record whose definition cannot be bound stays awaiting resume: it is still unfinished work,
+                // and forgetting it would free its slot and hide it from lookup for this process.
+                this.#redrive(record, bound);
             } catch (e) {
                 logger.error(`Cannot resume run ${record.runId}`, e);
             }
@@ -202,53 +190,49 @@ export class TaskManagerBehavior extends Behavior {
     }
 
     /**
-     * Begin (or resume) driving a live non-terminal task. A `parked` task becomes `running` first: {@link #drive}
-     * only advances a running task, and the phase's gate re-parks from live reachability if the peer is still gone.
+     * Begin (or resume) driving a live non-terminal run. A `parked` run becomes `running` first: {@link #drive}
+     * only advances a running run, and the phase's gate re-parks from live reachability if the peer is still gone.
+     *
+     * Builds a fresh {@link Execution} so this drive gets its own gate: one recorded for an earlier drive of the
+     * same run (e.g. an abort this redrive is recovering from) must not carry over.
      */
-    #redrive(task: Task): void {
-        if (task.progress.state === "parked") {
-            task.progress.state = "running";
+    #redrive(record: RunRecord, bound: BoundDefinition): void {
+        if (record.state === "parked") {
+            record.state = "running";
         }
-        this.#track(task);
+        const execution = new Execution(record, bound);
+        this.internal.runs.attach(execution);
+        this.#track(execution);
     }
 
-    // The gate must exist before driving starts — it is the only home for an abort reason, so a cancel or shutdown
-    // arriving before the first phase builds its gate would otherwise be discarded. It is created fresh so an abort
-    // recorded for an earlier run of this id cannot carry over.
-    #track(task: Task): void {
-        this.internal.gates.set(task.runId, { wake: new Observable() });
-        const drivePromise: Promise<void> = this.#drive(task).finally(() => this.#retire(task));
-        this.internal.driving.set(task.runId, drivePromise);
+    #track(execution: Execution): void {
+        execution.promise = this.#drive(execution).finally(() => {
+            execution.settled = true;
+            this.#retire(execution);
+        });
     }
 
     /**
      * Release a settled run: hand back its slot and drop its bookkeeping.
      *
-     * The slot is released here rather than when the state turned terminal, because a task is terminal before
+     * The slot is released here rather than when the state turned terminal, because a run is terminal before
      * its driver stops: a re-run admitted any earlier would start writing to the peer while this run's unwind
      * is still in flight. The retirement order is stamped when the outcome is assigned and travels with the
      * write that records it, so nothing is written here.
      */
-    #retire(task: Task): void {
-        try {
-            // A cancel awaiting this driver owns the run's terminal state, so it owns the retirement too: the
-            // run is still `running` here, and retiring it now would record it mid-cancel.
-            if (this.internal.cancelling.has(task.runId)) {
-                return;
-            }
-            // A non-terminal run otherwise reaches here through shutdown, which leaves it for the next start.
-            // An outcome whose write was refused carries no stamp, so the run keeps its slot rather than
-            // retiring behind a record storage does not have.
-            if (!isTerminal(task.progress.state) || task.retireSeq === undefined) {
-                return;
-            }
-            this.internal.runs.commitRetirement(task);
-        } finally {
-            // Cleared last: a run is not settled until its retirement is, and an observer that watches the
-            // driver would otherwise see it finish while the slot is still momentarily released.
-            this.internal.driving.delete(task.runId);
-            this.internal.gates.delete(task.runId);
+    #retire(execution: Execution): void {
+        // A cancel awaiting this driver owns the run's terminal state, so it owns the retirement too: the run
+        // is still `running` here, and retiring it now would record it mid-cancel.
+        if (execution.cancelling) {
+            return;
         }
+        // A non-terminal run otherwise reaches here through shutdown, which leaves it for the next start. An
+        // outcome whose write was refused carries no stamp, so the run keeps its slot rather than retiring
+        // behind a record storage does not have.
+        if (!isTerminal(execution.record.state) || execution.record.retireSeq === undefined) {
+            return;
+        }
+        this.internal.runs.commitRetirement(execution.record);
     }
 
     /**
@@ -276,19 +260,19 @@ export class TaskManagerBehavior extends Behavior {
                 `Task type "${definition.type}" undoes another run and is created by cancel(), not by run()`,
             );
         }
-        const { task, joined } = this.#spawn(bound, { externalId: opts?.externalId });
+        const { execution, joined } = this.#spawn(bound, { externalId: opts?.externalId });
         if (!joined) {
-            this.#track(task);
+            this.#track(execution);
         }
-        return this.#handle(task);
+        return this.#handle(execution.record);
     }
 
     /**
      * Shared creation path so callers (e.g. #prepareRevert) can seed persisted fields before the first persist.
-     * Registers a new task as live but does not drive it: a task whose record must be durable before it touches a
+     * Registers a new run as live but does not drive it: a run whose record must be durable before it touches a
      * peer starts with {@link #track} once the write lands.
      */
-    #spawn(bound: BoundDefinition, seed: Partial<TaskPersistence>): SpawnedTask {
+    #spawn(bound: BoundDefinition, seed: Partial<TaskPersistence>): SpawnedExecution {
         const slotKey = bound.slotKey;
         const runs = this.internal.runs;
 
@@ -299,21 +283,30 @@ export class TaskManagerBehavior extends Behavior {
         // 1. Driving started now would outlive the dispose drain and write to peers after close.
         this.#refuseIfClosing(`Task ${slotKey} cannot start`);
 
-        // 2. The slot has one owner, whether or not this process has instantiated it. A record awaiting resume
+        // 2. The slot has one owner, whether or not this process has attached to it. A record awaiting resume
         //    still owns its slot: letting new work take it would leave that run unresumable and its
         //    already-written intents with no owner.
         const owner = runs.ownerOf(slotKey);
         if (owner !== undefined) {
-            const ownerTask = runs.taskOf(owner.runId);
-            if (ownerTask === undefined) {
+            const ownerExecution = runs.executionOf(owner.runId);
+            if (ownerExecution === undefined) {
                 throw new TaskConflictError(
                     `Task ${slotKey} rejected: ${runLabel(owner.runId)} holds this slot and is awaiting resume; register its type "${owner.type}" to continue it`,
                     owner.runId,
                 );
             }
-            if (this.internal.cancelling.has(owner.runId)) {
+            if (ownerExecution.cancelling) {
                 throw new TaskConflictError(
                     `Task ${slotKey} rejected: a cancel of ${runLabel(owner.runId)} is still in flight`,
+                    owner.runId,
+                );
+            }
+            // Its driver has stopped but its outcome is not durable and it still holds the slot. Joining here
+            // would hand back a run nothing is advancing, and re-running would write to the peer while this one
+            // is still being recorded.
+            if (ownerExecution.settled) {
+                throw new TaskConflictError(
+                    `Task ${slotKey} rejected: ${runLabel(owner.runId)} is settling and still holds this slot`,
                     owner.runId,
                 );
             }
@@ -323,10 +316,10 @@ export class TaskManagerBehavior extends Behavior {
                     owner.runId,
                 );
             }
-            return { task: ownerTask, joined: true };
+            return { execution: ownerExecution, joined: true };
         }
 
-        // 4. An external id is one-to-one: a live run of another slot must not lose the name it answers to.
+        // 3. An external id is one-to-one: a live run of another slot must not lose the name it answers to.
         if (seed.externalId !== undefined) {
             const holder = runs.conflictingExternalIdHolder(seed.externalId, slotKey);
             if (holder !== undefined) {
@@ -337,7 +330,7 @@ export class TaskManagerBehavior extends Behavior {
             }
         }
 
-        // 5. A rollback rewrites exactly the intents a re-run would re-apply, so the two must never overlap —
+        // 4. A rollback rewrites exactly the intents a re-run would re-apply, so the two must never overlap —
         //    and the rollback in flight need not be undoing the most recent run of the slot.
         const pendingRevert = runs.pendingRevertOfSlot(slotKey);
         if (pendingRevert !== undefined) {
@@ -347,7 +340,7 @@ export class TaskManagerBehavior extends Behavior {
             );
         }
 
-        // 6. A rollback contends for the slot of the run it undoes, not for its own: its slot is unique per
+        // 5. A rollback contends for the slot of the run it undoes, not for its own: its slot is unique per
         //    run, so checking that alone would let two rollbacks of one slot, or a rollback and the newer run
         //    that now owns the slot, rewrite the same intents at once.
         const undone = bound.undoes;
@@ -382,17 +375,13 @@ export class TaskManagerBehavior extends Behavior {
         }
 
         const record = new RunRecord(runs.allocate(), slotKey, bound.type, bound.params, seed);
-        const task = new Task(bound, record);
-        runs.admit(record, task);
-        return { task, joined: false };
+        const execution = new Execution(record, bound);
+        runs.admit(record, execution);
+        return { execution, joined: false };
     }
 
-    /** Resolve a run across every tier: live, then retired, then tombstone. */
+    /** Resolve a run: live, awaiting resume, or retired — the record answers all three. */
     get(runId: RunId): TaskHandle | undefined {
-        const live = this.internal.runs.taskOf(runId);
-        if (live !== undefined) {
-            return this.#handle(live);
-        }
         const record = this.internal.runs.get(runId);
         return record === undefined ? undefined : this.#handle(record);
     }
@@ -425,14 +414,30 @@ export class TaskManagerBehavior extends Behavior {
      * A handle reads through the record, which keeps one identity for the run's lifetime — so a held handle
      * keeps answering as the run changes, including changes made after it retired.
      */
-    #handle(run: Task | RunRecord): TaskHandle {
-        const record = run instanceof Task ? run.record : run;
+    #handle(record: RunRecord): TaskHandle {
         return {
             runId: record.runId,
             get status(): TaskStatus {
                 return statusOf(record);
             },
         };
+    }
+
+    /**
+     * The bound definition for a record: pinned to its driving execution if this process is responsible for
+     * it, otherwise resolved through the registry door — which is what lets a run this process is not driving
+     * see whatever is registered now, since a record is all that survives a restart.
+     */
+    #boundFor(record: RunRecord, execution: Execution | undefined): BoundDefinition {
+        if (execution !== undefined) {
+            return execution.bound;
+        }
+        if (!this.internal.registry.has(record.type)) {
+            throw new TaskTypeNotRegisteredError(
+                `Cannot act on ${runLabel(record.runId)}: task type "${record.type}" is not registered`,
+            );
+        }
+        return this.internal.registry.interpret(record.type, record.params);
     }
 
     /**
@@ -443,53 +448,38 @@ export class TaskManagerBehavior extends Behavior {
      * while the recorded rollback is still going, since that one may yet succeed.
      */
     async retryRollback(runId: RunId): Promise<TaskHandle> {
-        const live = this.internal.runs.taskOf(runId);
-        const retired = this.internal.runs.get(runId);
-        if (live === undefined && retired === undefined) {
+        const record = this.internal.runs.get(runId);
+        if (record === undefined) {
             throw new TaskNotFoundError(`Cannot retry the rollback of ${runLabel(runId)}: no run answers to it`);
         }
-        const previous = live?.revertRunId ?? retired?.revertRunId;
+        const previous = record.revertRunId;
         if (previous === undefined) {
             throw new ImplementationError(`${runLabel(runId)} has no rollback to retry`);
         }
-        const inFlight = this.internal.runs.taskOf(previous);
-        if (inFlight !== undefined) {
+        if (this.internal.runs.isAttached(previous)) {
             throw new TaskConflictError(
                 `Cannot retry the rollback of ${runLabel(runId)}: ${runLabel(previous)} is still in flight`,
                 previous,
             );
         }
 
-        const original = live ?? this.#reconstitute(retired!);
-        original.revertRunId = undefined;
-        const revert = this.#prepareRevert(original);
-        if (revert.task === undefined) {
+        const bound = this.#boundFor(record, this.internal.runs.executionOf(runId));
+        record.revertRunId = undefined;
+        const revert = this.#prepareRevert(record, bound);
+        if (revert.record === undefined) {
+            // Declining leaves the record as it was: it still names the rollback this call was asked to retry.
+            record.revertRunId = previous;
             throw new ImplementationError(`${runLabel(runId)} has nothing to roll back`);
         }
         try {
-            await this.#persist(original, revert.task);
+            await this.#persist(record, revert.record);
         } catch (e) {
-            original.revertRunId = previous;
+            record.revertRunId = previous;
             revert.discard();
             throw e;
         }
         revert.start();
-        return this.#handle(revert.task);
-    }
-
-    /**
-     * A writable copy of a retired run, for the one thing a record cannot do: carry a mutation until it is
-     * written. Questions about a retired run are answered from its record.
-     */
-    #reconstitute(record: RunRecord): Task {
-        if (!this.internal.registry.has(record.type)) {
-            throw new TaskTypeNotRegisteredError(
-                `Cannot act on ${runLabel(record.runId)}: task type "${record.type}" is not registered`,
-            );
-        }
-        // Deliberately not instantiated: a writable copy of a finished run is not this process driving it, and
-        // the paths that ask whether a run has a driver must keep answering no.
-        return new Task(this.internal.registry.interpret(record.type, record.params), record);
+        return this.#handle(revert.record);
     }
 
     /**
@@ -505,104 +495,91 @@ export class TaskManagerBehavior extends Behavior {
      * then keeps its non-terminal state and the cancel must be re-issued after the next start.
      */
     async cancel(runId: RunId): Promise<TaskHandle | undefined> {
-        let task = this.internal.runs.taskOf(runId);
-        const retired = task === undefined ? this.internal.runs.get(runId) : undefined;
-        if (task === undefined && retired === undefined) {
+        const record = this.internal.runs.get(runId);
+        if (record === undefined) {
             throw new TaskNotFoundError(`Cannot cancel ${runLabel(runId)}: no run answers to it`);
         }
-
-        // Every decision below reads the run as a view, which a live run and a retired record both satisfy, so a
-        // cancel that is answered or declined never rebuilds a finished run as an object.
-        const view: RunView = task ?? retired!;
-        const params = task === undefined ? retired!.params : task.params;
+        const execution = this.internal.runs.executionOf(runId);
 
         // A rollback this run already recorded is the answer, wherever it now lives: reporting it as unknown
         // would make re-cancelling fail the moment its rollback finishes.
-        if (view.revertRunId !== undefined) {
-            return this.get(view.revertRunId);
+        if (record.revertRunId !== undefined) {
+            return this.get(record.revertRunId);
         }
-        if (view.state === "cancelled") {
+        if (record.state === "cancelled") {
             return undefined;
         }
 
-        // Deciding on a NEW rollback is the task's decision, so this is the one place a retired run's type must
-        // be registered.
-        if (task === undefined && !this.internal.registry.has(view.type)) {
-            throw new TaskTypeNotRegisteredError(
-                `Cannot act on ${runLabel(view.runId)}: task type "${view.type}" is not registered`,
+        // Deciding on a NEW rollback is the run's decision, so this is the one place an unattached run's type
+        // must be registered.
+        const bound = this.#boundFor(record, execution);
+        if (!bound.revertible(record)) {
+            throw new TaskNotRevertibleError(
+                `${runLabel(record.runId)} is not revertible: ${bound.notRevertibleReason}`,
             );
         }
 
-        // A task past its point of no return declines cancel with zero side effects (gate untouched, state kept).
-        // A live run answers from its own definition; only a record has to resolve one by type.
-        const bound = task?.bound ?? this.internal.registry.interpret(view.type, params);
-        if (!bound.revertible(view)) {
-            throw new TaskNotRevertibleError(`${runLabel(view.runId)} is not revertible: ${bound.notRevertibleReason}`);
-        }
-
-        // Only now, and only for a finished run: the writable copy exists solely to carry the mutation that
-        // follows, never to answer a question.
-        task ??= this.#reconstitute(retired!);
-
-        // Stop forward driving so the changeset is final before we revert it. The flag also covers the
+        // Stop forward driving so the changeset is final before we revert it. `cancelling` also covers the
         // between-phase gap the gate cannot: the driver checks it synchronously before advancing a phase.
-        this.internal.cancelling.add(task.runId);
-        this.#abortGate(task.runId, new TaskCancelledSignal(`${runLabel(task.runId)} cancelled`));
-        try {
-            await this.internal.driving.get(task.runId);
-        } finally {
-            // A `cancelling` entry left behind refuses every future run of this slot for the process lifetime.
-            this.internal.gates.delete(task.runId);
-            this.internal.cancelling.delete(task.runId);
+        if (execution !== undefined) {
+            execution.cancelling = true;
+            execution.abort(new TaskCancelledSignal(`${runLabel(record.runId)} cancelled`));
+            try {
+                await execution.promise;
+            } finally {
+                // A `cancelling` execution left behind refuses every future run of this slot for the process
+                // lifetime.
+                execution.cancelling = false;
+            }
         }
 
         // Shutdown took over the unwind: state can no longer be persisted, so leave the task non-terminal and
         // unreverted rather than claiming a cancel that storage would contradict on the next start.
-        this.#refuseIfClosing(`${runLabel(task.runId)} cannot be cancelled`);
+        this.#refuseIfClosing(`${runLabel(record.runId)} cannot be cancelled`);
 
-        // Prepared before the state changes: a refused rollback must leave the task as it was, not cancelled in
+        // Prepared before the state changes: a refused rollback must leave the run as it was, not cancelled in
         // memory and unchanged in storage.
         let revert: PreparedRevert;
         try {
-            revert = this.#prepareRevert(task);
+            revert = this.#prepareRevert(record, bound);
         } catch (e) {
-            // The abort above stopped the driver and dropped its gate. A task the manager declines to cancel
-            // keeps its state, so it must keep its driver too, or it sits non-terminal with nothing left to
-            // advance it. A retired run was reconstituted from its record and never had a driver here; driving
-            // it would write that reconstituted state back over whatever the record now holds.
-            if (this.internal.runs.isInstantiated(task.runId)) {
-                this.#redrive(task);
+            // The abort above stopped the driver. A run the manager declines to cancel keeps its state, so it
+            // must keep its driver too, or it sits non-terminal with nothing left to advance it. A run this
+            // process was never attached to never had a driver here; driving it would write reconstructed
+            // state back over whatever the record now holds.
+            if (this.internal.runs.isAttached(record.runId)) {
+                this.#redrive(record, bound);
             }
             throw e;
         }
-        const stateBeforeCancel = task.progress.state;
-        // running/parked → cancelled; an already-terminal (completed/failed) task keeps its truthful state.
+        const stateBeforeCancel = record.state;
+        // running/parked → cancelled; an already-terminal (completed/failed) run keeps its truthful state.
         if (stateBeforeCancel === "running" || stateBeforeCancel === "parked") {
-            task.progress.state = "cancelled";
+            record.state = "cancelled";
         }
         // Stamped before the write so one transaction carries the cancelled state, the retirement order and
         // the rollback that undoes it; the slot moves only once that write is durable.
-        this.internal.runs.stampRetirement(task);
+        this.internal.runs.stampRetirement(record);
         try {
-            await this.#persist(task, revert.task);
+            await this.#persist(record, revert.record);
         } catch (e) {
-            task.progress.state = stateBeforeCancel;
-            this.internal.runs.abandonRetirement(task);
+            record.state = stateBeforeCancel;
+            this.internal.runs.abandonRetirement(record);
             revert.discard();
-            // A cancel that did not happen leaves the task as it was, driver included. A retired run has no
-            // driver to restore, and driving its reconstituted copy would overwrite the stored record.
-            if (this.internal.runs.isInstantiated(task.runId)) {
-                this.#redrive(task);
+            // A cancel that did not happen leaves the run as it was, driver included. A run this process was
+            // never attached to has no driver to restore, and driving one would overwrite the stored record.
+            if (this.internal.runs.isAttached(record.runId)) {
+                this.#redrive(record, bound);
             }
             throw e;
         }
-        this.internal.runs.commitRetirement(task);
+        this.internal.runs.commitRetirement(record);
         // The rollback mutates peers, so it may not drive before the record that names it is durable.
         revert.start();
         // Resolved from the run's own link rather than from what this call prepared: a second cancel that
         // raced this one finds the rollback already recorded, and must be told about it rather than told
         // there was nothing to roll back.
-        return task.revertRunId === undefined ? undefined : this.get(task.revertRunId);
+        return record.revertRunId === undefined ? undefined : this.get(record.revertRunId);
     }
 
     // Teardown starts at the node, not at this behavior: `Construction.close` applies `Destroying` before it runs
@@ -619,57 +596,48 @@ export class TaskManagerBehavior extends Behavior {
         }
     }
 
-    /** Create (or reuse) the revert task for `task`, linking both directions, without driving it. */
-    #prepareRevert(task: Task): PreparedRevert {
+    /** Create (or reuse) the revert task for `record`, linking both directions, without driving it. */
+    #prepareRevert(record: RunRecord, bound: BoundDefinition): PreparedRevert {
         // A failed revert surfaces as `failed` for operator attention; reverting a revert would recurse unbounded.
-        if (task.type === REVERT_TYPE) {
+        if (record.type === REVERT_TYPE) {
             return NO_REVERT;
         }
-        // Past a task's point of no return there is nothing to roll back to; suppress auto-rollback too.
-        if (!task.revertible) {
+        // Past a run's point of no return there is nothing to roll back to; suppress auto-rollback too.
+        if (!bound.revertible(record)) {
             return NO_REVERT;
         }
         // Already rolled back once: cancel resolves the recorded rollback itself, so there is nothing to
         // prepare, write or start here.
-        if (task.revertRunId !== undefined) {
+        if (record.revertRunId !== undefined) {
             return NO_REVERT;
         }
-        if (task.changeSet.length === 0) {
+        if (record.changeSet.length === 0) {
             return NO_REVERT;
         }
         // `revertOf` is seeded on every rollback the manager creates, retries included: it is the identity
         // link that refuses a re-run of the original, and a rollback that lacks it excludes nothing.
-        const { task: revert, joined } = this.#spawn(
-            new BoundDefinition(Revert, { originalRunId: task.runId, entries: task.changeSet }),
-            { revertOf: task.runId },
+        const { execution: revert, joined } = this.#spawn(
+            new BoundDefinition(Revert, { originalRunId: record.runId, entries: record.changeSet }),
+            { revertOf: record.runId },
         );
-        task.revertRunId = revert.runId;
+        record.revertRunId = revert.runId;
         // A joined rollback is already live and driving, so it is not ours to start or to forget.
         if (joined) {
-            return { task: revert, discard() {}, start() {} };
+            return { record: revert.record, discard() {}, start() {} };
         }
         return {
-            task: revert,
+            record: revert.record,
             discard: () => {
-                task.revertRunId = undefined;
-                this.internal.runs.discard(revert);
+                record.revertRunId = undefined;
+                this.internal.runs.discard(revert.record);
             },
             start: () => this.#track(revert),
         };
     }
 
-    #abortGate(id: RunId, reason: unknown): void {
-        const gate = this.internal.gates.get(id);
-        if (gate === undefined) {
-            return;
-        }
-        gate.aborted = reason;
-        gate.wake.emit();
-    }
-
     /** Throw a recorded abort (cancel or shutdown) so the driver stops before persisting or mutating a peer. */
-    #throwIfAborted(task: Task): void {
-        const aborted = this.internal.gates.get(task.runId)?.aborted;
+    #throwIfAborted(execution: Execution): void {
+        const aborted = execution.gate.aborted;
         if (aborted !== undefined) {
             throw asError(aborted);
         }
@@ -679,8 +647,8 @@ export class TaskManagerBehavior extends Behavior {
      * Reject a task before any node mutation if its planned changes would overflow a target's device capacity.
      * Runs before the first persist/phase; the thrown error ends the task `failed` with an empty changeSet.
      */
-    async #admit(task: Task): Promise<void> {
-        const planned = task.bound.plannedChanges();
+    async #admit(execution: Execution): Promise<void> {
+        const planned = execution.bound.plannedChanges();
         if (planned.length === 0) {
             return;
         }
@@ -712,40 +680,41 @@ export class TaskManagerBehavior extends Behavior {
             const added = group.filter(pc => items[itemMapKey(pc.kind, pc.key)] === undefined).length;
             if (capacity.used + added > capacity.limit) {
                 throw new TaskCapacityExceededError(
-                    `${runLabel(task.runId)}: ${kind} on ${peerId} exceeds capacity — needs ${added} slot(s) but only ${capacity.limit - capacity.used} free`,
+                    `${runLabel(execution.runId)}: ${kind} on ${peerId} exceeds capacity — needs ${added} slot(s) but only ${capacity.limit - capacity.used} free`,
                 );
             }
         }
     }
 
-    async #drive(task: Task): Promise<void> {
+    async #drive(execution: Execution): Promise<void> {
+        const record = execution.record;
         try {
-            await this.#admit(task); // fail-fast before any node is touched
-            this.#throwIfAborted(task);
+            await this.#admit(execution); // fail-fast before any node is touched
+            this.#throwIfAborted(execution);
             // Persist before first phase so a crash-resume sees the task.
-            await this.#persist(task);
-            while (task.progress.phaseIndex < task.phases.length && task.progress.state === "running") {
-                const phase = task.phases[task.progress.phaseIndex];
-                const ctx = await this.endpoint.act(agent => this.#contextFor(task, this.taskReconciler(agent)));
+            await this.#persist(record);
+            while (record.phaseIndex < execution.phases.length && record.state === "running") {
+                const phase = execution.phases[record.phaseIndex];
+                const ctx = await this.endpoint.act(agent => this.#contextFor(execution, this.taskReconciler(agent)));
                 // A phase mutates the peer before it reaches its gate, so this is the last point at which an
                 // abort accepted meanwhile can still prevent the write.
-                this.#throwIfAborted(task);
+                this.#throwIfAborted(execution);
                 await phase.run(ctx);
                 // A cancel accepted while the phase ran must leave phaseIndex on that phase: revertibility is
                 // phase-based, so advancing it can cross a task's point of no return and suppress the rollback.
-                if (this.internal.cancelling.has(task.runId)) {
-                    throw new TaskCancelledSignal(`Task ${runLabel(task.runId)} cancelled`);
+                if (execution.cancelling) {
+                    throw new TaskCancelledSignal(`Task ${runLabel(record.runId)} cancelled`);
                 }
-                task.progress.phaseIndex += 1;
-                await this.#persist(task);
+                record.phaseIndex += 1;
+                await this.#persist(record);
             }
-            if (task.progress.state === "running") {
-                task.progress.state = "completed";
-                this.internal.runs.stampRetirement(task);
+            if (record.state === "running") {
+                record.state = "completed";
+                this.internal.runs.stampRetirement(record);
                 try {
-                    await this.#persist(task);
+                    await this.#persist(record);
                 } catch (e) {
-                    this.internal.runs.abandonRetirement(task);
+                    this.internal.runs.abandonRetirement(record);
                     throw e;
                 }
             }
@@ -758,29 +727,29 @@ export class TaskManagerBehavior extends Behavior {
             // outlive the dispose drain. Leave the task as the next start can resume it.
             if (this.#isClosing) {
                 logger.warn(
-                    `${runLabel(task.runId)} interrupted by shutdown; its persisted state is left for the next start`,
+                    `${runLabel(record.runId)} interrupted by shutdown; its persisted state is left for the next start`,
                     e,
                 );
                 return;
             }
-            task.progress.state = "failed";
-            task.error = e instanceof Error ? e.message : String(e);
-            logger.error(`${runLabel(task.runId)} failed`, e);
+            record.state = "failed";
+            record.error = e instanceof Error ? e.message : String(e);
+            logger.error(`${runLabel(record.runId)} failed`, e);
             // Neither a rollback this manager refuses nor a failing persist may re-reject the (otherwise handled)
             // drive promise: that turns into an unhandled rejection and a cancel awaiting this task throws.
             let revert = NO_REVERT;
             try {
-                revert = this.#prepareRevert(task);
+                revert = this.#prepareRevert(record, execution.bound);
             } catch (revertError) {
-                logger.error(`${runLabel(task.runId)}: cannot roll back`, revertError);
+                logger.error(`${runLabel(record.runId)}: cannot roll back`, revertError);
             }
-            this.internal.runs.stampRetirement(task);
+            this.internal.runs.stampRetirement(record);
             try {
-                await this.#persist(task, revert.task);
+                await this.#persist(record, revert.record);
             } catch (persistError) {
-                this.internal.runs.abandonRetirement(task);
+                this.internal.runs.abandonRetirement(record);
                 revert.discard();
-                logger.error(`${runLabel(task.runId)}: failed to persist failure state`, persistError);
+                logger.error(`${runLabel(record.runId)}: failed to persist failure state`, persistError);
                 return;
             }
             // The rollback mutates peers, so it may not drive before the record that names it is durable.
@@ -788,40 +757,28 @@ export class TaskManagerBehavior extends Behavior {
         }
     }
 
-    #contextFor(task: Task, reconciler: ReconcilerBehavior): RunningTaskContext {
+    #contextFor(execution: Execution, reconciler: ReconcilerBehavior): RunningTaskContext {
+        const record = execution.record;
         const setState = (state: TaskState) => {
             // Terminal states are owned by #drive; gates only flip between running/parked.
-            if (
-                task.progress.state === state ||
-                (task.progress.state !== "running" && task.progress.state !== "parked")
-            ) {
+            if (record.state === state || (record.state !== "running" && record.state !== "parked")) {
                 return;
             }
-            task.progress.state = state;
-            this.#mutex.run(() => this.#writeRecord(task));
+            record.state = state;
+            this.#mutex.run(() => this.#writeRecord(record));
         };
         return new RunningTaskContext(
-            task,
+            record,
             id => this.resolvePeerNode(id),
             reconciler,
             setState,
-            this.#gateFor(task.runId),
+            this.#gateFor(execution.gate),
             () => [...this.#rootNode.peers],
         );
     }
 
-    #gateStateFor(id: RunId): TaskManagerBehavior.GateState {
-        let gate = this.internal.gates.get(id);
-        if (gate === undefined) {
-            gate = { wake: new Observable() };
-            this.internal.gates.set(id, gate);
-        }
-        return gate;
-    }
-
     /** Per-task gate control: cancel/shutdown set `aborted`; `onAbort` wakes a parked gate to observe it. */
-    #gateFor(id: RunId): GateControl {
-        const gate = this.#gateStateFor(id);
+    #gateFor(gate: GateState): GateControl {
         return {
             aborted: () => gate.aborted,
             onAbort: wake => {
@@ -843,27 +800,27 @@ export class TaskManagerBehavior extends Behavior {
 
     // Serialized through the mutex: a spawned revert drives (and persists) concurrently with the original's
     // own persist, so direct concurrent state writes would conflict on the synchronous transaction lock.
-    async #persist(task: Task, paired?: Task): Promise<void> {
-        await this.#mutex.produce(() => this.#writeRecord(task, paired));
+    async #persist(record: RunRecord, paired?: RunRecord): Promise<void> {
+        await this.#mutex.produce(() => this.#writeRecord(record, paired));
     }
 
-    // A task that names a revert and the revert itself go into one transaction: written separately, a crash
+    // A run that names a revert and the revert itself go into one transaction: written separately, a crash
     // between the two loses the rollback while the forward record still promises it.
-    async #writeRecord(task: Task, paired?: Task): Promise<void> {
+    async #writeRecord(record: RunRecord, paired?: RunRecord): Promise<void> {
         // Serialized with the write, so a shutdown that began while this queued behind the mutex cannot slip past.
-        this.#refuseIfClosing(`${runLabel(task.runId)} state cannot be recorded`);
+        this.#refuseIfClosing(`${runLabel(record.runId)} state cannot be recorded`);
         // Only the named runs are written. Republishing the whole table from memory would erase records this
         // process never loaded — a persisted run whose type nothing has registered yet — and would publish
         // other runs' uncommitted in-flight state as though it were durable.
-        const written = paired === undefined ? [task] : [task, paired];
-        const records = written.map(t => [runKey(t.runId), t.toPersistence()] as const);
-        const { nextRetireSeq } = this.internal.runs.snapshot();
+        const written = paired === undefined ? [record] : [record, paired];
+        const records = written.map(r => [runKey(r.runId), r.toPersistence()] as const);
+        const nextRetireSeq = this.internal.runs.nextRetireSeq;
         const reservedRunId = this.internal.runs.reservedRunId;
         await this.endpoint.act(agent => {
             const self = agent.get(TaskManagerBehavior);
             const runs = { ...self.state.runs };
-            for (const [key, record] of records) {
-                runs[key] = record;
+            for (const [key, persisted] of records) {
+                runs[key] = persisted;
             }
             self.state.runs = runs;
             // High-water marks: never `consumed + 1`, or a write that lands out of allocation order lowers the
@@ -877,11 +834,12 @@ export class TaskManagerBehavior extends Behavior {
     }
 
     override async [Symbol.asyncDispose]() {
+        const executions = this.internal.runs.executions;
         // Suspend in-flight gates so parked tasks stop cleanly (non-terminal, resumable) instead of hanging close.
-        for (const id of this.internal.gates.keys()) {
-            this.#abortGate(id, new TaskSuspendedSignal(`${runLabel(id)} suspended on shutdown`));
+        for (const execution of executions) {
+            execution.abort(new TaskSuspendedSignal(`${runLabel(execution.runId)} suspended on shutdown`));
         }
-        await Promise.allSettled([...this.internal.driving.values()]);
+        await Promise.allSettled(executions.map(execution => execution.promise));
         await this.internal.persistMutex?.close();
         await super[Symbol.asyncDispose]?.();
     }
@@ -894,17 +852,9 @@ export namespace TaskManagerBehavior {
         nextRetireSeq = 1;
     }
 
-    export interface GateState {
-        aborted?: unknown;
-        wake: Observable<[]>;
-    }
-
     export class Internal {
         registry!: TaskRegistry;
         runs!: RunStore;
-        gates!: Map<RunId, GateState>;
-        driving = new Map<RunId, Promise<void>>();
-        cancelling = new Set<RunId>();
         persistMutex?: Mutex;
     }
 
