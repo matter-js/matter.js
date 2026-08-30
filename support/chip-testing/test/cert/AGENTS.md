@@ -2345,8 +2345,8 @@ size on the line is the encoded message, without its framing, so the wire messag
 Three things the check has to get right, each covered hermetically:
 
 - **The read is identified by its own path, not by the search window.** The pattern requires
-  `attributes: *.*.*` on the session, so a read of one attribute — which commissioning itself performs
-  moments earlier — cannot stand in for it.
+  `attributes: *.*.*` on the session, so a read of one attribute — which step 1 performs moments
+  earlier, to exercise the session it established — cannot stand in for it.
 - **The reports are counted, not merely found.** A device that chunked would still log a first report
   matching any "is there a report" pattern. The check takes every report on the read's own exchange
   between the request and a settled mark, and requires exactly one.
@@ -2360,3 +2360,38 @@ immediately after the first, so waiting for one report is what makes counting th
 The evidence keeps only the first 300 characters of the matched line. matter.js renders a message's
 whole payload as hex, so an unbounded `matched` would put ~55 000 characters of one report into the
 evidence bundle.
+
+## An interaction that could have gone either way, on the session that exists (`TC-SC-8.7`)
+
+`TC-SC-8.7` asks for something the two cases before it do not: a **regularly sized** interaction, one
+neither transport is required for, that nonetheless travels on the TCP session already established
+rather than causing a new one. The controller is therefore asked for nothing special — an ordinary
+invoke, no large payload — and the step's evidence is what distinguishes the case:
+
+- **The request is one MRP could have carried.** `regularSizedRequestCheck` reads the size off the
+  DUT's own `I/InvokeRequest` message line and requires it at or below what MRP may carry. That is a
+  **different limit** from the one `TC-SC-8.6` requires its report to exceed, and the two are not
+  interchangeable: 1280 is the IPv6 MTU, so above it nothing MRP-sized fits and it serves as 8.6's
+  floor, while a request has to fit MRP's own budget — the UDP limit less Matter's header and MIC
+  overhead — before this case may call it regularly sized. A payload only TCP could carry would prove
+  the opposite of this case.
+- **The answer came back on step 1's session**, through the same exchange-correlated check `TC-SC-8.5`
+  uses.
+- **No further session was established.** `noFurtherSessionCheck` scans the interaction's own span for
+  a `CaseServer … New session with` or `… Resumed session with` — over *any* transport, since the
+  failure this guards against is the controller opening an MRP session for a small interaction.
+
+  What it adds is narrower than it looks, and worth stating exactly: the checks above are bound to
+  step 1's own session tag, so an interaction that *travelled* on a second session would already fail
+  them. This one covers the remaining case — a second session created alongside, whether or not this
+  interaction used it — which is what the plan's "use whichever one is available" rules out.
+
+  It keys on establishment rather than on the `Pairing request` that precedes it, and the difference
+  matters twice: matter.js writes that line before it has read Sigma1, so an attempt the DUT went on to
+  reject would read as a session it accepted, and an attempt inside the span whose session forms after
+  it would be counted though its establishment falls outside the window this check bounds.
+
+Nothing in the controller expresses "either transport is usable" as a request flag: matter.js's
+`transportPreference` is set once, for the session, and the protocol layer's hard `requiredTransport`
+lever is not surfaced. So the plan's step text describes what an ordinary invoke already is on this
+stack, and the case's substance lives entirely in the three checks above.
