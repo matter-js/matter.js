@@ -318,7 +318,9 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         }
 
         if (auth.isDuplicateCredential(credential.credentialType, credentialData, credential.credentialIndex)) {
-            return { status: Status.Failure, userIndex: null, nextCredentialIndex: null };
+            // Per § 5.2.10.21.1, CredentialData duplicating another credential of the same CredentialType reports
+            // DUPLICATE, not a generic Failure.
+            return { status: DoorLock.StatusCode.Duplicate as unknown as Status, userIndex: null, nextCredentialIndex: null };
         }
 
         const nextCredentialIndex = auth.findNextAvailableCredentialIndex(
@@ -330,7 +332,9 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         if (operationType === DataOperationType.Add) {
             const existingCred = auth.findCredential(credential.credentialType, credential.credentialIndex);
             if (existingCred) {
-                return { status: Status.Failure, userIndex: null, nextCredentialIndex };
+                // Per § 5.2.10.21.1, an Add operation targeting an occupied CredentialIndex reports OCCUPIED, not a
+                // generic Failure.
+                return { status: DoorLock.StatusCode.Occupied as unknown as Status, userIndex: null, nextCredentialIndex };
             }
 
             auth.addCredential(credential.credentialType, credential.credentialIndex, credentialData, fabricIndex);
