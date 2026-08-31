@@ -188,9 +188,13 @@ export class RunStore {
 
     /** Retired records, newest retirement first. Ordered by `retireSeq`, never by `runId` or insertion. */
     get retired(): RunRecord[] {
-        return [...this.#records.values()]
-            .filter(record => isTerminal(record.state) && !this.#slots.has(record.slotKey))
-            .sort((a, b) => (b.retireSeq ?? 0) - (a.retireSeq ?? 0));
+        return (
+            [...this.#records.values()]
+                // Only the run that still owns the slot is excluded, not every terminal run that ever held it: a
+                // re-run of a slot would otherwise hide its own history for as long as it is live.
+                .filter(record => isTerminal(record.state) && this.#slots.get(record.slotKey) !== record.runId)
+                .sort((a, b) => (b.retireSeq ?? 0) - (a.retireSeq ?? 0))
+        );
     }
 
     /**
