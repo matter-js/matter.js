@@ -64,4 +64,45 @@ describe("CommodityTariff dayEntries write with a [FEATURE]-gated, defaulted str
 
         await node.close();
     });
+
+    it("still falls back to the spec's None default when Randomization is supported and the field is omitted", async () => {
+        const node = await MockServerNode.createOnline({
+            type: MockServerNode.RootEndpoint.with(
+                CommodityTariffServer.with(CommodityTariff.Feature.Pricing, CommodityTariff.Feature.Randomization).set({
+                    tariffInfo: null,
+                    tariffUnit: null,
+                    startDate: null,
+                    dayEntries: null,
+                    dayPatterns: null,
+                    calendarPeriods: null,
+                    individualDays: null,
+                    tariffComponents: null,
+                    tariffPeriods: null,
+                    currentDay: null,
+                    nextDay: null,
+                    currentDayEntry: null,
+                    currentDayEntryDate: null,
+                    nextDayEntry: null,
+                    nextDayEntryDate: null,
+                    currentTariffComponents: null,
+                    nextTariffComponents: null,
+                    defaultRandomizationOffset: null,
+                    defaultRandomizationType: null,
+                }),
+            ),
+        });
+
+        await node.setStateOf(CommodityTariffServer, { dayEntries: [{ dayEntryId: 1, startTime: 0 }] });
+
+        const dayEntries = await node.online(
+            { command: true },
+            async agent => agent.get(CommodityTariffServer).state.dayEntries,
+        );
+        // Application Cluster Spec § 9.12.5.10 DayEntryStruct field table: RandomizationType's Fallback is
+        // "None" (0) — an omitted field reads back as None once the feature that gates it is supported,
+        // not `undefined`.
+        expect(dayEntries?.[0]?.randomizationType).equals(CommodityTariff.DayEntryRandomizationType.None);
+
+        await node.close();
+    });
 });

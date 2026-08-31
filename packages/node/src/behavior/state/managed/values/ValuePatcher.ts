@@ -41,7 +41,7 @@ function getDefaults(supervisor: RootSupervisor, schema: Schema): Val.Struct {
     }
 
     const defaults = {} as Val.Struct;
-    for (const member of supervisor.membersOf(schema)) {
+    for (const member of supervisor.membersOf(schema, { conformance: "conformant" })) {
         if (member.default !== undefined) {
             defaults[member.propertyName] = member.default;
             continue;
