@@ -563,13 +563,14 @@ export class ClientStructure {
      * Convert values a wire change addresses by property name to the keys the cluster's container uses.
      *
      * A name the cluster's schema does not define is left as it is; it addresses no member and so has no other key.
+     * A cluster whose store keys by name converts nothing -- it has no schema to resolve names against.
      */
     #canonicalize(cluster: ClusterStructure, changes: Record<string, unknown>) {
-        const ids = this.#attributeIdsFor(cluster.id);
+        const ids = cluster.primaryKey === "id" ? this.#attributeIdsFor(cluster.id) : undefined;
         const values = new Map() as Val.StructMap;
 
         for (const [name, value] of Object.entries(changes)) {
-            values.set(memberKeyFor("id", name, ids.get(name)), value);
+            values.set(memberKeyFor(cluster.primaryKey, name, ids?.get(name)), value);
         }
 
         return values;
@@ -934,6 +935,7 @@ export class ClientStructure {
         cluster = {
             kind: "discovered",
             id,
+            primaryKey: "id",
             store: this.#storeFactory(endpoint.endpoint, id.toString(), "id"),
             behavior: undefined,
             pendingBehavior: undefined,
@@ -985,6 +987,7 @@ export class ClientStructure {
         const cluster: ClusterStructure = {
             kind: "discovered",
             id: 0 as ClusterId,
+            primaryKey: "name",
             store: this.#storeFactory(endpoint.endpoint, behaviorId, "name"),
             behavior: undefined,
             pendingBehavior: undefined,
@@ -1254,6 +1257,12 @@ interface EndpointStructure {
 interface ClusterStructure extends Partial<PeerBehavior.DiscoveredClusterShape> {
     kind: "discovered";
     id: ClusterId;
+
+    /**
+     * The keying convention {@link store} uses.  A cluster the peer names but we cannot resolve to a schema has no
+     * attribute IDs to key by, so its store keys members by property name.
+     */
+    primaryKey: "id" | "name";
     behavior?: ClusterBehavior.Type;
     pendingBehavior?: ClusterBehavior.Type;
     pendingDelete?: boolean;
