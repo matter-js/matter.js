@@ -706,7 +706,6 @@ export class TaskManagerBehavior extends Behavior {
             this.#throwIfAborted(execution);
             // Recorded before the first phase so a crash-resume sees the run.
             await this.#commit({ record });
-            record.recorded = true;
             while (record.phaseIndex < execution.phases.length && record.state === "running") {
                 const phase = execution.phases[record.phaseIndex];
                 const ctx = await this.endpoint.act(agent => this.#contextFor(execution, this.taskReconciler(agent)));
@@ -878,6 +877,10 @@ export class TaskManagerBehavior extends Behavior {
         // does not have.
         this.internal.runs.noteReserved(reservedRunId);
         for (const change of changes) {
+            // Durable from this write on, whichever run of the transaction it belongs to: a rollback recorded
+            // alongside the run it undoes is as durable as that run, and discarding it later would leave the
+            // original naming a rollback nothing holds.
+            change.record.recorded = true;
             for (const [key, value] of Object.entries(change.next ?? {})) {
                 if (value !== undefined) {
                     Object.assign(change.record, { [key]: value });
