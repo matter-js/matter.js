@@ -202,6 +202,8 @@ function contextWith(
             subscribe: unused,
             readEvents: unused,
             subscribeEvents: unused,
+            clientEndpoints: unused,
+            clientAttribute: unused,
             openCommissioningWindow: unused,
             operationalMdnsInstanceName: unused,
             decommission: () => decommission(ref),
@@ -1090,6 +1092,8 @@ class UnpairFixture {
             subscribe: unused,
             readEvents: unused,
             subscribeEvents: unused,
+            clientEndpoints: unused,
+            clientAttribute: unused,
             openCommissioningWindow: unused,
             readAttribute: async () => {
                 this.calls.push("readFabricIndex");

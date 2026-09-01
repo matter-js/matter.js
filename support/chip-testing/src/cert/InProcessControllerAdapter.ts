@@ -10,6 +10,7 @@ import {
     ControllerBehavior,
     Diagnostic,
     Duration,
+    Endpoint,
     Environment,
     ImplementationError,
     InternalError,
@@ -25,6 +26,7 @@ import {
     Time,
     UnexpectedDataError,
 } from "@matter/main";
+import { DescriptorClient } from "@matter/main/behaviors/descriptor";
 import { OperationalCredentialsClient } from "@matter/main/behaviors/operational-credentials";
 import { GeneralCommissioning, OperationalCredentials } from "@matter/main/clusters";
 import {
@@ -66,6 +68,7 @@ import type {
     BatchCommandSpec,
     CertGroupApi,
     CertNodeApi,
+    ClientEndpointEntry,
     CertNodeRef,
     CommissioningTarget,
     ControllerAdapter,
@@ -693,6 +696,55 @@ class InProcessCertNodeApi implements CertNodeApi {
                 return seed[0]?.value;
             }
             return toWireValues(seed);
+        });
+    }
+
+    clientEndpoints(): Promise<ClientEndpointEntry[]> {
+        return runTagged(this.#adapterId, async () => {
+            const entries = new Array<ClientEndpointEntry>();
+            this.#peer.visit(endpoint => {
+                if (endpoint.number === undefined) {
+                    return;
+                }
+                const descriptor = endpoint.maybeStateOf(DescriptorClient);
+                entries.push({
+                    endpoint: endpoint.number,
+                    deviceTypes: [...(descriptor?.deviceTypeList ?? [])].map(entry => Number(entry.deviceType)),
+                    parts: [...(descriptor?.partsList ?? [])].map(Number),
+                });
+            });
+            return entries.sort((a, b) => a.endpoint - b.endpoint);
+        });
+    }
+
+    clientAttribute(path: Required<AttributePathSpec>): Promise<unknown> {
+        return runTagged(this.#adapterId, async () => {
+            let endpoint: Endpoint | undefined;
+            this.#peer.visit(candidate => {
+                if (candidate.number === path.endpoint) {
+                    endpoint = candidate;
+                }
+            });
+            if (endpoint === undefined) {
+                return undefined;
+            }
+
+            const behavior = endpoint.behaviors.forCluster(ClusterId(path.cluster));
+            if (behavior === undefined) {
+                return undefined;
+            }
+
+            // Controller state is keyed by the attribute's property name, and only the model maps an id
+            // to one
+            const name = findCertCluster(path.cluster)?.attributes.find(
+                attribute => attribute.id === path.attribute,
+            )?.propertyName;
+            if (name === undefined) {
+                return undefined;
+            }
+
+            const state: Record<string, unknown> | undefined = endpoint.maybeStateOf(behavior);
+            return state?.[name];
         });
     }
 
