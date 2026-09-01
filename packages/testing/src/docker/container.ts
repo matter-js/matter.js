@@ -26,7 +26,12 @@ export interface Container {
     start(): Promise<void>;
     kill(): Promise<void>;
     remove(force?: boolean): Promise<void>;
-    attach<T extends Terminal.Factory>(terminal: T): Promise<ReturnType<T>>;
+    /**
+     * Attach to the container's output, and to its input when `stdin` is set — which a caller that
+     * means to write to the container needs, and which also requires the container to have been
+     * created with its input open (see {@link Container.Configuration.openStdin}).
+     */
+    attach<T extends Terminal.Factory>(terminal: T, stdin?: boolean): Promise<ReturnType<T>>;
     wait(options?: Dockerode.ContainerWaitOptions): Promise<void>;
 
     /**
@@ -143,6 +148,16 @@ export namespace Container {
         network?: string | Network | Network[];
         input?: ReadStream;
         openStdin?: boolean;
+
+        /**
+         * Whether the container's standard input closes as soon as the first attached client
+         * detaches, Docker's default for an interactive container.
+         *
+         * Set false for a container something writes commands to over its whole life: an app that
+         * polls a closed standard input reads end-of-file without ever blocking, which turns its
+         * poll loop into a busy one.
+         */
+        stdinOnce?: boolean;
         cwd?: string;
     }
 
@@ -177,7 +192,7 @@ function configureContainer(options: Container.Configuration) {
         AttachStderr: true,
     } as Dockerode.ContainerCreateOptions & { HostConfig: Dockerode.HostConfig };
 
-    const { name, entrypoint, env, binds, command, openStdin, network, cwd, platform } = options ?? {};
+    const { name, entrypoint, env, binds, command, openStdin, stdinOnce, network, cwd, platform } = options ?? {};
 
     if (typeof network === "string") {
         createOptions.HostConfig.NetworkMode = network;
@@ -216,7 +231,7 @@ function configureContainer(options: Container.Configuration) {
     if (openStdin !== false) {
         createOptions.OpenStdin = true;
         createOptions.AttachStdin = true;
-        createOptions.StdinOnce = true;
+        createOptions.StdinOnce = stdinOnce !== false;
     }
 
     if (platform) {
