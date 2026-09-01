@@ -30,18 +30,34 @@ export function ValuePatcher(schema: Schema, supervisor: RootSupervisor) {
     }
 }
 
-const defaultsCache = new WeakMap<Schema, Val.Struct>();
+// Defaults depend on the features active in the supervisor's scope, and supervisors with different features share
+// nested schema identity, so schema alone is not a safe key
+const defaultsCache = new WeakMap<RootSupervisor, WeakMap<Schema, Val.Struct>>();
 
 /**
  * Obtain default values for a struct.
+ *
+ * A member the scope does not support contributes no default.  The fallback the specification states for a field is
+ * the value a reader assumes when the field is absent; it is not a value we may materialize on the member's behalf.
  */
 function getDefaults(supervisor: RootSupervisor, schema: Schema): Val.Struct {
-    if (defaultsCache.has(schema)) {
-        return defaultsCache.get(schema) as Val.Struct;
+    let schemaDefaults = defaultsCache.get(supervisor);
+    if (schemaDefaults === undefined) {
+        defaultsCache.set(supervisor, (schemaDefaults = new WeakMap()));
     }
 
+    const cached = schemaDefaults.get(schema);
+    if (cached !== undefined) {
+        return cached;
+    }
+
+    const { scope } = supervisor;
     const defaults = {} as Val.Struct;
     for (const member of supervisor.membersOf(schema)) {
+        if (!scope.hasOperationalSupport(member)) {
+            continue;
+        }
+
         if (member.default !== undefined) {
             defaults[member.propertyName] = member.default;
             continue;
@@ -49,13 +65,10 @@ function getDefaults(supervisor: RootSupervisor, schema: Schema): Val.Struct {
 
         if (member.mandatory && member.nullable) {
             defaults[member.propertyName] = null;
-            continue;
         }
-
-        // No default
     }
 
-    defaultsCache.set(schema, defaults);
+    schemaDefaults.set(schema, defaults);
 
     return defaults;
 }

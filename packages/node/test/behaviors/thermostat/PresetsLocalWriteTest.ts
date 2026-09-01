@@ -387,13 +387,13 @@ describe("Presets local write", () => {
         expect(storedPresets(deviceEp)).deep.equals([]);
     });
 
-    it("accepts an unnamed preset, whose name reads as null", async () => {
+    it("accepts an unnamed preset, which carries no name", async () => {
         await using ctx = await thermostat();
         const { deviceEp } = ctx;
 
         await writePresets(deviceEp, [newPreset()]);
 
-        expect(storedPresets(deviceEp)[0].name).equals(null);
+        expect(storedPresets(deviceEp)[0].name).equals(undefined);
     });
 
     it("rejects two unnamed presets for one scenario", async () => {

@@ -22,6 +22,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
 
 - @matter/node
+    - Fix: Creating a struct fills in a default only for a field the cluster supports, so a field a device does not set stays absent instead of carrying the fallback its schema states. A write of a list entry that omits a feature-gated field is accepted, where it previously failed validation against the field it had filled in. Affects `Thermostat` preset names and setpoints, `Descriptor` tag labels, `MediaPlayback` track attributes and the feature-gated members of `ClosureControl`, `ClosureDimension`, `ElectricalEnergyMeasurement`, `CommodityPrice` and `CommodityTariff`
     - Fix: `ClientStructure.applyWireChanges` applies the change it is given. A client node keys each member of a cluster by attribute ID, and a change from the remote API addresses members by property name, so values landed under a key reads were never served from: the update was invisible and never persisted. Values now convert as the change is applied
     - Fix: `ClientStructure.applyWireChanges` regenerates a behavior whose cluster definition changed and prunes attributes the cluster dropped, as the Matter protocol path already did
     - Fix: Validation honors the conformance and quality an element inherits, so an element overridden by an operational extension is no longer judged as if it stated neither
