@@ -48,6 +48,16 @@ const Widgets = new ClusterModel({
                 { tag: "field", id: 0x2, name: "Required", type: "uint16", conformance: "EXT", default: 7 },
                 {
                     tag: "field",
+                    id: 0x4,
+                    name: "Flags",
+                    type: "map8",
+                    conformance: "M",
+                    default: 1,
+
+                    children: [{ tag: "field", name: "Marked", constraint: "0" }],
+                },
+                {
+                    tag: "field",
                     id: 0x3,
                     name: "Tags",
                     type: "list",
@@ -92,7 +102,7 @@ function patchPreset(...features: Thermostat.Feature[]) {
 
 describe("ValuePatcher", () => {
     it("omits the fallback of a field the active features disallow", () => {
-        expect(patchWidget([], { id: 1 })).deep.equals({ id: 1, tags: [] });
+        expect(patchWidget([], { id: 1 })).deep.equals({ id: 1, tags: [], flags: { marked: true } });
     });
 
     it("omits the fallback of a field the active features leave optional", () => {
@@ -109,9 +119,16 @@ describe("ValuePatcher", () => {
         expect(one.tags).not.equals(another.tags);
     });
 
+    it("applies a bitmap fallback decoded", () => {
+        expect(patchWidget([], { id: 1 }).flags).deep.equals({ marked: true });
+    });
+
     it("refuses a key the schema does not declare, including a property of Object.prototype", () => {
         expect(() => patchWidget([], { nope: 1 })).throws("nope is not a property of entry");
         expect(() => patchWidget([], { toString: 1 })).throws("toString is not a property of entry");
+
+        // Written with a computed key: `__proto__` in an object literal is prototype syntax, not a property
+        expect(() => patchWidget([], { ["__proto__"]: {} })).throws("__proto__ is not a property of entry");
     });
 
     it("applies a fallback in the units the datatype encodes", () => {
