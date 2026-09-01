@@ -6,7 +6,7 @@
 
 import { ImplementationError, isObject } from "@matter/general";
 import type { Schema } from "@matter/model";
-import { DataModelPath, Metatype, ValueModel } from "@matter/model";
+import { DataModelPath, DefaultValue, Metatype, ValueModel } from "@matter/model";
 import { SchemaImplementationError, Val, WriteError } from "@matter/protocol";
 import { RootSupervisor } from "../../../supervision/RootSupervisor.js";
 import { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
@@ -59,8 +59,11 @@ function getDefaults(supervisor: RootSupervisor, schema: Schema): Val.Struct {
         }
 
         if (member.default !== undefined) {
-            defaults[member.propertyName] = member.default;
-            continue;
+            const value = DefaultValue(scope, member);
+            if (value !== undefined) {
+                defaults[member.propertyName] = value;
+                continue;
+            }
         }
 
         if (member.mandatory && member.nullable) {

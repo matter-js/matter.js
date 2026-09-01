@@ -89,10 +89,15 @@ describe("ValuePatcher", () => {
         expect(patchWidget(["EXT"], { id: 1 }).required).equals(7);
     });
 
+    it("applies a fallback in the units the datatype encodes", () => {
+        // The schema states 26°C; state carries the wire units of the temperature datatype
+        expect(patchPreset(Thermostat.Feature.Cooling).coolingSetpoint).equals(2600);
+    });
+
     it("applies defaults per feature set rather than per schema", () => {
         // Thermostat variants share the identity of the nested PresetStruct schema, so defaults cached against the
         // schema alone serve the first variant's fallbacks to the second
-        expect(patchPreset(Thermostat.Feature.Cooling).coolingSetpoint).not.equals(undefined);
+        expect(patchPreset(Thermostat.Feature.Cooling).coolingSetpoint).equals(2600);
         expect(patchPreset(Thermostat.Feature.Heating).coolingSetpoint).equals(undefined);
     });
 });
