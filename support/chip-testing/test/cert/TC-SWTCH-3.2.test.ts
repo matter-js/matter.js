@@ -706,9 +706,12 @@ certTest("TC-SWTCH-3.2", {
         "TH simulates a long press, sending InitialPress, LongPress and LongRelease",
         commissioned.withRef("dut", async (cx, ref) => {
             const th = cx.devices.th;
-            const featureMap = await readNumber(cx, ref, MOMENTARY_ENDPOINT, FEATURE_MAP);
             await idleSwitch(cx, MOMENTARY_ENDPOINT);
             const boundary = await quietEventBoundary(cx);
+
+            // Read once the previous step's reports have arrived: chip-tool delivers them in whatever
+            // command reply is open, and a read whose own values are displaced by one answers nothing.
+            const featureMap = await readNumber(cx, ref, MOMENTARY_ENDPOINT, FEATURE_MAP);
             await th.backchannel({
                 name: "simulateLongPress",
                 endpointId: MOMENTARY_ENDPOINT,
@@ -778,10 +781,12 @@ certTest("TC-SWTCH-3.2", {
         "TH simulates a multi press on an action switch, sending InitialPress and MultiPressComplete",
         commissioned.withRef("dut", async (cx, ref) => {
             const th = cx.devices.th;
-            const featureMap = await readNumber(cx, ref, MOMENTARY_ENDPOINT, FEATURE_MAP);
-            const multiPressMax = await readNumber(cx, ref, MOMENTARY_ENDPOINT, MULTI_PRESS_MAX);
             await idleSwitch(cx, MOMENTARY_ENDPOINT);
             const boundary = await quietEventBoundary(cx);
+
+            // As step 4c: read only once the reports the previous step provoked have arrived
+            const featureMap = await readNumber(cx, ref, MOMENTARY_ENDPOINT, FEATURE_MAP);
+            const multiPressMax = await readNumber(cx, ref, MOMENTARY_ENDPOINT, MULTI_PRESS_MAX);
             await th.backchannel({
                 name: "simulateMultiPress",
                 endpointId: MOMENTARY_ENDPOINT,
