@@ -19,8 +19,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
 
 - @matter/node
-    - Fix: A state change delivered through the remote API updates the value it names. A client node stores each member under its attribute ID, and a change addressed by property name landed under a second key that reads were never served from, so the update was invisible and was never persisted
-    - Fix: A cluster whose definition the peer changes rebuilds its behavior on the remote API path too, not only on the protocol path, and dropped attributes are pruned there as well
+    - Fix: `ClientStructure.applyWireChanges` applies the change it is given. A client node keys each member of a cluster by attribute ID, and a change from the remote API addresses members by property name, so values landed under a key reads were never served from: the update was invisible and never persisted. Values now convert as the change is applied
+    - Fix: `ClientStructure.applyWireChanges` regenerates a behavior whose cluster definition changed and prunes attributes the cluster dropped, as the Matter protocol path already did
     - Fix: Validation honors the conformance and quality an element inherits, so an element overridden by an operational extension is no longer judged as if it stated neither
     - Fix: A write from local code that adds an entry to a fabric-scoped list without a `fabricIndex` now fails validation instead of storing an entry that belongs to no fabric. Writes from a peer are unaffected — the accessing fabric is supplied for them
     - Fix: Assigning a whole list to a fabric-scoped attribute that held none merges through the managed list, so its entries are fabric-filtered and carry the accessing fabric; it previously bypassed both
