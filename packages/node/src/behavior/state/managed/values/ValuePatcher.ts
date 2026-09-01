@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError, isObject } from "@matter/general";
+import { deepCopy, ImplementationError, isObject } from "@matter/general";
 import type { Schema } from "@matter/model";
 import { DataModelPath, DefaultValue, Metatype, ValueModel } from "@matter/model";
 import { SchemaImplementationError, Val, WriteError } from "@matter/protocol";
@@ -39,6 +39,8 @@ const defaultsCache = new WeakMap<RootSupervisor, WeakMap<Schema, Val.Struct>>()
  *
  * A member the scope does not support contributes no default.  The fallback the specification states for a field is
  * the value a reader assumes when the field is absent; it is not a value we may materialize on the member's behalf.
+ *
+ * The result is cached and shared, so callers copy before handing it to a mutable value.
  */
 function getDefaults(supervisor: RootSupervisor, schema: Schema): Val.Struct {
     let schemaDefaults = defaultsCache.get(supervisor);
@@ -157,7 +159,7 @@ function StructPatcher(schema: ValueModel, supervisor: RootSupervisor): ValueSup
 
             // If the field is a struct but currently empty, create by patching over defaults
             if (target[key] === undefined || target[key] === null) {
-                newValue = subpatch(newValue as Val.Collection, { ...memberDefaults[key] }, path.at(key));
+                newValue = subpatch(newValue as Val.Collection, deepCopy(memberDefaults[key]), path.at(key));
                 target[key] = newValue;
                 continue;
             }
@@ -221,7 +223,7 @@ function ListPatcher(schema: ValueModel, supervisor: RootSupervisor): ValueSuper
                 if (newValue === undefined || newValue === null || oldValue === undefined || oldValue === null) {
                     // If creating a new object, apply as a patch to the object's defaults before insertion
                     if (entryDefaults && isObject(newValue)) {
-                        newValue = patchEntry(newValue as Val.Collection, { ...entryDefaults }, path.at(index));
+                        newValue = patchEntry(newValue as Val.Collection, deepCopy(entryDefaults), path.at(index));
                     }
 
                     target[index] = newValue;

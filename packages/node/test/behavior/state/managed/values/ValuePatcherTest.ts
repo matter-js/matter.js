@@ -46,22 +46,36 @@ const Widgets = new ClusterModel({
                 { tag: "field", id: 0x0, name: "Id", type: "uint16", conformance: "M" },
                 { tag: "field", id: 0x1, name: "Extra", type: "uint16", conformance: "[EXT]", default: 4 },
                 { tag: "field", id: 0x2, name: "Required", type: "uint16", conformance: "EXT", default: 7 },
+                {
+                    tag: "field",
+                    id: 0x3,
+                    name: "Tags",
+                    type: "list",
+                    conformance: "M",
+                    default: [],
+
+                    children: [{ tag: "field", name: "entry", type: "uint16" }],
+                },
             ],
         },
     ],
 });
 
-function patchWidget(features: string[], widget: Val.Struct) {
+function patchWidgets(features: string[], ...widgets: Val.Struct[]) {
     const schema = Widgets.clone();
     schema.supportedFeatures = new FeatureSet(features);
 
     const supervisor = RootSupervisor.for(schema);
 
     return (
-        supervisor.patch({ widgets: [widget] }, {}, new DataModelPath("Widgets")) as {
+        supervisor.patch({ widgets }, {}, new DataModelPath("Widgets")) as {
             widgets: Val.Struct[];
         }
-    ).widgets[0];
+    ).widgets;
+}
+
+function patchWidget(features: string[], widget: Val.Struct) {
+    return patchWidgets(features, widget)[0];
 }
 
 function patchPreset(...features: Thermostat.Feature[]) {
@@ -78,7 +92,7 @@ function patchPreset(...features: Thermostat.Feature[]) {
 
 describe("ValuePatcher", () => {
     it("omits the fallback of a field the active features disallow", () => {
-        expect(patchWidget([], { id: 1 })).deep.equals({ id: 1 });
+        expect(patchWidget([], { id: 1 })).deep.equals({ id: 1, tags: [] });
     });
 
     it("omits the fallback of a field the active features leave optional", () => {
@@ -87,6 +101,12 @@ describe("ValuePatcher", () => {
 
     it("applies the fallback of a field the active features make mandatory", () => {
         expect(patchWidget(["EXT"], { id: 1 }).required).equals(7);
+    });
+
+    it("gives each struct its own copy of a container default", () => {
+        const [one, another] = patchWidgets([], { id: 1 }, { id: 2 });
+
+        expect(one.tags).not.equals(another.tags);
     });
 
     it("applies a fallback in the units the datatype encodes", () => {
