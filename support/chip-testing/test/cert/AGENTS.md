@@ -2405,3 +2405,35 @@ receiver's own view of the destination, and the only place in this suite where t
 **A production change came with it.** The group invoke's diagnostic printed the address alone;
 `GroupSession.destination` now renders `[<address>]:<port>` so the log says where a message actually
 went. Steps 6 and 7 stay not-applicable: they need the Groupcast cluster, which neither TH has.
+
+## Operating a device, and observing the events it sends (`TC-SWTCH-3.2`)
+
+Three mechanics this TC needed, all reusable.
+
+**An event subscription that does not ask for urgency sees almost nothing.** A publisher may hold
+queued events until the subscription's maximum interval elapses, so a step that operates the device and
+then waits a few seconds for the event sees one report and then silence — this TC's first run saw one
+of four switch events, the rest arriving when the subscription closed. `SubscribeEventOptions.urgent`
+asks for urgent paths (`isUrgent` on each `EventPathIB`, `--is-urgent` on chip-tool). It is off by
+default because it is visible on the wire: chip's decode dump prints an `isUrgent = true` line inside
+the `EventPathIB`, which breaks a log check that matches the subscribe envelope as adjacent lines
+(`TC-IDM-6.4` does exactly that).
+
+**Count events above a boundary, and take the boundary from the subscription, not from a read.** Events
+an earlier step provoked can still be in flight when the next step starts, so a step that counts "the
+events named X" counts the step before it too. Wait until the subscription has been quiet for a moment,
+take the highest event number received, and count only above it — and fail the step if it never goes
+quiet, since then the boundary separates nothing. Do not take the boundary from `readEvents`: chip-tool
+folds a subscription report that arrives while a read is in flight into that read's reply, so the
+step's own first event lands *below* a boundary read this way. That was observed in a captured run —
+the read returned event numbers 4..8 where the subscription had delivered 4..7, and the step then
+counted three of its four events.
+
+**A backchannel command returning does not mean the device has acted.** The matter.js test device
+awaits the state change before answering; a chip app reads the command from its named pipe on its own
+thread and posts it to its event loop, so a read taken immediately afterwards can still see the old
+state. A step that operates a device and then reads should poll to a deadline rather than assert once.
+
+Beware also that a device's own idea of "idle" differs: `simulateSwitchIdle` resets the switch state on
+the matter.js device but only moves the position on a chip app, so a step that presses needs its own
+wait for the previous press cycle to close, not just the command.

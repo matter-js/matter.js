@@ -411,6 +411,221 @@ describe("ChipLocalSubject", () => {
         }
     });
 
+    it("hands a simulation command to the app through the pipe it opened", async function () {
+        this.timeout(15_000);
+
+        // Stands in for a chip app's own named pipe handling: the app creates the fifo the harness
+        // named and reports what it reads there, which is what the backchannel has to reach.
+        await writeFile(
+            join(appDir, "chip-all-clusters-app"),
+            [
+                "#!/bin/sh",
+                'pipe=""',
+                "while [ $# -gt 0 ]; do",
+                '    if [ "$1" = "--app-pipe" ]; then pipe="$2"; fi',
+                "    shift",
+                "done",
+                'mkfifo "$pipe"',
+                "echo ready",
+                'while read -r line < "$pipe"; do echo "pipe $line"; done',
+                "",
+            ].join("\n"),
+            { mode: 0o755 },
+        );
+
+        const device = ChipLocalSubject("all-clusters")("cert");
+        if (!isCertDevice(device)) {
+            throw new Error("Expected a CertDevice");
+        }
+
+        await device.initialize();
+        await device.start();
+
+        try {
+            const lines = device.log.follow();
+            expect(await collectLines(lines, 1, 5_000)).deep.equal(["ready"]);
+
+            await device.backchannel({ name: "simulateSwitchIdle", endpointId: 3 });
+
+            expect(await collectLines(lines, 1, 5_000)).deep.equal([
+                'pipe {"Name":"SimulateSwitchIdle","EndpointId":3}',
+            ]);
+        } finally {
+            await device.stop();
+            await device.close();
+        }
+    });
+
+    it("refuses a simulation command for an app that reads none, rather than writing where nothing listens", async function () {
+        this.timeout(15_000);
+
+        const device = ChipLocalSubject(app)("cert");
+        if (!isCertDevice(device)) {
+            throw new Error("Expected a CertDevice");
+        }
+
+        await device.initialize();
+        await device.start();
+
+        try {
+            await expect(device.backchannel({ name: "simulateSwitchIdle", endpointId: 3 })).rejectedWith(
+                "simulateSwitchIdle",
+            );
+        } finally {
+            await device.stop();
+            await device.close();
+        }
+    });
+
+    it("refuses a simulation command when the pipe path holds a file the app did not create", async function () {
+        this.timeout(15_000);
+
+        // Reports the pipe path instead of creating one, so the test can leave a plain file there
+        await writeFile(
+            join(appDir, "chip-all-clusters-app"),
+            [
+                "#!/bin/sh",
+                'pipe=""',
+                "while [ $# -gt 0 ]; do",
+                '    if [ "$1" = "--app-pipe" ]; then pipe="$2"; fi',
+                "    shift",
+                "done",
+                'echo "pipe-is $pipe"',
+                "exec sleep 300",
+                "",
+            ].join("\n"),
+            { mode: 0o755 },
+        );
+
+        const device = ChipLocalSubject("all-clusters")("cert");
+        if (!isCertDevice(device)) {
+            throw new Error("Expected a CertDevice");
+        }
+
+        await device.initialize();
+        await device.start();
+
+        try {
+            const [reported] = await collectLines(device.log.follow(), 1, 5_000);
+            const pipePath = reported.replace("pipe-is ", "");
+
+            // What a write to a path the app has not made a fifo would leave behind, and what the app's
+            // own mkfifo would then accept as already existing
+            await writeFile(pipePath, "");
+
+            await expect(device.backchannel({ name: "simulateSwitchIdle", endpointId: 3 })).rejectedWith(
+                "the app did not create",
+            );
+        } finally {
+            await device.stop();
+            await device.close();
+        }
+    });
+
+    it("clears a pipe a killed app left behind, so the next generation can create its own", async function () {
+        this.timeout(20_000);
+
+        // Chip treats a failing mkfifo as fatal, so an app that finds one already there does not start
+        await writeFile(
+            join(appDir, "chip-all-clusters-app"),
+            [
+                "#!/bin/sh",
+                'pipe=""',
+                "while [ $# -gt 0 ]; do",
+                '    if [ "$1" = "--app-pipe" ]; then pipe="$2"; fi',
+                "    shift",
+                "done",
+                'mkfifo "$pipe" || { echo pipe-already-there; exit 3; }',
+                "echo ready",
+                "exec sleep 300",
+                "",
+            ].join("\n"),
+            { mode: 0o755 },
+        );
+
+        const device = ChipLocalSubject("all-clusters")("cert");
+        if (!isCertDevice(device)) {
+            throw new Error("Expected a CertDevice");
+        }
+
+        await device.initialize();
+        await device.start();
+
+        try {
+            const lines = device.log.follow();
+            expect(await collectLines(lines, 1, 5_000)).deep.equal(["ready"]);
+
+            // A SIGKILL'd app never unlinks its own pipe, and stop() keeps the storage directory
+            await device.stop();
+            await device.start();
+
+            // The stopped generation's stream can still yield its trailing blank line, so this looks for
+            // what the second generation says rather than for the very next line
+            const restarted = await collectLines(lines, 2, 5_000);
+            expect(restarted).contains("ready");
+            expect(restarted).not.contains("pipe-already-there");
+        } finally {
+            await device.stop();
+            await device.close();
+        }
+    });
+
+    it("fails a simulation command the app has stopped reading, rather than waiting for a reader", async function () {
+        this.timeout(15_000);
+
+        // Creates the pipe and never reads it, which is what an app that died holding its fifo leaves
+        await writeFile(
+            join(appDir, "chip-all-clusters-app"),
+            [
+                "#!/bin/sh",
+                'pipe=""',
+                "while [ $# -gt 0 ]; do",
+                '    if [ "$1" = "--app-pipe" ]; then pipe="$2"; fi',
+                "    shift",
+                "done",
+                'mkfifo "$pipe"',
+                "echo ready",
+                "exec sleep 300",
+                "",
+            ].join("\n"),
+            { mode: 0o755 },
+        );
+
+        const device = ChipLocalSubject("all-clusters")("cert");
+        if (!isCertDevice(device)) {
+            throw new Error("Expected a CertDevice");
+        }
+
+        await device.initialize();
+        await device.start();
+
+        try {
+            expect(await collectLines(device.log.follow(), 1, 5_000)).deep.equal(["ready"]);
+
+            await expect(device.backchannel({ name: "simulateSwitchIdle", endpointId: 3 })).rejectedWith(
+                "stopped reading the pipe",
+            );
+        } finally {
+            await device.stop();
+            await device.close();
+        }
+    });
+
+    it("refuses a simulation command while the app is not running, rather than leaving a file where its pipe goes", async () => {
+        const device = ChipLocalSubject("all-clusters")("cert");
+        if (!isCertDevice(device)) {
+            throw new Error("Expected a CertDevice");
+        }
+
+        await device.initialize();
+
+        try {
+            await expect(device.backchannel({ name: "simulateSwitchIdle", endpointId: 3 })).rejectedWith("not running");
+        } finally {
+            await device.close();
+        }
+    });
+
     it("fails clearly at start() when MATTER_CERT_APP_DIR is unset, rather than spawning an undefined path", async () => {
         delete env.MATTER_CERT_APP_DIR;
 
@@ -495,6 +710,124 @@ describe("ChipDockerSubject", () => {
 
         expect(killed).equal(true);
         expect(await stillPending(device.exit, 100)).equal(true);
+    });
+
+    it("hands a simulation command to the app container's pipe, with the command as an argument", async function () {
+        this.timeout(5_000);
+
+        const execs = new Array<string[]>();
+        let ended!: () => void;
+        const container = fakeContainer({
+            kill: async () => ended(),
+            wait: () =>
+                new Promise<void>(resolve => {
+                    ended = resolve;
+                }),
+            exec: (async (command: string[]) => {
+                execs.push(command);
+            }) as Container["exec"],
+        });
+
+        const composition: CompositionHandle = {
+            async add(config) {
+                commands.push(...(config.command ?? []));
+                return container;
+            },
+            async close() {},
+        };
+
+        const commands = new Array<string>();
+        const docker: DockerHandle = {
+            async ensureVolume() {},
+            compose() {
+                return composition;
+            },
+            async containerStatus() {
+                return { isRunning: true };
+            },
+        };
+
+        const device = new ChipDockerDevice("all-clusters", "cert", undefined, docker);
+
+        await device.start();
+        try {
+            expect(commands).contains("--app-pipe");
+
+            await device.backchannel({ name: "simulateSwitchIdle", endpointId: 3 });
+
+            expect(execs.length).equal(1);
+            const [bound, seconds, shell, flag, script, json] = execs[0];
+            expect([bound, shell, flag]).deep.equal(["timeout", "sh", "-c"]);
+            expect(Number(seconds)).greaterThan(0);
+            expect(script).contains("test -p");
+            expect(json).equal('{"Name":"SimulateSwitchIdle","EndpointId":3}');
+
+            await device.backchannel({ name: "simulateLatchPosition", endpointId: 1, positionId: 1 });
+            expect(execs.length).equal(2);
+            expect(execs[1][execs[1].length - 1]).equal(
+                '{"Name":"SimulateLatchPosition","EndpointId":1,"PositionId":1}',
+            );
+        } finally {
+            await device.close();
+        }
+    });
+
+    it("refuses a simulation command after the container is gone", async function () {
+        this.timeout(5_000);
+
+        let ended!: () => void;
+        const container = fakeContainer({
+            kill: async () => ended(),
+            wait: () =>
+                new Promise<void>(resolve => {
+                    ended = resolve;
+                }),
+            exec: (async () => {
+                throw new Error("exec should not reach a container that is gone");
+            }) as Container["exec"],
+        });
+
+        const composition: CompositionHandle = {
+            async add() {
+                return container;
+            },
+            async close() {},
+        };
+
+        const docker: DockerHandle = {
+            async ensureVolume() {},
+            compose() {
+                return composition;
+            },
+            async containerStatus() {
+                return { isRunning: true };
+            },
+        };
+
+        const device = new ChipDockerDevice("all-clusters", "cert", undefined, docker);
+
+        await device.start();
+        await device.stop();
+
+        await expect(device.backchannel({ name: "simulateSwitchIdle", endpointId: 3 })).rejectedWith("not running");
+
+        await device.close();
+    });
+
+    it("refuses a simulation command while no container is running", async () => {
+        const docker: DockerHandle = {
+            async ensureVolume() {},
+            compose() {
+                throw new Error("compose() should not be called");
+            },
+            async containerStatus() {
+                return { isRunning: true };
+            },
+        };
+
+        const device = new ChipDockerDevice("all-clusters", "cert", undefined, docker);
+
+        await expect(device.backchannel({ name: "simulateSwitchIdle", endpointId: 3 })).rejectedWith("not running");
     });
 
     it("closes the composition when adding the app container fails", async function () {
