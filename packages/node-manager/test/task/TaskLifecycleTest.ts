@@ -5,7 +5,7 @@
  */
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
-import { TaskConflictError, TaskFailedError, TaskIdentityExhaustedError } from "#task/errors.js";
+import { TaskFailedError, TaskIdentityExhaustedError, TaskRollbackPendingError } from "#task/errors.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { TaskPhase } from "#task/types.js";
 import { RunId } from "#task/types.js";
@@ -335,7 +335,7 @@ describe("Task lifecycle", () => {
             // Re-running now would re-apply exactly the intents the rollback is removing.
             await expect(
                 (async () => node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "rerun" })))(),
-            ).rejectedWith(TaskConflictError);
+            ).rejectedWith(TaskRollbackPendingError);
 
             peer.setReachable(true);
             await awaitState(

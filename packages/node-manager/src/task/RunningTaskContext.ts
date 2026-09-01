@@ -15,7 +15,7 @@ import { TaskContext, TaskState } from "./types.js";
 const logger = Logger.get("TaskContext");
 
 /**
- * Lets the manager interrupt a parked gate. `aborted()` returns the abort reason (a cancel or suspend signal)
+ * Lets the manager interrupt a parked gate. `aborted()` returns the abort reason (a cancel, abandon or suspend signal)
  * once set; the gate then rejects with it. `onAbort` wakes the gate so it observes the abort even while parked
  * on peer observers.
  */

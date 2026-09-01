@@ -37,12 +37,6 @@ export class Execution {
      */
     settled = false;
 
-    /**
-     * A cancel has been accepted and has not finished unwinding. Outlives the driver deliberately: it refuses a
-     * re-run for the whole window, and the driver reads it between phases to stop advancing.
-     */
-    cancelling = false;
-
     #phases?: TaskPhase[];
 
     constructor(record: RunRecord, bound: BoundDefinition) {
