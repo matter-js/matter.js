@@ -30,14 +30,23 @@ export function ValuePatcher(schema: Schema, supervisor: RootSupervisor) {
     }
 }
 
-const defaultsCache = new WeakMap<Schema, Val.Struct>();
+// Keyed by supervisor then schema.  Filtering by conformance makes the result depend on the supervisor's feature
+// scope, and peer supervisors created via Model#extend() share nested schema identity with different supported
+// features, so schema alone is not a safe cache key
+const defaultsCache = new WeakMap<RootSupervisor, WeakMap<Schema, Val.Struct>>();
 
 /**
  * Obtain default values for a struct.
  */
 function getDefaults(supervisor: RootSupervisor, schema: Schema): Val.Struct {
-    if (defaultsCache.has(schema)) {
-        return defaultsCache.get(schema) as Val.Struct;
+    let schemaCache = defaultsCache.get(supervisor);
+    if (schemaCache === undefined) {
+        defaultsCache.set(supervisor, (schemaCache = new WeakMap()));
+    }
+
+    const cached = schemaCache.get(schema);
+    if (cached !== undefined) {
+        return cached;
     }
 
     const defaults = {} as Val.Struct;
@@ -55,7 +64,7 @@ function getDefaults(supervisor: RootSupervisor, schema: Schema): Val.Struct {
         // No default
     }
 
-    defaultsCache.set(schema, defaults);
+    schemaCache.set(schema, defaults);
 
     return defaults;
 }

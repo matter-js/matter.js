@@ -19,7 +19,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
 
 - @matter/node
-    - Fix: A struct/list write no longer synthesizes a default for a member the active features don't support, then rejects that same synthesized value for violating the conformance it was never asked to satisfy — `getDefaults()` now selects only conformant members, matching `SelectDefaultValue()`'s existing feature check. Surfaced by `CommodityTariff.DayEntryStruct.RandomizationType` (`"[RNDM]"`-gated with a spec-mandated `default: 0`/`None`): writing a `dayEntries` entry that omits it failed even with `Randomization` unsupported, where the field can't exist at all
+    - Fix: A struct/list write no longer synthesizes a default for a member the active features don't support; `getDefaults()` now selects only conformant members
     - Fix: `ClientStructure.applyWireChanges` applies the change it is given. A client node keys each member of a cluster by attribute ID, and a change from the remote API addresses members by property name, so values landed under a key reads were never served from: the update was invisible and never persisted. Values now convert as the change is applied
     - Fix: `ClientStructure.applyWireChanges` regenerates a behavior whose cluster definition changed and prunes attributes the cluster dropped, as the Matter protocol path already did
     - Fix: Validation honors the conformance and quality an element inherits, so an element overridden by an operational extension is no longer judged as if it stated neither

@@ -9,15 +9,12 @@ import { CommodityTariff } from "@matter/types/clusters/commodity-tariff";
 import { MockServerNode } from "../../node/mock-server-node.js";
 
 /**
- * Regression test: DayEntryStruct.RandomizationType declares both conformance "[RNDM]" (gated behind the
- * Randomization feature, which this endpoint does not enable — only Pricing is) and a schema default (0).
- * Writing a `dayEntries` list entry that omits RandomizationType used to auto-fill that default and then
- * reject the very same fill for violating the conformance gate it was never asked to violate:
- *
- *   Conformance "[RNDM]": Matter does not allow you to set this attribute
- *
- * A bare (non-list) struct attribute with the identical field shape (e.g. currentDayEntry) did not trip
- * this — the bug was specific to validating list-of-struct entries.
+ * DayEntryStruct.RandomizationType is gated behind conformance "[RNDM]" (the Randomization feature) and
+ * declares a schema default (0/None), so both feature states need coverage: writing a `dayEntries` entry
+ * that omits it must be accepted whether or not Randomization is supported, and must read back as the
+ * spec's None fallback only once the field can actually exist. Coverage is specific to the list-of-struct
+ * write path; a bare (non-list) struct attribute with the identical field shape (e.g. currentDayEntry)
+ * does not exercise it.
  */
 describe("CommodityTariff dayEntries write with a [FEATURE]-gated, defaulted struct field", () => {
     async function createNode() {
