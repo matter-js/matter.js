@@ -82,17 +82,20 @@ function getDefaults(supervisor: RootSupervisor, schema: Schema): Val.Struct {
  * Create a function that takes a patch object and applies it to a target object.
  */
 function StructPatcher(schema: ValueModel, supervisor: RootSupervisor): ValueSupervisor.Patch {
+    // Membership of these maps decides whether a patch names a member, so they carry no prototype: an inherited key
+    // such as "toString" would otherwise pass for a member the schema never declared
+    //
     // An object mapping name to a patch function for sub-collections and undefined otherwise
-    const memberPatchers = {} as Record<string, ValueSupervisor.Patch | undefined>;
+    const memberPatchers: Record<string, ValueSupervisor.Patch | undefined> = Object.create(null);
 
     // An object mapping name to default value (if any) for sub-structs
-    const memberDefaults = {} as Record<string, Val.Struct>;
+    const memberDefaults: Record<string, Val.Struct> = Object.create(null);
 
     // An object mapping name to true if member is an array
-    const memberArrays = {} as Record<string, boolean>;
+    const memberArrays: Record<string, boolean> = Object.create(null);
 
     // An object mapping alt keys (numeric IDs) to member names, if numeric IDs are defined
-    const memberAltKeys = {} as Record<string, string>;
+    const memberAltKeys: Record<string, string> = Object.create(null);
 
     for (const member of supervisor.membersOf(schema)) {
         const metatype = member.effectiveMetatype;

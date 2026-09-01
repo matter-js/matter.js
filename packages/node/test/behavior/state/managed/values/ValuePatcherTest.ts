@@ -109,6 +109,11 @@ describe("ValuePatcher", () => {
         expect(one.tags).not.equals(another.tags);
     });
 
+    it("refuses a key the schema does not declare, including a property of Object.prototype", () => {
+        expect(() => patchWidget([], { nope: 1 })).throws("nope is not a property of entry");
+        expect(() => patchWidget([], { toString: 1 })).throws("toString is not a property of entry");
+    });
+
     it("applies a fallback in the units the datatype encodes", () => {
         // The schema states 26°C; state carries the wire units of the temperature datatype
         expect(patchPreset(Thermostat.Feature.Cooling).coolingSetpoint).equals(2600);
