@@ -16,6 +16,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Chip certification test devices take simulation commands through the named pipe their app opens, so a step that operates the device runs against a chip app rather than skipping
     - Enhancement: Chip certification test devices also take simulation commands through their app's standard input, which is how chip's bridge app is operated
     - Enhancement: The matter.js bridge test device exposes the devices chip's bridge app does, on the same endpoints, and takes the same simulation commands
+    - Enhancement: A certification step can ask what a controller holds for a node — its endpoints, or one attribute's value — rather than only what a read returns, via `CertNodeApi.clientEndpoints()` and `CertNodeApi.clientAttribute()`
     - Enhancement: A certification step subscribing to events may ask for them urgently via `SubscribeEventOptions.urgent`, so a device reports them as they occur rather than at the subscription's maximum interval
     - Enhancement: A certification test requests a transport preference for its controllers via `certTest`'s `transport` option; `"tcp"` asks for a TCP-backed session where the peer supports one, and adapters receive the request through `ControllerAdapterOptions`
     - Enhancement: A certification step whose check could not be evaluated ends `"unverified"` and fails the run, unless the check states why the claim cannot be observed

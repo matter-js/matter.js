@@ -171,6 +171,19 @@ export interface AttributeReadEntry {
 }
 
 /**
+ * One endpoint of a node as a controller holds it.
+ *
+ * This is not what a read answers. A read reports what the node exposes now; this reports what the
+ * controller believes, which is the only way to tell whether a controller noticed a bridge adding or
+ * removing a device rather than merely being able to see it.
+ */
+export interface ClientEndpointEntry {
+    endpoint: number;
+    deviceTypes: number[];
+    parts: number[];
+}
+
+/**
  * The device's per-path answer to one attribute of a write request.
  */
 export interface AttributeWriteStatus {
@@ -331,6 +344,22 @@ export interface CertNodeApi {
      * A node with no records for a selected path answers with neither data nor a status, so an empty
      * result is a successful read, not a failure.
      */
+    /**
+     * The endpoints the controller holds for this node, from its own state rather than from a read.
+     *
+     * See {@link ClientEndpointEntry} for why the distinction matters. A controller that keeps no
+     * device list of its own refuses with {@link UnsupportedByControllerError}.
+     */
+    clientEndpoints(): Promise<ClientEndpointEntry[]>;
+
+    /**
+     * The value the controller holds for `path`, from its own state rather than from a read, and
+     * `undefined` where it holds none.
+     *
+     * As {@link clientEndpoints}, and refused the same way.
+     */
+    clientAttribute(path: Required<AttributePathSpec>): Promise<unknown>;
+
     readEvents(paths: EventPathSpec[], options?: ReadEventOptions): Promise<EventReadEntry[]>;
 
     /**
