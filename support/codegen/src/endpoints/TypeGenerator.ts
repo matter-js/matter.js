@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { int64, Metatype, uint64, ValueModel } from "#model";
+import { ClusterModel, int64, Metatype, status, uint64, ValueModel } from "#model";
 import { SpecializedNumbers, specializedNumberTypeFor } from "../clusters/NumberConstants.js";
 import { ScopeFile } from "../util/ScopeFile.js";
 
@@ -170,6 +170,14 @@ export class TypeGenerator {
                     }
                     this.onReference?.(m);
                     types.push(this.file.reference(m, false, true));
+                }
+                const owner = this.file.scope?.owner;
+                if (model.isGlobal && model.name === status.name && owner instanceof ClusterModel) {
+                    const statusCodes = owner.statusCodes;
+                    if (statusCodes) {
+                        this.onReference?.(statusCodes);
+                        types.push(this.file.reference(statusCodes, false, true));
+                    }
                 }
                 if (types.length) {
                     return types.join(" | ");
