@@ -618,5 +618,19 @@ describe("Conformance", () => {
         it("does not cap a mandatory term preceding the provisional term", () => {
             expect(applicability("AA, P", "AA")).equal(Mandatory);
         });
+
+        it("leaves a term that compares a value conditional", () => {
+            expect(applicability("SomeField == SomeValue")).equal(Conditional);
+            expect(applicability("Rev >= v3")).equal(Conditional);
+
+            // A comparison the features cannot settle must not be absorbed by a feature term around it
+            expect(applicability("SomeField == SomeValue & !AA")).equal(Conditional);
+            expect(applicability("SomeField == SomeValue & AA", "AA")).equal(Conditional);
+            expect(applicability("TriggerType == Motion & !AA")).equal(Conditional);
+
+            // A negated comparison has no decidable inverse either, and once had none of the three values the
+            // inversion accepts
+            expect(applicability("!(SomeField == SomeValue)")).equal(Conditional);
+        });
     });
 });
