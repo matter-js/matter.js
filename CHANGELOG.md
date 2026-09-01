@@ -25,6 +25,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Creating a struct fills in a default only for a field the cluster supports, so a field a device does not set stays absent instead of carrying the fallback its schema states. A write of a list entry that omits a feature-gated field is accepted, where it previously failed validation against the field it had filled in. Affects `Thermostat` preset names and setpoints, `Descriptor` tag labels, `MediaPlayback` track attributes and the feature-gated members of `ClosureControl`, `ClosureDimension`, `ElectricalEnergyMeasurement`, `CommodityPrice` and `CommodityTariff`
     - Fix: A struct field's default is stored in the units and shape of its datatype: a preset created without a cooling setpoint reads `2600` rather than the schema's `26°C` notation, and a bitmap default arrives decoded
     - Fix: Each struct created by a write receives its own copy of a list or bitmap default instead of sharing one instance
+    - Fix: A nullable field the active features make mandatory holds `null` when a write omits it, where a field made mandatory by a feature expression previously stayed absent
     - Fix: A write that names a property of `Object.prototype`, such as `toString`, is refused like any other property the cluster does not declare
     - Fix: `ClientStructure.applyWireChanges` applies the change it is given. A client node keys each member of a cluster by attribute ID, and a change from the remote API addresses members by property name, so values landed under a key reads were never served from: the update was invisible and never persisted. Values now convert as the change is applied
     - Fix: `ClientStructure.applyWireChanges` regenerates a behavior whose cluster definition changed and prunes attributes the cluster dropped, as the Matter protocol path already did
@@ -70,6 +71,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The `Symbol.metadata` polyfill no longer conflicts with `lib.esnext.decorators` in the published declarations
 
 - @matter/model
+    - Enhancement: `StoredDefaultValue()` states the default a value store holds for a member, beside the existing `SelectDefaultValue()` and `MandatoryDefaultValue()`
     - Fix: Conformance applicability reports a term that compares a value as conditional rather than optional, so an element the record's own contents decide is no longer treated as mandatory when the features around the comparison are supported
     - Fix: TemperatureMeasurement's MinMeasuredValue and MaxMeasuredValue now default to `null` ("range unavailable"), like the other measurement clusters, instead of -27315 and 32767, and carry the constraints the specification states rather than hand-written ones
     - Fix: A device type requiring several instances of one component, such as `BatteryStorage` with two electrical sensors and two power sources, no longer reports each instance as a duplicate of the others

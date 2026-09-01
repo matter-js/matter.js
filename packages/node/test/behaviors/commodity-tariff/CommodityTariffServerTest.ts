@@ -47,6 +47,25 @@ describe("CommodityTariffServer", () => {
         expect(dayEntry.randomizationType).equals(undefined);
     });
 
+    it("reads a member the active features make mandatory as null when a write omits it", async () => {
+        await using node = await MockServerNode.createOnline({
+            type: MockServerNode.RootEndpoint.with(
+                CommodityTariffServer.with(CommodityTariff.Feature.Pricing).set(NullState),
+            ),
+        });
+
+        await node.setStateOf(CommodityTariffServer, {
+            tariffInfo: {
+                tariffLabel: "Tariff",
+                providerName: "Provider",
+                blockMode: CommodityTariff.BlockMode.NoBlock,
+            },
+        });
+
+        // Currency is nullable and mandatory under Pricing, so it holds null although the write omitted it
+        expect(node.stateOf(CommodityTariffServer).tariffInfo?.currency).equals(null);
+    });
+
     it("stores a day entry that omits the randomization fields with Randomization supported", async () => {
         await using node = await MockServerNode.createOnline({
             type: MockServerNode.RootEndpoint.with(

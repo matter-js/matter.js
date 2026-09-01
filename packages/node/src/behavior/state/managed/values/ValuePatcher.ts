@@ -6,7 +6,7 @@
 
 import { deepCopy, ImplementationError, isObject } from "@matter/general";
 import type { Schema } from "@matter/model";
-import { DataModelPath, DefaultValue, Metatype, ValueModel } from "@matter/model";
+import { DataModelPath, Metatype, StoredDefaultValue, ValueModel } from "@matter/model";
 import { SchemaImplementationError, Val, WriteError } from "@matter/protocol";
 import { RootSupervisor } from "../../../supervision/RootSupervisor.js";
 import { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
@@ -35,10 +35,7 @@ export function ValuePatcher(schema: Schema, supervisor: RootSupervisor) {
 const defaultsCache = new WeakMap<RootSupervisor, WeakMap<Schema, Val.Struct>>();
 
 /**
- * Obtain default values for a struct.
- *
- * A member the scope does not support contributes no default.  The fallback the specification states for a field is
- * the value a reader assumes when the field is absent; it is not a value we may materialize on the member's behalf.
+ * Obtain the values storage holds for a struct absent an explicit value.
  *
  * The result is cached and shared, so callers copy before handing it to a mutable value.
  */
@@ -56,20 +53,9 @@ function getDefaults(supervisor: RootSupervisor, schema: Schema): Val.Struct {
     const { scope } = supervisor;
     const defaults = {} as Val.Struct;
     for (const member of supervisor.membersOf(schema)) {
-        if (!scope.hasOperationalSupport(member)) {
-            continue;
-        }
-
-        if (member.default !== undefined) {
-            const value = DefaultValue(scope, member);
-            if (value !== undefined) {
-                defaults[member.propertyName] = value;
-                continue;
-            }
-        }
-
-        if (member.mandatory && member.nullable) {
-            defaults[member.propertyName] = null;
+        const value = StoredDefaultValue(scope, member);
+        if (value !== undefined) {
+            defaults[member.propertyName] = value;
         }
     }
 
@@ -162,7 +148,7 @@ function StructPatcher(schema: ValueModel, supervisor: RootSupervisor): ValueSup
 
             // If the field is a struct but currently empty, create by patching over defaults
             if (target[key] === undefined || target[key] === null) {
-                newValue = subpatch(newValue as Val.Collection, deepCopy(memberDefaults[key]), path.at(key));
+                newValue = subpatch(newValue as Val.Collection, deepCopy(memberDefaults[key]) ?? {}, path.at(key));
                 target[key] = newValue;
                 continue;
             }
