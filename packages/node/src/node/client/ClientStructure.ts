@@ -8,6 +8,7 @@ import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import type { ClusterBehaviorType } from "#behavior/cluster/ClusterBehaviorType.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { memberValueOf } from "#behavior/state/managed/MemberKeys.js";
+import { memberKeyFor } from "#behavior/state/managed/MemberKeys.js";
 import type { ValReference } from "#behavior/state/managed/ValReference.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
@@ -85,6 +86,9 @@ export class ClientStructure {
     #subscribedFabricFiltered?: boolean;
     #pendingChanges = new Map<EndpointStructure, PendingChange>();
     #pendingStructureEvents = Array<PendingEvent>();
+
+    // Keyed by cluster ID; a cluster's schema does not change for the life of the structure
+    #attributeIds = new Map<ClusterId, Map<string, number>>();
     #delayedClusterEvents = new Array<ReadResult.EventValue>();
     #clustersWithDataThisInteraction = new Set<ClusterStructure>();
     #events: ClientStructureEvents;
@@ -330,7 +334,9 @@ export class ClientStructure {
     /**
      * Apply {@link StateStream.WireChange}s to the structure.
      *
-     * Values are keyed by property name (not attribute ID).
+     * A wire change addresses members by property name.  A client behavior's container keys them by attribute ID, so
+     * this is where the two representations meet: values convert on the way in and {@link StateStream.WireChange}
+     * stays name-keyed on the way out.
      */
     async applyWireChanges(changes: StateStream.WireChange[]) {
         this.#clustersWithDataThisInteraction.clear();
@@ -342,14 +348,17 @@ export class ClientStructure {
                     const endpoint = this.#endpointFor(endpointNumber);
                     const cluster = this.#clusterForBehavior(endpoint, change.behavior);
 
+                    const values = this.#canonicalize(cluster, change.changes as Record<string, unknown>);
+
                     // Include version in externalSet values so DatasourceCache can update it
-                    const values = new Map(Object.entries(change.changes as Record<string, unknown>)) as Val.StructMap;
                     if (typeof change.version === "number") {
                         values.set(DatasourceCache.VERSION_KEY, change.version);
                     }
 
                     this.#clustersWithDataThisInteraction.add(cluster);
                     this.#preserveAbsentCluster(endpoint.endpoint, cluster);
+
+                    this.#invalidateOnDefinitionChange(cluster, values);
 
                     await cluster.store.externalSet(values);
                     this.#synchronizeCluster(endpoint, cluster);
@@ -544,13 +553,66 @@ export class ClientStructure {
         this.#clustersWithDataThisInteraction.add(cluster);
         this.#preserveAbsentCluster(endpoint.endpoint, cluster);
 
+        this.#invalidateOnDefinitionChange(cluster, attrs.values);
+
+        await cluster.store.externalSet(attrs.values);
+        this.#synchronizeCluster(endpoint, cluster);
+    }
+
+    /**
+     * Convert values a wire change addresses by property name to the keys the cluster's container uses.
+     *
+     * A name the cluster's schema does not define is left as it is; it addresses no member and so has no other key.
+     * A cluster whose store keys by name converts nothing -- it has no schema to resolve names against.
+     */
+    #canonicalize(cluster: ClusterStructure, changes: Record<string, unknown>) {
+        const ids = cluster.primaryKey === "id" ? this.#attributeIdsFor(cluster.id) : undefined;
+        const values = new Map() as Val.StructMap;
+
+        for (const [name, value] of Object.entries(changes)) {
+            values.set(memberKeyFor(cluster.primaryKey, name, ids?.get(name)), value);
+        }
+
+        return values;
+    }
+
+    /**
+     * The attribute ID each of a cluster's property names addresses.
+     */
+    #attributeIdsFor(clusterId: ClusterId) {
+        let ids = this.#attributeIds.get(clusterId);
+        if (ids !== undefined) {
+            return ids;
+        }
+
+        ids = new Map<string, number>();
+        for (const attr of this.#node.matter.clusters(clusterId)?.attributes ?? []) {
+            if (attr.id !== undefined) {
+                ids.set(attr.propertyName, attr.id);
+            }
+        }
+        this.#attributeIds.set(clusterId, ids);
+
+        return ids;
+    }
+
+    /**
+     * Discard a behavior whose schema no longer describes the peer.
+     *
+     * The discovered schema is built from the cluster revision, the feature map, the attribute list and the accepted
+     * command list, so a change to any of them has to regenerate it.
+     */
+    #invalidateOnDefinitionChange(cluster: ClusterStructure, values: Val.StructMap) {
+        if (cluster.behavior === undefined) {
+            return;
+        }
+
         // A non-empty AttributeList is authoritative for the attribute set.  An empty list is ignored so it doesn't
-        // churn against the received-attribute fallback.  Detect the change up front, before any feature comparison
-        // clears the behavior, so the outgoing behavior's schema is still available to prune dropped attributes.
-        const attributeList = attrs.values.get(AttributeList.id);
+        // churn against the received-attribute fallback.  Detect the change before discarding the behavior, whose
+        // schema names the attributes to prune.
+        const attributeList = values.get(AttributeList.id);
         const newAttributes = Array.isArray(attributeList) && attributeList.length ? attributeList : undefined;
         const attributeSetChanged =
-            !!cluster.behavior &&
             newAttributes !== undefined &&
             !isDeepEqual(
                 cluster.attributes,
@@ -558,40 +620,23 @@ export class ClientStructure {
             );
 
         if (attributeSetChanged) {
-            this.#pruneDroppedAttributes(cluster, newAttributes, attrs.values);
+            this.#pruneDroppedAttributes(cluster, newAttributes, values);
         }
 
-        if (cluster.behavior && attrs.values.has(ClusterRevision.id)) {
-            if (cluster.revision !== attrs.values.get(ClusterRevision.id)) {
-                cluster.behavior = undefined;
-            }
-        }
+        const acceptedCommands = values.get(AcceptedCommandList.id);
 
-        if (cluster.behavior && attrs.values.has(FeatureMap.id)) {
-            if (!isDeepEqual(cluster.features, attrs.values.get(FeatureMap.id))) {
-                cluster.behavior = undefined;
-            }
-        }
-
-        if (attributeSetChanged) {
-            cluster.behavior = undefined;
-        }
-
-        if (cluster.behavior && attrs.values.has(AcceptedCommandList.id)) {
-            const acceptedCommands = attrs.values.get(AcceptedCommandList.id);
-            if (
-                Array.isArray(acceptedCommands) &&
+        if (
+            attributeSetChanged ||
+            (values.has(ClusterRevision.id) && cluster.revision !== values.get(ClusterRevision.id)) ||
+            (values.has(FeatureMap.id) && !isDeepEqual(cluster.features, values.get(FeatureMap.id))) ||
+            (Array.isArray(acceptedCommands) &&
                 !isDeepEqual(
                     cluster.commands,
                     [...acceptedCommands].sort((a, b) => a - b),
-                )
-            ) {
-                cluster.behavior = undefined;
-            }
+                ))
+        ) {
+            cluster.behavior = undefined;
         }
-
-        await cluster.store.externalSet(attrs.values);
-        this.#synchronizeCluster(endpoint, cluster);
     }
 
     /**
@@ -890,6 +935,7 @@ export class ClientStructure {
         cluster = {
             kind: "discovered",
             id,
+            primaryKey: "id",
             store: this.#storeFactory(endpoint.endpoint, id.toString(), "id"),
             behavior: undefined,
             pendingBehavior: undefined,
@@ -941,6 +987,7 @@ export class ClientStructure {
         const cluster: ClusterStructure = {
             kind: "discovered",
             id: 0 as ClusterId,
+            primaryKey: "name",
             store: this.#storeFactory(endpoint.endpoint, behaviorId, "name"),
             behavior: undefined,
             pendingBehavior: undefined,
@@ -1210,6 +1257,12 @@ interface EndpointStructure {
 interface ClusterStructure extends Partial<PeerBehavior.DiscoveredClusterShape> {
     kind: "discovered";
     id: ClusterId;
+
+    /**
+     * The keying convention {@link store} uses.  A cluster the peer names but we cannot resolve to a schema has no
+     * attribute IDs to key by, so its store keys members by property name.
+     */
+    primaryKey: "id" | "name";
     behavior?: ClusterBehavior.Type;
     pendingBehavior?: ClusterBehavior.Type;
     pendingDelete?: boolean;
