@@ -164,6 +164,16 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     // switch this controller observes is an action switch, so that is what it declares.
     "SWTCH.C.F02": 0,
     "SWTCH.C.F05": 1,
+
+    // Bridge-client flags. `MCORE.BRIDGECLIENT` asks whether the DUT supports a bridge, and the
+    // `MCORE.DEVLIST.*` flags whether it maintains the devices behind one — their names, their state,
+    // their battery level. CHIP's PICS file answers these for a *device*, so the answers there say
+    // nothing about the client, and this overlay is the DUT-as-client declaration TC-BR-4 rests on.
+    "MCORE.BRIDGECLIENT": 1,
+    "MCORE.DEVLIST.UseDevices": 1,
+    "MCORE.DEVLIST.UseDeviceName": 1,
+    "MCORE.DEVLIST.UseDeviceState": 1,
+    "MCORE.DEVLIST.UseBatInfo": 1,
 };
 
 const adapterStreams = new Map<string, LineQueue>();

@@ -153,6 +153,12 @@ async function nextStore(
     }
 }
 
+/**
+ * A lower bound on the pause between two command characters, well under the pause the subject
+ * actually leaves: the claim is that the two do not travel together, not what the exact gap is.
+ */
+const MIN_STDIN_GAP_MS = 150;
+
 describe("ChipLocalSubject", () => {
     const app = "test";
 
@@ -488,10 +494,15 @@ describe("ChipLocalSubject", () => {
             const lines = device.log.follow();
             expect(await collectLines(lines, 1, 5_000)).deep.equal(["ready"]);
 
+            const started = performance.now();
             await device.backchannel({ name: "addBridgedLight" });
             await device.backchannel({ name: "warmBridgedTemperatureSensors" });
 
             expect(await collectLines(lines, 2, 5_000)).deep.equal(["stdin 2", "stdin t"]);
+
+            // The app reads one character per poll of its standard input and drops the rest of a
+            // batch, so two commands must not travel together
+            expect(performance.now() - started).greaterThan(MIN_STDIN_GAP_MS);
         } finally {
             await device.stop();
             await device.close();
@@ -854,6 +865,7 @@ describe("ChipDockerSubject", () => {
         this.timeout(5_000);
 
         const written = new Array<string>();
+        const writtenAt = new Array<number>();
         let attachedStdin: boolean | undefined;
         let ended!: () => void;
         const container = fakeContainer({
@@ -867,6 +879,7 @@ describe("ChipDockerSubject", () => {
                 return {
                     async write(content: string) {
                         written.push(content);
+                        writtenAt.push(performance.now());
                     },
                     async close() {},
                     async consume() {
@@ -915,6 +928,10 @@ describe("ChipDockerSubject", () => {
             await device.backchannel({ name: "removeBridgedLight" });
 
             expect(written).deep.equal(["b", "4"]);
+
+            // The app reads one character per poll of its standard input and drops the rest of a
+            // batch, so two commands must not travel together
+            expect(writtenAt[1] - writtenAt[0]).greaterThan(MIN_STDIN_GAP_MS);
         } finally {
             await device.close();
         }
