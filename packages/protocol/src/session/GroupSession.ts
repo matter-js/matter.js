@@ -99,6 +99,17 @@ export class GroupSession extends SecureSession {
     }
 
     /**
+     * Where a message on this session's group is addressed, in the form an IPv6 destination is
+     * written: the multicast address in brackets and the port beside it. Group traffic goes to the
+     * standard port, which is what makes the pair worth printing together — an address alone does not
+     * say where a message went. A session created from a received packet reports the same pair, though
+     * it sends nothing itself.
+     */
+    get destination(): string {
+        return `[${this.#multicastAddress}]:${STANDARD_MATTER_PORT}`;
+    }
+
+    /**
      * Create an outbound group session.
      */
     static async create(options: {

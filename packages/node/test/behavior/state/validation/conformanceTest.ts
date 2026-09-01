@@ -1157,6 +1157,56 @@ describe("conformance", () => {
         });
     });
 
+    describe("operational extension", () => {
+        // An extension carries only id, name and the properties it overrides, so its conformance is the base's
+        function managerFor(extend: boolean) {
+            const gated = new FieldModel({ name: "Gated", type: "uint8", conformance: "X" });
+            const cluster = new ClusterModel({ name: "Test", children: [FeatureMap.clone(), gated] });
+            const schema = extend ? cluster.extend({}, gated.extend({ description: "overridden" })) : cluster;
+            return RootSupervisor.for(schema).get(schema);
+        }
+
+        function validate(manager: ReturnType<typeof managerFor>, record: Record<string, unknown>) {
+            manager.validate?.(record, LocalActorContext.ReadOnly, { path: new DataModelPath("Test") });
+        }
+
+        it("disallows a field its base disallows", () => {
+            expect(() => validate(managerFor(false), { gated: 42 })).throw(ConformanceError);
+        });
+
+        it("disallows a field its base disallows when the field is overridden", () => {
+            expect(() => validate(managerFor(true), { gated: 42 })).throw(ConformanceError);
+        });
+
+        it("disallows an enum value its base disallows when the member is overridden", () => {
+            const member = new FieldModel({ id: 3, name: "Disallowed", conformance: "X" });
+            const gated = new FieldModel(
+                { name: "Gated", type: "enum8" },
+                new FieldModel({ id: 1, name: "Allowed" }),
+                member,
+            );
+            const cluster = new ClusterModel({ name: "Test", children: [FeatureMap.clone(), gated] });
+            const schema = cluster.extend({}, gated.extend({}, member.extend({ description: "overridden" })));
+            const manager = RootSupervisor.for(schema).get(schema);
+
+            expect(() => validate(manager, { gated: 3 })).throw(EnumValueConformanceError);
+            expect(() => validate(manager, { gated: 1 })).not.throw();
+        });
+
+        it("treats a field its base declares nullable as nullable", () => {
+            const gated = new FieldModel({ name: "Gated", type: "uint8", conformance: "M", quality: "X" });
+            const cluster = new ClusterModel({ name: "Test", children: [FeatureMap.clone(), gated] });
+            const schema = cluster.extend({}, gated.extend({ description: "overridden" }));
+            const manager = RootSupervisor.for(schema).get(schema);
+
+            expect(() => validate(manager, {})).not.throw();
+        });
+
+        it("names the conformance it judged", () => {
+            expect(() => validate(managerFor(true), { gated: 42 })).throw('Conformance "X"');
+        });
+    });
+
     describe("revision", () => {
         function managerFor(revision: number, conformance: string) {
             const cluster = new ClusterModel({
