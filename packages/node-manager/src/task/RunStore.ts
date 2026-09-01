@@ -8,9 +8,9 @@ import { ImplementationError } from "@matter/general";
 import { TaskIdentityExhaustedError } from "./errors.js";
 import { Execution } from "./Execution.js";
 import { runKey, RunRecord, TaskPersistence } from "./Task.js";
-import { RetireSeq, RunId, TaskState } from "./types.js";
+import { RetireSeq, RunId, Teardown, TaskState } from "./types.js";
 
-const TERMINAL_STATES: ReadonlySet<TaskState> = new Set<TaskState>(["completed", "failed", "cancelled"]);
+const TERMINAL_STATES: ReadonlySet<TaskState> = new Set<TaskState>(["completed", "failed", "cancelled", "abandoned"]);
 
 /** Whether a persisted record has reached a state no driver will advance. */
 export function isTerminal(state: TaskState): boolean {
@@ -26,6 +26,17 @@ export function isTerminal(state: TaskState): boolean {
  * left of the block, so identities are sparse rather than consecutive.
  */
 export const RUN_ID_RESERVATION = 64;
+
+/**
+ * One verb's exclusive hold on a run's outcome.
+ *
+ * {@link settled} resolves when the hold ends, so a second caller of the same verb waits for the decision and
+ * then answers from it rather than being refused — a duplicate cancel is owed the rollback the first created.
+ */
+export interface RunTransition {
+    readonly teardown: Teardown;
+    readonly settled: Promise<void>;
+}
 
 export interface RunStoreSnapshot {
     runs: Record<string, TaskPersistence>;
@@ -60,6 +71,16 @@ export class RunStore {
      * intents it already wrote.
      */
     readonly #executions = new Map<RunId, Execution>();
+
+    /**
+     * The verb currently taking a run's outcome away from its driver, for as long as that transition lasts.
+     *
+     * Kept here rather than on the execution because it must outlive one: a transition detaches the run it is
+     * retiring, and a claim that died with the execution would let a second verb start against the same run in
+     * the window before the first has written anything. It also answers a request for the target after the
+     * driver has stopped, which is most of the window.
+     */
+    readonly #transitions = new Map<RunId, RunTransition & { release(): void }>();
 
     /**
      * Who owns each slot. Maintained rather than derived: a slot is released at the retirement commit, and
@@ -225,6 +246,38 @@ export class RunStore {
         return holder !== undefined && holder.slotKey !== slotKey && !isTerminal(holder.state) ? holder : undefined;
     }
 
+    /**
+     * Take exclusive responsibility for `runId`'s outcome, refusing if another verb already has it.
+     *
+     * Exclusive because a transition stops the driver and then decides: two of them decide from the same
+     * pre-transition state, and the second would either write over the first's outcome or restore a second
+     * driver over the same record.
+     */
+    claimTransition(runId: RunId, teardown: Teardown): RunTransition | undefined {
+        const held = this.#transitions.get(runId);
+        if (held !== undefined) {
+            return held;
+        }
+        let release!: () => void;
+        const settled = new Promise<void>(resolve => (release = resolve));
+        this.#transitions.set(runId, { teardown, settled, release });
+        return undefined;
+    }
+
+    releaseTransition(runId: RunId): void {
+        const held = this.#transitions.get(runId);
+        if (held === undefined) {
+            return;
+        }
+        this.#transitions.delete(runId);
+        held.release();
+    }
+
+    /** The transition that currently owns `runId`'s outcome, if any. */
+    transitionOf(runId: RunId): RunTransition | undefined {
+        return this.#transitions.get(runId);
+    }
+
     /** Register a run and give it ownership of its slot. In memory only: nothing is durable yet. */
     admit(record: RunRecord, execution?: Execution): void {
         const owner = this.#slots.get(record.slotKey);
@@ -314,27 +367,43 @@ export class RunStore {
     }
 
     /**
-     * The rollback that undoes `runId`, if one exists — whether or not the run's own record names it yet.
+     * The rollback of `runId`: the live one if there is one, otherwise the one its record names.
      *
-     * Derived rather than remembered: a rollback is linked by identity from the moment it is admitted, so a
-     * second cancel racing the first finds the rollback already being prepared instead of trying to create
-     * another one.
+     * **The only way to ask.** The relation has two representations — a rollback links to its original by
+     * identity from the moment it is admitted, while the original's own link is durable but only lands with a
+     * write — so a caller that picks one of them gets a different answer inside every persistence window. Every
+     * decision about a run's rollback comes through here; `revertRunId` is read directly only to report
+     * history.
+     *
+     * Unambiguous despite two rollbacks being able to exist for one run: a rollback's target is
+     * `revert:<originalRunId>`, and a target has one owner, so only one of them is ever live.
      */
-    rollbackOf(runId: RunId): RunRecord | undefined {
-        for (const record of this.#records.values()) {
+    rollbackFor(runId: RunId): RunRecord | undefined {
+        for (const record of this.live) {
             if (record.revertOf === runId) {
                 return record;
             }
         }
-        return undefined;
+        const recorded = this.#records.get(runId)?.revertRunId;
+        return recorded === undefined ? undefined : this.#records.get(recorded);
+    }
+
+    /**
+     * The rollback that applies to `undone`'s target: the live one, otherwise the one `undone` names.
+     *
+     * A wider question than {@link rollbackFor}, and the one supersession asks: a rollback of a *later* run of
+     * the same target makes an earlier run's priors historical without that earlier run ever naming it.
+     */
+    rollbackApplyingTo(undone: RunRecord): RunRecord | undefined {
+        return this.liveRollbackOfTarget(undone.slotKey) ?? this.rollbackFor(undone.runId);
     }
 
     /**
      * A live rollback of any retired run of `slotKey`. A rollback rewrites exactly the intents a re-run would
      * re-apply, so the two must never overlap — and the rollback in flight is not necessarily undoing the most
-     * recent run of the slot.
+     * recent run of the target.
      */
-    pendingRevertOfSlot(slotKey: string): RunRecord | undefined {
+    liveRollbackOfTarget(slotKey: string): RunRecord | undefined {
         const undone = new Set<RunId>();
         for (const record of this.#records.values()) {
             if (record.slotKey === slotKey && isTerminal(record.state)) {

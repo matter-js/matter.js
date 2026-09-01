@@ -5,16 +5,28 @@
  */
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
-import { asError, ImplementationError, Lifecycle, Logger, Mutex } from "@matter/general";
+import { asError, ImplementationError, InternalError, Lifecycle, Logger, Mutex } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import { Agent, Behavior, ClientNode, DesiredStateBehavior, itemMapKey, Node, ServerNode } from "@matter/node";
 import {
+    TaskAbandonedError,
+    TaskAbandonedSignal,
+    TaskAlreadyUndoneError,
     TaskCancelledSignal,
+    TaskCannotCancelRollbackError,
     TaskCapacityExceededError,
-    TaskConflictError,
+    TaskExternalIdInUseError,
     TaskManagerClosingError,
+    TaskNotARollbackError,
     TaskNotFoundError,
     TaskNotRevertibleError,
+    TaskRollbackPendingError,
+    TaskSlotAwaitingResumeError,
+    TaskSlotDrainingError,
+    TaskSlotOccupiedError,
+    TaskSlotSettlingError,
+    TaskStopSignal,
+    TaskSupersededError,
     TaskSuspendedSignal,
     TaskTypeNotRegisteredError,
 } from "./errors.js";
@@ -22,12 +34,12 @@ import { Execution, GateState } from "./Execution.js";
 import { AddNodeToGroup } from "./groups/AddNodeToGroup.js";
 import { RemoveNodeFromGroup } from "./groups/RemoveNodeFromGroup.js";
 import { RotateGroupKey } from "./groups/RotateGroupKey.js";
-import { Revert, REVERT_TYPE } from "./Revert.js";
+import { Revert } from "./Revert.js";
 import { GateControl, RunningTaskContext } from "./RunningTaskContext.js";
 import { isTerminal, RunStore } from "./RunStore.js";
 import { BoundDefinition, runKey, runLabel, RunRecord, statusOf, TaskDefinition, TaskPersistence } from "./Task.js";
 import { TaskRegistry } from "./TaskRegistry.js";
-import { PlannedChange, RunId, TaskState, TaskStatus } from "./types.js";
+import { PlannedChange, RunId, Teardown, TaskState, TaskStatus } from "./types.js";
 
 const logger = Logger.get("TaskManager");
 
@@ -50,6 +62,17 @@ interface PreparedRevert {
 
 /** The rollback of a task that has nothing to roll back: nothing to write, start or forget. */
 const NO_REVERT: PreparedRevert = { discard() {}, start() {} };
+
+/**
+ * Whether a rollback's undo has concluded: it restored the device, or it was called off before it wrote
+ * anything. Either way nothing is left to retry or to give up on.
+ *
+ * `cancelled` is reachable only from a store an earlier build wrote, when cancelling a rollback was still
+ * admitted.
+ */
+function undoConcluded(record: RunRecord): boolean {
+    return record.state === "completed" || record.state === "cancelled";
+}
 
 /** A task registered as live, and whether the caller joined a live task that is already being driven. */
 interface SpawnedExecution {
@@ -227,9 +250,9 @@ export class TaskManagerBehavior extends Behavior {
      * write that records it, so nothing is written here.
      */
     #retire(execution: Execution): void {
-        // A cancel awaiting this driver owns the run's terminal state, so it owns the retirement too: the run
-        // is still `running` here, and retiring it now would record it mid-cancel.
-        if (execution.cancelling) {
+        // A transition in flight owns this run's outcome, so it owns the retirement too: releasing the target
+        // here would admit new work while that transition is still deciding what the run's outcome is.
+        if (this.internal.runs.transitionOf(execution.runId) !== undefined) {
             return;
         }
         // A non-terminal run otherwise reaches here through shutdown, which leaves it for the next start. An
@@ -266,6 +289,15 @@ export class TaskManagerBehavior extends Behavior {
                 `Task type "${definition.type}" undoes another run and is created by cancel(), not by run()`,
             );
         }
+        // Structural, not a flag a definition has to remember: admission lets a rollback be admitted while the
+        // run it undoes still owns the target, because only cancel creates one and it has already stopped that
+        // run's driver. A caller-created undo would take that exception with the original still driving, and
+        // the two would rewrite the same intents.
+        if (bound.undoes !== undefined) {
+            throw new ImplementationError(
+                `Task type "${definition.type}" declares what it undoes, so it is created by cancel(), not by run()`,
+            );
+        }
         const { execution, joined } = this.#spawn(bound, { externalId: opts?.externalId });
         if (!joined) {
             this.#track(execution);
@@ -294,16 +326,19 @@ export class TaskManagerBehavior extends Behavior {
         //    already-written intents with no owner.
         const owner = runs.ownerOf(slotKey);
         if (owner !== undefined) {
-            const ownerExecution = runs.executionOf(owner.runId);
-            if (ownerExecution === undefined) {
-                throw new TaskConflictError(
-                    `Task ${slotKey} rejected: ${runLabel(owner.runId)} holds this slot and is awaiting resume; register its type "${owner.type}" to continue it`,
+            // Asked before the execution, because a transition outlives one: it may already have handed back
+            // this process's responsibility for the run while it is still deciding the outcome.
+            const teardown = runs.transitionOf(owner.runId)?.teardown;
+            if (teardown !== undefined) {
+                throw new TaskSlotDrainingError(
+                    `Task ${slotKey} rejected: ${teardown} of ${runLabel(owner.runId)} is still in flight`,
                     owner.runId,
                 );
             }
-            if (ownerExecution.cancelling) {
-                throw new TaskConflictError(
-                    `Task ${slotKey} rejected: a cancel of ${runLabel(owner.runId)} is still in flight`,
+            const ownerExecution = runs.executionOf(owner.runId);
+            if (ownerExecution === undefined) {
+                throw new TaskSlotAwaitingResumeError(
+                    `Task ${slotKey} rejected: ${runLabel(owner.runId)} holds this slot and nothing is driving it (type "${owner.type}")`,
                     owner.runId,
                 );
             }
@@ -311,13 +346,13 @@ export class TaskManagerBehavior extends Behavior {
             // would hand back a run nothing is advancing, and re-running would write to the peer while this one
             // is still being recorded.
             if (ownerExecution.settled) {
-                throw new TaskConflictError(
+                throw new TaskSlotSettlingError(
                     `Task ${slotKey} rejected: ${runLabel(owner.runId)} is settling and still holds this slot`,
                     owner.runId,
                 );
             }
             if (seed.externalId === undefined || seed.externalId !== owner.externalId) {
-                throw new TaskConflictError(
+                throw new TaskSlotOccupiedError(
                     `Task ${slotKey} rejected: slot held by ${runLabel(owner.runId)} (${owner.state})`,
                     owner.runId,
                 );
@@ -329,7 +364,7 @@ export class TaskManagerBehavior extends Behavior {
         if (seed.externalId !== undefined) {
             const holder = runs.conflictingExternalIdHolder(seed.externalId, slotKey);
             if (holder !== undefined) {
-                throw new TaskConflictError(
+                throw new TaskExternalIdInUseError(
                     `Task ${slotKey} rejected: external id "${seed.externalId}" names ${runLabel(holder.runId)} of slot ${holder.slotKey}`,
                     holder.runId,
                 );
@@ -338,9 +373,19 @@ export class TaskManagerBehavior extends Behavior {
 
         // 4. A rollback rewrites exactly the intents a re-run would re-apply, so the two must never overlap —
         //    and the rollback in flight need not be undoing the most recent run of the slot.
-        const pendingRevert = runs.pendingRevertOfSlot(slotKey);
+        const pendingRevert = runs.liveRollbackOfTarget(slotKey);
         if (pendingRevert !== undefined) {
-            throw new TaskConflictError(
+            // A rollback being torn down is about to release this target, so the refusal is transient.
+            // Reported here rather than at step 2 because by the time a rollback can be torn down the run it
+            // undoes has retired, so nothing owns that run's slot and step 2 never sees it.
+            const teardown = runs.transitionOf(pendingRevert.runId)?.teardown;
+            if (teardown !== undefined) {
+                throw new TaskSlotDrainingError(
+                    `Task ${slotKey} rejected: ${teardown} of rollback ${runLabel(pendingRevert.runId)} is still in flight`,
+                    pendingRevert.runId,
+                );
+            }
+            throw new TaskRollbackPendingError(
                 `Task ${slotKey} rejected: rollback ${runLabel(pendingRevert.runId)} is still in flight and would undo it again`,
                 pendingRevert.runId,
             );
@@ -354,25 +399,26 @@ export class TaskManagerBehavior extends Behavior {
             const undoneSlot = runs.get(undone)?.slotKey;
             if (undoneSlot !== undefined) {
                 const holder = runs.ownerOf(undoneSlot);
-                // A rollback is only ever prepared by cancel, which has already stopped the run's driver, so
-                // the run still holding its own slot here is expected. Any other holder is live work this
-                // rollback would rewrite underneath.
+                // A rollback reaches admission only through #prepareRevert — `run()` refuses any definition
+                // declaring `undoes` — and cancel has stopped the run's driver by then, so the run still
+                // holding its own slot here is expected. Any other holder is live work this rollback would
+                // rewrite underneath.
                 if (holder !== undefined && holder.runId !== undone) {
-                    throw new TaskConflictError(
+                    throw new TaskSlotOccupiedError(
                         `Rollback of ${runLabel(undone)} rejected: slot ${undoneSlot} is held by ${runLabel(holder.runId)}`,
                         holder.runId,
                     );
                 }
                 const superseder = runs.supersederOf(undone);
                 if (superseder !== undefined) {
-                    throw new TaskConflictError(
+                    throw new TaskSupersededError(
                         `Rollback of ${runLabel(undone)} rejected: ${runLabel(superseder.runId)} has since committed slot ${undoneSlot}, so the values this would restore are historical`,
                         superseder.runId,
                     );
                 }
-                const sibling = runs.pendingRevertOfSlot(undoneSlot);
+                const sibling = runs.liveRollbackOfTarget(undoneSlot);
                 if (sibling !== undefined) {
-                    throw new TaskConflictError(
+                    throw new TaskRollbackPendingError(
                         `Rollback of ${runLabel(undone)} rejected: rollback ${runLabel(sibling.runId)} is already undoing slot ${undoneSlot}`,
                         sibling.runId,
                     );
@@ -450,20 +496,43 @@ export class TaskManagerBehavior extends Behavior {
      * Start a fresh rollback for a run whose previous one did not finish.
      *
      * A rollback is created by {@link cancel}, so retrying one cannot be an ordinary `run`: only the manager
-     * knows the original's driver is stopped and that no other rollback of its slot is in flight. Refuses
-     * while the recorded rollback is still going, since that one may yet succeed.
+     * knows the original's driver is stopped and that no other rollback of its slot is in flight.
+     *
+     * Refuses while the recorded rollback is still going, since that one may yet succeed; while a transition
+     * owns it, since that transition decides its outcome; and once it was abandoned, since an operator
+     * declining an undo must not be undone by a retry.
      */
     async retryRollback(runId: RunId): Promise<TaskHandle> {
         const record = this.internal.runs.get(runId);
         if (record === undefined) {
             throw new TaskNotFoundError(`Cannot retry the rollback of ${runLabel(runId)}: no run answers to it`);
         }
-        const previous = record.revertRunId;
-        if (previous === undefined) {
+        const recorded = this.internal.runs.rollbackFor(runId);
+        if (recorded === undefined) {
             throw new ImplementationError(`${runLabel(runId)} has no rollback to retry`);
         }
+        const previous = recorded.runId;
+        if (recorded.state === "abandoned") {
+            throw new TaskAbandonedError(
+                `Cannot retry the rollback of ${runLabel(runId)}: ${runLabel(previous)} was abandoned`,
+            );
+        }
+        // A concluded rollback is detached, so the in-flight checks below would let a replacement through and
+        // replay priors onto a device whose undo already succeeded. Same question `abandon` asks, same answer.
+        if (undoConcluded(recorded)) {
+            throw new TaskAlreadyUndoneError(
+                `Cannot retry the rollback of ${runLabel(runId)}: ${runLabel(previous)} already concluded (${recorded.state})`,
+            );
+        }
+        const teardown = this.internal.runs.transitionOf(previous)?.teardown;
+        if (teardown !== undefined) {
+            throw new TaskRollbackPendingError(
+                `Cannot retry the rollback of ${runLabel(runId)}: ${teardown} of ${runLabel(previous)} is still in flight`,
+                previous,
+            );
+        }
         if (this.internal.runs.isAttached(previous)) {
-            throw new TaskConflictError(
+            throw new TaskRollbackPendingError(
                 `Cannot retry the rollback of ${runLabel(runId)}: ${runLabel(previous)} is still in flight`,
                 previous,
             );
@@ -489,24 +558,42 @@ export class TaskManagerBehavior extends Behavior {
      * task (parks on offline peers, resumes after restart). Does not await the revert — the caller observes it
      * via the returned handle.
      *
-     * Each outcome has exactly one meaning: a handle is the rollback, `undefined` is a run with nothing to roll
-     * back, and {@link TaskNotFoundError} is an identity no run answers to — live or retired, since a finished
-     * run keeps the changeSet its rollback needs.
+     * A handle is the rollback. `undefined` means there is nothing to roll back — either the run wrote nothing,
+     * or it was already cancelled; `status.state` tells the two apart. {@link TaskNotFoundError} is an identity
+     * no run answers to, live or retired, since a finished run keeps the changeSet its rollback needs.
+     *
+     * A rollback is not cancelled: {@link TaskCannotCancelRollbackError} points at {@link abandon}, which
+     * records that the undo was given up on rather than that nothing needed it.
      *
      * Throws {@link TaskManagerClosingError} if shutdown intervenes before the cancel can be recorded; the task
      * then keeps its non-terminal state and the cancel must be re-issued after the next start.
      */
     async cancel(runId: RunId): Promise<TaskHandle | undefined> {
+        for (let pending = this.#pendingTransition(runId); pending !== undefined;) {
+            await pending;
+            pending = this.#pendingTransition(runId);
+        }
         const record = this.internal.runs.get(runId);
         if (record === undefined) {
             throw new TaskNotFoundError(`Cannot cancel ${runLabel(runId)}: no run answers to it`);
         }
+        // A rollback is ended with `abandon`, which records that the undo was given up on. Cancelling one would
+        // leave it `cancelled` — the state a rollback nothing needed ends in — with nothing saying the device
+        // was left part-changed.
+        if (record.revertOf !== undefined) {
+            throw new TaskCannotCancelRollbackError(
+                `Cannot cancel ${runLabel(runId)}: it is the rollback of ${runLabel(record.revertOf)}; use abandon() to give up on it`,
+            );
+        }
         const execution = this.internal.runs.executionOf(runId);
 
-        // A rollback this run already recorded is the answer, wherever it now lives: reporting it as unknown
-        // would make re-cancelling fail the moment its rollback finishes.
-        if (record.revertRunId !== undefined) {
-            return this.get(record.revertRunId);
+        // The rollback this run already has is the answer, wherever it now lives and whichever representation
+        // currently carries it: reporting it as unknown would make re-cancelling fail the moment its rollback
+        // finishes, and reading only the durable link would report none while one is being created.
+        const existing = this.internal.runs.rollbackFor(runId);
+        if (existing !== undefined) {
+            this.#refuseIfProvisional(existing, `Cannot answer for the rollback of ${runLabel(runId)}`);
+            return this.#handle(existing);
         }
         if (record.state === "cancelled") {
             return undefined;
@@ -521,20 +608,17 @@ export class TaskManagerBehavior extends Behavior {
             );
         }
 
-        // Stop forward driving so the changeset is final before we revert it. `cancelling` also covers the
-        // between-phase gap the gate cannot: the driver checks it synchronously before advancing a phase.
-        if (execution !== undefined) {
-            execution.cancelling = true;
-            execution.abort(new TaskCancelledSignal(`${runLabel(record.runId)} cancelled`));
-            try {
-                await execution.promise;
-            } finally {
-                // A `cancelling` execution left behind refuses every future run of this slot for the process
-                // lifetime.
-                execution.cancelling = false;
+        return this.#transition(record, "cancel", async () => {
+            // Stop forward driving so the changeset is final before we revert it.
+            if (execution !== undefined) {
+                await this.#unwind(execution, this.#stopSignal("cancel", record.runId));
             }
-        }
+            return this.#recordCancellation(record, bound);
+        });
+    }
 
+    /** The part of a cancel that decides and writes, with this run's outcome already claimed. */
+    async #recordCancellation(record: RunRecord, bound: BoundDefinition): Promise<TaskHandle | undefined> {
         // Shutdown took over the unwind: state can no longer be persisted, so leave the task non-terminal and
         // unreverted rather than claiming a cancel that storage would contradict on the next start.
         this.#refuseIfClosing(`${runLabel(record.runId)} cannot be cancelled`);
@@ -545,13 +629,7 @@ export class TaskManagerBehavior extends Behavior {
         try {
             revert = this.#prepareRevert(record, bound);
         } catch (e) {
-            // The abort above stopped the driver. A run the manager declines to cancel keeps its state, so it
-            // must keep its driver too, or it sits non-terminal with nothing left to advance it. A run this
-            // process was never attached to never had a driver here; driving it would write reconstructed
-            // state back over whatever the record now holds.
-            if (this.internal.runs.isAttached(record.runId)) {
-                this.#redrive(record, bound);
-            }
+            this.#restoreDriver(record, bound);
             throw e;
         }
         // running/parked → cancelled; an already-terminal (completed/failed) run keeps its truthful state.
@@ -565,18 +643,14 @@ export class TaskManagerBehavior extends Behavior {
                     next: {
                         state: outcome,
                         retireSeq: this.internal.runs.nextRetirement(record),
-                        revertRunId: revert.record?.runId ?? record.revertRunId,
+                        revertRunId: revert.record?.runId,
                     },
                 },
                 ...(revert.record === undefined ? [] : [{ record: revert.record }]),
             );
         } catch (e) {
             revert.discard();
-            // A cancel that did not happen leaves the run as it was, driver included. A run this process was
-            // never attached to has no driver to restore, and driving one would overwrite the stored record.
-            if (this.internal.runs.isAttached(record.runId)) {
-                this.#redrive(record, bound);
-            }
+            this.#restoreDriver(record, bound);
             throw e;
         }
         this.internal.runs.commitRetirement(record);
@@ -585,8 +659,215 @@ export class TaskManagerBehavior extends Behavior {
         // Resolved from the rollback that exists rather than from what this call prepared: a second cancel that
         // raced this one must be told about the rollback the first created, not told there was nothing to roll
         // back — and it may reach here before the write recording the link has landed.
-        const rollback = this.internal.runs.rollbackOf(record.runId)?.runId ?? record.revertRunId;
-        return rollback === undefined ? undefined : this.get(rollback);
+        const rollback = this.internal.runs.rollbackFor(record.runId);
+        return rollback === undefined ? undefined : this.#handle(rollback);
+    }
+
+    /**
+     * Give up on a rollback whose undo cannot be completed — a node physically removed, so the rollback parks
+     * forever, and while it lives nothing new is admitted against the target of the run it undoes.
+     *
+     * Takes the *rollback's* identity, which a caller holding the original reads from `status.revertRunId`. One
+     * verb, one mutation: accepting either identity would make the same call write different records depending
+     * on which one the caller happened to hold.
+     *
+     * The rollback ends {@link TaskState} `abandoned` rather than `cancelled` or `failed`: the device is
+     * knowingly left part-changed, which is neither an undo nobody needed nor one worth retrying. Idempotent.
+     */
+    async abandon(runId: RunId, reason?: string): Promise<TaskHandle> {
+        for (let pending = this.#pendingTransition(runId); pending !== undefined;) {
+            await pending;
+            pending = this.#pendingTransition(runId);
+        }
+        const record = this.internal.runs.get(runId);
+        if (record === undefined) {
+            throw new TaskNotFoundError(`Cannot abandon ${runLabel(runId)}: no run answers to it`);
+        }
+        if (!this.#needsAbandoning(record)) {
+            return this.#handle(record);
+        }
+
+        // An abandoned tombstone of a rollback nothing recorded would outlive the transaction that was going
+        // to record it.
+        this.#refuseIfProvisional(record, `Cannot abandon ${runLabel(runId)}`);
+        const execution = this.internal.runs.executionOf(runId);
+
+        return this.#transition(record, "abandon", async () => {
+            if (execution !== undefined) {
+                await this.#unwind(execution, this.#stopSignal("abandon", runId));
+                // Its driver may have reached an outcome of its own inside that window. #retire declined to
+                // retire it because this transition owns the run, so retiring it falls here — and before the
+                // decision below, which depends on the state the driver left behind.
+                //
+                // Unconditional on the retirement order, unlike #retire: a terminal record without one is
+                // discarded at load, so nothing can resume it and holding its target buys nothing.
+                if (isTerminal(record.state)) {
+                    this.internal.runs.commitRetirement(record);
+                }
+            }
+
+            // Shutdown took over: the state cannot be persisted, so leave the rollback as it was rather than
+            // claiming an abandonment the next start would contradict.
+            this.#refuseIfClosing(`${runLabel(runId)} cannot be abandoned`);
+
+            // The check at entry answered about the run as it was before the unwind. This one is the decision.
+            if (!this.#needsAbandoning(record)) {
+                return this.#handle(record);
+            }
+
+            try {
+                await this.#commit({
+                    record,
+                    next: {
+                        state: "abandoned",
+                        // Composed rather than replaced: for a rollback that failed on its own, why it could
+                        // not finish is what an operator needs to decide what to do about the device.
+                        error: this.#abandonReason(record.error, reason),
+                        // Absent for a rollback that already retired on its own failure path, which keeps the
+                        // place it took then.
+                        retireSeq: this.internal.runs.nextRetirement(record),
+                    },
+                });
+            } catch (e) {
+                if (execution !== undefined) {
+                    this.#restoreDriver(record, execution.bound);
+                }
+                throw e;
+            }
+            this.internal.runs.commitRetirement(record);
+            return this.#handle(record);
+        });
+    }
+
+    #abandonReason(failure: string | undefined, reason?: string): string {
+        const given = reason === undefined || reason.trim() === "" ? "the undo was abandoned" : reason;
+        return failure === undefined ? given : `${failure} (abandoned: ${given})`;
+    }
+
+    /**
+     * Whether `record` still needs abandoning, throwing if it may not be.
+     *
+     * Asked twice — as an entry filter, and again after the unwind, where it is the decision, because a driver
+     * can reach an outcome of its own in between.
+     */
+    #needsAbandoning(record: RunRecord): boolean {
+        if (record.state === "abandoned") {
+            return false;
+        }
+        if (record.revertOf === undefined) {
+            const rollback = this.internal.runs.rollbackFor(record.runId)?.runId;
+            throw new TaskNotARollbackError(
+                rollback === undefined
+                    ? `Cannot abandon ${runLabel(record.runId)}: it is not a rollback`
+                    : `Cannot abandon ${runLabel(record.runId)}: it is not a rollback; its rollback is ${runLabel(rollback)}`,
+            );
+        }
+        // Another rollback applies to this target now, so abandoning this one forecloses nothing and would
+        // record that an undo still in progress was given up on.
+        const undone = this.internal.runs.get(record.revertOf);
+        const applicable = undone === undefined ? undefined : this.internal.runs.rollbackApplyingTo(undone);
+        if (applicable !== undefined && applicable.runId !== record.runId) {
+            this.#refuseIfProvisional(applicable, `Cannot abandon ${runLabel(record.runId)}`);
+            throw new TaskSupersededError(
+                `Cannot abandon ${runLabel(record.runId)}: ${runLabel(applicable.runId)} is the rollback that now applies to ${undone?.slotKey ?? "its target"}`,
+                applicable.runId,
+            );
+        }
+        if (undoConcluded(record)) {
+            throw new TaskAlreadyUndoneError(
+                `Cannot abandon ${runLabel(record.runId)}: the undo already concluded (${record.state})`,
+            );
+        }
+        return true;
+    }
+
+    /**
+     * Stop driving `execution` and wait for its driver to notice, so the caller owns what happens next.
+     *
+     * Flipping a record's state does not stop a driver: it is sitting in an `await` and will wake and keep
+     * writing. Awaiting it is the only way to know nothing is still writing to the peer when the caller decides
+     * the run's outcome.
+     */
+    async #unwind(execution: Execution, signal: TaskStopSignal): Promise<void> {
+        execution.abort(signal);
+        await execution.promise;
+    }
+
+    /**
+     * Run a transition as the exclusive owner of this run's outcome, refusing if another already owns it.
+     *
+     * Exclusive because a transition stops the driver and only then decides: two of them would decide from the
+     * same pre-transition state, and the loser would either write over the winner's outcome or restore a
+     * second driver over one record. Held for the whole transition rather than for the unwind, so a request
+     * that arrives after the driver stopped but before the write lands is still told the target is draining.
+     */
+    async #transition<T>(record: RunRecord, teardown: Teardown, body: () => Promise<T>): Promise<T> {
+        const held = this.internal.runs.claimTransition(record.runId, teardown);
+        if (held !== undefined) {
+            // Only reachable if a verb skipped #pendingTransition; claiming twice is what this exists to stop.
+            throw new InternalError(`${runLabel(record.runId)}: ${held.teardown} of it already owns its outcome`);
+        }
+        try {
+            return await body();
+        } finally {
+            this.internal.runs.releaseTransition(record.runId);
+        }
+    }
+
+    /**
+     * A transition already deciding this run's outcome, for a caller to wait out before deciding itself.
+     *
+     * A duplicate request is owed the first one's answer — a second cancel is owed the rollback the first
+     * created, a second abandon the handle — so waiting is right where refusing would make the answer depend on
+     * scheduling.
+     *
+     * Deliberately synchronous, and deliberately not a helper that awaits: a verb that awaited even when
+     * nothing was pending would yield before its own claim, which is exactly the window that lets two callers
+     * claim one run.
+     */
+    #pendingTransition(runId: RunId): Promise<void> | undefined {
+        return this.internal.runs.transitionOf(runId)?.settled;
+    }
+
+    /**
+     * Refuse a request whose answer would be a run that storage may yet contradict.
+     *
+     * A rollback is admitted before the transaction naming it lands, and that transaction can be refused — its
+     * producer then discards it as never having existed. Handing back a handle for such a run, or calling
+     * another run superseded because of it, states as fact something the next start would deny. Transient by
+     * construction: the next attempt finds it durable, or finds it gone.
+     *
+     * Asked of every answer derived from a rollback, so no call site has to remember the window.
+     */
+    #refuseIfProvisional(record: RunRecord, subject: string): void {
+        if (!record.recorded) {
+            throw new TaskSlotSettlingError(`${subject}: ${runLabel(record.runId)} is not recorded yet`, record.runId);
+        }
+    }
+
+    /** The stop a driver sees, matching the verb that took over. Never a plain error: #drive would fail the run. */
+    #stopSignal(teardown: Teardown, runId: RunId): TaskStopSignal {
+        return teardown === "cancel"
+            ? new TaskCancelledSignal(`${runLabel(runId)} cancelled`)
+            : new TaskAbandonedSignal(`${runLabel(runId)} abandoned`);
+    }
+
+    /**
+     * Give back the driver an unwind stopped, for a transition the manager then declined.
+     *
+     * A run that keeps its state must keep its driver too, or it sits non-terminal with nothing left to advance
+     * it. A run this process was never attached to never had a driver here, and driving it would write
+     * reconstructed state over whatever the record now holds.
+     */
+    #restoreDriver(record: RunRecord, bound: BoundDefinition): void {
+        // A driver started now would sit outside the dispose drain, which has already taken its snapshot of
+        // what to abort and await. The run keeps its state and the next start resumes it.
+        if (this.#isClosing) {
+            return;
+        }
+        if (this.internal.runs.isAttached(record.runId)) {
+            this.#redrive(record, bound);
+        }
     }
 
     // Teardown starts at the node, not at this behavior: `Construction.close` applies `Destroying` before it runs
@@ -609,8 +890,10 @@ export class TaskManagerBehavior extends Behavior {
         bound: BoundDefinition,
         opts?: { ignoreRecordedRollback?: boolean },
     ): PreparedRevert {
-        // A failed revert surfaces as `failed` for operator attention; reverting a revert would recurse unbounded.
-        if (record.type === REVERT_TYPE) {
+        // A failed rollback surfaces as `failed` for operator attention; rolling one back would recurse
+        // unbounded. Keyed on the link rather than on the type, so it is the same question `cancel` and
+        // `abandon` ask: any definition declaring `undoes` produces a run that undoes another.
+        if (record.revertOf !== undefined) {
             return NO_REVERT;
         }
         // Past a run's point of no return there is nothing to roll back to; suppress auto-rollback too.
@@ -622,7 +905,7 @@ export class TaskManagerBehavior extends Behavior {
         // covers the window before the write recording that link has landed, where a second cancel would
         // otherwise try to create a rollback of its own. Retrying is the one caller that means to replace it.
         if (opts?.ignoreRecordedRollback !== true) {
-            if (record.revertRunId !== undefined || this.internal.runs.rollbackOf(record.runId) !== undefined) {
+            if (this.internal.runs.rollbackFor(record.runId) !== undefined) {
                 return NO_REVERT;
             }
         }
@@ -648,7 +931,7 @@ export class TaskManagerBehavior extends Behavior {
         };
     }
 
-    /** Throw a recorded abort (cancel or shutdown) so the driver stops before persisting or mutating a peer. */
+    /** Throw a recorded abort (a cancel, an abandon or shutdown) so the driver stops before it writes. */
     #throwIfAborted(execution: Execution): void {
         const aborted = execution.gate.aborted;
         if (aborted !== undefined) {
@@ -715,8 +998,9 @@ export class TaskManagerBehavior extends Behavior {
                 await phase.run(ctx);
                 // A cancel accepted while the phase ran must leave phaseIndex on that phase: revertibility is
                 // phase-based, so advancing it can cross a task's point of no return and suppress the rollback.
-                if (execution.cancelling) {
-                    throw new TaskCancelledSignal(`Task ${runLabel(record.runId)} cancelled`);
+                const teardown = this.internal.runs.transitionOf(execution.runId)?.teardown;
+                if (teardown !== undefined) {
+                    throw this.#stopSignal(teardown, record.runId);
                 }
                 await this.#commit({ record, next: { phaseIndex: record.phaseIndex + 1 } });
             }
@@ -729,7 +1013,13 @@ export class TaskManagerBehavior extends Behavior {
             }
         } catch (e) {
             // Shutdown leaves the task non-terminal for resume; cancel is finalized by cancel() itself.
-            if (e instanceof TaskSuspendedSignal || e instanceof TaskCancelledSignal) {
+            // The signal classes are public, so a phase can throw one the manager never asked for. Honoring
+            // that would leave the run non-terminal with nothing driving it and its target held for the life of
+            // the process, so authority is what counts: the recorded abort, or a transition that owns the run.
+            if (
+                e instanceof TaskStopSignal &&
+                (e === execution.gate.aborted || this.internal.runs.transitionOf(execution.runId) !== undefined)
+            ) {
                 return;
             }
             // Teardown: neither the failure nor a rollback of it can be recorded, and the rollback's driving would

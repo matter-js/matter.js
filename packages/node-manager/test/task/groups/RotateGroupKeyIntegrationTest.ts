@@ -5,7 +5,12 @@
  */
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
-import { TaskConflictError, TaskNotRevertibleError } from "#task/errors.js";
+import {
+    TaskConflictError,
+    TaskNotRevertibleError,
+    TaskRollbackPendingError,
+    TaskSlotOccupiedError,
+} from "#task/errors.js";
 import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
 import { ROTATE_GROUP_KEY_TYPE, RotateGroupKey, RotateGroupKeyParams } from "#task/groups/RotateGroupKey.js";
 import { TaskDefinition } from "#task/Task.js";
@@ -656,8 +661,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         } catch (e) {
             refusal = e;
         }
-        expect(refusal).instanceOf(TaskConflictError);
-        // Pinned to the holder, because one error class now covers slot, external id and rollback conflicts.
+        expect(refusal).instanceOf(TaskSlotOccupiedError);
         expect((refusal as TaskConflictError).owner).equals(
             await controller.act(a => requireRunIdOfSlot(a.get(TaskManagerBehavior), ROTATE_SLOT)),
         );
@@ -697,7 +701,7 @@ describe("RotateGroupKey task integration (two members)", () => {
                     rotationId: "r2",
                 }),
             ),
-        ).rejectedWith(TaskConflictError);
+        ).rejectedWith(TaskRollbackPendingError);
 
         // The revert is untouched, and the refusal means no second rotation of the slot was spawned.
         expect(["parked", "running"]).contains(
@@ -721,7 +725,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         // `act` returns a MaybePromise, so normalize before asserting on the rejection.
         await expect(
             (async () => controller.act(a => a.get(TaskManagerBehavior).run(RotateGroupKey, ROTATE_PARAMS)))(),
-        ).rejectedWith(TaskConflictError);
+        ).rejectedWith(TaskSlotOccupiedError);
 
         // The owner reaches the parked rotation itself: a replacement task under the same id would answer as
         // freshly running and leave the parked one driving with nothing observing it.

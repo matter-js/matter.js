@@ -39,7 +39,14 @@ export function RetireSeq(value: number): RetireSeq {
     return value as RetireSeq;
 }
 
-export type TaskState = "running" | "parked" | "completed" | "failed" | "cancelled";
+/** A verb that takes ownership of a run's outcome, stopping its driver first. */
+export type Teardown = "cancel" | "abandon";
+
+/**
+ * Where a run stands. `abandoned` belongs to rollbacks alone: an operator gave up on the undo, so the device is
+ * knowingly left part-changed and the rollback is never retried.
+ */
+export type TaskState = "running" | "parked" | "completed" | "failed" | "cancelled" | "abandoned";
 
 export interface TaskStatus {
     runId: RunId;

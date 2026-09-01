@@ -386,7 +386,7 @@ export async function awaitRun(
             }
             // A run turns terminal one step before it retires; a caller acting here would find the slot held.
             return (
-                !(["completed", "failed", "cancelled"] as string[]).includes(state) ||
+                !(["completed", "failed", "cancelled", "abandoned"] as string[]).includes(state) ||
                 !m.tasks.some(t => t.runId === runId)
             );
         });

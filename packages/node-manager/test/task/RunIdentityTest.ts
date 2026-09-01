@@ -5,7 +5,16 @@
  */
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
-import { TaskConflictError, TaskIdentityExhaustedError, TaskTypeNotRegisteredError } from "#task/errors.js";
+import {
+    TaskConflictError,
+    TaskExternalIdInUseError,
+    TaskIdentityExhaustedError,
+    TaskRollbackPendingError,
+    TaskSlotAwaitingResumeError,
+    TaskSlotOccupiedError,
+    TaskSupersededError,
+    TaskTypeNotRegisteredError,
+} from "#task/errors.js";
 import { Revert } from "#task/Revert.js";
 import { RUN_ID_RESERVATION, RunStore } from "#task/RunStore.js";
 import { TaskDefinition, TaskPersistence } from "#task/Task.js";
@@ -276,7 +285,7 @@ describe("run identity", () => {
         });
         await settle(node, "synthetic:unwind");
 
-        expect(outcome).instanceOf(TaskConflictError);
+        expect(outcome).instanceOf(TaskSlotOccupiedError);
     });
 
     it("rolls back a run that retired before a restart", async () => {
@@ -340,7 +349,7 @@ describe("run identity", () => {
         } catch (e) {
             refusal = e;
         }
-        expect(refusal).instanceOf(TaskConflictError);
+        expect(refusal).instanceOf(TaskExternalIdInUseError);
         expect((refusal as TaskConflictError).owner).equals(held.runId);
         expect(await node.act(a => a.get(TestTaskManager).forExternalId("mine")?.runId)).equals(held.runId);
     });
@@ -378,7 +387,7 @@ describe("run identity", () => {
         } catch (e) {
             refusal = e;
         }
-        expect(refusal).instanceOf(TaskConflictError);
+        expect(refusal).instanceOf(TaskRollbackPendingError);
         expect((refusal as TaskConflictError).owner).equals(rollback?.runId);
     });
 
@@ -474,7 +483,7 @@ describe("run identity", () => {
         } catch (e) {
             refusal = e;
         }
-        expect(refusal).instanceOf(TaskConflictError);
+        expect(refusal).instanceOf(TaskSupersededError);
         expect((refusal as TaskConflictError).owner).equals(runs[1]);
 
         // The newest run of the slot is still undoable.
@@ -515,7 +524,7 @@ describe("run identity", () => {
         } catch (e) {
             refusal = e;
         }
-        expect(refusal).instanceOf(TaskConflictError);
+        expect(refusal).instanceOf(TaskSlotOccupiedError);
     });
 
     it("gives every concurrent cancel of a run the same rollback", async () => {
@@ -604,7 +613,7 @@ describe("run identity", () => {
         } catch (e) {
             refusal = e;
         }
-        expect(refusal).instanceOf(TaskConflictError);
+        expect(refusal).instanceOf(TaskExternalIdInUseError);
         expect((refusal as TaskConflictError).owner).equals(parked);
     });
 
@@ -708,7 +717,41 @@ describe("run identity", () => {
         } catch (e) {
             refusal = e;
         }
-        expect(refusal).instanceOf(TaskConflictError);
+        expect(refusal).instanceOf(TaskSlotAwaitingResumeError);
         expect((refusal as TaskConflictError).owner).equals(parked);
+    });
+
+    it("refuses to cancel a run whose stored parameters its task no longer accepts", async () => {
+        const environment = persistentEnvironment();
+
+        let parked: RunId;
+        {
+            await using node = await makeNode(environment, "cancelunbuildable");
+            UnbuildableTask.rejectConstruction = false;
+            await node.act(a => a.get(TestTaskManager).register(UnbuildableTask));
+            const handle = await node.act(a => a.get(TestTaskManager).run(UnbuildableTask, { tag: "c" }));
+            parked = handle.runId;
+            await pumpUntil(
+                "the run is recorded",
+                async () =>
+                    (await node.act(a => recordFor(a.get(TestTaskManager).state.runs, "unbuildable:c"))) !== undefined,
+            );
+        }
+
+        // Whether a run may be rolled back is the task's decision, and the task cannot be asked without its
+        // parameters. Surfacing its own refusal says which of the two failed.
+        await using node = await makeNode(environment, "cancelunbuildable");
+        UnbuildableTask.rejectConstruction = true;
+        await node.act(a => a.get(TestTaskManager).register(UnbuildableTask));
+
+        let refusal: unknown;
+        try {
+            await node.act(a => a.get(TestTaskManager).cancel(parked));
+        } catch (e) {
+            refusal = e;
+        }
+        expect(refusal).instanceOf(ImplementationError);
+        expect((refusal as Error).message).contains("malformed persisted parameters");
+        expect(await node.act(a => a.get(TestTaskManager).get(parked)?.status.state)).equals("running");
     });
 });

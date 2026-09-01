@@ -5,7 +5,7 @@
  */
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
-import { TaskConflictError, TaskFailedError, TaskNotFoundError } from "#task/errors.js";
+import { TaskFailedError, TaskNotFoundError, TaskSlotOccupiedError } from "#task/errors.js";
 import { RotateGroupKey } from "#task/groups/RotateGroupKey.js";
 import { TaskDefinition, RunRecord } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
@@ -175,7 +175,7 @@ describe("TaskManagerBehavior", () => {
             // `act` returns a MaybePromise, so normalize before asserting on the rejection.
             await expect(
                 (async () => node.act(a => a.get(TaskManagerBehavior).run(SyntheticTask, { tag: "dup" })))(),
-            ).rejectedWith(TaskConflictError);
+            ).rejectedWith(TaskSlotOccupiedError);
             expect(runs).equals(1);
             expect(await node.act(a => a.get(TaskManagerBehavior).tasks.length)).equals(1);
         } finally {
@@ -236,7 +236,7 @@ describe("TaskManagerBehavior", () => {
                     node.act(a =>
                         a.get(TaskManagerBehavior).run(SyntheticTask, { tag: "mine" }, { externalId: "other" }),
                     ))(),
-            ).rejectedWith(TaskConflictError);
+            ).rejectedWith(TaskSlotOccupiedError);
             expect(runs).equals(1);
             expect(await node.act(a => a.get(TaskManagerBehavior).tasks.length)).equals(1);
         } finally {
@@ -380,7 +380,7 @@ describe("TaskManagerBehavior", () => {
             async () => (await node.act(a => a.get(TracingTaskManager).tasks.length)) === 0,
         );
 
-        expect(outcome).instanceOf(TaskConflictError);
+        expect(outcome).instanceOf(TaskSlotOccupiedError);
         expect(runs).equals(1);
     });
 

@@ -5,10 +5,15 @@
  */
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
-import { TaskConflictError, TaskFailedError, TaskManagerClosingError } from "#task/errors.js";
+import {
+    TaskFailedError,
+    TaskManagerClosingError,
+    TaskSlotDrainingError,
+    TaskSlotSettlingError,
+} from "#task/errors.js";
 import { RunRecord } from "#task/Task.js";
 import { TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
-import { TaskPhase, TaskState } from "#task/types.js";
+import { Teardown, TaskPhase, TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
 import { CrashedDependencyError, Environment, InternalError, Lifecycle, MaybePromise } from "@matter/general";
 import { Behavior, ClientNode, ItemKind, itemMapKey } from "@matter/node";
@@ -43,9 +48,9 @@ class TestTaskManager extends TaskManagerBehavior {
         return TestTaskManager.peers.get(peerId)?.asNode();
     }
 
-    /** True once cancel() has accepted the request, before it settles. */
-    isCancelling(runId: RunId): boolean {
-        return this.internal.runs.executionOf(runId)?.cancelling === true;
+    /** The verb tearing a run down, once it has accepted the request and before it settles. */
+    teardownOf(runId: RunId): Teardown | undefined {
+        return this.internal.runs.transitionOf(runId)?.teardown;
     }
 
     /** True while a task's drive promise has not settled. */
@@ -221,8 +226,10 @@ describe("cancel robustness", () => {
 
         const cancelling = node.act(a => cancelSlot(a.get(TestTaskManager), "synthetic:pregate"));
         await pumpUntil("cancel accepted", () =>
-            node.act(a =>
-                a.get(TestTaskManager).isCancelling(runIdOfSlot(a.get(TestTaskManager), "synthetic:pregate")!),
+            node.act(
+                a =>
+                    a.get(TestTaskManager).teardownOf(runIdOfSlot(a.get(TestTaskManager), "synthetic:pregate")!) ===
+                    "cancel",
             ),
         );
         state.release();
@@ -341,7 +348,7 @@ describe("cancel robustness", () => {
         expect(handle?.status.revertOf).equals(
             requireRecordFor(node.stateOf(TestTaskManager).runs, "synthetic:cancelrerun").runId,
         );
-        expect(rerun).instanceOf(TaskConflictError);
+        expect(rerun).instanceOf(TaskSlotDrainingError);
 
         const status = await node.act(a => statusOfSlot(a.get(TestTaskManager), "synthetic:cancelrerun"));
         expect(status?.state).equals("cancelled");
@@ -420,8 +427,9 @@ describe("cancel robustness", () => {
         const cancelling = node1.act(a => cancelSlot(a.get(TestTaskManager), "synthetic:queued"));
         // The cancel is accepted before its write is enqueued, and the run adopts the cancelled state only once
         // that write lands — so acceptance, not state, is what says the window is open.
-        await pumpUntil("cancel write enqueued", () =>
-            manager.isCancelling(requireRunIdOfSlot(manager, "synthetic:queued")),
+        await pumpUntil(
+            "cancel write enqueued",
+            () => manager.teardownOf(requireRunIdOfSlot(manager, "synthetic:queued")) === "cancel",
         );
 
         const closing = node1.close();
@@ -736,8 +744,7 @@ describe("cancel robustness", () => {
                 refused = e;
             }
         });
-        expect(refused).instanceOf(TaskConflictError);
-        expect((refused as TaskConflictError).message).contains("settling");
+        expect(refused).instanceOf(TaskSlotSettlingError);
 
         await node.close();
     });
