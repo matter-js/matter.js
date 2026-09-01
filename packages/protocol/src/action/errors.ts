@@ -107,7 +107,7 @@ export class ConformanceError extends ValidateError {
         if (choice) {
             prefix = `Conformance choice "${choice}"`;
         } else {
-            prefix = `Conformance "${(schema as ValueModel).conformance}"`;
+            prefix = `Conformance "${(schema as ValueModel).effectiveConformance}"`;
         }
         super(path, `${prefix}: ${message}`, Status.ConstraintError);
     }

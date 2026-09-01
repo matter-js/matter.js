@@ -70,7 +70,7 @@ const logger = Logger.get("ClientInteraction");
  */
 function peerAddressDiagnostic(session: Session | undefined) {
     if (session !== undefined && GroupSession.is(session)) {
-        return Diagnostic.dict({ dest: session.multicastAddress });
+        return Diagnostic.dict({ dest: session.destination });
     }
     return "";
 }
