@@ -35,7 +35,7 @@ const MULTI_PRESS_MAX = attributeId("multiPressMax");
 const LATCHING_ENDPOINT = 1;
 const MOMENTARY_ENDPOINT = 3;
 
-/** `Switch` feature bits (Matter Application Clusters § 1.12.4). */
+/** `Switch` feature bits (Matter Application Clusters § 1.13.4). */
 const LS = 1 << 0;
 const MS = 1 << 1;
 const MSR = 1 << 2;
@@ -100,7 +100,7 @@ const BETWEEN_OPERATIONS_MS = 300;
 /**
  * Returns the switch to its idle position and gives the device time to close the press cycle the
  * previous step left open. A momentary switch counts presses until it goes idle (Application Clusters
- * § 1.12.8), so a step that presses without this one sees its presses counted into the cycle before it
+ * § 1.13.8), so a step that presses without this one sees its presses counted into the cycle before it
  * and reported as one multi press instead of what it simulated. How much of the cycle the command
  * itself ends is the device's own: the matter.js test device resets its switch state, a chip app only
  * moves the position, which is why the wait matters as much as the command.
@@ -447,7 +447,7 @@ certTest("TC-SWTCH-3.2", {
             expected:
                 "The DUT does not declare long press without either momentary switch release or an action " +
                 "switch. The plan's own rule here is that MSL requires MSR, which contradicts MSL's " +
-                "conformance `[MS & (MSR | AS)]` (Application Clusters § 1.12.4) and the plan's own step 0h " +
+                "conformance `[MS & (MSR | AS)]` (Application Clusters § 1.13.4) and the plan's own step 0h " +
                 "and step 3b, so this step applies the conformance instead.",
         },
     )
@@ -697,7 +697,7 @@ certTest("TC-SWTCH-3.2", {
         pics: `${PICS_MS} & ${PICS_MSR} & ${PICS_EVENTING}`,
         notApplicable:
             "This controller declares the switch it observes, which is an action switch, and one never " +
-            "generates the ShortRelease this step waits for (Application Clusters § 1.12.6.4). The plan " +
+            "generates the ShortRelease this step waits for (Application Clusters § 1.13.6.4). The plan " +
             "gates the step on the momentary switch alone, which its own step 3b contradicts by allowing " +
             "an action-switch TH; the release flag gates it here.",
     })
@@ -768,7 +768,7 @@ certTest("TC-SWTCH-3.2", {
             pics: `${PICS_MS} & ${PICS_MSL} & ${PICS_EVENTING}`,
             expected:
                 "The DUT receives InitialPress, LongPress and LongRelease. An action switch still reports " +
-                "the long-press cycle in full (Application Clusters § 1.12.8.2). This controller records " +
+                "the long-press cycle in full (Application Clusters § 1.13.8.2). This controller records " +
                 "the events rather than acting on them.",
         },
     )

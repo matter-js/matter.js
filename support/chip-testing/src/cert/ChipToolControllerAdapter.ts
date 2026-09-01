@@ -123,7 +123,7 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     "SWTCH.C": 1,
 
     // CHIP's PICS file has no entry for the action-switch client flag, and it answers 1 for the release
-    // flag, which the cluster forbids alongside an action switch (Application Clusters § 1.12.4). The
+    // flag, which the cluster forbids alongside an action switch (Application Clusters § 1.13.4). The
     // switch this controller observes is an action switch, so that is what it declares.
     "SWTCH.C.F02": 0,
     "SWTCH.C.F05": 1,

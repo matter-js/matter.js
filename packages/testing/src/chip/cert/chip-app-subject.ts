@@ -473,16 +473,19 @@ class ChipLocalDevice implements CertDevice {
      * running app is waited for; there is nothing to wait for otherwise.
      */
     async #sendToPipe(json: string): Promise<void> {
-        const generation = this.#generation;
-        if (generation === undefined || generation.exited) {
-            throw new Error(
-                `Cert device ${this.id} cannot be operated while it is not running, so there is no app to ` +
-                    "send the command to",
-            );
-        }
+        const generation = this.#requireRunning();
 
         const path = this.#pipePath();
         await this.#awaitPipe(path);
+
+        // The wait can span a restart, and the successor generation creates its fifo at the same path,
+        // so a command that set out for one app must not be delivered to the next.
+        if (this.#requireRunning() !== generation) {
+            throw new Error(
+                `Cert device ${this.id} restarted while its command was waiting for the app's pipe, so the ` +
+                    "command was not sent",
+            );
+        }
 
         const pipe = await open(path, constants.O_WRONLY | constants.O_NONBLOCK).catch(cause => {
             throw new Error(
@@ -495,6 +498,18 @@ class ChipLocalDevice implements CertDevice {
         } finally {
             await pipe.close();
         }
+    }
+
+    /** The generation currently running, or a failure naming that there is none. */
+    #requireRunning(): Generation {
+        const generation = this.#generation;
+        if (generation === undefined || generation.exited) {
+            throw new Error(
+                `Cert device ${this.id} cannot be operated while it is not running, so there is no app to ` +
+                    "send the command to",
+            );
+        }
+        return generation;
     }
 
     /** Waits for the app to create its fifo, refusing a path that is there but is not one. */

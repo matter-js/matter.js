@@ -39,7 +39,7 @@ export namespace BackchannelCommand {
          * The switch's own FeatureMap. A chip app requires it and simulates the events it implies; a
          * matter.js test device derives them from the switch's own state and ignores it.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 1.12.4
+         * @see {@link MatterSpecification.v16.Cluster} § 1.13.4
          */
         featureMap: number;
     };
