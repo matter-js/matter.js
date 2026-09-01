@@ -499,7 +499,7 @@ class ChipLocalDevice implements CertDevice {
 
     /** Waits for the app to create its fifo, refusing a path that is there but is not one. */
     async #awaitPipe(path: string): Promise<void> {
-        const deadline = Date.now() + PIPE_TIMEOUT_MS;
+        const deadline = performance.now() + PIPE_TIMEOUT_MS;
         for (;;) {
             const target = await lstat(path).catch(() => undefined);
             if (target?.isFIFO()) {
@@ -513,7 +513,7 @@ class ChipLocalDevice implements CertDevice {
                 );
             }
 
-            if (Date.now() >= deadline) {
+            if (performance.now() >= deadline) {
                 throw new Error(
                     `Cert device ${this.id} has no command pipe at ${path} after ` +
                         `${PIPE_TIMEOUT_MS}ms, so the app cannot be operated; it is not running, or was ` +
@@ -945,6 +945,10 @@ export class ChipDockerDevice implements CertDevice {
                 // for the reason ChipLocalDevice's own send documents; a shell that exits non-zero
                 // fails the step rather than reporting a command nothing received.
                 //
+                // The app creates its fifo as it starts, so a command sent just after start() waits
+                // for it rather than being refused for a pipe that is merely not there yet; a path
+                // that is there but is not a fifo is still refused at once.
+                //
                 // Opening a fifo for writing waits for a reader, so the write is bounded from outside:
                 // an app that has stopped reading ends this as a non-zero exit rather than holding the
                 // exec for as long as the container lives.
@@ -953,7 +957,7 @@ export class ChipDockerDevice implements CertDevice {
                     String(PIPE_TIMEOUT_MS / 1000),
                     "sh",
                     "-c",
-                    `test -p ${CONTAINER_APP_PIPE} && printf '%s\\n' "$0" > ${CONTAINER_APP_PIPE}`,
+                    `while [ ! -e ${CONTAINER_APP_PIPE} ]; do sleep 0.1; done; test -p ${CONTAINER_APP_PIPE} && printf '%s\\n' "$0" > ${CONTAINER_APP_PIPE}`,
                     json,
                 ]);
                 break;

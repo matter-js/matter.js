@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Millis } from "@matter/general";
+import { Duration, Millis, Time } from "@matter/general";
 import { Matter } from "@matter/model";
 import type { CertNodeRef, CertStepContext, EventReadEntry, PicsValues } from "@matter/testing";
 import {
@@ -238,7 +238,7 @@ async function readUntil(
     expected: number,
     what: string,
 ) {
-    const deadline = Date.now() + EVENT_WAIT_MS;
+    const deadline = Time.nowUs + Millis(EVENT_WAIT_MS);
     let value: number | undefined;
     let failure: unknown;
     for (;;) {
@@ -254,7 +254,7 @@ async function readUntil(
             failure = e;
         }
 
-        if (value === expected || Date.now() >= deadline) {
+        if (value === expected || Time.nowUs >= deadline) {
             break;
         }
         await pause(READ_RETRY_MS);
@@ -303,8 +303,8 @@ async function subscribeToSwitch(cx: CertStepContext, ref: CertNodeRef, endpoint
 
 /** Waits until `predicate` holds over the events received so far, or the budget runs out. */
 async function untilReceived(predicate: () => boolean): Promise<boolean> {
-    const deadline = Date.now() + EVENT_WAIT_MS;
-    while (Date.now() < deadline) {
+    const deadline = Time.nowUs + Millis(EVENT_WAIT_MS);
+    while (Time.nowUs < deadline) {
         if (predicate()) {
             return true;
         }
@@ -346,9 +346,9 @@ function nameOf(entry: EventReadEntry): string {
  * can already carry the first event of the step that is about to run.
  */
 async function quietEventBoundary(cx: CertStepContext): Promise<bigint> {
-    const deadline = Date.now() + EVENT_WAIT_MS;
+    const deadline = Time.nowUs + Millis(EVENT_WAIT_MS);
     let seen = -1;
-    while (seen !== received.length && Date.now() < deadline) {
+    while (seen !== received.length && Time.nowUs < deadline) {
         seen = received.length;
         await pause(EVENT_QUIET_MS);
     }
