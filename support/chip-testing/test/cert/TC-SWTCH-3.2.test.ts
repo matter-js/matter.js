@@ -239,23 +239,39 @@ async function readUntil(
     what: string,
 ) {
     const deadline = Date.now() + EVENT_WAIT_MS;
-    let value = await readNumber(cx, ref, endpoint, attribute);
-    while (value !== expected && Date.now() < deadline) {
+    let value: number | undefined;
+    let failure: unknown;
+    for (;;) {
+        try {
+            value = await readNumber(cx, ref, endpoint, attribute);
+            failure = undefined;
+        } catch (e) {
+            // A read whose answer does not come back is not an answer of the wrong value. chip-tool
+            // delivers a live subscription's report in whatever command reply is open, and a read whose
+            // own values were displaced by one reports nothing for its path — which this step's
+            // repeated reads meet where a single read rarely did.
+            value = undefined;
+            failure = e;
+        }
+
+        if (value === expected || Date.now() >= deadline) {
+            break;
+        }
         await pause(READ_RETRY_MS);
-        value = await readNumber(cx, ref, endpoint, attribute);
     }
 
+    const answer = failure === undefined ? `the TH answers ${value}` : `the read failed: ${failure}`;
     record(
         cx,
         {
             type: "response",
             verdict: value === expected ? "pass" : "fail",
-            detail: `${what}: the TH answers ${value}`,
+            detail: `${what}: ${answer}`,
         },
         what,
     );
     if (value !== expected) {
-        throw new CertCheckFailedError(`${what}: the TH answers ${value}`);
+        throw new CertCheckFailedError(`${what}: ${answer}`);
     }
 }
 
