@@ -1296,6 +1296,17 @@ describe("ChipToolControllerAdapter", function () {
             ]);
         });
 
+        it("asks for urgent event paths only when the step asks for them", async () => {
+            const { ref, node } = await commissioned();
+
+            fake.reply = () => ({ results: [] });
+            await node.subscribeEvents([EVENT_PATH], { ...INTERVALS, urgent: true });
+
+            expect(fake.commands).deep.equal([
+                `any subscribe-event-by-id 0x28 0x0 1 10 ${ref} 0 --keepSubscriptions true --is-urgent true`,
+            ]);
+        });
+
         it("rejects a subscribe whose own event path the device rejected, and registers nothing", async () => {
             const { node } = await commissioned();
             const abandoned = new Array<unknown>();

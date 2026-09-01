@@ -125,6 +125,18 @@ export interface SubscribeEventOptions extends ReadEventOptions {
     minIntervalFloorSeconds: number;
     maxIntervalCeilingSeconds: number;
     onUpdate?: (event: EventReadEntry) => void;
+
+    /**
+     * Marks every path of the subscription urgent, which a step operating the device and then waiting
+     * for the event needs: without it the publisher holds queued events until the subscription's
+     * maximum interval elapses.
+     *
+     * Off by default because it is visible on the wire, and a step asserting the subscribe request it
+     * sent describes the request it asked for.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 8.5
+     */
+    urgent?: boolean;
 }
 
 /**

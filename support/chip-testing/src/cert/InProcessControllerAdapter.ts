@@ -150,6 +150,17 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "G.C.C01.Tx": 1,
     "GRPKEY.C.C03.Tx": 1,
     "GRPKEY.C.C04.Tx": 1,
+
+    // The Switch client flags TC-SWTCH-3.2 rests on. The CHIP PICS file answers 0 for `SWTCH.C` and
+    // declares F00..F04 for a *device*; here the switch client is the controller, and this overlay is
+    // the DUT-as-client declaration the plan's steps 0a-0h check for self-consistency.
+    "SWTCH.C": 1,
+
+    // CHIP's PICS file has no entry for the action-switch client flag, and it answers 1 for the release
+    // flag, which the cluster forbids alongside an action switch (Application Clusters § 1.12.4). The
+    // switch this controller observes is an action switch, so that is what it declares.
+    "SWTCH.C.F02": 0,
+    "SWTCH.C.F05": 1,
 };
 
 const adapterStreams = new Map<string, LineQueue>();
@@ -723,7 +734,7 @@ class InProcessCertNodeApi implements CertNodeApi {
             // already failed on the rejection, which is what the chip-tool adapter does too.
             let phase: "seeding" | "live" | "refused" = "seeding";
             const request = Subscribe({
-                events: paths.map(toEventIds),
+                events: paths.map(path => ({ ...toEventIds(path), isUrgent: opts.urgent })),
                 eventFilters: eventFiltersFor(opts),
                 fabricFilter: opts.fabricFiltered,
                 keepSubscriptions: true,
