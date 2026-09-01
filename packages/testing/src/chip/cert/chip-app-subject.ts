@@ -86,6 +86,18 @@ const STDIN_COMMANDS: Record<string, ReadonlyMap<BackchannelCommand["name"], str
     ]),
 };
 
+/**
+ * How long a command character waits before the next one is written.
+ *
+ * chip's bridge app polls its standard input with `ioctl(FIONREAD)` and reads it with `getchar`.
+ * FIONREAD reports what the kernel still holds, while `getchar` drains all of it into stdio's own
+ * buffer — so of several characters delivered together the app acts on the first and never polls for
+ * the rest again. Measured: three toggles written back to back produce one. The delivery the app
+ * consumes is one character per poll interval, and this is comfortably longer than the 100ms the app
+ * sleeps for.
+ */
+const STDIN_COMMAND_GAP_MS = 250;
+
 /** Whether `app` reads simulation commands from its standard input, which is what attaching one is for. */
 function hasStdinCommands(app: string) {
     return STDIN_COMMANDS[app] !== undefined;
@@ -137,6 +149,30 @@ function namedPipeCommandFor(app: string, command: BackchannelCommand): string |
     }
 
     return JSON.stringify({ Name: `${command.name[0].toUpperCase()}${command.name.slice(1)}`, ...fields });
+}
+
+/**
+ * Serializes standard-input writes and leaves {@link STDIN_COMMAND_GAP_MS} between them.
+ *
+ * The gap belongs to the delivery, not to the caller: a step that operates a device twice in a row
+ * must not have to know how the app reads its input.
+ */
+class StdinPacer {
+    #ready: Promise<void> = Promise.resolve();
+
+    async send(write: () => Promise<void>): Promise<void> {
+        const previous = this.#ready;
+        let release!: () => void;
+        this.#ready = new Promise<void>(resolve => (release = resolve));
+
+        await previous;
+        try {
+            await write();
+            await new Promise(resolve => setTimeout(resolve, STDIN_COMMAND_GAP_MS));
+        } finally {
+            release();
+        }
+    }
 }
 
 function commissioningFor(identity?: Subject.Identity): Subject.CommissioningParameters {
@@ -280,6 +316,7 @@ class ChipLocalDevice implements CertDevice {
     #appArgs: string[];
     #hub = new LineQueue();
     #storageDir?: string;
+    #stdin = new StdinPacer();
     #generation?: LocalGeneration;
     #starting?: Promise<void>;
     #exit: ExitDeferred = createExitDeferred();
@@ -576,6 +613,10 @@ class ChipLocalDevice implements CertDevice {
      * would otherwise leave the command credited to an app that never saw it.
      */
     async #sendToStdin(char: string): Promise<void> {
+        return this.#stdin.send(() => this.#writeToStdin(char));
+    }
+
+    async #writeToStdin(char: string): Promise<void> {
         const generation = this.#requireRunning();
         const stdin = generation.child.stdin;
         if (stdin === null) {
@@ -747,6 +788,7 @@ export class ChipDockerDevice implements CertDevice {
     #appArgs: string[];
     #hub = new LineQueue();
     #docker: DockerHandle;
+    #stdin = new StdinPacer();
     #generation?: DockerGeneration;
     #starting?: Promise<void>;
     #exit: ExitDeferred = createExitDeferred();
@@ -1071,16 +1113,19 @@ export class ChipDockerDevice implements CertDevice {
                                 "that way",
                         );
                     }
-                    await stdin.write(delivery.char);
 
-                    // A restart between the write and here would credit the command to an app that
-                    // never saw it
-                    if (this.#generation !== generation) {
-                        throw new Error(
-                            `Cert device ${this.id} restarted while a command was being delivered, so the command ` +
-                                "reached an app that is no longer the one under test",
-                        );
-                    }
+                    await this.#stdin.send(async () => {
+                        await stdin.write(delivery.char);
+
+                        // A restart between the write and here would credit the command to an app
+                        // that never saw it
+                        if (this.#generation !== generation) {
+                            throw new Error(
+                                `Cert device ${this.id} restarted while a command was being delivered, so the ` +
+                                    "command reached an app that is no longer the one under test",
+                            );
+                        }
+                    });
                     break;
                 }
 

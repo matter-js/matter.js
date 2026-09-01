@@ -14,7 +14,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/testing
     - Breaking: `BackchannelCommand.SimulateLongPress` carries the switch's `featureMap`, which a chip test app requires to decide which events a press produces
     - Enhancement: Chip certification test devices take simulation commands through the named pipe their app opens, so a step that operates the device runs against a chip app rather than skipping
-    - Enhancement: Chip certification test devices also take simulation commands through their app's standard input, which is how chip's bridge app is operated
+    - Enhancement: Chip certification test devices also take simulation commands through their app's standard input, one character per poll interval, which is how chip's bridge app is operated
     - Enhancement: The matter.js bridge test device exposes the devices chip's bridge app does, on the same endpoints, and takes the same simulation commands
     - Enhancement: A certification step can ask what a controller holds for a node — its endpoints, or one attribute's value — rather than only what a read returns, via `CertNodeApi.clientEndpoints()` and `CertNodeApi.clientAttribute()`
     - Enhancement: A certification step subscribing to events may ask for them urgently via `SubscribeEventOptions.urgent`, so a device reports them as they occur rather than at the subscription's maximum interval
