@@ -306,17 +306,17 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
     override setCredential(request: DoorLock.SetCredentialRequest): DoorLock.SetCredentialResponse {
         const { operationType, credential, credentialData, userIndex, userStatus, userType } = request;
         const fabricIndex = this.#fabricIndex;
-        const maxCredentials = this.#maxCredentialsForType(credential.credentialType);
+        const maxCredentialIndex = this.#maxCredentialIndexForType(credential.credentialType);
         const auth = this.auth;
 
         // § 5.2.10.21.3 states NextCredentialIndex independently of the status, so every response carries it
         const nextCredentialIndex = auth.findNextAvailableCredentialIndex(
             credential.credentialType,
             credential.credentialIndex,
-            maxCredentials,
+            maxCredentialIndex,
         );
 
-        if (credential.credentialIndex < 0 || credential.credentialIndex > maxCredentials) {
+        if (!this.#credentialIndexValid(credential.credentialType, credential.credentialIndex, maxCredentialIndex)) {
             return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex };
         }
 
@@ -1027,23 +1027,36 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
             return userType !== UserType.ProgrammingUser;
         }
 
-        // Modifying the programming user's PIN is the one case that states what it carries rather than forbidding it
+        // Reached only for a credential index the type permits, so the programming PIN is already at index 0
         if (operationType === DataOperationType.Modify && userIndex === null) {
             return (
                 userStatus === null &&
                 userType === UserType.ProgrammingUser &&
-                credential.credentialType === CredentialType.ProgrammingPin &&
-                credential.credentialIndex === 0
+                credential.credentialType === CredentialType.ProgrammingPin
             );
         }
 
         return userStatus === null && userType === null;
     }
 
-    #maxCredentialsForType(type: CredentialType): number {
+    /**
+     * § 5.2.6.24.2 states index 0 for a credential type that indexes into nothing, of which the programming PIN is
+     * the only one, so every other type indexes from 1.
+     */
+    #credentialIndexValid(type: CredentialType, index: number, maxIndex: number): boolean {
+        if (type === CredentialType.ProgrammingPin) {
+            return index === 0;
+        }
+
+        return index >= 1 && index <= maxIndex;
+    }
+
+    #maxCredentialIndexForType(type: CredentialType): number {
         switch (type) {
-            case CredentialType.Pin:
+            // Indexes into nothing, so there is no slot to scan and none to report
             case CredentialType.ProgrammingPin:
+                return 0;
+            case CredentialType.Pin:
                 return this.state.numberOfPinUsersSupported;
             case CredentialType.Rfid:
                 return this.state.numberOfRfidUsersSupported;

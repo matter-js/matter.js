@@ -339,7 +339,7 @@ describe("DoorLockServer", () => {
         await lock.node.online({}, async agent => {
             const doorLock = lock.endpoint.agentFor(agent.context).doorLock;
 
-            await doorLock.setCredential({
+            const seeded = await doorLock.setCredential({
                 operationType: DoorLock.DataOperationType.Add,
                 credential: { credentialType: DoorLock.CredentialType.ProgrammingPin, credentialIndex: 0 },
                 credentialData: pin("1234"),
@@ -347,6 +347,7 @@ describe("DoorLockServer", () => {
                 userStatus: null,
                 userType: null,
             });
+            expect(seeded.status).equals(Status.Success);
 
             const modified = await doorLock.setCredential({
                 operationType: DoorLock.DataOperationType.Modify,
@@ -368,44 +369,92 @@ describe("DoorLockServer", () => {
             });
             expect(withoutType.status).equals(Status.InvalidCommand);
 
-            // Each of the two below would modify its credential were the use case not checked
-            await doorLock.setCredential({
+            const seededPin = await doorLock.setCredential({
                 operationType: DoorLock.DataOperationType.Add,
-                credential: { credentialType: DoorLock.CredentialType.ProgrammingPin, credentialIndex: 1 },
-                credentialData: pin("2345"),
-                userIndex: 1,
-                userStatus: null,
-                userType: null,
-            });
-
-            const wrongCredentialIndex = await doorLock.setCredential({
-                operationType: DoorLock.DataOperationType.Modify,
-                credential: { credentialType: DoorLock.CredentialType.ProgrammingPin, credentialIndex: 1 },
-                credentialData: pin("9012"),
-                userIndex: null,
-                userStatus: null,
-                userType: DoorLock.UserType.ProgrammingUser,
-            });
-            expect(wrongCredentialIndex.status).equals(Status.InvalidCommand);
-
-            await doorLock.setCredential({
-                operationType: DoorLock.DataOperationType.Add,
-                credential: { credentialType: DoorLock.CredentialType.Pin, credentialIndex: 0 },
+                credential: { credentialType: DoorLock.CredentialType.Pin, credentialIndex: 1 },
                 credentialData: pin("3456"),
                 userIndex: 1,
                 userStatus: null,
                 userType: null,
             });
+            expect(seededPin.status).equals(Status.Success);
 
             const wrongCredentialType = await doorLock.setCredential({
                 operationType: DoorLock.DataOperationType.Modify,
-                credential: { credentialType: DoorLock.CredentialType.Pin, credentialIndex: 0 },
-                credentialData: pin("9012"),
+                credential: { credentialType: DoorLock.CredentialType.Pin, credentialIndex: 1 },
+                credentialData: pin("7890"),
                 userIndex: null,
                 userStatus: null,
                 userType: DoorLock.UserType.ProgrammingUser,
             });
             expect(wrongCredentialType.status).equals(Status.InvalidCommand);
+        });
+    });
+
+    it("reserves credential index 0 for the programming PIN", async () => {
+        await using lock = await createLock();
+
+        await lock.node.online({}, async agent => {
+            const doorLock = lock.endpoint.agentFor(agent.context).doorLock;
+
+            const pinAtZero = await doorLock.setCredential({
+                operationType: DoorLock.DataOperationType.Add,
+                credential: { credentialType: DoorLock.CredentialType.Pin, credentialIndex: 0 },
+                credentialData: pin("1234"),
+                userIndex: 1,
+                userStatus: null,
+                userType: null,
+            });
+            expect(pinAtZero.status).equals(Status.InvalidCommand);
+
+            const pinAtMax = await doorLock.setCredential({
+                operationType: DoorLock.DataOperationType.Add,
+                credential: { credentialType: DoorLock.CredentialType.Pin, credentialIndex: 10 },
+                credentialData: pin("5678"),
+                userIndex: 1,
+                userStatus: null,
+                userType: null,
+            });
+            expect(pinAtMax.status).equals(Status.Success);
+
+            const pinPastMax = await doorLock.setCredential({
+                operationType: DoorLock.DataOperationType.Add,
+                credential: { credentialType: DoorLock.CredentialType.Pin, credentialIndex: 11 },
+                credentialData: pin("6789"),
+                userIndex: 1,
+                userStatus: null,
+                userType: null,
+            });
+            expect(pinPastMax.status).equals(Status.InvalidCommand);
+
+            const programmingPinElsewhere = await doorLock.setCredential({
+                operationType: DoorLock.DataOperationType.Add,
+                credential: { credentialType: DoorLock.CredentialType.ProgrammingPin, credentialIndex: 1 },
+                credentialData: pin("1234"),
+                userIndex: 1,
+                userStatus: null,
+                userType: null,
+            });
+            expect(programmingPinElsewhere.status).equals(Status.InvalidCommand);
+        });
+    });
+
+    it("reports no next index for the programming PIN", async () => {
+        await using lock = await createLock();
+
+        await lock.node.online({}, async agent => {
+            const doorLock = lock.endpoint.agentFor(agent.context).doorLock;
+
+            const added = await doorLock.setCredential({
+                operationType: DoorLock.DataOperationType.Add,
+                credential: { credentialType: DoorLock.CredentialType.ProgrammingPin, credentialIndex: 0 },
+                credentialData: pin("1234"),
+                userIndex: 1,
+                userStatus: null,
+                userType: null,
+            });
+            expect(added.status).equals(Status.Success);
+            expect(added.nextCredentialIndex).null;
         });
     });
 
