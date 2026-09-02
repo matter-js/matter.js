@@ -436,4 +436,27 @@ describe("DoorLockServer", () => {
             expect(both.status).equals(DoorLock.StatusCode.Duplicate);
         });
     });
+    it("refuses to store a user type Matter does not define", async () => {
+        await using lock = await createLock();
+
+        await lock.node.online({}, async agent => {
+            const doorLock = lock.endpoint.agentFor(agent.context).doorLock;
+
+            // The command's own constraint covers a request from a peer; this is the local caller's path
+            let message: string | undefined;
+            try {
+                await doorLock.setCredential({
+                    operationType: DoorLock.DataOperationType.Add,
+                    credential: { credentialType: DoorLock.CredentialType.Pin, credentialIndex: 1 },
+                    credentialData: pin("1234"),
+                    userIndex: null,
+                    userStatus: null,
+                    userType: 99 as DoorLock.UserType,
+                });
+            } catch (e) {
+                message = (e as Error).message;
+            }
+            expect(message).match(/does not define the enum value 99/);
+        });
+    });
 });

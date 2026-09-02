@@ -27,6 +27,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `DoorLockServer.setCredential` reports `NextCredentialIndex` on a failing response as well as a successful one
     - Fix: `DoorLockServer.setCredential` reports `OCCUPIED` when no user slot remains for a new credential
     - Fix: `DoorLockServer.setCredential` answers `INVALID_COMMAND` when the user fields a request carries do not match the use case it states
+    - Fix: `DoorLockServer` stores each enumerated field of a user or credential record as its Matter enumeration, so a value the enumeration does not define is refused rather than kept
     - Fix: Creating a struct fills in a default only for a field the cluster supports, so a field a device does not set stays absent instead of carrying the fallback its schema states. A write of a list entry that omits a feature-gated field is accepted, where it previously failed validation against the field it had filled in. Affects `Thermostat` preset names and setpoints, `Descriptor` tag labels, `MediaPlayback` track attributes and the feature-gated members of `ClosureControl`, `ClosureDimension`, `ElectricalEnergyMeasurement`, `CommodityPrice` and `CommodityTariff`
     - Fix: A struct field's default is stored in the units and shape of its datatype: a preset created without a cooling setpoint reads `2600` rather than the schema's `26°C` notation, and a bitmap default arrives decoded
     - Fix: Each struct created by a write receives its own copy of a list or bitmap default instead of sharing one instance

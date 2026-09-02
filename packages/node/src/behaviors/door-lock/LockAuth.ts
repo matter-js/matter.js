@@ -5,7 +5,17 @@
  */
 
 import { Bytes, type Cipher } from "@matter/general";
-import { fabricIdx, field, listOf, nullable, octstr, string, uint16, uint32, uint8 } from "@matter/model";
+import {
+    DoorLock as DoorLockModel,
+    fabricIdx,
+    field,
+    listOf,
+    nullable,
+    octstr,
+    string,
+    uint16,
+    uint32,
+} from "@matter/model";
 import { FabricIndex } from "@matter/types";
 import { DoorLock } from "@matter/types/clusters/door-lock";
 
@@ -20,7 +30,7 @@ export namespace LockAuth {
      * Reference to a credential by type and index.
      */
     export class CredentialRef {
-        @field(uint8)
+        @field(DoorLockModel.datatypes.require("CredentialTypeEnum"))
         credentialType!: CredentialType;
 
         @field(uint16)
@@ -41,13 +51,13 @@ export namespace LockAuth {
         @field(uint32)
         userUniqueId: number | null = null;
 
-        @field(uint8)
+        @field(DoorLockModel.datatypes.require("UserStatusEnum"))
         userStatus: DoorLock.UserStatus = DoorLock.UserStatus.Available;
 
-        @field(uint8)
+        @field(DoorLockModel.datatypes.require("UserTypeEnum"))
         userType: DoorLock.UserType = DoorLock.UserType.UnrestrictedUser;
 
-        @field(uint8)
+        @field(DoorLockModel.datatypes.require("CredentialRuleEnum"))
         credentialRule: DoorLock.CredentialRule = DoorLock.CredentialRule.Single;
 
         @field(listOf(CredentialRef))
@@ -64,7 +74,7 @@ export namespace LockAuth {
      * Stored credential record with encrypted data and fabric tracking.
      */
     export class Credential {
-        @field(uint8)
+        @field(DoorLockModel.datatypes.require("CredentialTypeEnum"))
         credentialType!: CredentialType;
 
         @field(uint16)
