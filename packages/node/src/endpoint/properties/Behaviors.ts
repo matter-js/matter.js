@@ -313,7 +313,7 @@ export class Behaviors {
             return !!this.#supported[type];
         }
         const myType = this.#supported[type.id];
-        return myType === type || myType?.supports(type) === true;
+        return myType !== undefined && (myType === type || myType.supports(type));
     }
 
     /**
