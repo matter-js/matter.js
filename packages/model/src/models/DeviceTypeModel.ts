@@ -33,8 +33,8 @@ export class DeviceTypeModel extends Model<DeviceTypeElement, DeviceTypeModel.Ch
     get effectiveComposition(): EndpointComposition {
         let composition: EndpointComposition | undefined;
 
-        // One traversal rather than a hop-by-hop walk of #base, so a definition that derives from
-        // itself through another is caught by the traversal's own cycle detection
+        // A single traversal, whose cycle detection then spans the whole inheritance chain: a
+        // definition that derives from itself must be reported rather than followed
         new ModelTraversal().visitInheritance(this, model => {
             if (model instanceof DeviceTypeModel && model.composition !== undefined) {
                 composition = model.composition;

@@ -20,8 +20,10 @@ export interface DeviceTypeElement extends BaseElement {
     classification?: `${DeviceClassification}`;
 
     /**
-     * How this device type composes its endpoint's `PartsList`. Inherited from the base device type,
-     * and {@link EndpointComposition.Tree} where neither states one.
+     * How this device type composes its endpoint's `PartsList`, where it declares this itself.
+     *
+     * A device type that declares nothing leaves this unset; `DeviceTypeModel.effectiveComposition`
+     * is what answers for one, inheritance and default included.
      */
     composition?: `${EndpointComposition}`;
 
