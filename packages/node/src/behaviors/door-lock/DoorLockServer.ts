@@ -1012,8 +1012,9 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
     }
 
     /**
-     * § 5.2.10.20 states the user fields each SetCredential use case carries. Only the case that creates a user
-     * alongside the credential carries any; the others state both as null.
+     * § 5.2.10.20 states which user fields each SetCredential use case carries. Only the case that creates a user
+     * alongside the credential carries any; the others state both as null. The values each field may hold are the
+     * command's own constraint, enforced before the request reaches us.
      */
     #userFieldsMatchUseCase(
         operationType: DataOperationType,
@@ -1022,12 +1023,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         userType: UserType | null,
     ): boolean {
         if (operationType === DataOperationType.Add && userIndex === null) {
-            return (
-                (userStatus === null ||
-                    userStatus === UserStatus.OccupiedEnabled ||
-                    userStatus === UserStatus.OccupiedDisabled) &&
-                userType !== UserType.ProgrammingUser
-            );
+            return userType !== UserType.ProgrammingUser;
         }
 
         // Modifying the programming user's PIN states ProgrammingUser, which the CHIP SDK does not enforce

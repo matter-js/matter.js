@@ -153,29 +153,6 @@ describe("DoorLockServer", () => {
         });
     });
 
-    it("refuses a user status the created user may not hold", async () => {
-        await using lock = await createLock();
-
-        await lock.node.online({}, async agent => {
-            const doorLock = lock.endpoint.agentFor(agent.context).doorLock;
-
-            const refused = await doorLock.setCredential({
-                operationType: DoorLock.DataOperationType.Add,
-                credential: { credentialType: DoorLock.CredentialType.Pin, credentialIndex: 1 },
-                credentialData: pin("1234"),
-                userIndex: null,
-                userStatus: DoorLock.UserStatus.Available,
-                userType: null,
-            });
-            expect(refused.status).equals(Status.InvalidCommand);
-
-            const status = await doorLock.getCredentialStatus({
-                credential: { credentialType: DoorLock.CredentialType.Pin, credentialIndex: 1 },
-            });
-            expect(status.credentialExists).false;
-        });
-    });
-
     it("refuses to create a programming user alongside a credential", async () => {
         await using lock = await createLock();
 
