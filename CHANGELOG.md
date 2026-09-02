@@ -25,6 +25,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: A device type states how it composes its endpoint's `PartsList` — `DeviceTypeModel.effectiveComposition` answers `"full-family"` for the root node and an aggregator and `"tree"` for everything else, inherited from the device type a definition derives from
 
 - @matter/node
+    - Fix: Creating a struct fills in a default only for a field the cluster supports, so a field a device does not set stays absent instead of carrying the fallback its schema states. A write of a list entry that omits a feature-gated field is accepted, where it previously failed validation against the field it had filled in. Affects `Thermostat` preset names and setpoints, `Descriptor` tag labels, `MediaPlayback` track attributes and the feature-gated members of `ClosureControl`, `ClosureDimension`, `ElectricalEnergyMeasurement`, `CommodityPrice` and `CommodityTariff`
+    - Fix: A struct field's default is stored in the units and shape of its datatype: a preset created without a cooling setpoint reads `2600` rather than the schema's `26°C` notation, and a bitmap default arrives decoded
+    - Fix: Each struct created by a write receives its own copy of a list or bitmap default instead of sharing one instance
+    - Fix: A nullable field the active features make mandatory holds `null` when a write omits it, where a field made mandatory by a feature expression previously stayed absent
+    - Fix: A write that names an inherited property, such as `__proto__` or `toString`, is refused like any other property the cluster does not declare; `__proto__` previously replaced the prototype of the value being written
     - Fix: (@Luligu) Corrects status codes returned by `DoorLockServer.setCredential` for duplicating another credential of the same type an adding an occupied credential index
     - Fix: `ClientStructure.applyWireChanges` applies the change it is given. A client node keys each member of a cluster by attribute ID, and a change from the remote API addresses members by property name, so values landed under a key reads were never served from: the update was invisible and never persisted. Values now convert as the change is applied
     - Fix: `ClientStructure.applyWireChanges` regenerates a behavior whose cluster definition changed and prunes attributes the cluster dropped, as the Matter protocol path already did
@@ -51,6 +56,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `InteractionClient`'s read, write, invoke and subscribe options take an `abort` signal, forwarded to the interaction
 
 - @matter/general
+    - Fix: `deepCopy` copies a `Date` as a `Date` rather than an empty object
     - Fix: A log destination that throws no longer propagates the failure into the code that logged; the remaining destinations still receive the message and the broken destination is reported once
     - Fix: `DataReader` throws `DataReadError` when a read would pass the end of the buffer; `readByteArray` and `readUtf8String` no longer return short data
     - Fix: `DerCodec.decode` reports truncated input as `DerError` instead of a `RangeError`, and rejects a length that overflows or uses the indefinite-length encoding instead of decoding a value as present and empty
@@ -72,6 +78,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The `Symbol.metadata` polyfill no longer conflicts with `lib.esnext.decorators` in the published declarations
 
 - @matter/model
+    - Enhancement: `StoredDefaultValue()` states the default a value store holds for a member, beside the existing `SelectDefaultValue()` and `MandatoryDefaultValue()`
+    - Fix: Conformance applicability reports a term that compares a value as conditional rather than optional, so an element the record's own contents decide is no longer treated as mandatory when the features around the comparison are supported
     - Enhancement: `ClusterModel.statusCodes` gives the cluster's own status code definition, inherited by a derived cluster like the other member accessors
     - Fix: TemperatureMeasurement's MinMeasuredValue and MaxMeasuredValue now default to `null` ("range unavailable"), like the other measurement clusters, instead of -27315 and 32767, and carry the constraints the specification states rather than hand-written ones
     - Fix: A device type requiring several instances of one component, such as `BatteryStorage` with two electrical sensors and two power sources, no longer reports each instance as a duplicate of the others
