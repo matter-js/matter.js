@@ -140,7 +140,7 @@ function deviceTypesOf(value: unknown): number[] {
     }
     return value
         .map(entry =>
-            typeof entry === "object" && entry !== null ? Number((entry as { deviceType?: unknown }).deviceType) : NaN,
+            typeof entry === "object" && entry !== null && "deviceType" in entry ? Number(entry.deviceType) : NaN,
         )
         .filter(id => !Number.isNaN(id));
 }

@@ -171,13 +171,6 @@ export interface AttributeReadEntry {
 }
 
 /**
- * One endpoint of a node as a controller holds it.
- *
- * This is not what a read answers. A read reports what the node exposes now; this reports what the
- * controller believes, which is the only way to tell whether a controller noticed a bridge adding or
- * removing a device rather than merely being able to see it.
- */
-/**
  * A concrete attribute path, spelled out rather than derived from {@link AttributePathSpec}: an
  * optional field added there later would silently become mandatory at every call site.
  */
@@ -187,6 +180,13 @@ export interface ClientAttributePath {
     attribute: number;
 }
 
+/**
+ * One endpoint of a node as a controller holds it.
+ *
+ * This is not what a read answers. A read reports what the node exposes now; this reports what the
+ * controller believes, which is the only way to tell whether a controller noticed a bridge adding or
+ * removing a device rather than merely being able to see it.
+ */
 export interface ClientEndpointEntry {
     endpoint: number;
     deviceTypes: number[];
