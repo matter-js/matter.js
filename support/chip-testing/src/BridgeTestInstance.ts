@@ -50,7 +50,7 @@ const MAX_MEASURED_VALUE = 32766;
 const INITIAL_MEASURED_VALUE = 100;
 
 /** The device type chip adds beside Bridged Node on the top of its composed device. */
-const POWER_SOURCE_DEVICE_TYPE = "PowerSource";
+const POWER_SOURCE_DEVICE_TYPE = 0x0011;
 
 /**
  * The battery level the composed device reports.
@@ -155,10 +155,6 @@ export class BridgeTestInstance extends NodeTestInstance {
 
         const composed = this.#composedDevice();
         await aggregator.add(composed);
-
-        // chip declares this endpoint as both a bridged node and a power source, and a plan step reads
-        // the device type list to find the battery
-        await composed.act(agent => agent.get(DescriptorServer).addDeviceTypes(POWER_SOURCE_DEVICE_TYPE));
 
         // The composed device's own sensors are its parts, not the aggregator's, and carry no bridged
         // device information of their own — the composed endpoint above them is what the bridge
@@ -316,9 +312,18 @@ export class BridgeTestInstance extends NodeTestInstance {
      * the two sensors below it, which is how chip declares the same endpoint.
      */
     #composedDevice() {
-        return new Endpoint(BridgedNodeEndpoint.with(PowerSourceServer.with("Battery")), {
+        return new Endpoint(BridgedNodeEndpoint.with(DescriptorServer, PowerSourceServer.with("Battery")), {
             id: "composed",
             number: ENDPOINT.composed,
+
+            // Declared rather than added after the fact: a device type applied imperatively lives in
+            // state, which a factory reset erases, leaving the endpoint with no device type at all
+            descriptor: {
+                deviceTypeList: [
+                    { deviceType: DeviceTypeId(BridgedNodeEndpoint.deviceType), revision: 3 },
+                    { deviceType: DeviceTypeId(POWER_SOURCE_DEVICE_TYPE), revision: 1 },
+                ],
+            },
             bridgedDeviceBasicInformation: this.#bridgedDeviceBasicInformation("Composed Device"),
             powerSource: {
                 status: PowerSource.PowerSourceStatus.Active,
