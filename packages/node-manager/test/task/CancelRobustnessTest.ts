@@ -879,6 +879,12 @@ describe("cancel robustness", () => {
         expect(manager.get(handle.runId)?.status.revertRunId).equals(undefined);
         expect(revertRecordOf(node.stateOf(TestTaskManager).runs, "synthetic:inwindow")).equals(undefined);
 
+        // `#retire` declined to release the target because the transition owned the run, so the refusal has to
+        // release it. Otherwise the finished run holds its target for the life of the process.
+        expect(manager.tasks.map(t => t.runId)).deep.equals([]);
+        const next = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "inwindow" }));
+        expect(next.runId).not.equals(handle.runId);
+
         await node.close();
     });
 

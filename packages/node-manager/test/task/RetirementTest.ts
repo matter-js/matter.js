@@ -189,6 +189,58 @@ describe("run records after a retirement", () => {
         expect((await stored(node, handle.runId))?.revertRunId).equals(undefined);
     });
 
+    it("drops the parameters an older build left on finished records", async () => {
+        const environment = new Environment("upgrade-params");
+        let finished!: RunId;
+        {
+            await using node = await makeNode(environment, "upgrade");
+            const peer = testPeer("upgrade");
+            peer.markHas("groupMembership", "X");
+            const handle = await run(node, "upgrade", [touchPhase("upgrade")]);
+            await awaitRetired(node, handle.runId);
+            finished = handle.runId;
+
+            // Put the record back the way the previous build left it: parameters intact, table unversioned.
+            await node.act(a => {
+                const manager = a.get(TestTaskManager);
+                manager.state.runs = {
+                    ...manager.state.runs,
+                    [String(finished)]: { ...manager.state.runs[String(finished)], params: { tag: "upgrade" } },
+                };
+                manager.state.runsVersion = 1;
+            });
+        }
+
+        // A write replaces only the records its own transaction names, so nothing would ever rewrite a run
+        // that was already finished — and its parameters are the raw keys this version exists to stop storing.
+        await using node = await makeNode(environment, "upgrade");
+        const record = await stored(node, finished);
+        expect(record).not.equals(undefined);
+        expect("params" in record!).equals(false);
+        expect(await node.act(a => a.get(TestTaskManager).state.runsVersion)).equals(RUN_STORE_VERSION);
+    });
+
+    it("leaves an unfinished run's parameters alone on upgrade", async () => {
+        const environment = new Environment("upgrade-inflight");
+        let live!: RunId;
+        {
+            await using node = await makeNode(environment, "inflight");
+            const peer = testPeer("inflight");
+            const handle = await run(node, "inflight", [gatingPhase("inflight")]);
+            await pumpUntil("intent written", () => peer.items[KEY] !== undefined);
+            live = handle.runId;
+            await node.act(a => {
+                a.get(TestTaskManager).state.runsVersion = 1;
+            });
+        }
+
+        // Parameters are what re-drives a run's phases after a restart, so the upgrade must not take them from
+        // work that has not finished.
+        await using node = await makeNode(environment, "inflight");
+        testPeer("inflight");
+        expect((await stored(node, live))?.params).deep.equals({ tag: "inflight" });
+    });
+
     it("records the schema version it wrote the table under", async () => {
         const environment = new Environment("ledger-stamp");
         {
@@ -269,7 +321,7 @@ describe("run records after a retirement", () => {
         await using node = await makeNode(environment, "version");
         SyntheticTask.phasesByTag["version"] = [touchPhase("version")];
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
-        expect(() => node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "version" }))).throws(
+        expect(await attempt(node, async m => m.run(SyntheticTask, { tag: "version" }))).instanceOf(
             TaskStoreVersionError,
         );
     });
