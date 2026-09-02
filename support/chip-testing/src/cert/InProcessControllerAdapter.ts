@@ -196,6 +196,12 @@ Boot.init(() => {
     });
 });
 
+/** Whether the line being logged belongs to a controller adapter's own stream. */
+export function controllerAdapterClaimsLogs() {
+    const id = activeAdapterId.getStore();
+    return id !== undefined && adapterStreams.has(id);
+}
+
 const logger = Logger.get("CertControllerAdapter");
 
 function runTagged<T>(id: string, fn: () => Promise<T>): Promise<T> {

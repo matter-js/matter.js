@@ -74,6 +74,15 @@ const COMPOSED_ENDPOINT = 6;
 const COMPOSED_SENSORS = [7, 8];
 
 /**
+ * The endpoints carrying Bridged Device Basic Information: every device the bridge exposes, plus the
+ * composed endpoint, which the bridge describes in place of the sensors below it. Those sensors are
+ * parts of a device the bridge already named, so they carry none of their own.
+ */
+const NAMED_DEVICES = [...LIGHTS, ...TEMPERATURE_SENSORS.filter(number => !COMPOSED_SENSORS.includes(number))]
+    .concat(COMPOSED_ENDPOINT)
+    .sort((a, b) => a - b);
+
+/**
  * The bridge's first light — the one every command the plan uses acts on: chip's toggle switches it,
  * its rename renames it, and its remove removes it. The four beyond it belong to the Actions plan and
  * no command here touches them, which is what makes them the control group for a toggle.
@@ -312,31 +321,34 @@ certTest("TC-BR-4", {
         async cx => {
             const entries = await readEveryEndpoint(cx, "NodeLabel", BRIDGED_INFO_ID, NODE_LABEL_ID);
             const answered = endpointsAnswering(entries, BRIDGED_INFO_ID, NODE_LABEL_ID);
+            const missing = NAMED_DEVICES.filter(endpoint => !answered.includes(endpoint));
 
             const held = await Promise.all(
-                answered.map(async endpoint => ({
+                NAMED_DEVICES.map(async endpoint => ({
                     endpoint,
                     value: await heldAttribute(cx, endpoint, BRIDGED_INFO_ID, NODE_LABEL_ID),
                 })),
             );
-            const agreeing = held.filter(
-                entry => entry.value === valueAt(entries, entry.endpoint, BRIDGED_INFO_ID, NODE_LABEL_ID),
+            const disagreeing = held.filter(
+                entry => entry.value !== valueAt(entries, entry.endpoint, BRIDGED_INFO_ID, NODE_LABEL_ID),
             );
 
             recordAll(cx, [
                 {
                     check: () => ({
                         type: "response",
-                        verdict: answered.length > 0 ? "pass" : "fail",
-                        detail: `the DUT read NodeLabel from endpoints ${answered.join(", ")}`,
+                        verdict: missing.length === 0 ? "pass" : "fail",
+                        detail:
+                            `the DUT read NodeLabel from endpoints ${answered.join(", ")}; the bridged devices ` +
+                            `are ${NAMED_DEVICES.join(", ")}`,
                     }),
                     what: "the DUT read the name of every bridged device that has one",
                 },
                 {
                     check: () => ({
                         type: "response",
-                        verdict: held.length > 0 && agreeing.length === held.length ? "pass" : "fail",
-                        detail: `the DUT holds the name the TH reports on ${agreeing.length} of ${held.length} endpoints`,
+                        verdict: disagreeing.length === 0 ? "pass" : "fail",
+                        detail: `the DUT holds the name the TH reports on ${held.length - disagreeing.length} of ${held.length} endpoints`,
                     }),
                     what: "the DUT's own device list carries those names",
                 },
@@ -495,6 +507,22 @@ certTest("TC-BR-4", {
         "Use the DUT to change the on/off state of one or more of the bridged On/Off lights",
         async cx => {
             const th = cx.devices.th;
+
+            // Step 1e's toggle leaves this light on, and an On command that changes nothing cannot
+            // show the state change the step is about
+            await node(cx).invoke("OnOff", "off", {}, LIGHT_1_ENDPOINT);
+            const before = await node(cx).readAttribute({
+                endpoint: LIGHT_1_ENDPOINT,
+                cluster: ON_OFF_ID,
+                attribute: ON_OFF_ATTRIBUTE_ID,
+            });
+            if (before !== false) {
+                throw new CertCheckFailedError(
+                    `endpoint ${LIGHT_1_ENDPOINT}'s OnOff reads ${describeValue(before)} after an Off command, so ` +
+                        "an On command that follows cannot be told from the light already being on",
+                );
+            }
+
             const from = await th.log.markSettled();
 
             await node(cx).invoke("OnOff", "on", {}, LIGHT_1_ENDPOINT);
@@ -522,7 +550,9 @@ certTest("TC-BR-4", {
                 {
                     type: "response",
                     verdict: value === true ? "pass" : "fail",
-                    detail: `endpoint ${LIGHT_1_ENDPOINT}'s OnOff reads ${value} after the command`,
+                    detail:
+                        `endpoint ${LIGHT_1_ENDPOINT}'s OnOff read ${before} before the command and ${value} ` +
+                        "after it",
                 },
                 "the bridged light the DUT commanded is on",
             );
