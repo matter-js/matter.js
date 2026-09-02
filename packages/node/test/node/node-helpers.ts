@@ -17,7 +17,7 @@ import {
     NetworkClient,
     ServerNode,
 } from "#index.js";
-import { Bytes, Crypto, type Environment, InternalError } from "@matter/general";
+import { Bytes, Crypto, type Environment, InternalError, Seconds } from "@matter/general";
 import { Specification } from "@matter/model";
 import {
     Certificate,
@@ -380,8 +380,13 @@ export namespace interaction {
         fabric: Fabric,
         request: TypeFromSchema<typeof TlvInvokeRequest>["invokeRequests"][number],
         responder: (value: TypeFromSchema<typeof TlvInvokeResponseData>) => void,
+        options?: { timed?: boolean },
     ) {
         const { exchange, interactionServer } = await connect(node, fabric);
+
+        if (options?.timed) {
+            exchange.startTimedInteraction(Seconds(10));
+        }
 
         const { messenger, getResponse } = createInvokeMessenger();
         await interactionServer.handleInvokeRequest(
@@ -390,7 +395,7 @@ export namespace interaction {
                 invokeRequests: [request],
                 interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
                 suppressResponse: false,
-                timedRequest: false,
+                timedRequest: options?.timed ?? false,
             },
             messenger,
             BarelyMockedMessage,

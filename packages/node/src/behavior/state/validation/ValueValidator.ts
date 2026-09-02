@@ -159,10 +159,7 @@ function createEnumValidator(schema: ValueModel, supervisor: RootSupervisor): Va
             .filter(e => e !== undefined),
     );
 
-    const constraint = schema.effectiveConstraint;
-    const constraintValidator = constraint.in
-        ? createConstraintValidator(schema.effectiveConstraint, schema, supervisor)
-        : undefined;
+    const constraintValidator = createConstraintValidator(schema.effectiveConstraint, schema, supervisor);
 
     return (value, session, location) => {
         assertNumber(value, location);
