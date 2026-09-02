@@ -21,6 +21,7 @@ import "./CommodityTariffOverrides.js";
 import "./DoorLockOverrides.js";
 import "./duration.js";
 import "./ElectricalPowerMeasurementOverrides.js";
+import "./EndpointCompositionOverrides.js";
 import "./epoch-s.js";
 import "./epoch-us.js";
 import "./FanControl.js";

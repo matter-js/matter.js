@@ -21,6 +21,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A certification run's `result.json` no longer reports a passing verdict for a run that failed
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
 
+- @matter/model
+    - Enhancement: A device type states how it composes its endpoint's `PartsList` — `DeviceTypeModel.effectiveComposition` answers `"full-family"` for the root node and an aggregator and `"tree"` for everything else, inherited from the device type a definition derives from
+
 - @matter/node
     - Fix: (@Luligu) Corrects status codes returned by `DoorLockServer.setCredential` for duplicating another credential of the same type an adding an occupied credential index
     - Fix: `ClientStructure.applyWireChanges` applies the change it is given. A client node keys each member of a cluster by attribute ID, and a change from the remote API addresses members by property name, so values landed under a key reads were never served from: the update was invisible and never persisted. Values now convert as the change is applied
