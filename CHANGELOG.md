@@ -21,13 +21,23 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A certification run's `result.json` no longer reports a passing verdict for a run that failed
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
 
+- @matter/model
+    - Enhancement: `DeviceTypeModel.effectiveComposition` states whether a device type composes its endpoint's `PartsList` of every descendant or of its own children
+
 - @matter/node
+    - Fix: `DoorLockServer` reserves credential index 0 for the programming PIN, refusing it for any other credential type and refusing any other index for the programming PIN. The programming PIN counts as one credential rather than one of the PIN credentials, and reports no next index
+    - Fix: (@Luligu) Corrects status codes returned by `DoorLockServer.setCredential` for duplicating another credential of the same type and adding an occupied credential index
+    - Fix: `DoorLockServer.setCredential` creates the user alongside the credential when the request carries no user index
+    - Fix: `DoorLockServer.setCredential` reports `NextCredentialIndex` on a failing response as well as a successful one
+    - Fix: `DoorLockServer.setCredential` reports `OCCUPIED` when no user slot remains for a new credential
+    - Fix: `DoorLockServer.setCredential` answers `INVALID_COMMAND` when the user fields a request carries do not match the use case it states
+    - Fix: `DoorLockServer` stores each enumerated field of a user or credential record as its Matter enumeration, so a value the enumeration does not define is refused rather than kept
+    - Fix: A bridged node's `PartsList` names its own children rather than every endpoint below it
     - Fix: Creating a struct fills in a default only for a field the cluster supports, so a field a device does not set stays absent instead of carrying the fallback its schema states. A write of a list entry that omits a feature-gated field is accepted, where it previously failed validation against the field it had filled in. Affects `Thermostat` preset names and setpoints, `Descriptor` tag labels, `MediaPlayback` track attributes and the feature-gated members of `ClosureControl`, `ClosureDimension`, `ElectricalEnergyMeasurement`, `CommodityPrice` and `CommodityTariff`
     - Fix: A struct field's default is stored in the units and shape of its datatype: a preset created without a cooling setpoint reads `2600` rather than the schema's `26°C` notation, and a bitmap default arrives decoded
     - Fix: Each struct created by a write receives its own copy of a list or bitmap default instead of sharing one instance
     - Fix: A nullable field the active features make mandatory holds `null` when a write omits it, where a field made mandatory by a feature expression previously stayed absent
     - Fix: A write that names an inherited property, such as `__proto__` or `toString`, is refused like any other property the cluster does not declare; `__proto__` previously replaced the prototype of the value being written
-    - Fix: (@Luligu) Corrects status codes returned by `DoorLockServer.setCredential` for duplicating another credential of the same type an adding an occupied credential index
     - Fix: `ClientStructure.applyWireChanges` applies the change it is given. A client node keys each member of a cluster by attribute ID, and a change from the remote API addresses members by property name, so values landed under a key reads were never served from: the update was invisible and never persisted. Values now convert as the change is applied
     - Fix: `ClientStructure.applyWireChanges` regenerates a behavior whose cluster definition changed and prunes attributes the cluster dropped, as the Matter protocol path already did
     - Fix: Validation honors the conformance and quality an element inherits, so an element overridden by an operational extension is no longer judged as if it stated neither

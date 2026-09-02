@@ -5,6 +5,7 @@
  */
 
 import { DeviceClassification } from "../../common/DeviceClassification.js";
+import { EndpointComposition } from "../../common/EndpointComposition.js";
 import { DeviceTypeElement } from "../../elements/index.js";
 import { ConditionModel, DeviceTypeModel, FieldModel, RequirementModel } from "../../models/index.js";
 import { ModelValidator } from "./ModelValidator.js";
@@ -15,6 +16,10 @@ ModelValidator.validators[DeviceTypeElement.Tag] = class DeviceTypeValidator ext
         this.validateProperty({
             name: "classification",
             type: DeviceClassification,
+        });
+        this.validateProperty({
+            name: "composition",
+            type: EndpointComposition,
         });
 
         super.validate();
