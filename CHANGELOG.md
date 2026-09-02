@@ -12,6 +12,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/testing
+    - Breaking: `BackchannelCommand.SimulateLongPress` carries the switch's `featureMap`, which a chip test app requires to decide which events a press produces
+    - Enhancement: Chip certification test devices take simulation commands through the named pipe their app opens, so a step that operates the device runs against a chip app rather than skipping
+    - Enhancement: A certification step subscribing to events may ask for them urgently via `SubscribeEventOptions.urgent`, so a device reports them as they occur rather than at the subscription's maximum interval
     - Enhancement: A certification test requests a transport preference for its controllers via `certTest`'s `transport` option; `"tcp"` asks for a TCP-backed session where the peer supports one, and adapters receive the request through `ControllerAdapterOptions`
     - Enhancement: A certification step whose check could not be evaluated ends `"unverified"` and fails the run, unless the check states why the claim cannot be observed
     - Enhancement: Per-step certification PICS is evaluated on chip device flavors too, and `result.json` reports how many steps their PICS excluded
@@ -19,12 +22,17 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
 
 - @matter/node
+    - Fix: `ClientStructure.applyWireChanges` applies the change it is given. A client node keys each member of a cluster by attribute ID, and a change from the remote API addresses members by property name, so values landed under a key reads were never served from: the update was invisible and never persisted. Values now convert as the change is applied
+    - Fix: `ClientStructure.applyWireChanges` regenerates a behavior whose cluster definition changed and prunes attributes the cluster dropped, as the Matter protocol path already did
     - Fix: Validation honors the conformance and quality an element inherits, so an element overridden by an operational extension is no longer judged as if it stated neither
     - Fix: A write from local code that adds an entry to a fabric-scoped list without a `fabricIndex` now fails validation instead of storing an entry that belongs to no fabric. Writes from a peer are unaffected — the accessing fabric is supplied for them
     - Fix: Assigning a whole list to a fabric-scoped attribute that held none merges through the managed list, so its entries are fabric-filtered and carry the accessing fabric; it previously bypassed both
     - Fix: A `ConformanceError` names the conformance the decision was made on rather than the element's own
     - Fix: A mandatory command a cluster leaves unimplemented is no longer dispatched; an invoke answers `UNSUPPORTED_COMMAND`, matching what the cluster advertises in `AcceptedCommandList`
     - Fix: A discovered peer cluster records the `ClusterRevision` the peer reports rather than the standard cluster's, and peers differing only in revision no longer share a behavior
+
+- @matter/types
+    - Fix: A `status` field in a cluster that defines its own status codes is now `Status | <Cluster>.StatusCode`, so producing a cluster-specific code needs no cast and consuming one needs narrowing. This affects `DoorLock.SetCredentialResponse` and the DoorLock schedule responses
 
 - @matter/protocol
     - Enhancement: A group message's log line names the port beside the multicast address it went to, in the usual IPv6 form (`dest: [ff35:40:…]:5540`)
@@ -60,6 +68,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The `Symbol.metadata` polyfill no longer conflicts with `lib.esnext.decorators` in the published declarations
 
 - @matter/model
+    - Enhancement: `ClusterModel.statusCodes` gives the cluster's own status code definition, inherited by a derived cluster like the other member accessors
     - Fix: TemperatureMeasurement's MinMeasuredValue and MaxMeasuredValue now default to `null` ("range unavailable"), like the other measurement clusters, instead of -27315 and 32767, and carry the constraints the specification states rather than hand-written ones
     - Fix: A device type requiring several instances of one component, such as `BatteryStorage` with two electrical sensors and two power sources, no longer reports each instance as a duplicate of the others
     - Enhancement: The model build reports an instance number stated on a requirement other than a component device type, where the specification numbers nothing

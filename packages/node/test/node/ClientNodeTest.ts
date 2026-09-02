@@ -2832,6 +2832,60 @@ describe("ClientNode", () => {
             expect(after?.cluster.revision, "NEO must report the new revision").equals(2);
         });
 
+        it("rebuilds a cluster when a wire change alters its revision", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const structure = (peer1.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+
+            await drain(structure.mutate(request, readResult(descriptorServerListReport(10))));
+
+            // LevelControl is absent from EP1's server list, so no protocol update seeds its store: the wire changes
+            // below are its only input, as they are for a mirroring node
+            const levelControlType = () => {
+                const endpoint = structure.endpointFor(EP1);
+                return endpoint === undefined
+                    ? undefined
+                    : (Object.values(endpoint.behaviors.supported).find(
+                          type => (type as ClusterBehavior.Type).cluster?.id === 0x8,
+                      ) as ClusterBehavior.Type | undefined);
+            };
+
+            const wireUpdate = (version: number, clusterRevision: number) => [
+                {
+                    kind: "update" as const,
+                    node: peer1.id,
+                    endpoint: EP1,
+                    version,
+                    behavior: "levelControl",
+                    changes: {
+                        clusterRevision,
+                        featureMap: {},
+                        attributeList: [0, 65528, 65529, 65531, 65532, 65533],
+                        acceptedCommandList: [],
+                        generatedCommandList: [],
+                        currentLevel: clusterRevision === 5 ? 42 : 43,
+                    },
+                },
+            ];
+
+            await structure.applyWireChanges(wireUpdate(11, 5));
+            const before = levelControlType();
+            expect(before?.cluster.revision, "LevelControl should report the revision the wire change carried").equals(
+                5,
+            );
+
+            await structure.applyWireChanges(wireUpdate(12, 6));
+            const after = levelControlType();
+            expect(after, "behavior must be rebuilt to reflect the new revision").not.equals(before);
+            expect(after?.cluster.revision, "LevelControl must report the new revision").equals(6);
+
+            // The value a wire change names must be the value that reads back
+            const endpoint = structure.endpointFor(EP1)!;
+            expect((endpoint.stateOf(after!) as { currentLevel?: number }).currentLevel).equals(43);
+        });
+
         it("rebuilds a cluster when the peer changes its accepted command list without a feature change", async () => {
             await using site = new MockSite();
             const { controller } = await site.addCommissionedPair();
