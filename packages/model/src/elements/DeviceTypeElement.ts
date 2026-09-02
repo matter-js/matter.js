@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DeviceClassification, ElementTag } from "../common/index.js";
+import { DeviceClassification, ElementTag, EndpointComposition } from "../common/index.js";
 import { BaseElement } from "./BaseElement.js";
 import { ConditionElement } from "./ConditionElement.js";
 import { FieldElement } from "./FieldElement.js";
@@ -18,6 +18,15 @@ import { RequirementElement } from "./RequirementElement.js";
 export interface DeviceTypeElement extends BaseElement {
     tag: `${DeviceTypeElement.Tag}`;
     classification?: `${DeviceClassification}`;
+
+    /**
+     * How this device type composes its endpoint's `PartsList`, where it declares this itself.
+     *
+     * A device type that declares nothing leaves this unset; `DeviceTypeModel.effectiveComposition`
+     * is what answers for one, inheritance and default included.
+     */
+    composition?: `${EndpointComposition}`;
+
     category?: string;
     children?: (RequirementElement | FieldElement | ConditionElement)[];
 }
