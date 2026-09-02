@@ -387,8 +387,17 @@ describe("TaskManagerBehavior", () => {
     it("distinguishes an id no live task answers to from a task with nothing to roll back", async () => {
         const environment = new Environment("test");
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "tm-cancel-unknown" });
-        // In flight and touching nothing: cancel applies to it, and there is still nothing to undo.
-        SyntheticTask.phasesByTag["nothing"] = [{ name: "a", run: () => new Promise<void>(() => {}) }];
+        // In flight and touching nothing: cancel applies to it, and there is still nothing to undo. The wait
+        // is on the task context's gate, not a bare promise — `#unwind` awaits the running phase, so a phase
+        // deaf to its own abort would hang the cancel rather than be stopped by it.
+        SyntheticTask.phasesByTag["nothing"] = [
+            {
+                name: "a",
+                run: async ctx => {
+                    await ctx.awaitGate([], () => false);
+                },
+            },
+        ];
         await node.act(a => a.get(TaskManagerBehavior).register(SyntheticTask));
         await node.act(a => a.get(TaskManagerBehavior).run(SyntheticTask, { tag: "nothing" }));
 

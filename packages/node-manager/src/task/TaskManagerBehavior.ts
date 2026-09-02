@@ -159,6 +159,7 @@ export class TaskManagerBehavior extends Behavior {
             );
             return;
         }
+        this.#retireStoredParams();
         // Reserved here rather than on the first record write: on a fresh store nothing has been written yet,
         // so without this the very first identity would be handed out uncovered.
         this.#reserveIdentities();
@@ -168,6 +169,40 @@ export class TaskManagerBehavior extends Behavior {
         } else {
             this.reactTo(this.#rootNode.lifecycle.online, this.#resumePersisted);
         }
+    }
+
+    /**
+     * Drop `params` from records an older build left finished.
+     *
+     * A write replaces only the records its own transaction names, so a run that was already terminal when
+     * this build first ran is never rewritten — and would keep the parameters this version exists to stop
+     * storing, including the raw epoch keys the group tasks take. Nothing else will ever touch those records,
+     * so the upgrade has to.
+     *
+     * Over the stored table rather than the loaded one: a record `load` discarded still occupies storage, and
+     * its parameters are just as durable.
+     */
+    #retireStoredParams(): void {
+        if (this.state.runsVersion >= RUN_STORE_VERSION) {
+            return;
+        }
+        const runs = { ...this.state.runs };
+        let retired = 0;
+        for (const [key, persisted] of Object.entries(runs)) {
+            if (persisted?.params === undefined || !isTerminal(persisted.state)) {
+                continue;
+            }
+            const { params, ...rest } = persisted;
+            void params;
+            runs[key] = rest as TaskPersistence;
+            retired++;
+        }
+        if (retired > 0) {
+            this.state.runs = runs;
+            logger.info(`Dropped stored parameters of ${retired} finished task record(s) on upgrade`);
+        }
+        // Stamped even when nothing needed dropping, so the scan runs once rather than on every start.
+        this.state.runsVersion = RUN_STORE_VERSION;
     }
 
     #resumePersisted(): void {
@@ -687,6 +722,10 @@ export class TaskManagerBehavior extends Behavior {
         // and a run that finished is not undone, whichever side of the window it finished on. `abandon` asks
         // the same question at the same point, and for the same reason.
         if (isTerminal(record.state)) {
+            // `#retire` declined to release the target because this transition owns the run, so retiring it
+            // falls here — before answering, and whichever answer that is. Without this the finished run keeps
+            // its target for the life of the process and every later task for it is refused.
+            this.internal.runs.commitRetirement(record);
             const rollback = this.internal.runs.rollbackFor(record.runId);
             if (rollback !== undefined) {
                 return this.#handle(rollback);
@@ -1153,6 +1192,9 @@ export class TaskManagerBehavior extends Behavior {
                 if (!record.recorded) {
                     record.state = "failed";
                     record.error = error;
+                    // The handle its caller holds closes over this record, so the drop a retirement write would
+                    // have carried has to happen here too: nothing else will, and some params are raw keys.
+                    record.adoptDrop(RETIRE);
                     this.internal.runs.discard(record);
                 }
                 return;

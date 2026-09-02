@@ -275,8 +275,10 @@ describe("Task lifecycle", () => {
                     },
                 },
                 // Cancel applies to work in flight, so the run has to still be in it — with both intents
-                // already written, which is what the rollback undoes.
-                { name: "hold", run: () => new Promise<void>(() => {}) },
+                // already written, which is what the rollback undoes. The hold gates on the peer rather than
+                // on a bare promise: `#unwind` awaits the running phase, and a phase that cannot observe its
+                // abort would hang the cancel instead of being stopped by it.
+                gatePhase("cp", "groupMembership", "A"),
             ];
 
             const node = await makeNode(environment);
