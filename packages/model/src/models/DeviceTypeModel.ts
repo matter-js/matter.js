@@ -7,6 +7,7 @@
 import { DeviceClassification } from "../common/DeviceClassification.js";
 import { EndpointComposition } from "../common/EndpointComposition.js";
 import { DeviceTypeElement } from "../elements/index.js";
+import { ModelTraversal } from "../logic/ModelTraversal.js";
 import { ConditionModel } from "./ConditionModel.js";
 import { FieldModel } from "./FieldModel.js";
 import { Model } from "./Model.js";
@@ -30,12 +31,18 @@ export class DeviceTypeModel extends Model<DeviceTypeElement, DeviceTypeModel.Ch
      * type opts into (§ 9.2.3).
      */
     get effectiveComposition(): EndpointComposition {
-        for (let model: Model | undefined = this; model !== undefined; model = model.base) {
+        let composition: EndpointComposition | undefined;
+
+        // One traversal rather than a hop-by-hop walk of #base, so a definition that derives from
+        // itself through another is caught by the traversal's own cycle detection
+        new ModelTraversal().visitInheritance(this, model => {
             if (model instanceof DeviceTypeModel && model.composition !== undefined) {
-                return model.composition;
+                composition = model.composition;
+                return false;
             }
-        }
-        return EndpointComposition.Tree;
+        });
+
+        return composition ?? EndpointComposition.Tree;
     }
 
     get requirements() {
