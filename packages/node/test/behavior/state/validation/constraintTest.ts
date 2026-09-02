@@ -191,6 +191,71 @@ const AllTests = Tests({
         },
     }),
 
+    // <ConstrainingElementName>.<Field>, the form the specification defines for naming a bound held by another
+    // element.  @see {@link MatterSpecification.v16.Core} § 7.18.3.4
+    "range with dot-qualified reference": Tests(
+        Fields(
+            { type: "uint16", constraint: "Limits.HoldTimeMin to Limits.HoldTimeMax" },
+            {
+                name: "Limits",
+                type: "struct",
+                children: [
+                    FieldElement({ name: "HoldTimeMin", type: "uint16" }),
+                    FieldElement({ name: "HoldTimeMax", type: "uint16" }),
+                ],
+            },
+        ),
+        {
+            "accepts at the lower bound": {
+                record: { test: 10, limits: { holdTimeMin: 10, holdTimeMax: 100 } },
+            },
+            "accepts within the bounds": {
+                record: { test: 50, limits: { holdTimeMin: 10, holdTimeMax: 100 } },
+            },
+            "accepts at the upper bound": {
+                record: { test: 100, limits: { holdTimeMin: 10, holdTimeMax: 100 } },
+            },
+            "rejects below the lower bound": {
+                record: { test: 9, limits: { holdTimeMin: 10, holdTimeMax: 100 } },
+                error: {
+                    type: ConstraintError,
+                    message:
+                        'Validating Test.test: Constraint "limits.holdTimeMin to limits.holdTimeMax": Value 9 is not within bounds defined by constraint',
+                },
+            },
+            "rejects zero": {
+                record: { test: 0, limits: { holdTimeMin: 10, holdTimeMax: 100 } },
+                error: {
+                    type: ConstraintError,
+                    message:
+                        'Validating Test.test: Constraint "limits.holdTimeMin to limits.holdTimeMax": Value 0 is not within bounds defined by constraint',
+                },
+            },
+            "rejects above the upper bound": {
+                record: { test: 101, limits: { holdTimeMin: 10, holdTimeMax: 100 } },
+                error: {
+                    type: ConstraintError,
+                    message:
+                        'Validating Test.test: Constraint "limits.holdTimeMin to limits.holdTimeMax": Value 101 is not within bounds defined by constraint',
+                },
+            },
+            "rejects the far end of the type range": {
+                record: { test: 65535, limits: { holdTimeMin: 10, holdTimeMax: 100 } },
+                error: {
+                    type: ConstraintError,
+                    message:
+                        'Validating Test.test: Constraint "limits.holdTimeMin to limits.holdTimeMax": Value 65535 is not within bounds defined by constraint',
+                },
+            },
+            "accepts if the referenced element is missing": {
+                record: { test: 65535 },
+            },
+            "accepts if the referenced member is missing": {
+                record: { test: 65535, limits: { holdTimeMin: 10 } },
+            },
+        },
+    ),
+
     "string length": Tests(Fields({ type: "string", constraint: "max 2" }), {
         "accepts if under": {
             record: { test: "ab" },
