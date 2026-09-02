@@ -44,7 +44,7 @@ async function createLock() {
             ],
         },
     });
-    return { node, endpoint };
+    return { node, endpoint, [Symbol.asyncDispose]: () => node.close() };
 }
 
 function pin(digits: string) {
@@ -53,10 +53,10 @@ function pin(digits: string) {
 
 describe("DoorLockServer", () => {
     it("reports DUPLICATE when CredentialData duplicates another credential of the same CredentialType", async () => {
-        const { node, endpoint } = await createLock();
+        await using lock = await createLock();
 
-        await node.online({}, async agent => {
-            const doorLock = endpoint.agentFor(agent.context).doorLock;
+        await lock.node.online({}, async agent => {
+            const doorLock = lock.endpoint.agentFor(agent.context).doorLock;
 
             const first = await doorLock.setCredential({
                 operationType: DoorLock.DataOperationType.Add,
@@ -78,15 +78,13 @@ describe("DoorLockServer", () => {
             });
             expect(duplicate.status).equals(DoorLock.StatusCode.Duplicate);
         });
-
-        await node.close();
     });
 
     it("reports OCCUPIED when an Add operation targets an occupied CredentialIndex", async () => {
-        const { node, endpoint } = await createLock();
+        await using lock = await createLock();
 
-        await node.online({}, async agent => {
-            const doorLock = endpoint.agentFor(agent.context).doorLock;
+        await lock.node.online({}, async agent => {
+            const doorLock = lock.endpoint.agentFor(agent.context).doorLock;
 
             const first = await doorLock.setCredential({
                 operationType: DoorLock.DataOperationType.Add,
@@ -108,7 +106,5 @@ describe("DoorLockServer", () => {
             });
             expect(occupied.status).equals(DoorLock.StatusCode.Occupied);
         });
-
-        await node.close();
     });
 });
