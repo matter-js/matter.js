@@ -22,6 +22,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
 
 - @matter/model
+    - Fix: An endpoint's own `PartsList` names every descendant only where its device type composes one that way. A bridged node carries the same internal index a root node and an aggregator do, so a device composed below one listed its grandchildren as if they were its own parts
     - Enhancement: A device type states how it composes its endpoint's `PartsList` — `DeviceTypeModel.effectiveComposition` answers `"full-family"` for the root node and an aggregator and `"tree"` for everything else, inherited from the device type a definition derives from
 
 - @matter/node
