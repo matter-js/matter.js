@@ -1188,8 +1188,22 @@ export class ClientStructure {
 
             const owner = this.#ownerFor(part, claimants);
             if (owner === undefined) {
+                logger.debug(
+                    "Deferring the parent of",
+                    Diagnostic.strong(part.endpoint.toString()),
+                    `: named only by ${[...claimants].map(claimant => claimant.endpoint.toString()).join(", ")},`,
+                    "whose own parts are not all known yet",
+                );
                 continue;
             }
+
+            logger.debug(
+                "Parent of",
+                Diagnostic.strong(part.endpoint.toString()),
+                "is",
+                Diagnostic.strong(owner.endpoint.toString()),
+                `(named by ${[...claimants].map(claimant => claimant.endpoint.toString()).join(", ")})`,
+            );
 
             this.#partClaims.delete(part);
             part.pendingOwner = owner;
