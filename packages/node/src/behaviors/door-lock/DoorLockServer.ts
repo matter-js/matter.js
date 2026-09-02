@@ -309,23 +309,28 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         const maxCredentials = this.#maxCredentialsForType(credential.credentialType);
         const auth = this.auth;
 
-        if (credential.credentialIndex < 0 || credential.credentialIndex > maxCredentials) {
-            return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex: null };
-        }
-
-        if (!this.#validateCredentialDataLength(credential.credentialType, credentialData)) {
-            return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex: null };
-        }
-
-        if (auth.isDuplicateCredential(credential.credentialType, credentialData, credential.credentialIndex)) {
-            return { status: DoorLock.StatusCode.Duplicate, userIndex: null, nextCredentialIndex: null };
-        }
-
+        // § 5.2.10.21.3 states NextCredentialIndex independently of the status, so every response carries it
         const nextCredentialIndex = auth.findNextAvailableCredentialIndex(
             credential.credentialType,
             credential.credentialIndex,
             maxCredentials,
         );
+
+        if (credential.credentialIndex < 0 || credential.credentialIndex > maxCredentials) {
+            return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex };
+        }
+
+        if (!this.#validateCredentialDataLength(credential.credentialType, credentialData)) {
+            return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex };
+        }
+
+        if (auth.isDuplicateCredential(credential.credentialType, credentialData, credential.credentialIndex)) {
+            return { status: DoorLock.StatusCode.Duplicate, userIndex: null, nextCredentialIndex };
+        }
+
+        if (!this.#userFieldsMatchUseCase(operationType, userIndex, userStatus, userType)) {
+            return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex };
+        }
 
         if (operationType === DataOperationType.Add) {
             const existingCred = auth.findCredential(credential.credentialType, credential.credentialIndex);
@@ -341,13 +346,13 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
                 const newUserIndex = auth.findAvailableUserIndex(this.state.numberOfTotalUsersSupported);
                 if (newUserIndex === null) {
                     auth.removeCredential(credential.credentialType, credential.credentialIndex);
-                    return { status: Status.ResourceExhausted, userIndex: null, nextCredentialIndex };
+                    return { status: DoorLock.StatusCode.Occupied, userIndex: null, nextCredentialIndex };
                 }
 
                 auth.addUser({
                     userIndex: newUserIndex,
                     userName: "",
-                    userUniqueId: 0xffffffff,
+                    userUniqueId: null,
                     userStatus: userStatus ?? UserStatus.OccupiedEnabled,
                     userType: userType ?? UserType.UnrestrictedUser,
                     credentialRule: CredentialRule.Single,
@@ -448,7 +453,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
             return { status: Status.Success, userIndex: null, nextCredentialIndex };
         }
 
-        return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex: null };
+        return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex };
     }
 
     override getCredentialStatus(request: DoorLock.GetCredentialStatusRequest): DoorLock.GetCredentialStatusResponse {
@@ -1004,6 +1009,33 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         if (!this.auth.findUser(userIndex)) {
             throw new StatusResponseError("User not found", Status.Failure);
         }
+    }
+
+    /**
+     * § 5.2.10.20 states the user fields each SetCredential use case carries. Only the case that creates a user
+     * alongside the credential carries any; the others state both as null.
+     */
+    #userFieldsMatchUseCase(
+        operationType: DataOperationType,
+        userIndex: number | null,
+        userStatus: UserStatus | null,
+        userType: UserType | null,
+    ): boolean {
+        if (operationType === DataOperationType.Add && userIndex === null) {
+            return (
+                (userStatus === null ||
+                    userStatus === UserStatus.OccupiedEnabled ||
+                    userStatus === UserStatus.OccupiedDisabled) &&
+                userType !== UserType.ProgrammingUser
+            );
+        }
+
+        // Modifying the programming user's PIN states ProgrammingUser, which the CHIP SDK does not enforce
+        if (operationType === DataOperationType.Modify && userIndex === null) {
+            return true;
+        }
+
+        return userStatus === null && userType === null;
     }
 
     #maxCredentialsForType(type: CredentialType): number {

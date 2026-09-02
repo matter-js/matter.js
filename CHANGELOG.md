@@ -22,7 +22,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
 
 - @matter/node
-    - Fix: (@Luligu) Corrects status codes returned by `DoorLockServer.setCredential` for duplicating another credential of the same type an adding an occupied credential index
+    - Fix: (@Luligu) Corrects status codes returned by `DoorLockServer.setCredential` for duplicating another credential of the same type and adding an occupied credential index
+    - Fix: `DoorLockServer.setCredential` creates the user alongside the credential when the request carries no user index
+    - Fix: `DoorLockServer.setCredential` reports `NextCredentialIndex` on a failing response as well as a successful one
+    - Fix: `DoorLockServer.setCredential` reports `OCCUPIED` when no user slot remains for a new credential
+    - Fix: `DoorLockServer.setCredential` answers `INVALID_COMMAND` when a request names a user index and also carries `UserStatus` or `UserType`, and when it would create a `ProgrammingUser` alongside a credential
     - Fix: `ClientStructure.applyWireChanges` applies the change it is given. A client node keys each member of a cluster by attribute ID, and a change from the remote API addresses members by property name, so values landed under a key reads were never served from: the update was invisible and never persisted. Values now convert as the change is applied
     - Fix: `ClientStructure.applyWireChanges` regenerates a behavior whose cluster definition changed and prunes attributes the cluster dropped, as the Matter protocol path already did
     - Fix: Validation honors the conformance and quality an element inherits, so an element overridden by an operational extension is no longer judged as if it stated neither
