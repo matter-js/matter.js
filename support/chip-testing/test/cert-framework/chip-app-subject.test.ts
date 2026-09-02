@@ -5,7 +5,13 @@
  */
 
 import type { CertDevice, CompositionHandle, Container, DockerHandle, Subject } from "@matter/testing";
-import { ChipDockerDevice, ChipDockerSubject, ChipLocalSubject, HARNESS_DBUS_CONTAINER } from "@matter/testing";
+import {
+    ChipDockerDevice,
+    ChipDockerSubject,
+    ChipLocalSubject,
+    HARNESS_DBUS_CONTAINER,
+    StdinPacer,
+} from "@matter/testing";
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -158,6 +164,44 @@ async function nextStore(
  * actually leaves: the claim is that the two do not travel together, not what the exact gap is.
  */
 const MIN_STDIN_GAP_MS = 150;
+
+describe("StdinPacer", () => {
+    it("leaves a pause between two commands and applies them in order", async function () {
+        this.timeout(5_000);
+
+        const pacer = new StdinPacer();
+        const writes = new Array<{ char: string; at: number }>();
+        const record = (char: string) => async () => {
+            writes.push({ char, at: performance.now() });
+        };
+
+        // Together rather than one after the other: awaiting the first hides its own trailing pause,
+        // and two callers at once is also what the queue has to serialize
+        await Promise.all([pacer.send(record("a")), pacer.send(record("b"))]);
+
+        expect(writes.map(write => write.char)).deep.equal(["a", "b"]);
+        expect(writes[1].at - writes[0].at).greaterThan(MIN_STDIN_GAP_MS);
+    });
+
+    it("keeps taking commands after one fails", async function () {
+        this.timeout(5_000);
+
+        const pacer = new StdinPacer();
+        const written = new Array<string>();
+
+        await expect(
+            pacer.send(async () => {
+                throw new Error("the app went away");
+            }),
+        ).rejectedWith("the app went away");
+
+        await pacer.send(async () => {
+            written.push("after");
+        });
+
+        expect(written).deep.equal(["after"]);
+    });
+});
 
 describe("ChipLocalSubject", () => {
     const app = "test";
@@ -494,23 +538,10 @@ describe("ChipLocalSubject", () => {
             const lines = device.log.follow();
             expect(await collectLines(lines, 1, 5_000)).deep.equal(["ready"]);
 
-            // Sent together rather than one after the other: awaiting the first would hide the pause
-            // inside its own call, and two callers at once is also what the queue has to serialize
-            const sent = Promise.all([
-                device.backchannel({ name: "addBridgedLight" }),
-                device.backchannel({ name: "warmBridgedTemperatureSensors" }),
-            ]);
+            await device.backchannel({ name: "addBridgedLight" });
+            await device.backchannel({ name: "warmBridgedTemperatureSensors" });
 
-            expect(await collectLines(lines, 1, 5_000)).deep.equal(["stdin 2"]);
-            const firstSeen = performance.now();
-            expect(await collectLines(lines, 1, 5_000)).deep.equal(["stdin t"]);
-            const secondSeen = performance.now();
-
-            await sent;
-
-            // The app reads one character per poll of its standard input and drops the rest of a
-            // batch, so two commands must not travel together
-            expect(secondSeen - firstSeen).greaterThan(MIN_STDIN_GAP_MS);
+            expect(await collectLines(lines, 2, 5_000)).deep.equal(["stdin 2", "stdin t"]);
         } finally {
             await device.stop();
             await device.close();

@@ -44,6 +44,8 @@ export {
 export { createControllerAdapter } from "./cert/controller-adapter.js";
 /** @internal Test seam — not API. */
 export { resetControllerAdapterFactoryForTesting } from "./cert/controller-adapter.js";
+/** @internal Test seam — not API. */
+export { StdinPacer } from "./cert/chip-app-subject.js";
 export type {
     AttributePathSpec,
     AttributeReadEntry,

@@ -154,10 +154,14 @@ function namedPipeCommandFor(app: string, command: BackchannelCommand): string |
 /**
  * Serializes standard-input writes and leaves {@link STDIN_COMMAND_GAP_MS} between them.
  *
+ * @internal Test seam — not API. Exported so its spacing can be asserted where it is decided; the
+ * arrival of a character says nothing about when it was written, because a reader that has not
+ * reached its poll yet reads a whole batch at once.
+ *
  * The gap belongs to the delivery, not to the caller: a step that operates a device twice in a row
  * must not have to know how the app reads its input.
  */
-class StdinPacer {
+export class StdinPacer {
     #ready: Promise<void> = Promise.resolve();
 
     async send(write: () => Promise<void>): Promise<void> {
