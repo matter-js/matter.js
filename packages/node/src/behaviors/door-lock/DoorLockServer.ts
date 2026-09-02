@@ -328,7 +328,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
             return { status: DoorLock.StatusCode.Duplicate, userIndex: null, nextCredentialIndex };
         }
 
-        if (!this.#userFieldsMatchUseCase(operationType, userIndex, userStatus, userType)) {
+        if (!this.#requestMatchesUseCase(operationType, credential, userIndex, userStatus, userType)) {
             return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex };
         }
 
@@ -1012,12 +1012,13 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
     }
 
     /**
-     * § 5.2.10.20 states which user fields each SetCredential use case carries. Only the case that creates a user
-     * alongside the credential carries any; the others state both as null. The values each field may hold are the
-     * command's own constraint, enforced before the request reaches us.
+     * § 5.2.10.20 states what each SetCredential use case carries. Only the case that creates a user alongside the
+     * credential carries user fields; the others state them as null. The values each field may hold are the command's
+     * own constraint, enforced before the request reaches us.
      */
-    #userFieldsMatchUseCase(
+    #requestMatchesUseCase(
         operationType: DataOperationType,
+        credential: DoorLock.Credential,
         userIndex: number | null,
         userStatus: UserStatus | null,
         userType: UserType | null,
@@ -1026,9 +1027,14 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
             return userType !== UserType.ProgrammingUser;
         }
 
-        // Modifying the programming user's PIN is the one case that states a user type rather than forbidding one
+        // Modifying the programming user's PIN is the one case that states what it carries rather than forbidding it
         if (operationType === DataOperationType.Modify && userIndex === null) {
-            return userStatus === null && userType === UserType.ProgrammingUser;
+            return (
+                userStatus === null &&
+                userType === UserType.ProgrammingUser &&
+                credential.credentialType === CredentialType.ProgrammingPin &&
+                credential.credentialIndex === 0
+            );
         }
 
         return userStatus === null && userType === null;

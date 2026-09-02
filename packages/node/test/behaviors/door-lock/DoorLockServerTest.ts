@@ -333,7 +333,7 @@ describe("DoorLockServer", () => {
         });
     });
 
-    it("requires the programming user type when modifying without a user index", async () => {
+    it("modifies the programming PIN only as the specification states that use case", async () => {
         await using lock = await createLock();
 
         await lock.node.online({}, async agent => {
@@ -341,7 +341,7 @@ describe("DoorLockServer", () => {
 
             await doorLock.setCredential({
                 operationType: DoorLock.DataOperationType.Add,
-                credential: { credentialType: DoorLock.CredentialType.Pin, credentialIndex: 1 },
+                credential: { credentialType: DoorLock.CredentialType.ProgrammingPin, credentialIndex: 0 },
                 credentialData: pin("1234"),
                 userIndex: 1,
                 userStatus: null,
@@ -350,7 +350,7 @@ describe("DoorLockServer", () => {
 
             const modified = await doorLock.setCredential({
                 operationType: DoorLock.DataOperationType.Modify,
-                credential: { credentialType: DoorLock.CredentialType.Pin, credentialIndex: 1 },
+                credential: { credentialType: DoorLock.CredentialType.ProgrammingPin, credentialIndex: 0 },
                 credentialData: pin("5678"),
                 userIndex: null,
                 userStatus: null,
@@ -360,15 +360,55 @@ describe("DoorLockServer", () => {
 
             const withoutType = await doorLock.setCredential({
                 operationType: DoorLock.DataOperationType.Modify,
-                credential: { credentialType: DoorLock.CredentialType.Pin, credentialIndex: 1 },
+                credential: { credentialType: DoorLock.CredentialType.ProgrammingPin, credentialIndex: 0 },
                 credentialData: pin("9012"),
                 userIndex: null,
                 userStatus: null,
                 userType: null,
             });
             expect(withoutType.status).equals(Status.InvalidCommand);
+
+            // Each of the two below would modify its credential were the use case not checked
+            await doorLock.setCredential({
+                operationType: DoorLock.DataOperationType.Add,
+                credential: { credentialType: DoorLock.CredentialType.ProgrammingPin, credentialIndex: 1 },
+                credentialData: pin("2345"),
+                userIndex: 1,
+                userStatus: null,
+                userType: null,
+            });
+
+            const wrongCredentialIndex = await doorLock.setCredential({
+                operationType: DoorLock.DataOperationType.Modify,
+                credential: { credentialType: DoorLock.CredentialType.ProgrammingPin, credentialIndex: 1 },
+                credentialData: pin("9012"),
+                userIndex: null,
+                userStatus: null,
+                userType: DoorLock.UserType.ProgrammingUser,
+            });
+            expect(wrongCredentialIndex.status).equals(Status.InvalidCommand);
+
+            await doorLock.setCredential({
+                operationType: DoorLock.DataOperationType.Add,
+                credential: { credentialType: DoorLock.CredentialType.Pin, credentialIndex: 0 },
+                credentialData: pin("3456"),
+                userIndex: 1,
+                userStatus: null,
+                userType: null,
+            });
+
+            const wrongCredentialType = await doorLock.setCredential({
+                operationType: DoorLock.DataOperationType.Modify,
+                credential: { credentialType: DoorLock.CredentialType.Pin, credentialIndex: 0 },
+                credentialData: pin("9012"),
+                userIndex: null,
+                userStatus: null,
+                userType: DoorLock.UserType.ProgrammingUser,
+            });
+            expect(wrongCredentialType.status).equals(Status.InvalidCommand);
         });
     });
+
     it("reports DUPLICATE ahead of a malformed user field", async () => {
         await using lock = await createLock();
 
