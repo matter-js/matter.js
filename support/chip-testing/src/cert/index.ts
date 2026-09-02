@@ -22,7 +22,11 @@ import { BridgeTestInstance } from "../BridgeTestInstance.js";
 import { DeviceTestInstanceConstructor } from "../GenericTestApp.js";
 import { NodeTestInstance } from "../NodeTestInstance.js";
 import { CHIP_TOOL_CONTROLLER_PICS, ChipToolControllerAdapter } from "./ChipToolControllerAdapter.js";
-import { InProcessControllerAdapter, MATTERJS_CONTROLLER_PICS } from "./InProcessControllerAdapter.js";
+import {
+    controllerAdapterClaimsLogs,
+    InProcessControllerAdapter,
+    MATTERJS_CONTROLLER_PICS,
+} from "./InProcessControllerAdapter.js";
 
 registerControllerAdapterFactory(
     "matterjs",
@@ -75,6 +79,10 @@ Boot.init(() => {
             const queue = id === undefined ? undefined : deviceQueues.get(id);
             if (queue !== undefined) {
                 queue.push(text);
+                return;
+            }
+
+            if (controllerAdapterClaimsLogs()) {
                 return;
             }
 
