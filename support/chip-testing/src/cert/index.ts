@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Boot, Environment, InternalError, LogDestination, LogFormat, Logger } from "@matter/main";
+import { Boot, Environment, InternalError, LogDestination, LogFormat, Logger, RuntimeService } from "@matter/main";
 import type {
     BackchannelCommand,
     CertDevice,
@@ -46,8 +46,18 @@ const activeDeviceId = new AsyncLocalStorage<string>();
 // takes down services the later nodes need. matter.js reports the cause through its own logger, and
 // the test runner keeps a passing test's log to itself — so a crash inside a test that still passes
 // leaves nothing behind but the damage. Report it where no log policy can discard it.
+//
+// Unlike Logger.destinations below, the default environment survives Boot.reboot(), so a fresh
+// observer per spec file would report one crash once per file run before it.
+let crashReporterRuntime: RuntimeService | undefined;
 Boot.init(() => {
-    Environment.default.runtime.crashed.on((cause: unknown) => {
+    const runtime = Environment.default.runtime;
+    if (runtime === crashReporterRuntime) {
+        return;
+    }
+    crashReporterRuntime = runtime;
+
+    runtime.crashed.on((cause: unknown) => {
         console.error("A matter.js runtime crashed during a certification run:", cause);
     });
 });

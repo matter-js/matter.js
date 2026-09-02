@@ -357,7 +357,6 @@ export class BridgeTestInstance extends NodeTestInstance {
             partNumber: "123456",
             productUrl: "https://test.com",
             reachable: true,
-            uniqueId: `node-matter-unique`,
             productAppearance: {
                 finish: BasicInformation.ProductFinish.Satin,
                 primaryColor: BasicInformation.Color.Purple,
