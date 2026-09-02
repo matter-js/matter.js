@@ -182,12 +182,12 @@ describe("dot-qualified constraint bounds", () => {
     // HoldTime is non-volatile, so a stored value outside the limits reaches validation when the behavior initializes
     describe("validation at behavior initialization", () => {
         it("accepts a configured value within the declared limits", async () => {
-            const node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: undefined });
+            await using node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: undefined });
             await node.add(OccupancyDevice);
         });
 
         it("refuses to initialize with a configured value outside the declared limits", async () => {
-            const node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: undefined });
+            await using node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: undefined });
 
             let error: unknown;
             try {
@@ -204,8 +204,9 @@ describe("dot-qualified constraint bounds", () => {
                 error = e;
             }
 
-            expect(error).instanceof(Error);
-            expect(messagesOf(error).join("\n")).match(/holdTimeLimits\.holdTimeMin to holdTimeLimits\.holdTimeMax/);
+            const constraintErrors = errorsOf(error).filter(e => e instanceof ConstraintError);
+            expect(constraintErrors.length).equals(1);
+            expect(constraintErrors[0].message).match(/holdTimeLimits\.holdTimeMin to holdTimeLimits\.holdTimeMax/);
         });
     });
 });
@@ -215,7 +216,7 @@ async function writeHoldTime(
     path: { endpointId: EndpointNumber; clusterId: ClusterId; attributeId: AttributeId },
     value: number,
 ) {
-    const node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: undefined });
+    await using node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: undefined });
     await node.add(device);
 
     const response = await writeAttrRawAsAdmin(node, {
@@ -226,7 +227,7 @@ async function writeHoldTime(
 }
 
 async function setSoilMoisture(value: number | null) {
-    const node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: undefined });
+    await using node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: undefined });
     const endpoint = await node.add(SoilDevice);
 
     await endpoint.act(agent => {
@@ -236,7 +237,7 @@ async function setSoilMoisture(value: number | null) {
     return endpoint.act(agent => agent.get(SoilMeasurementServer).state.soilMoistureMeasuredValue);
 }
 
-function messagesOf(error: unknown): string[] {
+function errorsOf(error: unknown): Error[] {
     if (!(error instanceof Error)) {
         return [];
     }
@@ -246,7 +247,7 @@ function messagesOf(error: unknown): string[] {
         nested.push(error.cause);
     }
 
-    return [error.message, ...nested.flatMap(messagesOf)];
+    return [error, ...nested.flatMap(errorsOf)];
 }
 
 async function writeAttrRawAsAdmin(node: MockServerNode, data: Partial<WriteRequest>) {
