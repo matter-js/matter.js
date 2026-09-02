@@ -97,6 +97,21 @@ function create(
                 }
             };
 
+        // An enumerated value is a number, and a constraint on one states the values it may take rather than a range
+        case Metatype.enum:
+            // A bitmap member's constraint states its bit position, not a bound.  Such a member reaches its own
+            // validator today rather than this one, so this keeps that a choice rather than an accident
+            if (schema.parent instanceof ValueModel && schema.parent.effectiveMetatype === Metatype.bitmap) {
+                return;
+            }
+
+            return (value, _session, location) => {
+                assertNumeric(value, location);
+                if (!constraint.test(value, nameResolverFactory(location))) {
+                    throw new ConstraintError(schema, location, `Value ${value} is not allowed by constraint`);
+                }
+            };
+
         case Metatype.boolean:
             return (value, _session, location) => {
                 assertBoolean(value, location);
