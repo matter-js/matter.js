@@ -28,7 +28,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `DeviceTypeModel.effectiveComposition` states whether a device type composes its endpoint's `PartsList` of every descendant or of its own children
 
 - @matter/node
-    - Fix: A peer's endpoint tree follows the `PartsList` of the endpoint each part belongs to, not of whichever endpoint named it first. An aggregator or root node lists every descendant rather than its own children (Matter Core § 9.2.3), so a bridged composed device's own endpoints were attached to the aggregator, and a later read of `PartsList` failed trying to move them
     - Fix: `Endpoint.behaviors.has()` answers `false` rather than `undefined` for a behavior the endpoint does not support at all
     - Fix: A peer's endpoint tree follows the `PartsList` of the endpoint each part belongs to, so a bridged composed device's own endpoints are no longer attached to the aggregator
     - Fix: `DoorLockServer` reserves credential index 0 for the programming PIN, refusing it for any other credential type and refusing any other index for the programming PIN. The programming PIN counts as one credential rather than one of the PIN credentials, and reports no next index
