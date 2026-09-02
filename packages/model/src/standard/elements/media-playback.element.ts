@@ -131,7 +131,7 @@ export const MediaPlayback = Cluster(
     Command(
         { name: "PlaybackResponse", id: 0xa, conformance: "M", direction: "response" },
         Field({ name: "Status", id: 0x0, type: "StatusEnum", conformance: "M", constraint: "desc" }),
-        Field({ name: "Data", id: 0x1, type: "string", conformance: "O", constraint: "any" })
+        Field({ name: "Data", id: 0x1, type: "string", conformance: "O" })
     ),
     Command(
         { name: "Seek", id: 0xb, access: "O", conformance: "AS", direction: "request", response: "PlaybackResponse" },
