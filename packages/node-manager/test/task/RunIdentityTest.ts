@@ -12,7 +12,6 @@ import {
     TaskRollbackPendingError,
     TaskSlotAwaitingResumeError,
     TaskSlotOccupiedError,
-    TaskSupersededError,
     TaskTypeNotRegisteredError,
 } from "#task/errors.js";
 import { Revert } from "#task/Revert.js";
@@ -171,8 +170,9 @@ describe("run identity", () => {
     it("keeps every record of cancel, re-run, cancel", async () => {
         await using node = await makeNode();
         touchingPeer("churn");
-        // A changeSet is what makes a cancel produce a rollback record, so the phase must really touch a peer.
-        SyntheticTask.phasesByTag["churn"] = [touchPhase("churn")];
+        // A changeSet is what makes a cancel produce a rollback record, so the phase must really touch a peer —
+        // and it must not finish, because cancel applies to work in flight.
+        SyntheticTask.phasesByTag["churn"] = [gateForever("churn")];
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
         const peer = TestTaskManager.peers.get("churn")!;
@@ -288,10 +288,10 @@ describe("run identity", () => {
         expect(outcome).instanceOf(TaskSlotOccupiedError);
     });
 
-    it("rolls back a run that retired before a restart", async () => {
+    it("rolls back a run that was still in flight before a restart", async () => {
         const environment = persistentEnvironment();
-        touchingPeer("undo");
-        SyntheticTask.phasesByTag["undo"] = [touchPhase("undo")];
+        const peer = touchingPeer("undo");
+        SyntheticTask.phasesByTag["undo"] = [gateForever("undo")];
 
         let runId: RunId;
         {
@@ -299,20 +299,29 @@ describe("run identity", () => {
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
             const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "undo" }));
             runId = handle.runId;
-            await settle(node, "synthetic:undo");
+            await pumpUntil("intent written", async () => peer.items[itemMapKey("groupMembership", "X")] !== undefined);
+            // The changeSet has to reach storage, not merely memory: parking is what writes it, and an
+            // unreachable peer is what parks the gate.
+            peer.setReachable(false);
+            await pumpUntil("changeSet persisted", async () =>
+                node.act(
+                    a => (recordFor(a.get(TestTaskManager).state.runs, "synthetic:undo")?.changeSet?.length ?? 0) > 0,
+                ),
+            );
         }
 
-        // Undo of finished work reads the retained changeSet, so the record has to survive the restart.
+        // The rollback reads the changeSet the run recorded before the stop, so the record has to survive the
+        // restart — and the identity the caller held has to still name it.
         await using node = await makeNode(environment, "undo");
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
         const rollback = await node.act(a => a.get(TestTaskManager).cancel(runId));
         expect(rollback?.status.revertOf).equals(runId);
     });
 
-    it("refuses to roll back a retired run whose type nothing has registered", async () => {
+    it("refuses to roll back a run awaiting resume whose type nothing has registered", async () => {
         const environment = persistentEnvironment();
-        touchingPeer("unregistered");
-        SyntheticTask.phasesByTag["unregistered"] = [touchPhase("unregistered")];
+        const peer = touchingPeer("unregistered");
+        SyntheticTask.phasesByTag["unregistered"] = [gateForever("unregistered")];
 
         let runId: RunId;
         {
@@ -320,13 +329,13 @@ describe("run identity", () => {
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
             const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "unregistered" }));
             runId = handle.runId;
-            await settle(node, "synthetic:unregistered");
+            await pumpUntil("intent written", async () => peer.items[itemMapKey("groupMembership", "X")] !== undefined);
         }
 
-        // Observing a retired run needs no task; rolling one back does, because revertibility is the task's
+        // Observing an unfinished run needs no task; rolling one back does, because revertibility is the task's
         // decision and a record cannot answer it.
         await using node = await makeNode(environment, "unregistered");
-        expect(await node.act(a => a.get(TestTaskManager).get(runId)?.status.state)).equals("completed");
+        expect(await node.act(a => a.get(TestTaskManager).get(runId)?.status.state)).equals("running");
         await expect((async () => node.act(a => a.get(TestTaskManager).cancel(runId)))()).rejectedWith(
             TaskTypeNotRegisteredError,
         );
@@ -357,30 +366,18 @@ describe("run identity", () => {
     it("refuses a re-run while a rollback of that slot is still live", async () => {
         await using node = await makeNode(undefined, "older");
         const peer = touchingPeer("older");
-        SyntheticTask.phasesByTag["older"] = [touchPhase("older")];
+        SyntheticTask.phasesByTag["older"] = [gateForever("older")];
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
-        // Two completed runs of one slot, so the rollback in flight is not the newest run's.
         const first = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "older" }));
-        for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
-            await MockTime.advance(1);
-        }
-        await settle(node, "synthetic:older");
-        peer.dropItem("groupMembership", "X");
-
-        const second = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "older" }));
-        for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
-            await MockTime.advance(1);
-        }
-        await settle(node, "synthetic:older");
-        expect(second.runId).not.equals(first.runId);
+        await pumpUntil("intent written", async () => peer.items[itemMapKey("groupMembership", "X")] !== undefined);
 
         // The rollback parks on an unreachable peer, so it stays live while the re-run is attempted.
         peer.setReachable(false);
-        const rollback = await node.act(a => a.get(TestTaskManager).cancel(second.runId));
-        expect(rollback?.status.revertOf).equals(second.runId);
+        const rollback = await node.act(a => a.get(TestTaskManager).cancel(first.runId));
+        expect(rollback?.status.revertOf).equals(first.runId);
 
-        // A rollback rewrites exactly the intents a re-run would re-apply, whichever run of the slot it undoes.
+        // A rollback rewrites exactly the intents a re-run would re-apply.
         let refusal: unknown;
         try {
             await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "older" }));
@@ -394,7 +391,8 @@ describe("run identity", () => {
     it("answers a repeated cancel with the rollback it recorded, once that rollback has finished", async () => {
         await using node = await makeNode(undefined, "recancel");
         const peer = touchingPeer("recancel");
-        SyntheticTask.phasesByTag["recancel"] = [touchPhase("recancel")];
+        // In flight, so the first cancel is accepted rather than refused for a run that already finished.
+        SyntheticTask.phasesByTag["recancel"] = [gateForever("recancel")];
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
         const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "recancel" }));
@@ -435,8 +433,8 @@ describe("run identity", () => {
 
     it("answers a repeated cancel from the record when the task type is not registered", async () => {
         const environment = persistentEnvironment();
-        touchingPeer("norereg");
-        SyntheticTask.phasesByTag["norereg"] = [touchPhase("norereg")];
+        const peer = touchingPeer("norereg");
+        SyntheticTask.phasesByTag["norereg"] = [gateForever("norereg")];
 
         let runId: RunId;
         let rollbackId: RunId;
@@ -445,7 +443,7 @@ describe("run identity", () => {
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
             const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "norereg" }));
             runId = handle.runId;
-            await settle(node, "synthetic:norereg");
+            await pumpUntil("intent written", async () => peer.items[itemMapKey("groupMembership", "X")] !== undefined);
             const rollback = await node.act(a => a.get(TestTaskManager).cancel(runId));
             rollbackId = rollback!.runId;
             await settle(node, `revert:${runId}`);
@@ -458,79 +456,12 @@ describe("run identity", () => {
         expect(again?.runId).equals(rollbackId);
     });
 
-    it("refuses to undo a run a later run of its slot has superseded", async () => {
-        await using node = await makeNode(undefined, "superseded");
-        const peer = touchingPeer("superseded");
-        SyntheticTask.phasesByTag["superseded"] = [touchPhase("superseded")];
-        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
-
-        const runs = new Array<RunId>();
-        for (let round = 0; round < 2; round++) {
-            const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "superseded" }));
-            for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
-                await MockTime.advance(1);
-            }
-            await settle(node, "synthetic:superseded");
-            peer.dropItem("groupMembership", "X");
-            runs.push(handle.runId);
-        }
-
-        // Undoing a run restores the values it found. A later run of the slot has committed its own since, so
-        // restoring the older run's would overwrite an outcome nobody asked to undo.
-        let refusal: unknown;
-        try {
-            await node.act(a => a.get(TestTaskManager).cancel(runs[0]));
-        } catch (e) {
-            refusal = e;
-        }
-        expect(refusal).instanceOf(TaskSupersededError);
-        expect((refusal as TaskConflictError).owner).equals(runs[1]);
-
-        // The newest run of the slot is still undoable.
-        peer.setReachable(false);
-        const rollback = await node.act(a => a.get(TestTaskManager).cancel(runs[1]));
-        expect(rollback?.status.revertOf).equals(runs[1]);
-    });
-
-    it("refuses a rollback of a retired run whose slot a newer run now owns", async () => {
-        await using node = await makeNode(undefined, "reverseorder");
-        const peer = touchingPeer("reverseorder");
-        SyntheticTask.phasesByTag["reverseorder"] = [touchPhase("reverseorder")];
-        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
-
-        const older = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "reverseorder" }));
-        for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
-            await MockTime.advance(1);
-        }
-        await settle(node, "synthetic:reverseorder");
-        peer.dropItem("groupMembership", "X");
-
-        // A newer run takes the slot and is held live on a gate that never settles, so reaching the conflict
-        // does not depend on scheduling. Swapped only now, so the older run above still completes and retires.
-        SyntheticTask.phasesByTag["reverseorder"] = [gateForever("reverseorder")];
-        const newer = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "reverseorder" }));
-        expect(newer.runId).not.equals(older.runId);
-        await pumpUntil(
-            "the newer run owns the slot",
-            async () => (await node.act(a => a.get(TestTaskManager).tasks.some(t => t.runId === newer.runId))) === true,
-        );
-        // Asserted rather than assumed: the conflict this test is about exists only while the newer run holds
-        // the slot, so a setup that quietly let it finish would prove nothing.
-        expect(await node.act(a => a.get(TestTaskManager).tasks.map(t => t.runId))).contains(newer.runId);
-
-        let refusal: unknown;
-        try {
-            await node.act(a => a.get(TestTaskManager).cancel(older.runId));
-        } catch (e) {
-            refusal = e;
-        }
-        expect(refusal).instanceOf(TaskSlotOccupiedError);
-    });
-
     it("gives every concurrent cancel of a run the same rollback", async () => {
         await using node = await makeNode(undefined, "racecancel");
         const peer = touchingPeer("racecancel");
-        SyntheticTask.phasesByTag["racecancel"] = [touchPhase("racecancel")];
+        // Held in flight: cancel applies to work that has not finished, so a phase that returns would make
+        // both callers race the run's own completion instead of racing each other.
+        SyntheticTask.phasesByTag["racecancel"] = [gateForever("racecancel")];
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
         const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "racecancel" }));

@@ -67,6 +67,15 @@ export enum TaskFindingCode {
 
     /** A rollback is ended with `abandon`, not with `cancel`. */
     CannotCancelRollback = "cannotCancelRollback",
+
+    /** The run already finished, so there is nothing to stop. */
+    NotInFlight = "notInFlight",
+
+    /** The stored run table was written by a newer build than this one. */
+    StoreVersion = "storeVersion",
+
+    /** The run has no undo to retry. */
+    NoRollback = "noRollback",
 }
 
 export class TaskError extends MatterError {}
@@ -158,8 +167,10 @@ export class TaskNotFoundError extends TaskRefusedError {
 }
 
 /**
- * Acting on a finished run needs its task type registered, because whether a run may be rolled back is a
- * decision of the task, not of its record.
+ * Deciding on a *new* rollback needs the run's task type registered, because whether a run may be rolled back
+ * is a decision of the task, not of its record. Reached by `cancel` of a run awaiting resume — one whose record
+ * outlived the process that registered its type. Retrying an existing rollback asks nothing of the task and so
+ * needs no registration.
  */
 export class TaskTypeNotRegisteredError extends TaskRefusedError {
     override readonly code = TaskFindingCode.TypeNotRegistered;
@@ -205,6 +216,35 @@ export class TaskAbandonedError extends TaskRefusedError {
  */
 export class TaskCannotCancelRollbackError extends TaskRefusedError {
     override readonly code = TaskFindingCode.CannotCancelRollback;
+}
+
+/**
+ * `cancel()` stops work that is still in flight. A finished run is not stopped, and its changes are not
+ * rewound: reversing a change that succeeded is a new action a caller starts, because restoring the values the
+ * run found would overwrite whatever has legitimately happened since.
+ */
+export class TaskNotInFlightError extends TaskRefusedError {
+    override readonly code = TaskFindingCode.NotInFlight;
+}
+
+/**
+ * There is no undo of this run to retry: it never produced one — nothing was written, or the task declined to
+ * be reverted — or the record of the one it had did not survive a restart.
+ *
+ * Ordinary state rather than a caller's mistake, and reachable more often since a cleanly completed run no
+ * longer gets a rollback at all.
+ */
+export class TaskNoRollbackError extends TaskRefusedError {
+    override readonly code = TaskFindingCode.NoRollback;
+}
+
+/**
+ * The stored run table carries a schema version this build does not know, so its records were not loaded and
+ * no new work is admitted: driving new runs against targets those records own would write over work this build
+ * cannot see, and a later upgrade would then resume them and replay stale values.
+ */
+export class TaskStoreVersionError extends TaskRefusedError {
+    override readonly code = TaskFindingCode.StoreVersion;
 }
 
 /**

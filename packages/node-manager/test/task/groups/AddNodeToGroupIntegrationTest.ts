@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { TaskNotInFlightError } from "#task/errors.js";
 import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { DesiredStateBehavior, itemMapKey, NetworkClient, ServerNode } from "@matter/node";
@@ -16,7 +17,7 @@ import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import { SustainedSubscription } from "@matter/protocol";
 import { EndpointNumber, GroupId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
-import { cancelSlot, recordFor, requireRecordFor, revertRecordOf, revertSlotOf, statusOfSlot } from "../helpers.js";
+import { cancelSlot, recordFor, revertRecordOf, statusOfSlot } from "../helpers.js";
 
 const { TrustFirst } = GroupKeyManagement.GroupKeySecurityPolicy;
 
@@ -119,7 +120,7 @@ describe("AddNodeToGroup task integration (single peer)", () => {
         expect(isMember(device)).equals(true);
     });
 
-    it("cancel reverts the three items and drops membership", async () => {
+    it("declines cancel of a completed add, leaving the three items and membership in place", async () => {
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair({
             controller: { type: ControllerRoot },
@@ -131,31 +132,30 @@ describe("AddNodeToGroup task integration (single peer)", () => {
         await awaitState(controller, TASK_ID, "completed");
         expect(isMember(device)).equals(true);
 
-        const handle = await MockTime.resolve(
-            controller.act(agent => cancelSlot(agent.get(TaskManagerBehavior), TASK_ID)),
-            {
-                macrotasks: true,
-            },
-        );
-        expect(handle?.status.revertOf).equals(
-            requireRecordFor(controller.stateOf(TaskManagerBehavior).runs, TASK_ID).runId,
-        );
-        await awaitState(
-            controller,
-            (await controller.act(a => revertSlotOf(a.get(TaskManagerBehavior).state.runs, TASK_ID)))!,
-            "completed",
-        );
+        // Once the add succeeded it is done: undoing it is `RemoveNodeFromGroup`, which reads the device's
+        // current state, rather than a replay of what this run found.
+        let refusal: unknown;
+        try {
+            await MockTime.resolve(
+                controller.act(agent => cancelSlot(agent.get(TaskManagerBehavior), TASK_ID)),
+                {
+                    macrotasks: true,
+                },
+            );
+        } catch (e) {
+            refusal = e;
+        }
+        expect(refusal).instanceOf(TaskNotInFlightError);
 
-        expect(itemState(peer, "groupKey", String(GROUP_KEY_SET_ID))).equals(undefined);
-        expect(itemState(peer, "groupKeyMap", String(GROUP))).equals(undefined);
-        expect(itemState(peer, "endpointGroupMembership", MEMBERSHIP_KEY)).equals(undefined);
-        expect(isMember(device)).equals(false);
-        // Cancelling an already-completed task spawns the revert but leaves the original's truthful state.
+        expect(itemState(peer, "groupKey", String(GROUP_KEY_SET_ID))).equals("committed");
+        expect(itemState(peer, "groupKeyMap", String(GROUP))).equals("committed");
+        expect(itemState(peer, "endpointGroupMembership", MEMBERSHIP_KEY)).equals("committed");
+        expect(isMember(device)).equals(true);
         const status = await controller.act(agent => statusOfSlot(agent.get(TaskManagerBehavior), TASK_ID));
         expect(status?.state).equals("completed");
-        expect(status?.revertRunId).equals(
-            revertRecordOf(controller.stateOf(TaskManagerBehavior).runs, TASK_ID)?.runId,
-        );
+        // Nothing was spawned, so the run names no rollback.
+        expect(status?.revertRunId).equals(undefined);
+        expect(revertRecordOf(controller.stateOf(TaskManagerBehavior).runs, TASK_ID)).equals(undefined);
     });
 
     it("resumes a parked task across a controller restart", async () => {

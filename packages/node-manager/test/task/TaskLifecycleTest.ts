@@ -257,7 +257,7 @@ describe("Task lifecycle", () => {
     });
 
     describe("cancel", () => {
-        it("cancelling a completed task spawns a revert that removes items in reverse order", async () => {
+        it("cancelling an in-flight task spawns a revert that removes items in reverse order", async () => {
             const environment = new Environment("test");
             const peer = new FakePeer("cp");
             TestTaskManager.peers.set("cp", peer);
@@ -274,12 +274,16 @@ describe("Task lifecycle", () => {
                         await ctx.setIntent(node, "groupMembership", "B", {});
                     },
                 },
+                // Cancel applies to work in flight, so the run has to still be in it — with both intents
+                // already written, which is what the rollback undoes.
+                { name: "hold", run: () => new Promise<void>(() => {}) },
             ];
 
             const node = await makeNode(environment);
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
             await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "cancel" }));
-            await awaitState(node, "synthetic:cancel", "completed");
+            // Phase 0 done and its write landed: both intents are in the changeSet the rollback will undo.
+            await awaitPhase(node, "synthetic:cancel", 1);
 
             const handle = await node.act(a => cancelSlot(a.get(TestTaskManager), "synthetic:cancel"));
             expect(handle?.status.revertOf).equals(
@@ -298,9 +302,8 @@ describe("Task lifecycle", () => {
             ]);
             expect(peer.items[itemMapKey("groupMembership", "A")]).equals(undefined);
             expect(peer.items[itemMapKey("groupMembership", "B")]).equals(undefined);
-            // Cancelling an already-completed task spawns the revert but leaves the original's truthful state.
             const status = await node.act(a => statusOfSlot(a.get(TestTaskManager), "synthetic:cancel"));
-            expect(status?.state).equals("completed");
+            expect(status?.state).equals("cancelled");
             expect(status?.revertRunId).equals(handle?.runId);
             await node.close();
         });
@@ -310,17 +313,15 @@ describe("Task lifecycle", () => {
             const peer = new FakePeer("rr");
             TestTaskManager.peers.set("rr", peer);
             TestTaskManager.reconcilerPeer = peer;
-            peer.markHas("groupMembership", "1");
-
             SyntheticTask.phasesByTag["rerun"] = [gatePhase("rr", "groupMembership", "1")];
 
             const node = await makeNode(environment);
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
             await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "rerun" }));
-            await awaitState(node, "synthetic:rerun", "completed");
-
-            // The peer goes away, so the rollback parks instead of finishing.
+            // The device never confirms, so the run is still in flight with its intent written — and the write
+            // that records it is what parking produces, so the peer goes away first.
             peer.setReachable(false);
+            await awaitState(node, "synthetic:rerun", "parked");
             const revert = await node.act(a => cancelSlot(a.get(TestTaskManager), "synthetic:rerun"));
             expect(revert?.status.slotKey).equals(
                 `revert:${requireStatusOfSlot(await node.act(a => a.get(TestTaskManager)), "synthetic:rerun").runId}`,

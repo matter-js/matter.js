@@ -76,7 +76,7 @@ describe("capacity admission", () => {
         await awaitState(node, "synthetic:over", "failed");
         const rec = requireRecordFor(node.stateOf(TestTaskManager).runs, "synthetic:over");
         expect(rec.error).contains("capacity");
-        expect(rec.changeSet.length).equals(0);
+        expect(rec.changeSet).deep.equals([]);
         expect(rec.revertRunId).equals(undefined);
         expect(ran).equals(false);
         await node.close();

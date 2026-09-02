@@ -8,6 +8,7 @@ import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import {
     TaskFailedError,
     TaskManagerClosingError,
+    TaskNotInFlightError,
     TaskSlotDrainingError,
     TaskSlotSettlingError,
 } from "#task/errors.js";
@@ -290,17 +291,15 @@ describe("cancel robustness", () => {
         const peer = new FakePeer("dp");
         TestTaskManager.peers.set("dp", peer);
         TestTaskManager.reconcilerPeer = peer;
-        peer.markHas("groupMembership", "D");
 
+        // The peer never commits, so the run is still in flight with its intent written — which is what cancel
+        // applies to, and what gives the rollback something to undo.
         SyntheticTask.phasesByTag["durable"] = [gatePhase("dp", "groupMembership", "D")];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-durable" });
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
         await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "durable" }));
-        await pumpUntil("task complete", async () => {
-            const state = await node.act(a => recordFor(a.get(TestTaskManager).state.runs, "synthetic:durable")?.state);
-            return state === "completed";
-        });
+        await pumpUntil("intent written", () => peer.items[itemMapKey("groupMembership", "D")] !== undefined);
 
         const handle = await MockTime.resolve(node.act(a => cancelSlot(a.get(TestTaskManager), "synthetic:durable")));
         expect(handle?.status.revertOf).equals(
@@ -459,8 +458,9 @@ describe("cancel robustness", () => {
         const peer = new FakePeer("cd");
         TestTaskManager.peers.set("cd", peer);
         TestTaskManager.reconcilerPeer = peer;
-        peer.markHas("groupMembership", "C");
 
+        // In flight, with its intent written: cancel has to reach the write it cannot make. A finished run
+        // would be refused before the crash ever mattered, and the test would prove nothing.
         SyntheticTask.phasesByTag["crashed"] = [gatePhase("cd", "groupMembership", "C")];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-crashed" });
@@ -470,10 +470,7 @@ describe("cancel robustness", () => {
             manager = a.get(TestTaskManager);
         });
         await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "crashed" }));
-        await pumpUntil("task complete", async () => {
-            const state = await node.act(a => recordFor(a.get(TestTaskManager).state.runs, "synthetic:crashed")?.state);
-            return state === "completed";
-        });
+        await pumpUntil("intent written", async () => peer.items[itemMapKey("groupMembership", "C")] !== undefined);
 
         // A crashed manager cannot record a cancel either, but it is not shutting down and a re-issue after the
         // next start is not the remedy — so it must not claim it is.
@@ -826,6 +823,61 @@ describe("cancel robustness", () => {
 
         // The caller already holds a handle, and it says what happened rather than answering "running" forever.
         expect(handle.status.state).equals("failed");
+
+        await node.close();
+    });
+
+    it("refuses a cancel whose run finished inside the transition window", async () => {
+        const environment = new Environment("test");
+        const peer = new FakePeer("iw");
+        TestTaskManager.peers.set("iw", peer);
+        TestTaskManager.reconcilerPeer = peer;
+
+        // One phase that writes and returns, so the driver's next act is the write advancing past it.
+        let phaseReturned = false;
+        SyntheticTask.phasesByTag["inwindow"] = [
+            {
+                name: "touch",
+                run: async ctx => {
+                    await ctx.setIntent(ctx.resolvePeer("iw"), "groupMembership", "W", {});
+                    phaseReturned = true;
+                },
+            },
+        ];
+
+        const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-in-window" });
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+        let manager!: TestTaskManager;
+        await node.act(a => {
+            manager = a.get(TestTaskManager);
+        });
+        const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "inwindow" }));
+
+        // The mutex is taken before the phase runs, so the write advancing the phase index queues on it. Then
+        // we wait for the phase to have *returned*: the driver has passed its post-phase check on the
+        // transition claim by then, and the loop top it is heading for does not consult that claim at all — so
+        // a cancel accepted now finds a run that goes on to commit `completed`.
+        const release = manager.holdPersistMutex();
+        await pumpUntil("phase returned", () => phaseReturned);
+        const cancelling = MockTime.resolve(
+            node.act(async a => {
+                try {
+                    return await a.get(TestTaskManager).cancel(handle.runId);
+                } catch (e) {
+                    return e;
+                }
+            }),
+            { macrotasks: true },
+        );
+        await MockTime.advance(1);
+        release();
+
+        // Refused, and refused for the right reason: a run that succeeded is not recorded as cancelled and its
+        // priors are not replayed onto the device.
+        expect(await cancelling).instanceOf(TaskNotInFlightError);
+        expect(manager.get(handle.runId)?.status.state).equals("completed");
+        expect(manager.get(handle.runId)?.status.revertRunId).equals(undefined);
+        expect(revertRecordOf(node.stateOf(TestTaskManager).runs, "synthetic:inwindow")).equals(undefined);
 
         await node.close();
     });

@@ -7,6 +7,7 @@
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import {
     TaskConflictError,
+    TaskNotInFlightError,
     TaskNotRevertibleError,
     TaskRollbackPendingError,
     TaskSlotOccupiedError,
@@ -795,9 +796,10 @@ describe("RotateGroupKey task integration (two members)", () => {
             expect(Bytes.areEqual(deviceKey0(device, GROUP_KEY_SET_ID), NEW_KEY)).equals(true);
         }
 
+        // Refused for being finished before revertibility is even asked.
         await expect(controller.act(a => cancelSlot(a.get(TaskManagerBehavior), ROTATE_SLOT))).rejectedWith(
-            TaskNotRevertibleError,
-            "forward-only",
+            TaskNotInFlightError,
+            "already finished",
         );
 
         // Declined with zero side effects: no revert spawned, task stays completed, both devices keep the new key.

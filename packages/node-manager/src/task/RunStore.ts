@@ -28,6 +28,15 @@ export function isTerminal(state: TaskState): boolean {
 export const RUN_ID_RESERVATION = 64;
 
 /**
+ * Schema version of the persisted run table.
+ *
+ * Bumped whenever a build changes what a record means rather than merely what it contains, so a later build
+ * can refuse a table it would misread. It cannot protect against a *downgrade* — an older build has no check —
+ * so this buys detection from here on, not backward safety.
+ */
+export const RUN_STORE_VERSION = 2;
+
+/**
  * One verb's exclusive hold on a run's outcome.
  *
  * {@link settled} resolves when the hold ends, so a second caller of the same verb waits for the decision and
@@ -42,6 +51,7 @@ export interface RunStoreSnapshot {
     runs: Record<string, TaskPersistence>;
     nextRunId: number;
     nextRetireSeq: number;
+    runsVersion: number;
 }
 
 /**
@@ -49,7 +59,8 @@ export interface RunStoreSnapshot {
  *
  * Deliberately free of any dependency on a node, a gate or a clock, so its invariants — allocation
  * monotonicity, one owner per slot, ordering by retirement rather than by start — are testable without
- * driving a task. The manager owns persistence and calls {@link snapshot} to write.
+ * driving a task. The manager owns persistence: it writes the records a transaction names
+ * rather than republishing this table, so a run this process never loaded is never erased by one that did.
  */
 export class RunStore {
     #nextRunId = 1;
@@ -60,6 +71,7 @@ export class RunStore {
      */
     #reservedBelow = 1;
     #nextRetireSeq = 1;
+    #unreadable = false;
 
     /** Every run this process knows, in every phase. One table, so no verb can look in the wrong one. */
     readonly #records = new Map<RunId, RunRecord>();
@@ -98,6 +110,15 @@ export class RunStore {
         let discarded = 0;
         let highest = 0;
 
+        const version = snapshot?.runsVersion ?? 1;
+        if (version > RUN_STORE_VERSION) {
+            // Not loading is not enough on its own: the records stay in storage, so admitting work would drive
+            // targets they own. Every verb refuses while this is set, rather than answering "no such run" for
+            // runs that demonstrably exist in the table.
+            this.#unreadable = true;
+            return { resumable, discarded };
+        }
+
         for (const stored of Object.values(snapshot?.runs ?? {})) {
             // Pre-runId records name their slot where a runId now goes; they cannot be resumed under an
             // identity they never had.
@@ -131,6 +152,13 @@ export class RunStore {
             ...[...this.#records.values()].map(r => (r.retireSeq ?? 0) + 1),
         );
         return { resumable, discarded };
+    }
+
+    /**
+     * Whether the stored table was written by a newer build, so nothing was loaded and nothing may be admitted.
+     */
+    get unreadable(): boolean {
+        return this.#unreadable;
     }
 
     get nextRunId(): number {
@@ -278,6 +306,31 @@ export class RunStore {
         return this.#transitions.get(runId);
     }
 
+    /**
+     * A retired run of the same slot that finished after `runId`, if there is one.
+     *
+     * Undoing a run restores the values it found, so a later run of the same slot having since committed its
+     * own makes those values historical: applying them would overwrite an outcome nobody asked to undo.
+     */
+    supersederOf(runId: RunId): RunRecord | undefined {
+        const record = this.#records.get(runId);
+        if (record === undefined || !isTerminal(record.state)) {
+            return undefined;
+        }
+        const retiredAt = record.retireSeq ?? 0;
+        for (const other of this.#records.values()) {
+            if (
+                other.runId !== runId &&
+                other.slotKey === record.slotKey &&
+                isTerminal(other.state) &&
+                (other.retireSeq ?? 0) > retiredAt
+            ) {
+                return other;
+            }
+        }
+        return undefined;
+    }
+
     /** Register a run and give it ownership of its slot. In memory only: nothing is durable yet. */
     admit(record: RunRecord, execution?: Execution): void {
         const owner = this.#slots.get(record.slotKey);
@@ -313,9 +366,9 @@ export class RunStore {
      * already has one.
      *
      * Allocated for the write that records the outcome, so the two land together: a terminal record that
-     * reached storage without an order would sort ahead of every sequenced run of its slot, and
-     * {@link supersederOf} would then let an older run's rollback overwrite it. A refused write leaves a gap in
-     * the sequence, which costs nothing — the order only ever has to be increasing.
+     * reached storage without an order is discarded at load, because it has no position among the runs of its
+     * slot. A refused write leaves a gap in the sequence, which costs nothing — the order only ever has to be
+     * increasing.
      */
     nextRetirement(record: RunRecord): RetireSeq | undefined {
         if (this.#slots.get(record.slotKey) !== record.runId || record.retireSeq !== undefined) {
@@ -339,31 +392,6 @@ export class RunStore {
         if (this.#slots.get(record.slotKey) === record.runId) {
             this.#slots.delete(record.slotKey);
         }
-    }
-
-    /**
-     * A retired run of the same slot that finished after `runId`, if there is one.
-     *
-     * Undoing a run restores the values it found, so a later run of the same slot having since committed its
-     * own makes those values historical: applying them would overwrite an outcome nobody asked to undo.
-     */
-    supersederOf(runId: RunId): RunRecord | undefined {
-        const record = this.#records.get(runId);
-        if (record === undefined || !isTerminal(record.state)) {
-            return undefined;
-        }
-        const retiredAt = record.retireSeq ?? 0;
-        for (const other of this.#records.values()) {
-            if (
-                other.runId !== runId &&
-                other.slotKey === record.slotKey &&
-                isTerminal(other.state) &&
-                (other.retireSeq ?? 0) > retiredAt
-            ) {
-                return other;
-            }
-        }
-        return undefined;
     }
 
     /**
@@ -418,11 +446,21 @@ export class RunStore {
         return undefined;
     }
 
+    /**
+     * The whole table as storage would hold it. Not how the manager writes — it records the runs a transaction
+     * names, so a run this process never loaded is not erased by one that did — so this exists for a caller
+     * that wants the table as a value.
+     */
     snapshot(): RunStoreSnapshot {
         const runs: Record<string, TaskPersistence> = {};
         for (const [runId, record] of this.#records) {
             runs[runKey(runId)] = record.toPersistence();
         }
-        return { runs, nextRunId: this.#nextRunId, nextRetireSeq: this.#nextRetireSeq };
+        return {
+            runs,
+            nextRunId: this.#nextRunId,
+            nextRetireSeq: this.#nextRetireSeq,
+            runsVersion: RUN_STORE_VERSION,
+        };
     }
 }

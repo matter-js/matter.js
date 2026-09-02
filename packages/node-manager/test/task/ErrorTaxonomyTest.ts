@@ -19,8 +19,10 @@ import {
     TaskFindingCode,
     TaskIdentityExhaustedError,
     TaskManagerClosingError,
+    TaskNoRollbackError,
     TaskNotARollbackError,
     TaskNotFoundError,
+    TaskNotInFlightError,
     TaskNotRevertibleError,
     TaskPeerUnavailableError,
     TaskRefusedError,
@@ -29,6 +31,7 @@ import {
     TaskSlotDrainingError,
     TaskSlotOccupiedError,
     TaskSlotSettlingError,
+    TaskStoreVersionError,
     TaskSupersededError,
     TaskSuspendedSignal,
     TaskTypeNotRegisteredError,
@@ -58,6 +61,9 @@ const CODES: Array<[TaskRefusedError, TaskFindingCode]> = [
     [new TaskAlreadyUndoneError(""), TaskFindingCode.AlreadyUndone],
     [new TaskAbandonedError(""), TaskFindingCode.Abandoned],
     [new TaskCannotCancelRollbackError(""), TaskFindingCode.CannotCancelRollback],
+    [new TaskNotInFlightError(""), TaskFindingCode.NotInFlight],
+    [new TaskStoreVersionError(""), TaskFindingCode.StoreVersion],
+    [new TaskNoRollbackError(""), TaskFindingCode.NoRollback],
 ];
 
 describe("task error taxonomy", () => {

@@ -12,6 +12,7 @@ import {
     TaskCancelledSignal,
     TaskCannotCancelRollbackError,
     TaskManagerClosingError,
+    TaskNoRollbackError,
     TaskNotARollbackError,
     TaskNotFoundError,
     TaskRollbackPendingError,
@@ -965,7 +966,7 @@ describe("retryRollback", () => {
             node.act(a => a.get(TestTaskManager).get(handle.runId)?.status.state === "completed"),
         );
 
-        expect(await attempt(node, m => m.retryRollback(handle.runId))).instanceOf(ImplementationError);
+        expect(await attempt(node, m => m.retryRollback(handle.runId))).instanceOf(TaskNoRollbackError);
     });
 
     it("leaves the original naming the old rollback when the retry's write is refused", async () => {

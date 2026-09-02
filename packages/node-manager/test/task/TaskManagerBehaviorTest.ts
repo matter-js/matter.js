@@ -387,10 +387,10 @@ describe("TaskManagerBehavior", () => {
     it("distinguishes an id no live task answers to from a task with nothing to roll back", async () => {
         const environment = new Environment("test");
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "tm-cancel-unknown" });
-        SyntheticTask.phasesByTag["nothing"] = [{ name: "a", run: async () => {} }];
+        // In flight and touching nothing: cancel applies to it, and there is still nothing to undo.
+        SyntheticTask.phasesByTag["nothing"] = [{ name: "a", run: () => new Promise<void>(() => {}) }];
         await node.act(a => a.get(TaskManagerBehavior).register(SyntheticTask));
         await node.act(a => a.get(TaskManagerBehavior).run(SyntheticTask, { tag: "nothing" }));
-        await awaitTaskDone(node, "synthetic:nothing");
 
         // A task that touched nothing has nothing to roll back, and says so.
         expect(await node.act(a => cancelSlot(a.get(TaskManagerBehavior), "synthetic:nothing"))).equals(undefined);

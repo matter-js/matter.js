@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { TaskFailedError } from "#task/errors.js";
+import { TaskFailedError, TaskNotInFlightError } from "#task/errors.js";
 import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
+import { REMOVE_NODE_FROM_GROUP_TYPE, RemoveNodeFromGroup } from "#task/groups/RemoveNodeFromGroup.js";
 import { TaskDefinition } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { TaskContext } from "#task/types.js";
@@ -184,7 +185,7 @@ describe("Rollback task integration (single peer)", () => {
         expect(isMember(device)).equals(false);
     });
 
-    it("cancel returns a revert handle that completes and leaves the original truthful", async () => {
+    it("declines cancel of a completed add and leaves the device provisioned", async () => {
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair({
             controller: { type: ControllerRoot },
@@ -196,30 +197,29 @@ describe("Rollback task integration (single peer)", () => {
         await awaitState(controller, TASK_ID, "completed");
         expect(isMember(device)).equals(true);
 
-        const handle = await MockTime.resolve(
-            controller.act(agent => cancelSlot(agent.get(TaskManagerBehavior), TASK_ID)),
-            { macrotasks: true },
-        );
-        expect(handle?.status.revertOf).equals(
-            requireRecordFor(controller.stateOf(TaskManagerBehavior).runs, TASK_ID).runId,
-        );
+        // Reversing a change that succeeded is a new action: `RemoveNodeFromGroup` reads what the device holds
+        // now and reference-counts the shared entries, where replaying this run's priors could not.
+        let refusal: unknown;
+        try {
+            await MockTime.resolve(
+                controller.act(agent => cancelSlot(agent.get(TaskManagerBehavior), TASK_ID)),
+                {
+                    macrotasks: true,
+                },
+            );
+        } catch (e) {
+            refusal = e;
+        }
+        expect(refusal).instanceOf(TaskNotInFlightError);
 
-        // revertOf is part of the revert's persisted seed, so it's readable before the revert has run at all.
-        const revertOf = await controller.act(
-            agent => revertRecordOf(agent.get(TaskManagerBehavior).state.runs, TASK_ID)?.revertOf,
+        // Refused, so nothing was spawned and nothing was written.
+        expect(await controller.act(a => revertRecordOf(a.get(TaskManagerBehavior).state.runs, TASK_ID))).equals(
+            undefined,
         );
-        expect(revertOf).equals(requireRecordFor(controller.stateOf(TaskManagerBehavior).runs, TASK_ID).runId);
-
-        await awaitState(
-            controller,
-            (await controller.act(a => revertSlotOf(a.get(TaskManagerBehavior).state.runs, TASK_ID)))!,
-            "completed",
-        );
-
-        expect(itemState(peer, "groupKey", String(GROUP_KEY_SET_ID))).equals(undefined);
-        expect(itemState(peer, "groupKeyMap", String(GROUP))).equals(undefined);
-        expect(itemState(peer, "endpointGroupMembership", `${GROUP}:${PARAMS.endpoint}`)).equals(undefined);
-        expect(isMember(device)).equals(false);
+        expect(itemState(peer, "groupKey", String(GROUP_KEY_SET_ID))).equals("committed");
+        expect(itemState(peer, "groupKeyMap", String(GROUP))).equals("committed");
+        expect(itemState(peer, "endpointGroupMembership", `${GROUP}:${PARAMS.endpoint}`)).equals("committed");
+        expect(isMember(device)).equals(true);
 
         const status = await controller.act(agent => statusOfSlot(agent.get(TaskManagerBehavior), TASK_ID));
         expect(status?.state).equals("completed");
@@ -307,7 +307,7 @@ describe("Rollback task integration (single peer)", () => {
         expect(isMember(device)).equals(false);
     });
 
-    it("cancelling one endpoint's membership leaves the other endpoint and the shared items intact", async () => {
+    it("removing one endpoint's membership leaves the other endpoint and the shared items intact", async () => {
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair({
             controller: { type: ControllerRoot },
@@ -329,17 +329,10 @@ describe("Rollback task integration (single peer)", () => {
         await controller.act(agent => agent.get(TaskManagerBehavior).run(AddNodeToGroup, { ...PARAMS, endpoint: 2 }));
         await awaitState(controller, idEp2, "completed");
 
-        await MockTime.resolve(
-            controller.act(agent => cancelSlot(agent.get(TaskManagerBehavior), idEp1)),
-            {
-                macrotasks: true,
-            },
+        await controller.act(agent =>
+            agent.get(TaskManagerBehavior).run(RemoveNodeFromGroup, { peerId: "peer1", endpoint: 1, groupId: GROUP }),
         );
-        await awaitState(
-            controller,
-            (await controller.act(a => revertSlotOf(a.get(TaskManagerBehavior).state.runs, idEp1)))!,
-            "completed",
-        );
+        await awaitState(controller, `${REMOVE_NODE_FROM_GROUP_TYPE}:peer1:${GROUP}:1`, "completed");
 
         expect(itemState(peer, "endpointGroupMembership", `${GROUP}:1`)).equals(undefined);
         expect(itemState(peer, "endpointGroupMembership", `${GROUP}:2`)).equals("committed");
