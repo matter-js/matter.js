@@ -24,7 +24,7 @@ export function RunId(value: number): RunId {
 }
 
 /**
- * Order in which runs retired: the only ordering key for history and for eviction.
+ * Order in which runs retired: the only ordering key for history.
  *
  * Deliberately a different type from {@link RunId}. A run id orders by *start*, and since a parked run may
  * finish long after runs that started later, ordering retirement by run id evicts the most recently finished
@@ -66,8 +66,6 @@ export interface TaskStatus {
     retireSeq?: RetireSeq;
     revertRunId?: RunId;
     revertOf?: RunId;
-    /** Whether the answering record still carries everything, or only what a tombstone keeps. */
-    detail: "full" | "tombstone";
 }
 
 export interface ChangeEntry {

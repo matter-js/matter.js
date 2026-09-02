@@ -56,8 +56,8 @@ export function liveRecord(manager: TaskManagerBehavior, runId: RunId): RunRecor
  */
 export function onPersisted(record: RunRecord, hook: (persisted: TaskPersistence) => void): void {
     const original = record.toPersistence.bind(record);
-    record.toPersistence = next => {
-        const persisted = original(next);
+    record.toPersistence = (next, drop) => {
+        const persisted = original(next, drop);
         hook(persisted);
         return persisted;
     };

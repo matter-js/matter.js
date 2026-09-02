@@ -17,8 +17,10 @@ import {
     TaskCapacityExceededError,
     TaskExternalIdInUseError,
     TaskManagerClosingError,
+    TaskNoRollbackError,
     TaskNotARollbackError,
     TaskNotFoundError,
+    TaskNotInFlightError,
     TaskNotRevertibleError,
     TaskRollbackPendingError,
     TaskSlotAwaitingResumeError,
@@ -26,6 +28,7 @@ import {
     TaskSlotOccupiedError,
     TaskSlotSettlingError,
     TaskStopSignal,
+    TaskStoreVersionError,
     TaskSupersededError,
     TaskSuspendedSignal,
     TaskTypeNotRegisteredError,
@@ -36,10 +39,19 @@ import { RemoveNodeFromGroup } from "./groups/RemoveNodeFromGroup.js";
 import { RotateGroupKey } from "./groups/RotateGroupKey.js";
 import { Revert } from "./Revert.js";
 import { GateControl, RunningTaskContext } from "./RunningTaskContext.js";
-import { isTerminal, RunStore } from "./RunStore.js";
-import { BoundDefinition, runKey, runLabel, RunRecord, statusOf, TaskDefinition, TaskPersistence } from "./Task.js";
+import { isTerminal, RUN_STORE_VERSION, RunStore } from "./RunStore.js";
+import {
+    BoundDefinition,
+    DroppableField,
+    runKey,
+    runLabel,
+    RunRecord,
+    statusOf,
+    TaskDefinition,
+    TaskPersistence,
+} from "./Task.js";
 import { TaskRegistry } from "./TaskRegistry.js";
-import { PlannedChange, RunId, Teardown, TaskState, TaskStatus } from "./types.js";
+import { PlannedChange, RunId, TaskState, TaskStatus, Teardown } from "./types.js";
 
 const logger = Logger.get("TaskManager");
 
@@ -64,6 +76,12 @@ interface PreparedRevert {
 const NO_REVERT: PreparedRevert = { discard() {}, start() {} };
 
 /**
+ * What a run stops carrying at any retirement. Parameters exist to re-drive phases on resume, and some carry
+ * raw key material; a rollback replays the changeSet's priors, never params.
+ */
+const RETIRE: ReadonlyArray<DroppableField> = ["params"];
+
+/**
  * Whether a rollback's undo has concluded: it restored the device, or it was called off before it wrote
  * anything. Either way nothing is left to retry or to give up on.
  *
@@ -80,10 +98,15 @@ interface SpawnedExecution {
     joined: boolean;
 }
 
-/** One run's intended next durable state, applied to the run only once the write carrying it has landed. */
+/** One record's part in a write: state to merge in, and fields to remove outright. */
 interface RunChange {
     record: RunRecord;
     next?: Partial<TaskPersistence>;
+    /**
+     * Fields to remove. Separate from {@link RunChange.next}, where `undefined` means "unchanged" — an
+     * intended-state merge that expressed removal as `undefined` erased a retirement order once already.
+     */
+    drop?: ReadonlyArray<DroppableField>;
 }
 
 export class TaskManagerBehavior extends Behavior {
@@ -107,6 +130,10 @@ export class TaskManagerBehavior extends Behavior {
             }),
             FieldElement({ name: "nextRunId", type: "uint32", quality: "N", default: 1 }),
             FieldElement({ name: "nextRetireSeq", type: "uint32", quality: "N", default: 1 }),
+            // Default 1, not the current version: nonvolatile state records what a transaction *changed*, so a
+            // member defaulted to the reading build's own version would never differ from it, never be written,
+            // and never tell a later build what wrote the table.
+            FieldElement({ name: "runsVersion", type: "uint32", quality: "N", default: 1 }),
         ],
     });
 
@@ -118,14 +145,23 @@ export class TaskManagerBehavior extends Behavior {
             runs: this.state.runs,
             nextRunId: this.state.nextRunId,
             nextRetireSeq: this.state.nextRetireSeq,
+            runsVersion: this.state.runsVersion,
         });
         if (discarded > 0) {
             logger.warn(`Discarded ${discarded} task record(s) predating per-run identity`);
         }
+        // Registered either way, so the surface a caller sees does not depend on the store: an unreadable
+        // store refuses at `run`, with a reason, rather than by claiming a type was never registered.
+        this.#registerBuiltins();
+        if (this.internal.runs.unreadable) {
+            logger.error(
+                `Task records are at schema version ${this.state.runsVersion}, newer than this build's ${RUN_STORE_VERSION}: no run was loaded and no task will be admitted. Nothing is written to the table either, so the newer build can still read it.`,
+            );
+            return;
+        }
         // Reserved here rather than on the first record write: on a fresh store nothing has been written yet,
         // so without this the very first identity would be handed out uncovered.
         this.#reserveIdentities();
-        this.#registerBuiltins();
         // Driving acts on the node, so the resume pass must wait until the node is online.
         if (this.#rootNode.lifecycle.isOnline) {
             this.#resumePersisted();
@@ -269,8 +305,15 @@ export class TaskManagerBehavior extends Behavior {
      * it: a caller that passes an `externalId` re-issues its own request idempotently, and any other request for
      * an id a live task already holds is refused rather than silently resolving onto work it did not ask for.
      * The `externalId` is also the id the caller can {@link get} and {@link cancel} its task under.
+     *
+     * **`externalId` is a correlation key, not an idempotence token.** Only a *live* run holds a name: once a
+     * run finishes, re-issuing its name starts the work again. A consumer that needs idempotence keeps its own
+     * receipt.
      */
     run<P>(definition: TaskDefinition<P>, params: P, opts?: { externalId?: string }): TaskHandle {
+        // Records this build did not read still own their targets, so admitting work would drive a target one
+        // of them holds and a later upgrade would then resume it and replay stale values over the result.
+        this.#refuseIfUnreadable(`Cannot run "${definition.type}"`);
         // The definition must be the registered one, not merely share its name. Identity is what makes the
         // parameter type mean anything: a different definition of the same name would type its caller's params
         // and then hand them to the registered definition, which declares its own. It is also what stops a
@@ -503,13 +546,17 @@ export class TaskManagerBehavior extends Behavior {
      * declining an undo must not be undone by a retry.
      */
     async retryRollback(runId: RunId): Promise<TaskHandle> {
+        this.#refuseIfUnreadable(`Cannot retry the rollback of ${runLabel(runId)}`);
         const record = this.internal.runs.get(runId);
         if (record === undefined) {
             throw new TaskNotFoundError(`Cannot retry the rollback of ${runLabel(runId)}: no run answers to it`);
         }
         const recorded = this.internal.runs.rollbackFor(runId);
         if (recorded === undefined) {
-            throw new ImplementationError(`${runLabel(runId)} has no rollback to retry`);
+            // A state a caller cannot always know rather than a mistake it made: a run may never have produced
+            // an undo, and a rollback record that reached storage without a retirement order is discarded at
+            // load, leaving the original naming one nothing holds.
+            throw new TaskNoRollbackError(`Cannot retry the rollback of ${runLabel(runId)}: it has none`);
         }
         const previous = recorded.runId;
         if (recorded.state === "abandoned") {
@@ -538,10 +585,13 @@ export class TaskManagerBehavior extends Behavior {
             );
         }
 
-        const bound = this.#boundFor(record, this.internal.runs.executionOf(runId));
-        const revert = this.#prepareRevert(record, bound, { ignoreRecordedRollback: true });
+        // Deliberately not through #boundFor: revertibility was decided when the first rollback was created,
+        // and asking again would need the original's params, which a retirement drops. A replacement is built
+        // from the changeSet alone.
+        const revert = this.#spawnRevert(record);
         if (revert.record === undefined) {
-            throw new ImplementationError(`${runLabel(runId)} has nothing to roll back`);
+            // Cannot happen: a run with a rollback wrote something, and nothing removes a changeSet.
+            throw new InternalError(`${runLabel(runId)} has a rollback but nothing to roll back`);
         }
         try {
             await this.#commit({ record, next: { revertRunId: revert.record.runId } }, { record: revert.record });
@@ -558,9 +608,13 @@ export class TaskManagerBehavior extends Behavior {
      * task (parks on offline peers, resumes after restart). Does not await the revert — the caller observes it
      * via the returned handle.
      *
-     * A handle is the rollback. `undefined` means there is nothing to roll back — either the run wrote nothing,
-     * or it was already cancelled; `status.state` tells the two apart. {@link TaskNotFoundError} is an identity
-     * no run answers to, live or retired, since a finished run keeps the changeSet its rollback needs.
+     * Applies to work that is still in flight. A run that already finished is refused with
+     * {@link TaskNotInFlightError}: its changes are not rewound, because restoring the values it found would
+     * overwrite whatever has legitimately happened since — reversing a finished change is a new task the caller
+     * starts. A run whose rollback already exists is answered with that rollback, whatever its state.
+     *
+     * A handle is the rollback. `undefined` means there is nothing to roll back — the run wrote nothing, or it
+     * was already cancelled with nothing to undo. {@link TaskNotFoundError} is an identity no run answers to.
      *
      * A rollback is not cancelled: {@link TaskCannotCancelRollbackError} points at {@link abandon}, which
      * records that the undo was given up on rather than that nothing needed it.
@@ -573,6 +627,7 @@ export class TaskManagerBehavior extends Behavior {
             await pending;
             pending = this.#pendingTransition(runId);
         }
+        this.#refuseIfUnreadable(`Cannot cancel ${runLabel(runId)}`);
         const record = this.internal.runs.get(runId);
         if (record === undefined) {
             throw new TaskNotFoundError(`Cannot cancel ${runLabel(runId)}: no run answers to it`);
@@ -598,6 +653,14 @@ export class TaskManagerBehavior extends Behavior {
         if (record.state === "cancelled") {
             return undefined;
         }
+        // A finished run is not stopped, and its changes are not rewound: restoring the values it found would
+        // overwrite whatever has legitimately happened since, so reversing a successful change is a new action
+        // the caller starts.
+        if (isTerminal(record.state)) {
+            throw new TaskNotInFlightError(
+                `Cannot cancel ${runLabel(runId)}: it already finished (${record.state}). Reversing a finished change is a new task, not a cancel.`,
+            );
+        }
 
         // Deciding on a NEW rollback is the run's decision, so this is the one place an unattached run's type
         // must be registered.
@@ -619,6 +682,20 @@ export class TaskManagerBehavior extends Behavior {
 
     /** The part of a cancel that decides and writes, with this run's outcome already claimed. */
     async #recordCancellation(record: RunRecord, bound: BoundDefinition): Promise<TaskHandle | undefined> {
+        // The entry check answered about the run as it was before the unwind. Its driver may have reached an
+        // outcome of its own inside the transition window — the loop consults the claim only between phases —
+        // and a run that finished is not undone, whichever side of the window it finished on. `abandon` asks
+        // the same question at the same point, and for the same reason.
+        if (isTerminal(record.state)) {
+            const rollback = this.internal.runs.rollbackFor(record.runId);
+            if (rollback !== undefined) {
+                return this.#handle(rollback);
+            }
+            throw new TaskNotInFlightError(
+                `Cannot cancel ${runLabel(record.runId)}: it finished (${record.state}) while the cancel was being accepted`,
+            );
+        }
+
         // Shutdown took over the unwind: state can no longer be persisted, so leave the task non-terminal and
         // unreverted rather than claiming a cancel that storage would contradict on the next start.
         this.#refuseIfClosing(`${runLabel(record.runId)} cannot be cancelled`);
@@ -632,8 +709,6 @@ export class TaskManagerBehavior extends Behavior {
             this.#restoreDriver(record, bound);
             throw e;
         }
-        // running/parked → cancelled; an already-terminal (completed/failed) run keeps its truthful state.
-        const outcome = record.state === "running" || record.state === "parked" ? "cancelled" : record.state;
         // One transaction carries the cancelled state, the retirement order and the rollback that undoes it;
         // the slot moves only once that write is durable.
         try {
@@ -641,10 +716,13 @@ export class TaskManagerBehavior extends Behavior {
                 {
                     record,
                     next: {
-                        state: outcome,
+                        // Unconditional: the terminal check above is what makes it true, so a run reaching its
+                        // own outcome inside the window is refused rather than recorded as cancelled.
+                        state: "cancelled",
                         retireSeq: this.internal.runs.nextRetirement(record),
                         revertRunId: revert.record?.runId,
                     },
+                    drop: RETIRE,
                 },
                 ...(revert.record === undefined ? [] : [{ record: revert.record }]),
             );
@@ -679,6 +757,7 @@ export class TaskManagerBehavior extends Behavior {
             await pending;
             pending = this.#pendingTransition(runId);
         }
+        this.#refuseIfUnreadable(`Cannot abandon ${runLabel(runId)}`);
         const record = this.internal.runs.get(runId);
         if (record === undefined) {
             throw new TaskNotFoundError(`Cannot abandon ${runLabel(runId)}: no run answers to it`);
@@ -727,6 +806,7 @@ export class TaskManagerBehavior extends Behavior {
                         // place it took then.
                         retireSeq: this.internal.runs.nextRetirement(record),
                     },
+                    drop: RETIRE,
                 });
             } catch (e) {
                 if (execution !== undefined) {
@@ -885,11 +965,7 @@ export class TaskManagerBehavior extends Behavior {
     }
 
     /** Create (or reuse) the revert task for `record`, linking both directions, without driving it. */
-    #prepareRevert(
-        record: RunRecord,
-        bound: BoundDefinition,
-        opts?: { ignoreRecordedRollback?: boolean },
-    ): PreparedRevert {
+    #prepareRevert(record: RunRecord, bound: BoundDefinition): PreparedRevert {
         // A failed rollback surfaces as `failed` for operator attention; rolling one back would recurse
         // unbounded. Keyed on the link rather than on the type, so it is the same question `cancel` and
         // `abandon` ask: any definition declaring `undoes` produces a run that undoes another.
@@ -903,12 +979,20 @@ export class TaskManagerBehavior extends Behavior {
         // Already rolled back once, or being rolled back right now: cancel resolves that rollback itself, so
         // there is nothing to prepare, write or start here. Asking the table rather than the run's own link
         // covers the window before the write recording that link has landed, where a second cancel would
-        // otherwise try to create a rollback of its own. Retrying is the one caller that means to replace it.
-        if (opts?.ignoreRecordedRollback !== true) {
-            if (this.internal.runs.rollbackFor(record.runId) !== undefined) {
-                return NO_REVERT;
-            }
+        // otherwise try to create a rollback of its own.
+        if (this.internal.runs.rollbackFor(record.runId) !== undefined) {
+            return NO_REVERT;
         }
+        return this.#spawnRevert(record);
+    }
+
+    /**
+     * Build the rollback of `record` from its changeSet alone.
+     *
+     * The half of a rollback that needs nothing but the record: what a replacement rollback needs, and what a
+     * retirement's dropped params must not stand in the way of.
+     */
+    #spawnRevert(record: RunRecord): PreparedRevert {
         if (record.changeSet.length === 0) {
             return NO_REVERT;
         }
@@ -1009,6 +1093,7 @@ export class TaskManagerBehavior extends Behavior {
                 await this.#commit({
                     record,
                     next: { state: "completed", retireSeq: this.internal.runs.nextRetirement(record) },
+                    drop: RETIRE,
                 });
             }
         } catch (e) {
@@ -1054,6 +1139,7 @@ export class TaskManagerBehavior extends Behavior {
                             retireSeq: this.internal.runs.nextRetirement(record),
                             revertRunId: revert.record?.runId,
                         },
+                        drop: RETIRE,
                     },
                     ...(revert.record === undefined ? [] : [{ record: revert.record }]),
                 );
@@ -1120,6 +1206,22 @@ export class TaskManagerBehavior extends Behavior {
         return this.#rootNode.peers.get(peerId);
     }
 
+    /**
+     * Refuse while the stored table was written by a newer build.
+     *
+     * Every verb that would *write*, not only `run`: nothing was loaded, so `cancel` of a run that
+     * demonstrably exists in storage would otherwise answer "no run answers to it" — a wrong answer where a
+     * refusal naming the cause is available. The read verbs still answer from an empty table; they cannot
+     * invent a record, but they cannot explain themselves either.
+     */
+    #refuseIfUnreadable(subject: string): void {
+        if (this.internal.runs.unreadable) {
+            throw new TaskStoreVersionError(
+                `${subject}: the stored run table is at schema version ${this.state.runsVersion}, newer than this build's ${RUN_STORE_VERSION}`,
+            );
+        }
+    }
+
     // Serialized through the mutex: a spawned revert drives (and persists) concurrently with the original's
     // own persist, so direct concurrent state writes would conflict on the synchronous transaction lock.
     /**
@@ -1146,7 +1248,7 @@ export class TaskManagerBehavior extends Behavior {
         // Built here rather than at the call site: a snapshot taken before this write queued would carry state
         // an earlier transition has since superseded.
         const records = changes.map(
-            change => [runKey(change.record.runId), change.record.toPersistence(change.next)] as const,
+            change => [runKey(change.record.runId), change.record.toPersistence(change.next, change.drop)] as const,
         );
         const nextRetireSeq = this.internal.runs.nextRetireSeq;
         const reservedRunId = this.internal.runs.reservedRunId;
@@ -1161,6 +1263,9 @@ export class TaskManagerBehavior extends Behavior {
             // counter below a durable identity and a crash re-issues it.
             self.state.nextRunId = Math.max(self.state.nextRunId, reservedRunId);
             self.state.nextRetireSeq = Math.max(self.state.nextRetireSeq, nextRetireSeq);
+            // Stamped with every write rather than once at start: the table and the version that describes it
+            // then land together, so no crash leaves records a later build reads under the wrong version.
+            self.state.runsVersion = RUN_STORE_VERSION;
         });
         // Only now: a value adopted before the write survives a write that never landed. The reservation would
         // let the next identity be issued beyond what storage covers, and a run would carry state its record
@@ -1176,6 +1281,7 @@ export class TaskManagerBehavior extends Behavior {
                     Object.assign(change.record, { [key]: value });
                 }
             }
+            change.record.adoptDrop(change.drop ?? []);
         }
     }
 
@@ -1196,6 +1302,7 @@ export namespace TaskManagerBehavior {
         runs: Record<string, TaskPersistence> = {};
         nextRunId = 1;
         nextRetireSeq = 1;
+        runsVersion = 1;
     }
 
     export class Internal {

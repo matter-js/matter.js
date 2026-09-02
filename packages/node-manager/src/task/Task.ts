@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/general";
 import { ChangeEntry, PlannedChange, RetireSeq, RunId, TaskPhase, TaskState, TaskStatus } from "./types.js";
 
 export interface TaskPersistence {
@@ -12,17 +13,37 @@ export interface TaskPersistence {
     /** The target this run intends to change. At most one run may own a slot at a time. */
     slotKey: string;
     type: string;
-    params: unknown;
+    /**
+     * Absent once the run is terminal: params exist to re-drive phases on resume, and some carry raw key
+     * material that must not outlive the work.
+     */
+    params?: unknown;
     phaseIndex: number;
     state: TaskState;
     externalId?: string;
     changeSet: ChangeEntry[];
     error?: string;
-    /** Order in which runs retired. The only ordering key for history and eviction; never use `runId`. */
+    /** Order in which runs retired. The only ordering key for history; never use `runId`. */
     retireSeq?: RetireSeq;
     revertRunId?: RunId;
     revertOf?: RunId;
 }
+
+/**
+ * Fields a write may remove outright, as opposed to leaving unchanged.
+ *
+ * One member today because `params` is the only thing a retirement stops carrying. Retention of the values a
+ * rollback would restore is decided per *target* rather than per run, so what else becomes droppable belongs
+ * with that.
+ */
+export type DroppableField = "params";
+
+/**
+ * Fields a record may legitimately not have. Enumerated rather than derived from the values present, so the
+ * strip cannot reach a required field: `params` is typed `unknown`, which widens the indexed type enough that
+ * deleting `runId` or `state` would type-check.
+ */
+const OPTIONAL_FIELDS = ["params", "externalId", "error", "retireSeq", "revertRunId", "revertOf"] as const;
 
 /** Reason a cancel is declined when a definition states none of its own. */
 export const NOT_REVERTIBLE_REASON = "it has passed its point of no return";
@@ -77,13 +98,14 @@ export class RunRecord implements RunView {
     }
 
     /**
-     * A snapshot for storage, optionally carrying state this run has not adopted yet.
+     * A snapshot for storage, optionally carrying state this run has not adopted yet, and fields the write
+     * removes outright.
      *
      * The one place a snapshot is produced, so what a write carries and what an observer sees are the same
      * thing. `changeSet` is copied rather than shared: a snapshot taken for one write would otherwise alias an
      * array a running phase appends to, and the write would carry entries it never intended.
      */
-    toPersistence(next?: Partial<TaskPersistence>): TaskPersistence {
+    toPersistence(next?: Partial<TaskPersistence>, drop?: ReadonlyArray<DroppableField>): TaskPersistence {
         const persisted: TaskPersistence = {
             runId: this.runId,
             slotKey: this.slotKey,
@@ -106,7 +128,42 @@ export class RunRecord implements RunView {
                 Object.assign(persisted, { [key]: value });
             }
         }
+        // Removal is a separate list for that reason: `undefined` in `next` cannot express it.
+        for (const field of drop ?? []) {
+            // A write that both sets a field and removes it has two intentions for one field, and the order
+            // the two lists are applied in would decide silently which wins.
+            if (next?.[field] !== undefined) {
+                throw new InternalError(
+                    `${runLabel(this.runId)}: write both sets and drops "${field}"; a field is one or the other`,
+                );
+            }
+            delete persisted[field];
+        }
+        // A field the run does not have is absent, not present holding `undefined`. Otherwise a write that
+        // drops a field removes the key and the *next* write of the same record puts it back empty, so
+        // "storage omits it" would hold for exactly one write.
+        for (const key of OPTIONAL_FIELDS) {
+            if (persisted[key] === undefined) {
+                delete persisted[key];
+            }
+        }
         return persisted;
+    }
+
+    /** Apply a write's removals to the in-memory run, once that write has landed. */
+    adoptDrop(drop: ReadonlyArray<DroppableField>): void {
+        for (const field of drop) {
+            switch (field) {
+                case "params":
+                    this.params = undefined;
+                    break;
+                default:
+                    // A field storage drops that memory does not is the drift no assertion would catch, and a
+                    // `switch` with neither this arm nor a `never` check compiles happily when a member is
+                    // added.
+                    throw new InternalError(`${runLabel(this.runId)}: no in-memory removal for "${field}"`);
+            }
+        }
     }
 }
 
@@ -264,6 +321,5 @@ export function statusOf(record: RunView): TaskStatus {
         retireSeq: record.retireSeq,
         revertRunId: record.revertRunId,
         revertOf: record.revertOf,
-        detail: "full",
     };
 }
