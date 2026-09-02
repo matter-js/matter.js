@@ -318,7 +318,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         }
 
         if (auth.isDuplicateCredential(credential.credentialType, credentialData, credential.credentialIndex)) {
-            return { status: Status.Failure, userIndex: null, nextCredentialIndex: null };
+            return { status: DoorLock.StatusCode.Duplicate, userIndex: null, nextCredentialIndex: null };
         }
 
         const nextCredentialIndex = auth.findNextAvailableCredentialIndex(
@@ -330,7 +330,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         if (operationType === DataOperationType.Add) {
             const existingCred = auth.findCredential(credential.credentialType, credential.credentialIndex);
             if (existingCred) {
-                return { status: Status.Failure, userIndex: null, nextCredentialIndex };
+                return { status: DoorLock.StatusCode.Occupied, userIndex: null, nextCredentialIndex };
             }
 
             auth.addCredential(credential.credentialType, credential.credentialIndex, credentialData, fabricIndex);
