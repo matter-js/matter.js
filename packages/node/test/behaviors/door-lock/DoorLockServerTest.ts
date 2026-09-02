@@ -333,7 +333,7 @@ describe("DoorLockServer", () => {
         });
     });
 
-    it("accepts the programming user type when modifying without a user index", async () => {
+    it("requires the programming user type when modifying without a user index", async () => {
         await using lock = await createLock();
 
         await lock.node.online({}, async agent => {
@@ -348,7 +348,6 @@ describe("DoorLockServer", () => {
                 userType: null,
             });
 
-            // The CHIP SDK detects this combination and proceeds, so it is accepted rather than refused
             const modified = await doorLock.setCredential({
                 operationType: DoorLock.DataOperationType.Modify,
                 credential: { credentialType: DoorLock.CredentialType.Pin, credentialIndex: 1 },
@@ -358,6 +357,16 @@ describe("DoorLockServer", () => {
                 userType: DoorLock.UserType.ProgrammingUser,
             });
             expect(modified.status).equals(Status.Success);
+
+            const withoutType = await doorLock.setCredential({
+                operationType: DoorLock.DataOperationType.Modify,
+                credential: { credentialType: DoorLock.CredentialType.Pin, credentialIndex: 1 },
+                credentialData: pin("9012"),
+                userIndex: null,
+                userStatus: null,
+                userType: null,
+            });
+            expect(withoutType.status).equals(Status.InvalidCommand);
         });
     });
     it("reports DUPLICATE ahead of a malformed user field", async () => {

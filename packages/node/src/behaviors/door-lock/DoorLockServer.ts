@@ -1026,9 +1026,9 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
             return userType !== UserType.ProgrammingUser;
         }
 
-        // Modifying the programming user's PIN states ProgrammingUser, which the CHIP SDK does not enforce
+        // Modifying the programming user's PIN is the one case that states a user type rather than forbidding one
         if (operationType === DataOperationType.Modify && userIndex === null) {
-            return true;
+            return userStatus === null && userType === UserType.ProgrammingUser;
         }
 
         return userStatus === null && userType === null;
