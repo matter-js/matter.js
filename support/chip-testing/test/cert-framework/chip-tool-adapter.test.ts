@@ -734,6 +734,18 @@ describe("ChipToolControllerAdapter", function () {
         expect(fake.commands).deep.equal([]);
     });
 
+    it("reports what the controller itself holds as unsupported, without issuing anything", async () => {
+        const { node } = await commissioned();
+
+        expect(await rejectionOf(node.clientEndpoints())).instanceOf(UnsupportedByControllerError);
+        expect(
+            await rejectionOf(
+                node.clientAttribute({ endpoint: 1, cluster: requireId(ON_OFF.id, "OnOff"), attribute: 0 }),
+            ),
+        ).instanceOf(UnsupportedByControllerError);
+        expect(fake.commands).deep.equal([]);
+    });
+
     it("writes two attributes of two clusters, with their data versions, in one command", async () => {
         const { ref, node } = await commissioned();
 

@@ -138,8 +138,12 @@ describe("BridgeTestInstance", () => {
         expect(added!.stateOf(BridgedDeviceBasicInformationServer).nodeLabel).equal("Light 2");
         expect(partsOf(endpoints(instance).get(1)!)).contains(13);
 
+        // The endpoint map is keyed by endpoint number, so a duplicate could never show up in it;
+        // the aggregator's own list is where one would. Without the guard the second add throws on
+        // the endpoint id instead, which is the same claim from the other side
+        const partsBefore = partsOf(endpoints(instance).get(1)!);
         await instance.backchannel({ name: "addBridgedLight" });
-        expect([...endpoints(instance).keys()].filter(number => number === 13).length).equal(1);
+        expect(partsOf(endpoints(instance).get(1)!)).deep.equal(partsBefore);
     });
 
     it("removes the first light, and does nothing when it is already gone", async () => {

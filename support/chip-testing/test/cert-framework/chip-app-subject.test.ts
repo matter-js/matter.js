@@ -494,15 +494,23 @@ describe("ChipLocalSubject", () => {
             const lines = device.log.follow();
             expect(await collectLines(lines, 1, 5_000)).deep.equal(["ready"]);
 
-            const started = performance.now();
-            await device.backchannel({ name: "addBridgedLight" });
-            await device.backchannel({ name: "warmBridgedTemperatureSensors" });
+            // Sent together rather than one after the other: awaiting the first would hide the pause
+            // inside its own call, and two callers at once is also what the queue has to serialize
+            const sent = Promise.all([
+                device.backchannel({ name: "addBridgedLight" }),
+                device.backchannel({ name: "warmBridgedTemperatureSensors" }),
+            ]);
 
-            expect(await collectLines(lines, 2, 5_000)).deep.equal(["stdin 2", "stdin t"]);
+            expect(await collectLines(lines, 1, 5_000)).deep.equal(["stdin 2"]);
+            const firstSeen = performance.now();
+            expect(await collectLines(lines, 1, 5_000)).deep.equal(["stdin t"]);
+            const secondSeen = performance.now();
+
+            await sent;
 
             // The app reads one character per poll of its standard input and drops the rest of a
             // batch, so two commands must not travel together
-            expect(performance.now() - started).greaterThan(MIN_STDIN_GAP_MS);
+            expect(secondSeen - firstSeen).greaterThan(MIN_STDIN_GAP_MS);
         } finally {
             await device.stop();
             await device.close();

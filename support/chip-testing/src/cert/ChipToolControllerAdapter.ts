@@ -28,6 +28,7 @@ import type {
     CertGroupApi,
     CertNodeApi,
     CertNodeRef,
+    ClientAttributePath,
     ClientEndpointEntry,
     CommissioningTarget,
     ControllerAdapter,
@@ -1073,24 +1074,6 @@ class ChipToolCertNodeApi implements CertNodeApi {
      * command's result slot is returned here as well as delivered to that subscription's `onUpdate`.
      * Assert on the events, not on how many arrived.
      */
-    async clientEndpoints(): Promise<ClientEndpointEntry[]> {
-        throw new UnsupportedByControllerError(
-            "the endpoints the controller holds for a node",
-            "chip-tool",
-            "chip-tool answers each command from the device and keeps no device list between them, so " +
-                "there is nothing of its own to report",
-        );
-    }
-
-    async clientAttribute(_path: Required<AttributePathSpec>): Promise<unknown> {
-        throw new UnsupportedByControllerError(
-            "the value the controller holds for an attribute",
-            "chip-tool",
-            "chip-tool answers each command from the device and keeps no state between them, so there " +
-                "is nothing of its own to report",
-        );
-    }
-
     async readEvents(paths: EventPathSpec[], options?: ReadEventOptions): Promise<EventReadEntry[]> {
         if (paths.length === 0) {
             throw new ImplementationError("readEvents requires at least one path");
@@ -1152,6 +1135,24 @@ class ChipToolCertNodeApi implements CertNodeApi {
 
         const reply = await this.#adapter.subscribeEvents(this.#node, paths, opts);
         return toEventEntries(reply.events.filter(entry => paths.some(path => eventPathCovers(path, entry))));
+    }
+
+    async clientEndpoints(): Promise<ClientEndpointEntry[]> {
+        throw new UnsupportedByControllerError(
+            "the endpoints the controller holds for a node",
+            "chip-tool",
+            "chip-tool answers each command from the device and keeps no device list between them, so " +
+                "there is nothing of its own to report",
+        );
+    }
+
+    async clientAttribute(_path: ClientAttributePath): Promise<unknown> {
+        throw new UnsupportedByControllerError(
+            "the value the controller holds for an attribute",
+            "chip-tool",
+            "chip-tool answers each command from the device and keeps no state between them, so there " +
+                "is nothing of its own to report",
+        );
     }
 
     async openCommissioningWindow(opts: {

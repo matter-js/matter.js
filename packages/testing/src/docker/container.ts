@@ -153,9 +153,8 @@ export namespace Container {
          * Whether the container's standard input closes as soon as the first attached client
          * detaches, Docker's default for an interactive container.
          *
-         * Set false for a container something writes commands to over its whole life: an app that
-         * polls a closed standard input reads end-of-file without ever blocking, which turns its
-         * poll loop into a busy one.
+         * Set false for a container something writes commands to over its whole life, so a later
+         * command still has an input to arrive on.
          */
         stdinOnce?: boolean;
         cwd?: string;

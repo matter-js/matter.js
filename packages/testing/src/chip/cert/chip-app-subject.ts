@@ -168,8 +168,10 @@ class StdinPacer {
         await previous;
         try {
             await write();
-            await new Promise(resolve => setTimeout(resolve, STDIN_COMMAND_GAP_MS));
         } finally {
+            // Left whether or not the write succeeded: a write that failed part-way still may have
+            // put a character in front of the app
+            await new Promise(resolve => setTimeout(resolve, STDIN_COMMAND_GAP_MS));
             release();
         }
     }
