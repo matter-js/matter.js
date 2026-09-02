@@ -68,6 +68,7 @@ import type {
     BatchCommandSpec,
     CertGroupApi,
     CertNodeApi,
+    ClientAttributePath,
     ClientEndpointEntry,
     CertNodeRef,
     CommissioningTarget,
@@ -727,7 +728,7 @@ class InProcessCertNodeApi implements CertNodeApi {
         });
     }
 
-    clientAttribute(path: Required<AttributePathSpec>): Promise<unknown> {
+    clientAttribute(path: ClientAttributePath): Promise<unknown> {
         return runTagged(this.#adapterId, async () => {
             let endpoint: Endpoint | undefined;
             this.#peer.visit(candidate => {

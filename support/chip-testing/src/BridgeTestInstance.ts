@@ -52,13 +52,19 @@ const INITIAL_MEASURED_VALUE = 100;
 /** The device type chip adds beside Bridged Node on the top of its composed device. */
 const POWER_SOURCE_DEVICE_TYPE = "PowerSource";
 
-/** The battery level chip's composed device reports. */
+/**
+ * The battery level the composed device reports.
+ *
+ * Not chip's own value: chip's bridge app writes a raw 58 straight onto the wire, which is not one of
+ * the three the cluster defines (Application Clusters § 11.7.6.7), so this reports the nearest legal
+ * one instead.
+ */
 const BAT_CHARGE_LEVEL = PowerSource.BatChargeLevel.Ok;
 
 /**
  * A bridge whose exposed devices match those of chip's `bridge-app`: a light, two temperature
  * sensors, a battery-powered composed device carrying two more temperature sensors, and four further
- * lights, with a fifth light that can be added and removed while the bridge runs.
+ * lights. A sixth light can be added while the bridge runs, and the first can be removed.
  *
  * The layout is chip's rather than this repository's own choice because the bridge test plans name
  * endpoint numbers, and a plan step that reads endpoint 6 has to find the same device on both
@@ -264,7 +270,7 @@ export class BridgeTestInstance extends NodeTestInstance {
 
     #endpoint(number: number) {
         let found: Endpoint | undefined;
-        this.node?.visit(endpoint => {
+        this.node.visit(endpoint => {
             if (endpoint.number === number) {
                 found = endpoint;
             }

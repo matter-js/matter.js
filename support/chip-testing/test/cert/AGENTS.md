@@ -54,7 +54,7 @@ to an app this way:
 | TC prefix (examples)              | app          | chip binary               | matterjs registered today? |
 | ---------------------------------- | ------------ | -------------------------- | --------------------------- |
 | `IDM`, `CADMIN`, most generic/core  | `all-clusters` | `chip-all-clusters-app`   | yes (`AllClustersTestInstance`) |
-| `ACT`                               | `bridge`     | `chip-bridge-app`          | yes (`BridgeTestInstance`) |
+| `ACT`, `BR`                         | `bridge`     | `chip-bridge-app`          | yes (`BridgeTestInstance`) |
 | Media Playback/App-cluster TCs      | `tv`         | `chip-tv-app`               | no — `TvTestInstance` exists but isn't wired into `registerMatterJsCertSubject` yet |
 | `DRLK`                              | `lock`       | `chip-lock-app`             | no — no matterjs lock `TestInstance` exists in this package yet |
 | `WEBRTCR`                           | `camera`     | `chip-camera-app`           | no — no matterjs camera `TestInstance` exists in this package yet |
@@ -537,6 +537,9 @@ steps still run — rather than a wrong answer, and today that means:
   Matter Core § 8.9.2.8 requires one per concrete path.
 - **A value whose encoded form contains `;`** — chip-tool splits its `attribute-values` argument on it.
 - **More than 64 paths in one read or write** — chip-tool's own `kMaxAllowedPaths`.
+- **What the controller itself holds** — `clientEndpoints()` and `clientAttribute()` (`TC-BR-4`).
+  chip-tool answers each command straight from the device and keeps nothing between them, so it has
+  no device list and no attribute state of its own to report.
 
 Multi-cluster reads and multi-attribute writes *are* supported: chip-tool zips its cluster/attribute/
 endpoint id lists element-wise when their lengths match (`InteractionModelConfig::GetAttributePaths`),
@@ -2475,8 +2478,8 @@ the first and never polls for the others again. Measured against the real binary
 written back to back produced one. `StdinPacer` serializes the writes and leaves 250ms between them.
 
 A container's standard input also closes as soon as the first attached client detaches (Docker's
-`StdinOnce`), after which the app's poll loop reads end-of-file without ever blocking and spins a
-core — so a subject we write to for its whole life is created with `stdinOnce: false`.
+`StdinOnce`), and every later command then has nothing to arrive on — so a subject we write to for
+its whole life is created with `stdinOnce: false`.
 
 ### The plan's endpoint list does not match the app the plan names
 

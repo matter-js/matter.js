@@ -177,6 +177,16 @@ export interface AttributeReadEntry {
  * controller believes, which is the only way to tell whether a controller noticed a bridge adding or
  * removing a device rather than merely being able to see it.
  */
+/**
+ * A concrete attribute path, spelled out rather than derived from {@link AttributePathSpec}: an
+ * optional field added there later would silently become mandatory at every call site.
+ */
+export interface ClientAttributePath {
+    endpoint: number;
+    cluster: number;
+    attribute: number;
+}
+
 export interface ClientEndpointEntry {
     endpoint: number;
     deviceTypes: number[];
@@ -344,6 +354,16 @@ export interface CertNodeApi {
      * A node with no records for a selected path answers with neither data nor a status, so an empty
      * result is a successful read, not a failure.
      */
+    readEvents(paths: EventPathSpec[], options?: ReadEventOptions): Promise<EventReadEntry[]>;
+
+    /**
+     * Subscribes to every event `paths` selects (Matter Core § 8.5), resolving with the priming
+     * report's events; later reports reach `opts.onUpdate`.
+     *
+     * Rejects on a concrete path's status for the same reason {@link subscribe} does.
+     */
+    subscribeEvents(paths: EventPathSpec[], opts: SubscribeEventOptions): Promise<EventReadEntry[]>;
+
     /**
      * The endpoints the controller holds for this node, from its own state rather than from a read.
      *
@@ -358,17 +378,7 @@ export interface CertNodeApi {
      *
      * As {@link clientEndpoints}, and refused the same way.
      */
-    clientAttribute(path: Required<AttributePathSpec>): Promise<unknown>;
-
-    readEvents(paths: EventPathSpec[], options?: ReadEventOptions): Promise<EventReadEntry[]>;
-
-    /**
-     * Subscribes to every event `paths` selects (Matter Core § 8.5), resolving with the priming
-     * report's events; later reports reach `opts.onUpdate`.
-     *
-     * Rejects on a concrete path's status for the same reason {@link subscribe} does.
-     */
-    subscribeEvents(paths: EventPathSpec[], opts: SubscribeEventOptions): Promise<EventReadEntry[]>;
+    clientAttribute(path: ClientAttributePath): Promise<unknown>;
     openCommissioningWindow(opts: {
         timeout: number;
         enhanced: boolean;

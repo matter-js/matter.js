@@ -11,6 +11,7 @@ import { certTest } from "@matter/testing";
 import {
     CertCheckFailedError,
     CommissionedRefs,
+    describeValue,
     expectAttributePathIB,
     expectCommandInvoke,
     LOG_TIMEOUT,
@@ -71,12 +72,22 @@ const LIGHTS = [3, 9, 10, 11, 12];
 const TEMPERATURE_SENSORS = [4, 5, 7, 8];
 const COMPOSED_ENDPOINT = 6;
 const COMPOSED_SENSORS = [7, 8];
-const ADDED_LIGHT_ENDPOINT = 13;
-const REMOVED_LIGHT_ENDPOINT = 3;
 
-/** The light the plan renames, and the name it renames it to. */
-const RENAMED_LIGHT_ENDPOINT = 3;
+/**
+ * The bridge's first light — the one every command the plan uses acts on: chip's toggle switches it,
+ * its rename renames it, and its remove removes it. The four beyond it belong to the Actions plan and
+ * no command here touches them, which is what makes them the control group for a toggle.
+ */
+const LIGHT_1_ENDPOINT = 3;
+
+/** The light the bridge gains in step 3c, which is a different device from {@link LIGHT_1_ENDPOINT}. */
+const ADDED_LIGHT_ENDPOINT = 13;
+
+/** The name step 3a renames {@link LIGHT_1_ENDPOINT} to. */
 const RENAMED_LABEL = "Light 1b";
+
+/** How far one warming moves a sensor, in the hundredths of a degree the cluster reports. */
+const ONE_DEGREE = 100;
 
 /**
  * How long the DUT is given to take in a change the TH made.
@@ -318,7 +329,7 @@ certTest("TC-BR-4", {
                 {
                     check: () => ({
                         type: "response",
-                        verdict: agreeing.length === held.length ? "pass" : "fail",
+                        verdict: held.length > 0 && agreeing.length === held.length ? "pass" : "fail",
                         detail: `the DUT holds the name the TH reports on ${agreeing.length} of ${held.length} endpoints`,
                     }),
                     what: "the DUT's own device list carries those names",
@@ -346,22 +357,32 @@ certTest("TC-BR-4", {
         "1e",
         "Use TH/bridge-app to change the on/off state of one or more of the bridged On/Off lights",
         async cx => {
-            const before = await heldAttribute(cx, REMOVED_LIGHT_ENDPOINT, ON_OFF_ID, ON_OFF_ATTRIBUTE_ID);
+            const before = await heldAttribute(cx, LIGHT_1_ENDPOINT, ON_OFF_ID, ON_OFF_ATTRIBUTE_ID);
+            if (typeof before !== "boolean") {
+                throw new CertCheckFailedError(
+                    `the DUT holds no OnOff for endpoint ${LIGHT_1_ENDPOINT} (${describeValue(before)}), so a ` +
+                        "toggle it took in cannot be told from a first value arriving",
+                );
+            }
 
             await cx.devices.th.backchannel({ name: "toggleBridgedLights" });
 
+            // A first report of the value the light already had would satisfy a mere "it differs"
+            // without a toggle having been seen, so the wait names the value it must reach
+            const expected = !before;
             const noticed = await until(
-                async () =>
-                    (await heldAttribute(cx, REMOVED_LIGHT_ENDPOINT, ON_OFF_ID, ON_OFF_ATTRIBUTE_ID)) !== before,
+                async () => (await heldAttribute(cx, LIGHT_1_ENDPOINT, ON_OFF_ID, ON_OFF_ATTRIBUTE_ID)) === expected,
             );
-            const after = await heldAttribute(cx, REMOVED_LIGHT_ENDPOINT, ON_OFF_ID, ON_OFF_ATTRIBUTE_ID);
+            const after = await heldAttribute(cx, LIGHT_1_ENDPOINT, ON_OFF_ID, ON_OFF_ATTRIBUTE_ID);
 
             record(
                 cx,
                 {
                     type: "response",
                     verdict: noticed ? "pass" : "fail",
-                    detail: `the DUT held ${before} for endpoint ${REMOVED_LIGHT_ENDPOINT}'s OnOff and now holds ${after}`,
+                    detail:
+                        `the DUT held ${before} for endpoint ${LIGHT_1_ENDPOINT}'s OnOff and now holds ${after}, ` +
+                        `where the toggle makes it ${expected}`,
                 },
                 "the DUT took in the light the TH switched",
             );
@@ -391,11 +412,20 @@ certTest("TC-BR-4", {
         async cx => {
             const sensor = TEMPERATURE_SENSORS[0];
             const before = await heldAttribute(cx, sensor, TEMPERATURE_ID, MEASURED_VALUE_ID);
+            if (typeof before !== "number") {
+                throw new CertCheckFailedError(
+                    `the DUT holds no MeasuredValue for endpoint ${sensor} (${describeValue(before)}), so a ` +
+                        "warming it took in cannot be told from a first value arriving",
+                );
+            }
 
             await cx.devices.th.backchannel({ name: "warmBridgedTemperatureSensors" });
 
+            // A first report of the temperature the sensor already had would satisfy a mere "it
+            // differs" without a warming having been seen, so the wait names the value it must reach
+            const expected = before + ONE_DEGREE;
             const noticed = await until(
-                async () => (await heldAttribute(cx, sensor, TEMPERATURE_ID, MEASURED_VALUE_ID)) !== before,
+                async () => (await heldAttribute(cx, sensor, TEMPERATURE_ID, MEASURED_VALUE_ID)) === expected,
             );
             const after = await heldAttribute(cx, sensor, TEMPERATURE_ID, MEASURED_VALUE_ID);
 
@@ -404,7 +434,9 @@ certTest("TC-BR-4", {
                 {
                     type: "response",
                     verdict: noticed ? "pass" : "fail",
-                    detail: `the DUT held ${before} for endpoint ${sensor}'s MeasuredValue and now holds ${after}`,
+                    detail:
+                        `the DUT held ${before} for endpoint ${sensor}'s MeasuredValue and now holds ${after}, ` +
+                        `where one warming makes it ${expected}`,
                 },
                 "the DUT took in the temperature the TH changed",
             );
@@ -440,8 +472,8 @@ certTest("TC-BR-4", {
                 {
                     check: () => ({
                         type: "response",
-                        verdict: held === read ? "pass" : "fail",
-                        detail: `the DUT holds ${held} where the TH reports ${read}`,
+                        verdict: read !== undefined && held === read ? "pass" : "fail",
+                        detail: `the DUT holds ${describeValue(held)} where the TH reports ${describeValue(read)}`,
                     }),
                     what: "the DUT's own device list carries that battery level",
                 },
@@ -459,22 +491,22 @@ certTest("TC-BR-4", {
             const th = cx.devices.th;
             const from = await th.log.markSettled();
 
-            await node(cx).invoke("OnOff", "on", {}, LIGHTS[0]);
+            await node(cx).invoke("OnOff", "on", {}, LIGHT_1_ENDPOINT);
 
             const logCheck = await expectCommandInvoke(
                 th.log,
                 th.flavor,
-                LIGHTS[0],
+                LIGHT_1_ENDPOINT,
                 ON_OFF_ID,
                 requireId(ON_OFF.commands.require("on").id, "OnOff.on"),
                 [],
                 from,
                 LOG_TIMEOUT,
             );
-            record(cx, logCheck, `the TH received the DUT's On command for endpoint ${LIGHTS[0]}`);
+            record(cx, logCheck, `the TH received the DUT's On command for endpoint ${LIGHT_1_ENDPOINT}`);
 
             const value = await node(cx).readAttribute({
-                endpoint: LIGHTS[0],
+                endpoint: LIGHT_1_ENDPOINT,
                 cluster: ON_OFF_ID,
                 attribute: ON_OFF_ATTRIBUTE_ID,
             });
@@ -484,7 +516,7 @@ certTest("TC-BR-4", {
                 {
                     type: "response",
                     verdict: value === true ? "pass" : "fail",
-                    detail: `endpoint ${LIGHTS[0]}'s OnOff reads ${value} after the command`,
+                    detail: `endpoint ${LIGHT_1_ENDPOINT}'s OnOff reads ${value} after the command`,
                 },
                 "the bridged light the DUT commanded is on",
             );
@@ -503,16 +535,16 @@ certTest("TC-BR-4", {
 
             const noticed = await until(
                 async () =>
-                    (await heldAttribute(cx, RENAMED_LIGHT_ENDPOINT, BRIDGED_INFO_ID, NODE_LABEL_ID)) === RENAMED_LABEL,
+                    (await heldAttribute(cx, LIGHT_1_ENDPOINT, BRIDGED_INFO_ID, NODE_LABEL_ID)) === RENAMED_LABEL,
             );
-            const held = await heldAttribute(cx, RENAMED_LIGHT_ENDPOINT, BRIDGED_INFO_ID, NODE_LABEL_ID);
+            const held = await heldAttribute(cx, LIGHT_1_ENDPOINT, BRIDGED_INFO_ID, NODE_LABEL_ID);
 
             record(
                 cx,
                 {
                     type: "response",
                     verdict: noticed ? "pass" : "fail",
-                    detail: `the DUT holds ${JSON.stringify(held)} for endpoint ${RENAMED_LIGHT_ENDPOINT}'s NodeLabel`,
+                    detail: `the DUT holds ${JSON.stringify(held)} for endpoint ${LIGHT_1_ENDPOINT}'s NodeLabel`,
                 },
                 "the DUT took in the renamed bridged light",
             );
@@ -530,8 +562,8 @@ certTest("TC-BR-4", {
         "Verify DUT contains the updated name for the renamed device",
         async cx => {
             const entries = await readEveryEndpoint(cx, "NodeLabel", BRIDGED_INFO_ID, NODE_LABEL_ID);
-            const read = valueAt(entries, RENAMED_LIGHT_ENDPOINT, BRIDGED_INFO_ID, NODE_LABEL_ID);
-            const held = await heldAttribute(cx, RENAMED_LIGHT_ENDPOINT, BRIDGED_INFO_ID, NODE_LABEL_ID);
+            const read = valueAt(entries, LIGHT_1_ENDPOINT, BRIDGED_INFO_ID, NODE_LABEL_ID);
+            const held = await heldAttribute(cx, LIGHT_1_ENDPOINT, BRIDGED_INFO_ID, NODE_LABEL_ID);
 
             record(
                 cx,
@@ -638,7 +670,7 @@ certTest("TC-BR-4", {
             await cx.devices.th.backchannel({ name: "removeBridgedLight" });
 
             const noticed = await until(
-                async () => !(await heldEndpoints(cx)).some(entry => entry.endpoint === REMOVED_LIGHT_ENDPOINT),
+                async () => !(await heldEndpoints(cx)).some(entry => entry.endpoint === LIGHT_1_ENDPOINT),
             );
 
             const parts = await readEveryEndpoint(cx, "PartsList", DESCRIPTOR_ID, PARTS_LIST_ID);
@@ -650,7 +682,7 @@ certTest("TC-BR-4", {
                     check: () => ({
                         type: "response",
                         verdict: noticed ? "pass" : "fail",
-                        detail: `the DUT ${noticed ? "no longer holds" : "still holds"} endpoint ${REMOVED_LIGHT_ENDPOINT}`,
+                        detail: `the DUT ${noticed ? "no longer holds" : "still holds"} endpoint ${LIGHT_1_ENDPOINT}`,
                     }),
                     what: "the DUT took in the bridged light the TH removed",
                 },
@@ -658,8 +690,7 @@ certTest("TC-BR-4", {
                     check: () => ({
                         type: "response",
                         verdict:
-                            !rootParts.includes(REMOVED_LIGHT_ENDPOINT) &&
-                            !aggregatorParts.includes(REMOVED_LIGHT_ENDPOINT)
+                            !rootParts.includes(LIGHT_1_ENDPOINT) && !aggregatorParts.includes(LIGHT_1_ENDPOINT)
                                 ? "pass"
                                 : "fail",
                         detail:
@@ -687,7 +718,7 @@ certTest("TC-BR-4", {
                 cx,
                 {
                     type: "response",
-                    verdict: heldEndpoint(held, REMOVED_LIGHT_ENDPOINT) === undefined ? "pass" : "fail",
+                    verdict: heldEndpoint(held, LIGHT_1_ENDPOINT) === undefined ? "pass" : "fail",
                     detail: `the DUT's device list names endpoints ${held.map(entry => entry.endpoint).join(", ")}`,
                 },
                 "the DUT's own device list no longer names the removed device",
@@ -720,25 +751,29 @@ async function recordLightState(cx: CertStepContext, what: string) {
         }
     }
 
-    const missing = LIGHTS.filter(number => !answered.includes(number) && number !== REMOVED_LIGHT_ENDPOINT);
+    const missing = LIGHTS.filter(number => !answered.includes(number));
 
     recordAll(cx, [
         {
             check: () => ({
                 type: "response",
                 verdict: missing.length === 0 ? "pass" : "fail",
-                detail: `the DUT read OnOff from endpoints ${answered.join(", ")}`,
+                detail:
+                    missing.length === 0
+                        ? `the DUT read OnOff from endpoints ${answered.join(", ")}`
+                        : `the DUT read OnOff from endpoints ${answered.join(", ")}, and none for ` +
+                          `${missing.join(", ")}`,
             }),
             what,
         },
         {
             check: () => ({
                 type: "response",
-                verdict: disagreeing.length === 0 ? "pass" : "fail",
+                verdict: answered.length > 0 && disagreeing.length === 0 ? "pass" : "fail",
                 detail:
-                    disagreeing.length === 0
-                        ? `the DUT holds the state the TH reports on all ${answered.length} endpoints`
-                        : `the DUT holds a different state on endpoints ${disagreeing.join(", ")}`,
+                    disagreeing.length > 0
+                        ? `the DUT holds a different state on endpoints ${disagreeing.join(", ")}`
+                        : `the DUT holds the state the TH reports on all ${answered.length} endpoints`,
             }),
             what: "the DUT's own device list carries those states",
         },
@@ -759,30 +794,28 @@ async function recordTemperatures(cx: CertStepContext, what: string) {
     }
 
     const missing = TEMPERATURE_SENSORS.filter(number => !answered.includes(number));
-    if (missing.length > 0) {
-        throw new CertCheckFailedError(
-            `the TH answered no MeasuredValue for endpoints ${missing.join(", ")}, so it is not the bridge this ` +
-                "case is written against",
-        );
-    }
 
     recordAll(cx, [
         {
             check: () => ({
                 type: "response",
-                verdict: "pass",
-                detail: `the DUT read MeasuredValue from endpoints ${answered.join(", ")}`,
+                verdict: missing.length === 0 ? "pass" : "fail",
+                detail:
+                    missing.length === 0
+                        ? `the DUT read MeasuredValue from endpoints ${answered.join(", ")}`
+                        : `the DUT read MeasuredValue from endpoints ${answered.join(", ")}, and none for ` +
+                          `${missing.join(", ")}`,
             }),
             what,
         },
         {
             check: () => ({
                 type: "response",
-                verdict: disagreeing.length === 0 ? "pass" : "fail",
+                verdict: answered.length > 0 && disagreeing.length === 0 ? "pass" : "fail",
                 detail:
-                    disagreeing.length === 0
-                        ? `the DUT holds the temperature the TH reports on all ${answered.length} endpoints`
-                        : `the DUT holds a different temperature on endpoints ${disagreeing.join(", ")}`,
+                    disagreeing.length > 0
+                        ? `the DUT holds a different temperature on endpoints ${disagreeing.join(", ")}`
+                        : `the DUT holds the temperature the TH reports on all ${answered.length} endpoints`,
             }),
             what: "the DUT's own device list carries those temperatures",
         },
