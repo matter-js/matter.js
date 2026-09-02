@@ -197,6 +197,12 @@ certTest("TC-BR-4", {
     plan: "bridge.adoc",
     pics: ["MCORE.BRIDGECLIENT"],
     app: "bridge",
+
+    // chip's bridge-app cannot encode PowerSource.GeneratedCommandList on its composed endpoint and
+    // destroys the read handler mid-chunk, so a controller's wildcard read of the bridge never
+    // completes and it never subscribes. Restore the chip flavors once
+    // https://github.com/project-chip/connectedhomeip/issues/73561 is fixed.
+    flavors: ["matterjs"],
 })
     .step(
         "1a",
