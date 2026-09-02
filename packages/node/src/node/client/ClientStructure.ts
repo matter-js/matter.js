@@ -33,6 +33,7 @@ import {
     AttributeList,
     ClusterRevision,
     DeviceClassification,
+    EndpointComposition,
     FeatureMap,
     GeneratedCommandList,
     type FeatureBitmap,
@@ -91,6 +92,20 @@ export class ClientStructure {
     #attributeIds = new Map<ClusterId, Map<string, number>>();
     #delayedClusterEvents = new Array<ReadResult.EventValue>();
     #clustersWithDataThisInteraction = new Set<ClusterStructure>();
+
+    /**
+     * Which endpoints have named each part in a `PartsList`, and what each of those lists contained.
+     *
+     * Parenthood cannot be decided from a single list, because a device type composing its list of
+     * every descendant ({@link EndpointComposition.FullFamily}) says nothing about which endpoint owns
+     * a part. A claim stays here until it can be decided; nothing is ever reparented, so an
+     * undecidable claim waits for the read that settles it rather than being guessed at.
+     */
+    #partClaims = new Map<EndpointStructure, Set<EndpointStructure>>();
+    #partsListOf = new Map<EndpointStructure, Set<number>>();
+
+    /** The endpoints whose device type composes their `PartsList` of every descendant. */
+    #fullFamilyEndpoints = new Set<EndpointStructure>();
     #events: ClientStructureEvents;
     #changed = Observable<[void]>();
     #commandFactory?: ClusterBehaviorType.CommandFactory;
@@ -157,6 +172,8 @@ export class ClientStructure {
                 this.#synchronizeCluster(endpoint, this.#clusterFor(endpoint, id));
             }
         }
+
+        this.#resolvePartClaims();
 
         const changes = this.#pendingChanges;
         this.#pendingChanges = new Map();
@@ -309,22 +326,7 @@ export class ClientStructure {
 
         // We don't apply structural changes until we've processed all attribute data if a.) listeners might otherwise
         // see partially initialized endpoints, or b.) the change requires an async operation
-        for (const [endpoint, change] of this.#pendingChanges.entries()) {
-            this.#pendingChanges.delete(endpoint);
-
-            if (change.erase) {
-                await this.#erase(endpoint);
-                continue;
-            }
-
-            if (change.rebuild) {
-                await this.#rebuild(endpoint);
-            }
-
-            if (change.install) {
-                this.#install(endpoint);
-            }
-        }
+        await this.#applyPendingChanges();
 
         // Likewise, we don't emit events until we've applied all structural changes
         this.#emitPendingStructureEvents();
@@ -377,22 +379,7 @@ export class ClientStructure {
         }
 
         // Apply pending structural changes
-        for (const [endpoint, change] of this.#pendingChanges.entries()) {
-            this.#pendingChanges.delete(endpoint);
-
-            if (change.erase) {
-                await this.#erase(endpoint);
-                continue;
-            }
-
-            if (change.rebuild) {
-                await this.#rebuild(endpoint);
-            }
-
-            if (change.install) {
-                this.#install(endpoint);
-            }
-        }
+        await this.#applyPendingChanges();
 
         this.#emitPendingStructureEvents();
     }
@@ -788,6 +775,10 @@ export class ClientStructure {
                 const model = this.#node.matter.deviceTypes(dt.deviceType);
                 if (model !== undefined) {
                     isApp = DeviceClassification.isApplication(model.classification);
+
+                    if (model.effectiveComposition === EndpointComposition.FullFamily) {
+                        this.#fullFamilyEndpoints.add(structure);
+                    }
                 }
 
                 // Root endpoint really needs to be a root endpoint so ignore any noise that would disrupt that
@@ -857,31 +848,24 @@ export class ClientStructure {
             return;
         }
 
-        // Ensure an endpoint is present and installed for each part in the partsList
+        // Record who named each part. Which of them owns it is decided by #resolvePartClaims, once
+        // every list this interaction carries is in.
+        const named = new Set<number>();
         for (const partNo of partsList) {
             if (typeof partNo !== "number") {
                 continue;
             }
+            named.add(partNo);
 
             const part = this.#endpointFor(partNo as EndpointNumber);
-
-            let isAlreadyDescendant = false;
-            for (let owner = this.#ownerOf(part); owner; owner = this.#ownerOf(owner)) {
-                if (owner === structure) {
-                    isAlreadyDescendant = true;
-                    break;
-                }
+            let claimants = this.#partClaims.get(part);
+            if (claimants === undefined) {
+                claimants = new Set();
+                this.#partClaims.set(part, claimants);
             }
-
-            if (isAlreadyDescendant) {
-                continue;
-            }
-
-            part.pendingOwner = structure;
-            // TODO Should we somehow validate that against descriptor serverList because we might load data not in
-            // there
-            this.#scheduleStructureChange(part, "install");
+            claimants.add(structure);
         }
+        this.#partsListOf.set(structure, named);
 
         // For the root partsList specifically, if an endpoint is no longer present then it has been removed from the
         // node.  Schedule for erase
@@ -1027,6 +1011,12 @@ export class ClientStructure {
         );
 
         this.#endpoints.delete(endpoint.number);
+        this.#partClaims.delete(structure);
+        this.#partsListOf.delete(structure);
+        this.#fullFamilyEndpoints.delete(structure);
+        for (const claimants of this.#partClaims.values()) {
+            claimants.delete(structure);
+        }
 
         // Skip deletion if the endpoint was already destroyed, e.g. because a parent endpoint was erased first and
         // recursively closed its children
@@ -1141,6 +1131,110 @@ export class ClientStructure {
                 });
             }
         }
+    }
+
+    /**
+     * Decide the owner of every part whose owner is now known, then apply the structural changes that
+     * fall out of it.
+     */
+    async #applyPendingChanges() {
+        this.#resolvePartClaims();
+
+        for (const [endpoint, change] of this.#pendingChanges.entries()) {
+            this.#pendingChanges.delete(endpoint);
+
+            if (change.erase) {
+                await this.#erase(endpoint);
+                continue;
+            }
+
+            if (change.rebuild) {
+                await this.#rebuild(endpoint);
+            }
+
+            if (change.install) {
+                this.#install(endpoint);
+            }
+        }
+    }
+
+    /**
+     * Give every part whose owner is now known an owner, and schedule its installation.
+     *
+     * A part named by an ordinary endpoint's list is that endpoint's child. A part named only by
+     * full-family lists is a child of the innermost of them — but only once every endpoint those lists
+     * name has reported its own parts, because until then a list naming it says no more than that it
+     * is somewhere below. An undecided claim stays for a later interaction to settle.
+     */
+    #resolvePartClaims() {
+        for (const [part, claimants] of [...this.#partClaims]) {
+            // Nothing is reparented: an endpoint the peer has already placed keeps its parent, and
+            // Matter has no operation that would move it (Core § 9.2.3's single-parent requirement)
+            if (this.#ownerOf(part) !== undefined) {
+                this.#partClaims.delete(part);
+                continue;
+            }
+
+            const owner = this.#ownerFor(part, claimants);
+            if (owner === undefined) {
+                continue;
+            }
+
+            this.#partClaims.delete(part);
+            part.pendingOwner = owner;
+            this.#scheduleStructureChange(part, "install");
+        }
+    }
+
+    /** The claimant that owns `part`, or `undefined` while that cannot be told from what has arrived. */
+    #ownerFor(part: EndpointStructure, claimants: Set<EndpointStructure>) {
+        const ordinary = new Array<EndpointStructure>();
+        const fullFamily = new Array<EndpointStructure>();
+        for (const claimant of claimants) {
+            (this.#isFullFamily(claimant) ? fullFamily : ordinary).push(claimant);
+        }
+
+        if (ordinary.length) {
+            if (ordinary.length > 1) {
+                logger.warn(
+                    `Taking ${ordinary[0].endpoint} as the parent of ${part.endpoint}:`,
+                    `the peer also named it a part of ${ordinary
+                        .slice(1)
+                        .map(claimant => claimant.endpoint.toString())
+                        .join(", ")}, and an endpoint has a single parent`,
+                );
+            }
+            return ordinary[0];
+        }
+
+        // The innermost full-family claimant, which is the one the others also name
+        const innermost = fullFamily.find(
+            candidate =>
+                !fullFamily.some(
+                    other => other !== candidate && this.#partsListOf.get(candidate)?.has(other.endpoint.number),
+                ),
+        );
+
+        return innermost !== undefined && this.#partsAccountedFor(innermost) ? innermost : undefined;
+    }
+
+    /**
+     * Whether every endpoint `structure` names has reported a `PartsList` of its own, which is what
+     * makes the parts it names and nobody else's its own children.
+     */
+    #partsAccountedFor(structure: EndpointStructure) {
+        for (const partNo of this.#partsListOf.get(structure) ?? []) {
+            const part = this.#endpoints.get(partNo as EndpointNumber);
+            if (part === undefined || this.#partsListOf.get(part) === undefined) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Whether `structure`'s `PartsList` names every descendant rather than its own children. */
+    #isFullFamily(structure: EndpointStructure) {
+        return this.#fullFamilyEndpoints.has(structure);
     }
 
     /**
