@@ -134,9 +134,16 @@ export namespace Conformance {
     }
 
     export enum Applicability {
+        /** The element may not appear */
         None = 0,
+
+        /** The implementation decides whether the element appears */
         Optional = 1,
+
+        /** Features alone do not decide; the record's own contents or the revision do */
         Conditional = 2,
+
+        /** The element must appear */
         Mandatory = 3,
     }
 
@@ -934,7 +941,9 @@ function computeApplicability(features: Set<string>, supportedFeatures: Set<stri
 
             default:
                 if (operators.has(ast.type)) {
-                    return Optional;
+                    // A comparison names a value this computation does not have, so its applicability is decidable
+                    // only once the record is known
+                    return Conditional;
                 }
         }
 
