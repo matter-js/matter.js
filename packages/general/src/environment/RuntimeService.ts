@@ -29,6 +29,9 @@ export class RuntimeService {
     #cancelled = new Set<Worker>();
     #workerDeleted = Observable<[]>();
     #canceled = false;
+
+    /** Set while {@link cancel} closes workers, so the disposals it adds do not read as new work. */
+    #cancelling = false;
     #started = Observable<[]>();
     #stopped = Observable<[]>();
     #crashed = Observable<[cause: any]>();
@@ -67,6 +70,14 @@ export class RuntimeService {
 
         if (this.#workers.has(worker)) {
             return;
+        }
+
+        // Work arriving means the runtime is no longer shutting down, so a cancellation waiting on a
+        // worker that had not finished starting must not still close it. Nothing disarms an
+        // already-scheduled onSuccess, so the schedule consults #cancelled when it fires.
+        if (this.#canceled && !this.#cancelling) {
+            this.#canceled = false;
+            this.#cancelled.clear();
         }
 
         this.#workers.add(worker);
@@ -162,11 +173,16 @@ export class RuntimeService {
         this.#canceled = true;
         logger.notice("Shutting down");
 
-        for (const worker of this.#workers) {
-            const disposal = this.#cancelWorker(worker);
-            if (disposal) {
-                this.add(disposal);
+        this.#cancelling = true;
+        try {
+            for (const worker of this.#workers) {
+                const disposal = this.#cancelWorker(worker);
+                if (disposal) {
+                    this.add(disposal);
+                }
             }
+        } finally {
+            this.#cancelling = false;
         }
     }
 
@@ -268,7 +284,13 @@ export class RuntimeService {
         };
 
         if (worker.construction) {
-            worker.construction.onSuccess(cancel);
+            this.#cancelled.add(worker);
+            worker.construction.onSuccess(() => {
+                // Only still wanted if the runtime has not taken on work since
+                if (this.#cancelled.has(worker)) {
+                    return cancel();
+                }
+            });
             return;
         }
 
