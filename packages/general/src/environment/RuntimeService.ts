@@ -32,6 +32,13 @@ export class RuntimeService {
 
     /** Set while {@link cancel} closes workers, so the disposals it adds do not read as new work. */
     #cancelling = false;
+
+    /**
+     * Identifies the current run of cancellations. A closure scheduled for the moment construction
+     * succeeds cannot be withdrawn, so it carries the generation it was scheduled in and acts only
+     * while that is still current — one closure per worker however often the runtime cancels.
+     */
+    #cancelGeneration = 0;
     #started = Observable<[]>();
     #stopped = Observable<[]>();
     #crashed = Observable<[cause: any]>();
@@ -78,6 +85,7 @@ export class RuntimeService {
         if (this.#canceled && !this.#cancelling) {
             this.#canceled = false;
             this.#cancelled.clear();
+            this.#cancelGeneration++;
         }
 
         this.#workers.add(worker);
@@ -284,10 +292,12 @@ export class RuntimeService {
         };
 
         if (worker.construction) {
+            const generation = this.#cancelGeneration;
             this.#cancelled.add(worker);
+
             worker.construction.onSuccess(() => {
                 // Only still wanted if the runtime has not taken on work since
-                if (this.#cancelled.has(worker)) {
+                if (generation === this.#cancelGeneration && this.#cancelled.has(worker)) {
                     return cancel();
                 }
             });
