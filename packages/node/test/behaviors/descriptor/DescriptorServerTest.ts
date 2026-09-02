@@ -13,6 +13,7 @@ import { OnOffLightSwitchDevice } from "#devices/on-off-light-switch";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
+import { BridgedNodeEndpoint } from "#endpoints/bridged-node";
 import type { Node } from "#node/Node.js";
 import { MockServerNode } from "@matter/node/testing";
 import { ClusterId, DeviceTypeId, EndpointNumber } from "@matter/types";
@@ -136,6 +137,45 @@ describe("DescriptorServer", () => {
             // { deviceType: 257, revision: 3 },
             // { deviceType: 256, revision: 3 },
         ]);
+    });
+
+    describe("composition", () => {
+        it("lists every descendant for an aggregator and only children for a bridged node", async () => {
+            // A bridged node carries IndexBehavior as root and aggregator do, but composes a tree
+            // (Matter Core § 9.2.3), so only its own children belong in its list
+            const node = await MockServerNode.create({
+                number: 0,
+                parts: [
+                    {
+                        type: AggregatorEndpoint,
+                        number: 1,
+                        parts: [
+                            {
+                                type: BridgedNodeEndpoint,
+                                number: 2,
+                                parts: [
+                                    {
+                                        type: OnOffLightDevice,
+                                        number: 3,
+                                        parts: [{ type: OnOffLightDevice, number: 4 }],
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            });
+
+            await node.env.get(NodeActivity).inactive;
+
+            const aggregator = [...node.parts][0];
+            const bridgedNode = [...aggregator.parts][0];
+            const light = [...bridgedNode.parts][0];
+
+            expect(aggregator.stateOf(DescriptorBehavior).partsList).deep.equals([2, 3, 4]);
+            expect(bridgedNode.stateOf(DescriptorBehavior).partsList).deep.equals([3]);
+            expect(light.stateOf(DescriptorBehavior).partsList).deep.equals([4]);
+        });
     });
 
     describe("adds parts automatically with indexed grandparent and parent", () => {

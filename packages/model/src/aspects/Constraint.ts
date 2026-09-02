@@ -219,21 +219,23 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
                     }
 
                     case ".": {
-                        const object = valueOf(value.lhs);
-                        if (!isObject(object)) {
+                        // The rhs names a member of the lhs, so it stays a name rather than resolving in the scope
+                        // the lhs resolves in
+                        const rhs = FieldValue.referenced(value.rhs);
+                        if (rhs === undefined) {
                             return undefined;
                         }
 
-                        // rhs may only legally be a name reference
-                        const rhs = FieldValue.referenced(valueOf(value.rhs));
-                        if (rhs === undefined) {
+                        const object = FieldValue.objectValue(valueOf(value.lhs));
+                        if (object === undefined) {
                             return undefined;
                         }
 
                         // Resolve name in context of object.  We aren't using schema here but Object.hasOwn is
                         // sufficient
-                        if (Object.hasOwn(object, rhs)) {
-                            return (object as Record<string, FieldValue>)[rhs];
+                        const name = camelize(rhs);
+                        if (Object.hasOwn(object, name)) {
+                            return object[name];
                         }
 
                         return undefined;

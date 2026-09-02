@@ -5,7 +5,7 @@
  */
 
 import { ChildProcess, spawn } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { constants, lstat, mkdtemp, open, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { env, platform as hostPlatform } from "node:process";
@@ -35,6 +35,11 @@ const DEFAULT_PASSCODE = 20202021;
 const STOP_TIMEOUT_MS = 5_000;
 const DRAIN_TIMEOUT_MS = 5_000;
 
+// A chip app creates its command pipe as it starts, so a pipe still absent by now belongs to an app
+// that is not running or was started without one.
+const PIPE_TIMEOUT_MS = 5_000;
+const PIPE_POLL_MS = 50;
+
 // Killing a container and seeing it gone goes through the Docker daemon, so it is nothing like as
 // prompt as a SIGTERM to a local child.
 const CONTAINER_STOP_TIMEOUT_MS = 30_000;
@@ -43,6 +48,44 @@ const CONTAINER_STOP_TIMEOUT_MS = 30_000;
 // `CHIP:DMG: ReadRequestMessage = { AttributePathIB = ... }` decode dumps cert-test log checks match
 // against (see TC-IDM-2.1's AGENTS.md section) never appear at all, on any platform build.
 const TRACE_ARGS = ["--trace_log", "1", "--trace_decode", "1"];
+
+/**
+ * The simulation commands a chip app takes on the named pipe it opens for `--app-pipe`, by the app
+ * that answers them. A pipe accepts a write whatever the app makes of it, so a command an app does
+ * not implement would become a silent no-op; only what the named app's own command delegate handles
+ * is forwarded, and everything else stays unsupported.
+ */
+const PIPE_COMMANDS: Record<string, ReadonlySet<BackchannelCommand["name"]>> = {
+    "all-clusters": new Set(["simulateLatchPosition", "simulateLongPress", "simulateMultiPress", "simulateSwitchIdle"]),
+};
+
+/** Where a chip app is told to open its command pipe inside a container. */
+const CONTAINER_APP_PIPE = "/tmp/app-pipe";
+
+/** Whether `app` reads simulation commands from a pipe at all, which is what naming one is for. */
+function hasCommandPipe(app: string) {
+    return PIPE_COMMANDS[app] !== undefined;
+}
+
+/**
+ * A backchannel command as the JSON a chip app's `NamedPipeCommandDelegate` parses, or `undefined` for
+ * a command `app` does not take that way. The delegate keys off `Name` and reads each argument by its
+ * capitalized name (`examples/all-clusters-app/linux/AllClustersCommandDelegate.cpp`).
+ */
+function namedPipeCommandFor(app: string, command: BackchannelCommand): string | undefined {
+    if (!PIPE_COMMANDS[app]?.has(command.name)) {
+        return undefined;
+    }
+
+    const fields: Record<string, unknown> = {};
+    for (const [name, value] of Object.entries(command)) {
+        if (name !== "name") {
+            fields[`${name[0].toUpperCase()}${name.slice(1)}`] = value;
+        }
+    }
+
+    return JSON.stringify({ Name: `${command.name[0].toUpperCase()}${command.name.slice(1)}`, ...fields });
+}
 
 function commissioningFor(identity?: Subject.Identity): Subject.CommissioningParameters {
     return {
@@ -224,6 +267,13 @@ class ChipLocalDevice implements CertDevice {
         const binPath = join(dir, appBinaryName(this.app, this.appVariant));
         const kvsPath = join(this.#storageDir, "chip_kvs");
 
+        // A stop leaves the storage directory, and an app killed before it could unlink its own fifo
+        // leaves that too. Chip treats a failing `mkfifo` as fatal, so a restart would report a device
+        // that will not initialize rather than one whose previous generation ended abruptly.
+        if (hasCommandPipe(this.app)) {
+            await rm(this.#pipePath(), { force: true });
+        }
+
         const args = [
             "--discriminator",
             String(this.commissioning.discriminator),
@@ -231,6 +281,7 @@ class ChipLocalDevice implements CertDevice {
             String(this.commissioning.passcode),
             "--KVS",
             kvsPath,
+            ...(hasCommandPipe(this.app) ? ["--app-pipe", this.#pipePath()] : []),
             ...TRACE_ARGS,
             ...this.#appArgs,
         ];
@@ -395,6 +446,100 @@ class ChipLocalDevice implements CertDevice {
         throwUnsupported(this.flavor, "snapshot/restore");
     }
 
+    /** The app's command pipe, which it creates itself once `--app-pipe` names it. */
+    #pipePath(): string {
+        if (this.#storageDir === undefined) {
+            throw new Error(`Cert device ${this.id} has no storage directory, so it has no command pipe`);
+        }
+        return join(this.#storageDir, "app-pipe");
+    }
+
+    /**
+     * Hands one command to the running app.
+     *
+     * Three properties this needs, none of which a plain write to the path has:
+     *
+     * The open is non-blocking, so a pipe with no reader fails with `ENXIO` here rather than waiting
+     * for one. A blocking open of a fifo waits until a reader attaches, and nothing can cancel it —
+     * an app that died holding its fifo would hang the step, and the run, with no diagnosis.
+     *
+     * It carries no `O_CREAT`, and the path is confirmed to be a fifo first: a write to a path the app
+     * has not made a fifo would leave a regular file there, which the app's own `mkfifo` then accepts
+     * as already existing, so its reader sees one stale command and ends — silently discarding every
+     * command for the rest of that app's life.
+     *
+     * And it waits for the app to create the fifo, which it does as it starts: a command sent just
+     * after `start()` would otherwise be refused for a pipe that is merely not there yet. Only a
+     * running app is waited for; there is nothing to wait for otherwise.
+     */
+    async #sendToPipe(json: string): Promise<void> {
+        const generation = this.#requireRunning();
+
+        const path = this.#pipePath();
+        await this.#awaitPipe(path);
+
+        // The wait can span a restart, and the successor generation creates its fifo at the same path,
+        // so a command that set out for one app must not be delivered to the next.
+        if (this.#requireRunning() !== generation) {
+            throw new Error(
+                `Cert device ${this.id} restarted while its command was waiting for the app's pipe, so the ` +
+                    "command was not sent",
+            );
+        }
+
+        const pipe = await open(path, constants.O_WRONLY | constants.O_NONBLOCK).catch(cause => {
+            throw new Error(
+                `Cert device ${this.id} could not open its command pipe at ${path}, so the app cannot be ` +
+                    `operated; it is running but has stopped reading the pipe (${cause})`,
+            );
+        });
+        try {
+            await pipe.write(`${json}\n`);
+        } finally {
+            await pipe.close();
+        }
+    }
+
+    /** The generation currently running, or a failure naming that there is none. */
+    #requireRunning(): Generation {
+        const generation = this.#generation;
+        if (generation === undefined || generation.exited) {
+            throw new Error(
+                `Cert device ${this.id} cannot be operated while it is not running, so there is no app to ` +
+                    "send the command to",
+            );
+        }
+        return generation;
+    }
+
+    /** Waits for the app to create its fifo, refusing a path that is there but is not one. */
+    async #awaitPipe(path: string): Promise<void> {
+        const deadline = performance.now() + PIPE_TIMEOUT_MS;
+        for (;;) {
+            const target = await lstat(path).catch(() => undefined);
+            if (target?.isFIFO()) {
+                return;
+            }
+
+            if (target !== undefined) {
+                throw new Error(
+                    `Cert device ${this.id} has a file at ${path} that the app did not create as its command ` +
+                        "pipe, so the app cannot be operated",
+                );
+            }
+
+            if (performance.now() >= deadline) {
+                throw new Error(
+                    `Cert device ${this.id} has no command pipe at ${path} after ` +
+                        `${PIPE_TIMEOUT_MS}ms, so the app cannot be operated; it is not running, or was ` +
+                        "started without one",
+                );
+            }
+
+            await new Promise(resolve => setTimeout(resolve, PIPE_POLL_MS));
+        }
+    }
+
     async backchannel(command: BackchannelCommand): Promise<void> {
         switch (command.name) {
             case "factoryReset":
@@ -423,8 +568,14 @@ class ChipLocalDevice implements CertDevice {
                 await this.start();
                 break;
 
-            default:
-                throwUnsupported(this.flavor, `the "${command.name}" backchannel command`);
+            default: {
+                const json = namedPipeCommandFor(this.app, command);
+                if (json === undefined) {
+                    throwUnsupported(this.flavor, `the "${command.name}" backchannel command`);
+                }
+                await this.#sendToPipe(json);
+                break;
+            }
         }
     }
 }
@@ -596,6 +747,7 @@ export class ChipDockerDevice implements CertDevice {
             String(this.commissioning.discriminator),
             "--passcode",
             String(this.commissioning.passcode),
+            ...(hasCommandPipe(this.app) ? ["--app-pipe", CONTAINER_APP_PIPE] : []),
             ...TRACE_ARGS,
             ...this.#appArgs,
         ];
@@ -789,8 +941,42 @@ export class ChipDockerDevice implements CertDevice {
                 await this.start();
                 break;
 
-            default:
-                throwUnsupported(this.flavor, `the "${command.name}" backchannel command`);
+            default: {
+                const json = namedPipeCommandFor(this.app, command);
+                if (json === undefined) {
+                    throwUnsupported(this.flavor, `the "${command.name}" backchannel command`);
+                }
+
+                const generation = this.#generation;
+                if (generation === undefined || generation.exited || generation.container === undefined) {
+                    throw new Error(
+                        `Cert device ${this.id} received the "${command.name}" backchannel command while it was ` +
+                            "not running, so there is no app to send it to",
+                    );
+                }
+
+                // The command travels as an argument rather than as part of the script, so nothing in
+                // it can be read as shell syntax. `test -p` refuses a path the app has not made a fifo,
+                // for the reason ChipLocalDevice's own send documents; a shell that exits non-zero
+                // fails the step rather than reporting a command nothing received.
+                //
+                // The app creates its fifo as it starts, so a command sent just after start() waits
+                // for it rather than being refused for a pipe that is merely not there yet; a path
+                // that is there but is not a fifo is still refused at once.
+                //
+                // Opening a fifo for writing waits for a reader, so the write is bounded from outside:
+                // an app that has stopped reading ends this as a non-zero exit rather than holding the
+                // exec for as long as the container lives.
+                await generation.container.exec([
+                    "timeout",
+                    String(PIPE_TIMEOUT_MS / 1000),
+                    "sh",
+                    "-c",
+                    `while [ ! -e ${CONTAINER_APP_PIPE} ]; do sleep 0.1; done; test -p ${CONTAINER_APP_PIPE} && printf '%s\\n' "$0" > ${CONTAINER_APP_PIPE}`,
+                    json,
+                ]);
+                break;
+            }
         }
     }
 }
