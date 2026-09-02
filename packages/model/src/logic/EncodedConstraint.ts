@@ -4,13 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { camelize } from "@matter/general";
 import { Constraint } from "../aspects/Constraint.js";
 import { FieldValue } from "../common/FieldValue.js";
+import { Metatype } from "../common/Metatype.js";
 import type { ValueModel } from "../models/ValueModel.js";
 import { EncodedValue } from "./EncodedValue.js";
 
 /**
- * Restate the bounds of a constraint in the units the value is encoded in.
+ * Restate the bounds of a constraint in the terms the value is encoded in.
  *
  * The specification writes a bound of a temperature or percentage with its unit, such as the "Min to 100.00%" of a
  * percent100ths field.  Values are encoded in the units of their type, so a bound that keeps its unit never constrains
@@ -21,6 +23,8 @@ import { EncodedValue } from "./EncodedValue.js";
  *
  * A bound whose unit does not apply to the type that carries it is left as stated, and a comparison against it then
  * has no numeric meaning.
+ *
+ * A bound naming a value of an enumerated type states that value, so "add, modify" becomes "0, 2".
  *
  * @see {@link MatterSpecification.v16.Core} § 7.19.2
  */
@@ -129,11 +133,43 @@ function convertExpression(
         return {
             ...expression,
             lhs: convertExpression(expression.lhs, model, bounds),
-            rhs: convertExpression(expression.rhs, model, bounds),
+
+            // The rhs of "." names a member of the lhs, so it is not a name this model's scope resolves
+            rhs: expression.type === "." ? expression.rhs : convertExpression(expression.rhs, model, bounds),
         };
     }
 
     return convertValue(expression, model, bounds);
+}
+
+/**
+ * The value of a member the constrained type defines, for a bound that names one.
+ *
+ * An enumerated type states a bound as the names of its own values, such as the "add, modify" of a door lock's
+ * operation type.  Those names belong to the type rather than to the surrounding record, so no resolver reaches them
+ * and the bound states a number only once the type has been consulted.
+ *
+ * A bitmap states the position of a flag in its constraint rather than as a member id, so a name it defines denotes a
+ * mask this does not compute.  Such a name is left as stated, which model validation then reports.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 7.18.3
+ */
+function memberValueOf(value: FieldValue | undefined, model: ValueModel) {
+    const name = FieldValue.referenced(value);
+    if (name === undefined) {
+        return;
+    }
+
+    if (model.effectiveMetatype !== Metatype.enum) {
+        return;
+    }
+
+    const propertyName = camelize(name);
+    for (const member of model.members) {
+        if (member.id !== undefined && member.propertyName === propertyName) {
+            return member.id;
+        }
+    }
 }
 
 function convertValue(value: FieldValue, model: ValueModel, bounds?: EncodedConstraint.Bounds): FieldValue;
@@ -147,6 +183,11 @@ function convertValue(value: FieldValue | undefined, model: ValueModel, bounds?:
     // A membership set states one bound per member
     if (Array.isArray(value)) {
         return value.map(member => convertValue(member, model, bounds));
+    }
+
+    const member = memberValueOf(value, model);
+    if (member !== undefined) {
+        return member;
     }
 
     if (

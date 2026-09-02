@@ -86,6 +86,10 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/model
     - Fix: A constraint that names a bound held by another element, written `<Element>.<Field>`, now applies that bound instead of accepting every value. This enforces `OccupancySensing.HoldTime`, `AmbientContextSensing.HoldTime` and `SoilMeasurement.SoilMoistureMeasuredValue` against their declared limits, on client writes, on assignment and on the stored value at startup
+    - Fix: A constraint that bounds a value to named values of its own enumeration, such as the `add, modify` of a door lock's operation type, states those values rather than names that resolve to nothing, so `EncodedConstraint()` now reports the bound the specification states. Validating such a field does not yet apply the bound
+    - Enhancement: Model validation reports a constraint that names an element which does not resolve, since such a bound is silently skipped and the value accepted unchecked
+    - Fix: A constraint of `any` or `MS`, neither of which the constraint language defines, states no bound rather than a bound naming a value that does not exist, and the fields that carried one no longer state a constraint at all
+    - Fix: `JointFabricDatastore.DatastoreAccessControlEntryStruct` states its `Subjects` and `Targets` as unbounded; they were bounded by attributes of the `AccessControl` cluster, which a constraint cannot reach, so the bound never applied
     - Enhancement: `StoredDefaultValue()` states the default a value store holds for a member, beside the existing `SelectDefaultValue()` and `MandatoryDefaultValue()`
     - Fix: Conformance applicability reports a term that compares a value as conditional rather than optional, so an element the record's own contents decide is no longer treated as mandatory when the features around the comparison are supported
     - Enhancement: `ClusterModel.statusCodes` gives the cluster's own status code definition, inherited by a derived cluster like the other member accessors
