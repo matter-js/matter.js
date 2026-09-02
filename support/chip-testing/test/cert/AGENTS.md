@@ -2481,6 +2481,23 @@ A container's standard input also closes as soon as the first attached client de
 `StdinOnce`), and every later command then has nothing to arrive on — so a subject we write to for
 its whole life is created with `stdinOnce: false`.
 
+### The case runs on the matterjs flavor only, until chip's bridge-app is fixed
+
+`chip-bridge-app` cannot encode `PowerSource.GeneratedCommandList` (0x2F/0xFFF8) on the composed
+endpoint: its read handler fails with `TLVWriter.cpp:697: CHIP Error 0x00000024: Invalid TLV tag` and
+moves to `AwaitingDestruction` **in the middle of a chunked report**, having already told the
+controller more chunks are coming. The controller's wildcard bootstrap read is then orphaned — the
+session stays healthy and later reads succeed, but that read never completes, so no node-level
+subscription is ever established and every "the DUT took the value in" claim in this case fails on
+what the controller never learned. Reported upstream as
+<https://github.com/project-chip/connectedhomeip/issues/73561>, unfixed.
+
+So `certTest("TC-BR-4")` declares `flavors: ["matterjs"]`. This is the one place in the suite where
+the flavor policy above ("at least one chip flavor passing is the actual certification claim") is
+knowingly unmet: the case currently proves the controller against `BridgeTestInstance` only, and is
+not a certification claim until the chip flavors are restored. Restoring them is a one-line change
+once the upstream defect lands — nothing else in the case is flavor-specific.
+
 ### The plan's endpoint list does not match the app the plan names
 
 The plan puts five lights at 3 and 10-13 and a power source at 9. `bridge-app` puts its lights at 3
