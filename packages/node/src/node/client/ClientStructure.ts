@@ -766,6 +766,7 @@ export class ClientStructure {
             | undefined;
         if (Array.isArray(deviceTypeList)) {
             const endpointType = endpoint.type;
+            let composesFullFamily = false;
             for (const dt of deviceTypeList) {
                 if (typeof dt?.deviceType !== "number") {
                     continue;
@@ -776,9 +777,7 @@ export class ClientStructure {
                 if (model !== undefined) {
                     isApp = DeviceClassification.isApplication(model.classification);
 
-                    if (model.effectiveComposition === EndpointComposition.FullFamily) {
-                        this.#fullFamilyEndpoints.add(structure);
-                    }
+                    composesFullFamily ||= model.effectiveComposition === EndpointComposition.FullFamily;
                 }
 
                 // Root endpoint really needs to be a root endpoint so ignore any noise that would disrupt that
@@ -802,6 +801,14 @@ export class ClientStructure {
                 if (isApp) {
                     break;
                 }
+            }
+
+            // An endpoint whose device types no longer compose a full family must stop being read as
+            // one, or its list would go on claiming parts it no longer describes
+            if (composesFullFamily) {
+                this.#fullFamilyEndpoints.add(structure);
+            } else {
+                this.#fullFamilyEndpoints.delete(structure);
             }
         }
 
@@ -865,6 +872,7 @@ export class ClientStructure {
             }
             claimants.add(structure);
         }
+        this.#retractClaimsOf(structure, named);
         this.#partsListOf.set(structure, named);
 
         // For the root partsList specifically, if an endpoint is no longer present then it has been removed from the
@@ -1014,8 +1022,11 @@ export class ClientStructure {
         this.#partClaims.delete(structure);
         this.#partsListOf.delete(structure);
         this.#fullFamilyEndpoints.delete(structure);
-        for (const claimants of this.#partClaims.values()) {
+        for (const [part, claimants] of this.#partClaims) {
             claimants.delete(structure);
+            if (claimants.size === 0) {
+                this.#partClaims.delete(part);
+            }
         }
 
         // Skip deletion if the endpoint was already destroyed, e.g. because a parent endpoint was erased first and
@@ -1230,6 +1241,36 @@ export class ClientStructure {
             }
         }
         return true;
+    }
+
+    /**
+     * Withdraw `structure`'s claim on the parts its previous `PartsList` named and `named` does not.
+     *
+     * A claim that outlives the list it came from would let an endpoint the peer has dropped be
+     * installed later, once the claim became decidable — the peer's current lists are the only
+     * statement of what it has.
+     */
+    #retractClaimsOf(structure: EndpointStructure, named: Set<number>) {
+        for (const partNo of this.#partsListOf.get(structure) ?? []) {
+            if (named.has(partNo)) {
+                continue;
+            }
+
+            const part = this.#endpoints.get(partNo as EndpointNumber);
+            if (part === undefined) {
+                continue;
+            }
+
+            const claimants = this.#partClaims.get(part);
+            if (claimants === undefined) {
+                continue;
+            }
+
+            claimants.delete(structure);
+            if (claimants.size === 0) {
+                this.#partClaims.delete(part);
+            }
+        }
     }
 
     /** Whether `structure`'s `PartsList` names every descendant rather than its own children. */
