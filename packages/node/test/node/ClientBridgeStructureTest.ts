@@ -121,6 +121,9 @@ const AGGREGATOR = 20;
 const COMPOSED = 21;
 const SENSORS = [22, 23];
 
+/** Matter Core § 9.11's Power Source device type, which chip puts on its composed device. */
+const POWER_SOURCE_DEVICE_TYPE = 0x0011;
+
 const DESCRIPTOR_GLOBALS = [
     GeneratedCommandList.id,
     AcceptedCommandList.id,
@@ -146,19 +149,20 @@ function descriptorAttr(endpointId: number, attributeId: number, value: unknown,
 /** A whole Descriptor cluster for an endpoint the peer has not reported before. */
 function descriptorReports(
     endpointId: number,
-    deviceType: number,
+    deviceType: number | { deviceType: number; revision: number }[],
     revision: number,
     partsList: number[],
     version: number,
 ): ReadResult.Report[] {
     const attr = (attributeId: number, value: unknown) => descriptorAttr(endpointId, attributeId, value, version);
+    const deviceTypeList = typeof deviceType === "number" ? [{ deviceType, revision }] : deviceType;
     return [
         attr(ClusterRevision.id, 3),
         attr(FeatureMap.id, {}),
         attr(AttributeList.id, [0, 1, 2, 3, ...DESCRIPTOR_GLOBALS]),
         attr(AcceptedCommandList.id, []),
         attr(GeneratedCommandList.id, []),
-        attr(Descriptor.attributes.deviceTypeList.id, [{ deviceType, revision }]),
+        attr(Descriptor.attributes.deviceTypeList.id, deviceTypeList),
         attr(Descriptor.attributes.serverList.id, [Descriptor.id]),
         attr(Descriptor.attributes.clientList.id, []),
         attr(Descriptor.attributes.partsList.id, partsList),
@@ -237,6 +241,90 @@ describe("a peer that reports its bridge across two interactions", () => {
         expect(peer.parts.size).equals(1);
         expect(aggregator!.parts.size).equals(1);
         expect(composed!.parts.size).equals(SENSORS.length);
+    });
+
+    it("does not install a part the root has stopped naming while its owner was unknown", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair({ device: { type: ServerNode.RootEndpoint } });
+        const peer = controller.peers.get("peer1")!;
+
+        const structure = (peer.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+        const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+
+        // The whole bridge, named by the root alone: every part is claimed and none can be placed yet
+        await drain(
+            structure.mutate(
+                request,
+                readResult([
+                    descriptorAttr(0, Descriptor.attributes.partsList.id, [AGGREGATOR, COMPOSED, ...SENSORS], 10),
+                ]),
+            ),
+        );
+
+        // The peer drops one sensor from the root's list — the list that says what the node has — but
+        // the composed device it hung from has not caught up and still names it. The claim therefore
+        // survives and becomes decidable in this same interaction.
+        const kept = SENSORS[0];
+        const dropped = SENSORS[1];
+        await drain(
+            structure.mutate(
+                request,
+                readResult(
+                    [descriptorAttr(0, Descriptor.attributes.partsList.id, [AGGREGATOR, COMPOSED, kept], 11)],
+                    descriptorReports(AGGREGATOR, AggregatorEndpoint.deviceType, 3, [COMPOSED, kept], 11),
+                    descriptorReports(COMPOSED, BridgedNodeEndpoint.deviceType, 1, [kept, dropped], 11),
+                    descriptorReports(kept, TemperatureSensorDevice.deviceType, 2, [], 11),
+                    descriptorReports(dropped, TemperatureSensorDevice.deviceType, 2, [], 11),
+                ),
+            ),
+        );
+
+        const aggregator = peer.parts.get(`ep${AGGREGATOR}`);
+        const composed = aggregator?.parts.get(`ep${COMPOSED}`);
+        expect(composed, "the composed device belongs to the aggregator").not.undefined;
+        expect(composed!.parts.get(`ep${kept}`), `endpoint ${kept} is still on the node`).not.undefined;
+        expect(composed!.parts.get(`ep${dropped}`), `endpoint ${dropped} is not`).undefined;
+    });
+
+    it("takes the device types of an endpoint that has only utility ones", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair({ device: { type: ServerNode.RootEndpoint } });
+        const peer = controller.peers.get("peer1")!;
+
+        const structure = (peer.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+        const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+
+        // chip's composed device: a bridged node that is also a power source, and nothing else. Named
+        // by the root first, so the endpoint exists carrying the unknown sentinel before its own
+        // Descriptor arrives — the shape that used to keep the sentinel forever.
+        await drain(
+            structure.mutate(
+                request,
+                readResult([descriptorAttr(0, Descriptor.attributes.partsList.id, [COMPOSED], 10)]),
+            ),
+        );
+
+        await drain(
+            structure.mutate(
+                request,
+                readResult(
+                    descriptorReports(
+                        COMPOSED,
+                        [
+                            { deviceType: BridgedNodeEndpoint.deviceType, revision: 1 },
+                            { deviceType: POWER_SOURCE_DEVICE_TYPE, revision: 1 },
+                        ],
+                        1,
+                        [],
+                        11,
+                    ),
+                ),
+            ),
+        );
+
+        const composed = peer.parts.get(`ep${COMPOSED}`);
+        expect(composed, "the composed device is on the node").not.undefined;
+        expect(composed!.type.deviceType).equals(BridgedNodeEndpoint.deviceType);
     });
 
     it("installs nothing from a full-family list alone", async () => {

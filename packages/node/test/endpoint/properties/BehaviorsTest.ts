@@ -6,11 +6,35 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { OnOffServer } from "#behaviors/on-off";
+import { WindowCoveringServer } from "#behaviors/window-covering";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { MockEndpoint } from "../mock-endpoint.js";
 
 describe("Behaviors", () => {
+    describe("has", () => {
+        it("answers true for a behavior the endpoint supports", async () => {
+            const light = await MockEndpoint.create(OnOffLightDevice);
+
+            expect(light.behaviors.has(OnOffServer)).equals(true);
+        });
+
+        it("answers false for a behavior the endpoint does not support at all", async () => {
+            const light = await MockEndpoint.create(OnOffLightDevice);
+
+            // Not merely falsy: the declared return type is boolean, and an endpoint supporting no
+            // behavior of this id at all is the path that used to answer undefined
+            expect(light.behaviors.has(WindowCoveringServer)).equals(false);
+        });
+
+        it("answers false for a different behavior sharing the id of one it supports", async () => {
+            const light = await MockEndpoint.create(OnOffLightDevice);
+            const Unrelated = OnOffServer.set({}).with();
+
+            expect(light.behaviors.has(class extends Unrelated {})).equals(false);
+        });
+    });
+
     it("transplants observers when a behavior is dropped and re-injected", async () => {
         const light = await MockEndpoint.create(OnOffLightDevice);
 

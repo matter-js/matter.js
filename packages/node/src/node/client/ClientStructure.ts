@@ -39,12 +39,16 @@ import {
     type FeatureBitmap,
 } from "@matter/model";
 import { ReadScope, Val, type Read, type ReadResult } from "@matter/protocol";
-import type { AttributeId, ClusterId, CommandId, EndpointNumber } from "@matter/types";
+import { EndpointNumber } from "@matter/types";
+import type { AttributeId, ClusterId, CommandId } from "@matter/types";
 import { Status } from "@matter/types";
 import { Descriptor } from "@matter/types/clusters/descriptor";
 import type { ClientEventEmitter } from "./ClientEventEmitter.js";
 import { ClientStructureEvents } from "./ClientStructureEvents.js";
 import { PeerBehavior } from "./PeerBehavior.js";
+
+/** The endpoint the peer's root `PartsList` is read from (Matter Core § 9.2). */
+const ROOT_ENDPOINT_NUMBER = EndpointNumber(0);
 
 const logger = Logger.get("ClientStructure");
 
@@ -786,8 +790,15 @@ export class ClientStructure {
                     break;
                 }
 
-                // Skip this device type if we've already found one and this one is not an application type
-                if (endpointType.deviceType !== undefined && !isApp) {
+                // Skip this device type if we've already found one and this one is not an application
+                // type. An endpoint the peer merely named as a part starts out carrying the unknown
+                // sentinel, which is not one we found — an endpoint whose device types are all utility,
+                // as a bridge's composed device is, would otherwise keep the sentinel forever.
+                if (
+                    endpointType.deviceType !== undefined &&
+                    endpointType.deviceType !== EndpointType.UNKNOWN_DEVICE_TYPE &&
+                    !isApp
+                ) {
                     continue;
                 }
 
@@ -1192,9 +1203,30 @@ export class ClientStructure {
             }
 
             this.#partClaims.delete(part);
+
+            // The root names every endpoint the peer has, and its removal scan runs while attribute
+            // data is read — before this. Installing a part the root no longer names would resurrect
+            // an endpoint that scan has already passed over.
+            if (!this.#isOnTheNode(part)) {
+                continue;
+            }
+
             part.pendingOwner = owner;
             this.#scheduleStructureChange(part, "install");
         }
+    }
+
+    /**
+     * Whether the peer's root still names `part`, so far as the root has said.
+     *
+     * A root endpoint composes its `PartsList` of every descendant, so absence from it means the peer
+     * has dropped the endpoint. Until the root has reported a list at all there is nothing to judge
+     * against and every part is taken as present.
+     */
+    #isOnTheNode(part: EndpointStructure) {
+        const root = this.#endpoints.get(ROOT_ENDPOINT_NUMBER);
+        const rootParts = root === undefined ? undefined : this.#partsListOf.get(root);
+        return rootParts === undefined || rootParts.has(part.endpoint.number);
     }
 
     /** The claimant that owns `part`, or `undefined` while that cannot be told from what has arrived. */
