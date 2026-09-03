@@ -89,12 +89,14 @@ const STDIN_COMMANDS: Record<string, ReadonlyMap<BackchannelCommand["name"], str
 /**
  * How long a command character waits before the next one is written.
  *
- * chip's bridge app polls its standard input with `ioctl(FIONREAD)` and reads it with `getchar`.
- * FIONREAD reports what the kernel still holds, while `getchar` drains all of it into stdio's own
- * buffer — so of several characters delivered together the app acts on the first and never polls for
- * the rest again. Measured: three toggles written back to back produce one. The delivery the app
- * consumes is one character per poll interval, and this is comfortably longer than the 100ms the app
- * sleeps for.
+ * chip's bridge app polls standard input with `kbhit`, which asks the kernel how many bytes are
+ * pending (`ioctl(FIONREAD)`), and then reads one with `getchar`, which fills stdio's own buffer from
+ * the descriptor. Characters written together therefore leave the kernel on the first `getchar` and
+ * sit in a buffer the poll cannot see, so the app acts on one and only reaches the rest when later
+ * input makes the poll true again — by then it is running behind by whatever it buffered.
+ *
+ * Delivering one character per poll interval is what the loop consumes, and this is comfortably
+ * longer than the 100ms it sleeps for between polls.
  */
 const STDIN_COMMAND_GAP_MS = 250;
 

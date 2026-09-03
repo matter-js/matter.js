@@ -202,6 +202,26 @@ async function heldAttribute(
     return node(cx).clientAttribute({ endpoint, cluster, attribute });
 }
 
+/**
+ * What the DUT holds for `attribute` on each of `endpoints`, taken before anything reads it.
+ *
+ * A read feeds the controller's own copy of the node, so a held value taken after one is the value
+ * that read just delivered and says nothing about what reached the DUT on its own. Every claim here
+ * that the DUT took a value in rests on the copy as it stood before the read compared against it.
+ */
+async function heldBefore(
+    cx: CertStepContext,
+    endpoints: readonly number[],
+    cluster: number,
+    attribute: number,
+): Promise<Map<number, unknown>> {
+    const held = new Map<number, unknown>();
+    for (const endpoint of endpoints) {
+        held.set(endpoint, await heldAttribute(cx, endpoint, cluster, attribute));
+    }
+    return held;
+}
+
 certTest("TC-BR-4", {
     plan: "bridge.adoc",
     pics: ["MCORE.BRIDGECLIENT"],
@@ -234,6 +254,11 @@ certTest("TC-BR-4", {
                 .filter((number, index, all) => all.indexOf(number) === index);
 
             const missing = expected.filter(number => !answered.includes(number));
+
+            // PartsList is mandatory on every endpoint, so a conforming leaf answers it empty
+            const answeringParts = endpointsAnswering(parts, DESCRIPTOR_ID, PARTS_LIST_ID);
+            const missingParts = expected.filter(number => !answeringParts.includes(number));
+
             const aggregatorParts = partsOf(valueAt(parts, AGGREGATOR_ENDPOINT, DESCRIPTOR_ID, PARTS_LIST_ID));
             const composedParts = partsOf(valueAt(parts, COMPOSED_ENDPOINT, DESCRIPTOR_ID, PARTS_LIST_ID));
 
@@ -245,6 +270,14 @@ certTest("TC-BR-4", {
                         detail: `the DUT read DeviceTypeList from endpoints ${answered.join(", ")}`,
                     }),
                     what: "the DUT read the device type of every endpoint the plan names",
+                },
+                {
+                    check: () => ({
+                        type: "response",
+                        verdict: missingParts.length === 0 ? "pass" : "fail",
+                        detail: `the DUT read PartsList from endpoints ${answeringParts.join(", ")}`,
+                    }),
+                    what: "the DUT read the parts of every endpoint the plan names",
                 },
                 {
                     check: () => ({
@@ -319,18 +352,13 @@ certTest("TC-BR-4", {
         "Verify DUT has read the NodeLabel attribute from the Bridged Device Basic Information cluster on " +
             "various endpoints",
         async cx => {
+            const held = await heldBefore(cx, NAMED_DEVICES, BRIDGED_INFO_ID, NODE_LABEL_ID);
             const entries = await readEveryEndpoint(cx, "NodeLabel", BRIDGED_INFO_ID, NODE_LABEL_ID);
             const answered = endpointsAnswering(entries, BRIDGED_INFO_ID, NODE_LABEL_ID);
             const missing = NAMED_DEVICES.filter(endpoint => !answered.includes(endpoint));
 
-            const held = await Promise.all(
-                NAMED_DEVICES.map(async endpoint => ({
-                    endpoint,
-                    value: await heldAttribute(cx, endpoint, BRIDGED_INFO_ID, NODE_LABEL_ID),
-                })),
-            );
-            const disagreeing = held.filter(
-                entry => entry.value !== valueAt(entries, entry.endpoint, BRIDGED_INFO_ID, NODE_LABEL_ID),
+            const disagreeing = NAMED_DEVICES.filter(
+                endpoint => held.get(endpoint) !== valueAt(entries, endpoint, BRIDGED_INFO_ID, NODE_LABEL_ID),
             );
 
             recordAll(cx, [
@@ -348,7 +376,9 @@ certTest("TC-BR-4", {
                     check: () => ({
                         type: "response",
                         verdict: disagreeing.length === 0 ? "pass" : "fail",
-                        detail: `the DUT holds the name the TH reports on ${held.length - disagreeing.length} of ${held.length} endpoints`,
+                        detail:
+                            `the DUT already held the name the TH reports on ` +
+                            `${NAMED_DEVICES.length - disagreeing.length} of ${NAMED_DEVICES.length} endpoints`,
                     }),
                     what: "the DUT's own device list carries those names",
                 },
@@ -471,10 +501,10 @@ certTest("TC-BR-4", {
         "Verify DUT has read or reads the BatChargeLevel attribute from the Power Source cluster from the " +
             "relevant endpoint",
         async cx => {
+            const held = await heldAttribute(cx, COMPOSED_ENDPOINT, POWER_SOURCE_ID, BAT_CHARGE_LEVEL_ID);
             const entries = await readEveryEndpoint(cx, "BatChargeLevel", POWER_SOURCE_ID, BAT_CHARGE_LEVEL_ID);
             const answered = endpointsAnswering(entries, POWER_SOURCE_ID, BAT_CHARGE_LEVEL_ID);
             const read = valueAt(entries, COMPOSED_ENDPOINT, POWER_SOURCE_ID, BAT_CHARGE_LEVEL_ID);
-            const held = await heldAttribute(cx, COMPOSED_ENDPOINT, POWER_SOURCE_ID, BAT_CHARGE_LEVEL_ID);
 
             recordAll(cx, [
                 {
@@ -491,7 +521,7 @@ certTest("TC-BR-4", {
                     check: () => ({
                         type: "response",
                         verdict: read !== undefined && held === read ? "pass" : "fail",
-                        detail: `the DUT holds ${describeValue(held)} where the TH reports ${describeValue(read)}`,
+                        detail: `the DUT already held ${describeValue(held)} where the TH reports ${describeValue(read)}`,
                     }),
                     what: "the DUT's own device list carries that battery level",
                 },
@@ -597,16 +627,16 @@ certTest("TC-BR-4", {
         "3b",
         "Verify DUT contains the updated name for the renamed device",
         async cx => {
+            const held = await heldAttribute(cx, LIGHT_1_ENDPOINT, BRIDGED_INFO_ID, NODE_LABEL_ID);
             const entries = await readEveryEndpoint(cx, "NodeLabel", BRIDGED_INFO_ID, NODE_LABEL_ID);
             const read = valueAt(entries, LIGHT_1_ENDPOINT, BRIDGED_INFO_ID, NODE_LABEL_ID);
-            const held = await heldAttribute(cx, LIGHT_1_ENDPOINT, BRIDGED_INFO_ID, NODE_LABEL_ID);
 
             record(
                 cx,
                 {
                     type: "response",
                     verdict: read === RENAMED_LABEL && held === read ? "pass" : "fail",
-                    detail: `the TH reports ${JSON.stringify(read)} and the DUT holds ${JSON.stringify(held)}`,
+                    detail: `the TH reports ${JSON.stringify(read)} and the DUT already held ${JSON.stringify(held)}`,
                 },
                 "the DUT's own device list carries the new name",
             );
@@ -629,6 +659,9 @@ certTest("TC-BR-4", {
             const parts = await readEveryEndpoint(cx, "PartsList", DESCRIPTOR_ID, PARTS_LIST_ID);
             const rootParts = partsOf(valueAt(parts, ROOT_ENDPOINT, DESCRIPTOR_ID, PARTS_LIST_ID));
             const aggregatorParts = partsOf(valueAt(parts, AGGREGATOR_ENDPOINT, DESCRIPTOR_ID, PARTS_LIST_ID));
+            const addedAnsweredParts = endpointsAnswering(parts, DESCRIPTOR_ID, PARTS_LIST_ID).includes(
+                ADDED_LIGHT_ENDPOINT,
+            );
 
             const deviceTypes = await readEveryEndpoint(cx, "DeviceTypeList", DESCRIPTOR_ID, DEVICE_TYPE_LIST_ID);
             const addedTypes = deviceTypesOf(
@@ -648,14 +681,17 @@ certTest("TC-BR-4", {
                     check: () => ({
                         type: "response",
                         verdict:
-                            rootParts.includes(ADDED_LIGHT_ENDPOINT) && aggregatorParts.includes(ADDED_LIGHT_ENDPOINT)
+                            rootParts.includes(ADDED_LIGHT_ENDPOINT) &&
+                            aggregatorParts.includes(ADDED_LIGHT_ENDPOINT) &&
+                            addedAnsweredParts
                                 ? "pass"
                                 : "fail",
                         detail:
-                            `the root endpoint names parts ${rootParts.join(", ")} and the aggregator names ` +
-                            `${aggregatorParts.join(", ")}`,
+                            `the root endpoint names parts ${rootParts.join(", ")}, the aggregator names ` +
+                            `${aggregatorParts.join(", ")}, and endpoint ${ADDED_LIGHT_ENDPOINT} ` +
+                            `${addedAnsweredParts ? "answered" : "did not answer"} a PartsList of its own`,
                     }),
-                    what: "the DUT read a PartsList naming the added endpoint on both the root and the aggregator",
+                    what: "the DUT read the added endpoint's PartsList and those of the root and the aggregator",
                 },
                 {
                     check: () => ({
@@ -776,16 +812,13 @@ certTest("TC-BR-4", {
  * says the DUT took the answer in, and only the second can fail once a subscription is delivering.
  */
 async function recordLightState(cx: CertStepContext, what: string) {
+    const held = await heldBefore(cx, LIGHTS, ON_OFF_ID, ON_OFF_ATTRIBUTE_ID);
     const entries = await readEveryEndpoint(cx, "OnOff", ON_OFF_ID, ON_OFF_ATTRIBUTE_ID);
     const answered = endpointsAnswering(entries, ON_OFF_ID, ON_OFF_ATTRIBUTE_ID);
 
-    const disagreeing = new Array<number>();
-    for (const endpoint of answered) {
-        const held = await heldAttribute(cx, endpoint, ON_OFF_ID, ON_OFF_ATTRIBUTE_ID);
-        if (held !== valueAt(entries, endpoint, ON_OFF_ID, ON_OFF_ATTRIBUTE_ID)) {
-            disagreeing.push(endpoint);
-        }
-    }
+    const disagreeing = LIGHTS.filter(
+        endpoint => held.get(endpoint) !== valueAt(entries, endpoint, ON_OFF_ID, ON_OFF_ATTRIBUTE_ID),
+    );
 
     const missing = LIGHTS.filter(number => !answered.includes(number));
 
@@ -805,11 +838,11 @@ async function recordLightState(cx: CertStepContext, what: string) {
         {
             check: () => ({
                 type: "response",
-                verdict: answered.length > 0 && disagreeing.length === 0 ? "pass" : "fail",
+                verdict: disagreeing.length === 0 ? "pass" : "fail",
                 detail:
                     disagreeing.length > 0
-                        ? `the DUT holds a different state on endpoints ${disagreeing.join(", ")}`
-                        : `the DUT holds the state the TH reports on all ${answered.length} endpoints`,
+                        ? `the DUT held a different state on endpoints ${disagreeing.join(", ")}`
+                        : `the DUT already held the state the TH reports on all ${LIGHTS.length} lights`,
             }),
             what: "the DUT's own device list carries those states",
         },
@@ -818,16 +851,13 @@ async function recordLightState(cx: CertStepContext, what: string) {
 
 /** As {@link recordLightState}, for the temperature the bridged sensors report. */
 async function recordTemperatures(cx: CertStepContext, what: string) {
+    const held = await heldBefore(cx, TEMPERATURE_SENSORS, TEMPERATURE_ID, MEASURED_VALUE_ID);
     const entries = await readEveryEndpoint(cx, "MeasuredValue", TEMPERATURE_ID, MEASURED_VALUE_ID);
     const answered = endpointsAnswering(entries, TEMPERATURE_ID, MEASURED_VALUE_ID);
 
-    const disagreeing = new Array<number>();
-    for (const endpoint of answered) {
-        const held = await heldAttribute(cx, endpoint, TEMPERATURE_ID, MEASURED_VALUE_ID);
-        if (held !== valueAt(entries, endpoint, TEMPERATURE_ID, MEASURED_VALUE_ID)) {
-            disagreeing.push(endpoint);
-        }
-    }
+    const disagreeing = TEMPERATURE_SENSORS.filter(
+        endpoint => held.get(endpoint) !== valueAt(entries, endpoint, TEMPERATURE_ID, MEASURED_VALUE_ID),
+    );
 
     const missing = TEMPERATURE_SENSORS.filter(number => !answered.includes(number));
 
@@ -847,11 +877,12 @@ async function recordTemperatures(cx: CertStepContext, what: string) {
         {
             check: () => ({
                 type: "response",
-                verdict: answered.length > 0 && disagreeing.length === 0 ? "pass" : "fail",
+                verdict: disagreeing.length === 0 ? "pass" : "fail",
                 detail:
                     disagreeing.length > 0
-                        ? `the DUT holds a different temperature on endpoints ${disagreeing.join(", ")}`
-                        : `the DUT holds the temperature the TH reports on all ${answered.length} endpoints`,
+                        ? `the DUT held a different temperature on endpoints ${disagreeing.join(", ")}`
+                        : `the DUT already held the temperature the TH reports on all ` +
+                          `${TEMPERATURE_SENSORS.length} sensors`,
             }),
             what: "the DUT's own device list carries those temperatures",
         },
