@@ -220,6 +220,39 @@ describe("run records after a retirement", () => {
         expect(await node.act(a => a.get(TestTaskManager).state.runsVersion)).equals(RUN_STORE_VERSION);
     });
 
+    it("does not put migrated parameters back on the next write of the record", async () => {
+        const environment = new Environment("upgrade-rewrite");
+        let original!: RunId;
+        {
+            await using node = await makeNode(environment, "rewrite");
+            const peer = testPeer("rewrite");
+            const failed = await failedRollback(node, "rewrite", peer);
+            original = failed.original.runId;
+
+            // Back to the shape the previous build left: parameters present, table unversioned.
+            await node.act(a => {
+                const manager = a.get(TestTaskManager);
+                manager.state.runs = {
+                    ...manager.state.runs,
+                    [String(original)]: { ...manager.state.runs[String(original)], params: { tag: "rewrite" } },
+                };
+                manager.state.runsVersion = 1;
+            });
+        }
+
+        await using node = await makeNode(environment, "rewrite");
+        const peer = testPeer("rewrite");
+        peer.setIntent("groupMembership", "X", { v: 1 });
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+        expect("params" in (await stored(node, original))!).equals(false);
+
+        // A snapshot carries every field the record holds, so a write that mentions something else — here the
+        // link to a fresh undo — would re-persist parameters the upgrade only took out of storage. The version
+        // stamp means the upgrade would never run again to remove them.
+        await node.act(a => a.get(TestTaskManager).retryRollback(original));
+        expect("params" in (await stored(node, original))!).equals(false);
+    });
+
     it("leaves an unfinished run's parameters alone on upgrade", async () => {
         const environment = new Environment("upgrade-inflight");
         let live!: RunId;

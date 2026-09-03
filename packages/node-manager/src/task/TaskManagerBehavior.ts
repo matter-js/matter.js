@@ -179,8 +179,10 @@ export class TaskManagerBehavior extends Behavior {
      * storing, including the raw epoch keys the group tasks take. Nothing else will ever touch those records,
      * so the upgrade has to.
      *
-     * Over the stored table rather than the loaded one: a record `load` discarded still occupies storage, and
-     * its parameters are just as durable.
+     * Over the stored table rather than only the loaded one: a record `load` discarded still occupies storage,
+     * and its parameters are just as durable. The loaded record loses them too — a snapshot carries every field
+     * the record holds, so the next write of a migrated run would put them straight back, and the version
+     * stamp means this pass would never run again to take them off.
      */
     #retireStoredParams(): void {
         if (this.state.runsVersion >= RUN_STORE_VERSION) {
@@ -195,6 +197,7 @@ export class TaskManagerBehavior extends Behavior {
             const { params, ...rest } = persisted;
             void params;
             runs[key] = rest as TaskPersistence;
+            this.internal.runs.get(persisted.runId)?.adoptDrop(RETIRE);
             retired++;
         }
         if (retired > 0) {
