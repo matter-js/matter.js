@@ -26,7 +26,13 @@ export class RuntimeService {
     #env: Environment;
     #lifetime: Lifetime;
     #workers = new Set<Worker>();
-    #cancelled = new Set<Worker>();
+
+    /**
+     * Workers whose closure has begun. A close may settle long after it starts, and the worker stays
+     * installed until it does, so this is what keeps a second cancellation from closing it again.
+     * Taking on work does not clear it: a worker that is closing is not one waiting to be closed.
+     */
+    #closing = new Set<Worker>();
     #workerDeleted = Observable<[]>();
     #canceled = false;
 
@@ -81,10 +87,10 @@ export class RuntimeService {
 
         // Work arriving means the runtime is no longer shutting down, so a cancellation waiting on a
         // worker that had not finished starting must not still close it. Nothing disarms an
-        // already-scheduled onSuccess, so the schedule consults #cancelled when it fires.
+        // already-scheduled onSuccess, so the schedule reads the generation when it fires. A worker
+        // whose closure is already under way is not disarmed by this: it is closing, not waiting.
         if (this.#canceled && !this.#cancelling) {
             this.#canceled = false;
-            this.#cancelled.clear();
             this.#cancelGeneration++;
         }
 
@@ -129,7 +135,7 @@ export class RuntimeService {
 
         // Remove the worker
         this.#workers.delete(worker);
-        this.#cancelled.delete(worker);
+        this.#closing.delete(worker);
         this.#workerDeleted.emit();
 
         // If there are still non-helper workers, remain in active state
@@ -258,12 +264,12 @@ export class RuntimeService {
     }
 
     #cancelWorker(worker: Worker) {
-        if (this.#cancelled.has(worker)) {
+        if (this.#closing.has(worker)) {
             return;
         }
 
         const cancel = () => {
-            this.#cancelled.add(worker);
+            this.#closing.add(worker);
 
             try {
                 if (worker.close) {
@@ -293,11 +299,11 @@ export class RuntimeService {
 
         if (worker.construction) {
             const generation = this.#cancelGeneration;
-            this.#cancelled.add(worker);
 
             worker.construction.onSuccess(() => {
-                // Only still wanted if the runtime has not taken on work since
-                if (generation === this.#cancelGeneration && this.#cancelled.has(worker)) {
+                // Only still wanted if the runtime has not taken on work since, and only for a worker
+                // the runtime still owns — delete() drops it from #workers
+                if (generation === this.#cancelGeneration && this.#workers.has(worker)) {
                     return cancel();
                 }
             });

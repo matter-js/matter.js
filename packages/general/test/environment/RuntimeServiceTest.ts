@@ -34,6 +34,26 @@ class PendingWorker {
     }
 }
 
+/**
+ * A worker with no construction to wait on, whose close settles only when the test lets it — the
+ * window in which the runtime has begun closing a worker but still holds it.
+ */
+class SlowClosingWorker {
+    closeCount = 0;
+    #closed!: () => void;
+    readonly closing = new Promise<void>(resolve => (this.#closed = resolve));
+
+    close() {
+        this.closeCount++;
+        return this.closing;
+    }
+
+    finishClosing() {
+        this.#closed();
+        return this.closing;
+    }
+}
+
 describe("RuntimeService", () => {
     describe("cancel of a worker that is still constructing", () => {
         it("closes the worker once construction succeeds", async () => {
@@ -86,6 +106,25 @@ describe("RuntimeService", () => {
             await worker.finishConstructing();
 
             expect(worker.closeCount).equals(1);
+        });
+    });
+
+    describe("cancel of a worker whose close does not settle at once", () => {
+        it("does not close it again when work resumes and the runtime cancels again", async () => {
+            const environment = new Environment("test");
+            const worker = new SlowClosingWorker();
+
+            environment.runtime.add(worker);
+            environment.runtime.cancel();
+            expect(worker.closeCount).equals(1);
+
+            // The close has not settled, so the runtime still holds the worker
+            environment.runtime.add(new Promise<void>(() => {}));
+            environment.runtime.cancel();
+
+            expect(worker.closeCount).equals(1);
+
+            await worker.finishClosing();
         });
     });
 });
