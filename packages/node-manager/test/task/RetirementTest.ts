@@ -223,11 +223,37 @@ describe("run records after a retirement", () => {
         const record = await stored(node, finished);
         expect(record).not.equals(undefined);
         expect("params" in record!).equals(false);
-        // The key goes, not merely its value — and the same pass normalises the other keys the previous build
-        // materialised empty, because it rebuilds each record through the ordinary snapshot path.
-        expect("error" in record!).equals(false);
-        expect("revertOf" in record!).equals(false);
+        // Only the parameters: the other keys the previous build wrote empty are normalised by the next
+        // ordinary write of the record, and this pass does not claim to do it for them.
         expect(await node.act(a => a.get(TestTaskManager).state.runsVersion)).equals(RUN_STORE_VERSION);
+    });
+
+    it("drops the parameters of a record predating per-run identity", async () => {
+        const environment = new Environment("upgrade-legacy");
+        {
+            await using node = await makeNode(environment, "legacy");
+            // The shape `load` discards: a slot key where a run id now goes. It stays in storage, so nothing
+            // will ever rewrite it — and for the group tasks its parameters are raw epoch keys.
+            await node.act(a => {
+                const manager = a.get(TestTaskManager);
+                manager.state.runs = {
+                    ...manager.state.runs,
+                    "synthetic:legacy": {
+                        slotKey: "synthetic:legacy",
+                        type: "synthetic",
+                        params: { epochKey0: "secret" },
+                        phaseIndex: 0,
+                        state: "completed",
+                    } as unknown as TaskPersistence,
+                };
+                manager.state.runsVersion = 1;
+            });
+        }
+
+        await using node = await makeNode(environment, "legacy");
+        const legacy = await node.act(a => a.get(TestTaskManager).state.runs["synthetic:legacy"]);
+        expect(legacy).not.equals(undefined);
+        expect("params" in legacy!).equals(false);
     });
 
     it("drops a parameter key an older build left present but empty", async () => {

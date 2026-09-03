@@ -179,14 +179,17 @@ export class TaskManagerBehavior extends Behavior {
      * storing, including the raw epoch keys the group tasks take. Nothing else will ever touch those records,
      * so the upgrade has to.
      *
-     * Over the stored table rather than only the loaded one: a record `load` discarded still occupies storage,
-     * and its parameters are just as durable.
+     * Over the stored table, not the loaded one, and by key rather than by value. Three things follow from
+     * that, each of which was wrong first:
      *
-     * Each record is rebuilt through the same drop-and-snapshot path every ordinary write uses, rather than by
-     * editing the stored object. That is what keeps the two senses of "gone" from diverging: the loaded record
-     * must lose the field as well, or the next write of a migrated run puts it straight back and the version
-     * stamp means this pass never runs again to take it off; and the *key* must go, not merely its value,
-     * because a snapshot from the previous build materialised every key including the undefined ones.
+     * - A record `load` discarded — one from before per-run identity, which it leaves in storage under a key
+     *   that is not a run id — is exactly a record nothing will ever rewrite. It has no in-memory twin, so it
+     *   is edited in place; anything that needed a {@link RunRecord} would skip it and keep its keys forever.
+     * - The *key* goes, not its value: a snapshot from the previous build materialised every field it knew,
+     *   including the empty ones, so a finished task that ran without parameters carries an empty `params`.
+     * - A record this process did load has a twin in memory, and that twin has to lose the field too, or the
+     *   next write of it puts the field straight back — and the version stamp means this pass never runs
+     *   again to take it off.
      */
     #retireStoredParams(): void {
         if (this.state.runsVersion >= RUN_STORE_VERSION) {
@@ -195,27 +198,28 @@ export class TaskManagerBehavior extends Behavior {
         const runs = { ...this.state.runs };
         let retired = 0;
         for (const [key, persisted] of Object.entries(runs)) {
-            // A record with no usable identity is one `load` discards; rebuilding it would invent a run.
-            if (typeof persisted?.runId !== "number" || !isTerminal(persisted.state)) {
+            if (persisted === undefined || !isTerminal(persisted.state)) {
                 continue;
             }
-            const record = this.internal.runs.get(persisted.runId) ?? RunRecord.fromPersistence(persisted);
-            const migrated = record.toPersistence(undefined, RETIRE);
-            // Compared by key rather than by value, and never by serializing: a stored record from the previous
-            // build carries keys holding `undefined`, and `JSON.stringify` drops exactly those — so a
-            // serialized comparison reports "nothing changed" for the one shape this pass exists to remove.
-            if (!Object.keys(persisted).some(field => !(field in migrated))) {
+            const stale = RETIRE.filter(field => field in persisted);
+            if (stale.length === 0) {
                 continue;
             }
-            record.adoptDrop(RETIRE);
+            const migrated = { ...persisted };
+            for (const field of stale) {
+                delete migrated[field];
+            }
             runs[key] = migrated;
+            if (typeof persisted.runId === "number") {
+                this.internal.runs.get(persisted.runId)?.adoptDrop(stale);
+            }
             retired++;
         }
         if (retired > 0) {
             this.state.runs = runs;
-            logger.info(`Rewrote ${retired} finished task record(s) without their parameters on upgrade`);
+            logger.info(`Dropped the stored parameters of ${retired} finished task record(s) on upgrade`);
         }
-        // Stamped even when nothing needed rewriting, so the scan runs once rather than on every start.
+        // Stamped even when nothing needed dropping, so the scan runs once rather than on every start.
         this.state.runsVersion = RUN_STORE_VERSION;
     }
 
