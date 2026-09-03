@@ -458,33 +458,52 @@ certTest("TC-BR-4", {
         "1g",
         "Use TH/bridge-app to change the simulated temperature level of the simulated temperature sensors",
         async cx => {
-            const sensor = TEMPERATURE_SENSORS[0];
-            const before = await heldAttribute(cx, sensor, TEMPERATURE_ID, MEASURED_VALUE_ID);
-            if (typeof before !== "number") {
-                throw new CertCheckFailedError(
-                    `the DUT holds no MeasuredValue for endpoint ${sensor} (${describeValue(before)}), so a ` +
-                        "warming it took in cannot be told from a first value arriving",
-                );
+            // The command warms every sensor, each reporting on its own, so the wait covers all of
+            // them: what follows compares the whole set, and a sensor still in flight would read as
+            // the DUT disagreeing with the TH
+            const held = await heldBefore(cx, TEMPERATURE_SENSORS, TEMPERATURE_ID, MEASURED_VALUE_ID);
+            const expected = new Map<number, number>();
+            for (const endpoint of TEMPERATURE_SENSORS) {
+                const value = held.get(endpoint);
+                if (typeof value !== "number") {
+                    throw new CertCheckFailedError(
+                        `the DUT holds no MeasuredValue for endpoint ${endpoint} (${describeValue(value)}), so a ` +
+                            "warming it took in cannot be told from a first value arriving",
+                    );
+                }
+
+                // A first report of the temperature a sensor already had would satisfy a mere "it
+                // differs" without a warming having been seen, so the wait names the value to reach
+                expected.set(endpoint, value + ONE_DEGREE);
             }
 
             await cx.devices.th.backchannel({ name: "warmBridgedTemperatureSensors" });
 
-            // A first report of the temperature the sensor already had would satisfy a mere "it
-            // differs" without a warming having been seen, so the wait names the value it must reach
-            const expected = before + ONE_DEGREE;
-            const noticed = await until(
-                async () => (await heldAttribute(cx, sensor, TEMPERATURE_ID, MEASURED_VALUE_ID)) === expected,
-            );
-            const after = await heldAttribute(cx, sensor, TEMPERATURE_ID, MEASURED_VALUE_ID);
+            const noticed = await until(async () => {
+                for (const endpoint of TEMPERATURE_SENSORS) {
+                    if (
+                        (await heldAttribute(cx, endpoint, TEMPERATURE_ID, MEASURED_VALUE_ID)) !==
+                        expected.get(endpoint)
+                    ) {
+                        return false;
+                    }
+                }
+                return true;
+            });
+
+            const after = await heldBefore(cx, TEMPERATURE_SENSORS, TEMPERATURE_ID, MEASURED_VALUE_ID);
+            const behind = TEMPERATURE_SENSORS.filter(endpoint => after.get(endpoint) !== expected.get(endpoint));
 
             record(
                 cx,
                 {
                     type: "response",
                     verdict: noticed ? "pass" : "fail",
-                    detail:
-                        `the DUT held ${before} for endpoint ${sensor}'s MeasuredValue and now holds ${after}, ` +
-                        `where one warming makes it ${expected}`,
+                    detail: noticed
+                        ? `every sensor's MeasuredValue reached the value one warming makes it, ` +
+                          `${TEMPERATURE_SENSORS.map(endpoint => `${endpoint}: ${describeValue(after.get(endpoint))}`).join(", ")}`
+                        : `the DUT still holds a temperature short of one warming on endpoints ` +
+                          `${behind.map(endpoint => `${endpoint} (${describeValue(after.get(endpoint))}, expected ${expected.get(endpoint)})`).join(", ")}`,
                 },
                 "the DUT took in the temperature the TH changed",
             );
