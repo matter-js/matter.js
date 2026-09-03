@@ -87,6 +87,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The `Symbol.metadata` polyfill no longer conflicts with `lib.esnext.decorators` in the published declarations
 
 - @matter/model
+    - Fix: A constraint that names a bound held by another element, written `<Element>.<Field>`, now applies that bound instead of accepting every value. This enforces `OccupancySensing.HoldTime`, `AmbientContextSensing.HoldTime` and `SoilMeasurement.SoilMoistureMeasuredValue` against their declared limits, on client writes, on assignment and on the stored value at startup
     - Enhancement: `StoredDefaultValue()` states the default a value store holds for a member, beside the existing `SelectDefaultValue()` and `MandatoryDefaultValue()`
     - Fix: Conformance applicability reports a term that compares a value as conditional rather than optional, so an element the record's own contents decide is no longer treated as mandatory when the features around the comparison are supported
     - Enhancement: `ClusterModel.statusCodes` gives the cluster's own status code definition, inherited by a derived cluster like the other member accessors
