@@ -180,9 +180,13 @@ export class TaskManagerBehavior extends Behavior {
      * so the upgrade has to.
      *
      * Over the stored table rather than only the loaded one: a record `load` discarded still occupies storage,
-     * and its parameters are just as durable. The loaded record loses them too — a snapshot carries every field
-     * the record holds, so the next write of a migrated run would put them straight back, and the version
-     * stamp means this pass would never run again to take them off.
+     * and its parameters are just as durable.
+     *
+     * Each record is rebuilt through the same drop-and-snapshot path every ordinary write uses, rather than by
+     * editing the stored object. That is what keeps the two senses of "gone" from diverging: the loaded record
+     * must lose the field as well, or the next write of a migrated run puts it straight back and the version
+     * stamp means this pass never runs again to take it off; and the *key* must go, not merely its value,
+     * because a snapshot from the previous build materialised every key including the undefined ones.
      */
     #retireStoredParams(): void {
         if (this.state.runsVersion >= RUN_STORE_VERSION) {
@@ -191,20 +195,27 @@ export class TaskManagerBehavior extends Behavior {
         const runs = { ...this.state.runs };
         let retired = 0;
         for (const [key, persisted] of Object.entries(runs)) {
-            if (persisted?.params === undefined || !isTerminal(persisted.state)) {
+            // A record with no usable identity is one `load` discards; rebuilding it would invent a run.
+            if (typeof persisted?.runId !== "number" || !isTerminal(persisted.state)) {
                 continue;
             }
-            const { params, ...rest } = persisted;
-            void params;
-            runs[key] = rest as TaskPersistence;
-            this.internal.runs.get(persisted.runId)?.adoptDrop(RETIRE);
+            const record = this.internal.runs.get(persisted.runId) ?? RunRecord.fromPersistence(persisted);
+            const migrated = record.toPersistence(undefined, RETIRE);
+            // Compared by key rather than by value, and never by serializing: a stored record from the previous
+            // build carries keys holding `undefined`, and `JSON.stringify` drops exactly those — so a
+            // serialized comparison reports "nothing changed" for the one shape this pass exists to remove.
+            if (!Object.keys(persisted).some(field => !(field in migrated))) {
+                continue;
+            }
+            record.adoptDrop(RETIRE);
+            runs[key] = migrated;
             retired++;
         }
         if (retired > 0) {
             this.state.runs = runs;
-            logger.info(`Dropped stored parameters of ${retired} finished task record(s) on upgrade`);
+            logger.info(`Rewrote ${retired} finished task record(s) without their parameters on upgrade`);
         }
-        // Stamped even when nothing needed dropping, so the scan runs once rather than on every start.
+        // Stamped even when nothing needed rewriting, so the scan runs once rather than on every start.
         this.state.runsVersion = RUN_STORE_VERSION;
     }
 

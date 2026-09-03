@@ -200,12 +200,18 @@ describe("run records after a retirement", () => {
             await awaitRetired(node, handle.runId);
             finished = handle.runId;
 
-            // Put the record back the way the previous build left it: parameters intact, table unversioned.
+            // Put the record back the way the previous build left it: every key materialised — including the
+            // undefined ones, which is what that build's snapshots did — and the table unversioned.
             await node.act(a => {
                 const manager = a.get(TestTaskManager);
                 manager.state.runs = {
                     ...manager.state.runs,
-                    [String(finished)]: { ...manager.state.runs[String(finished)], params: { tag: "upgrade" } },
+                    [String(finished)]: {
+                        ...manager.state.runs[String(finished)],
+                        params: { tag: "upgrade" },
+                        error: undefined,
+                        revertOf: undefined,
+                    },
                 };
                 manager.state.runsVersion = 1;
             });
@@ -217,7 +223,39 @@ describe("run records after a retirement", () => {
         const record = await stored(node, finished);
         expect(record).not.equals(undefined);
         expect("params" in record!).equals(false);
+        // The key goes, not merely its value — and the same pass normalises the other keys the previous build
+        // materialised empty, because it rebuilds each record through the ordinary snapshot path.
+        expect("error" in record!).equals(false);
+        expect("revertOf" in record!).equals(false);
         expect(await node.act(a => a.get(TestTaskManager).state.runsVersion)).equals(RUN_STORE_VERSION);
+    });
+
+    it("drops a parameter key an older build left present but empty", async () => {
+        const environment = new Environment("upgrade-emptykey");
+        let finished!: RunId;
+        {
+            await using node = await makeNode(environment, "emptykey");
+            const peer = testPeer("emptykey");
+            peer.markHas("groupMembership", "X");
+            const handle = await run(node, "emptykey", [touchPhase("emptykey")]);
+            await awaitRetired(node, handle.runId);
+            finished = handle.runId;
+
+            // A task run with no parameters at all: the previous build still wrote the key, holding `undefined`.
+            await node.act(a => {
+                const manager = a.get(TestTaskManager);
+                manager.state.runs = {
+                    ...manager.state.runs,
+                    [String(finished)]: { ...manager.state.runs[String(finished)], params: undefined },
+                };
+                manager.state.runsVersion = 1;
+            });
+            expect("params" in (await stored(node, finished))!).equals(true);
+        }
+
+        // Testing the value rather than the key would leave this one behind for good: the upgrade runs once.
+        await using node = await makeNode(environment, "emptykey");
+        expect("params" in (await stored(node, finished))!).equals(false);
     });
 
     it("does not put migrated parameters back on the next write of the record", async () => {
