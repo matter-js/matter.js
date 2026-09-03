@@ -617,15 +617,24 @@ class ChipLocalDevice implements CertDevice {
     /**
      * Delivers one command character to the running app's standard input.
      *
-     * The generation is taken after the write settles as well as before it: a restart between the two
-     * would otherwise leave the command credited to an app that never saw it.
+     * The app the command is for is the one running when it was accepted, and it waits its turn behind
+     * whatever the pacer holds, so the generation is taken before queueing and checked on both sides of
+     * the write. A restart anywhere in between would otherwise credit the command to an app that never
+     * saw it, or send it to a successor it was never meant for.
      */
     async #sendToStdin(char: string): Promise<void> {
-        return this.#stdin.send(() => this.#writeToStdin(char));
+        const generation = this.#requireRunning();
+        return this.#stdin.send(() => this.#writeToStdin(char, generation));
     }
 
-    async #writeToStdin(char: string): Promise<void> {
-        const generation = this.#requireRunning();
+    async #writeToStdin(char: string, generation: LocalGeneration): Promise<void> {
+        if (this.#generation !== generation || generation.exited) {
+            throw new Error(
+                `Cert device ${this.id} restarted while a command waited its turn, so the command was not sent ` +
+                    "to the app it was meant for",
+            );
+        }
+
         const stdin = generation.child.stdin;
         if (stdin === null) {
             throw new Error(
@@ -1123,6 +1132,15 @@ export class ChipDockerDevice implements CertDevice {
                     }
 
                     await this.#stdin.send(async () => {
+                        // The command waited its turn behind the pacer, and the stream it holds is the
+                        // one this generation was started with
+                        if (this.#generation !== generation || generation.exited) {
+                            throw new Error(
+                                `Cert device ${this.id} restarted while a command waited its turn, so the ` +
+                                    "command was not sent to the app it was meant for",
+                            );
+                        }
+
                         await stdin.write(delivery.char);
 
                         // A restart between the write and here would credit the command to an app
