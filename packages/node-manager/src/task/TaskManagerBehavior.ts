@@ -159,7 +159,6 @@ export class TaskManagerBehavior extends Behavior {
             );
             return;
         }
-        this.#retireStoredParams();
         // Reserved here rather than on the first record write: on a fresh store nothing has been written yet,
         // so without this the very first identity would be handed out uncovered.
         this.#reserveIdentities();
@@ -169,58 +168,6 @@ export class TaskManagerBehavior extends Behavior {
         } else {
             this.reactTo(this.#rootNode.lifecycle.online, this.#resumePersisted);
         }
-    }
-
-    /**
-     * Drop `params` from records an older build left finished.
-     *
-     * A write replaces only the records its own transaction names, so a run that was already terminal when
-     * this build first ran is never rewritten — and would keep the parameters this version exists to stop
-     * storing, including the raw epoch keys the group tasks take. Nothing else will ever touch those records,
-     * so the upgrade has to.
-     *
-     * Over the stored table, not the loaded one, and by key rather than by value. Three things follow from
-     * that, each of which was wrong first:
-     *
-     * - A record `load` discarded — one from before per-run identity, which it leaves in storage under a key
-     *   that is not a run id — is exactly a record nothing will ever rewrite. It has no in-memory twin, so it
-     *   is edited in place; anything that needed a {@link RunRecord} would skip it and keep its keys forever.
-     * - The *key* goes, not its value: a snapshot from the previous build materialised every field it knew,
-     *   including the empty ones, so a finished task that ran without parameters carries an empty `params`.
-     * - A record this process did load has a twin in memory, and that twin has to lose the field too, or the
-     *   next write of it puts the field straight back — and the version stamp means this pass never runs
-     *   again to take it off.
-     */
-    #retireStoredParams(): void {
-        if (this.state.runsVersion >= RUN_STORE_VERSION) {
-            return;
-        }
-        const runs = { ...this.state.runs };
-        let retired = 0;
-        for (const [key, persisted] of Object.entries(runs)) {
-            if (persisted === undefined || !isTerminal(persisted.state)) {
-                continue;
-            }
-            const stale = RETIRE.filter(field => field in persisted);
-            if (stale.length === 0) {
-                continue;
-            }
-            const migrated = { ...persisted };
-            for (const field of stale) {
-                delete migrated[field];
-            }
-            runs[key] = migrated;
-            if (typeof persisted.runId === "number") {
-                this.internal.runs.get(persisted.runId)?.adoptDrop(stale);
-            }
-            retired++;
-        }
-        if (retired > 0) {
-            this.state.runs = runs;
-            logger.info(`Dropped the stored parameters of ${retired} finished task record(s) on upgrade`);
-        }
-        // Stamped even when nothing needed dropping, so the scan runs once rather than on every start.
-        this.state.runsVersion = RUN_STORE_VERSION;
     }
 
     #resumePersisted(): void {
@@ -643,7 +590,8 @@ export class TaskManagerBehavior extends Behavior {
         // from the changeSet alone.
         const revert = this.#spawnRevert(record);
         if (revert.record === undefined) {
-            // Cannot happen: a run with a rollback wrote something, and nothing removes a changeSet.
+            // Cannot happen: only a completed retirement empties a changeSet, and a completed run never
+            // recorded a rollback to retry.
             throw new InternalError(`${runLabel(runId)} has a rollback but nothing to roll back`);
         }
         try {
@@ -899,15 +847,15 @@ export class TaskManagerBehavior extends Behavior {
                     : `Cannot abandon ${runLabel(record.runId)}: it is not a rollback; its rollback is ${runLabel(rollback)}`,
             );
         }
-        // Another rollback applies to this target now, so abandoning this one forecloses nothing and would
-        // record that an undo still in progress was given up on.
-        const undone = this.internal.runs.get(record.revertOf);
-        const applicable = undone === undefined ? undefined : this.internal.runs.rollbackApplyingTo(undone);
-        if (applicable !== undefined && applicable.runId !== record.runId) {
-            this.#refuseIfProvisional(applicable, `Cannot abandon ${runLabel(record.runId)}`);
+        // A retry has replaced this rollback, so abandoning it would record that an undo still in progress
+        // was given up on. Scoped to the run this one undoes rather than to its target: abandon records the
+        // disposition of an undo that already exists, it never creates one.
+        const replacement = this.internal.runs.rollbackFor(record.revertOf);
+        if (replacement !== undefined && replacement.runId !== record.runId) {
+            this.#refuseIfProvisional(replacement, `Cannot abandon ${runLabel(record.runId)}`);
             throw new TaskSupersededError(
-                `Cannot abandon ${runLabel(record.runId)}: ${runLabel(applicable.runId)} is the rollback that now applies to ${undone?.slotKey ?? "its target"}`,
-                applicable.runId,
+                `Cannot abandon ${runLabel(record.runId)}: ${runLabel(replacement.runId)} is the rollback that now applies to ${runLabel(record.revertOf)}`,
+                replacement.runId,
             );
         }
         if (undoConcluded(record)) {
@@ -1146,10 +1094,15 @@ export class TaskManagerBehavior extends Behavior {
                 await this.#commit({ record, next: { phaseIndex: record.phaseIndex + 1 } });
             }
             if (record.state === "running") {
-                // One write carries the outcome and its place in the retirement order.
+                // One write carries the outcome and its place in the retirement order. The priors go with it:
+                // reversing a success is a new action the caller starts, so nothing will ever replay them.
                 await this.#commit({
                     record,
-                    next: { state: "completed", retireSeq: this.internal.runs.nextRetirement(record) },
+                    next: {
+                        state: "completed",
+                        retireSeq: this.internal.runs.nextRetirement(record),
+                        changeSet: [],
+                    },
                     drop: RETIRE,
                 });
             }
@@ -1186,6 +1139,16 @@ export class TaskManagerBehavior extends Behavior {
             // The failure, its place in the retirement order and the rollback that undoes it land together, or
             // not at all: written separately, a crash between them leaves a run promising a rollback nothing
             // created.
+            // Past its point of no return there is nothing to restore to, so no verb will ever replay these
+            // priors: `#prepareRevert` declined to create a rollback and `retryRollback` refuses a run with
+            // none. Derived inside the guard that already wraps `#prepareRevert`, because a definition whose
+            // `revertible` throws must not re-reject an otherwise handled drive promise.
+            let replayable = true;
+            try {
+                replayable = execution.bound.revertible(record);
+            } catch (revertibleError) {
+                logger.error(`${runLabel(record.runId)}: cannot ask whether it is revertible`, revertibleError);
+            }
             try {
                 await this.#commit(
                     {
@@ -1195,6 +1158,7 @@ export class TaskManagerBehavior extends Behavior {
                             error,
                             retireSeq: this.internal.runs.nextRetirement(record),
                             revertRunId: revert.record?.runId,
+                            ...(replayable ? {} : { changeSet: [] }),
                         },
                         drop: RETIRE,
                     },

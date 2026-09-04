@@ -26,6 +26,7 @@ function persisted(runId: number, state: TaskState, changeSet: ChangeEntry[] = [
         params: { tag: String(runId) },
         phaseIndex: 0,
         state,
+        wrote: changeSet.length > 0,
         changeSet,
     };
 }
@@ -54,7 +55,7 @@ describe("run record snapshots", () => {
             expect(absent in snapshot).equals(false);
         }
         // The strip is enumerated rather than derived from the values present, so it cannot reach these.
-        for (const required of ["runId", "slotKey", "type", "phaseIndex", "state", "changeSet"]) {
+        for (const required of ["runId", "slotKey", "type", "phaseIndex", "state", "changeSet", "wrote"]) {
             expect(required in snapshot).equals(true);
         }
     });

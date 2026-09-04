@@ -22,6 +22,12 @@ export interface TaskPersistence {
     state: TaskState;
     externalId?: string;
     changeSet: ChangeEntry[];
+    /**
+     * Whether this run wrote an intent. Separate from {@link changeSet}, which holds what a rollback would
+     * restore and is dropped once nothing can restore it — a run that changed the device stays a run that
+     * changed the device.
+     */
+    wrote: boolean;
     error?: string;
     /** Order in which runs retired. The only ordering key for history; never use `runId`. */
     retireSeq?: RetireSeq;
@@ -65,6 +71,7 @@ export class RunRecord implements RunView {
     phaseIndex: number;
     state: TaskState;
     changeSet: ChangeEntry[];
+    wrote: boolean;
     error?: string;
     retireSeq?: RetireSeq;
     revertRunId?: RunId;
@@ -85,6 +92,7 @@ export class RunRecord implements RunView {
         this.phaseIndex = persisted?.phaseIndex ?? 0;
         this.state = persisted?.state ?? "running";
         this.changeSet = persisted?.changeSet ?? new Array<ChangeEntry>();
+        this.wrote = persisted?.wrote ?? false;
         this.error = persisted?.error;
         this.retireSeq = persisted?.retireSeq;
         this.revertRunId = persisted?.revertRunId;
@@ -115,6 +123,7 @@ export class RunRecord implements RunView {
             state: this.state,
             externalId: this.externalId,
             changeSet: [...this.changeSet],
+            wrote: this.wrote,
             error: this.error,
             retireSeq: this.retireSeq,
             revertRunId: this.revertRunId,
@@ -191,6 +200,7 @@ export interface RunView {
     readonly phaseIndex: number;
     readonly state: TaskState;
     readonly changeSet: readonly ChangeEntry[];
+    readonly wrote: boolean;
     readonly externalId?: string;
     readonly error?: string;
     readonly retireSeq?: RetireSeq;

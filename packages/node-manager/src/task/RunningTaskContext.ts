@@ -74,6 +74,9 @@ export class RunningTaskContext implements TaskContext {
         const existing = peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)];
         const prior = existing === undefined ? undefined : { intent: existing.intent, mode: existing.mode };
         this.record.changeSet.push({ peerId: peer.id, kind, key, prior });
+        // Permanent, unlike the entries: a retirement drops what a run would restore once nothing can restore
+        // it, and every other run of the target still has to know this one reached the device.
+        this.record.wrote = true;
     }
 
     async removeIntentIfUnreferenced(peer: ClientNode, kind: string, key: string): Promise<boolean> {
