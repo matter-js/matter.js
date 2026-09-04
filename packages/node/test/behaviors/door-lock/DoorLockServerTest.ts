@@ -6,9 +6,40 @@
 
 import { DoorLockServer } from "#behaviors/door-lock";
 import { DoorLockDevice } from "#devices/door-lock";
-import { FabricIndex, Status } from "@matter/types";
+import {
+    ClusterId,
+    CommandId,
+    EndpointNumber,
+    FabricIndex,
+    Status,
+    TlvByteString,
+    TlvField,
+    TlvNullable,
+    TlvObject,
+    TlvUInt16,
+    TlvUInt8,
+} from "@matter/types";
 import { DoorLock } from "@matter/types/clusters/door-lock";
 import { MockServerNode } from "../../node/mock-server-node.js";
+import { interaction } from "../../node/node-helpers.js";
+
+const TlvSetCredentialResponse = TlvObject({
+    status: TlvField(0, TlvUInt8),
+    userIndex: TlvField(1, TlvNullable(TlvUInt16)),
+    nextCredentialIndex: TlvField(2, TlvNullable(TlvUInt16)),
+});
+
+const TlvSetCredentialRequest = TlvObject({
+    operationType: TlvField(0, TlvUInt8),
+    credential: TlvField(
+        1,
+        TlvObject({ credentialType: TlvField(0, TlvUInt8), credentialIndex: TlvField(1, TlvUInt16) }),
+    ),
+    credentialData: TlvField(2, TlvByteString),
+    userIndex: TlvField(3, TlvNullable(TlvUInt16)),
+    userStatus: TlvField(4, TlvNullable(TlvUInt8)),
+    userType: TlvField(5, TlvNullable(TlvUInt8)),
+});
 
 const TestDoorLockDevice = DoorLockDevice.with(DoorLockServer.with("User", "PinCredential"));
 
@@ -50,6 +81,57 @@ function pin(digits: string) {
 }
 
 describe("DoorLockServer", () => {
+    // SetCredential's OperationType admits only the values "add, modify" names, and the cluster answers a payload it
+    // cannot validate with INVALID_COMMAND
+    it("refuses SetCredential naming an OperationType its constraint omits", async () => {
+        await using lock = await createLock();
+
+        // The request creates its own user, so it does not depend on a seeded record any particular fabric owns
+        async function setCredentialOverTheWire(operationType: DoorLock.DataOperationType) {
+            let interactionStatus: number | undefined;
+            let payload: undefined | { status: number };
+
+            await interaction.invoke(
+                lock.node,
+                await lock.node.addFabric(),
+                {
+                    commandPath: {
+                        endpointId: EndpointNumber(1),
+                        clusterId: ClusterId(DoorLock.Complete.id),
+                        commandId: CommandId(0x22),
+                    },
+                    commandFields: TlvSetCredentialRequest.encodeTlv({
+                        operationType,
+                        credential: { credentialType: DoorLock.CredentialType.Pin, credentialIndex: 2 },
+                        credentialData: pin("9876"),
+                        userIndex: null,
+                        userStatus: null,
+                        userType: null,
+                    }),
+                },
+                response => {
+                    interactionStatus = response.status?.status?.status;
+                    const fields = response.command?.commandFields;
+                    if (fields !== undefined) {
+                        payload = TlvSetCredentialResponse.decodeTlv(fields);
+                    }
+                },
+                { timed: true },
+            );
+
+            return { interactionStatus, payload };
+        }
+
+        // Validation refuses the command, so the cluster never answers a response payload of its own
+        const cleared = await setCredentialOverTheWire(DoorLock.DataOperationType.Clear);
+        expect(cleared.interactionStatus).equals(Status.InvalidCommand);
+        expect(cleared.payload).equals(undefined);
+
+        const added = await setCredentialOverTheWire(DoorLock.DataOperationType.Add);
+        expect(added.interactionStatus).equals(undefined);
+        expect(added.payload?.status).equals(Status.Success);
+    });
+
     it("reports DUPLICATE when CredentialData duplicates another credential of the same CredentialType", async () => {
         await using lock = await createLock();
 

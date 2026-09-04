@@ -97,6 +97,15 @@ function create(
                 }
             };
 
+        // An enumerated value is a number, and a constraint on one states the values it may take rather than a range
+        case Metatype.enum:
+            return (value, _session, location) => {
+                assertNumeric(value, location);
+                if (!constraint.test(value, nameResolverFactory(location))) {
+                    throw new ConstraintError(schema, location, `Value ${value} is not allowed by constraint`);
+                }
+            };
+
         case Metatype.boolean:
             return (value, _session, location) => {
                 assertBoolean(value, location);
