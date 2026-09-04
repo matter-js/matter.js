@@ -12,7 +12,15 @@ interface ValueTest {
     ok: boolean;
 }
 
-const TEST_CONSTRAINTS: [text: string, ast: Constraint.Ast, expectedText?: string, valueTests?: ValueTest[]][] = [
+type NameResolver = (name: string) => unknown;
+
+const TEST_CONSTRAINTS: [
+    text: string,
+    ast: Constraint.Ast,
+    expectedText?: string,
+    valueTests?: ValueTest[],
+    resolver?: NameResolver,
+][] = [
     [
         "0",
         { value: 0 },
@@ -405,11 +413,47 @@ const TEST_CONSTRAINTS: [text: string, ast: Constraint.Ast, expectedText?: strin
                 },
             },
         },
+        undefined,
+        [
+            { test: 9, ok: false },
+            { test: 10, ok: true },
+            { test: 50, ok: true },
+            { test: 100, ok: true },
+            { test: 101, ok: false },
+            { test: 0, ok: false },
+            { test: 65535, ok: false },
+        ],
+        name => (name === "holdTimeLimits" ? { holdTimeMin: 10, holdTimeMax: 100 } : undefined),
+    ],
+    [
+        "soilMoistureMeasurementLimits.minMeasuredValue to soilMoistureMeasurementLimits.maxMeasuredValue",
+        {
+            min: {
+                type: ".",
+                lhs: { type: "reference", name: "soilMoistureMeasurementLimits" },
+                rhs: { type: "reference", name: "minMeasuredValue" },
+            },
+
+            max: {
+                type: ".",
+                lhs: { type: "reference", name: "soilMoistureMeasurementLimits" },
+                rhs: { type: "reference", name: "maxMeasuredValue" },
+            },
+        },
+        undefined,
+        [
+            { test: 19, ok: false },
+            { test: 20, ok: true },
+            { test: 80, ok: true },
+            { test: 81, ok: false },
+            { test: 255, ok: false },
+        ],
+        name => (name === "soilMoistureMeasurementLimits" ? { minMeasuredValue: 20, maxMeasuredValue: 80 } : undefined),
     ],
 ];
 
 describe("Constraint", () => {
-    TEST_CONSTRAINTS.forEach(([text, ast, expectedText, valueTests]) => {
+    TEST_CONSTRAINTS.forEach(([text, ast, expectedText, valueTests, resolver]) => {
         describe(text, () => {
             it("parses", () => {
                 expect(new Constraint(text)).deep.equal(new Constraint({ ...ast, definition: text }));
@@ -425,7 +469,7 @@ describe("Constraint", () => {
                 for (const vt of valueTests) {
                     const label = typeof vt.test === "bigint" ? `${vt.test}n` : `${vt.test}`;
                     it(`${vt.ok ? "accepts" : "rejects"} ${label}`, () => {
-                        expect(constraint.test(vt.test)).equal(vt.ok);
+                        expect(constraint.test(vt.test, resolver)).equal(vt.ok);
                     });
                 }
             }

@@ -34,7 +34,8 @@
         "ws": "^8.21.2"
     },
     "devDependencies": {
-        "@matter/node": "*"
+        "@matter/node": "*",
+        "@matter/protocol": "*"
     },
     "optionalDependencies": {
         "bufferutil": "^4.1.0"

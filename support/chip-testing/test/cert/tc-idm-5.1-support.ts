@@ -7,7 +7,7 @@
 import { Duration, InternalError, Millis, Seconds, Time } from "@matter/main";
 import type { CheckRecord, LogFollower, LogLine } from "@matter/testing";
 import { CertLogClosedError, CertLogTimeoutError, forFlavor } from "@matter/testing";
-import { expectAdjacentLines, INVOKE_REQUEST_MESSAGE, WRITE_REQUEST_MESSAGE } from "./tc-support.js";
+import { expectAdjacentLines, INVOKE_REQUEST_MESSAGE, literally, WRITE_REQUEST_MESSAGE } from "./tc-support.js";
 
 // TC-IDM-5.1's own checks live beside the test case rather than inside it because a `TC-*.test.ts`
 // registers a device-driven mocha test at import time, so the cert-framework spec set cannot import
@@ -27,7 +27,7 @@ const TIMED_REQUEST_FLAG = /timedRequest = true,\s*$/;
  * the session it came over: `(S)` secure unicast, `(U)` unencrypted unicast, `(G)` secure groupcast
  * (`src/messaging/README.md`).
  */
-const RECEIPT_LINE = /\[E:(\d+[ir])[^\]]*\] \((S|U|G)\) Msg RX from/;
+const RECEIPT_LINE = /\[E:(\d+[ir])(?: S:(\d+))?[^\]]*\] \((S|U|G)\) Msg RX from/;
 
 // How far back from a message's decode dump its own receive line may sit. chip prints the two a
 // handful of lines apart; the bound is what stops a search that finds nothing nearby from
@@ -99,7 +99,8 @@ function receiptBefore(log: LogFollower, index: number): Receipt | undefined {
         index: line.index,
         text: line.text,
         exchange: match[1],
-        category: match[2] as Receipt["category"],
+        session: match[2],
+        category: match[3] as Receipt["category"],
         pattern: String(RECEIPT_LINE),
     };
 }
@@ -283,7 +284,7 @@ const MATTERJS_FOLLOW_UPS: Record<TimedInteraction, string> = {
 
 /** matter.js's own line for the message of `interaction` that arrived on `session`'s `exchange`. */
 function matterjsFollowUpPattern(interaction: TimedInteraction, session: string, exchange: string): RegExp {
-    return new RegExp(`Message « for: I/${MATTERJS_FOLLOW_UPS[interaction]} id: ${escaped(session)}⇵${exchange}✉`);
+    return new RegExp(`Message « for: I/${MATTERJS_FOLLOW_UPS[interaction]} id: ${literally(session)}⇵${exchange}✉`);
 }
 
 // matter.js clears the timed interaction a message consumed, naming the exchange in decimal where the
@@ -292,13 +293,8 @@ function matterjsFollowUpPattern(interaction: TimedInteraction, session: string,
 // matter.js does not print at all), present for both kinds.
 function matterjsTimedClearedPattern(session: string, exchange: string): RegExp {
     return new RegExp(
-        `Clearing timed interaction exId: ${parseInt(exchange, 16)}(?!\\d) via: ${escaped(session)}(?![0-9a-f])`,
+        `Clearing timed interaction exId: ${parseInt(exchange, 16)}(?!\\d) via: ${literally(session)}(?![0-9a-f])`,
     );
-}
-
-/** A captured log token used as a literal inside a larger pattern. */
-function escaped(text: string): string {
-    return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /** As {@link expectTimedFollowUp} against a matter.js TH. */
@@ -411,7 +407,15 @@ export async function expectTimedFollowUp(
             }
             cursor = block.last.index + 1;
 
-            if (receiptBefore(log, block.last.index)?.exchange !== receipt.exchange) {
+            // An exchange id is unique only within its session, so a follow-up is this timed request's
+            // only when both agree — and a receive line naming no session cannot establish that
+            const candidate = receiptBefore(log, block.last.index);
+            if (
+                receipt.session === undefined ||
+                candidate?.session === undefined ||
+                candidate.exchange !== receipt.exchange ||
+                candidate.session !== receipt.session
+            ) {
                 continue;
             }
 

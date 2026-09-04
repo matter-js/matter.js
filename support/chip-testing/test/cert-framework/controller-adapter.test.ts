@@ -40,6 +40,9 @@ function fakeControllerAdapter(id: string): ControllerAdapter {
         async parseManualPairingCode(): Promise<never> {
             throw new InternalError("not used in this test");
         },
+        group(): never {
+            throw new InternalError("not used by these tests");
+        },
         node() {
             throw new InternalError("not used in this test");
         },
@@ -622,7 +625,7 @@ describe("ControllerAdapter registry", () => {
             resetControllerAdapterFactoryForTesting("chip-tool");
             registerControllerAdapterFactory(
                 "chip-tool",
-                id => new ChipToolControllerAdapter(id),
+                (id, options) => new ChipToolControllerAdapter(id, options),
                 CHIP_TOOL_CONTROLLER_PICS,
             );
         }
@@ -640,6 +643,51 @@ describe("ControllerAdapter registry", () => {
             expect(pics["MCORE.DD.MANUAL_PC_COMMISSIONING"]).equal(1);
             expect(pics["MCORE.DD.SCAN_QR_CODE"]).equal(1);
             expect(pics["MCORE.DD.CTRL_CONCATENATED_QR_CODE_1"]).equal(0);
+        }
+    });
+
+    it("declares every Groups client command TC-G-3.2 sends, gated or not", () => {
+        // AddGroup carries no PICS gate of its own — it is a precondition — but a controller that sends
+        // a command it does not declare is exactly the drift the Actions block below guards against.
+        const groupsCommands = ["00", "02", "03", "04", "05"].map(id => `G.C.C${id}.Tx`);
+        const asDevice = new PicsFile(groupsCommands.map(key => `${key}=0`));
+
+        for (const implementation of ["matterjs", "chip-tool"] as const) {
+            const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
+
+            for (const key of groupsCommands) {
+                expect(new PicsExpression(key).evaluate(forRun), `${implementation} ${key}`).equal(true);
+            }
+        }
+    });
+
+    it("declares the ScenesManagement client commands TC-S-3.1 sends, and the cluster itself", () => {
+        // Unlike Groups, the device file answers 0 for the cluster as well, so an undeclared S.C would
+        // make the whole test pending rather than skipping one step.
+        const scenesKeys = ["00", "01", "02", "03", "04", "05", "06", "40"].map(id => `S.C.C${id}.Tx`);
+        const asDevice = new PicsFile(["S.C=0", ...scenesKeys.map(key => `${key}=0`)]);
+
+        for (const implementation of ["matterjs", "chip-tool"] as const) {
+            const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
+
+            for (const key of ["S.C", ...scenesKeys]) {
+                expect(new PicsExpression(key).evaluate(forRun), `${implementation} ${key}`).equal(true);
+            }
+        }
+    });
+
+    it("declares the group-administration client commands TC-SC-6.1 sends", () => {
+        // ViewGroup is 0 in the device file; the two GroupKeyManagement keys are absent from it
+        // entirely, and an absent key evaluates false, so either omission skips a step silently.
+        const keys = ["G.C.C01.Tx", "GRPKEY.C.C03.Tx", "GRPKEY.C.C04.Tx"];
+        const asDevice = new PicsFile(["G.C.C01.Tx=0"]);
+
+        for (const implementation of ["matterjs", "chip-tool"] as const) {
+            const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
+
+            for (const key of keys) {
+                expect(new PicsExpression(key).evaluate(forRun), `${implementation} ${key}`).equal(true);
+            }
         }
     });
 
@@ -674,6 +722,33 @@ describe("ControllerAdapter registry", () => {
         }
     });
 
+    it("hands a test's transport request to the factory", () => {
+        // A TC that needs TCP declares it, and the adapter must see it before it starts — a controller
+        // cannot change a session's transport afterwards.
+        env.MATTER_CERT_CONTROLLER = "chip-tool";
+        resetControllerAdapterFactoryForTesting("chip-tool");
+
+        const seen = new Array<unknown>();
+        try {
+            registerControllerAdapterFactory("chip-tool", (id, options) => {
+                seen.push(options?.transport);
+                return fakeControllerAdapter(id);
+            });
+
+            createControllerAdapter("with-tcp", { transport: "tcp" });
+            createControllerAdapter("without");
+
+            expect(seen).deep.equal(["tcp", undefined]);
+        } finally {
+            resetControllerAdapterFactoryForTesting("chip-tool");
+            registerControllerAdapterFactory(
+                "chip-tool",
+                (id, options) => new ChipToolControllerAdapter(id, options),
+                CHIP_TOOL_CONTROLLER_PICS,
+            );
+        }
+    });
+
     it("reports no declarations for an implementation registered without them", () => {
         resetControllerAdapterFactoryForTesting("chip-tool");
 
@@ -684,7 +759,7 @@ describe("ControllerAdapter registry", () => {
             resetControllerAdapterFactoryForTesting("chip-tool");
             registerControllerAdapterFactory(
                 "chip-tool",
-                id => new ChipToolControllerAdapter(id),
+                (id, options) => new ChipToolControllerAdapter(id, options),
                 CHIP_TOOL_CONTROLLER_PICS,
             );
         }

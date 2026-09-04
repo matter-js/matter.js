@@ -306,31 +306,36 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
     override setCredential(request: DoorLock.SetCredentialRequest): DoorLock.SetCredentialResponse {
         const { operationType, credential, credentialData, userIndex, userStatus, userType } = request;
         const fabricIndex = this.#fabricIndex;
-        const maxCredentials = this.#maxCredentialsForType(credential.credentialType);
+        const maxCredentialIndex = this.#maxCredentialIndexForType(credential.credentialType);
         const auth = this.auth;
 
-        if (credential.credentialIndex < 0 || credential.credentialIndex > maxCredentials) {
-            return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex: null };
-        }
-
-        if (!this.#validateCredentialDataLength(credential.credentialType, credentialData)) {
-            return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex: null };
-        }
-
-        if (auth.isDuplicateCredential(credential.credentialType, credentialData, credential.credentialIndex)) {
-            return { status: Status.Failure, userIndex: null, nextCredentialIndex: null };
-        }
-
+        // § 5.2.10.21.3 states NextCredentialIndex independently of the status, so every response carries it
         const nextCredentialIndex = auth.findNextAvailableCredentialIndex(
             credential.credentialType,
             credential.credentialIndex,
-            maxCredentials,
+            maxCredentialIndex,
         );
+
+        if (!this.#credentialIndexValid(credential.credentialType, credential.credentialIndex, maxCredentialIndex)) {
+            return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex };
+        }
+
+        if (!this.#validateCredentialDataLength(credential.credentialType, credentialData)) {
+            return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex };
+        }
+
+        if (auth.isDuplicateCredential(credential.credentialType, credentialData, credential.credentialIndex)) {
+            return { status: DoorLock.StatusCode.Duplicate, userIndex: null, nextCredentialIndex };
+        }
+
+        if (!this.#requestMatchesUseCase(operationType, credential, userIndex, userStatus, userType)) {
+            return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex };
+        }
 
         if (operationType === DataOperationType.Add) {
             const existingCred = auth.findCredential(credential.credentialType, credential.credentialIndex);
             if (existingCred) {
-                return { status: Status.Failure, userIndex: null, nextCredentialIndex };
+                return { status: DoorLock.StatusCode.Occupied, userIndex: null, nextCredentialIndex };
             }
 
             auth.addCredential(credential.credentialType, credential.credentialIndex, credentialData, fabricIndex);
@@ -341,13 +346,13 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
                 const newUserIndex = auth.findAvailableUserIndex(this.state.numberOfTotalUsersSupported);
                 if (newUserIndex === null) {
                     auth.removeCredential(credential.credentialType, credential.credentialIndex);
-                    return { status: Status.ResourceExhausted, userIndex: null, nextCredentialIndex };
+                    return { status: DoorLock.StatusCode.Occupied, userIndex: null, nextCredentialIndex };
                 }
 
                 auth.addUser({
                     userIndex: newUserIndex,
                     userName: "",
-                    userUniqueId: 0xffffffff,
+                    userUniqueId: null,
                     userStatus: userStatus ?? UserStatus.OccupiedEnabled,
                     userType: userType ?? UserType.UnrestrictedUser,
                     credentialRule: CredentialRule.Single,
@@ -448,7 +453,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
             return { status: Status.Success, userIndex: null, nextCredentialIndex };
         }
 
-        return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex: null };
+        return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex };
     }
 
     override getCredentialStatus(request: DoorLock.GetCredentialStatusRequest): DoorLock.GetCredentialStatusResponse {
@@ -1006,10 +1011,52 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         }
     }
 
-    #maxCredentialsForType(type: CredentialType): number {
+    /**
+     * § 5.2.10.20 states what each SetCredential use case carries. Only the case that creates a user alongside the
+     * credential carries user fields; the others state them as null. The values each field may hold are the command's
+     * own constraint, enforced before the request reaches us.
+     */
+    #requestMatchesUseCase(
+        operationType: DataOperationType,
+        credential: DoorLock.Credential,
+        userIndex: number | null,
+        userStatus: UserStatus | null,
+        userType: UserType | null,
+    ): boolean {
+        if (operationType === DataOperationType.Add && userIndex === null) {
+            return userType !== UserType.ProgrammingUser;
+        }
+
+        // Reached only for a credential index the type permits, so the programming PIN is already at index 0
+        if (operationType === DataOperationType.Modify && userIndex === null) {
+            return (
+                userStatus === null &&
+                userType === UserType.ProgrammingUser &&
+                credential.credentialType === CredentialType.ProgrammingPin
+            );
+        }
+
+        return userStatus === null && userType === null;
+    }
+
+    /**
+     * § 5.2.6.24.2 states index 0 for a credential type that indexes into nothing, of which the programming PIN is
+     * the only one, so every other type indexes from 1.
+     */
+    #credentialIndexValid(type: CredentialType, index: number, maxIndex: number): boolean {
+        if (type === CredentialType.ProgrammingPin) {
+            return index === 0;
+        }
+
+        return index >= 1 && index <= maxIndex;
+    }
+
+    #maxCredentialIndexForType(type: CredentialType): number {
         switch (type) {
-            case CredentialType.Pin:
+            // Indexes into nothing, so there is no slot to scan and none to report
             case CredentialType.ProgrammingPin:
+                return 0;
+            case CredentialType.Pin:
                 return this.state.numberOfPinUsersSupported;
             case CredentialType.Rfid:
                 return this.state.numberOfRfidUsersSupported;

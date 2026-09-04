@@ -927,8 +927,8 @@ describe("command, event and subscribe checks against a matter.js TH", () => {
     const SESSION = "@1:6933d77f2aac19fc•8c2d";
     const invokeLine = (paths: string, flags = "") =>
         `2026-08-22 16:56:18.684 INFO InteractionServer Invoke « ${SESSION}⇵4ef3 ${flags}invokes: ${paths}`;
-    const fieldsLine = (command: string, fields: string) =>
-        `2026-08-22 16:54:43.437 INFO ProtocolService Invoke « binford-6100.generalCommissioning.${command} ${SESSION}⇵4ef3✉0d8128da ${fields}`;
+    const fieldsLine = (command: string, fields: string, cluster = "generalCommissioning") =>
+        `2026-08-22 16:54:43.437 INFO ProtocolService Invoke « binford-6100.${cluster}.${command} ${SESSION}⇵4ef3✉0d8128da ${fields}`;
     const readEventLine = (events: string, flags = "fabricFiltered ") =>
         `2026-08-22 16:56:19.727 DEBUG InteractionServer Read « ${SESSION}⇵9376 ${flags}attributes: none events: ${events}`;
     const subscribeFlagsLine = (flags: string) =>
@@ -978,6 +978,92 @@ describe("command, event and subscribe checks against a matter.js TH", () => {
         );
 
         expect(record.verdict).equal("pass");
+    });
+
+    it("checks a string field by the value matter.js prints unquoted", async () => {
+        const record = await withFollower(
+            [
+                invokeLine("1.groups.addGroupIfIdentifying"),
+                fieldsLine("addGroupIfIdentifying", "groupId: 3 groupName: gp3", "groups"),
+            ],
+            follower =>
+                expectCommandInvoke(
+                    follower,
+                    "matterjs",
+                    1,
+                    0x4,
+                    0x5,
+                    [
+                        { id: 0, value: 3 },
+                        { id: 1, value: "gp3" },
+                    ],
+                    0,
+                    Millis(100),
+                ),
+        );
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("does not take a longer string for the one the step asked for", async () => {
+        const record = await withFollower(
+            [
+                invokeLine("1.groups.addGroupIfIdentifying"),
+                fieldsLine("addGroupIfIdentifying", "groupId: 3 groupName: gp30", "groups"),
+            ],
+            follower =>
+                expectCommandInvoke(follower, "matterjs", 1, 0x4, 0x5, [{ id: 1, value: "gp3" }], 0, Millis(100)),
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("does not take a name whose own space ends the value the step asked for", async () => {
+        const record = await withFollower(
+            [
+                invokeLine("1.groups.addGroupIfIdentifying"),
+                fieldsLine("addGroupIfIdentifying", "groupId: 3 groupName: gp 3", "groups"),
+            ],
+            follower =>
+                expectCommandInvoke(follower, "matterjs", 1, 0x4, 0x5, [{ id: 1, value: "gp" }], 0, Millis(100)),
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("matches a name that ends the line, and one another field follows", async () => {
+        for (const fields of ["groupId: 3 groupName: gp 3", "groupName: gp 3 groupId: 3"]) {
+            const record = await withFollower(
+                [invokeLine("1.groups.addGroupIfIdentifying"), fieldsLine("addGroupIfIdentifying", fields, "groups")],
+                follower =>
+                    expectCommandInvoke(follower, "matterjs", 1, 0x4, 0x5, [{ id: 1, value: "gp 3" }], 0, Millis(100)),
+            );
+
+            expect(record.verdict, fields).equal("pass");
+        }
+    });
+
+    it("matches a name carrying regular-expression syntax literally", async () => {
+        const record = await withFollower(
+            [
+                invokeLine("1.groups.addGroupIfIdentifying"),
+                fieldsLine("addGroupIfIdentifying", "groupId: 3 groupName: gpX3", "groups"),
+            ],
+            follower =>
+                expectCommandInvoke(follower, "matterjs", 1, 0x4, 0x5, [{ id: 1, value: "gp.3" }], 0, Millis(100)),
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("refuses a value matter.js cannot print as a matchable field", async () => {
+        for (const value of ["", "two\nlines"]) {
+            await expect(
+                withFollower([invokeLine("1.groups.addGroupIfIdentifying")], follower =>
+                    expectCommandInvoke(follower, "matterjs", 1, 0x4, 0x5, [{ id: 1, value }], 0, Millis(100)),
+                ),
+            ).rejectedWith(InternalError);
+        }
     });
 
     it("fails when a field carried another value than the step asked for", async () => {
@@ -1118,6 +1204,73 @@ describe("command, event and subscribe checks against a matter.js TH", () => {
         );
 
         expect(record.verdict).equal("fail");
+    });
+});
+
+describe("expectReportAck against a chip TH", () => {
+    // One subscription's report going out on its own exchange, and the acks that come back. chip
+    // prints a trace line naming the exchange, then the message's decode dump.
+    const SUBSCRIPTION_ID = 0x54c99e7e;
+
+    function reportLines(exchange: string) {
+        return [
+            `[DMG] >> to UDP:[fe80::1]:5540 | 1234 | [Interaction Model  (1) / Report Data (0x05) / Session = 2 / Exchange = ${exchange}]`,
+            "[DMG] ReportDataMessage =",
+            "[DMG] {",
+            `[DMG] \tSubscriptionId = 0x${SUBSCRIPTION_ID.toString(16)},`,
+            "[DMG] \tAttributeReportIBs =",
+        ];
+    }
+
+    function ackLines(exchange: string, status: string) {
+        return [
+            `[DMG] << from UDP:[fe80::1]:5540 | 1235 | [Interaction Model  (1) / Status Response (0x01) / Session = 2 / Exchange = ${exchange}]`,
+            "[DMG] StatusResponseMessage =",
+            "[DMG] {",
+            `[DMG] \tStatus = ${status},`,
+        ];
+    }
+
+    async function ack(lines: string[]) {
+        return withFollower(
+            lines,
+            follower =>
+                expectReportAck(
+                    follower,
+                    "chip-local",
+                    {
+                        outcome: "found",
+                        subscriptionId: SUBSCRIPTION_ID,
+                        check: { type: "device-log", verdict: "pass" },
+                    },
+                    0,
+                    Millis(200),
+                ),
+            { endSource: true },
+        );
+    }
+
+    it("reads the status out of the ack sent on the report's own exchange", async () => {
+        // A run acks one report per write per live subscription, so another subscription's rejection
+        // can sit between our report and our own ack
+        const check = await ack([
+            ...reportLines("9000"),
+            ...ackLines("9001", "0x01 (FAILURE)"),
+            ...ackLines("9000", "0x00 (SUCCESS)"),
+        ]);
+
+        expect(check.verdict).equal("pass");
+    });
+
+    it("fails on the status of our own ack, though another exchange succeeded first", async () => {
+        const check = await ack([
+            ...reportLines("9000"),
+            ...ackLines("9001", "0x00 (SUCCESS)"),
+            ...ackLines("9000", "0x01 (FAILURE)"),
+        ]);
+
+        expect(check.verdict).equal("fail");
+        expect(check.detail).contains("FAILURE");
     });
 });
 
@@ -1434,6 +1587,50 @@ describe("expectCommandInvoke", () => {
 
         expect(record.verdict).equal("unverified");
     });
+
+    // A string field is rendered by its own TLV type, which chip states as the string's length in
+    // bytes — the shape TC-G-3.2's AddGroupIfIdentifying GroupName is checked by.
+    const STRING_FIELD = '[DMG] 0x1 = "gp3" (3 chars),';
+
+    it("passes on a string field chip printed with its character count", async () => {
+        const record = await withFollower([...PATH, STRING_FIELD], follower =>
+            expectCommandInvoke(follower, "chip-local", 1, 0x6, 0x1, [{ id: 1, value: "gp3" }], 0, Seconds(1)),
+        );
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("does not take a longer string for the one the step asked for", async () => {
+        const record = await withFollower([...PATH, '[DMG] 0x1 = "gp30" (4 chars),'], follower =>
+            expectCommandInvoke(follower, "chip-local", 1, 0x6, 0x1, [{ id: 1, value: "gp3" }], 0, Seconds(1)),
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("counts a string's UTF-8 bytes, as chip does, not its code points", async () => {
+        const record = await withFollower([...PATH, '[DMG] 0x1 = "gpü" (4 chars),'], follower =>
+            expectCommandInvoke(follower, "chip-local", 1, 0x6, 0x1, [{ id: 1, value: "gpü" }], 0, Seconds(1)),
+        );
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("matches a string carrying regular-expression syntax literally", async () => {
+        const record = await withFollower([...PATH, '[DMG] 0x1 = "g.3" (3 chars),'], follower =>
+            expectCommandInvoke(follower, "chip-local", 1, 0x6, 0x1, [{ id: 1, value: "g.3" }], 0, Seconds(1)),
+        );
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("does not let a string's regular-expression syntax match another value", async () => {
+        const record = await withFollower([...PATH, '[DMG] 0x1 = "gp3" (3 chars),'], follower =>
+            expectCommandInvoke(follower, "chip-local", 1, 0x6, 0x1, [{ id: 1, value: "g.3" }], 0, Seconds(1)),
+        );
+
+        expect(record.verdict).equal("fail");
+    });
 });
 
 describe("runCleanups", () => {
@@ -1529,6 +1726,9 @@ describe("CommissionedRefs", () => {
             },
             async parseManualPairingCode(): Promise<never> {
                 throw new InternalError("not used in this test");
+            },
+            group: (): never => {
+                throw new InternalError("not used by these tests");
             },
             node: () => nodeFor(role),
         });

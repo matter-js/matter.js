@@ -2480,7 +2480,7 @@ export declare namespace DoorLock {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.21.1
          */
-        status: Status;
+        status: Status | StatusCode;
 
         /**
          * This field shall indicate the user index that was created with the new credential. If the status being
@@ -2745,7 +2745,7 @@ export declare namespace DoorLock {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.6.3
          */
-        status: Status;
+        status: Status | StatusCode;
 
         daysMask?: DaysMask;
 
@@ -2899,7 +2899,7 @@ export declare namespace DoorLock {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.10.3
          */
-        status: Status;
+        status: Status | StatusCode;
 
         /**
          * This field shall indicate the starting time for the Year Day schedule in Epoch Time in Seconds with local
@@ -3032,7 +3032,7 @@ export declare namespace DoorLock {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.14.2
          */
-        status: Status;
+        status: Status | StatusCode;
 
         /**
          * This field shall indicate the starting time for the Holiday schedule in Epoch Time in Seconds with local time
