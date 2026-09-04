@@ -160,6 +160,7 @@ export class TaskManagerBehavior extends Behavior {
             return;
         }
         this.#retireStoredParams();
+        this.#retireStoredPriors();
         // Reserved here rather than on the first record write: on a fresh store nothing has been written yet,
         // so without this the very first identity would be handed out uncovered.
         this.#reserveIdentities();
@@ -221,6 +222,38 @@ export class TaskManagerBehavior extends Behavior {
         }
         // Stamped even when nothing needed dropping, so the scan runs once rather than on every start.
         this.state.runsVersion = RUN_STORE_VERSION;
+    }
+
+    /**
+     * Empty the changeSet of records an older build left `completed`.
+     *
+     * Same reason as {@link #retireStoredParams}: a run already terminal when this build first ran is never
+     * rewritten, so its priors — for the group tasks, the epoch keys of the key set it replaced — would
+     * outlive every use anyone could make of them. A completed run's priors have no use at all, because
+     * reversing a change that succeeded is a new action the caller starts.
+     *
+     * Gated on the records themselves rather than on {@link RUN_STORE_VERSION}. A version bump would make an
+     * older build refuse the whole table (`load` treats a newer version as unreadable), where an empty
+     * changeSet reads on any build as a run with nothing to undo — which is what a completed run is. The scan
+     * is idempotent: once emptied, nothing qualifies.
+     */
+    #retireStoredPriors(): void {
+        const runs = { ...this.state.runs };
+        let retired = 0;
+        for (const [key, persisted] of Object.entries(runs)) {
+            if (persisted?.state !== "completed" || !persisted.changeSet?.length) {
+                continue;
+            }
+            runs[key] = { ...persisted, changeSet: [] };
+            if (typeof persisted.runId === "number") {
+                this.internal.runs.get(persisted.runId)?.adoptPriorless();
+            }
+            retired++;
+        }
+        if (retired > 0) {
+            this.state.runs = runs;
+            logger.info(`Dropped the recorded priors of ${retired} completed task record(s) on upgrade`);
+        }
     }
 
     #resumePersisted(): void {
@@ -643,7 +676,8 @@ export class TaskManagerBehavior extends Behavior {
         // from the changeSet alone.
         const revert = this.#spawnRevert(record);
         if (revert.record === undefined) {
-            // Cannot happen: a run with a rollback wrote something, and nothing removes a changeSet.
+            // Cannot happen: only a completed retirement empties a changeSet, and a completed run never
+            // recorded a rollback to retry.
             throw new InternalError(`${runLabel(runId)} has a rollback but nothing to roll back`);
         }
         try {
@@ -899,15 +933,15 @@ export class TaskManagerBehavior extends Behavior {
                     : `Cannot abandon ${runLabel(record.runId)}: it is not a rollback; its rollback is ${runLabel(rollback)}`,
             );
         }
-        // Another rollback applies to this target now, so abandoning this one forecloses nothing and would
-        // record that an undo still in progress was given up on.
-        const undone = this.internal.runs.get(record.revertOf);
-        const applicable = undone === undefined ? undefined : this.internal.runs.rollbackApplyingTo(undone);
-        if (applicable !== undefined && applicable.runId !== record.runId) {
-            this.#refuseIfProvisional(applicable, `Cannot abandon ${runLabel(record.runId)}`);
+        // A retry has replaced this rollback, so abandoning it would record that an undo still in progress
+        // was given up on. Scoped to the run this one undoes rather than to its target: abandon records the
+        // disposition of an undo that already exists, it never creates one.
+        const replacement = this.internal.runs.rollbackFor(record.revertOf);
+        if (replacement !== undefined && replacement.runId !== record.runId) {
+            this.#refuseIfProvisional(replacement, `Cannot abandon ${runLabel(record.runId)}`);
             throw new TaskSupersededError(
-                `Cannot abandon ${runLabel(record.runId)}: ${runLabel(applicable.runId)} is the rollback that now applies to ${undone?.slotKey ?? "its target"}`,
-                applicable.runId,
+                `Cannot abandon ${runLabel(record.runId)}: ${runLabel(replacement.runId)} is the rollback that now applies to ${runLabel(record.revertOf)}`,
+                replacement.runId,
             );
         }
         if (undoConcluded(record)) {
@@ -1146,10 +1180,15 @@ export class TaskManagerBehavior extends Behavior {
                 await this.#commit({ record, next: { phaseIndex: record.phaseIndex + 1 } });
             }
             if (record.state === "running") {
-                // One write carries the outcome and its place in the retirement order.
+                // One write carries the outcome and its place in the retirement order. The priors go with it:
+                // reversing a success is a new action the caller starts, so nothing will ever replay them.
                 await this.#commit({
                     record,
-                    next: { state: "completed", retireSeq: this.internal.runs.nextRetirement(record) },
+                    next: {
+                        state: "completed",
+                        retireSeq: this.internal.runs.nextRetirement(record),
+                        changeSet: [],
+                    },
                     drop: RETIRE,
                 });
             }

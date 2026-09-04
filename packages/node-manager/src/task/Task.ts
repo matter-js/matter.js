@@ -150,6 +150,18 @@ export class RunRecord implements RunView {
         return persisted;
     }
 
+    /**
+     * Forget what this run overwrote, matching an upgrade that emptied the stored changeSet.
+     *
+     * Separate from {@link adoptDrop} because the priors are cleared by *value* — a write expresses it as an
+     * empty `changeSet` in `next`, not as a removal — so there is no `DroppableField` for it. Only a
+     * `completed` retirement clears them, which is what lets a reader tell an emptied record from one that
+     * never wrote: any other terminal state with an empty changeSet reached no phase.
+     */
+    adoptPriorless(): void {
+        this.changeSet = new Array<ChangeEntry>();
+    }
+
     /** Apply a write's removals to the in-memory run, once that write has landed. */
     adoptDrop(drop: ReadonlyArray<DroppableField>): void {
         for (const field of drop) {
