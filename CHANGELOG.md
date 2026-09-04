@@ -14,6 +14,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/testing
     - Breaking: `BackchannelCommand.SimulateLongPress` carries the switch's `featureMap`, which a chip test app requires to decide which events a press produces
     - Enhancement: Chip certification test devices take simulation commands through the named pipe their app opens, so a step that operates the device runs against a chip app rather than skipping
+    - Enhancement: Chip certification test devices also take simulation commands through their app's standard input, one character per poll interval, which is how chip's bridge app is operated
+    - Enhancement: The matter.js bridge test device exposes the devices chip's bridge app does, on the same endpoints, and takes the same simulation commands
+    - Breaking: A certification step can ask what a controller holds for a node — its endpoints, or one attribute's value — rather than only what a read returns, via `CertNodeApi.clientEndpoints()` and `CertNodeApi.clientAttribute()`
     - Enhancement: A certification step subscribing to events may ask for them urgently via `SubscribeEventOptions.urgent`, so a device reports them as they occur rather than at the subscription's maximum interval
     - Enhancement: A certification test requests a transport preference for its controllers via `certTest`'s `transport` option; `"tcp"` asks for a TCP-backed session where the peer supports one, and adapters receive the request through `ControllerAdapterOptions`
     - Enhancement: A certification step whose check could not be evaluated ends `"unverified"` and fails the run, unless the check states why the claim cannot be observed
@@ -25,6 +28,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `DeviceTypeModel.effectiveComposition` states whether a device type composes its endpoint's `PartsList` of every descendant or of its own children
 
 - @matter/node
+    - Fix: `Endpoint.behaviors.has()` answers `false` rather than `undefined` for a behavior the endpoint does not support at all
+    - Fix: A peer's endpoint tree follows the `PartsList` of the endpoint each part belongs to, so a bridged composed device's own endpoints are no longer attached to the aggregator
+    - Fix: A peer's endpoint whose device types are all utility types, as a bridge's composed device is, reports those device types rather than remaining of unknown type
+    - Fix: A peer endpoint that no `PartsList` names is left out of the node rather than taking the endpoints it claims out of the tree with it; a root composes its list of every descendant, so an endpoint absent from it is not part of the node
     - Fix: `DoorLockServer` reserves credential index 0 for the programming PIN, refusing it for any other credential type and refusing any other index for the programming PIN. The programming PIN counts as one credential rather than one of the PIN credentials, and reports no next index
     - Fix: (@Luligu) Corrects status codes returned by `DoorLockServer.setCredential` for duplicating another credential of the same type and adding an occupied credential index
     - Fix: `DoorLockServer.setCredential` creates the user alongside the credential when the request carries no user index

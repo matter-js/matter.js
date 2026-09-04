@@ -54,7 +54,7 @@ to an app this way:
 | TC prefix (examples)              | app          | chip binary               | matterjs registered today? |
 | ---------------------------------- | ------------ | -------------------------- | --------------------------- |
 | `IDM`, `CADMIN`, most generic/core  | `all-clusters` | `chip-all-clusters-app`   | yes (`AllClustersTestInstance`) |
-| `ACT`                               | `bridge`     | `chip-bridge-app`          | yes (`BridgeTestInstance`) |
+| `ACT`, `BR`                         | `bridge`     | `chip-bridge-app`          | yes (`BridgeTestInstance`) |
 | Media Playback/App-cluster TCs      | `tv`         | `chip-tv-app`               | no — `TvTestInstance` exists but isn't wired into `registerMatterJsCertSubject` yet |
 | `DRLK`                              | `lock`       | `chip-lock-app`             | no — no matterjs lock `TestInstance` exists in this package yet |
 | `WEBRTCR`                           | `camera`     | `chip-camera-app`           | no — no matterjs camera `TestInstance` exists in this package yet |
@@ -537,6 +537,9 @@ steps still run — rather than a wrong answer, and today that means:
   Matter Core § 8.9.2.8 requires one per concrete path.
 - **A value whose encoded form contains `;`** — chip-tool splits its `attribute-values` argument on it.
 - **More than 64 paths in one read or write** — chip-tool's own `kMaxAllowedPaths`.
+- **What the controller itself holds** — `clientEndpoints()` and `clientAttribute()` (`TC-BR-4`).
+  chip-tool answers each command straight from the device and keeps nothing between them, so it has
+  no device list and no attribute state of its own to report.
 
 Multi-cluster reads and multi-attribute writes *are* supported: chip-tool zips its cluster/attribute/
 endpoint id lists element-wise when their lengths match (`InteractionModelConfig::GetAttributePaths`),
@@ -2437,3 +2440,78 @@ state. A step that operates a device and then reads should poll to a deadline ra
 Beware also that a device's own idea of "idle" differs: `simulateSwitchIdle` resets the switch state on
 the matter.js device but only moves the position on a chip app, so a step that presses needs its own
 wait for the previous press cycle to close, not just the command.
+
+## The bridge block, and what "the DUT contains the device" can rest on (`TC-BR-4`)
+
+The first case whose claims are about the **controller's own state** rather than about what the TH
+answers. Its section 1 asks whether the DUT gathered the bridge's endpoints, section 3 whether it
+followed a rename, an added endpoint and a removed one. A read cannot answer any of that: it reports
+what the bridge exposes now, so it passes whether or not the controller ever noticed.
+
+`CertNodeApi` therefore gained `clientEndpoints()` and `clientAttribute()`, which report what the
+controller holds without issuing an interaction — the matter.js adapter walks the `ClientNode`'s
+endpoint tree and its behaviors' state. chip-tool keeps nothing between commands, so it refuses both,
+and its overlay answers 0 for `MCORE.BRIDGECLIENT` and every `MCORE.DEVLIST.*` flag: **the whole case
+is not applicable on a chip-tool controller**, which is the honest declaration, not a gap. The device
+file answers 1 for the `DEVLIST` flags because it describes a device, so the overlay has to override
+them rather than only add to them.
+
+Each step still makes both claims where it can — the read says the TH answered, the held value says
+the DUT took the answer in — because only the second can fail once a subscription is delivering.
+
+**The DUT notices through the node-level subscription, which this suite deliberately leaves on** (see
+"Subscription policy" above). A step that changes something at the TH waits for the controller's own
+value to change rather than sleeping: `until()` polls `clientAttribute`/`clientEndpoints` against a
+monotonic deadline.
+
+### chip's `bridge-app` is driven by keystrokes, and drops the ones that arrive together
+
+Its named pipe answers exactly one unrelated command and calls `VerifyOrDie` on any other name, so a
+forwarded command does not no-op there — it aborts the TH. The simulation commands are single
+characters on standard input instead (`c` toggle, `t` warm, `b` rename, `2` add, `4` remove), which
+`ChipLocalDevice`/`ChipDockerDevice` now deliver, gated per app exactly as the pipe is.
+
+**One character per poll interval, or the app loses the rest.** The app polls with
+`ioctl(FIONREAD)` and reads with `getchar`: FIONREAD reports what the kernel holds while `getchar`
+drains all of it into stdio's own buffer, so of several characters written together the app acts on
+the first and never polls for the others again. Measured against the real binary: three toggles
+written back to back produced one. `StdinPacer` serializes the writes and leaves 250ms between them.
+
+A container's standard input also closes as soon as the first attached client detaches (Docker's
+`StdinOnce`), and every later command then has nothing to arrive on — so a subject we write to for
+its whole life is created with `stdinOnce: false`.
+
+### The case runs on the matterjs flavor only, until chip's bridge-app is fixed
+
+`chip-bridge-app` cannot encode `PowerSource.GeneratedCommandList` (0x2F/0xFFF8) on the composed
+endpoint: its read handler fails with `TLVWriter.cpp:697: CHIP Error 0x00000024: Invalid TLV tag` and
+moves to `AwaitingDestruction` **in the middle of a chunked report**, having already told the
+controller more chunks are coming. The controller's wildcard bootstrap read is then orphaned — the
+session stays healthy and later reads succeed, but that read never completes, so no node-level
+subscription is ever established and every "the DUT took the value in" claim in this case fails on
+what the controller never learned. Reported upstream as
+<https://github.com/project-chip/connectedhomeip/issues/73561>, unfixed.
+
+So `certTest("TC-BR-4")` declares `flavors: ["matterjs"]`. This is the one place in the suite where
+the flavor policy above ("at least one chip flavor passing is the actual certification claim") is
+knowingly unmet: the case currently proves the controller against `BridgeTestInstance` only, and is
+not a certification claim until the chip flavors are restored. Restoring them is a one-line change
+once the upstream defect lands — nothing else in the case is flavor-specific.
+
+### The plan's endpoint list does not match the app the plan names
+
+The plan puts five lights at 3 and 10-13 and a power source at 9. `bridge-app` puts its lights at 3
+and 9-12 (one, plus the four the Actions plan uses), its power source **on the composed endpoint 6
+itself** — declared as both a bridged node and a power source — and nothing at 13 until step 3c adds
+it. This case follows the app.
+
+`BridgeTestInstance` mirrors that layout for the matterjs flavor, and takes the same commands through
+the backchannel. Note that an aggregator uses the full-family pattern (Matter Core § 9.2.3), so its
+own `PartsList` names every descendant including the composed device's sensors; the composed
+endpoint's own list is what says which sensors belong to it.
+
+**A `chip-bridge-app` built with the default dynamic-endpoint table cannot run this case.** The app's
+own configuration asks for 16 (`bridge-common`'s `CHIPProjectAppConfig.h`); a build that does not pick
+that up stops after four bridged devices with `Failed to add dynamic endpoint: No endpoints
+available!`, and step 1a fails naming the endpoints the TH answered for. That is the TH being the
+wrong device, not the case being wrong.

@@ -28,6 +28,8 @@ import type {
     CertGroupApi,
     CertNodeApi,
     CertNodeRef,
+    ClientAttributePath,
+    ClientEndpointEntry,
     CommissioningTarget,
     ControllerAdapter,
     EventPathSpec,
@@ -127,6 +129,20 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     // switch this controller observes is an action switch, so that is what it declares.
     "SWTCH.C.F02": 0,
     "SWTCH.C.F05": 1,
+
+    // Bridge-client flags. `MCORE.BRIDGECLIENT` asks whether the DUT supports a bridge, and the
+    // `MCORE.DEVLIST.*` flags whether it maintains the devices behind one — their names, their state,
+    // their battery level. CHIP's PICS file answers these for a *device*, so the answers there say
+    // nothing about the client, and this overlay is the DUT-as-client declaration TC-BR-4 rests on.
+    //
+    // chip-tool answers each command straight from the device and keeps nothing between them, so it
+    // maintains no device list of any kind — the device file's own 1 for the `DEVLIST` flags would
+    // otherwise let a step ask it what it holds.
+    "MCORE.BRIDGECLIENT": 0,
+    "MCORE.DEVLIST.UseDevices": 0,
+    "MCORE.DEVLIST.UseDeviceName": 0,
+    "MCORE.DEVLIST.UseDeviceState": 0,
+    "MCORE.DEVLIST.UseBatInfo": 0,
 };
 
 const WILDCARD_CLUSTER = 0xffffffff;
@@ -1119,6 +1135,24 @@ class ChipToolCertNodeApi implements CertNodeApi {
 
         const reply = await this.#adapter.subscribeEvents(this.#node, paths, opts);
         return toEventEntries(reply.events.filter(entry => paths.some(path => eventPathCovers(path, entry))));
+    }
+
+    async clientEndpoints(): Promise<ClientEndpointEntry[]> {
+        throw new UnsupportedByControllerError(
+            "the endpoints the controller holds for a node",
+            "chip-tool",
+            "chip-tool answers each command from the device and keeps no device list between them, so " +
+                "there is nothing of its own to report",
+        );
+    }
+
+    async clientAttribute(_path: ClientAttributePath): Promise<unknown> {
+        throw new UnsupportedByControllerError(
+            "the value the controller holds for an attribute",
+            "chip-tool",
+            "chip-tool answers each command from the device and keeps no state between them, so there " +
+                "is nothing of its own to report",
+        );
     }
 
     async openCommissioningWindow(opts: {

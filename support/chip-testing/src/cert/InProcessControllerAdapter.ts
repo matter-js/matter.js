@@ -10,6 +10,7 @@ import {
     ControllerBehavior,
     Diagnostic,
     Duration,
+    Endpoint,
     Environment,
     ImplementationError,
     InternalError,
@@ -25,6 +26,7 @@ import {
     Time,
     UnexpectedDataError,
 } from "@matter/main";
+import { DescriptorClient } from "@matter/main/behaviors/descriptor";
 import { OperationalCredentialsClient } from "@matter/main/behaviors/operational-credentials";
 import { GeneralCommissioning, OperationalCredentials } from "@matter/main/clusters";
 import {
@@ -66,6 +68,8 @@ import type {
     BatchCommandSpec,
     CertGroupApi,
     CertNodeApi,
+    ClientAttributePath,
+    ClientEndpointEntry,
     CertNodeRef,
     CommissioningTarget,
     ControllerAdapter,
@@ -161,6 +165,16 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     // switch this controller observes is an action switch, so that is what it declares.
     "SWTCH.C.F02": 0,
     "SWTCH.C.F05": 1,
+
+    // Bridge-client flags. `MCORE.BRIDGECLIENT` asks whether the DUT supports a bridge, and the
+    // `MCORE.DEVLIST.*` flags whether it maintains the devices behind one — their names, their state,
+    // their battery level. CHIP's PICS file answers these for a *device*, so the answers there say
+    // nothing about the client, and this overlay is the DUT-as-client declaration TC-BR-4 rests on.
+    "MCORE.BRIDGECLIENT": 1,
+    "MCORE.DEVLIST.UseDevices": 1,
+    "MCORE.DEVLIST.UseDeviceName": 1,
+    "MCORE.DEVLIST.UseDeviceState": 1,
+    "MCORE.DEVLIST.UseBatInfo": 1,
 };
 
 const adapterStreams = new Map<string, LineQueue>();
@@ -181,6 +195,12 @@ Boot.init(() => {
         },
     });
 });
+
+/** Whether the line being logged belongs to a controller adapter's own stream. */
+export function controllerAdapterClaimsLogs() {
+    const id = activeAdapterId.getStore();
+    return id !== undefined && adapterStreams.has(id);
+}
 
 const logger = Logger.get("CertControllerAdapter");
 
@@ -693,6 +713,55 @@ class InProcessCertNodeApi implements CertNodeApi {
                 return seed[0]?.value;
             }
             return toWireValues(seed);
+        });
+    }
+
+    clientEndpoints(): Promise<ClientEndpointEntry[]> {
+        return runTagged(this.#adapterId, async () => {
+            const entries = new Array<ClientEndpointEntry>();
+            this.#peer.visit(endpoint => {
+                if (endpoint.number === undefined) {
+                    return;
+                }
+                const descriptor = endpoint.maybeStateOf(DescriptorClient);
+                entries.push({
+                    endpoint: endpoint.number,
+                    deviceTypes: [...(descriptor?.deviceTypeList ?? [])].map(entry => Number(entry.deviceType)),
+                    parts: [...(descriptor?.partsList ?? [])].map(Number),
+                });
+            });
+            return entries.sort((a, b) => a.endpoint - b.endpoint);
+        });
+    }
+
+    clientAttribute(path: ClientAttributePath): Promise<unknown> {
+        return runTagged(this.#adapterId, async () => {
+            let endpoint: Endpoint | undefined;
+            this.#peer.visit(candidate => {
+                if (candidate.number === path.endpoint) {
+                    endpoint = candidate;
+                }
+            });
+            if (endpoint === undefined) {
+                return undefined;
+            }
+
+            const behavior = endpoint.behaviors.forCluster(ClusterId(path.cluster));
+            if (behavior === undefined) {
+                return undefined;
+            }
+
+            // Controller state is keyed by the attribute's property name, and only the model maps an id
+            // to one
+            const name = findCertCluster(path.cluster)?.attributes.find(
+                attribute => attribute.id === path.attribute,
+            )?.propertyName;
+            if (name === undefined) {
+                return undefined;
+            }
+
+            const state: Record<string, unknown> | undefined = endpoint.maybeStateOf(behavior);
+            return state?.[name];
         });
     }
 
