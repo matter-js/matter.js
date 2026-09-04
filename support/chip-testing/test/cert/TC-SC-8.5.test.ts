@@ -15,8 +15,9 @@ import {
     TcpSessionRef,
     tcpSessionStep,
     tcpStep,
+    timeSnapshotResponseCheck,
 } from "./tc-sc-8-support.js";
-import { CommissionedRefs, describeError, describeValue, recordAll, requireId } from "./tc-support.js";
+import { CommissionedRefs, recordAll, requireId } from "./tc-support.js";
 
 const GENERAL_DIAGNOSTICS = Matter.clusters.require("GeneralDiagnostics");
 const GENERAL_DIAGNOSTICS_ID = requireId(GENERAL_DIAGNOSTICS.id, "GeneralDiagnostics cluster");
@@ -30,15 +31,6 @@ const ROOT_ENDPOINT = 0;
 
 const commissioned = new CommissionedRefs<"th">();
 const session = new TcpSessionRef();
-
-/** `SystemTimeMs` of a `TimeSnapshotResponse`, or undefined for an answer that is not one. */
-function systemTimeMsOf(response: unknown): number | bigint | undefined {
-    if (typeof response !== "object" || response === null || !("systemTimeMs" in response)) {
-        return undefined;
-    }
-    const value = response.systemTimeMs;
-    return typeof value === "number" || typeof value === "bigint" ? value : undefined;
-}
 
 /**
  * `TimeSnapshot` is the command this case sends because it carries a response of its own and changes
@@ -60,37 +52,15 @@ async function invokeOverTcp(cx: CertStepContext) {
         refusal = e;
     }
 
-    const systemTimeMs = refusal === undefined ? systemTimeMsOf(response) : undefined;
     const invoked = await tcpInvokeCheck(cx, tag, ROOT_ENDPOINT, GENERAL_DIAGNOSTICS_ID, TIME_SNAPSHOT_ID, from);
 
     recordAll(cx, [
-        {
-            check: () => ({
-                type: "response",
-                verdict: systemTimeMs === undefined ? "fail" : "pass",
-                detail: responseDetail(response, refusal, systemTimeMs),
-            }),
-            what: "the TH received the command response",
-        },
+        { check: () => timeSnapshotResponseCheck(response, refusal), what: "the TH received the command response" },
         {
             check: () => invoked,
             what: "the DUT dispatched the command and answered it on the session step 1 established",
         },
     ]);
-}
-
-/**
- * What the response check says it saw. A refused invoke is reported as the refusal rather than as a
- * missing field: the two failures have different causes and the evidence is where they are told apart.
- */
-function responseDetail(response: unknown, refusal: unknown, systemTimeMs: number | bigint | undefined) {
-    if (refusal !== undefined) {
-        return `the DUT refused TimeSnapshot: ${describeError(refusal)}`;
-    }
-    if (systemTimeMs === undefined) {
-        return `the DUT answered TimeSnapshot with ${describeValue(response)}, which carries no SystemTimeMs`;
-    }
-    return `TimeSnapshotResponse systemTimeMs=${systemTimeMs}`;
 }
 
 certTest("TC-SC-8.5", {

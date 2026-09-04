@@ -42,6 +42,7 @@ import {
     Write,
     WriteResult,
 } from "@matter/main/protocol";
+import { SessionManager } from "@matter/main/protocol";
 import {
     AttributeId,
     ClusterId,
@@ -49,6 +50,7 @@ import {
     EndpointNumber,
     EventId,
     ManualPairingCodeCodec,
+    GroupId,
     NodeId,
     Status,
     StatusResponseError,
@@ -62,6 +64,7 @@ import type {
     AttributeWriteStatus,
     BatchCommandResult,
     BatchCommandSpec,
+    CertGroupApi,
     CertNodeApi,
     CertNodeRef,
     CommissioningTarget,
@@ -70,6 +73,7 @@ import type {
     ControllerTransport,
     EventPathSpec,
     EventReadEntry,
+    GroupKeySetSpec,
     ManualPairingCodeFields,
     OnboardingPayloadFields,
     ReadAttributeOptions,
@@ -146,6 +150,17 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "G.C.C01.Tx": 1,
     "GRPKEY.C.C03.Tx": 1,
     "GRPKEY.C.C04.Tx": 1,
+
+    // The Switch client flags TC-SWTCH-3.2 rests on. The CHIP PICS file answers 0 for `SWTCH.C` and
+    // declares F00..F04 for a *device*; here the switch client is the controller, and this overlay is
+    // the DUT-as-client declaration the plan's steps 0a-0h check for self-consistency.
+    "SWTCH.C": 1,
+
+    // CHIP's PICS file has no entry for the action-switch client flag, and it answers 1 for the release
+    // flag, which the cluster forbids alongside an action switch (Application Clusters § 1.13.4). The
+    // switch this controller observes is an action switch, so that is what it declares.
+    "SWTCH.C.F02": 0,
+    "SWTCH.C.F05": 1,
 };
 
 const adapterStreams = new Map<string, LineQueue>();
@@ -215,6 +230,25 @@ function commandRequestFor(spec: BatchCommandSpec, commandRef?: number) {
         // Argument-less commands require an absent payload — {} fails TLV validation ("expected void")
         fields: args !== undefined && Object.keys(args).length > 0 ? args : undefined,
     });
+}
+
+/**
+ * A command path without an endpoint, which is what a group command carries: the endpoint comes from
+ * the group's own membership rather than from the sender (Matter Core § 8.2.5.1), and matter.js
+ * refuses a group invoke that names one.
+ */
+function groupCommandRequestFor(cluster: string | number, command: string, args?: object) {
+    const { model: clusterModel, id: clusterId } = certClusterModelFor(cluster);
+    const commandModel = clusterModel.commands(command);
+    if (commandModel?.id === undefined) {
+        throw new ImplementationError(`Unknown command "${command}" on cluster ${cluster}`);
+    }
+
+    return {
+        cluster: { id: ClusterId(clusterId), name: clusterModel.name },
+        command: { id: CommandId(commandModel.id), name: commandModel.name, schema: commandModel },
+        fields: args !== undefined && Object.keys(args).length > 0 ? args : undefined,
+    };
 }
 
 function isConcretePath(path: AttributePathSpec) {
@@ -700,7 +734,7 @@ class InProcessCertNodeApi implements CertNodeApi {
             // already failed on the rejection, which is what the chip-tool adapter does too.
             let phase: "seeding" | "live" | "refused" = "seeding";
             const request = Subscribe({
-                events: paths.map(toEventIds),
+                events: paths.map(path => ({ ...toEventIds(path), isUrgent: opts.urgent })),
                 eventFilters: eventFiltersFor(opts),
                 fabricFilter: opts.fabricFiltered,
                 keepSubscriptions: true,
@@ -987,5 +1021,68 @@ export class InProcessControllerAdapter implements ControllerAdapter {
 
     node(ref: CertNodeRef): CertNodeApi {
         return new InProcessCertNodeApi(this.id, this.#startedController, this.#adminFabric, ref);
+    }
+
+    group(groupId: number): CertGroupApi {
+        return new InProcessCertGroupApi(this.id, this.#startedController, this.#adminFabric, groupId);
+    }
+}
+
+/**
+ * Sends a command to a group rather than to a node. matter.js addresses a group as a peer whose node
+ * id encodes the group (Matter Core § 2.5.4), so the fabric's own address for that node id resolves
+ * to a {@link ClientGroup} and its interaction sends the groupcast.
+ */
+class InProcessCertGroupApi implements CertGroupApi {
+    readonly #adapterId: string;
+    readonly #controller: ServerNode;
+    readonly #fabric: Fabric;
+    readonly #groupId: number;
+
+    constructor(adapterId: string, controller: ServerNode, fabric: Fabric, groupId: number) {
+        this.#adapterId = adapterId;
+        this.#controller = controller;
+        this.#fabric = fabric;
+        this.#groupId = groupId;
+    }
+
+    /**
+     * The fabric the sending path itself resolves. The adapter's own handle is a different object for
+     * the same fabric index, and group state written on that one is invisible to the session manager,
+     * which asks its own fabric for the key when it opens the group session.
+     */
+    get #sendingFabric(): Fabric {
+        return this.#controller.env.get(SessionManager).fabricFor(this.#address);
+    }
+
+    get #address() {
+        return this.#fabric.addressOf(NodeId.fromGroupId(this.#groupId));
+    }
+
+    async defineKeySet(keySet: GroupKeySetSpec): Promise<void> {
+        await runTagged(this.#adapterId, async () => {
+            const fabric = this.#sendingFabric;
+            await fabric.groups.setFromGroupKeySet({
+                ...keySet,
+                epochKey1: null,
+                epochStartTime1: null,
+                epochKey2: null,
+                epochStartTime2: null,
+            });
+            fabric.groups.groupKeyIdMap.set(GroupId(this.#groupId), keySet.groupKeySetId);
+        });
+    }
+
+    async invoke(cluster: string | number, command: string, args?: object): Promise<void> {
+        await runTagged(this.#adapterId, async () => {
+            const group = await this.#controller.peers.forAddress(this.#address);
+
+            const request = Invoke({ commands: [groupCommandRequestFor(cluster, command, args)] });
+
+            // A groupcast is unacknowledged and answered by nobody, so the iteration ends without
+            // yielding; draining it is what sends the message
+            for await (const _chunk of group.interaction.invoke(request)) {
+            }
+        });
     }
 }

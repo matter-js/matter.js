@@ -448,8 +448,7 @@ export class TlvGenerator {
     }
 
     #defineSpecificDatatype(model: ValueModel) {
-        // Special case for status codes.  "Status code" in door lock cluster seems to be the global status codes
-        // instead of the local one.  So always reference the global one until we see something different
+        // A cluster's own status codes are a separate definition; the "status" type itself is always the global one
         if (model.isGlobal && model.name === status.name && this.file.scope.owner !== model) {
             return this.#importGlobalStatus();
         }

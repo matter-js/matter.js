@@ -176,7 +176,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                     throw new ImplementationError(`Endpoint ${endpointId} not found`);
                 }
                 await endpoint.setStateOf(SwitchServer, { currentPosition: 0 });
-                endpoint.act(agent => agent.get(SwitchServer).resetState());
+                await endpoint.act(agent => agent.get(SwitchServer).resetState());
                 break;
             case "operationalStateChange": {
                 endpoint = findEndpoint(1);

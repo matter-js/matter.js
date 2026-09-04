@@ -25,11 +25,13 @@ import type {
     AttributeWriteStatus,
     BatchCommandResult,
     BatchCommandSpec,
+    CertGroupApi,
     CertNodeApi,
     CertNodeRef,
     CommissioningTarget,
     ControllerAdapter,
     EventPathSpec,
+    GroupKeySetSpec,
     EventReadEntry,
     ManualPairingCodeFields,
     OnboardingPayloadFields,
@@ -114,6 +116,17 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     "G.C.C01.Tx": 1,
     "GRPKEY.C.C03.Tx": 1,
     "GRPKEY.C.C04.Tx": 1,
+
+    // The Switch client flags TC-SWTCH-3.2 rests on. The CHIP PICS file answers 0 for `SWTCH.C` and
+    // declares F00..F04 for a *device*; here the switch client is the controller, and this overlay is
+    // the DUT-as-client declaration the plan's steps 0a-0h check for self-consistency.
+    "SWTCH.C": 1,
+
+    // CHIP's PICS file has no entry for the action-switch client flag, and it answers 1 for the release
+    // flag, which the cluster forbids alongside an action switch (Application Clusters § 1.13.4). The
+    // switch this controller observes is an action switch, so that is what it declares.
+    "SWTCH.C.F02": 0,
+    "SWTCH.C.F05": 1,
 };
 
 const WILDCARD_CLUSTER = 0xffffffff;
@@ -183,6 +196,16 @@ function quoteArg(value: string) {
  */
 function largePayloadArg(transport?: ControllerTransport) {
     return transport === "tcp" ? " --allow-large-payload 1" : "";
+}
+
+/**
+ * How a group is addressed as a destination: a node id whose upper 48 bits are all ones carries the
+ * group in its lower 16 (Matter Core § 2.5.4), and chip-tool takes that in place of a node id on any
+ * command it sends. Built through {@link NodeId.fromGroupId} so a group id neither controller may use
+ * is refused the same way on both.
+ */
+function groupDestination(groupId: number): string {
+    return `0x${NodeId.fromGroupId(groupId).toString(16)}`;
 }
 
 /** chip-tool's own name for the timed-interaction timeout, on `command-by-id` and `write-by-id` alike. */
@@ -748,6 +771,71 @@ function portOverrideFor(id: string) {
         throw new ImplementationError(`Invalid chip-tool port override "${value}" for controller role "${id}"`);
     }
     return port;
+}
+
+/**
+ * Sends a command to a group rather than to a node. chip-tool takes the group's destination id in
+ * place of a node id, and answers nothing: a groupcast is unacknowledged, so its own reply carries no
+ * status and none is awaited.
+ */
+class ChipToolCertGroupApi implements CertGroupApi {
+    readonly #adapter: ChipToolControllerAdapter;
+    readonly #groupId: number;
+
+    constructor(adapter: ChipToolControllerAdapter, groupId: number) {
+        this.#adapter = adapter;
+        this.#groupId = groupId;
+    }
+
+    /**
+     * chip-tool keeps its own group state, which the commands a plan's steps send to the *device* do
+     * not touch: without this its group send fails in `GroupDataProviderImpl` with "item not found".
+     * `groupsettings` is how its commissioner is told about a group and its key, and the three
+     * commands together are what `defineKeySet` means on this controller.
+     */
+    async defineKeySet(keySet: GroupKeySetSpec): Promise<void> {
+        const group = `${this.#groupId}`;
+        const keySetId = `${keySet.groupKeySetId}`;
+
+        // Each reply is checked: `execute` decodes chip-tool's answer rather than throwing on it, and a
+        // provisioning step that silently did nothing surfaces much later as a groupcast that seems
+        // never to have arrived
+        assertCommandSucceeded(
+            await this.#adapter.execute(`groupsettings add-group group${group} ${group}`),
+            "groupsettings add-group",
+        );
+        assertCommandSucceeded(
+            await this.#adapter.execute(
+                // Validity 0: the key is current from now, which is what the plan's own epoch start means
+                `groupsettings add-keysets ${keySetId} ${keySet.groupKeySecurityPolicy} 0 ` +
+                    `hex:${Bytes.toHex(keySet.epochKey0)}`,
+            ),
+            "groupsettings add-keysets",
+        );
+        assertCommandSucceeded(
+            await this.#adapter.execute(`groupsettings bind-keyset ${group} ${keySetId}`),
+            "groupsettings bind-keyset",
+        );
+    }
+
+    async invoke(cluster: string | number, command: string, args?: object): Promise<void> {
+        const { cluster: clusterModel, clusterId, command: commandModel } = commandModelFor(cluster, command);
+        const fields =
+            args !== undefined && Object.keys(args).length > 0
+                ? stringifyChipJson(matterToChipJson(args, commandModel, clusterModel, "hex"))
+                : "{}";
+
+        const reply = await this.#adapter.execute(
+            `any command-by-id ${hex(clusterId)} ${hex(commandModel.id)} ${quoteArg(fields)} ` +
+                // chip-tool wants an endpoint argument even for a group command, which carries none;
+                // 0 is what its own group tests pass
+                // No large-payload flag: a groupcast is UDP multicast, so the TCP preference a
+                // transport option expresses cannot apply to it
+                `${groupDestination(this.#groupId)} 0`,
+        );
+
+        assertNoFailure(reply, `group invoke ${clusterModel.name}.${commandModel.name}`);
+    }
 }
 
 class ChipToolCertNodeApi implements CertNodeApi {
@@ -1352,6 +1440,10 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
         return new ChipToolCertNodeApi(this, ref);
     }
 
+    group(groupId: number): CertGroupApi {
+        return new ChipToolCertGroupApi(this, groupId);
+    }
+
     /**
      * Subscribes `node` to `path` and starts forwarding its reports, returning the establishing reply
      * so the caller can take the priming values out of it.
@@ -1396,6 +1488,9 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
             `any subscribe-event-by-id ${paths.map(eventClusterArg).join(",")} ${paths.map(eventArg).join(",")} ` +
             `${opts.minIntervalFloorSeconds} ${opts.maxIntervalCeilingSeconds} ${node} ` +
             `${paths.map(eventEndpointArg).join(",")} --keepSubscriptions true${largePayloadArg(this.#transport)}`;
+        if (opts.urgent) {
+            command += ` --is-urgent ${paths.map(() => "true").join(",")}`;
+        }
         if (opts.fabricFiltered === false) {
             command += " --fabric-filtered false";
         }

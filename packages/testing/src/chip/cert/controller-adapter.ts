@@ -125,6 +125,18 @@ export interface SubscribeEventOptions extends ReadEventOptions {
     minIntervalFloorSeconds: number;
     maxIntervalCeilingSeconds: number;
     onUpdate?: (event: EventReadEntry) => void;
+
+    /**
+     * Marks every path of the subscription urgent, which a step operating the device and then waiting
+     * for the event needs: without it the publisher holds queued events until the subscription's
+     * maximum interval elapses.
+     *
+     * Off by default because it is visible on the wire, and a step asserting the subscribe request it
+     * sent describes the request it asked for.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 8.5
+     */
+    urgent?: boolean;
 }
 
 /**
@@ -405,7 +417,53 @@ export interface ControllerAdapter {
     parseManualPairingCode(code: string): Promise<ManualPairingCodeFields>;
 
     node(ref: CertNodeRef): CertNodeApi;
+
+    /**
+     * Addresses a group rather than a node, for a case whose subject is the groupcast itself
+     * (TC-SC-5.3 step 5). The fabric's group key set and the group's membership are established by
+     * ordinary unicast commands first; this only decides how the command that follows is addressed.
+     */
+    group(groupId: number): CertGroupApi;
+
     log: LogFollower;
+}
+
+/**
+ * Controller-side view of a group, which is a destination rather than a node: a groupcast is
+ * unacknowledged and carries no response, so there is nothing to read back and no status to await.
+ * What a step proves about one is proved from the sender's log and from the receiver's later state.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 4.15.3
+ */
+export interface CertGroupApi {
+    /**
+     * Installs the key material the sender needs, which is the other half of the key set a step writes
+     * to the device: a groupcast is encrypted with the group key, so a controller that only told the
+     * device about the key cannot send one (Matter Core § 4.16.2).
+     *
+     * The plan has the controller *generate* this key, so a case provisions itself here with the same
+     * key set it writes to the device.
+     */
+    defineKeySet(keySet: GroupKeySetSpec): Promise<void>;
+
+    /**
+     * No endpoint: a group command's path names only the cluster and command, and the endpoints it
+     * reaches are the ones the group's own membership names (Matter Core § 8.2.5.1).
+     */
+    invoke(cluster: string | number, command: string, args?: object): Promise<void>;
+}
+
+/**
+ * The fields of a `GroupKeySetStruct` a cert test provisions on both sides.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 11.2.4.1
+ */
+export interface GroupKeySetSpec {
+    groupKeySetId: number;
+    groupKeySecurityPolicy: number;
+    /** The 16-byte epoch key, as the caller's own byte type renders it. */
+    epochKey0: AllowSharedBufferSource;
+    epochStartTime0: bigint;
 }
 
 /**

@@ -1207,6 +1207,73 @@ describe("command, event and subscribe checks against a matter.js TH", () => {
     });
 });
 
+describe("expectReportAck against a chip TH", () => {
+    // One subscription's report going out on its own exchange, and the acks that come back. chip
+    // prints a trace line naming the exchange, then the message's decode dump.
+    const SUBSCRIPTION_ID = 0x54c99e7e;
+
+    function reportLines(exchange: string) {
+        return [
+            `[DMG] >> to UDP:[fe80::1]:5540 | 1234 | [Interaction Model  (1) / Report Data (0x05) / Session = 2 / Exchange = ${exchange}]`,
+            "[DMG] ReportDataMessage =",
+            "[DMG] {",
+            `[DMG] \tSubscriptionId = 0x${SUBSCRIPTION_ID.toString(16)},`,
+            "[DMG] \tAttributeReportIBs =",
+        ];
+    }
+
+    function ackLines(exchange: string, status: string) {
+        return [
+            `[DMG] << from UDP:[fe80::1]:5540 | 1235 | [Interaction Model  (1) / Status Response (0x01) / Session = 2 / Exchange = ${exchange}]`,
+            "[DMG] StatusResponseMessage =",
+            "[DMG] {",
+            `[DMG] \tStatus = ${status},`,
+        ];
+    }
+
+    async function ack(lines: string[]) {
+        return withFollower(
+            lines,
+            follower =>
+                expectReportAck(
+                    follower,
+                    "chip-local",
+                    {
+                        outcome: "found",
+                        subscriptionId: SUBSCRIPTION_ID,
+                        check: { type: "device-log", verdict: "pass" },
+                    },
+                    0,
+                    Millis(200),
+                ),
+            { endSource: true },
+        );
+    }
+
+    it("reads the status out of the ack sent on the report's own exchange", async () => {
+        // A run acks one report per write per live subscription, so another subscription's rejection
+        // can sit between our report and our own ack
+        const check = await ack([
+            ...reportLines("9000"),
+            ...ackLines("9001", "0x01 (FAILURE)"),
+            ...ackLines("9000", "0x00 (SUCCESS)"),
+        ]);
+
+        expect(check.verdict).equal("pass");
+    });
+
+    it("fails on the status of our own ack, though another exchange succeeded first", async () => {
+        const check = await ack([
+            ...reportLines("9000"),
+            ...ackLines("9001", "0x00 (SUCCESS)"),
+            ...ackLines("9000", "0x01 (FAILURE)"),
+        ]);
+
+        expect(check.verdict).equal("fail");
+        expect(check.detail).contains("FAILURE");
+    });
+});
+
 describe("expectSubscriptionId and expectReportAck against a matter.js TH", () => {
     // Lines a matter.js TH writes for one subscription: the response naming the id it minted, the
     // report it then sends on that subscription, and the DUT's answer to that very report — the
@@ -1659,6 +1726,9 @@ describe("CommissionedRefs", () => {
             },
             async parseManualPairingCode(): Promise<never> {
                 throw new InternalError("not used in this test");
+            },
+            group: (): never => {
+                throw new InternalError("not used by these tests");
             },
             node: () => nodeFor(role),
         });

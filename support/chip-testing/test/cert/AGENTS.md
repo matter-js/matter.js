@@ -1194,11 +1194,13 @@ What the plan asks to verify, and how each part is evidenced:
   `(U)` unencrypted unicast, `(G)` secure groupcast (`src/messaging/README.md`). `expectUnicastReceipt`
   scans *backward* from the decode dump for the nearest `Msg RX from` line, which is this message's own
   since chip logs one message at a time.
-- **The follow-up is the one this request opened** — matched by chip's own exchange id, read off both
-  messages' receive lines, not by "the next message after the timed request". A retry of this
-  interaction, or a second administrator's own timed interaction with the same TH, otherwise stands in
-  for it: the check then passes on someone else's evidence, or fails on a span measured between two
-  different interactions. This is the same rule the subscription checks follow (see "Anchor a
+- **The follow-up is the one this request opened** — matched by the session *and* exchange chip names
+  on both messages' receive lines (`[E:<exchange> S:<session> …]`), not by "the next message after the
+  timed request". A retry of this interaction, or a second administrator's own timed interaction with
+  the same TH, otherwise stands in for it: the check then passes on someone else's evidence, or fails
+  on a span measured between two different interactions. Both halves are needed because an exchange id
+  is unique only within its session, so a session that re-establishes mid-run can hold one with a
+  number a previous session already used. This is the same rule the subscription checks follow (see "Anchor a
   subscription ack on its own subscription id"), and it is why `expectUnicastReceipt` and the follow-up
   check share one receive-line lookup.
 - **The follow-up carried `timedRequest = true`** — matched by *proximity*, not adjacency: chip prints
@@ -2184,74 +2186,20 @@ group the fabric's key map must already carry. What it adds:
   `AttributeValueList` the plan actually names. Sending an empty list would have been the quieter
   mistake: the step would pass while exercising none of the shape it is about.
 
-## The group-messaging block splits in two (`TC-SC-6.1` runnable, `TC-SC-5.3` not)
+## The group-messaging block, and what its two cases share (`TC-SC-6.1`, `TC-SC-5.3`)
 
-`TC-SC-6.1` ("adding member to a group") is entirely **unicast** — KeySetWrite, a GroupKeyMap write,
-AddGroup, ViewGroup, KeySetRead, KeySetRemove, KeySetReadAllIndices — so it needed no new capability
-at all, only three more client PICS declarations (`G.C.C01.Tx`, `GRPKEY.C.C03.Tx`, `GRPKEY.C.C04.Tx`;
-the last two are absent from the device file entirely, and an absent key evaluates false). `TC-SC-5.3`
-is the one that needs the DUT to *send* a groupcast, and it is blocked on evidence rather than on
-sending — see the note below.
+Both cases open the same way — an access-control entry admitting the group, a key set, the GroupKeyMap
+binding, AddGroup — and that opening lives in `tc-group-support.ts` rather than in either file.
+`TC-SC-6.1` then reads the state back over unicast; `TC-SC-5.3` sends a group message through it. See
+"what sending one actually needed" below for the four things that are not in the plan.
 
-What the steps rest on, beyond the log:
+`TC-SC-6.1` needed no new capability at all, only three more client PICS declarations (`G.C.C01.Tx`,
+`GRPKEY.C.C03.Tx`, `GRPKEY.C.C04.Tx`; the last two are absent from the device file entirely, and an
+absent key evaluates false).
 
-- **Step 1a writes an ACL entry, and the read-modify-write is load-bearing.** The entry the plan wants
-  is `AuthMode: Group` with the group id as its subject, but the ACL also carries the DUT's own
-  administer entry — writing the group entry alone revokes the access every later step needs. Read,
-  append, write.
-- **An ACL subject is a `uint64`, so it comes back as a `bigint`** from one controller and a `number`
-  from another. Compare the value, not the type: a `subjects.includes(1)` against `[1n]` is false, and
-  reads as "the write did not take" rather than as a decoding difference.
-- **`JSON.stringify` throws on a `bigint`.** A key set's epoch start times are `epoch-us`, so a step
-  reporting what the TH answered fails on its own evidence — the run error is
-  `Do not know how to serialize a BigInt`, and it names no field. Evidence text for a response that
-  may carry one goes through a replacer.
-- **KeySetRemove then KeySetReadAllIndices is what makes the removal checkable**: the indices must no
-  longer list the removed set (only the IPK's 0 remains). Without that, both steps would rest on the
-  TH having logged a command it could equally have ignored.
-- **Steps 6 and 7 are declared `notApplicable`, not omitted.** The plan skips them where the TH's root
-  endpoint has no Groupcast cluster, and neither TH has one — matter.js's all-clusters device
-  registers none, and chip's all-clusters ZAP enables none. Declaring them keeps the plan's own
-  numbering in the evidence and states why the run jumps from 5 to 8.
-
-## `TC-SC-5.3` is blocked on what the receiver can show, not on sending (assessed 2026-08-29)
-
-Sending a group command is **available on both controllers** and simply unexercised:
-
-- matter.js: `NodeId.fromGroupId(GroupId(id))` addresses a group, `Peers.forAddress` then yields a
-  `ClientGroup` rather than a `ClientNode`, and `ClientGroupInteraction` supports `invoke` and `write`
-  (it forces `suppressResponse` and refuses reads, subscriptions and timed requests). Nothing in the
-  repository drives this over a real socket today — `BindingIntegrationTest` says so in its own comment,
-  because the mock network has no multicast loopback.
-- chip-tool: a destination id of `0xFFFF'FFFF'FFFF'0000 | groupId` *is* the group form
-  (`ModelCommand::RunCommand` → `SendGroupCommand`), and `any command-by-id` inherits it. The mask
-  matches matter.js's `GroupId.isGroupNodeId` exactly.
-
-What is missing is a **witness** for the receiver's side of the plan's step 5, which asks to validate
-four things about the message. Only the first reaches a log line:
-
-- **DSIZ is group** — visible: a group session renders as `group#<id>` in `exchange.via`, so every
-  inbound invoke line says it.
-- **The destination group id** — not logged, though matter.js does use it: `GroupSession.subjectFor`
-  resolves it into the subject access control checks against, and `SessionManager.onGroupMessage`
-  emits it for every group invoke.
-- **The IPv6 destination `FF35:0040:FD<fabric-id>00:<group-id>`** — not captured from the received
-  packet at all. The UDP layer surfaces only the *sender's* address and port (`UdpTransport`'s
-  `onData` takes `rinfo`), with no `IP_PKTINFO`-style destination capture; the `destIp` on that event
-  is filled by the sending path.
-- **UDP port 5540** — implicit in the bound socket, never stated in a log line.
-
-So the open question is which witness to build, and it is a decision rather than a work item:
-
-- **Log the destination.** The receiving path holds the group id already; the multicast address it
-  would first have to capture.
-- **Observe `SessionManager.onGroupMessage` in-process.** A matterjs-flavor device runs inside the
-  test process, so a check could listen to it directly — stronger about the group id than any log
-  line, but a different kind of evidence from a device log, and unavailable on the chip flavors, so
-  the TC would prove different things on different legs.
-
-Until one of those exists, a TC written here could claim "the TH received this on a group session"
-and nothing about the addressing the step is actually about.
+Note the endpoint: `Groups` is not a root-node cluster, so both cases send `AddGroup`/`ViewGroup` to
+the on/off light rather than to endpoint 0, whatever the plan's own step text says. A step's text names
+the endpoint it exercises, because that is what the certification report describes.
 
 ## The TCP cases invert the topology, and a controller must be asked for TCP before it starts
 
@@ -2345,8 +2293,8 @@ size on the line is the encoded message, without its framing, so the wire messag
 Three things the check has to get right, each covered hermetically:
 
 - **The read is identified by its own path, not by the search window.** The pattern requires
-  `attributes: *.*.*` on the session, so a read of one attribute — which commissioning itself performs
-  moments earlier — cannot stand in for it.
+  `attributes: *.*.*` on the session, so a read of one attribute — which step 1 performs moments
+  earlier, to exercise the session it established — cannot stand in for it.
 - **The reports are counted, not merely found.** A device that chunked would still log a first report
   matching any "is there a report" pattern. The check takes every report on the read's own exchange
   between the request and a settled mark, and requires exactly one.
@@ -2360,3 +2308,132 @@ immediately after the first, so waiting for one report is what makes counting th
 The evidence keeps only the first 300 characters of the matched line. matter.js renders a message's
 whole payload as hex, so an unbounded `matched` would put ~55 000 characters of one report into the
 evidence bundle.
+
+## An interaction that could have gone either way, on the session that exists (`TC-SC-8.7`)
+
+`TC-SC-8.7` asks for something the two cases before it do not: a **regularly sized** interaction, one
+neither transport is required for, that nonetheless travels on the TCP session already established
+rather than causing a new one. The controller is therefore asked for nothing special — an ordinary
+invoke, no large payload — and the step's evidence is what distinguishes the case:
+
+- **The request is one MRP could have carried.** `regularSizedRequestCheck` reads the size off the
+  DUT's own `I/InvokeRequest` message line and requires it at or below what MRP may carry. That is a
+  **different limit** from the one `TC-SC-8.6` requires its report to exceed, and the two are not
+  interchangeable: 1280 is the IPv6 MTU, so above it nothing MRP-sized fits and it serves as 8.6's
+  floor, while a request has to fit MRP's own budget — the UDP limit less Matter's header and MIC
+  overhead — before this case may call it regularly sized. A payload only TCP could carry would prove
+  the opposite of this case.
+- **The answer came back on step 1's session**, through the same exchange-correlated check `TC-SC-8.5`
+  uses.
+- **No further session was established.** `noFurtherSessionCheck` scans the interaction's own span for
+  a `CaseServer … New session with` or `… Resumed session with` — over *any* transport, since the
+  failure this guards against is the controller opening an MRP session for a small interaction.
+
+  What it adds is narrower than it looks, and worth stating exactly: the checks above are bound to
+  step 1's own session tag, so an interaction that *travelled* on a second session would already fail
+  them. This one covers the remaining case — a second session created alongside, whether or not this
+  interaction used it — which is what the plan's "use whichever one is available" rules out.
+
+  It keys on establishment rather than on the `Pairing request` that precedes it, and the difference
+  matters twice: matter.js writes that line before it has read Sigma1, so an attempt the DUT went on to
+  reject would read as a session it accepted, and an attempt inside the span whose session forms after
+  it would be counted though its establishment falls outside the window this check bounds.
+
+Nothing in the controller expresses "either transport is usable" as a request flag: matter.js's
+`transportPreference` is set once, for the session, and the protocol layer's hard `requiredTransport`
+lever is not surfaced. So the plan's step text describes what an ordinary invoke already is on this
+stack, and the case's substance lives entirely in the three checks above.
+
+## The group-messaging block, and what sending one actually needed (`TC-SC-5.3`)
+
+`TC-SC-5.3` is the mirror of `TC-SC-6.1`: the same four setup steps — an ACL entry admitting the
+group, a key set, the GroupKeyMap binding, AddGroup — and then, where 6.1 reads that state back over
+unicast, 5.3 sends a **groupcast** through it. The setup is one module (`tc-group-support.ts`) both
+cases use, so the two cannot drift.
+
+**The controller gained a group destination.** `cx.controllers.dut.group(id)` returns a `CertGroupApi`
+with `defineKeySet` and an `invoke` that takes **no endpoint** — a group command's path names only the
+cluster and command, and matter.js refuses a group invoke that names an endpoint. matter.js resolves
+the group as a peer whose node id encodes it (`NodeId.fromGroupId`); chip-tool takes the same thing as
+a destination id of `0xFFFF'FFFF'FFFF'0000 | groupId`.
+
+Four things the plan does not say, each of which failed silently until found:
+
+- **The sender needs the key too.** Writing the key set to the device is half of it; the controller
+  encrypts the groupcast, so it must hold the key as well — which is what the plan's "DUT generates a
+  random key" means in practice. `defineKeySet` does that, and `keySetWriteStep` takes a flag for it:
+  provisioning also makes the controller join the group's multicast address, so a case that never sends
+  a groupcast (TC-SC-6.1) does not take on that failure surface.
+- **On the fabric the sender resolves.** The adapter's own `Fabric` handle is a *different object* for
+  the same fabric index than the one `SessionManager.fabricFor` returns, and group state written on the
+  adapter's copy is invisible to the sending path. The symptom is `No group key set found for groupId`
+  from a controller that provably just provisioned one.
+- **The ACL entry needs Manage, not Operate.** `Groups.AddGroup` is a Manage command. With Operate the
+  message arrives, decrypts and dispatches — and does nothing, because a group message is
+  unacknowledged and nothing reports the refusal. It reads exactly like a multicast that never arrived.
+  `aclAdmitsGroupStep` therefore takes the privilege the case's own later steps need.
+- **Both groups must be in the GroupKeyMap.** `AddGroup` answers `UNSUPPORTED_ACCESS` for a group the
+  fabric's map does not name (Application Clusters § 1.3.7.1), so a case that adds group 2 *through*
+  group 1 binds both in the GroupKeyMap step.
+
+**What step 5 proves, and on which controller.** The plan asks for four things, and a **matter.js**
+sender's log carries all four. The multicast address is not shape-matched: the DUT's membership line
+names the group, the fabric and the address together, so the address is recomputed from that fabric id
+and group id and compared byte for byte — which also establishes the destination is GroupID 1. The port
+and address are read from the invoke's `dest:` field, and the session tag renders `•group#…`. That last
+one is the sender saying which *kind* of session it used, not a read of the packet's own DSIZ field —
+which is what makes it evidence for the claim rather than the claim itself, and the step's expected
+outcome says so.
+
+**chip-tool shows less, and says so.** Its log names the group it sent to (`Sending command to group
+0x1`) and nothing about where the message went, so on that controller the address-and-port half is
+recorded `unverified` with that reason rather than passing. The arrival evidence below runs on both.
+
+The arrival is proved three ways, because the first is what makes the last mean anything: the TH does
+not hold group 2 beforehand, the TH's own log shows it dispatching the AddGroup with the group and name
+the message carried, and only then does a unicast `ViewGroup(2)` answer with them. The dispatch line is
+also the step's synchronisation — an unacknowledged multicast orders nothing against the unicast read
+that follows it, so without that wait the read races the device.
+
+A group command's path is endpoint-wildcarded on the wire (`invokes: *.0x4.0x0`), so the dispatch is
+identified by the endpoint it *reached*: matter.js names endpoint, cluster, command and fields on its
+`ProtocolService Invoke «` line, and chip prints `Received Groupcast Message with GroupId 0x0001`
+followed by `Processing group command for Endpoint=1 Cluster=0x0000_0004 Command=0x0000_0000`. chip's
+first line is worth knowing about — it names the group id read off the *packet*, which is the
+receiver's own view of the destination, and the only place in this suite where that appears.
+
+**A production change came with it.** The group invoke's diagnostic printed the address alone;
+`GroupSession.destination` now renders `[<address>]:<port>` so the log says where a message actually
+went. Steps 6 and 7 stay not-applicable: they need the Groupcast cluster, which neither TH has.
+
+## Operating a device, and observing the events it sends (`TC-SWTCH-3.2`)
+
+Three mechanics this TC needed, all reusable.
+
+**An event subscription that does not ask for urgency sees almost nothing.** A publisher may hold
+queued events until the subscription's maximum interval elapses, so a step that operates the device and
+then waits a few seconds for the event sees one report and then silence — this TC's first run saw one
+of four switch events, the rest arriving when the subscription closed. `SubscribeEventOptions.urgent`
+asks for urgent paths (`isUrgent` on each `EventPathIB`, `--is-urgent` on chip-tool). It is off by
+default because it is visible on the wire: chip's decode dump prints an `isUrgent = true` line inside
+the `EventPathIB`, which breaks a log check that matches the subscribe envelope as adjacent lines
+(`TC-IDM-6.4` does exactly that).
+
+**Count events above a boundary, and take the boundary from the subscription, not from a read.** Events
+an earlier step provoked can still be in flight when the next step starts, so a step that counts "the
+events named X" counts the step before it too. Wait until the subscription has been quiet for a moment,
+take the highest event number received, and count only above it — and fail the step if it never goes
+quiet, since then the boundary separates nothing. Do not take the boundary from `readEvents`: chip-tool
+folds a subscription report that arrives while a read is in flight into that read's reply, so the
+step's own first event lands *below* a boundary read this way. That was observed in a captured run —
+the read returned event numbers 4..8 where the subscription had delivered 4..7, and the step then
+counted three of its four events.
+
+**A backchannel command returning does not mean the device has acted.** The matter.js test device
+awaits the state change before answering; a chip app reads the command from its named pipe on its own
+thread and posts it to its event loop, so a read taken immediately afterwards can still see the old
+state. A step that operates a device and then reads should poll to a deadline rather than assert once.
+
+Beware also that a device's own idea of "idle" differs: `simulateSwitchIdle` resets the switch state on
+the matter.js device but only moves the position on a chip app, so a step that presses needs its own
+wait for the previous press cycle to close, not just the command.

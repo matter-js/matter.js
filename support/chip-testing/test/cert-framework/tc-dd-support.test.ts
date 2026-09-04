@@ -216,6 +216,9 @@ function contextWith(
         parseQrPayload: unused,
         parseManualPairingCode: unused,
         node: nodeFor,
+        group: (): never => {
+            throw new InternalError("not used by these tests");
+        },
     } satisfies ControllerAdapter;
 
     const checks = new Array<CheckRecord>();
@@ -1135,6 +1138,9 @@ class UnpairFixture {
             // The commissioning helpers record what the DUT reads from the code before they use it
             parseQrPayload: async payload => qrPayloadFields(payload),
             parseManualPairingCode: unused,
+            group: (): never => {
+                throw new InternalError("not used by these tests");
+            },
             node: () => node,
         };
 

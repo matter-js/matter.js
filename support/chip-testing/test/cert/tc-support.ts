@@ -1520,6 +1520,13 @@ const REPORT_SENT_LINE = /\[DMG\] >> to UDP:.*\/ Report Data \(0x05\) \/ Session
 const READ_REQUEST_RECEIVED_LINE =
     /\[DMG\] << from UDP:.*\/ Read Request \(0x02\) \/ Session = \d+ \/ Exchange = (\d+)\]\s*$/;
 
+/**
+ * chip prints the *peer's* session id on a message it sends and its own on one it receives — a real
+ * capture has one interaction's outbound Report Data on `Session = 56179` and the inbound ack for it
+ * on `Session = 13606` — so an ack cannot be matched to the report it answers by session, only by
+ * exchange. Session scoping applies between two messages travelling the same way, which is what the
+ * timed-interaction checks compare (`tc-idm-5.1-support.ts`).
+ */
 function reportAckedOnExchange(exchange: string): RegExp {
     return new RegExp(
         `\\[DMG\\] << from UDP:.*/ Status Response \\(0x01\\) / Session = \\d+ / Exchange = ${exchange}\\]\\s*$`,

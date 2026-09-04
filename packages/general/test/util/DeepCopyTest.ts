@@ -91,6 +91,15 @@ describe("DeepCopy", () => {
         expect(copiedMap.get("self")).to.equal(copiedMap);
     });
 
+    it("should copy a Date as a Date", () => {
+        const date = new Date("2026-09-02T12:00:00.000Z");
+
+        const copiedDate = deepCopy({ date }).date;
+        expect(copiedDate).to.be.instanceOf(Date);
+        expect(copiedDate.getTime()).to.equal(date.getTime());
+        expect(copiedDate).to.not.equal(date);
+    });
+
     it("should correctly copy Map values", () => {
         const map = new Map<string, { v: number }>([
             ["a", { v: 1 }],
