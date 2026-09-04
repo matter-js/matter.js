@@ -168,8 +168,8 @@ describe("ClusterVariance", () => {
         it("parses provisional pipe otherwise-list P, FOO | BAR | (BAZ & QUX)", () => {
             expectComponents(
                 attrs(["FOO", "BAR", "BAZ", "QUX"], { name: "attr", conformance: "P, FOO | BAR | (BAZ & QUX)" }),
-                { mandatory: ["attr"], condition: { anyOf: ["FOO", "BAR"] } },
-                { mandatory: ["attr"], condition: { allOf: ["BAZ", "QUX"] } },
+                { optional: ["attr"], condition: { anyOf: ["FOO", "BAR"] } },
+                { optional: ["attr"], condition: { allOf: ["BAZ", "QUX"] } },
             );
         });
 
