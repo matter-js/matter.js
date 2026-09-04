@@ -6,9 +6,9 @@
 
 import { Constraint } from "#aspects/index.js";
 import { FieldValue } from "#common/index.js";
-import { FieldElement } from "#elements/index.js";
+import { DatatypeElement, FieldElement } from "#elements/index.js";
 import { EncodedConstraint } from "#logic/EncodedConstraint.js";
-import { FieldModel } from "#models/index.js";
+import { DatatypeModel, FieldModel, MatterModel } from "#models/index.js";
 
 function field(type: string) {
     return new FieldModel(FieldElement({ name: "Test", type }));
@@ -29,7 +29,70 @@ function valuesOf(constraint: Constraint, model: FieldModel) {
     };
 }
 
+/** A field of an enumerated type, in a scope where that type resolves */
+function enumField(constraint: string) {
+    const operation = new FieldModel(FieldElement({ name: "Operation", type: "OperationEnum", constraint }));
+
+    const matter = new MatterModel(
+        {},
+        new DatatypeModel(
+            DatatypeElement({ name: "OperationEnum", type: "enum8" }),
+            FieldElement({ name: "Add", id: 0 }),
+            FieldElement({ name: "Clear", id: 1 }),
+            FieldElement({ name: "Modify", id: 2 }),
+        ),
+        new DatatypeModel(DatatypeElement({ name: "Holder", type: "struct" }), operation),
+    );
+    matter.finalize();
+
+    return operation;
+}
+
 describe("EncodedConstraint", () => {
+    describe("a bound naming a value of the type", () => {
+        it("states the value each name denotes", () => {
+            const model = enumField("add, modify");
+
+            expect(EncodedConstraint(model.constraint, model).toString()).equals("0, 2");
+        });
+
+        it("admits the values named and no others", () => {
+            const model = enumField("add, modify");
+            const constraint = EncodedConstraint(model.constraint, model);
+
+            expect(constraint.test(0)).true;
+            expect(constraint.test(2)).true;
+            expect(constraint.test(1)).false;
+            expect(constraint.test(99)).false;
+        });
+
+        it("states a name the type does not define as it stands", () => {
+            const model = enumField("add, nonexistent");
+
+            expect(EncodedConstraint(model.constraint, model).toString()).equals("0, nonexistent");
+        });
+
+        // Only an enumerated type names its values in a bound; a member of any other type is a value of the record,
+        // which a bound names through the surrounding scope rather than through the type
+        it("leaves a bound naming a member of a type that is not an enumeration", () => {
+            const bounded = new FieldModel(
+                FieldElement({ name: "Bounded", type: "LimitsStruct", constraint: "max low" }),
+            );
+
+            const matter = new MatterModel(
+                {},
+                new DatatypeModel(
+                    DatatypeElement({ name: "LimitsStruct", type: "struct" }),
+                    FieldElement({ name: "Low", id: 0, type: "uint8" }),
+                ),
+                new DatatypeModel(DatatypeElement({ name: "Holder", type: "struct" }), bounded),
+            );
+            matter.finalize();
+
+            expect(EncodedConstraint(bounded.constraint, bounded).toString()).equals("max low");
+        });
+    });
+
     it("counts the units of the type", () => {
         expect(`${EncodedConstraint(new Constraint("0% to 100%"), percent100ths)}`).equal("0 to 10000");
         expect(`${EncodedConstraint(new Constraint("0°C to 25.5°C"), temperature)}`).equal("0 to 255");

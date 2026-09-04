@@ -476,6 +476,23 @@ describe("Constraint", () => {
         });
     });
 
+    // Neither word is part of the constraint language; both reach the model from the specification's tables
+    describe("a word the constraint language does not define", () => {
+        for (const definition of ["any", "ms", "MS"]) {
+            it(`states no bound for "${definition}"`, () => {
+                const constraint = new Constraint(definition);
+
+                expect(constraint.isEmpty).true;
+                expect(constraint.test(0)).true;
+                expect(constraint.test(65535)).true;
+            });
+        }
+
+        it("states a name that merely begins with one", () => {
+            expect(new Constraint("anyValue").value).deep.equals({ type: "reference", name: "anyValue" });
+        });
+    });
+
     describe("a bound wider than a number states exactly", () => {
         it("keeps the magnitude of a decimal bound", () => {
             const constraint = new Constraint("0 to 18446744073709551615");

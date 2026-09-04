@@ -27,7 +27,7 @@ import {
     uint64,
     ValidateModel,
 } from "#index.js";
-import { AttributeModel, ClusterModel, DatatypeModel, FieldModel, MatterModel } from "#models/index.js";
+import { AttributeModel, ClusterModel, DatatypeModel, FieldModel, MatterModel, Model } from "#models/index.js";
 import { Seconds } from "@matter/general";
 
 const CODES = new Set([
@@ -228,7 +228,138 @@ function validateConstraint(type: string, constraint: string) {
     return ValidateModel(Matter).errors.filter(e => CODES.has(e.code));
 }
 
+/** Errors reported for the names a constraint states */
+function validateConstraintReferences(children: Model.ChildDefinition<ClusterModel>[]) {
+    const Matter = new MatterModel(
+        {},
+        uint8.clone(),
+        uint16.clone(),
+        enum8.clone(),
+        new ClusterModel({ name: "Test", id: 0xfff1 }, ...children),
+    );
+    Matter.finalize();
+
+    return ValidateModel(Matter).errors.filter(e => e.code === "UNRESOLVED_CONSTRAINT_NAME");
+}
+
 describe("ValueValidator", () => {
+    describe("names a constraint states", () => {
+        it("accepts a bound naming a sibling attribute", () => {
+            expect(
+                validateConstraintReferences([
+                    Attribute({ name: "Limit", id: 1, type: "uint16" }),
+                    Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "max Limit" }),
+                ]),
+            ).length(0);
+        });
+
+        it("reports a bound naming nothing", () => {
+            const errors = validateConstraintReferences([
+                Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "max Nonexistent" }),
+            ]);
+
+            expect(errors).length(1);
+            expect(errors[0].message).equals('Constraint name reference "nonexistent" does not resolve');
+        });
+
+        it("reports each name a compound bound states", () => {
+            expect(
+                validateConstraintReferences([
+                    Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "missingMin to missingMax" }),
+                ]),
+            ).length(2);
+        });
+
+        it("accepts a bound naming a value of the constrained enumeration", () => {
+            expect(
+                validateConstraintReferences([
+                    new DatatypeModel(
+                        { name: "OperationEnum", type: "enum8" },
+                        FieldElement({ name: "Add", id: 0 }),
+                        FieldElement({ name: "Modify", id: 2 }),
+                    ),
+                    Attribute({ name: "Bounded", id: 2, type: "OperationEnum", constraint: "add, modify" }),
+                ]),
+            ).length(0);
+        });
+
+        it("reports a value the constrained enumeration does not define", () => {
+            expect(
+                validateConstraintReferences([
+                    new DatatypeModel({ name: "OperationEnum", type: "enum8" }, FieldElement({ name: "Add", id: 0 })),
+                    Attribute({ name: "Bounded", id: 2, type: "OperationEnum", constraint: "add, remove" }),
+                ]),
+            ).length(1);
+        });
+
+        it("accepts a member access naming a member the type defines", () => {
+            expect(
+                validateConstraintReferences([
+                    new DatatypeModel(
+                        { name: "LimitsStruct", type: "struct" },
+                        FieldElement({ name: "Low", id: 0, type: "uint16" }),
+                    ),
+                    Attribute({ name: "Limits", id: 1, type: "LimitsStruct" }),
+                    Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "min limits.low" }),
+                ]),
+            ).length(0);
+        });
+
+        // Evaluating an access to a member the type does not define yields no bound, exactly as an unknown element
+        // does, so the whole path is judged rather than its first segment alone
+        it("reports a member access naming a member the type does not define", () => {
+            const errors = validateConstraintReferences([
+                new DatatypeModel(
+                    { name: "LimitsStruct", type: "struct" },
+                    FieldElement({ name: "Low", id: 0, type: "uint16" }),
+                ),
+                Attribute({ name: "Limits", id: 1, type: "LimitsStruct" }),
+                Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "min limits.nonexistent" }),
+            ]);
+
+            expect(errors).length(1);
+            expect(errors[0].message).equals('Constraint name reference "limits.nonexistent" does not resolve');
+        });
+
+        // The entry constraint of a list bounds the entries, so its names belong to the entry's type
+        it("accepts an entry bound naming a value of the entry's enumeration", () => {
+            expect(
+                validateConstraintReferences([
+                    new DatatypeModel(
+                        { name: "OperationEnum", type: "enum8" },
+                        FieldElement({ name: "Add", id: 0 }),
+                        FieldElement({ name: "Modify", id: 2 }),
+                    ),
+                    Attribute(
+                        { name: "Bounded", id: 2, type: "list", constraint: "all[add, modify]" },
+                        FieldElement({ name: "entry", type: "OperationEnum" }),
+                    ),
+                ]),
+            ).length(0);
+        });
+
+        it("reports an entry bound naming a value the entry's enumeration does not define", () => {
+            const errors = validateConstraintReferences([
+                new DatatypeModel({ name: "OperationEnum", type: "enum8" }, FieldElement({ name: "Add", id: 0 })),
+                Attribute(
+                    { name: "Bounded", id: 2, type: "list", constraint: "all[add, remove]" },
+                    FieldElement({ name: "entry", type: "OperationEnum" }),
+                ),
+            ]);
+
+            expect(errors).length(1);
+            expect(errors[0].message).equals('Constraint name reference "remove" does not resolve');
+        });
+
+        it("reports a member access whose element does not resolve", () => {
+            expect(
+                validateConstraintReferences([
+                    Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "min missing.low" }),
+                ]),
+            ).length(1);
+        });
+    });
+
     describe("constraint bounds stated in a unit", () => {
         it("accepts a bound the type gives a scale for", () => {
             expect(validateConstraint("UnsignedTemperature", "0°C to 25.5°C")).deep.equals([]);
