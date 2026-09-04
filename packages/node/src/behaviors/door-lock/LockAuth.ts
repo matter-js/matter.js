@@ -68,6 +68,15 @@ export namespace LockAuth {
 
         @field(fabricIdx)
         lastModifiedFabricIndex!: FabricIndex;
+
+        /**
+         * Unix epoch seconds at which an ExpiringUser's access is auto-disabled. Set on first successful use of one
+         * of the user's credentials; null before then. Persisted (rather than derived from a runtime-only timer) so
+         * the deadline survives reboots per Matter spec § 5.2.6.18.8.
+         */
+        @nullable
+        @field(uint32)
+        expiringUserExpiresAt: number | null = null;
     }
 
     /**
