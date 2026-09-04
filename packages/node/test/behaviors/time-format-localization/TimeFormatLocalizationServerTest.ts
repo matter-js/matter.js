@@ -6,9 +6,9 @@
 
 import { TimeFormatLocalizationServer } from "#behaviors/time-format-localization";
 import { ServerNode } from "#node/ServerNode.js";
+import { MockServerNode } from "@matter/node/testing";
 import { ConstraintError } from "@matter/protocol";
 import { TimeFormatLocalization } from "@matter/types/clusters/time-format-localization";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 function createEndpoint() {
     return MockServerNode.create(

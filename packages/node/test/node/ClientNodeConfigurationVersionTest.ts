@@ -5,8 +5,7 @@
  */
 
 import { BasicInformationServer } from "#behaviors/basic-information";
-import { MockSite } from "./mock-site.js";
-import { subscribedPeer } from "./node-helpers.js";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 
 describe("ClientNode ConfigurationVersion", () => {
     before(() => MockTime.init());

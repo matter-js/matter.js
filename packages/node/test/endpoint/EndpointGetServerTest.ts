@@ -6,7 +6,7 @@
 
 import { BasicInformationServer } from "#behaviors/basic-information";
 import { AttributeNotPresentError, EndpointBehaviorNotPresentError } from "#endpoint/errors.js";
-import { MockServerNode } from "../node/mock-server-node.js";
+import { MockServerNode } from "@matter/node/testing";
 
 describe("Endpoint.get on a server endpoint", () => {
     let node: MockServerNode;

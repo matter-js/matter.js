@@ -7,8 +7,8 @@
 import { EndpointBehaviorsError } from "#endpoint/errors.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import { Crypto, Lifecycle, LogDestination, Logger, LogFormat, LogLevel, MockCrypto, Seconds } from "@matter/general";
+import { MockSite } from "@matter/node/testing";
 import { FabricNotFoundError } from "@matter/protocol";
-import { MockSite } from "../mock-site.js";
 
 interface CapturedMessage {
     level: LogLevel;

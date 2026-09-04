@@ -8,7 +8,7 @@ import { BasicInformationClient } from "#behaviors/basic-information";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
 import { ClientNodeLifecycle } from "#node/ClientNodeLifecycle.js";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
-import { MockSite } from "./mock-site.js";
+import { MockSite } from "@matter/node/testing";
 
 describe("NodeLifecycle#isSeeded/seeded", () => {
     before(() => {

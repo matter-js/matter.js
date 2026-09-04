@@ -5,7 +5,7 @@
  */
 
 import { RoomAirConditionerDevice } from "#devices/room-air-conditioner";
-import { MockServerNode } from "../../node/mock-server-node.js";
+import { MockServerNode } from "@matter/node/testing";
 
 describe("ThermostatUserInterfaceConfigurationServer", () => {
     it("instantiates", async () => {

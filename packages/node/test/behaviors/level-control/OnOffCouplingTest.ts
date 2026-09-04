@@ -5,8 +5,8 @@
  */
 
 import { DimmableLightDevice } from "#devices/dimmable-light";
+import { MockServerNode } from "@matter/node/testing";
 import { LevelControl } from "@matter/types/clusters/level-control";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 describe("LevelControl on/off coupling", () => {
     before(MockTime.enable);

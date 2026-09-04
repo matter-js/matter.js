@@ -5,7 +5,7 @@
  */
 
 import { BasicInformationServer } from "#behaviors/basic-information";
-import { MockServerNode } from "../../node/mock-server-node.js";
+import { MockServerNode } from "@matter/node/testing";
 
 function capabilityMinima(node: MockServerNode) {
     return node.stateOf(BasicInformationServer).capabilityMinima;

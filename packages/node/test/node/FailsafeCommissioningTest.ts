@@ -23,6 +23,7 @@ import { AccessControlServer } from "#behaviors/access-control";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { ServerNode } from "#node/ServerNode.js";
 import { Crypto, Lifecycle, MockCrypto, Seconds } from "@matter/general";
+import { MockServerNode, MockSite } from "@matter/node/testing";
 import {
     Advertiser,
     ControllerCommissioningFlow,
@@ -31,8 +32,6 @@ import {
     FabricManager,
     ServiceDescription,
 } from "@matter/protocol";
-import { MockServerNode } from "./mock-server-node.js";
-import { MockSite } from "./mock-site.js";
 
 describe("Failsafe commissioning re-announcement", () => {
     before(() => {

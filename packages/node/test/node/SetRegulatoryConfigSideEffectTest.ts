@@ -6,9 +6,8 @@
 
 import { BasicInformationServer } from "#behaviors/basic-information";
 import { GeneralCommissioningServer } from "#behaviors/general-commissioning";
+import { FAILSAFE_LENGTH_S, MockServerNode } from "@matter/node/testing";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
-import { MockServerNode } from "./mock-server-node.js";
-import { FAILSAFE_LENGTH_S } from "./node-helpers.js";
 
 const IndoorOnlyCommissioning = GeneralCommissioningServer.set({
     locationCapability: GeneralCommissioning.RegulatoryLocationType.Indoor,

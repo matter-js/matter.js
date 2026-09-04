@@ -5,8 +5,8 @@
  */
 
 import { CommodityTariffServer } from "#behaviors/commodity-tariff";
+import { MockServerNode } from "@matter/node/testing";
 import { CommodityTariff } from "@matter/types/clusters/commodity-tariff";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 const NullState = {
     tariffInfo: null,

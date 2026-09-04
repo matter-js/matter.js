@@ -6,9 +6,9 @@
 
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { ClientStructure } from "#node/client/ClientStructure.js";
+import { MockServerNode } from "@matter/node/testing";
 import { Val } from "@matter/protocol";
 import { EndpointNumber } from "@matter/types";
-import { MockServerNode } from "../mock-server-node.js";
 
 /** Records what each behavior's store is asked to hold, and under which keys */
 function recordingStructure(node: MockServerNode) {

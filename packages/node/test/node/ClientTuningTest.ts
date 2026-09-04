@@ -12,6 +12,7 @@ import { Endpoint } from "#endpoint/Endpoint.js";
 import { SecondaryNetworkInterfaceEndpoint } from "#endpoints/secondary-network-interface";
 import { ServerNode } from "#index.js";
 import { Bytes, causedBy, Crypto, Millis, MockCrypto, MockNetwork, Network, Seconds } from "@matter/general";
+import { MockServerNode, MockSite } from "@matter/node/testing";
 import {
     MdnsService,
     NetworkProfiles,
@@ -22,8 +23,6 @@ import {
 } from "@matter/protocol";
 import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
 import { ThreadNetworkDiagnostics } from "@matter/types/clusters/thread-network-diagnostics";
-import { MockServerNode } from "./mock-server-node.js";
-import { MockSite } from "./mock-site.js";
 
 class EthernetCommissioningServer extends NetworkCommissioningServer.with("EthernetNetworkInterface") {
     override initialize() {

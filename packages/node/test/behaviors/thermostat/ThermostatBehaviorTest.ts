@@ -7,8 +7,8 @@
 import { ThermostatBehavior, ThermostatServer } from "#behaviors/thermostat";
 import { ThermostatDevice } from "#devices/thermostat";
 import { Endpoint } from "#endpoint/index.js";
+import { MockServerNode } from "@matter/node/testing";
 import { Thermostat } from "@matter/types/clusters/thermostat";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 const AutoThermo = ThermostatBehavior.with("Heating", "Cooling", "AutoMode");
 const AutoThermoDevice = ThermostatDevice.with(ThermostatServer.with("Heating", "Cooling", "AutoMode"));

@@ -22,6 +22,7 @@ import {
     ServerAddress,
     Time,
 } from "@matter/general";
+import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import {
     ClientSubscribe,
     ClientSubscription,
@@ -30,9 +31,6 @@ import {
     Subscribe,
     SustainedSubscription,
 } from "@matter/protocol";
-import { MockServerNode } from "./mock-server-node.js";
-import { MockSite } from "./mock-site.js";
-import { subscribedPeer } from "./node-helpers.js";
 
 describe("ClientConnectivityTest", () => {
     before(() => {

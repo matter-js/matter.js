@@ -9,6 +9,7 @@ import { GeneralCommissioningServer } from "#behaviors/general-commissioning";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { ServerNode } from "#node/ServerNode.js";
 import { AbortedError, Crypto, Entropy, Environment, ImplementationError, MockCrypto, Seconds } from "@matter/general";
+import { MockServerNode, MockSite } from "@matter/node/testing";
 import {
     CertificateAuthority,
     CommissioningError,
@@ -20,8 +21,6 @@ import {
 } from "@matter/protocol";
 import { NodeId } from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
-import { MockServerNode } from "./mock-server-node.js";
-import { MockSite } from "./mock-site.js";
 
 class NonOkCommissioningCompleteServer extends GeneralCommissioningServer {
     override async commissioningComplete() {
