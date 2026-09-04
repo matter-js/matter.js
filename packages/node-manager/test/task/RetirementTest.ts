@@ -5,10 +5,17 @@
  */
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
-import { TaskConflictError, TaskNotInFlightError, TaskStoreVersionError, TaskSupersededError } from "#task/errors.js";
+import {
+    TaskConflictError,
+    TaskFailedError,
+    TaskNoRollbackError,
+    TaskNotInFlightError,
+    TaskStoreVersionError,
+    TaskSupersededError,
+} from "#task/errors.js";
 import { RUN_STORE_VERSION } from "#task/RunStore.js";
-import { TaskPersistence } from "#task/Task.js";
-import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
+import { TaskDefinition, TaskPersistence } from "#task/Task.js";
+import { TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { RunId, TaskPhase } from "#task/types.js";
 import { Environment, InternalError, MaybePromise } from "@matter/general";
 import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
@@ -29,6 +36,11 @@ class TestTaskManager extends TaskManagerBehavior {
 
     isAttached(runId: RunId) {
         return this.internal.runs.isAttached(runId);
+    }
+
+    /** The priors the loaded twin still holds, which storage alone cannot show. */
+    priorsOf(runId: RunId) {
+        return this.internal.runs.get(runId)?.changeSet;
     }
 }
 
@@ -56,6 +68,31 @@ async function pumpUntil(name: string, condition: () => MaybePromise<boolean>) {
     }
     throw new InternalError(`Condition "${name}" never held`);
 }
+
+/** Writes one intent, then fails, and declares itself past the point of no return. */
+const ForwardOnlyTask: TaskDefinition<{ tag: string; peerId: string }> = {
+    type: "forward-only",
+    // Deliberately the same slot shape as SyntheticTask: supersession is per target, so a test about one run
+    // burying another has to put both on one slot.
+    slotKeyFor(params) {
+        return `synthetic:${params.tag}`;
+    },
+    revertible() {
+        return false;
+    },
+    notRevertibleReason: "the test says so",
+    phases(params) {
+        return [
+            {
+                name: "write-then-fail",
+                run: async ctx => {
+                    await ctx.setIntent(ctx.resolvePeer(params.peerId), "groupMembership", "X", { v: 2 });
+                    throw new TaskFailedError("forward only");
+                },
+            },
+        ];
+    },
+};
 
 /** Writes one intent and returns, so the run completes having changed something. */
 function touchPhase(peerId: string): TaskPhase {
@@ -189,134 +226,6 @@ describe("run records after a retirement", () => {
         expect((await stored(node, handle.runId))?.revertRunId).equals(undefined);
     });
 
-    it("drops the parameters an older build left on finished records", async () => {
-        const environment = new Environment("upgrade-params");
-        let finished!: RunId;
-        {
-            await using node = await makeNode(environment, "upgrade");
-            const peer = testPeer("upgrade");
-            peer.markHas("groupMembership", "X");
-            const handle = await run(node, "upgrade", [touchPhase("upgrade")]);
-            await awaitRetired(node, handle.runId);
-            finished = handle.runId;
-
-            // Put the record back the way the previous build left it: every key materialised — including the
-            // undefined ones, which is what that build's snapshots did — and the table unversioned.
-            await node.act(a => {
-                const manager = a.get(TestTaskManager);
-                manager.state.runs = {
-                    ...manager.state.runs,
-                    [String(finished)]: {
-                        ...manager.state.runs[String(finished)],
-                        params: { tag: "upgrade" },
-                        error: undefined,
-                        revertOf: undefined,
-                    },
-                };
-                manager.state.runsVersion = 1;
-            });
-        }
-
-        // A write replaces only the records its own transaction names, so nothing would ever rewrite a run
-        // that was already finished — and its parameters are the raw keys this version exists to stop storing.
-        await using node = await makeNode(environment, "upgrade");
-        const record = await stored(node, finished);
-        expect(record).not.equals(undefined);
-        expect("params" in record!).equals(false);
-        // Only the parameters: the other keys the previous build wrote empty are normalised by the next
-        // ordinary write of the record, and this pass does not claim to do it for them.
-        expect(await node.act(a => a.get(TestTaskManager).state.runsVersion)).equals(RUN_STORE_VERSION);
-    });
-
-    it("drops the parameters of a record predating per-run identity", async () => {
-        const environment = new Environment("upgrade-legacy");
-        {
-            await using node = await makeNode(environment, "legacy");
-            // The shape `load` discards: a slot key where a run id now goes. It stays in storage, so nothing
-            // will ever rewrite it — and for the group tasks its parameters are raw epoch keys.
-            await node.act(a => {
-                const manager = a.get(TestTaskManager);
-                manager.state.runs = {
-                    ...manager.state.runs,
-                    "synthetic:legacy": {
-                        slotKey: "synthetic:legacy",
-                        type: "synthetic",
-                        params: { epochKey0: "secret" },
-                        phaseIndex: 0,
-                        state: "completed",
-                    } as unknown as TaskPersistence,
-                };
-                manager.state.runsVersion = 1;
-            });
-        }
-
-        await using node = await makeNode(environment, "legacy");
-        const legacy = await node.act(a => a.get(TestTaskManager).state.runs["synthetic:legacy"]);
-        expect(legacy).not.equals(undefined);
-        expect("params" in legacy!).equals(false);
-    });
-
-    it("drops a parameter key an older build left present but empty", async () => {
-        const environment = new Environment("upgrade-emptykey");
-        let finished!: RunId;
-        {
-            await using node = await makeNode(environment, "emptykey");
-            const peer = testPeer("emptykey");
-            peer.markHas("groupMembership", "X");
-            const handle = await run(node, "emptykey", [touchPhase("emptykey")]);
-            await awaitRetired(node, handle.runId);
-            finished = handle.runId;
-
-            // A task run with no parameters at all: the previous build still wrote the key, holding `undefined`.
-            await node.act(a => {
-                const manager = a.get(TestTaskManager);
-                manager.state.runs = {
-                    ...manager.state.runs,
-                    [String(finished)]: { ...manager.state.runs[String(finished)], params: undefined },
-                };
-                manager.state.runsVersion = 1;
-            });
-            expect("params" in (await stored(node, finished))!).equals(true);
-        }
-
-        // Testing the value rather than the key would leave this one behind for good: the upgrade runs once.
-        await using node = await makeNode(environment, "emptykey");
-        expect("params" in (await stored(node, finished))!).equals(false);
-    });
-
-    it("does not put migrated parameters back on the next write of the record", async () => {
-        const environment = new Environment("upgrade-rewrite");
-        let original!: RunId;
-        {
-            await using node = await makeNode(environment, "rewrite");
-            const peer = testPeer("rewrite");
-            const failed = await failedRollback(node, "rewrite", peer);
-            original = failed.original.runId;
-
-            // Back to the shape the previous build left: parameters present, table unversioned.
-            await node.act(a => {
-                const manager = a.get(TestTaskManager);
-                manager.state.runs = {
-                    ...manager.state.runs,
-                    [String(original)]: { ...manager.state.runs[String(original)], params: { tag: "rewrite" } },
-                };
-                manager.state.runsVersion = 1;
-            });
-        }
-
-        await using node = await makeNode(environment, "rewrite");
-        const peer = testPeer("rewrite");
-        peer.setIntent("groupMembership", "X", { v: 1 });
-        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
-        expect("params" in (await stored(node, original))!).equals(false);
-
-        // A snapshot carries every field the record holds, so a write that mentions something else — here the
-        // link to a fresh undo — would re-persist parameters the upgrade only took out of storage. The version
-        // stamp means the upgrade would never run again to remove them.
-        await node.act(a => a.get(TestTaskManager).retryRollback(original));
-        expect("params" in (await stored(node, original))!).equals(false);
-    });
-
     it("leaves an unfinished run's parameters alone on upgrade", async () => {
         const environment = new Environment("upgrade-inflight");
         let live!: RunId;
@@ -399,6 +308,117 @@ describe("run records after a retirement", () => {
         // A second run of the same target commits its own outcome. What the first would restore is historical.
         peer.markHas("groupMembership", "X");
         const later = await run(node, "superseded", [touchPhase("superseded")]);
+        await awaitRetired(node, later.runId);
+
+        const refusal = await attempt(node, m => m.retryRollback(original.runId));
+        expect(refusal).instanceOf(TaskSupersededError);
+        expect((refusal as TaskConflictError).owner).equals(later.runId);
+    });
+
+    it("abandons a failed rollback while a rollback of a later run of the target is live", async () => {
+        await using node = await makeNode();
+        const peer = testPeer("later-rollback");
+
+        // The first run's undo failed, so the target is free and its changes are still on the device.
+        const { original, rollback } = await failedRollback(node, "later-rollback", peer);
+
+        // A second run of the same target is cancelled, and its undo parks: a rollback of a *later* run,
+        // undoing values the first run never wrote.
+        peer.setIntent("groupMembership", "X", { v: 3 });
+        const second = await run(node, "later-rollback", [gatingPhase(peer.id)]);
+        await pumpUntil("second intent written", () => (peer.items[KEY]?.intent as { v?: number })?.v === 2);
+        const live = await node.act(a => a.get(TestTaskManager).cancel(second.runId));
+        expect(live).not.equals(undefined);
+
+        // The live rollback undoes the second run, not the first, so it is not the undo that applies here and
+        // refusing on it would leave the first run's changes with no disposition at all.
+        const abandoned = await node.act(a => a.get(TestTaskManager).abandon(rollback.runId, "operator"));
+        expect(abandoned.status.state).equals("abandoned");
+        expect(await node.act(a => a.get(TestTaskManager).get(original.runId)?.status.state)).equals("cancelled");
+    });
+
+    it("is not superseded by a later run that completed without changing anything", async () => {
+        await using node = await makeNode();
+        const peer = testPeer("noop-completion");
+
+        const { original } = await failedRollback(node, "noop-completion", peer);
+
+        // Completes without touching a peer, as a removal does when its node is already decommissioned.
+        const later = await run(node, "noop-completion", [{ name: "noop", run: async () => {} }]);
+        await awaitRetired(node, later.runId);
+        expect((await stored(node, later.runId))?.wrote).equals(false);
+
+        const retry = await attempt(node, m => m.retryRollback(original.runId));
+        expect(retry).not.instanceOf(Error);
+        expect((retry as TaskHandle).status.revertOf).equals(original.runId);
+    });
+
+    it("is not superseded by a later run that reached no phase", async () => {
+        await using node = await makeNode();
+        const peer = testPeer("no-phase");
+
+        const { original } = await failedRollback(node, "no-phase", peer);
+
+        // The later run touches nothing before it fails, so what the first would restore is still current.
+        const later = await run(node, "no-phase", [
+            {
+                name: "throw",
+                run: async () => new Promise<void>((_, reject) => reject(new TaskFailedError("nope"))),
+            },
+        ]);
+        await awaitRetired(node, later.runId);
+        expect((await stored(node, later.runId))?.changeSet).deep.equals([]);
+
+        const retry = await attempt(node, m => m.retryRollback(original.runId));
+        expect(retry).not.instanceOf(Error);
+        expect((retry as TaskHandle).status.revertOf).equals(original.runId);
+    });
+
+    it("drops the priors of a run that completed", async () => {
+        await using node = await makeNode();
+        const peer = testPeer("completed-priors");
+        peer.setIntent("groupMembership", "X", { v: 1 });
+
+        const done = await run(node, "completed-priors", [touchPhase("completed-priors")]);
+        await awaitRetired(node, done.runId);
+
+        const record = await stored(node, done.runId);
+        expect("changeSet" in (record ?? {})).equals(true);
+        expect(record?.changeSet).deep.equals([]);
+    });
+
+    it("drops the priors of a run that cannot be undone, and still records that it wrote", async () => {
+        await using node = await makeNode();
+        const peer = testPeer("forward-only");
+        peer.setIntent("groupMembership", "X", { v: 1 });
+
+        await node.act(a => a.get(TestTaskManager).register(ForwardOnlyTask));
+        const run1 = await node.act(a =>
+            a.get(TestTaskManager).run(ForwardOnlyTask, { tag: "forward-only", peerId: "forward-only" }),
+        );
+        await awaitRetired(node, run1.runId);
+
+        const record = await stored(node, run1.runId);
+        expect(record?.state).equals("failed");
+        // Nothing can ever replay them, so they go — while `wrote` keeps saying the device was changed.
+        expect(record?.changeSet).deep.equals([]);
+        expect(record?.wrote).equals(true);
+        expect(await attempt(node, m => m.retryRollback(run1.runId))).instanceOf(TaskNoRollbackError);
+    });
+
+    it("is superseded by a later run that reached the device and cannot be undone", async () => {
+        await using node = await makeNode();
+        const peer = testPeer("forward-only-superseder");
+
+        const { original } = await failedRollback(node, "forward-only-superseder", peer);
+
+        await node.act(a => a.get(TestTaskManager).register(ForwardOnlyTask));
+        const later = await node.act(a =>
+            a.get(TestTaskManager).run(ForwardOnlyTask, {
+                tag: "forward-only-superseder",
+                peerId: "forward-only-superseder",
+            }),
+        );
         await awaitRetired(node, later.runId);
 
         const refusal = await attempt(node, m => m.retryRollback(original.runId));

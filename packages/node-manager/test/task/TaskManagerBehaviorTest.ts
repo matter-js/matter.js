@@ -423,6 +423,7 @@ describe("TaskManagerBehavior", () => {
                     params: { tag: "orphan" },
                     phaseIndex: 1,
                     state: "cancelled",
+                    wrote: false,
                     retireSeq: RetireSeq(1),
                     changeSet: [],
                 },

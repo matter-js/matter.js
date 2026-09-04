@@ -307,10 +307,17 @@ export class RunStore {
     }
 
     /**
-     * A retired run of the same slot that finished after `runId`, if there is one.
+     * A retired run of the same slot that finished after `runId` having written something, if there is one.
      *
      * Undoing a run restores the values it found, so a later run of the same slot having since committed its
-     * own makes those values historical: applying them would overwrite an outcome nobody asked to undo.
+     * own makes those values historical: applying them would overwrite an outcome nobody asked to undo. A
+     * later run that wrote nothing left those values exactly as this one found them, so it makes nothing
+     * historical — and refusing on it would strand the earlier run's changes on the device with no way back.
+     * Two shapes reach that state: a run `#admit` fails before any peer is touched, and one that completes
+     * without changing anything, such as a removal whose peer is already decommissioned.
+     *
+     * Asks {@link RunRecord.wrote} rather than the changeSet, which holds only what an undo would restore and
+     * is empty once nothing can restore it.
      */
     supersederOf(runId: RunId): RunRecord | undefined {
         const record = this.#records.get(runId);
@@ -323,6 +330,7 @@ export class RunStore {
                 other.runId !== runId &&
                 other.slotKey === record.slotKey &&
                 isTerminal(other.state) &&
+                other.wrote &&
                 (other.retireSeq ?? 0) > retiredAt
             ) {
                 return other;
@@ -414,16 +422,6 @@ export class RunStore {
         }
         const recorded = this.#records.get(runId)?.revertRunId;
         return recorded === undefined ? undefined : this.#records.get(recorded);
-    }
-
-    /**
-     * The rollback that applies to `undone`'s target: the live one, otherwise the one `undone` names.
-     *
-     * A wider question than {@link rollbackFor}, and the one supersession asks: a rollback of a *later* run of
-     * the same target makes an earlier run's priors historical without that earlier run ever naming it.
-     */
-    rollbackApplyingTo(undone: RunRecord): RunRecord | undefined {
-        return this.liveRollbackOfTarget(undone.slotKey) ?? this.rollbackFor(undone.runId);
     }
 
     /**
