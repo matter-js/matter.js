@@ -347,3 +347,69 @@ describe("a peer that reports its bridge across two interactions", () => {
         expect(peer.parts.size).equals(0);
     });
 });
+
+/**
+ * A peer whose root does not name every endpoint it serves.
+ *
+ * Matter Core § 9.2.3 defines descendants of an endpoint as those in its `PartsList` plus their
+ * descendants, and a root node composes its list of every one of them. An endpoint the root omits is
+ * therefore not part of the tree the peer describes, however well it answers reads — so it is left
+ * out, and the parts it claims belong to whoever else claims them.
+ */
+describe("a peer whose root omits an endpoint it serves", () => {
+    before(() => {
+        MockTime.init();
+    });
+
+    const AGGREGATOR_EP = 1;
+    const PLUGS = [2, 3];
+    const ON_OFF_PLUG_IN_UNIT = 0x010a;
+
+    async function report(rootFirst: boolean) {
+        const site = new MockSite();
+        const { controller } = await site.addCommissionedPair({ device: { type: ServerNode.RootEndpoint } });
+        const peer = controller.peers.get("peer1")!;
+        const structure = (peer.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+        const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+
+        // The root names only the plugs; the aggregator names them too but nothing names the aggregator
+        const root = [descriptorAttr(0, Descriptor.attributes.partsList.id, PLUGS, 10)];
+        const aggregator = descriptorReports(AGGREGATOR_EP, AggregatorEndpoint.deviceType, 1, PLUGS, 10);
+        const plugs = PLUGS.map(number => descriptorReports(number, ON_OFF_PLUG_IN_UNIT, 3, [], 10));
+
+        await drain(
+            structure.mutate(
+                request,
+                rootFirst ? readResult(root, aggregator, ...plugs) : readResult(aggregator, root, ...plugs),
+            ),
+        );
+
+        return { site, peer };
+    }
+
+    function expectPlugsOnTheRoot(peer: Endpoint) {
+        expect(peer.parts.get(`ep${AGGREGATOR_EP}`), "the endpoint the root omits is not on the node").undefined;
+
+        for (const number of PLUGS) {
+            expect(peer.parts.get(`ep${number}`), `endpoint ${number} belongs to the root`).not.undefined;
+        }
+
+        expect(peer.parts.size).equals(PLUGS.length);
+    }
+
+    it("leaves it out, and keeps the endpoints it claims", async () => {
+        const { site, peer } = await report(true);
+        await using _site = site;
+
+        expectPlugsOnTheRoot(peer);
+    });
+
+    // The omitted endpoint and the root are both full-family claimants of the plugs, and neither names
+    // the other, so nothing but arrival order distinguished them
+    it("does the same when it reports itself before the root", async () => {
+        const { site, peer } = await report(false);
+        await using _site = site;
+
+        expectPlugsOnTheRoot(peer);
+    });
+});

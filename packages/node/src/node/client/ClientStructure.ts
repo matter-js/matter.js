@@ -1217,16 +1217,21 @@ export class ClientStructure {
     }
 
     /**
-     * Whether the peer's root still names `part`, so far as the root has said.
+     * Whether the peer's root names `structure`, so far as the root has said.
      *
-     * A root endpoint composes its `PartsList` of every descendant, so absence from it means the peer
-     * has dropped the endpoint. Until the root has reported a list at all there is nothing to judge
-     * against and every part is taken as present.
+     * A root endpoint composes its `PartsList` of every descendant (Matter Core § 9.2.3), so an
+     * endpoint the root does not name is not a descendant of the node at all — whether it has gone
+     * away or was never part of the tree the peer describes. Until the root has reported a list there
+     * is nothing to judge against and every endpoint is taken as present.
      */
-    #isOnTheNode(part: EndpointStructure) {
+    #isOnTheNode(structure: EndpointStructure) {
+        if (structure.endpoint.maybeNumber === 0) {
+            return true;
+        }
+
         const root = this.#endpoints.get(ROOT_ENDPOINT_NUMBER);
         const rootParts = root === undefined ? undefined : this.#partsListOf.get(root);
-        return rootParts === undefined || rootParts.has(part.endpoint.number);
+        return rootParts === undefined || rootParts.has(structure.endpoint.number);
     }
 
     /** The claimant that owns `part`, or `undefined` while that cannot be told from what has arrived. */
@@ -1234,6 +1239,13 @@ export class ClientStructure {
         const ordinary = new Array<EndpointStructure>();
         const fullFamily = new Array<EndpointStructure>();
         for (const claimant of claimants) {
+            // An endpoint the root does not name is not on the node, so it owns nothing. It would
+            // otherwise take parts the root does name and hold them below itself, where nothing
+            // installs them.
+            if (!this.#isOnTheNode(claimant)) {
+                continue;
+            }
+
             (this.#isFullFamily(claimant) ? fullFamily : ordinary).push(claimant);
         }
 
