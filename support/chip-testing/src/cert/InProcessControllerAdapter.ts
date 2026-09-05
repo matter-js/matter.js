@@ -893,7 +893,15 @@ class InProcessCertNodeApi implements CertNodeApi {
  */
 const CERT_PEER_CONNECTION_TIMEOUT = Seconds(15);
 
-const CERT_PEER_SETTLE_TIMEOUT = Seconds(30);
+/**
+ * How long to wait for a peer to hold a subscription before continuing without one.
+ *
+ * Longer than the interaction's own wait for the peer, so a peer that stops answering reports why
+ * before this decides it never will. A read waits `calculateMaximumPeerResponseTime`, which is ~35s
+ * at the session parameters chip's apps negotiate; below that, the run records "held no subscription"
+ * and the reason arrives seconds later, reading as an unrelated failure of the step already running.
+ */
+const CERT_PEER_SETTLE_TIMEOUT = Seconds(45);
 
 /**
  * Budget that expresses {@link CommissioningTarget.singleHandshakeAttempt}. Below every retry interval commissioning's
