@@ -275,6 +275,33 @@ function isConcretePath(path: AttributePathSpec) {
     return path.endpoint !== undefined && path.cluster !== undefined && path.attribute !== undefined;
 }
 
+const DESCRIPTOR_ID = DescriptorClient.cluster.id;
+const DEVICE_TYPE_LIST_ID = DescriptorClient.cluster.attributes.deviceTypeList.id;
+const PARTS_LIST_ID = DescriptorClient.cluster.attributes.partsList.id;
+
+/**
+ * The value the controller holds for one attribute, or `undefined` where it holds none.
+ *
+ * Read through the behavior the endpoint actually has rather than through a concrete type or the
+ * certification model: a discovered peer carries generated behaviors whose members are synthesized
+ * from what the peer reports, so an attribute the model does not carry still has a value here, and a
+ * cluster the peer serves may not inherit the type this repository would use for it.
+ */
+function heldValue(endpoint: Endpoint, cluster: ClusterId, attribute: number): unknown {
+    const behavior = endpoint.behaviors.forCluster(cluster);
+    if (behavior === undefined) {
+        return undefined;
+    }
+
+    const name = behavior.schema?.attributes.find(member => member.id === attribute)?.propertyName;
+    if (name === undefined) {
+        return undefined;
+    }
+
+    const state: Record<string, unknown> | undefined = endpoint.maybeStateOf(behavior);
+    return state?.[name];
+}
+
 function toEventIds(path: EventPathSpec) {
     return {
         endpointId: path.endpoint !== undefined ? EndpointNumber(path.endpoint) : undefined,
@@ -723,11 +750,14 @@ class InProcessCertNodeApi implements CertNodeApi {
                 if (endpoint.number === undefined) {
                     return;
                 }
-                const descriptor = endpoint.maybeStateOf(DescriptorClient);
+                const deviceTypeList = heldValue(endpoint, DESCRIPTOR_ID, DEVICE_TYPE_LIST_ID);
+                const partsList = heldValue(endpoint, DESCRIPTOR_ID, PARTS_LIST_ID);
                 entries.push({
                     endpoint: endpoint.number,
-                    deviceTypes: [...(descriptor?.deviceTypeList ?? [])].map(entry => Number(entry.deviceType)),
-                    parts: [...(descriptor?.partsList ?? [])].map(Number),
+                    deviceTypes: (Array.isArray(deviceTypeList) ? deviceTypeList : []).map(entry =>
+                        Number(entry === null || typeof entry !== "object" ? NaN : Reflect.get(entry, "deviceType")),
+                    ),
+                    parts: (Array.isArray(partsList) ? partsList : []).map(Number),
                 });
             });
             return entries.sort((a, b) => a.endpoint - b.endpoint);
@@ -746,22 +776,7 @@ class InProcessCertNodeApi implements CertNodeApi {
                 return undefined;
             }
 
-            const behavior = endpoint.behaviors.forCluster(ClusterId(path.cluster));
-            if (behavior === undefined) {
-                return undefined;
-            }
-
-            // Controller state is keyed by the attribute's property name, and only the model maps an id
-            // to one
-            const name = findCertCluster(path.cluster)?.attributes.find(
-                attribute => attribute.id === path.attribute,
-            )?.propertyName;
-            if (name === undefined) {
-                return undefined;
-            }
-
-            const state: Record<string, unknown> | undefined = endpoint.maybeStateOf(behavior);
-            return state?.[name];
+            return heldValue(endpoint, ClusterId(path.cluster), path.attribute);
         });
     }
 
