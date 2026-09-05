@@ -5,11 +5,18 @@
  */
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
-import { TaskConflictError, TaskNotInFlightError, TaskStoreVersionError, TaskSupersededError } from "#task/errors.js";
+import {
+    TaskConflictError,
+    TaskFailedError,
+    TaskNoRollbackError,
+    TaskNotInFlightError,
+    TaskStoreVersionError,
+    TaskSupersededError,
+} from "#task/errors.js";
 import { RUN_STORE_VERSION } from "#task/RunStore.js";
-import { TaskPersistence } from "#task/Task.js";
-import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
-import { RunId, TaskPhase } from "#task/types.js";
+import { TaskDefinition, TaskPersistence } from "#task/Task.js";
+import { TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
+import { RetireSeq, RunId, TaskPhase } from "#task/types.js";
 import { Environment, InternalError, MaybePromise } from "@matter/general";
 import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
@@ -29,6 +36,11 @@ class TestTaskManager extends TaskManagerBehavior {
 
     isAttached(runId: RunId) {
         return this.internal.runs.isAttached(runId);
+    }
+
+    /** The priors the loaded twin still holds, which storage alone cannot show. */
+    priorsOf(runId: RunId) {
+        return this.internal.runs.get(runId)?.changeSet;
     }
 }
 
@@ -56,6 +68,31 @@ async function pumpUntil(name: string, condition: () => MaybePromise<boolean>) {
     }
     throw new InternalError(`Condition "${name}" never held`);
 }
+
+/** Writes one intent, then fails, and declares itself past the point of no return. */
+const ForwardOnlyTask: TaskDefinition<{ tag: string; peerId: string }> = {
+    type: "forward-only",
+    // Deliberately the same slot shape as SyntheticTask: supersession is per target, so a test about one run
+    // burying another has to put both on one slot.
+    slotKeyFor(params) {
+        return `synthetic:${params.tag}`;
+    },
+    revertible() {
+        return false;
+    },
+    notRevertibleReason: "the test says so",
+    phases(params) {
+        return [
+            {
+                name: "write-then-fail",
+                run: async ctx => {
+                    await ctx.setIntent(ctx.resolvePeer(params.peerId), "groupMembership", "X", { v: 2 });
+                    throw new TaskFailedError("forward only");
+                },
+            },
+        ];
+    },
+};
 
 /** Writes one intent and returns, so the run completes having changed something. */
 function touchPhase(peerId: string): TaskPhase {
@@ -404,6 +441,162 @@ describe("run records after a retirement", () => {
         const refusal = await attempt(node, m => m.retryRollback(original.runId));
         expect(refusal).instanceOf(TaskSupersededError);
         expect((refusal as TaskConflictError).owner).equals(later.runId);
+    });
+
+    it("abandons a failed rollback while a rollback of a later run of the target is live", async () => {
+        await using node = await makeNode();
+        const peer = testPeer("later-rollback");
+
+        // The first run's undo failed, so the target is free and its changes are still on the device.
+        const { original, rollback } = await failedRollback(node, "later-rollback", peer);
+
+        // A second run of the same target is cancelled, and its undo parks: a rollback of a *later* run,
+        // undoing values the first run never wrote.
+        peer.setIntent("groupMembership", "X", { v: 3 });
+        const second = await run(node, "later-rollback", [gatingPhase(peer.id)]);
+        await pumpUntil("second intent written", () => (peer.items[KEY]?.intent as { v?: number })?.v === 2);
+        const live = await node.act(a => a.get(TestTaskManager).cancel(second.runId));
+        expect(live).not.equals(undefined);
+
+        // The live rollback undoes the second run, not the first, so it is not the undo that applies here and
+        // refusing on it would leave the first run's changes with no disposition at all.
+        const abandoned = await node.act(a => a.get(TestTaskManager).abandon(rollback.runId, "operator"));
+        expect(abandoned.status.state).equals("abandoned");
+        expect(await node.act(a => a.get(TestTaskManager).get(original.runId)?.status.state)).equals("cancelled");
+    });
+
+    it("is not superseded by a later run that reached no phase", async () => {
+        await using node = await makeNode();
+        const peer = testPeer("no-phase");
+
+        const { original } = await failedRollback(node, "no-phase", peer);
+
+        // The later run touches nothing before it fails, so what the first would restore is still current.
+        const later = await run(node, "no-phase", [
+            {
+                name: "throw",
+                run: async () => new Promise<void>((_, reject) => reject(new TaskFailedError("nope"))),
+            },
+        ]);
+        await awaitRetired(node, later.runId);
+        expect((await stored(node, later.runId))?.changeSet).deep.equals([]);
+
+        const retry = await attempt(node, m => m.retryRollback(original.runId));
+        expect(retry).not.instanceOf(Error);
+        expect((retry as TaskHandle).status.revertOf).equals(original.runId);
+    });
+
+    it("drops the priors of a run that completed", async () => {
+        await using node = await makeNode();
+        const peer = testPeer("completed-priors");
+        peer.setIntent("groupMembership", "X", { v: 1 });
+
+        const done = await run(node, "completed-priors", [touchPhase("completed-priors")]);
+        await awaitRetired(node, done.runId);
+
+        const record = await stored(node, done.runId);
+        expect("changeSet" in (record ?? {})).equals(true);
+        expect(record?.changeSet).deep.equals([]);
+    });
+
+    it("keeps the priors of a run that reached the device but cannot be undone", async () => {
+        await using node = await makeNode();
+        const peer = testPeer("forward-only");
+        peer.setIntent("groupMembership", "X", { v: 1 });
+
+        await node.act(a => a.get(TestTaskManager).register(ForwardOnlyTask));
+        const run1 = await node.act(a =>
+            a.get(TestTaskManager).run(ForwardOnlyTask, { tag: "forward-only", peerId: "forward-only" }),
+        );
+        await awaitRetired(node, run1.runId);
+
+        const record = await stored(node, run1.runId);
+        expect(record?.state).equals("failed");
+        // No undo of this run will ever exist, but its changeSet is what tells every *other* run of the target
+        // that the device was changed: without it an earlier run's rollback replays over a realized,
+        // forward-only change.
+        expect(record?.changeSet.length).equals(1);
+        expect(await attempt(node, m => m.retryRollback(run1.runId))).instanceOf(TaskNoRollbackError);
+    });
+
+    it("is superseded by a later run that reached the device and cannot be undone", async () => {
+        await using node = await makeNode();
+        const peer = testPeer("forward-only-superseder");
+
+        const { original } = await failedRollback(node, "forward-only-superseder", peer);
+
+        await node.act(a => a.get(TestTaskManager).register(ForwardOnlyTask));
+        const later = await node.act(a =>
+            a.get(TestTaskManager).run(ForwardOnlyTask, {
+                tag: "forward-only-superseder",
+                peerId: "forward-only-superseder",
+            }),
+        );
+        await awaitRetired(node, later.runId);
+
+        const refusal = await attempt(node, m => m.retryRollback(original.runId));
+        expect(refusal).instanceOf(TaskSupersededError);
+        expect((refusal as TaskConflictError).owner).equals(later.runId);
+    });
+
+    it("empties the recorded priors of a completed record an older build left", async () => {
+        const environment = new Environment("priors-upgrade");
+        const legacy: TaskPersistence = {
+            runId: RunId(1),
+            slotKey: "synthetic:legacy",
+            type: "synthetic",
+            phaseIndex: 1,
+            state: "completed",
+            retireSeq: RetireSeq(1),
+            changeSet: [
+                { peerId: "gone", kind: "groupMembership", key: "X", prior: { intent: { v: 1 }, mode: "converge" } },
+            ],
+        };
+        {
+            await using seed = await makeNode(environment, "priors-upgrade");
+            await seed.act(a => {
+                const manager = a.get(TestTaskManager);
+                manager.state.runs = { "1": legacy };
+                manager.state.nextRunId = 2;
+                manager.state.nextRetireSeq = 2;
+            });
+        }
+
+        await using node = await makeNode(environment, "priors-upgrade");
+        const record = await stored(node, RunId(1));
+        expect(record?.state).equals("completed");
+        expect(record?.changeSet).deep.equals([]);
+        // The loaded twin has to lose them too: a write of this record that still held them would put them
+        // straight back, and storage would look correct until exactly that moment.
+        expect(await node.act(a => a.get(TestTaskManager).priorsOf(RunId(1)))).deep.equals([]);
+    });
+
+    it("empties them even when the table is already stamped at this build's version", async () => {
+        const environment = new Environment("priors-stamped");
+        const legacy: TaskPersistence = {
+            runId: RunId(1),
+            slotKey: "synthetic:stamped",
+            type: "synthetic",
+            phaseIndex: 1,
+            state: "completed",
+            retireSeq: RetireSeq(1),
+            changeSet: [
+                { peerId: "gone", kind: "groupMembership", key: "X", prior: { intent: { v: 1 }, mode: "converge" } },
+            ],
+        };
+        {
+            await using seed = await makeNode(environment, "priors-stamped");
+            await seed.act(a => {
+                const manager = a.get(TestTaskManager);
+                manager.state.runs = { "1": legacy };
+                manager.state.nextRunId = 2;
+                manager.state.nextRetireSeq = 2;
+                manager.state.runsVersion = RUN_STORE_VERSION;
+            });
+        }
+
+        await using node = await makeNode(environment, "priors-stamped");
+        expect((await stored(node, RunId(1)))?.changeSet).deep.equals([]);
     });
 
     it("admits nothing when the stored table is newer than this build", async () => {

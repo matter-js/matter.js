@@ -307,10 +307,19 @@ export class RunStore {
     }
 
     /**
-     * A retired run of the same slot that finished after `runId`, if there is one.
+     * A retired run of the same slot that finished after `runId` having written something, if there is one.
      *
      * Undoing a run restores the values it found, so a later run of the same slot having since committed its
-     * own makes those values historical: applying them would overwrite an outcome nobody asked to undo.
+     * own makes those values historical: applying them would overwrite an outcome nobody asked to undo. A
+     * later run that wrote nothing left those values exactly as this one found them, so it makes nothing
+     * historical — and refusing on it would strand the earlier run's changes on the device with no way back.
+     * `#admit` produces exactly that shape: it fails a run with an empty changeSet before any peer is touched.
+     *
+     * A `completed` run is counted whatever its changeSet holds, because completion is the one retirement
+     * that empties it: reversing a success is a new action rather than a replay, so an empty changeSet there
+     * means "nothing left to restore", not "nothing was written". No other state may be inferred from an
+     * empty changeSet: a failed run that reached the device must keep superseding, or an earlier run's undo
+     * replays over changes it never made.
      */
     supersederOf(runId: RunId): RunRecord | undefined {
         const record = this.#records.get(runId);
@@ -323,6 +332,7 @@ export class RunStore {
                 other.runId !== runId &&
                 other.slotKey === record.slotKey &&
                 isTerminal(other.state) &&
+                (other.state === "completed" || other.changeSet.length > 0) &&
                 (other.retireSeq ?? 0) > retiredAt
             ) {
                 return other;
@@ -414,16 +424,6 @@ export class RunStore {
         }
         const recorded = this.#records.get(runId)?.revertRunId;
         return recorded === undefined ? undefined : this.#records.get(recorded);
-    }
-
-    /**
-     * The rollback that applies to `undone`'s target: the live one, otherwise the one `undone` names.
-     *
-     * A wider question than {@link rollbackFor}, and the one supersession asks: a rollback of a *later* run of
-     * the same target makes an earlier run's priors historical without that earlier run ever naming it.
-     */
-    rollbackApplyingTo(undone: RunRecord): RunRecord | undefined {
-        return this.liveRollbackOfTarget(undone.slotKey) ?? this.rollbackFor(undone.runId);
     }
 
     /**

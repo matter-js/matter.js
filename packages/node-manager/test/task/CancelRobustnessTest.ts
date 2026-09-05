@@ -894,7 +894,7 @@ describe("cancel robustness", () => {
         TestTaskManager.peers.set("rw", peer);
         TestTaskManager.reconcilerPeer = peer;
 
-        // Completes on its own, so the run retires with a changeSet a later cancel can act on.
+        // Completes on its own, so the run reaches a terminal state without a cancel deciding it.
         SyntheticTask.phasesByTag["retiredwrite"] = [
             {
                 name: "touch",
