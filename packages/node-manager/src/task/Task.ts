@@ -134,7 +134,10 @@ export class RunRecord implements RunView {
         // it — a transition that must remove something says so with a value.
         for (const [key, value] of Object.entries(next ?? {})) {
             if (value !== undefined) {
-                Object.assign(persisted, { [key]: value });
+                // Arrays copied for the same reason the base snapshot copies `changeSet`: the caller's literal
+                // is adopted onto the live record after the write, so sharing it would leave storage holding
+                // the array a phase then appends to.
+                Object.assign(persisted, { [key]: Array.isArray(value) ? [...value] : value });
             }
         }
         // Removal is a separate list for that reason: `undefined` in `next` cannot express it.

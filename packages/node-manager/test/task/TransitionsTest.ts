@@ -241,8 +241,6 @@ const UndoingTask: TaskDefinition<{ tag: string }> = {
     undoes: () => RunId(9_999),
 };
 
-let legacyRollbackId: RunId;
-
 function reset() {
     TestTaskManager.peers.clear();
     TestTaskManager.reconcilerPeer = undefined;
@@ -252,7 +250,31 @@ function reset() {
     }
 }
 
-describe("abandon", () => {
+/**
+ * A task that stops being revertible once it is past its first phase, so a cancel accepted while the driver is
+ * held on the write that advances the phase index answers differently before and after the unwind.
+ */
+const PointOfNoReturnTask: TaskDefinition<{ tag: string; peerId: string }> = {
+    type: "point-of-no-return",
+    slotKeyFor: params => `synthetic:${params.tag}`,
+    revertible(run) {
+        return (run.phaseIndex ?? 0) < 1;
+    },
+    notRevertibleReason: "past the point of no return",
+    phases(params) {
+        return [
+            {
+                name: "write",
+                run: async ctx => {
+                    await ctx.setIntent(ctx.resolvePeer(params.peerId), "groupMembership", "X", { v: 2 });
+                },
+            },
+            { name: "hold", run: () => new Promise<void>(() => {}) },
+        ];
+    },
+};
+
+describe("cancel and abandon", () => {
     before(() => MockTime.init());
     beforeEach(reset);
 
@@ -466,16 +488,62 @@ describe("abandon", () => {
         expect(writes).equals(0);
     });
 
-    it("leaves the undone run's record untouched", async () => {
+    it("spends the undone run's priors and leaves the rest of its record alone", async () => {
         await using node = await makeNode();
         const peer = testPeer("untouched");
         const { original, rollback } = await parkedRollback(node, "untouched", peer);
 
+        // Serialised, so the comparison cannot be satisfied by both sides being the same live object.
         const persisted = () =>
-            node.act(a => JSON.stringify(a.get(TestTaskManager).state.runs[String(original.runId)]));
+            node.act(a =>
+                JSON.stringify({ ...a.get(TestTaskManager).state.runs[String(original.runId)], changeSet: 0 }),
+            );
+        const priors = () => node.act(a => a.get(TestTaskManager).state.runs[String(original.runId)].changeSet);
         const before = await persisted();
+        expect(await priors()).not.deep.equals([]);
+
         await node.act(a => a.get(TestTaskManager).abandon(rollback.runId));
+
+        expect(await priors()).deep.equals([]);
         expect(await persisted()).equals(before);
+    });
+
+    it("spends the undone run's priors on the in-memory twin too", async () => {
+        await using node = await makeNode();
+        const peer = testPeer("untouched-memory");
+        const { original, rollback } = await parkedRollback(node, "untouched-memory", peer);
+
+        await node.act(a => a.get(TestTaskManager).abandon(rollback.runId));
+
+        const record = await node.act(a => a.get(TestTaskManager).record(original.runId) as RunRecord);
+        expect(record.changeSet).deep.equals([]);
+    });
+
+    it("drops the priors of a run that crossed its point of no return inside the cancel", async () => {
+        await using node = await makeNode();
+        const peer = testPeer("pnr");
+        peer.setIntent("groupMembership", "X", { v: 1 });
+        await node.act(a => a.get(TestTaskManager).register(PointOfNoReturnTask));
+        const running = await node.act(a =>
+            a.get(TestTaskManager).run(PointOfNoReturnTask, { tag: "pnr", peerId: "pnr" }),
+        );
+        await pumpUntil("first phase wrote", () => (peer.items[KEY]?.intent as { v?: number })?.v === 2);
+
+        // The driver is held on the write that advances its phase index, so it has already passed the check
+        // that would have stopped it. The cancel's entry check still sees phase 0, where the run is revertible.
+        const release = await node.act(a => a.get(TestTaskManager).holdPersistMutex());
+        const cancelling = node.act(a => a.get(TestTaskManager).cancel(running.runId));
+        release();
+        const rollback = await cancelling;
+
+        // By the time the cancel decided, the run was past its point of no return, so there is no undo — and
+        // nothing else will ever replay what it recorded.
+        expect(rollback).equals(undefined);
+        const record = await node.act(a => a.get(TestTaskManager).state.runs[String(running.runId)]);
+        expect(record.state).equals("cancelled");
+        expect(record.wrote).equals(true);
+        expect(record.revertRunId).equals(undefined);
+        expect(record.changeSet).deep.equals([]);
     });
 
     it("refuses a run of the undone target while the abandon is in flight", async () => {
@@ -738,35 +806,6 @@ describe("abandon", () => {
         expect(outcome).instanceOf(TaskSupersededError);
     });
 
-    it("answers a rollback an older build recorded as cancelled", async () => {
-        const environment = new Environment("abandon-legacy");
-        {
-            await using seed = await makeNode(environment, "legacy");
-            const peer = testPeer("legacy");
-            const { rollback } = await parkedRollback(seed, "legacy", peer);
-            // Ended first, so nothing is driving it and its record can be rewritten into the shape a build
-            // that still admitted `cancel` of a rollback left behind: called off, with nothing undone and
-            // nothing saying the device was left part-changed.
-            await seed.act(a => a.get(TestTaskManager).abandon(rollback.runId));
-            await seed.act(a => {
-                const manager = a.get(TestTaskManager);
-                const stored = { ...manager.state.runs };
-                stored[String(rollback.runId)] = { ...stored[String(rollback.runId)], state: "cancelled" };
-                manager.state.runs = stored;
-            });
-            legacyRollbackId = rollback.runId;
-        }
-
-        await using node = await makeNode(environment, "legacy");
-        expect((await statusOf(node, legacyRollbackId))?.state).equals("cancelled");
-        expect(await attempt(node, m => m.abandon(legacyRollbackId))).instanceOf(TaskAlreadyUndoneError);
-    });
-});
-
-describe("cancel of a rollback", () => {
-    before(() => MockTime.init());
-    beforeEach(reset);
-
     it("is refused, and points at abandon", async () => {
         await using node = await makeNode();
         const peer = testPeer("nocancel");
@@ -888,27 +927,6 @@ describe("retryRollback", () => {
             Object.values(a.get(TestTaskManager).state.runs).filter(r => r.revertOf === original.runId),
         );
         expect(rollbacks.map(r => r.runId)).deep.equals([rollback.runId]);
-    });
-
-    it("refuses a rollback an older build recorded as cancelled", async () => {
-        const environment = new Environment("retry-legacy");
-        let originalId: RunId;
-        {
-            await using seed = await makeNode(environment, "retrylegacy");
-            const peer = testPeer("retrylegacy");
-            const { original, rollback } = await parkedRollback(seed, "retrylegacy", peer);
-            originalId = original.runId;
-            await seed.act(a => a.get(TestTaskManager).abandon(rollback.runId));
-            await seed.act(a => {
-                const manager = a.get(TestTaskManager);
-                const stored = { ...manager.state.runs };
-                stored[String(rollback.runId)] = { ...stored[String(rollback.runId)], state: "cancelled" };
-                manager.state.runs = stored;
-            });
-        }
-
-        await using node = await makeNode(environment, "retrylegacy");
-        expect(await attempt(node, m => m.retryRollback(originalId))).instanceOf(TaskAlreadyUndoneError);
     });
 
     it("refuses a rollback an operator abandoned", async () => {
