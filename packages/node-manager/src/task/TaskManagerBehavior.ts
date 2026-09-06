@@ -81,15 +81,9 @@ const NO_REVERT: PreparedRevert = { discard() {}, start() {} };
  */
 const RETIRE: ReadonlyArray<DroppableField> = ["params"];
 
-/**
- * Whether a rollback's undo has concluded: it restored the device, or it was called off before it wrote
- * anything. Either way nothing is left to retry or to give up on.
- *
- * `cancelled` is reachable only from a store an earlier build wrote, when cancelling a rollback was still
- * admitted.
- */
+/** Whether a rollback restored the device, so nothing is left to retry or to give up on. */
 function undoConcluded(record: RunRecord): boolean {
-    return record.state === "completed" || record.state === "cancelled";
+    return record.state === "completed";
 }
 
 /** A task registered as live, and whether the caller joined a live task that is already being driven. */
@@ -141,15 +135,12 @@ export class TaskManagerBehavior extends Behavior {
         this.endpoint.behaviors.require(ReconcilerBehavior);
         this.internal.registry = new TaskRegistry();
         this.internal.runs = new RunStore();
-        const { discarded } = this.internal.runs.load({
+        this.internal.runs.load({
             runs: this.state.runs,
             nextRunId: this.state.nextRunId,
             nextRetireSeq: this.state.nextRetireSeq,
             runsVersion: this.state.runsVersion,
         });
-        if (discarded > 0) {
-            logger.warn(`Discarded ${discarded} task record(s) predating per-run identity`);
-        }
         // Registered either way, so the surface a caller sees does not depend on the store: an unreadable
         // store refuses at `run`, with a reason, rather than by claiming a type was never registered.
         this.#registerBuiltins();
@@ -554,8 +545,7 @@ export class TaskManagerBehavior extends Behavior {
         const recorded = this.internal.runs.rollbackFor(runId);
         if (recorded === undefined) {
             // A state a caller cannot always know rather than a mistake it made: a run may never have produced
-            // an undo, and a rollback record that reached storage without a retirement order is discarded at
-            // load, leaving the original naming one nothing holds.
+            // an undo, and one whose write was refused is discarded, leaving the original naming nothing.
             throw new TaskNoRollbackError(`Cannot retry the rollback of ${runLabel(runId)}: it has none`);
         }
         const previous = recorded.runId;
@@ -590,8 +580,8 @@ export class TaskManagerBehavior extends Behavior {
         // from the changeSet alone.
         const revert = this.#spawnRevert(record);
         if (revert.record === undefined) {
-            // Cannot happen: only a completed retirement empties a changeSet, and a completed run never
-            // recorded a rollback to retry.
+            // Cannot happen: priors are kept exactly while a rollback that can replay them exists, and the
+            // guards above have already refused every rollback that concluded.
             throw new InternalError(`${runLabel(runId)} has a rollback but nothing to roll back`);
         }
         try {
@@ -726,6 +716,7 @@ export class TaskManagerBehavior extends Behavior {
                         state: "cancelled",
                         retireSeq: this.internal.runs.nextRetirement(record),
                         revertRunId: revert.record?.runId,
+                        ...this.#retiringPriors(record),
                     },
                     drop: RETIRE,
                 },
@@ -783,8 +774,8 @@ export class TaskManagerBehavior extends Behavior {
                 // retire it because this transition owns the run, so retiring it falls here — and before the
                 // decision below, which depends on the state the driver left behind.
                 //
-                // Unconditional on the retirement order, unlike #retire: a terminal record without one is
-                // discarded at load, so nothing can resume it and holding its target buys nothing.
+                // Unconditional on the retirement order, unlike #retire: load re-slots only non-terminal
+                // records, so nothing can resume this one and holding its target buys nothing.
                 if (isTerminal(record.state)) {
                     this.internal.runs.commitRetirement(record);
                 }
@@ -800,19 +791,23 @@ export class TaskManagerBehavior extends Behavior {
             }
 
             try {
-                await this.#commit({
-                    record,
-                    next: {
-                        state: "abandoned",
-                        // Composed rather than replaced: for a rollback that failed on its own, why it could
-                        // not finish is what an operator needs to decide what to do about the device.
-                        error: this.#abandonReason(record.error, reason),
-                        // Absent for a rollback that already retired on its own failure path, which keeps the
-                        // place it took then.
-                        retireSeq: this.internal.runs.nextRetirement(record),
+                await this.#commit(
+                    {
+                        record,
+                        next: {
+                            state: "abandoned",
+                            // Composed rather than replaced: for a rollback that failed on its own, why it
+                            // could not finish is what an operator needs to decide what to do about the device.
+                            error: this.#abandonReason(record.error, reason),
+                            // Absent for a rollback that already retired on its own failure path, which keeps
+                            // the place it took then.
+                            retireSeq: this.internal.runs.nextRetirement(record),
+                            ...this.#retiringPriors(record),
+                        },
+                        drop: RETIRE,
                     },
-                    drop: RETIRE,
-                });
+                    ...this.#priorsSpentByUndo(record),
+                );
             } catch (e) {
                 if (execution !== undefined) {
                     this.#restoreDriver(record, execution.bound);
@@ -992,6 +987,38 @@ export class TaskManagerBehavior extends Behavior {
     }
 
     /**
+     * What a retirement write records for `record`'s priors.
+     *
+     * Priors are replayed only through a rollback, so a run retiring without one leaves bytes no verb will ever
+     * read — and a prior holds whatever the run overwrote, which for a group key is key material. This covers a
+     * rollback's own priors without naming them: nothing undoes an undo, so a rollback never has a rollback.
+     *
+     * Asks the store rather than the rollback this call prepared, because `#prepareRevert` also declines when
+     * a rollback already exists.
+     */
+    #retiringPriors(record: RunRecord): Partial<TaskPersistence> {
+        return this.internal.runs.rollbackFor(record.runId) === undefined ? { changeSet: [] } : {};
+    }
+
+    /**
+     * The original whose priors `record` spends by concluding, as a second record for its transaction.
+     *
+     * A rollback that completed or was abandoned is the last thing that could have replayed them.
+     * `retryRollback` is the only other writer of a terminal original, and it is refused for exactly as long as
+     * the rollback is attached or in transition — the window this write falls in.
+     */
+    #priorsSpentByUndo(record: RunRecord): RunChange[] {
+        if (record.revertOf === undefined) {
+            return [];
+        }
+        const original = this.internal.runs.get(record.revertOf);
+        if (original === undefined || original.changeSet.length === 0) {
+            return [];
+        }
+        return [{ record: original, next: { changeSet: [] } }];
+    }
+
+    /**
      * Build the rollback of `record` from its changeSet alone.
      *
      * The half of a rollback that needs nothing but the record: what a replacement rollback needs, and what a
@@ -1004,7 +1031,9 @@ export class TaskManagerBehavior extends Behavior {
         // `revertOf` is seeded on every rollback the manager creates, retries included: it is the identity
         // link that refuses a re-run of the original, and a rollback that lacks it excludes nothing.
         const { execution: revert, joined } = this.#spawn(
-            new BoundDefinition(Revert, { originalRunId: record.runId, entries: record.changeSet }),
+            // Copied, not shared: `params` reaches storage by reference, and a phase appends to the record's
+            // changeSet in place, so a shared array would let a later push mutate a persisted rollback's input.
+            new BoundDefinition(Revert, { originalRunId: record.runId, entries: [...record.changeSet] }),
             { revertOf: record.runId },
         );
         // The link is not set here: it is part of the state the caller's write carries, so a refused write
@@ -1094,17 +1123,19 @@ export class TaskManagerBehavior extends Behavior {
                 await this.#commit({ record, next: { phaseIndex: record.phaseIndex + 1 } });
             }
             if (record.state === "running") {
-                // One write carries the outcome and its place in the retirement order. The priors go with it:
-                // reversing a success is a new action the caller starts, so nothing will ever replay them.
-                await this.#commit({
-                    record,
-                    next: {
-                        state: "completed",
-                        retireSeq: this.internal.runs.nextRetirement(record),
-                        changeSet: [],
+                // One write carries the outcome and its place in the retirement order.
+                await this.#commit(
+                    {
+                        record,
+                        next: {
+                            state: "completed",
+                            retireSeq: this.internal.runs.nextRetirement(record),
+                            ...this.#retiringPriors(record),
+                        },
+                        drop: RETIRE,
                     },
-                    drop: RETIRE,
-                });
+                    ...this.#priorsSpentByUndo(record),
+                );
             }
         } catch (e) {
             // Shutdown leaves the task non-terminal for resume; cancel is finalized by cancel() itself.
@@ -1139,16 +1170,6 @@ export class TaskManagerBehavior extends Behavior {
             // The failure, its place in the retirement order and the rollback that undoes it land together, or
             // not at all: written separately, a crash between them leaves a run promising a rollback nothing
             // created.
-            // Past its point of no return there is nothing to restore to, so no verb will ever replay these
-            // priors: `#prepareRevert` declined to create a rollback and `retryRollback` refuses a run with
-            // none. Derived inside the guard that already wraps `#prepareRevert`, because a definition whose
-            // `revertible` throws must not re-reject an otherwise handled drive promise.
-            let replayable = true;
-            try {
-                replayable = execution.bound.revertible(record);
-            } catch (revertibleError) {
-                logger.error(`${runLabel(record.runId)}: cannot ask whether it is revertible`, revertibleError);
-            }
             try {
                 await this.#commit(
                     {
@@ -1158,7 +1179,7 @@ export class TaskManagerBehavior extends Behavior {
                             error,
                             retireSeq: this.internal.runs.nextRetirement(record),
                             revertRunId: revert.record?.runId,
-                            ...(replayable ? {} : { changeSet: [] }),
+                            ...this.#retiringPriors(record),
                         },
                         drop: RETIRE,
                     },
@@ -1252,8 +1273,8 @@ export class TaskManagerBehavior extends Behavior {
      * Record these runs' intended next state in one transaction, and adopt it only once the write has landed.
      *
      * The unit is the transaction, not the field: a run's outcome and its place in the retirement order must
-     * land together or a crash between them leaves a record that load discards, and a run and the rollback it
-     * names must land together or the run promises a rollback nothing created.
+     * land together or a crash between them leaves a terminal record that no longer sorts against its slot,
+     * and a run and the rollback it names must land together or the run promises a rollback nothing created.
      *
      * Nothing is mutated before the write, so a refused write needs no compensation — the run is as it was
      * because it was never changed.

@@ -198,8 +198,7 @@ export class TaskNotARollbackError extends TaskRefusedError {
 }
 
 /**
- * `abandon()` was refused because the undo already concluded: it either restored the device, or was called off
- * before it wrote anything. Nothing is left for an operator to give up on.
+ * `abandon()` was refused because the undo already restored the device. Nothing is left to give up on.
  */
 export class TaskAlreadyUndoneError extends TaskRefusedError {
     override readonly code = TaskFindingCode.AlreadyUndone;
@@ -228,11 +227,10 @@ export class TaskNotInFlightError extends TaskRefusedError {
 }
 
 /**
- * There is no undo of this run to retry: it never produced one — nothing was written, or the task declined to
- * be reverted — or the record of the one it had did not survive a restart.
+ * There is no undo of this run to retry: nothing was written, the task declined to be reverted, or the write
+ * that would have recorded the undo was refused.
  *
- * Ordinary state rather than a caller's mistake, and reachable more often since a cleanly completed run no
- * longer gets a rollback at all.
+ * Ordinary state rather than a caller's mistake: a run that completes cleanly never gets a rollback.
  */
 export class TaskNoRollbackError extends TaskRefusedError {
     override readonly code = TaskFindingCode.NoRollback;

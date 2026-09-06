@@ -79,7 +79,7 @@ describe("run table schema version", () => {
 
     it("reads nothing from a table a newer build wrote", () => {
         const store = new RunStore();
-        const { resumable } = store.load({
+        store.load({
             runs: { "1": persisted(1, "running", [ENTRY]) },
             nextRunId: 1_000,
             runsVersion: RUN_STORE_VERSION + 1,
@@ -87,7 +87,7 @@ describe("run table schema version", () => {
         // Nothing loaded and nothing resumable: the manager refuses new work rather than presenting a table
         // whose targets it cannot see are taken.
         expect(store.unreadable).equals(true);
-        expect(resumable).deep.equals([]);
+        expect(store.resumable).deep.equals([]);
         expect(store.get(RunId(1))).equals(undefined);
     });
 });

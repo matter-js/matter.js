@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError } from "@matter/general";
+import { ImplementationError, InternalError } from "@matter/general";
 import { TaskIdentityExhaustedError } from "./errors.js";
 import { Execution } from "./Execution.js";
-import { runKey, RunRecord, TaskPersistence } from "./Task.js";
+import { RunRecord, TaskPersistence } from "./Task.js";
 import { RetireSeq, RunId, Teardown, TaskState } from "./types.js";
 
 const TERMINAL_STATES: ReadonlySet<TaskState> = new Set<TaskState>(["completed", "failed", "cancelled", "abandoned"]);
@@ -102,12 +102,13 @@ export class RunStore {
     readonly #slots = new Map<string, RunId>();
 
     /**
-     * Load persisted state. `externalId` is not persisted as an index of its own: it is derived from the
-     * records that carry it, so it cannot drift from them.
+     * Load persisted state. Nothing is returned: what resumes is {@link resumable}, which re-derives rather
+     * than handing back a list that a later attach would make stale.
+     *
+     * `externalId` is not persisted as an index of its own: it is derived from the records that carry it, so
+     * it cannot drift from them.
      */
-    load(snapshot: Partial<RunStoreSnapshot> | undefined): { resumable: RunRecord[]; discarded: number } {
-        const resumable = new Array<RunRecord>();
-        let discarded = 0;
+    load(snapshot: Partial<RunStoreSnapshot> | undefined): void {
         let highest = 0;
 
         const version = snapshot?.runsVersion ?? 1;
@@ -116,34 +117,25 @@ export class RunStore {
             // targets they own. Every verb refuses while this is set, rather than answering "no such run" for
             // runs that demonstrably exist in the table.
             this.#unreadable = true;
-            return { resumable, discarded };
+            return;
         }
 
         for (const stored of Object.values(snapshot?.runs ?? {})) {
-            // Pre-runId records name their slot where a runId now goes; they cannot be resumed under an
-            // identity they never had.
-            if (typeof stored?.runId !== "number") {
-                discarded++;
-                continue;
+            // `runs` is schema type `any`, so a corrupt table reaches here as arbitrary values. Refusing names
+            // the cause; letting it through seeds the identity counter with `NaN`, after which every
+            // allocation is `NaN` and no run is ever addressable again.
+            if (!Number.isSafeInteger(stored?.runId)) {
+                throw new InternalError(`Stored task record has no usable run identity: ${JSON.stringify(stored)}`);
             }
             highest = Math.max(highest, stored.runId);
-            // A terminal record carries its place in the retirement order, because the write that records an
-            // outcome stamps it. One without is from a build that wrote the outcome and the order separately;
-            // it has no position, so it would sort ahead of every sequenced run of its slot and let an older
-            // run's rollback overwrite it.
-            if (isTerminal(stored.state) && stored.retireSeq === undefined) {
-                discarded++;
-                continue;
-            }
             const record = RunRecord.fromPersistence(stored);
             this.#records.set(record.runId, record);
             if (!isTerminal(record.state)) {
                 this.#slots.set(record.slotKey, record.runId);
-                resumable.push(record);
             }
         }
-        // The persisted counter is a high-water mark, so it is authoritative where present; seeding above the
-        // highest surviving id covers a store whose counter predates this scheme.
+        // The persisted counter is a high-water mark, so it is authoritative; seeding above the highest
+        // surviving id keeps allocation monotonic if a write of the counter was refused.
         this.#nextRunId = Math.max(snapshot?.nextRunId ?? 1, highest + 1);
         // Whatever the last start persisted is what is durable; anything beyond it must be reserved again.
         this.#reservedBelow = Math.max(snapshot?.nextRunId ?? 1, this.#nextRunId);
@@ -151,7 +143,6 @@ export class RunStore {
             snapshot?.nextRetireSeq ?? 1,
             ...[...this.#records.values()].map(r => (r.retireSeq ?? 0) + 1),
         );
-        return { resumable, discarded };
     }
 
     /**
@@ -364,19 +355,14 @@ export class RunStore {
         this.#executions.set(execution.runId, execution);
     }
 
-    /** Give up responsibility without retiring — a run left for the next start. */
-    detach(runId: RunId): void {
-        this.#executions.delete(runId);
-    }
-
     /**
      * The place in the retirement order this run would take, or `undefined` if it is not the slot's owner or
      * already has one.
      *
-     * Allocated for the write that records the outcome, so the two land together: a terminal record that
-     * reached storage without an order is discarded at load, because it has no position among the runs of its
-     * slot. A refused write leaves a gap in the sequence, which costs nothing — the order only ever has to be
-     * increasing.
+     * Allocated for the write that records the outcome, so the two land together: a terminal record without an
+     * order sorts as `retireSeq ?? 0`, ahead of every sequenced run of its slot, and {@link supersederOf} then
+     * cannot see it as a superseder. A refused write leaves a gap in the sequence, which costs nothing — the
+     * order only ever has to be increasing.
      */
     nextRetirement(record: RunRecord): RetireSeq | undefined {
         if (this.#slots.get(record.slotKey) !== record.runId || record.retireSeq !== undefined) {
@@ -442,23 +428,5 @@ export class RunStore {
             }
         }
         return undefined;
-    }
-
-    /**
-     * The whole table as storage would hold it. Not how the manager writes — it records the runs a transaction
-     * names, so a run this process never loaded is not erased by one that did — so this exists for a caller
-     * that wants the table as a value.
-     */
-    snapshot(): RunStoreSnapshot {
-        const runs: Record<string, TaskPersistence> = {};
-        for (const [runId, record] of this.#records) {
-            runs[runKey(runId)] = record.toPersistence();
-        }
-        return {
-            runs,
-            nextRunId: this.#nextRunId,
-            nextRetireSeq: this.#nextRetireSeq,
-            runsVersion: RUN_STORE_VERSION,
-        };
     }
 }
