@@ -413,3 +413,136 @@ describe("a peer whose root omits an endpoint it serves", () => {
         expectPlugsOnTheRoot(peer);
     });
 });
+
+describe("a peer that changes what it says between interactions", () => {
+    before(() => {
+        MockTime.init();
+    });
+
+    async function peerOf() {
+        const site = new MockSite();
+        const { controller } = await site.addCommissionedPair({ device: { type: ServerNode.RootEndpoint } });
+        const peer = controller.peers.get("peer1")!;
+        const structure = (peer.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+        const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+        return { site, peer, structure, request };
+    }
+
+    function treeOf(peer: Endpoint) {
+        const seen = new Array<string>();
+        const walk = (endpoint: Endpoint, path: string) => {
+            for (const part of endpoint.parts) {
+                seen.push(`${path}/ep${part.number}`);
+                walk(part, `${path}/ep${part.number}`);
+            }
+        };
+        walk(peer, "");
+        return seen;
+    }
+
+    it("keeps an endpoint the root stopped naming while it holds endpoints the root names", async () => {
+        const { site, peer, structure, request } = await peerOf();
+        await using _site = site;
+
+        await drain(
+            structure.mutate(
+                request,
+                readResult(
+                    [descriptorAttr(0, Descriptor.attributes.partsList.id, [AGGREGATOR, ...SENSORS], 10)],
+                    descriptorReports(AGGREGATOR, AggregatorEndpoint.deviceType, 3, SENSORS, 10),
+                    ...SENSORS.map(number => descriptorReports(number, TemperatureSensorDevice.deviceType, 2, [], 10)),
+                ),
+            ),
+        );
+        expect(treeOf(peer)).deep.equals([`/ep${AGGREGATOR}`, ...SENSORS.map(n => `/ep${AGGREGATOR}/ep${n}`)]);
+
+        // The root drops the aggregator but still names the sensors below it. Erasing it would close
+        // them too and nothing can move them first, so it stays and they stay with it.
+        await drain(
+            structure.mutate(request, readResult([descriptorAttr(0, Descriptor.attributes.partsList.id, SENSORS, 11)])),
+        );
+
+        expect(treeOf(peer)).deep.equals([`/ep${AGGREGATOR}`, ...SENSORS.map(n => `/ep${AGGREGATOR}/ep${n}`)]);
+
+        // Once the peer stops naming them too, it goes and takes them with it
+        await drain(
+            structure.mutate(request, readResult([descriptorAttr(0, Descriptor.attributes.partsList.id, [], 12)])),
+        );
+
+        expect(treeOf(peer)).deep.equals([]);
+    });
+
+    it("waits for a claimant's device types before reading its list as parenthood", async () => {
+        const { site, peer, structure, request } = await peerOf();
+        await using _site = site;
+
+        // The aggregator's parts arrive before it says what it is. Read as an ordinary endpoint it
+        // would take the sensors as its children, which a later device type could not undo.
+        await drain(
+            structure.mutate(
+                request,
+                readResult(
+                    [descriptorAttr(0, Descriptor.attributes.partsList.id, [AGGREGATOR, COMPOSED, ...SENSORS], 10)],
+                    [descriptorAttr(AGGREGATOR, Descriptor.attributes.partsList.id, [COMPOSED, ...SENSORS], 10)],
+                    [descriptorAttr(COMPOSED, Descriptor.attributes.partsList.id, SENSORS, 10)],
+                    ...SENSORS.map(number => descriptorReports(number, TemperatureSensorDevice.deviceType, 2, [], 10)),
+                ),
+            ),
+        );
+        // The aggregator is claimed by the root alone, which has said what it is, so it is placed.
+        // Everything below waits on the aggregator's own device types.
+        expect(treeOf(peer)).deep.equals([`/ep${AGGREGATOR}`]);
+
+        await drain(
+            structure.mutate(
+                request,
+                readResult(
+                    descriptorReports(AGGREGATOR, AggregatorEndpoint.deviceType, 3, [COMPOSED, ...SENSORS], 11),
+                    descriptorReports(COMPOSED, BridgedNodeEndpoint.deviceType, 1, SENSORS, 11),
+                ),
+            ),
+        );
+
+        expect(treeOf(peer)).deep.equals([
+            `/ep${AGGREGATOR}`,
+            `/ep${AGGREGATOR}/ep${COMPOSED}`,
+            ...SENSORS.map(number => `/ep${AGGREGATOR}/ep${COMPOSED}/ep${number}`),
+        ]);
+    });
+
+    it("does not let an endpoint keep a claim its own list has dropped", async () => {
+        const { site, peer, structure, request } = await peerOf();
+        await using _site = site;
+
+        const [kept, moved] = SENSORS;
+
+        // Both sensors are named by the root and by the composed device, but nothing can be placed
+        // yet: the composed device has not said what it is
+        await drain(
+            structure.mutate(
+                request,
+                readResult(
+                    [descriptorAttr(0, Descriptor.attributes.partsList.id, [COMPOSED, ...SENSORS], 10)],
+                    [descriptorAttr(COMPOSED, Descriptor.attributes.partsList.id, SENSORS, 10)],
+                    ...SENSORS.map(number => descriptorReports(number, TemperatureSensorDevice.deviceType, 2, [], 10)),
+                ),
+            ),
+        );
+        expect(treeOf(peer)).deep.equals([`/ep${COMPOSED}`]);
+
+        // The composed device drops one sensor and says what it is. The dropped claim must not still
+        // put that sensor below it.
+        await drain(
+            structure.mutate(
+                request,
+                readResult(descriptorReports(COMPOSED, BridgedNodeEndpoint.deviceType, 1, [kept], 11)),
+            ),
+        );
+
+        const composed = peer.parts.get(`ep${COMPOSED}`);
+        expect(composed, "the composed device is on the node").not.undefined;
+        expect(composed!.parts.get(`ep${kept}`), `endpoint ${kept} is still its part`).not.undefined;
+        expect(composed!.parts.get(`ep${moved}`), `endpoint ${moved} is not`).undefined;
+        expect(peer.parts.get(`ep${moved}`), `endpoint ${moved} belongs to the root instead`).not.undefined;
+    });
+});

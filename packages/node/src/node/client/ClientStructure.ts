@@ -108,8 +108,14 @@ export class ClientStructure {
     #partClaims = new Map<EndpointStructure, Set<EndpointStructure>>();
     #partsListOf = new Map<EndpointStructure, Set<number>>();
 
-    /** The endpoints whose device type composes their `PartsList` of every descendant. */
-    #fullFamilyEndpoints = new Set<EndpointStructure>();
+    /**
+     * How each endpoint composes its `PartsList`, for the endpoints that have said.
+     *
+     * Absent means the endpoint has not reported its device types yet, which is not the same as
+     * composing a tree: a list from an endpoint whose composition is unknown says nothing about who
+     * owns what, so claims from it wait rather than being read as a parent's.
+     */
+    #composition = new Map<EndpointStructure, EndpointComposition>();
     #events: ClientStructureEvents;
     #changed = Observable<[void]>();
     #commandFactory?: ClusterBehaviorType.CommandFactory;
@@ -814,13 +820,12 @@ export class ClientStructure {
                 }
             }
 
-            // An endpoint whose device types no longer compose a full family must stop being read as
-            // one, or its list would go on claiming parts it no longer describes
-            if (composesFullFamily) {
-                this.#fullFamilyEndpoints.add(structure);
-            } else {
-                this.#fullFamilyEndpoints.delete(structure);
-            }
+            // Reported each time, so an endpoint whose device types change stops being read as what it
+            // was
+            this.#composition.set(
+                structure,
+                composesFullFamily ? EndpointComposition.FullFamily : EndpointComposition.Tree,
+            );
         }
 
         const serverList = getStoreValue(attrs, SERVER_LIST_ATTR_ID, SERVER_LIST_ATTR_NAME);
@@ -898,9 +903,29 @@ export class ClientStructure {
 
                 if (!numbersUsed.has(descendent.number)) {
                     const endpoint = this.#endpoints.get(descendent.number);
-                    if (endpoint) {
-                        this.#scheduleStructureChange(endpoint, "erase");
+                    if (endpoint === undefined) {
+                        continue;
                     }
+
+                    // Erasing an endpoint closes everything below it, and nothing can move what it
+                    // held elsewhere first. A peer that drops an endpoint while still naming what
+                    // hangs from it contradicts itself, and the endpoints it still names are worth
+                    // more than a tree that matches its list exactly.
+                    const named = new Array<Endpoint>();
+                    descendent.visit(below => {
+                        if (below !== descendent && below.maybeNumber !== undefined && numbersUsed.has(below.number)) {
+                            named.push(below);
+                        }
+                    });
+                    if (named.length) {
+                        logger.warn(
+                            `Keeping ${descendent} although the peer's root no longer names it:`,
+                            `it holds ${named.join(", ")}, which the root does name`,
+                        );
+                        continue;
+                    }
+
+                    this.#scheduleStructureChange(endpoint, "erase");
                 }
             }
         }
@@ -1032,7 +1057,7 @@ export class ClientStructure {
         this.#endpoints.delete(endpoint.number);
         this.#partClaims.delete(structure);
         this.#partsListOf.delete(structure);
-        this.#fullFamilyEndpoints.delete(structure);
+        this.#composition.delete(structure);
         for (const [part, claimants] of this.#partClaims) {
             claimants.delete(structure);
             if (claimants.size === 0) {
@@ -1246,6 +1271,13 @@ export class ClientStructure {
                 continue;
             }
 
+            // What a list means depends on how its endpoint composes one, so a claimant that has not
+            // said cannot be weighed against the others yet. Deciding without it would place the part
+            // under a parent that a later report cannot correct.
+            if (!this.#composition.has(claimant)) {
+                return undefined;
+            }
+
             (this.#isFullFamily(claimant) ? fullFamily : ordinary).push(claimant);
         }
 
@@ -1319,7 +1351,7 @@ export class ClientStructure {
 
     /** Whether `structure`'s `PartsList` names every descendant rather than its own children. */
     #isFullFamily(structure: EndpointStructure) {
-        return this.#fullFamilyEndpoints.has(structure);
+        return this.#composition.get(structure) === EndpointComposition.FullFamily;
     }
 
     /**
