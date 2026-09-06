@@ -510,6 +510,43 @@ describe("a peer that changes what it says between interactions", () => {
         ]);
     });
 
+    // The endpoint's own type is settled by the first application device type in the list, but how it
+    // composes its list is a property of all of them — as `DescriptorServer` decides for an endpoint of
+    // our own, which the two have to agree about
+    it("reads a full-family device type that follows an application one", async () => {
+        const { site, peer, structure, request } = await peerOf();
+        await using _site = site;
+
+        await drain(
+            structure.mutate(
+                request,
+                readResult(
+                    [descriptorAttr(0, Descriptor.attributes.partsList.id, [AGGREGATOR, COMPOSED, ...SENSORS], 10)],
+                    descriptorReports(
+                        AGGREGATOR,
+                        [
+                            { deviceType: OnOffLightDevice.deviceType, revision: 3 },
+                            { deviceType: AggregatorEndpoint.deviceType, revision: 3 },
+                        ],
+                        3,
+                        [COMPOSED, ...SENSORS],
+                        10,
+                    ),
+                    descriptorReports(COMPOSED, BridgedNodeEndpoint.deviceType, 1, SENSORS, 10),
+                    ...SENSORS.map(number => descriptorReports(number, TemperatureSensorDevice.deviceType, 2, [], 10)),
+                ),
+            ),
+        );
+
+        // Read as a tree, the aggregator would take the sensors as its own children rather than
+        // leaving them to the composed device that names them
+        expect(treeOf(peer)).deep.equals([
+            `/ep${AGGREGATOR}`,
+            `/ep${AGGREGATOR}/ep${COMPOSED}`,
+            ...SENSORS.map(number => `/ep${AGGREGATOR}/ep${COMPOSED}/ep${number}`),
+        ]);
+    });
+
     it("does not let an endpoint keep a claim its own list has dropped", async () => {
         const { site, peer, structure, request } = await peerOf();
         await using _site = site;

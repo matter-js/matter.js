@@ -775,8 +775,9 @@ export class ClientStructure {
             | Descriptor.DeviceType[]
             | undefined;
         if (Array.isArray(deviceTypeList)) {
+            this.#noteComposition(structure, deviceTypeList);
+
             const endpointType = endpoint.type;
-            let composesFullFamily = false;
             for (const dt of deviceTypeList) {
                 if (typeof dt?.deviceType !== "number") {
                     continue;
@@ -786,8 +787,6 @@ export class ClientStructure {
                 const model = this.#node.matter.deviceTypes(dt.deviceType);
                 if (model !== undefined) {
                     isApp = DeviceClassification.isApplication(model.classification);
-
-                    composesFullFamily ||= model.effectiveComposition === EndpointComposition.FullFamily;
                 }
 
                 // Root endpoint really needs to be a root endpoint so ignore any noise that would disrupt that
@@ -819,13 +818,6 @@ export class ClientStructure {
                     break;
                 }
             }
-
-            // Reported each time, so an endpoint whose device types change stops being read as what it
-            // was
-            this.#composition.set(
-                structure,
-                composesFullFamily ? EndpointComposition.FullFamily : EndpointComposition.Tree,
-            );
         }
 
         const serverList = getStoreValue(attrs, SERVER_LIST_ATTR_ID, SERVER_LIST_ATTR_NAME);
@@ -1346,6 +1338,37 @@ export class ClientStructure {
             if (claimants.size === 0) {
                 this.#partClaims.delete(part);
             }
+        }
+    }
+
+    /**
+     * Record how `structure` composes its `PartsList`, from every device type it reports.
+     *
+     * Any one of them composing a full family makes the endpoint's list a full-family one, as
+     * `DescriptorServer` decides for an endpoint of our own — the two have to agree about the same
+     * endpoint. A list carrying nothing usable leaves the composition unknown rather than assuming a
+     * tree, so what depends on it waits.
+     */
+    #noteComposition(structure: EndpointStructure, deviceTypeList: Descriptor.DeviceType[]) {
+        let known = false;
+        let composesFullFamily = false;
+
+        for (const dt of deviceTypeList) {
+            if (typeof dt?.deviceType !== "number") {
+                continue;
+            }
+
+            known = true;
+            if (this.#node.matter.deviceTypes(dt.deviceType)?.effectiveComposition === EndpointComposition.FullFamily) {
+                composesFullFamily = true;
+            }
+        }
+
+        if (known) {
+            this.#composition.set(
+                structure,
+                composesFullFamily ? EndpointComposition.FullFamily : EndpointComposition.Tree,
+            );
         }
     }
 
