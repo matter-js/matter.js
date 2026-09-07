@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Boot, InternalError, LogDestination, LogFormat, Logger } from "@matter/main";
+import { Boot, Environment, InternalError, LogDestination, LogFormat, Logger, RuntimeService } from "@matter/main";
 import type {
     BackchannelCommand,
     CertDevice,
@@ -22,7 +22,11 @@ import { BridgeTestInstance } from "../BridgeTestInstance.js";
 import { DeviceTestInstanceConstructor } from "../GenericTestApp.js";
 import { NodeTestInstance } from "../NodeTestInstance.js";
 import { CHIP_TOOL_CONTROLLER_PICS, ChipToolControllerAdapter } from "./ChipToolControllerAdapter.js";
-import { InProcessControllerAdapter, MATTERJS_CONTROLLER_PICS } from "./InProcessControllerAdapter.js";
+import {
+    controllerAdapterClaimsLogs,
+    InProcessControllerAdapter,
+    MATTERJS_CONTROLLER_PICS,
+} from "./InProcessControllerAdapter.js";
 
 registerControllerAdapterFactory(
     "matterjs",
@@ -41,6 +45,26 @@ registerControllerAdapterFactory(
 env.MATTER_CERT_EVIDENCE_DIR ??= join(process.cwd(), "build/cert-evidence");
 
 const activeDeviceId = new AsyncLocalStorage<string>();
+
+// A crashed runtime cancels every worker it holds, which for a run that starts one node after another
+// takes down services the later nodes need. matter.js reports the cause through its own logger, and
+// the test runner keeps a passing test's log to itself — so a crash inside a test that still passes
+// leaves nothing behind but the damage. Report it where no log policy can discard it.
+//
+// Unlike Logger.destinations below, the default environment survives Boot.reboot(), so a fresh
+// observer per spec file would report one crash once per file run before it.
+let crashReporterRuntime: RuntimeService | undefined;
+Boot.init(() => {
+    const runtime = Environment.default.runtime;
+    if (runtime === crashReporterRuntime) {
+        return;
+    }
+    crashReporterRuntime = runtime;
+
+    runtime.crashed.on((cause: unknown) => {
+        console.error("A matter.js runtime crashed during a certification run:", cause);
+    });
+});
 const deviceQueues = new Map<string, LineQueue>();
 
 // Boot.reboot() runs before every spec file and replaces Logger.destinations wholesale (see
@@ -52,10 +76,21 @@ Boot.init(() => {
         format: LogFormat.formats.plain,
         write(text: string) {
             const id = activeDeviceId.getStore();
-            if (id === undefined) {
+            const queue = id === undefined ? undefined : deviceQueues.get(id);
+            if (queue !== undefined) {
+                queue.push(text);
                 return;
             }
-            deviceQueues.get(id)?.push(text);
+
+            if (controllerAdapterClaimsLogs()) {
+                return;
+            }
+
+            // A line nobody claims still has to be seen. matter.js reports a crashed endpoint and a
+            // crashed runtime through this logger, and both happen outside the calls this tags — a
+            // node tearing down, a construction rejecting on its own microtask — so dropping the
+            // unattributed lines hides exactly the failures worth reading.
+            console.error(text);
         },
     });
 });

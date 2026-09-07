@@ -10,6 +10,7 @@ import {
     ControllerBehavior,
     Diagnostic,
     Duration,
+    Endpoint,
     Environment,
     ImplementationError,
     InternalError,
@@ -25,6 +26,7 @@ import {
     Time,
     UnexpectedDataError,
 } from "@matter/main";
+import { DescriptorClient } from "@matter/main/behaviors/descriptor";
 import { OperationalCredentialsClient } from "@matter/main/behaviors/operational-credentials";
 import { GeneralCommissioning, OperationalCredentials } from "@matter/main/clusters";
 import {
@@ -66,6 +68,8 @@ import type {
     BatchCommandSpec,
     CertGroupApi,
     CertNodeApi,
+    ClientAttributePath,
+    ClientEndpointEntry,
     CertNodeRef,
     CommissioningTarget,
     ControllerAdapter,
@@ -161,6 +165,16 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     // switch this controller observes is an action switch, so that is what it declares.
     "SWTCH.C.F02": 0,
     "SWTCH.C.F05": 1,
+
+    // Bridge-client flags. `MCORE.BRIDGECLIENT` asks whether the DUT supports a bridge, and the
+    // `MCORE.DEVLIST.*` flags whether it maintains the devices behind one — their names, their state,
+    // their battery level. CHIP's PICS file answers these for a *device*, so the answers there say
+    // nothing about the client, and this overlay is the DUT-as-client declaration TC-BR-4 rests on.
+    "MCORE.BRIDGECLIENT": 1,
+    "MCORE.DEVLIST.UseDevices": 1,
+    "MCORE.DEVLIST.UseDeviceName": 1,
+    "MCORE.DEVLIST.UseDeviceState": 1,
+    "MCORE.DEVLIST.UseBatInfo": 1,
 };
 
 const adapterStreams = new Map<string, LineQueue>();
@@ -181,6 +195,12 @@ Boot.init(() => {
         },
     });
 });
+
+/** Whether the line being logged belongs to a controller adapter's own stream. */
+export function controllerAdapterClaimsLogs() {
+    const id = activeAdapterId.getStore();
+    return id !== undefined && adapterStreams.has(id);
+}
 
 const logger = Logger.get("CertControllerAdapter");
 
@@ -253,6 +273,33 @@ function groupCommandRequestFor(cluster: string | number, command: string, args?
 
 function isConcretePath(path: AttributePathSpec) {
     return path.endpoint !== undefined && path.cluster !== undefined && path.attribute !== undefined;
+}
+
+const DESCRIPTOR_ID = DescriptorClient.cluster.id;
+const DEVICE_TYPE_LIST_ID = DescriptorClient.cluster.attributes.deviceTypeList.id;
+const PARTS_LIST_ID = DescriptorClient.cluster.attributes.partsList.id;
+
+/**
+ * The value the controller holds for one attribute, or `undefined` where it holds none.
+ *
+ * Read through the behavior the endpoint actually has rather than through a concrete type or the
+ * certification model: a discovered peer carries generated behaviors whose members are synthesized
+ * from what the peer reports, so an attribute the model does not carry still has a value here, and a
+ * cluster the peer serves may not inherit the type this repository would use for it.
+ */
+function heldValue(endpoint: Endpoint, cluster: ClusterId, attribute: number): unknown {
+    const behavior = endpoint.behaviors.forCluster(cluster);
+    if (behavior === undefined) {
+        return undefined;
+    }
+
+    const name = behavior.schema?.attributes.find(member => member.id === attribute)?.propertyName;
+    if (name === undefined) {
+        return undefined;
+    }
+
+    const state: Record<string, unknown> | undefined = endpoint.maybeStateOf(behavior);
+    return state?.[name];
 }
 
 function toEventIds(path: EventPathSpec) {
@@ -696,6 +743,43 @@ class InProcessCertNodeApi implements CertNodeApi {
         });
     }
 
+    clientEndpoints(): Promise<ClientEndpointEntry[]> {
+        return runTagged(this.#adapterId, async () => {
+            const entries = new Array<ClientEndpointEntry>();
+            this.#peer.visit(endpoint => {
+                if (endpoint.number === undefined) {
+                    return;
+                }
+                const deviceTypeList = heldValue(endpoint, DESCRIPTOR_ID, DEVICE_TYPE_LIST_ID);
+                const partsList = heldValue(endpoint, DESCRIPTOR_ID, PARTS_LIST_ID);
+                entries.push({
+                    endpoint: endpoint.number,
+                    deviceTypes: (Array.isArray(deviceTypeList) ? deviceTypeList : []).map(entry =>
+                        Number(entry === null || typeof entry !== "object" ? NaN : Reflect.get(entry, "deviceType")),
+                    ),
+                    parts: (Array.isArray(partsList) ? partsList : []).map(Number),
+                });
+            });
+            return entries.sort((a, b) => a.endpoint - b.endpoint);
+        });
+    }
+
+    clientAttribute(path: ClientAttributePath): Promise<unknown> {
+        return runTagged(this.#adapterId, async () => {
+            let endpoint: Endpoint | undefined;
+            this.#peer.visit(candidate => {
+                if (candidate.number === path.endpoint) {
+                    endpoint = candidate;
+                }
+            });
+            if (endpoint === undefined) {
+                return undefined;
+            }
+
+            return heldValue(endpoint, ClusterId(path.cluster), path.attribute);
+        });
+    }
+
     readEvents(paths: EventPathSpec[], options?: ReadEventOptions): Promise<EventReadEntry[]> {
         return runTagged(this.#adapterId, async () => {
             if (paths.length === 0) {
@@ -824,7 +908,15 @@ class InProcessCertNodeApi implements CertNodeApi {
  */
 const CERT_PEER_CONNECTION_TIMEOUT = Seconds(15);
 
-const CERT_PEER_SETTLE_TIMEOUT = Seconds(30);
+/**
+ * How long to wait for a peer to hold a subscription before continuing without one.
+ *
+ * Longer than the interaction's own wait for the peer, so a peer that stops answering reports why
+ * before this decides it never will. A read waits `calculateMaximumPeerResponseTime`, which is ~35s
+ * at the session parameters chip's apps negotiate; below that, the run records "held no subscription"
+ * and the reason arrives seconds later, reading as an unrelated failure of the step already running.
+ */
+const CERT_PEER_SETTLE_TIMEOUT = Seconds(45);
 
 /**
  * Budget that expresses {@link CommissioningTarget.singleHandshakeAttempt}. Below every retry interval commissioning's

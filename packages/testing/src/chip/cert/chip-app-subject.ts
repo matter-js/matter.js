@@ -68,6 +68,72 @@ function hasCommandPipe(app: string) {
 }
 
 /**
+ * The simulation commands a chip app takes on its standard input, by the app that answers them.
+ *
+ * chip's `bridge-app` polls stdin one character at a time (`bridge_polling_thread` in
+ * `examples/bridge-app/linux/main.cpp`), and its named pipe answers only one unrelated command —
+ * writing any other name there aborts the app through `VerifyOrDie`. The characters are therefore
+ * the only way to operate it, and, exactly as for the pipe, they are gated per app: a character an
+ * app does not read looks no different from one it does.
+ */
+const STDIN_COMMANDS: Record<string, ReadonlyMap<BackchannelCommand["name"], string>> = {
+    bridge: new Map<BackchannelCommand["name"], string>([
+        ["toggleBridgedLights", "c"],
+        ["warmBridgedTemperatureSensors", "t"],
+        ["renameBridgedLights", "b"],
+        ["addBridgedLight", "2"],
+        ["removeBridgedLight", "4"],
+    ]),
+};
+
+/**
+ * How long a command character waits before the next one is written.
+ *
+ * chip's bridge app polls standard input with `kbhit`, which asks the kernel how many bytes are
+ * pending (`ioctl(FIONREAD)`), and then reads one with `getchar`, which fills stdio's own buffer from
+ * the descriptor. Characters written together therefore leave the kernel on the first `getchar` and
+ * sit in a buffer the poll cannot see, so the app acts on one and only reaches the rest when later
+ * input makes the poll true again — by then it is running behind by whatever it buffered.
+ *
+ * Delivering one character per poll interval is what the loop consumes, and this is comfortably
+ * longer than the 100ms it sleeps for between polls.
+ */
+const STDIN_COMMAND_GAP_MS = 250;
+
+/** Whether `app` reads simulation commands from its standard input, which is what attaching one is for. */
+function hasStdinCommands(app: string) {
+    return STDIN_COMMANDS[app] !== undefined;
+}
+
+/** The character `app` reads for `command`, or `undefined` for a command it does not take that way. */
+function stdinCommandFor(app: string, command: BackchannelCommand): string | undefined {
+    return STDIN_COMMANDS[app]?.get(command.name);
+}
+
+/** How a chip app takes a simulation command, for the app that answers it. */
+type CommandDelivery = { via: "stdin"; char: string } | { via: "pipe"; json: string };
+
+/**
+ * The channel `app` takes `command` on, or `undefined` for a command it does not take at all.
+ *
+ * An app reads its commands one way or the other, never both, so the first channel that answers is
+ * the only one offered anything.
+ */
+function deliveryFor(app: string, command: BackchannelCommand): CommandDelivery | undefined {
+    const char = stdinCommandFor(app, command);
+    if (char !== undefined) {
+        return { via: "stdin", char };
+    }
+
+    const json = namedPipeCommandFor(app, command);
+    if (json !== undefined) {
+        return { via: "pipe", json };
+    }
+
+    return undefined;
+}
+
+/**
  * A backchannel command as the JSON a chip app's `NamedPipeCommandDelegate` parses, or `undefined` for
  * a command `app` does not take that way. The delegate keys off `Name` and reads each argument by its
  * capitalized name (`examples/all-clusters-app/linux/AllClustersCommandDelegate.cpp`).
@@ -85,6 +151,36 @@ function namedPipeCommandFor(app: string, command: BackchannelCommand): string |
     }
 
     return JSON.stringify({ Name: `${command.name[0].toUpperCase()}${command.name.slice(1)}`, ...fields });
+}
+
+/**
+ * Serializes standard-input writes and leaves {@link STDIN_COMMAND_GAP_MS} between them.
+ *
+ * @internal Test seam — not API. Exported so its spacing can be asserted where it is decided; the
+ * arrival of a character says nothing about when it was written, because a reader that has not
+ * reached its poll yet reads a whole batch at once.
+ *
+ * The gap belongs to the delivery, not to the caller: a step that operates a device twice in a row
+ * must not have to know how the app reads its input.
+ */
+export class StdinPacer {
+    #ready: Promise<void> = Promise.resolve();
+
+    async send(write: () => Promise<void>): Promise<void> {
+        const previous = this.#ready;
+        let release!: () => void;
+        this.#ready = new Promise<void>(resolve => (release = resolve));
+
+        await previous;
+        try {
+            await write();
+        } finally {
+            // Left whether or not the write succeeded: a write that failed part-way still may have
+            // put a character in front of the app
+            await new Promise(resolve => setTimeout(resolve, STDIN_COMMAND_GAP_MS));
+            release();
+        }
+    }
 }
 
 function commissioningFor(identity?: Subject.Identity): Subject.CommissioningParameters {
@@ -144,10 +240,24 @@ interface Generation {
 
 interface LocalGeneration extends Generation {
     child: ChildProcess;
+
+    /**
+     * What went wrong on this generation's standard input, kept so the next command reports it
+     * rather than the process dying: an unhandled `error` on a stream terminates the test run, and a
+     * write racing the app's exit produces one asynchronously, outside any write callback.
+     */
+    stdinError?: Error;
 }
 
 interface DockerGeneration extends Generation {
     composition: CompositionHandle;
+
+    /**
+     * The attached terminal for an app driven through its standard input, kept for this generation's
+     * whole life: the container's input closes when the last client attached to it detaches.
+     */
+    stdin?: Terminal<string>;
+
     /** Absent until the app container has been added, which `start()` may fail before. */
     container?: Container;
     /** Set when this generation never came up, so a later `start()` replaces it rather than joining it. */
@@ -214,6 +324,7 @@ class ChipLocalDevice implements CertDevice {
     #appArgs: string[];
     #hub = new LineQueue();
     #storageDir?: string;
+    #stdin = new StdinPacer();
     #generation?: LocalGeneration;
     #starting?: Promise<void>;
     #exit: ExitDeferred = createExitDeferred();
@@ -286,7 +397,9 @@ class ChipLocalDevice implements CertDevice {
             ...this.#appArgs,
         ];
 
-        const child = spawn(binPath, args, { stdio: ["ignore", "pipe", "pipe"] });
+        const child = spawn(binPath, args, {
+            stdio: [hasStdinCommands(this.app) ? "pipe" : "ignore", "pipe", "pipe"],
+        });
         const { stdout, stderr } = child;
         if (!stdout || !stderr) {
             throw new Error("Spawned process has no stdout/stderr streams");
@@ -296,6 +409,7 @@ class ChipLocalDevice implements CertDevice {
             child,
             ...newGeneration([this.#hub.pump(asyncLinesOf(stdout)), this.#hub.pump(asyncLinesOf(stderr))]),
         };
+        child.stdin?.on("error", error => (generation.stdinError = error));
         this.#generation = generation;
 
         let failSpawn: ((error: Error) => void) | undefined;
@@ -500,8 +614,50 @@ class ChipLocalDevice implements CertDevice {
         }
     }
 
+    /**
+     * Delivers one command character to the running app's standard input.
+     *
+     * The app the command is for is the one running when it was accepted, and it waits its turn behind
+     * whatever the pacer holds, so the generation is taken before queueing and checked on both sides of
+     * the write. A restart anywhere in between would otherwise credit the command to an app that never
+     * saw it, or send it to a successor it was never meant for.
+     */
+    async #sendToStdin(char: string): Promise<void> {
+        const generation = this.#requireRunning();
+        return this.#stdin.send(() => this.#writeToStdin(char, generation));
+    }
+
+    async #writeToStdin(char: string, generation: LocalGeneration): Promise<void> {
+        if (this.#generation !== generation || generation.exited) {
+            throw new Error(
+                `Cert device ${this.id} restarted while a command waited its turn, so the command was not sent ` +
+                    "to the app it was meant for",
+            );
+        }
+
+        const stdin = generation.child.stdin;
+        if (stdin === null) {
+            throw new Error(
+                `Cert device ${this.id} was started without a writable standard input, so the app cannot be ` +
+                    "operated that way",
+            );
+        }
+
+        await new Promise<void>((resolve, reject) => stdin.write(char, error => (error ? reject(error) : resolve())));
+
+        if (generation.stdinError !== undefined) {
+            throw generation.stdinError;
+        }
+        if (this.#generation !== generation) {
+            throw new Error(
+                `Cert device ${this.id} restarted while a command was being delivered, so the command reached ` +
+                    "an app that is no longer the one under test",
+            );
+        }
+    }
+
     /** The generation currently running, or a failure naming that there is none. */
-    #requireRunning(): Generation {
+    #requireRunning(): LocalGeneration {
         const generation = this.#generation;
         if (generation === undefined || generation.exited) {
             throw new Error(
@@ -569,11 +725,16 @@ class ChipLocalDevice implements CertDevice {
                 break;
 
             default: {
-                const json = namedPipeCommandFor(this.app, command);
-                if (json === undefined) {
+                const delivery = deliveryFor(this.app, command);
+                if (delivery === undefined) {
                     throwUnsupported(this.flavor, `the "${command.name}" backchannel command`);
                 }
-                await this.#sendToPipe(json);
+
+                if (delivery.via === "stdin") {
+                    await this.#sendToStdin(delivery.char);
+                } else {
+                    await this.#sendToPipe(delivery.json);
+                }
                 break;
             }
         }
@@ -644,6 +805,7 @@ export class ChipDockerDevice implements CertDevice {
     #appArgs: string[];
     #hub = new LineQueue();
     #docker: DockerHandle;
+    #stdin = new StdinPacer();
     #generation?: DockerGeneration;
     #starting?: Promise<void>;
     #exit: ExitDeferred = createExitDeferred();
@@ -759,6 +921,8 @@ export class ChipDockerDevice implements CertDevice {
                 recreate: true,
                 binds: { [volumeName]: "/run/dbus" },
                 command: args,
+
+                stdinOnce: !hasStdinCommands(this.app),
             });
 
             generation.container = container;
@@ -771,8 +935,11 @@ export class ChipDockerDevice implements CertDevice {
 
             // Attaching immediately after the container starts still risks losing whatever it printed
             // in that gap — Docker doesn't let us attach before start.
-            const terminal = await container.attach(Terminal.Line);
+            const terminal = await container.attach(Terminal.Line, hasStdinCommands(this.app));
             generation.pumps.push(this.#hub.pump(terminal));
+            if (hasStdinCommands(this.app)) {
+                generation.stdin = terminal;
+            }
         } catch (e) {
             // Marked rather than dropped: stop() still has to reap what this attempt created, and a
             // later start() must not take this generation for a device that came up.
@@ -942,8 +1109,8 @@ export class ChipDockerDevice implements CertDevice {
                 break;
 
             default: {
-                const json = namedPipeCommandFor(this.app, command);
-                if (json === undefined) {
+                const delivery = deliveryFor(this.app, command);
+                if (delivery === undefined) {
                     throwUnsupported(this.flavor, `the "${command.name}" backchannel command`);
                 }
 
@@ -953,6 +1120,39 @@ export class ChipDockerDevice implements CertDevice {
                         `Cert device ${this.id} received the "${command.name}" backchannel command while it was ` +
                             "not running, so there is no app to send it to",
                     );
+                }
+
+                if (delivery.via === "stdin") {
+                    const stdin = generation.stdin;
+                    if (stdin === undefined) {
+                        throw new Error(
+                            `Cert device ${this.id} has no attached standard input, so the app cannot be operated ` +
+                                "that way",
+                        );
+                    }
+
+                    await this.#stdin.send(async () => {
+                        // The command waited its turn behind the pacer, and the stream it holds is the
+                        // one this generation was started with
+                        if (this.#generation !== generation || generation.exited) {
+                            throw new Error(
+                                `Cert device ${this.id} restarted while a command waited its turn, so the ` +
+                                    "command was not sent to the app it was meant for",
+                            );
+                        }
+
+                        await stdin.write(delivery.char);
+
+                        // A restart between the write and here would credit the command to an app
+                        // that never saw it
+                        if (this.#generation !== generation) {
+                            throw new Error(
+                                `Cert device ${this.id} restarted while a command was being delivered, so the ` +
+                                    "command reached an app that is no longer the one under test",
+                            );
+                        }
+                    });
+                    break;
                 }
 
                 // The command travels as an argument rather than as part of the script, so nothing in
@@ -973,7 +1173,7 @@ export class ChipDockerDevice implements CertDevice {
                     "sh",
                     "-c",
                     `while [ ! -e ${CONTAINER_APP_PIPE} ]; do sleep 0.1; done; test -p ${CONTAINER_APP_PIPE} && printf '%s\\n' "$0" > ${CONTAINER_APP_PIPE}`,
-                    json,
+                    delivery.json,
                 ]);
                 break;
             }
