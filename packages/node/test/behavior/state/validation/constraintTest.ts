@@ -256,6 +256,31 @@ const AllTests = Tests({
         },
     ),
 
+    // An enumerated type states a bound as the names of its own values.  @see {@link MatterSpecification.v16.Core}
+    // § 7.18.3
+    "named values of an enumeration": Tests(
+        Fields({
+            type: "enum8",
+            constraint: "Add, Modify",
+            children: [
+                FieldElement({ name: "Add", id: 0 }),
+                FieldElement({ name: "Clear", id: 1 }),
+                FieldElement({ name: "Modify", id: 2 }),
+            ],
+        }),
+        {
+            "accepts the first value named": { record: { test: 0 } },
+            "accepts the last value named": { record: { test: 2 } },
+            "rejects a value the constraint omits": {
+                record: { test: 1 },
+                error: {
+                    type: ConstraintError,
+                    message: 'Validating Test.test: Constraint "add, modify": Value 1 is not allowed by constraint',
+                },
+            },
+        },
+    ),
+
     "string length": Tests(Fields({ type: "string", constraint: "max 2" }), {
         "accepts if under": {
             record: { test: "ab" },
