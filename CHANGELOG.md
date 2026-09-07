@@ -23,6 +23,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/model
     - Enhancement: `DeviceTypeModel.effectiveComposition` states whether a device type composes its endpoint's `PartsList` of every descendant or of its own children
+    - Breaking: The constraint parser no longer reads `any` or `MS` as stating no bound. Both are artifacts of the specification's tables and are now removed while scraping, so a hand-written cluster definition may state a bound naming a value spelled `Any` or `MS`, and one that states neither name reports `UNRESOLVED_CONSTRAINT_NAME`
 
 - @matter/node
     - Fix: `DoorLockServer` reserves credential index 0 for the programming PIN, refusing it for any other credential type and refusing any other index for the programming PIN. The programming PIN counts as one credential rather than one of the PIN credentials, and reports no next index

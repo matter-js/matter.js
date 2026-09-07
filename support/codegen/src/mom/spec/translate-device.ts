@@ -8,6 +8,7 @@ import { Diagnostic, Logger } from "#general";
 import { ConditionElement, DeviceClassification, DeviceTypeElement, RequirementElement } from "#model";
 import { camelize } from "../../util/string.js";
 import { addDocumentation } from "./add-documentation.js";
+import { repairConstraint } from "./repairs/aspect-repairs.js";
 import { DeviceReference, SpecReference } from "./spec-types.js";
 import { Alias, Constant, Optional, translateRecordsToMatter, translateTable } from "./translate-table.js";
 import {
@@ -272,6 +273,8 @@ function addClusters(device: DeviceTypeElement, deviceRef: DeviceReference) {
     });
 
     for (const record of elementRecords) {
+        repairConstraint(record);
+
         const clusters = clusterIndex.get(record.cluster.toLowerCase());
         if (!clusters) {
             logger.error(`No cluster ${record.cluster} for ${record.element} requirement ${record.name}`);
@@ -456,6 +459,8 @@ function addComposing(device: DeviceTypeElement, deviceRef: DeviceReference) {
     const elementNotes = composingElements?.tables?.[0]?.notes ?? [];
     for (let i = 0; i < composingElementRecords.length; i++) {
         const record = composingElementRecords[i];
+        repairConstraint(record);
+
         const instance = rowInstance(i, elementNotes);
         const composingType = getOrCreateComposingType(record.deviceid, instance);
         if (!composingType) {
