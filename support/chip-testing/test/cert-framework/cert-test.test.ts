@@ -958,6 +958,8 @@ describe("CertTest", () => {
                 subscribe: unused,
                 readEvents: unused,
                 subscribeEvents: unused,
+                clientEndpoints: unused,
+                clientAttribute: unused,
                 openCommissioningWindow: unused,
                 operationalMdnsInstanceName: unused,
                 decommission: async () => void decommissioned.push(role),

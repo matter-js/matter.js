@@ -17,6 +17,7 @@ import {
     resetControllerAdapterFactoryForTesting,
 } from "@matter/testing";
 import type { AttributePathSpec, CertNodeApi, ControllerAdapter, EventReadEntry } from "@matter/testing";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { expect } from "chai";
 import { env } from "node:process";
 import { AllClustersTestInstance } from "../../src/AllClustersTestInstance.js";
@@ -135,6 +136,44 @@ describe("InProcessControllerAdapter", () => {
         });
 
         await adapter.node(ref).decommission();
+    });
+
+    // Held state is read through the behavior the endpoint actually carries, not through a concrete
+    // type or the certification model, because a discovered peer's behaviors are generated from what
+    // the peer reports
+    it("reports the endpoints and attribute values the controller holds for a commissioned peer", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({
+            passcode: 20202021,
+            discriminator: 3840,
+        });
+
+        try {
+            const node = adapter.node(ref);
+            const endpoints = await node.clientEndpoints();
+
+            const root = endpoints.find(entry => entry.endpoint === 0);
+            expect(root, "the controller holds the peer's root endpoint").not.undefined;
+            expect(root!.deviceTypes, "the root's device types come from what it reported").not.empty;
+            expect(root!.parts, "the root names the endpoints below it").not.empty;
+
+            // Every endpoint the root names is held, with its own device types
+            for (const number of root!.parts) {
+                const part = endpoints.find(entry => entry.endpoint === number);
+                expect(part, `the controller holds endpoint ${number}`).not.undefined;
+                expect(part!.deviceTypes, `endpoint ${number} reported its device types`).not.empty;
+            }
+
+            const vendorName = await node.clientAttribute({
+                endpoint: 0,
+                cluster: BasicInformation.Cluster.id,
+                attribute: BasicInformation.Cluster.attributes.vendorName.id,
+            });
+            expect(vendorName, "an attribute the controller holds reads its value").a("string");
+        } finally {
+            await adapter.node(ref).decommission();
+        }
     });
 
     it("commissions from the device's own QR onboarding payload", async function () {

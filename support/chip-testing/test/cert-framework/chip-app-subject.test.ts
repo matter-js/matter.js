@@ -5,7 +5,13 @@
  */
 
 import type { CertDevice, CompositionHandle, Container, DockerHandle, Subject } from "@matter/testing";
-import { ChipDockerDevice, ChipDockerSubject, ChipLocalSubject, HARNESS_DBUS_CONTAINER } from "@matter/testing";
+import {
+    ChipDockerDevice,
+    ChipDockerSubject,
+    ChipLocalSubject,
+    HARNESS_DBUS_CONTAINER,
+    StdinPacer,
+} from "@matter/testing";
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -152,6 +158,50 @@ async function nextStore(
         }
     }
 }
+
+/**
+ * A lower bound on the pause between two command characters, well under the pause the subject
+ * actually leaves: the claim is that the two do not travel together, not what the exact gap is.
+ */
+const MIN_STDIN_GAP_MS = 150;
+
+describe("StdinPacer", () => {
+    it("leaves a pause between two commands and applies them in order", async function () {
+        this.timeout(5_000);
+
+        const pacer = new StdinPacer();
+        const writes = new Array<{ char: string; at: number }>();
+        const record = (char: string) => async () => {
+            writes.push({ char, at: performance.now() });
+        };
+
+        // Together rather than one after the other: awaiting the first hides its own trailing pause,
+        // and two callers at once is also what the queue has to serialize
+        await Promise.all([pacer.send(record("a")), pacer.send(record("b"))]);
+
+        expect(writes.map(write => write.char)).deep.equal(["a", "b"]);
+        expect(writes[1].at - writes[0].at).greaterThan(MIN_STDIN_GAP_MS);
+    });
+
+    it("keeps taking commands after one fails", async function () {
+        this.timeout(5_000);
+
+        const pacer = new StdinPacer();
+        const written = new Array<string>();
+
+        await expect(
+            pacer.send(async () => {
+                throw new Error("the app went away");
+            }),
+        ).rejectedWith("the app went away");
+
+        await pacer.send(async () => {
+            written.push("after");
+        });
+
+        expect(written).deep.equal(["after"]);
+    });
+});
 
 describe("ChipLocalSubject", () => {
     const app = "test";
@@ -450,6 +500,84 @@ describe("ChipLocalSubject", () => {
             expect(await collectLines(lines, 1, 5_000)).deep.equal([
                 'pipe {"Name":"SimulateSwitchIdle","EndpointId":3}',
             ]);
+        } finally {
+            await device.stop();
+            await device.close();
+        }
+    });
+
+    it("hands a simulation command to the app through its standard input", async function () {
+        this.timeout(15_000);
+
+        // Stands in for chip's bridge-app, which polls its standard input one character at a time
+        // (`dd` reads exactly one byte, which `read` cannot do)
+        await writeFile(
+            join(appDir, "chip-bridge-app"),
+            [
+                "#!/bin/sh",
+                "echo ready",
+                "while true; do",
+                "    char=$(dd bs=1 count=1 2>/dev/null)",
+                '    if [ -z "$char" ]; then exit 0; fi',
+                '    echo "stdin $char"',
+                "done",
+                "",
+            ].join("\n"),
+            { mode: 0o755 },
+        );
+
+        const device = ChipLocalSubject("bridge")("cert");
+        if (!isCertDevice(device)) {
+            throw new Error("Expected a CertDevice");
+        }
+
+        await device.initialize();
+        await device.start();
+
+        try {
+            const lines = device.log.follow();
+            expect(await collectLines(lines, 1, 5_000)).deep.equal(["ready"]);
+
+            await device.backchannel({ name: "addBridgedLight" });
+            await device.backchannel({ name: "warmBridgedTemperatureSensors" });
+
+            expect(await collectLines(lines, 2, 5_000)).deep.equal(["stdin 2", "stdin t"]);
+        } finally {
+            await device.stop();
+            await device.close();
+        }
+    });
+
+    it("refuses a standard-input command while the app is not running", async function () {
+        this.timeout(15_000);
+
+        const device = ChipLocalSubject("bridge")("cert");
+        if (!isCertDevice(device)) {
+            throw new Error("Expected a CertDevice");
+        }
+
+        await device.initialize();
+
+        try {
+            await expect(device.backchannel({ name: "addBridgedLight" })).rejectedWith("not running");
+        } finally {
+            await device.close();
+        }
+    });
+
+    it("refuses a bridge command for an app that does not read one, rather than writing a character it ignores", async function () {
+        this.timeout(15_000);
+
+        const device = ChipLocalSubject(app)("cert");
+        if (!isCertDevice(device)) {
+            throw new Error("Expected a CertDevice");
+        }
+
+        await device.initialize();
+        await device.start();
+
+        try {
+            await expect(device.backchannel({ name: "addBridgedLight" })).rejectedWith("addBridgedLight");
         } finally {
             await device.stop();
             await device.close();
@@ -767,6 +895,123 @@ describe("ChipDockerSubject", () => {
             expect(execs[1][execs[1].length - 1]).equal(
                 '{"Name":"SimulateLatchPosition","EndpointId":1,"PositionId":1}',
             );
+        } finally {
+            await device.close();
+        }
+    });
+
+    it("writes a bridge command to the container's attached standard input, kept open past a detach", async function () {
+        this.timeout(5_000);
+
+        const written = new Array<string>();
+        const writtenAt = new Array<number>();
+        let attachedStdin: boolean | undefined;
+        let ended!: () => void;
+        const container = fakeContainer({
+            kill: async () => ended(),
+            wait: () =>
+                new Promise<void>(resolve => {
+                    ended = resolve;
+                }),
+            attach: (async (_terminal: unknown, stdin?: boolean) => {
+                attachedStdin = stdin;
+                return {
+                    async write(content: string) {
+                        written.push(content);
+                        writtenAt.push(performance.now());
+                    },
+                    async close() {},
+                    async consume() {
+                        return "";
+                    },
+                    [Symbol.asyncIterator]() {
+                        return {
+                            async next() {
+                                return { done: true as const, value: undefined };
+                            },
+                        };
+                    },
+                };
+            }) as Container["attach"],
+        });
+
+        let stdinOnce: boolean | undefined;
+        const composition: CompositionHandle = {
+            async add(config) {
+                stdinOnce = config.stdinOnce;
+                return container;
+            },
+            async close() {},
+        };
+
+        const docker: DockerHandle = {
+            async ensureVolume() {},
+            compose() {
+                return composition;
+            },
+            async containerStatus() {
+                return { isRunning: true };
+            },
+        };
+
+        const device = new ChipDockerDevice("bridge", "cert", undefined, docker);
+
+        await device.start();
+        try {
+            expect(attachedStdin).equal(true);
+
+            // An app written to for as long as it runs must not lose its input to the first detach
+            expect(stdinOnce).equal(false);
+
+            await device.backchannel({ name: "renameBridgedLights" });
+            await device.backchannel({ name: "removeBridgedLight" });
+
+            expect(written).deep.equal(["b", "4"]);
+
+            // The app reads one character per poll of its standard input and drops the rest of a
+            // batch, so two commands must not travel together
+            expect(writtenAt[1] - writtenAt[0]).greaterThan(MIN_STDIN_GAP_MS);
+        } finally {
+            await device.close();
+        }
+    });
+
+    it("leaves an app that reads no standard-input command with Docker's own input lifetime", async function () {
+        this.timeout(5_000);
+
+        let ended!: () => void;
+        const container = fakeContainer({
+            kill: async () => ended(),
+            wait: () =>
+                new Promise<void>(resolve => {
+                    ended = resolve;
+                }),
+        });
+
+        let stdinOnce: boolean | undefined;
+        const composition: CompositionHandle = {
+            async add(config) {
+                stdinOnce = config.stdinOnce;
+                return container;
+            },
+            async close() {},
+        };
+
+        const docker: DockerHandle = {
+            async ensureVolume() {},
+            compose() {
+                return composition;
+            },
+            async containerStatus() {
+                return { isRunning: true };
+            },
+        };
+
+        const device = new ChipDockerDevice("all-clusters", "cert", undefined, docker);
+
+        await device.start();
+        try {
+            expect(stdinOnce).equal(true);
         } finally {
             await device.close();
         }
