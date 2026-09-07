@@ -70,4 +70,94 @@ export namespace LockSchedule {
         @field(uint8)
         operatingMode!: DoorLock.OperatingMode;
     }
+
+    const DAYS_OF_WEEK: readonly (keyof DoorLock.DaysMask)[] = [
+        "sunday",
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+    ];
+
+    /**
+     * The current instant expressed the way WeekDay/YearDay schedules expect: YearDay's LocalStartTime/LocalEndTime
+     * are Epoch Time in Seconds "with local time offset" (i.e. the local wall-clock reading, encoded as if it were
+     * UTC), and WeekDay's Start/EndHour+Minute are plain local wall-clock time.
+     */
+    export interface LocalInstant {
+        epochS: number;
+        minuteOfDay: number;
+        dayOfWeek: keyof DoorLock.DaysMask;
+    }
+
+    export function localInstant(date: Date): LocalInstant {
+        return {
+            epochS: Math.floor(
+                Date.UTC(
+                    date.getFullYear(),
+                    date.getMonth(),
+                    date.getDate(),
+                    date.getHours(),
+                    date.getMinutes(),
+                    date.getSeconds(),
+                ) / 1000,
+            ),
+            minuteOfDay: date.getHours() * 60 + date.getMinutes(),
+            dayOfWeek: DAYS_OF_WEEK[date.getDay()],
+        };
+    }
+
+    function matchesWeekDay(schedule: WeekDay, now: LocalInstant): boolean {
+        if (!schedule.daysMask[now.dayOfWeek]) {
+            return false;
+        }
+        const start = schedule.startHour * 60 + schedule.startMinute;
+        const end = schedule.endHour * 60 + schedule.endMinute;
+        return now.minuteOfDay >= start && now.minuteOfDay <= end;
+    }
+
+    function matchesYearDay(schedule: YearDay, now: LocalInstant): boolean {
+        return now.epochS >= schedule.localStartTime && now.epochS <= schedule.localEndTime;
+    }
+
+    /**
+     * Evaluate per-user schedule access per Matter spec § 5.2.6.18.2 (YearDayScheduleUser), § 5.2.6.18.3
+     * (WeekDayScheduleUser) and § 5.2.6.18.9 (ScheduleRestrictedUser). User types that are not schedule-restricted
+     * are always granted here.
+     */
+    export function isAccessGranted(
+        userType: DoorLock.UserType,
+        userIndex: number,
+        weekDaySchedules: readonly WeekDay[],
+        yearDaySchedules: readonly YearDay[],
+        now: LocalInstant,
+    ): boolean {
+        const weekly = weekDaySchedules.filter(s => s.userIndex === userIndex);
+        const yearly = yearDaySchedules.filter(s => s.userIndex === userIndex);
+
+        switch (userType) {
+            case DoorLock.UserType.WeekDayScheduleUser:
+                return weekly.length > 0 && weekly.some(s => matchesWeekDay(s, now));
+
+            case DoorLock.UserType.YearDayScheduleUser:
+                return yearly.length > 0 && yearly.some(s => matchesYearDay(s, now));
+
+            case DoorLock.UserType.ScheduleRestrictedUser:
+                if (weekly.length === 0 && yearly.length === 0) {
+                    return false;
+                }
+                if (yearly.length === 0) {
+                    return weekly.some(s => matchesWeekDay(s, now));
+                }
+                if (weekly.length === 0) {
+                    return yearly.some(s => matchesYearDay(s, now));
+                }
+                return weekly.some(s => matchesWeekDay(s, now)) && yearly.some(s => matchesYearDay(s, now));
+
+            default:
+                return true;
+        }
+    }
 }

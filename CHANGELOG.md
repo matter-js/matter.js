@@ -46,6 +46,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A `ConformanceError` names the conformance the decision was made on rather than the element's own
     - Fix: A mandatory command a cluster leaves unimplemented is no longer dispatched; an invoke answers `UNSUPPORTED_COMMAND`, matching what the cluster advertises in `AcceptedCommandList`
     - Fix: A discovered peer cluster records the `ClusterRevision` the peer reports rather than the standard cluster's, and peers differing only in revision no longer share a behavior
+    - Fix: `DoorLockServer` denies access for a `WeekDayScheduleUser`, `YearDayScheduleUser` or `ScheduleRestrictedUser` when the relevant schedule isn't configured or the current time falls outside it, instead of granting access unconditionally
+    - Fix: `DoorLockServer` now honors `ExpiringUserTimeout`: an `ExpiringUser`'s access is auto-disabled `ExpiringUserTimeout` minutes after their first successful use; the deadline is persisted so it survives a restart
 
 - @matter/types
     - Fix: A `status` field in a cluster that defines its own status codes is now `Status | <Cluster>.StatusCode`, so producing a cluster-specific code needs no cast and consuming one needs narrowing. This affects `DoorLock.SetCredentialResponse` and the DoorLock schedule responses
