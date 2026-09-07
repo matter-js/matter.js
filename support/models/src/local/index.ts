@@ -34,6 +34,7 @@ import "./ipadr.js";
 import "./ipv4adr.js";
 import "./ipv6adr.js";
 import "./ipv6pre.js";
+import "./JointFabricDatastoreOverrides.js";
 import "./LevelControlOverrides.js";
 import "./LocalizationConfigurationOverrides.js";
 import "./ModeBaseOverrides.js";

@@ -6,9 +6,24 @@
 
 import { DoorLockServer } from "#behaviors/door-lock";
 import { DoorLockDevice } from "#devices/door-lock";
-import { FabricIndex, Status } from "@matter/types";
+import { ClusterId, CommandId, EndpointNumber, FabricIndex, Status, TlvOfModel } from "@matter/types";
 import { DoorLock } from "@matter/types/clusters/door-lock";
 import { MockServerNode } from "../../node/mock-server-node.js";
+import { interaction } from "../../node/node-helpers.js";
+
+const SetCredential = DoorLock.schema.commands.require("SetCredential");
+const TlvSetCredentialRequest = TlvOfModel(SetCredential);
+const TlvSetCredentialResponse = TlvOfModel(DoorLock.schema.commands.require("SetCredentialResponse"));
+
+/** The status a SetCredentialResponse states, for a payload decoded without its type */
+function statusOf(payload: unknown) {
+    if (typeof payload === "object" && payload !== null && "status" in payload) {
+        const { status } = payload;
+        if (typeof status === "number") {
+            return status;
+        }
+    }
+}
 
 const TestDoorLockDevice = DoorLockDevice.with(DoorLockServer.with("User", "PinCredential"));
 
@@ -50,6 +65,54 @@ function pin(digits: string) {
 }
 
 describe("DoorLockServer", () => {
+    it("refuses SetCredential naming an OperationType its constraint omits", async () => {
+        await using lock = await createLock();
+
+        // The request creates its own user, so it does not depend on a seeded record any particular fabric owns
+        async function setCredentialOverTheWire(operationType: DoorLock.DataOperationType) {
+            let interactionStatus: number | undefined;
+            let payloadStatus: undefined | number;
+
+            await interaction.invoke(
+                lock.node,
+                await lock.node.addFabric(),
+                {
+                    commandPath: {
+                        endpointId: EndpointNumber(1),
+                        clusterId: ClusterId(DoorLock.Complete.id),
+                        commandId: CommandId(SetCredential.id ?? 0),
+                    },
+                    commandFields: TlvSetCredentialRequest.encodeTlv({
+                        operationType,
+                        credential: { credentialType: DoorLock.CredentialType.Pin, credentialIndex: 2 },
+                        credentialData: pin("9876"),
+                        userIndex: null,
+                        userStatus: null,
+                        userType: null,
+                    }),
+                },
+                response => {
+                    interactionStatus = response.status?.status?.status;
+                    const fields = response.command?.commandFields;
+                    if (fields !== undefined) {
+                        payloadStatus = statusOf(TlvSetCredentialResponse.decodeTlv(fields));
+                    }
+                },
+                { timed: true },
+            );
+
+            return { interactionStatus, payloadStatus };
+        }
+
+        const cleared = await setCredentialOverTheWire(DoorLock.DataOperationType.Clear);
+        expect(cleared.interactionStatus).equals(Status.InvalidCommand);
+        expect(cleared.payloadStatus).equals(undefined);
+
+        const added = await setCredentialOverTheWire(DoorLock.DataOperationType.Add);
+        expect(added.interactionStatus).equals(undefined);
+        expect(added.payloadStatus).equals(Status.Success);
+    });
+
     it("reports DUPLICATE when CredentialData duplicates another credential of the same CredentialType", async () => {
         await using lock = await createLock();
 

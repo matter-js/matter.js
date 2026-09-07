@@ -9,6 +9,7 @@ import { BasicToken } from "#parser/Token.js";
 import { TokenStream } from "#parser/TokenStream.js";
 import { camelize, isObject } from "@matter/general";
 import { FieldValue } from "../common/index.js";
+import type { Model } from "../models/Model.js";
 import { Aspect } from "./Aspect.js";
 
 namespace Functions {
@@ -66,6 +67,14 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
                 ) {
                     break;
                 }
+
+                // Neither word is part of the constraint language: the specification writes "any" where a field is
+                // unbounded, and a scrape takes "MS" from the neighbouring fallback column.  Read as names they
+                // would state a bound that resolves to nothing.
+                if (definition.match(/^\s*(any|ms)\s*$/i)) {
+                    break;
+                }
+
                 ast = Parser.parse(this, definition);
                 break;
 
@@ -133,6 +142,24 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
             cpMax: other.cpMax ?? this.cpMax,
             parts: other.parts ?? this.parts,
         });
+    }
+
+    /**
+     * Report any name this constraint states that does not resolve.
+     *
+     * A name that resolves to nothing states no bound: a limit is skipped and admits every value, while a membership
+     * set admits none.  Either way the constraint no longer says what it appears to.  The names come from
+     * {@link Constraint.referencesOf}, which does not include those of {@link Ast.entry}.
+     */
+    validateReferences(errorTarget: Constraint.ErrorTarget, resolver: Constraint.ReferenceResolver) {
+        for (const path of Constraint.referencesOf(this)) {
+            if (resolver(path) === undefined) {
+                errorTarget.error(
+                    "UNRESOLVED_CONSTRAINT_NAME",
+                    `Constraint name reference "${path.join(".")}" does not resolve`,
+                );
+            }
+        }
     }
 
     /**
@@ -322,6 +349,101 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
 
 export namespace Constraint {
     export type NumberOrIdentifier = number | string;
+
+    export type ReferenceResolver = (path: string[]) => Model | undefined;
+    export type ErrorTarget = { error(code: string, message: string): void };
+
+    /**
+     * Every name a constraint states, in definition order.
+     *
+     * A name the constraint qualifies with "." states the path to a member rather than a name of the surrounding
+     * scope, so it arrives as the segments of that path.  A path resolves only if every segment does: a bound naming
+     * a member its type does not define states no bound, just as an unknown element does.
+     *
+     * The entry constraint of a list bounds the entries, so the names it states belong to the type of the entry.  They
+     * are not among these; {@link Ast.entry} states them and resolves in the entry's own scope.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 7.18.3.4
+     */
+    export function referencesOf(constraint: Ast): string[][] {
+        const paths = new Array<string[]>();
+
+        /** The segments of a member access, or undefined for an expression that is not one */
+        function segmentsOf(expression: Expression): string[] | undefined {
+            if (expression === null || typeof expression !== "object" || Array.isArray(expression)) {
+                return;
+            }
+
+            if ("lhs" in expression) {
+                if (expression.type !== ".") {
+                    return;
+                }
+
+                const lhs = segmentsOf(expression.lhs);
+                const rhs = segmentsOf(expression.rhs);
+                if (lhs === undefined || rhs === undefined) {
+                    return;
+                }
+
+                return [...lhs, ...rhs];
+            }
+
+            const name = FieldValue.referenced(expression);
+            return name === undefined ? undefined : [name];
+        }
+
+        function addExpression(expression: Expression | undefined) {
+            if (expression === null || typeof expression !== "object") {
+                return;
+            }
+
+            if (Array.isArray(expression)) {
+                for (const member of expression) {
+                    addExpression(member);
+                }
+                return;
+            }
+
+            if ("args" in expression) {
+                for (const arg of expression.args) {
+                    addExpression(arg);
+                }
+                return;
+            }
+
+            if ("lhs" in expression) {
+                const segments = segmentsOf(expression);
+                if (segments !== undefined) {
+                    paths.push(segments);
+                    return;
+                }
+
+                addExpression(expression.lhs);
+                addExpression(expression.rhs);
+                return;
+            }
+
+            const name = FieldValue.referenced(expression);
+            if (name !== undefined) {
+                paths.push([name]);
+            }
+        }
+
+        function addAst(ast: Ast) {
+            addExpression(ast.value);
+            addExpression(ast.min);
+            addExpression(ast.max);
+            addExpression(ast.in);
+
+            for (const part of ast.parts ?? []) {
+                addAst(part);
+            }
+        }
+
+        addAst(constraint);
+
+        return paths;
+    }
 
     export const KEYWORDS = ["in", "min", "max", "to", "all", "none", "desc", "true", "false"] as const;
 

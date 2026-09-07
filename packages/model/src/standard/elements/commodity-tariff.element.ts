@@ -234,7 +234,7 @@ export const CommodityTariff = Cluster(
     Datatype(
         { name: "DayStruct", type: "struct" },
         Field({ name: "Date", id: 0x0, type: "epoch-s", conformance: "M" }),
-        Field({ name: "DayType", id: 0x1, type: "DayTypeEnum", conformance: "M", constraint: "any" }),
+        Field({ name: "DayType", id: 0x1, type: "DayTypeEnum", conformance: "M" }),
         Field(
             { name: "DayEntryIDs", id: 0x2, type: "list", conformance: "M", constraint: "1 to 96" },
             Field({ name: "entry", type: "uint32" })
