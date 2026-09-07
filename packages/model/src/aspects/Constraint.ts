@@ -68,13 +68,6 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
                     break;
                 }
 
-                // Neither word is part of the constraint language: the specification writes "any" where a field is
-                // unbounded, and a scrape takes "MS" from the neighbouring fallback column.  Read as names they
-                // would state a bound that resolves to nothing.
-                if (definition.match(/^\s*(any|ms)\s*$/i)) {
-                    break;
-                }
-
                 ast = Parser.parse(this, definition);
                 break;
 

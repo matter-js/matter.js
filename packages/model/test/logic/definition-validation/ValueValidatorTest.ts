@@ -262,6 +262,24 @@ describe("ValueValidator", () => {
             expect(errors[0].message).equals('Constraint name reference "nonexistent" does not resolve');
         });
 
+        it("reports a bound reading a word the constraint language does not define", () => {
+            const errors = validateConstraintReferences([
+                Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "any" }),
+            ]);
+
+            expect(errors).length(1);
+            expect(errors[0].message).equals('Constraint name reference "any" does not resolve');
+        });
+
+        it("accepts a bound naming a value spelled like one", () => {
+            expect(
+                validateConstraintReferences([
+                    new DatatypeModel({ name: "ParameterEnum", type: "enum8" }, FieldElement({ name: "Any", id: 0 })),
+                    Attribute({ name: "Bounded", id: 2, type: "ParameterEnum", constraint: "any" }),
+                ]),
+            ).length(0);
+        });
+
         it("reports each name a compound bound states", () => {
             expect(
                 validateConstraintReferences([

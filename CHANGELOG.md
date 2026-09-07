@@ -26,6 +26,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/model
     - Enhancement: `DeviceTypeModel.effectiveComposition` states whether a device type composes its endpoint's `PartsList` of every descendant or of its own children
+    - Fix: The constraint parser no longer reads `any` or `MS` as stating no bound. Both are artifacts of the specification's tables and are now removed while scraping, so a hand-written cluster definition may state a bound naming a value spelled `Any` or `MS`, and one that states neither name reports `UNRESOLVED_CONSTRAINT_NAME`
 
 - @matter/node
     - Fix: `Endpoint.behaviors.has()` answers `false` rather than `undefined` for a behavior the endpoint does not support at all

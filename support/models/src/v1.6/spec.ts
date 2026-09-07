@@ -5510,8 +5510,8 @@ export const SpecMatter = Matter(
         }),
 
         Attribute({
-            name: "Uncertainty", id: 0x7, type: "single", access: "R V", conformance: "[MEA]", constraint: "ms",
-            quality: "F", xref: "cluster§2.10.6.8",
+            name: "Uncertainty", id: 0x7, type: "single", access: "R V", conformance: "[MEA]", quality: "F",
+            xref: "cluster§2.10.6.8",
             details: "Indicates the range of error or deviation that can be found in MeasuredValue and PeakMeasuredValue. " +
                 "This is considered a +/- value and should be considered to be in MeasurementUnit."
         }),
@@ -17530,8 +17530,7 @@ export const SpecMatter = Matter(
                 details: "This field shall indicate the status of the command which resulted in this response."
             }),
             Field({
-                name: "Data", id: 0x1, type: "string", conformance: "O", constraint: "any",
-                xref: "cluster§6.6.7.2.2",
+                name: "Data", id: 0x1, type: "string", conformance: "O", xref: "cluster§6.6.7.2.2",
                 details: "This field shall indicate Optional app-specific data."
             })
         ),
@@ -18297,14 +18296,14 @@ export const SpecMatter = Matter(
 
             Field({
                 name: "BrandingInformation", id: 0x2, type: "BrandingInformationStruct", conformance: "O",
-                constraint: "any", xref: "cluster§6.7.7.2.3",
+                xref: "cluster§6.7.7.2.3",
                 details: "This field, if present, shall indicate the branding information that may be displayed when playing " +
                     "back the given content."
             }),
 
             Field({
                 name: "PlaybackPreferences", id: 0x3, type: "PlaybackPreferencesStruct", conformance: "O",
-                constraint: "any", xref: "cluster§6.7.7.2.4",
+                xref: "cluster§6.7.7.2.4",
 
                 details: "This field, if present, shall indicate the user's preferred Text/AudioTracks and playbackPosition " +
                     "for the media, sent from the client to the server. If the server does not find an available track " +
@@ -19436,8 +19435,7 @@ export const SpecMatter = Matter(
                 details: "This field shall indicate the status of the command which resulted in this response."
             }),
             Field({
-                name: "Data", id: 0x1, type: "string", conformance: "O", constraint: "any",
-                xref: "cluster§6.10.7.12.2",
+                name: "Data", id: 0x1, type: "string", conformance: "O", xref: "cluster§6.10.7.12.2",
                 details: "This field shall indicate Optional app-specific data."
             })
         ),
@@ -19796,8 +19794,7 @@ export const SpecMatter = Matter(
                 details: "This field shall indicate the of the command."
             }),
             Field({
-                name: "Data", id: 0x1, type: "string", conformance: "O", constraint: "any",
-                xref: "cluster§6.11.6.2.2",
+                name: "Data", id: 0x1, type: "string", conformance: "O", xref: "cluster§6.11.6.2.2",
                 details: "This field shall indicate Optional app-specific data."
             })
         ),
@@ -25897,8 +25894,7 @@ export const SpecMatter = Matter(
                 details: "This field shall indicate the date the associated set of DayEntryStructs applies to."
             }),
             Field({
-                name: "DayType", id: 0x1, type: "DayTypeEnum", conformance: "M", constraint: "any",
-                xref: "cluster§9.12.5.11.2",
+                name: "DayType", id: 0x1, type: "DayTypeEnum", conformance: "M", xref: "cluster§9.12.5.11.2",
                 details: "This field shall indicate the type of day represented by the struct."
             }),
 
