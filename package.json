@@ -101,7 +101,7 @@
     },
     "dependencies": {
         "@nacho-iot/js-tools": "^0.2.0",
-        "memlab": "^2.0.4"
+        "memlab": "^2.0.5"
     },
     "allowScripts": {
         "bufferutil@4.1.0": true,
