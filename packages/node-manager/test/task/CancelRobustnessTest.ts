@@ -13,7 +13,7 @@ import {
     TaskSlotSettlingError,
 } from "#task/errors.js";
 import { RunRecord } from "#task/Task.js";
-import { TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
+import { TaskCancellation, TaskCancelOutcome, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { Teardown, TaskPhase, TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
 import { CrashedDependencyError, Environment, InternalError, Lifecycle, MaybePromise } from "@matter/general";
@@ -21,6 +21,7 @@ import { Behavior, ClientNode, ItemKind, itemMapKey } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
 import {
     cancelSlot,
+    cancelSlotOutcome,
     FakePeer,
     liveRecord,
     onPersisted,
@@ -225,7 +226,7 @@ describe("cancel robustness", () => {
         });
         await pumpUntil("admission in flight", () => state.entered);
 
-        const cancelling = node.act(a => cancelSlot(a.get(TestTaskManager), "synthetic:pregate"));
+        const cancelling = node.act(a => cancelSlotOutcome(a.get(TestTaskManager), "synthetic:pregate"));
         await pumpUntil("cancel accepted", () =>
             node.act(
                 a =>
@@ -237,9 +238,10 @@ describe("cancel robustness", () => {
 
         const handle = await MockTime.resolve(cancelling);
 
-        // Nothing was written to the peer after the cancel was accepted, so there is nothing to revert.
+        // Nothing was written to the peer after the cancel was accepted, so there is nothing to revert — and
+        // the caller is told the device is untouched, not merely that no undo exists.
         expect(peer.items[itemMapKey("groupMembership", "X")]).equals(undefined);
-        expect(handle).equals(undefined);
+        expect(handle.outcome).equals(TaskCancelOutcome.NothingToUndo);
 
         const status = await node.act(a => statusOfSlot(a.get(TestTaskManager), "synthetic:pregate"));
         expect(status?.state).equals("cancelled");
@@ -264,10 +266,10 @@ describe("cancel robustness", () => {
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-ctxrace" });
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
-        let cancelling: Promise<TaskHandle | undefined> | undefined;
+        let cancelling: Promise<TaskCancellation> | undefined;
         TestTaskManager.atContext = manager => {
             TestTaskManager.atContext = undefined;
-            cancelling = cancelSlot(manager, "synthetic:ctxrace");
+            cancelling = cancelSlotOutcome(manager, "synthetic:ctxrace");
         };
         try {
             await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "ctxrace" }));
@@ -276,10 +278,10 @@ describe("cancel robustness", () => {
             TestTaskManager.atContext = undefined;
         }
 
-        const handle = await MockTime.resolve(cancelling);
+        const handle = await MockTime.resolve(cancelling!);
 
         expect(peer.items[itemMapKey("groupMembership", "Z")]).equals(undefined);
-        expect(handle).equals(undefined);
+        expect(handle.outcome).equals(TaskCancelOutcome.NothingToUndo);
         const status = await node.act(a => statusOfSlot(a.get(TestTaskManager), "synthetic:ctxrace"));
         expect(status?.state).equals("cancelled");
 
@@ -771,7 +773,15 @@ describe("cancel robustness", () => {
         // Storage refuses from here on, with the node still running: not shutdown, just a failed write.
         await node.act(a => a.get(TestTaskManager).closePersistMutex());
 
-        await expect((async () => node.act(a => a.get(TestTaskManager).cancel(handle.runId)))()).rejected;
+        await expect(
+            (async () =>
+                node.act(a =>
+                    a
+                        .get(TestTaskManager)
+                        .cancel(handle.runId)
+                        .then(c => c.rollback),
+                ))(),
+        ).rejected;
 
         // A cancel that was never recorded must leave the task exactly as it was — including its driver. The
         // abort stopped the driver and dropped the gate, so without giving both back the task would sit
@@ -863,7 +873,10 @@ describe("cancel robustness", () => {
         const cancelling = MockTime.resolve(
             node.act(async a => {
                 try {
-                    return await a.get(TestTaskManager).cancel(handle.runId);
+                    return await a
+                        .get(TestTaskManager)
+                        .cancel(handle.runId)
+                        .then(c => c.rollback);
                 } catch (e) {
                     return e;
                 }
@@ -917,7 +930,7 @@ describe("cancel robustness", () => {
         // The node crashes, so the write fails inside the state transaction — after the point where the record
         // for a retired run is re-read. A closed mutex fails earlier and would not exercise this at all.
         node.construction.setStatus(Lifecycle.Status.Crashed);
-        await expect(MockTime.resolve(manager.cancel(handle.runId))).rejected;
+        await expect(MockTime.resolve(manager.cancel(handle.runId).then(c => c.rollback))).rejected;
 
         // The rollback was staged and then discarded, so the run must not go on naming it: a record pointing
         // at a rollback nothing created could never be rolled back again.

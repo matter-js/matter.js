@@ -17,10 +17,15 @@ import type { ClientNode, ItemMode, ManagedItem } from "@matter/node";
 export type RunId = Branded<number, "RunId">;
 
 export function RunId(value: number): RunId {
-    if (!Number.isSafeInteger(value) || value < 1) {
+    if (!isRunId(value)) {
         throw new ImplementationError(`Invalid run id ${value}`);
     }
-    return value as RunId;
+    return value;
+}
+
+/** Whether a value read from storage can be a {@link RunId}. The one place the rule is stated. */
+export function isRunId(value: unknown): value is RunId {
+    return typeof value === "number" && Number.isSafeInteger(value) && value >= 1;
 }
 
 /**

@@ -62,6 +62,29 @@ export interface TaskHandle {
     readonly status: TaskStatus;
 }
 
+/** What a cancel did to the device. */
+export enum TaskCancelOutcome {
+    /** An undo is running. */
+    RollingBack = "rollingBack",
+    /** The run had changed nothing, so there was nothing to undo. */
+    NothingToUndo = "nothingToUndo",
+    /**
+     * The run changed the device and those changes stand: it passed the point beyond which its type declines
+     * to be reverted, which it can do while the cancel is being accepted.
+     */
+    Irreversible = "irreversible",
+}
+
+/**
+ * What {@link TaskManagerBehavior.cancel} did.
+ *
+ * An outcome rather than an optional handle, because "no undo is running" has two meanings a caller must act on
+ * differently: the device is as it was, or the device is changed and will stay that way.
+ */
+export type TaskCancellation =
+    | { outcome: TaskCancelOutcome.RollingBack; rollback: TaskHandle }
+    | { outcome: TaskCancelOutcome.NothingToUndo | TaskCancelOutcome.Irreversible; rollback?: undefined };
+
 /**
  * A task's rollback with the two operations that keep it consistent with its record: {@link discard} forgets a
  * rollback whose record was refused, {@link start} begins driving one whose record is durable.
@@ -604,8 +627,12 @@ export class TaskManagerBehavior extends Behavior {
      * overwrite whatever has legitimately happened since — reversing a finished change is a new task the caller
      * starts. A run whose rollback already exists is answered with that rollback, whatever its state.
      *
-     * A handle is the rollback. `undefined` means there is nothing to roll back — the run wrote nothing, or it
-     * was already cancelled with nothing to undo. {@link TaskNotFoundError} is an identity no run answers to.
+     * Answers what happened to the device, not merely whether an undo exists. {@link TaskCancelOutcome.RollingBack}
+     * carries the rollback; {@link TaskCancelOutcome.NothingToUndo} means the device is as it was; and
+     * {@link TaskCancelOutcome.Irreversible} means the run changed the device and those changes stand, because
+     * it passed the point beyond which its type declines to be reverted — which it can do *while the cancel is
+     * being accepted*, since the entry check and the decision after the unwind read different phase indexes.
+     * {@link TaskNotFoundError} is an identity no run answers to.
      *
      * A rollback is not cancelled: {@link TaskCannotCancelRollbackError} points at {@link abandon}, which
      * records that the undo was given up on rather than that nothing needed it.
@@ -613,7 +640,7 @@ export class TaskManagerBehavior extends Behavior {
      * Throws {@link TaskManagerClosingError} if shutdown intervenes before the cancel can be recorded; the task
      * then keeps its non-terminal state and the cancel must be re-issued after the next start.
      */
-    async cancel(runId: RunId): Promise<TaskHandle | undefined> {
+    async cancel(runId: RunId): Promise<TaskCancellation> {
         for (let pending = this.#pendingTransition(runId); pending !== undefined;) {
             await pending;
             pending = this.#pendingTransition(runId);
@@ -639,10 +666,12 @@ export class TaskManagerBehavior extends Behavior {
         const existing = this.internal.runs.rollbackFor(runId);
         if (existing !== undefined) {
             this.#refuseIfProvisional(existing, `Cannot answer for the rollback of ${runLabel(runId)}`);
-            return this.#handle(existing);
+            return { outcome: TaskCancelOutcome.RollingBack, rollback: this.#handle(existing) };
         }
         if (record.state === "cancelled") {
-            return undefined;
+            // Already cancelled and holding no rollback: whatever it had written was either nothing or beyond
+            // undoing, and its priors are gone either way, so `wrote` is the only surviving witness.
+            return { outcome: this.#cancelledOutcome(record) };
         }
         // A finished run is not stopped, and its changes are not rewound: restoring the values it found would
         // overwrite whatever has legitimately happened since, so reversing a successful change is a new action
@@ -672,7 +701,7 @@ export class TaskManagerBehavior extends Behavior {
     }
 
     /** The part of a cancel that decides and writes, with this run's outcome already claimed. */
-    async #recordCancellation(record: RunRecord, bound: BoundDefinition): Promise<TaskHandle | undefined> {
+    async #recordCancellation(record: RunRecord, bound: BoundDefinition): Promise<TaskCancellation> {
         // The entry check answered about the run as it was before the unwind. Its driver may have reached an
         // outcome of its own inside the transition window — the loop consults the claim only between phases —
         // and a run that finished is not undone, whichever side of the window it finished on. `abandon` asks
@@ -684,7 +713,7 @@ export class TaskManagerBehavior extends Behavior {
             this.internal.runs.commitRetirement(record);
             const rollback = this.internal.runs.rollbackFor(record.runId);
             if (rollback !== undefined) {
-                return this.#handle(rollback);
+                return { outcome: TaskCancelOutcome.RollingBack, rollback: this.#handle(rollback) };
             }
             throw new TaskNotInFlightError(
                 `Cannot cancel ${runLabel(record.runId)}: it finished (${record.state}) while the cancel was being accepted`,
@@ -734,7 +763,19 @@ export class TaskManagerBehavior extends Behavior {
         // raced this one must be told about the rollback the first created, not told there was nothing to roll
         // back — and it may reach here before the write recording the link has landed.
         const rollback = this.internal.runs.rollbackFor(record.runId);
-        return rollback === undefined ? undefined : this.#handle(rollback);
+        return rollback === undefined
+            ? { outcome: this.#cancelledOutcome(record) }
+            : { outcome: TaskCancelOutcome.RollingBack, rollback: this.#handle(rollback) };
+    }
+
+    /**
+     * Why a cancelled run has no undo: it never reached the device, or it reached it and cannot be taken back.
+     *
+     * Reads {@link RunRecord.wrote} rather than the change set, which a retirement has already emptied — the
+     * two facts were split for exactly this reason.
+     */
+    #cancelledOutcome(record: RunRecord): TaskCancelOutcome.NothingToUndo | TaskCancelOutcome.Irreversible {
+        return record.wrote ? TaskCancelOutcome.Irreversible : TaskCancelOutcome.NothingToUndo;
     }
 
     /**
