@@ -5,8 +5,9 @@
  */
 
 import { RunStore } from "#task/RunStore.js";
-import { RunRecord } from "#task/Task.js";
+import { RunRecord, TaskPersistence } from "#task/Task.js";
 import { RetireSeq, RunId } from "#task/types.js";
+import { InternalError } from "@matter/general";
 
 /**
  * The store answers these without a node, a gate or a clock, so a table can be built by hand — the only way
@@ -76,6 +77,55 @@ describe("RunStore", () => {
             const later = retired(2, "synthetic:t", 2, "completed", true);
 
             expect(storeWith(earlier, later).supersederOf(RunId(1))?.runId).equals(RunId(2));
+        });
+    });
+    describe("a corrupt stored table", () => {
+        const KEY_MATERIAL = new Uint8Array([1, 2, 3, 4]);
+
+        function loadWith(runId: unknown) {
+            const store = new RunStore();
+            return () =>
+                store.load({
+                    runs: {
+                        "run:1": {
+                            runId,
+                            slotKey: "synthetic:t",
+                            type: "rotateGroupKey",
+                            state: "running",
+                            changeSet: [],
+                            wrote: false,
+                            // What a group task actually carries: raw key material, and a bigint that cannot be
+                            // serialized at all.
+                            params: { newEpochKey: KEY_MATERIAL, epochStartTime0: 1n },
+                        },
+                    } as unknown as Record<string, TaskPersistence>,
+                });
+        }
+
+        // Zero and negatives pass `Number.isSafeInteger` but no caller can build a `RunId` from them, so the
+        // rule the rest of the code enforces has to be the rule here.
+        for (const runId of [0, -1, 1.5, "1", undefined]) {
+            it(`refuses a record whose identity is ${JSON.stringify(runId) ?? "undefined"}`, () => {
+                expect(loadWith(runId)).throws(InternalError);
+            });
+        }
+
+        it("names the record without serializing it", () => {
+            let message = "";
+            try {
+                loadWith(0)();
+            } catch (e) {
+                message = (e as Error).message;
+            }
+            expect(message).contains("run:1");
+            // A `bigint` in params would make serializing the record throw before the refusal could be built,
+            // and its key material would reach the log if it did not.
+            expect(message).not.contains("epochStartTime0");
+            expect(message).not.contains("newEpochKey");
+        });
+
+        it("accepts the smallest identity a caller can hold", () => {
+            expect(loadWith(1)).not.throws();
         });
     });
 });
