@@ -296,7 +296,7 @@ describe("a peer that reports its bridge across two interactions", () => {
 
         // chip's composed device: a bridged node that is also a power source, and nothing else. Named
         // by the root first, so the endpoint exists carrying the unknown sentinel before its own
-        // Descriptor arrives — the shape that used to keep the sentinel forever.
+        // Descriptor arrives.
         await drain(
             structure.mutate(
                 request,

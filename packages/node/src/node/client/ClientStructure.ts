@@ -106,7 +106,7 @@ export class ClientStructure {
      * undecidable claim waits for the read that settles it rather than being guessed at.
      */
     #partClaims = new Map<EndpointStructure, Set<EndpointStructure>>();
-    #partsListOf = new Map<EndpointStructure, Set<number>>();
+    #partsListOf = new Map<EndpointStructure, Set<EndpointNumber>>();
 
     /**
      * How each endpoint composes its `PartsList`, for the endpoints that have said.
@@ -863,16 +863,20 @@ export class ClientStructure {
             return;
         }
 
-        // Record who named each part. Which of them owns it is decided by #resolvePartClaims, once
-        // every list this interaction carries is in.
-        const named = new Set<number>();
-        for (const partNo of partsList) {
-            if (typeof partNo !== "number") {
+        // Which claimant owns a part is decided by #resolvePartClaims, once every list this
+        // interaction carries is in.
+        const named = new Set<EndpointNumber>();
+        for (const value of partsList) {
+            // The peer's own value, so it is checked rather than trusted; one out of range names no
+            // endpoint this could hold
+            if (typeof value !== "number" || !EndpointNumber.isValid(value)) {
                 continue;
             }
+
+            const partNo = EndpointNumber(value);
             named.add(partNo);
 
-            const part = this.#endpointFor(partNo as EndpointNumber);
+            const part = this.#endpointFor(partNo);
             let claimants = this.#partClaims.get(part);
             if (claimants === undefined) {
                 claimants = new Set();
@@ -1303,7 +1307,7 @@ export class ClientStructure {
      */
     #partsAccountedFor(structure: EndpointStructure) {
         for (const partNo of this.#partsListOf.get(structure) ?? []) {
-            const part = this.#endpoints.get(partNo as EndpointNumber);
+            const part = this.#endpoints.get(partNo);
             if (part === undefined || this.#partsListOf.get(part) === undefined) {
                 return false;
             }
@@ -1318,13 +1322,13 @@ export class ClientStructure {
      * installed later, once the claim became decidable — the peer's current lists are the only
      * statement of what it has.
      */
-    #retractClaimsOf(structure: EndpointStructure, named: Set<number>) {
+    #retractClaimsOf(structure: EndpointStructure, named: Set<EndpointNumber>) {
         for (const partNo of this.#partsListOf.get(structure) ?? []) {
             if (named.has(partNo)) {
                 continue;
             }
 
-            const part = this.#endpoints.get(partNo as EndpointNumber);
+            const part = this.#endpoints.get(partNo);
             if (part === undefined) {
                 continue;
             }

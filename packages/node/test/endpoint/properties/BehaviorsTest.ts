@@ -22,8 +22,7 @@ describe("Behaviors", () => {
         it("answers false for a behavior the endpoint does not support at all", async () => {
             const light = await MockEndpoint.create(OnOffLightDevice);
 
-            // Not merely falsy: the declared return type is boolean, and an endpoint supporting no
-            // behavior of this id at all is the path that used to answer undefined
+            // Not merely falsy: the declared return type is boolean
             expect(light.behaviors.has(WindowCoveringServer)).equals(false);
         });
 
