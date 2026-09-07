@@ -18,9 +18,9 @@ import { NetworkCommissioningServer } from "#behaviors/network-commissioning";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { ServerNode } from "#node/ServerNode.js";
 import { Crypto, MockCrypto, Seconds } from "@matter/general";
+import { MockSite } from "@matter/node/testing";
 import { ControllerCommissioningFlow } from "@matter/protocol";
 import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
-import { MockSite } from "./mock-site.js";
 
 class WifiCommissioningServer extends NetworkCommissioningServer.with("WiFiNetworkInterface") {
     override initialize() {

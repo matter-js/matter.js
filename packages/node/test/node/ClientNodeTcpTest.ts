@@ -6,9 +6,8 @@
 
 import { OnOffClient } from "#behaviors/on-off";
 import { ChannelType, Crypto, MockCrypto, Seconds, ServerAddress } from "@matter/general";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 import { ExchangeManager, Peer, PeerSet } from "@matter/protocol";
-import { MockSite } from "./mock-site.js";
-import { subscribedPeer } from "./node-helpers.js";
 
 /**
  * TCP transport variant tests for ClientNode integration.

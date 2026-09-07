@@ -8,11 +8,10 @@ import { BasicInformationClient } from "#behaviors/basic-information";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
 import { Seconds } from "@matter/general";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 import { PeerMessageMissingError, PeerSet, PeerUnresponsiveError } from "@matter/protocol";
 import { FabricIndex } from "@matter/types";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
-import { MockSite } from "./mock-site.js";
-import { subscribedPeer } from "./node-helpers.js";
 
 /**
  * Replace the exact `removeFabric` the decommission path invokes, on the runtime prototype of the peer's

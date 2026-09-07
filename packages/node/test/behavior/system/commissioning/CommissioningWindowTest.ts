@@ -10,11 +10,9 @@ import {
 } from "#behaviors/administrator-commissioning";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Bytes, ImplementationError } from "@matter/general";
+import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import { QrPairingCodeCodec } from "@matter/types";
 import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
-import { MockServerNode } from "../../../node/mock-server-node.js";
-import { MockSite } from "../../../node/mock-site.js";
-import { subscribedPeer } from "../../../node/node-helpers.js";
 
 /**
  * Replace `openCommissioningWindow` on the runtime prototype of the peer's AdministratorCommissioningClient facade,

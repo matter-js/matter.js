@@ -10,6 +10,7 @@ import { SoilMeasurementServer } from "#behaviors/soil-measurement";
 import { OccupancySensorDevice } from "#devices/occupancy-sensor";
 import { SoilSensorDevice } from "#devices/soil-sensor";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
+import { MockServerNode } from "@matter/node/testing";
 import { AttributeWriteResponse, ConstraintError, Write } from "@matter/protocol";
 import {
     AttributeId,
@@ -21,7 +22,6 @@ import {
     WriteRequest,
 } from "@matter/types";
 import { OccupancySensing } from "@matter/types/clusters/occupancy-sensing";
-import { MockServerNode } from "./mock-server-node.js";
 
 const HOLD_TIME_LIMITS = { holdTimeMin: 10, holdTimeMax: 100, holdTimeDefault: 50 };
 

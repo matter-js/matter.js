@@ -7,9 +7,9 @@
 import { PowerSourceServer } from "#behaviors/power-source";
 import { HumiditySensorDevice } from "#devices/humidity-sensor";
 import { PowerSourceDt } from "@matter/model";
+import { MockServerNode } from "@matter/node/testing";
 import { PowerSource } from "@matter/types/clusters/power-source";
 import { MockEndpoint } from "../../endpoint/mock-endpoint.js";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 describe("PowerSourceServer", () => {
     it("successfully augments descriptor", async () => {

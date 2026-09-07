@@ -8,8 +8,8 @@ import { Behavior } from "#behavior/Behavior.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { deepCopy, Environment, InternalError, Observer } from "@matter/general";
+import { MockServerNode } from "@matter/node/testing";
 import { MockEndpointType } from "../behavior/mock-behavior.js";
-import { MockServerNode } from "../node/mock-server-node.js";
 
 export class MockBehavior1 extends Behavior {
     static override readonly id = "one";

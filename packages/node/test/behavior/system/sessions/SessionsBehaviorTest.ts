@@ -5,8 +5,8 @@
  */
 
 import { Millis, Seconds } from "@matter/general";
+import { MockServerNode } from "@matter/node/testing";
 import { SessionIntervals, SessionManager } from "@matter/protocol";
-import { MockServerNode } from "../../../node/mock-server-node.js";
 
 describe("SessionsBehavior", () => {
     describe("intervals configuration", () => {

@@ -7,9 +7,9 @@
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { MaybePromise } from "@matter/general";
+import { MockExchange } from "@matter/node/testing";
 import { ConformanceError, Val } from "@matter/protocol";
 import { FabricIndex, NodeId } from "@matter/types";
-import { MockExchange } from "../../../../node/mock-exchange.js";
 import { TestStruct, aclEndpoint, listOf, structOf } from "./value-utils.js";
 
 export type ValueList = { value: number }[];

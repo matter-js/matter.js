@@ -6,10 +6,10 @@
 
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { AccessLevel } from "@matter/model";
+import { MockServerNode } from "@matter/node/testing";
 import { Read } from "@matter/protocol";
 import { AttributeId, ClusterId, EndpointNumber, Status } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
-import { MockServerNode } from "./mock-server-node.js";
 import { countAttrs, readAttr, readAttrRaw } from "./read-helpers.js";
 
 const ROOT_ENDPOINT_FULL_CLUSTER_LIST = {

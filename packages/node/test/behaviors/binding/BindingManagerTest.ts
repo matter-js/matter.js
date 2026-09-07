@@ -5,6 +5,7 @@
  */
 
 import { AsyncObservable } from "@matter/general";
+import { MockServerNode } from "@matter/node/testing";
 import { FabricManager, TestFabric } from "@matter/protocol";
 import { ClusterId, EndpointNumber, FabricIndex, GroupId, NodeId } from "@matter/types";
 import { Binding } from "@matter/types/clusters/binding";
@@ -16,7 +17,6 @@ import { OnOffServer } from "../../../src/behaviors/on-off/OnOffServer.js";
 import { OnOffLightSwitchDevice } from "../../../src/devices/on-off-light-switch.js";
 import { ClientGroup } from "../../../src/node/ClientGroup.js";
 import { ClientNode } from "../../../src/node/ClientNode.js";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 interface FakeEvents {
     established: AsyncObservable<[BindingResolution]> & { emitted: BindingResolution[] };

@@ -8,10 +8,9 @@ import { OnOffClient } from "#behaviors/on-off";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointBehaviorNotClusterError, EndpointBehaviorNotPresentError } from "#endpoint/errors.js";
 import { camelize } from "@matter/general";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 import { AttributeId, CommandId } from "@matter/types";
 import { OnOff } from "@matter/types/clusters/on-off";
-import { MockSite } from "../node/mock-site.js";
-import { subscribedPeer } from "../node/node-helpers.js";
 
 describe("Client cluster feature access on a commissioned peer endpoint", () => {
     let site: MockSite;

@@ -11,11 +11,11 @@ import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/index.js";
 import { MatterFlowError } from "@matter/general";
 import { AccessLevel } from "@matter/model";
+import { MockServerNode } from "@matter/node/testing";
 import { CommandInvokeResponse, Invoke, InvokeRequest, InvokeResult } from "@matter/protocol";
 import { ClusterId, CommandId, EndpointNumber, Status, StatusResponseError, TlvUInt8 } from "@matter/types";
 import { Chime } from "@matter/types/clusters/chime";
 import { OnOff } from "@matter/types/clusters/on-off";
-import { MockServerNode } from "./mock-server-node.js";
 
 describe("CommandInvokeResponse", () => {
     it("invoke concrete command", async () => {

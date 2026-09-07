@@ -8,8 +8,8 @@ import { LevelControlServer } from "#behaviors/level-control";
 import { DimmableLightDevice } from "#devices/dimmable-light";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { Time } from "@matter/general";
+import { MockServerNode } from "@matter/node/testing";
 import { LevelControl } from "@matter/types/clusters/level-control";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 describe("LevelControlServer", () => {
     before(MockTime.enable);

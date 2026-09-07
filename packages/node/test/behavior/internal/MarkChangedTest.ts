@@ -11,10 +11,10 @@ import { OnOffServer } from "#behaviors/on-off";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/index.js";
 import { ImplementationError } from "@matter/general";
+import { MockServerNode } from "@matter/node/testing";
 import { Val } from "@matter/protocol";
 import { AttributeId, ClusterId } from "@matter/types";
 import { OnOff } from "@matter/types/clusters/on-off";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 const ON_OFF_ATTRIBUTE = AttributeId(OnOff.attributes.onOff.id);
 

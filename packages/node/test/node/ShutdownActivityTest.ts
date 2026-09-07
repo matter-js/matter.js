@@ -5,7 +5,7 @@
  */
 
 import { NodeActivity } from "#behavior/context/NodeActivity.js";
-import { MockServerNode } from "./mock-server-node.js";
+import { MockServerNode } from "@matter/node/testing";
 
 describe("shutdown activity draining", () => {
     it("shuts down even if node activity never settles", async () => {

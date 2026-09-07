@@ -9,9 +9,9 @@ import { IcdManagementServer } from "#behaviors/icd-management";
 import { ClientNode } from "#node/ClientNode.js";
 import { ServerNode } from "#node/index.js";
 import { Crypto, MockCrypto, Seconds } from "@matter/general";
+import { settled } from "@matter/node/testing";
 import { FabricManager } from "@matter/protocol";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
-import { settled } from "./node-helpers.js";
 
 /** Shared LIT ICD server configuration for the ICD test suites. */
 export const LIT_CONFIG = {

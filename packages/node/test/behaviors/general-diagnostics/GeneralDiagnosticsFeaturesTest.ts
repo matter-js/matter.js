@@ -7,7 +7,7 @@
 import { GeneralDiagnosticsServer } from "#behaviors/general-diagnostics";
 import { ServerNode } from "#node/ServerNode.js";
 import { LogDestination, Logger, LogLevel } from "@matter/general";
-import { MockServerNode } from "../../node/mock-server-node.js";
+import { MockServerNode } from "@matter/node/testing";
 
 async function countAdvisories(maxPathsPerInvoke?: number) {
     const captured = new Array<string>();

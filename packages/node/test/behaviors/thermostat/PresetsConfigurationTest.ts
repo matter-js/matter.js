@@ -8,11 +8,9 @@ import { ThermostatClient } from "#behaviors/thermostat";
 import { ThermostatDevice } from "#devices/thermostat";
 import { Endpoint } from "#endpoint/index.js";
 import { Environment, MockStorageService, StorageService } from "@matter/general";
+import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import { StatusResponse } from "@matter/types";
 import { Thermostat } from "@matter/types/clusters/thermostat";
-import { MockServerNode } from "../../node/mock-server-node.js";
-import { MockSite } from "../../node/mock-site.js";
-import { subscribedPeer } from "../../node/node-helpers.js";
 import {
     newPreset,
     PresetsThermostat,

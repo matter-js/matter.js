@@ -5,10 +5,10 @@
  */
 
 import { Specification } from "@matter/model";
+import { MockServerNode } from "@matter/node/testing";
 import { AttributeSubscriptionResponse, DirtyState, Read } from "@matter/protocol";
 import { AttributeId, ClusterId, EndpointNumber } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
-import { MockServerNode } from "./mock-server-node.js";
 import { countAttrs } from "./read-helpers.js";
 import INTERACTION_MODEL_REVISION = Specification.INTERACTION_MODEL_REVISION;
 

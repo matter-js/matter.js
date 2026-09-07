@@ -5,8 +5,8 @@
  */
 
 import { Seconds } from "@matter/general";
+import { MockSite } from "@matter/node/testing";
 import { NodeId } from "@matter/types";
-import { MockSite } from "../mock-site.js";
 
 describe("Peers#commissioned", () => {
     before(() => {

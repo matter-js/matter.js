@@ -7,6 +7,7 @@
 export * from "./commissioning/index.js";
 export * from "./controller/index.js";
 export * from "./dcl/index.js";
+export * from "./desired-state/index.js";
 export * from "./events/index.js";
 export * from "./http/index.js";
 export * from "./icd/index.js";

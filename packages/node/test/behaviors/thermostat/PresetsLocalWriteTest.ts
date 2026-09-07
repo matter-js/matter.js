@@ -6,9 +6,9 @@
 
 import { Endpoint } from "#endpoint/index.js";
 import { Entropy, Environment, MemoryStorageDriver, StorageManager, StorageService } from "@matter/general";
+import { MockServerNode } from "@matter/node/testing";
 import { StatusResponse } from "@matter/types";
 import { Thermostat } from "@matter/types/clusters/thermostat";
-import { MockServerNode } from "../../node/mock-server-node.js";
 import {
     newPreset,
     PRESETS_ATTRIBUTE,

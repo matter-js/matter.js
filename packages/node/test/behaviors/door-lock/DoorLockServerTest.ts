@@ -6,9 +6,9 @@
 
 import { DoorLockServer } from "#behaviors/door-lock";
 import { DoorLockDevice } from "#devices/door-lock";
+import { MockServerNode } from "@matter/node/testing";
 import { FabricIndex, Status } from "@matter/types";
 import { DoorLock } from "@matter/types/clusters/door-lock";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 const TestDoorLockDevice = DoorLockDevice.with(DoorLockServer.with("User", "PinCredential"));
 

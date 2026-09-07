@@ -7,10 +7,10 @@
 import { OnOffClient, OnOffServer } from "#behaviors/on-off";
 import { ServerNode } from "#node/ServerNode.js";
 import { Minutes } from "@matter/general";
+import { MockSite } from "@matter/node/testing";
 import { ClientInteraction, Invoke, NetworkProfiles } from "@matter/protocol";
 import { EndpointNumber } from "@matter/types";
 import { OnOff } from "@matter/types/clusters/on-off";
-import { MockSite } from "./mock-site.js";
 
 describe("ClientInvoke", () => {
     before(() => {

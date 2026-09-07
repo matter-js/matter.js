@@ -16,6 +16,7 @@ import {
     Seconds,
     StorageService,
 } from "@matter/general";
+import { MockSite } from "@matter/node/testing";
 import {
     AttestationFinding,
     CertificationDeclaration,
@@ -29,7 +30,6 @@ import {
     TestCert_PAA_NoVID_Cert,
     TestCert_PAA_NoVID_SKID,
 } from "@matter/protocol";
-import { MockSite } from "./mock-site.js";
 
 /** Build a minimal DER-encoded CRL with the given revoked serial numbers (hex strings). */
 function buildTestCrl(revokedSerialHexes: string[], issuerDnDer?: Bytes): Uint8Array {

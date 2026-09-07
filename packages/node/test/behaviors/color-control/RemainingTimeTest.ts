@@ -6,8 +6,8 @@
 
 import { ColorControlServer } from "#behaviors/color-control";
 import { ExtendedColorLightDevice } from "#devices/extended-color-light";
+import { MockServerNode } from "@matter/node/testing";
 import { ColorControl } from "@matter/types/clusters/color-control";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 async function advance(steps: number) {
     for (let i = 0; i < steps; i++) {

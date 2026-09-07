@@ -5,9 +5,8 @@
  */
 
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 import { FabricManager } from "@matter/protocol";
-import { MockSite } from "../../../node/mock-site.js";
-import { subscribedPeer } from "../../../node/node-helpers.js";
 
 /** Re-run the once-per-start reconciliation and settle the resulting (fire-and-forget) remote command. */
 async function reconcile(peer: Awaited<ReturnType<typeof subscribedPeer>>, until: () => boolean) {

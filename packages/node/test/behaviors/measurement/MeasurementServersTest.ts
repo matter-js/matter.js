@@ -14,7 +14,7 @@ import { HumiditySensorDevice } from "#devices/humidity-sensor";
 import { LightSensorDevice } from "#devices/light-sensor";
 import { PressureSensorDevice } from "#devices/pressure-sensor";
 import { TemperatureSensorDevice } from "#devices/temperature-sensor";
-import { MockServerNode } from "../../node/mock-server-node.js";
+import { MockServerNode } from "@matter/node/testing";
 
 const CASES = [
     { name: "TemperatureMeasurementServer", device: TemperatureSensorDevice, behavior: TemperatureMeasurementServer },

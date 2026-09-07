@@ -6,7 +6,7 @@
 
 import { BooleanStateServer } from "#behaviors/boolean-state";
 import { ContactSensorDevice } from "#devices/contact-sensor";
-import { MockServerNode } from "../../node/mock-server-node.js";
+import { MockServerNode } from "@matter/node/testing";
 
 describe("BooleanStateServer", () => {
     it("enables the ChangeEvent feature by default", async () => {

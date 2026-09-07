@@ -6,12 +6,10 @@
 
 import { ThermostatClient } from "#behaviors/thermostat";
 import { Endpoint } from "#endpoint/index.js";
+import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import { Write } from "@matter/protocol";
 import { EndpointNumber, Status } from "@matter/types";
 import { Thermostat } from "@matter/types/clusters/thermostat";
-import { MockServerNode } from "../../node/mock-server-node.js";
-import { MockSite } from "../../node/mock-site.js";
-import { subscribedPeer } from "../../node/node-helpers.js";
 import { newPreset, PRESETS_ATTRIBUTE, presetsEndpoint, recordThermostatChanges } from "./preset-helpers.js";
 
 async function commissionedThermostat() {
