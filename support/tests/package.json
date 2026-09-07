@@ -34,7 +34,7 @@
     },
     "devDependencies": {
         "@matter/testing": "*",
-        "@memlab/api": "^2.0.4",
+        "@memlab/api": "^2.0.5",
         "@memlab/core": "^2.0.4",
         "@memlab/heap-analysis": "^2.0.5"
     },
