@@ -120,12 +120,15 @@ export class RunStore {
             return;
         }
 
-        for (const stored of Object.values(snapshot?.runs ?? {})) {
+        for (const [key, stored] of Object.entries(snapshot?.runs ?? {})) {
             // `runs` is schema type `any`, so a corrupt table reaches here as arbitrary values. Refusing names
             // the cause; letting it through seeds the identity counter with `NaN`, after which every
             // allocation is `NaN` and no run is ever addressable again.
+            //
+            // The record itself never reaches the message: `params` and `changeSet` carry raw key material, and
+            // a group task's `bigint` would make serializing it throw before this error could be constructed.
             if (!isRunId(stored?.runId)) {
-                throw new InternalError(`Stored task record has no usable run identity: ${JSON.stringify(stored)}`);
+                throw new InternalError(`Stored task record "${key}" has no usable run identity`);
             }
             highest = Math.max(highest, stored.runId);
             const record = RunRecord.fromPersistence(stored);

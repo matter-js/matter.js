@@ -928,6 +928,24 @@ describe("retryRollback", () => {
         expect(outcome).instanceOf(TaskRollbackPendingError);
     });
 
+    it("answers a concluded rollback without claiming an undo is still running", async () => {
+        await using node = await makeNode();
+        const peer = testPeer("concluded-cancel");
+        const { original, rollback } = await parkedRollback(node, "concluded-cancel", peer);
+
+        peer.markHas("groupMembership", "X");
+        peer.setReachable(true);
+        await pumpUntil("rollback completed", () =>
+            node.act(a => a.get(TestTaskManager).get(rollback.runId)?.status.state === "completed"),
+        );
+
+        // The outcome says an undo exists, not that one is in flight: `rollbackFor` answers for a recorded
+        // rollback whatever its state, so a caller that read the outcome as "still running" would wait forever.
+        const cancellation = await node.act(a => a.get(TestTaskManager).cancel(original.runId));
+        expect(cancellation.outcome).equals(TaskCancelOutcome.Rollback);
+        expect(cancellation.rollback?.status.state).equals("completed");
+    });
+
     it("refuses a rollback that already restored the device", async () => {
         await using node = await makeNode();
         const peer = testPeer("concluded");

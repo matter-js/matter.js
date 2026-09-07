@@ -64,8 +64,11 @@ export interface TaskHandle {
 
 /** What a cancel did to the device. */
 export enum TaskCancelOutcome {
-    /** An undo is running. */
-    RollingBack = "rollingBack",
+    /**
+     * An undo exists. {@link TaskCancellation.rollback} names it, and its `status` says how far it has got —
+     * a rollback recorded by an earlier cancel may already have concluded.
+     */
+    Rollback = "rollback",
     /** The run had changed nothing, so there was nothing to undo. */
     NothingToUndo = "nothingToUndo",
     /**
@@ -82,7 +85,7 @@ export enum TaskCancelOutcome {
  * differently: the device is as it was, or the device is changed and will stay that way.
  */
 export type TaskCancellation =
-    | { outcome: TaskCancelOutcome.RollingBack; rollback: TaskHandle }
+    | { outcome: TaskCancelOutcome.Rollback; rollback: TaskHandle }
     | { outcome: TaskCancelOutcome.NothingToUndo | TaskCancelOutcome.Irreversible; rollback?: undefined };
 
 /**
@@ -627,7 +630,7 @@ export class TaskManagerBehavior extends Behavior {
      * overwrite whatever has legitimately happened since — reversing a finished change is a new task the caller
      * starts. A run whose rollback already exists is answered with that rollback, whatever its state.
      *
-     * Answers what happened to the device, not merely whether an undo exists. {@link TaskCancelOutcome.RollingBack}
+     * Answers what happened to the device, not merely whether an undo exists. {@link TaskCancelOutcome.Rollback}
      * carries the rollback; {@link TaskCancelOutcome.NothingToUndo} means the device is as it was; and
      * {@link TaskCancelOutcome.Irreversible} means the run changed the device and those changes stand, because
      * it passed the point beyond which its type declines to be reverted — which it can do *while the cancel is
@@ -666,7 +669,7 @@ export class TaskManagerBehavior extends Behavior {
         const existing = this.internal.runs.rollbackFor(runId);
         if (existing !== undefined) {
             this.#refuseIfProvisional(existing, `Cannot answer for the rollback of ${runLabel(runId)}`);
-            return { outcome: TaskCancelOutcome.RollingBack, rollback: this.#handle(existing) };
+            return { outcome: TaskCancelOutcome.Rollback, rollback: this.#handle(existing) };
         }
         if (record.state === "cancelled") {
             // Already cancelled and holding no rollback: whatever it had written was either nothing or beyond
@@ -713,7 +716,7 @@ export class TaskManagerBehavior extends Behavior {
             this.internal.runs.commitRetirement(record);
             const rollback = this.internal.runs.rollbackFor(record.runId);
             if (rollback !== undefined) {
-                return { outcome: TaskCancelOutcome.RollingBack, rollback: this.#handle(rollback) };
+                return { outcome: TaskCancelOutcome.Rollback, rollback: this.#handle(rollback) };
             }
             throw new TaskNotInFlightError(
                 `Cannot cancel ${runLabel(record.runId)}: it finished (${record.state}) while the cancel was being accepted`,
@@ -765,7 +768,7 @@ export class TaskManagerBehavior extends Behavior {
         const rollback = this.internal.runs.rollbackFor(record.runId);
         return rollback === undefined
             ? { outcome: this.#cancelledOutcome(record) }
-            : { outcome: TaskCancelOutcome.RollingBack, rollback: this.#handle(rollback) };
+            : { outcome: TaskCancelOutcome.Rollback, rollback: this.#handle(rollback) };
     }
 
     /**
