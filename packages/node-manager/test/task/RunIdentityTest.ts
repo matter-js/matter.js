@@ -186,7 +186,12 @@ describe("run identity", () => {
             for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
                 await MockTime.advance(1);
             }
-            const revert = await node.act(a => a.get(TestTaskManager).cancel(handle.runId));
+            const revert = await node.act(a =>
+                a
+                    .get(TestTaskManager)
+                    .cancel(handle.runId)
+                    .then(c => c.rollback),
+            );
             expect(revert).not.equals(undefined);
             runIds.push(revert!.runId);
 
@@ -314,7 +319,12 @@ describe("run identity", () => {
         // restart — and the identity the caller held has to still name it.
         await using node = await makeNode(environment, "undo");
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
-        const rollback = await node.act(a => a.get(TestTaskManager).cancel(runId));
+        const rollback = await node.act(a =>
+            a
+                .get(TestTaskManager)
+                .cancel(runId)
+                .then(c => c.rollback),
+        );
         expect(rollback?.status.revertOf).equals(runId);
     });
 
@@ -336,9 +346,15 @@ describe("run identity", () => {
         // decision and a record cannot answer it.
         await using node = await makeNode(environment, "unregistered");
         expect(await node.act(a => a.get(TestTaskManager).get(runId)?.status.state)).equals("running");
-        await expect((async () => node.act(a => a.get(TestTaskManager).cancel(runId)))()).rejectedWith(
-            TaskTypeNotRegisteredError,
-        );
+        await expect(
+            (async () =>
+                node.act(a =>
+                    a
+                        .get(TestTaskManager)
+                        .cancel(runId)
+                        .then(c => c.rollback),
+                ))(),
+        ).rejectedWith(TaskTypeNotRegisteredError);
     });
 
     it("refuses an external id a live run of another slot already answers to", async () => {
@@ -374,7 +390,12 @@ describe("run identity", () => {
 
         // The rollback parks on an unreachable peer, so it stays live while the re-run is attempted.
         peer.setReachable(false);
-        const rollback = await node.act(a => a.get(TestTaskManager).cancel(first.runId));
+        const rollback = await node.act(a =>
+            a
+                .get(TestTaskManager)
+                .cancel(first.runId)
+                .then(c => c.rollback),
+        );
         expect(rollback?.status.revertOf).equals(first.runId);
 
         // A rollback rewrites exactly the intents a re-run would re-apply.
@@ -399,7 +420,12 @@ describe("run identity", () => {
         for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
             await MockTime.advance(1);
         }
-        const rollback = await node.act(a => a.get(TestTaskManager).cancel(handle.runId));
+        const rollback = await node.act(a =>
+            a
+                .get(TestTaskManager)
+                .cancel(handle.runId)
+                .then(c => c.rollback),
+        );
         expect(rollback).not.equals(undefined);
 
         // Let the rollback finish and retire, so it no longer answers as live work.
@@ -407,7 +433,12 @@ describe("run identity", () => {
 
         // Cancelling again is idempotent and must keep naming the same rollback. Resolving only live runs here
         // would make the answer depend on whether the rollback happens to have finished yet.
-        const again = await node.act(a => a.get(TestTaskManager).cancel(handle.runId));
+        const again = await node.act(a =>
+            a
+                .get(TestTaskManager)
+                .cancel(handle.runId)
+                .then(c => c.rollback),
+        );
         expect(again?.runId).equals(rollback?.runId);
         expect(again?.status.revertOf).equals(handle.runId);
     });
@@ -444,7 +475,12 @@ describe("run identity", () => {
             const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "norereg" }));
             runId = handle.runId;
             await pumpUntil("intent written", async () => peer.items[itemMapKey("groupMembership", "X")] !== undefined);
-            const rollback = await node.act(a => a.get(TestTaskManager).cancel(runId));
+            const rollback = await node.act(a =>
+                a
+                    .get(TestTaskManager)
+                    .cancel(runId)
+                    .then(c => c.rollback),
+            );
             rollbackId = rollback!.runId;
             await settle(node, `revert:${runId}`);
         }
@@ -452,7 +488,12 @@ describe("run identity", () => {
         // Nothing registers the type on this start. Deciding on a NEW rollback would need the task, because
         // revertibility is the task's decision — but a run that already recorded one is answered by its record.
         await using node = await makeNode(environment, "norereg");
-        const again = await node.act(a => a.get(TestTaskManager).cancel(runId));
+        const again = await node.act(a =>
+            a
+                .get(TestTaskManager)
+                .cancel(runId)
+                .then(c => c.rollback),
+        );
         expect(again?.runId).equals(rollbackId);
     });
 
@@ -474,8 +515,18 @@ describe("run identity", () => {
         // told about the rollback that was created, not told there was nothing to roll back.
         const [first, second] = await MockTime.resolve(
             Promise.all([
-                node.act(a => a.get(TestTaskManager).cancel(handle.runId)),
-                node.act(a => a.get(TestTaskManager).cancel(handle.runId)),
+                node.act(a =>
+                    a
+                        .get(TestTaskManager)
+                        .cancel(handle.runId)
+                        .then(c => c.rollback),
+                ),
+                node.act(a =>
+                    a
+                        .get(TestTaskManager)
+                        .cancel(handle.runId)
+                        .then(c => c.rollback),
+                ),
             ]),
             { macrotasks: true },
         );
@@ -650,7 +701,12 @@ describe("run identity", () => {
 
         let refusal: unknown;
         try {
-            await node.act(a => a.get(TestTaskManager).cancel(parked));
+            await node.act(a =>
+                a
+                    .get(TestTaskManager)
+                    .cancel(parked)
+                    .then(c => c.rollback),
+            );
         } catch (e) {
             refusal = e;
         }

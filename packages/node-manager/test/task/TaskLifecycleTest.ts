@@ -371,7 +371,7 @@ describe("Task lifecycle", () => {
             // the contract: the caller sees which run its name names before acting on it.
             const handle = await node.act(a => {
                 const manager = a.get(TestTaskManager);
-                return manager.cancel(manager.forExternalId("owner")!.runId);
+                return manager.cancel(manager.forExternalId("owner")!.runId).then(c => c.rollback);
             });
             expect(handle?.status.revertOf).equals(
                 requireStatusOfSlot(await node.act(a => a.get(TestTaskManager)), "synthetic:aliascancel").runId,
@@ -477,9 +477,15 @@ describe("Task lifecycle", () => {
             await awaitState(node, "synthetic:blockedcancel", "parked");
 
             await node.act(a => a.get(TestTaskManager).exhaustIdentities());
-            await expect((async () => node.act(a => a.get(TestTaskManager).cancel(handle.runId)))()).rejectedWith(
-                TaskIdentityExhaustedError,
-            );
+            await expect(
+                (async () =>
+                    node.act(a =>
+                        a
+                            .get(TestTaskManager)
+                            .cancel(handle.runId)
+                            .then(c => c.rollback),
+                    ))(),
+            ).rejectedWith(TaskIdentityExhaustedError);
 
             // Memory must not claim a cancel that storage never saw.
             const status = await node.act(a => a.get(TestTaskManager).get(handle.runId)?.status);

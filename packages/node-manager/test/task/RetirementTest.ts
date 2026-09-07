@@ -192,7 +192,12 @@ async function failedRollback(node: ServerNode, tag: string, peer: FakePeer) {
     const original = await run(node, tag, [gatingPhase(peer.id)]);
     await pumpUntil("intent written", () => (peer.items[KEY]?.intent as { v?: number })?.v === 2);
 
-    const rollback = await node.act(a => a.get(TestTaskManager).cancel(original.runId));
+    const rollback = await node.act(a =>
+        a
+            .get(TestTaskManager)
+            .cancel(original.runId)
+            .then(c => c.rollback),
+    );
     if (rollback === undefined) {
         throw new InternalError("cancel produced no rollback");
     }
@@ -214,7 +219,12 @@ async function parkedRollback(node: ServerNode, tag: string, peer: FakePeer) {
     await pumpUntil("intent written", () => (peer.items[KEY]?.intent as { v?: number })?.v === 2);
 
     peer.setReachable(false);
-    const rollback = await node.act(a => a.get(TestTaskManager).cancel(original.runId));
+    const rollback = await node.act(a =>
+        a
+            .get(TestTaskManager)
+            .cancel(original.runId)
+            .then(c => c.rollback),
+    );
     if (rollback === undefined) {
         throw new InternalError("cancel produced no rollback");
     }
@@ -286,7 +296,14 @@ describe("run records after a retirement", () => {
         const handle = await run(node, "done", [touchPhase("done")]);
         await awaitRetired(node, handle.runId);
 
-        await expect(node.act(a => a.get(TestTaskManager).cancel(handle.runId))).rejectedWith(TaskNotInFlightError);
+        await expect(
+            node.act(a =>
+                a
+                    .get(TestTaskManager)
+                    .cancel(handle.runId)
+                    .then(c => c.rollback),
+            ),
+        ).rejectedWith(TaskNotInFlightError);
         expect((await stored(node, handle.runId))?.revertRunId).equals(undefined);
     });
 
@@ -328,7 +345,7 @@ describe("run records after a retirement", () => {
         // did not read — while a write names the cause instead of claiming the run never existed.
         expect(await node.act(a => a.get(TestTaskManager).get(existing))).equals(undefined);
         const verbs: Array<(m: TestTaskManager) => Promise<unknown>> = [
-            m => m.cancel(existing),
+            m => m.cancel(existing).then(c => c.rollback),
             m => m.abandon(existing),
             m => m.retryRollback(existing),
         ];
@@ -370,7 +387,12 @@ describe("run records after a retirement", () => {
         peer.setIntent("groupMembership", "X", { v: 3 });
         const second = await run(node, "later-rollback", [gatingPhase(peer.id)]);
         await pumpUntil("second intent written", () => (peer.items[KEY]?.intent as { v?: number })?.v === 2);
-        const live = await node.act(a => a.get(TestTaskManager).cancel(second.runId));
+        const live = await node.act(a =>
+            a
+                .get(TestTaskManager)
+                .cancel(second.runId)
+                .then(c => c.rollback),
+        );
         expect(live).not.equals(undefined);
 
         // The live rollback undoes the second run, not the first, so it is not the undo that applies here and

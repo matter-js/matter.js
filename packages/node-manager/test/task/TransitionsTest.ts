@@ -22,7 +22,7 @@ import {
 } from "#task/errors.js";
 import { TaskDefinition } from "#task/Task.js";
 import { RunRecord } from "#task/Task.js";
-import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
+import { TaskCancelOutcome, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { RunId, TaskPhase } from "#task/types.js";
 import { Environment, ImplementationError, InternalError, Lifecycle, MaybePromise } from "@matter/general";
 import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
@@ -180,7 +180,12 @@ async function parkedRollback(node: ServerNode, tag: string, peer: FakePeer) {
     await pumpUntil("intent written", () => peer.items[KEY] !== undefined);
 
     peer.setReachable(false);
-    const rollback = await node.act(a => a.get(TestTaskManager).cancel(original.runId));
+    const rollback = await node.act(a =>
+        a
+            .get(TestTaskManager)
+            .cancel(original.runId)
+            .then(c => c.rollback),
+    );
     if (rollback === undefined) {
         throw new InternalError("cancel produced no rollback");
     }
@@ -201,7 +206,12 @@ async function failedRollback(node: ServerNode, tag: string, peer: FakePeer) {
     const original = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag }));
     await pumpUntil("intent written", () => (peer.items[KEY]?.intent as { v?: number })?.v === 2);
 
-    const first = await node.act(a => a.get(TestTaskManager).cancel(original.runId));
+    const first = await node.act(a =>
+        a
+            .get(TestTaskManager)
+            .cancel(original.runId)
+            .then(c => c.rollback),
+    );
     if (first === undefined) {
         throw new InternalError("cancel produced no rollback");
     }
@@ -534,11 +544,12 @@ describe("cancel and abandon", () => {
         const release = await node.act(a => a.get(TestTaskManager).holdPersistMutex());
         const cancelling = node.act(a => a.get(TestTaskManager).cancel(running.runId));
         release();
-        const rollback = await cancelling;
+        const cancellation = await cancelling;
 
-        // By the time the cancel decided, the run was past its point of no return, so there is no undo — and
-        // nothing else will ever replay what it recorded.
-        expect(rollback).equals(undefined);
+        // By the time the cancel decided, the run was past its point of no return. The caller is told the
+        // device keeps those changes — not that there was nothing to undo, which is what it changed.
+        expect(cancellation.outcome).equals(TaskCancelOutcome.Irreversible);
+        expect(cancellation.rollback).equals(undefined);
         const record = await node.act(a => a.get(TestTaskManager).state.runs[String(running.runId)]);
         expect(record.state).equals("cancelled");
         expect(record.wrote).equals(true);
@@ -589,7 +600,12 @@ describe("cancel and abandon", () => {
 
         // The cancel's write is held, so its rollback is admitted but not yet driving.
         const release = await node.act(a => a.get(TestTaskManager).holdPersistMutex());
-        const cancelling = node.act(a => a.get(TestTaskManager).cancel(original.runId));
+        const cancelling = node.act(a =>
+            a
+                .get(TestTaskManager)
+                .cancel(original.runId)
+                .then(c => c.rollback),
+        );
         let rollbackId: RunId | undefined;
         await pumpUntil("rollback admitted", () =>
             node.act(a => {
@@ -747,7 +763,7 @@ describe("cancel and abandon", () => {
             ),
         );
 
-        const outcome = await attempt(node, m => m.cancel(original.runId));
+        const outcome = await attempt(node, m => m.cancel(original.runId).then(c => c.rollback));
         release();
         await retrying;
 
@@ -811,7 +827,7 @@ describe("cancel and abandon", () => {
         const peer = testPeer("nocancel");
         const { rollback } = await parkedRollback(node, "nocancel", peer);
 
-        const outcome = await attempt(node, m => m.cancel(rollback.runId));
+        const outcome = await attempt(node, m => m.cancel(rollback.runId).then(c => c.rollback));
 
         expect(outcome).instanceOf(TaskCannotCancelRollbackError);
         expect((outcome as Error).message).contains("abandon");
@@ -893,7 +909,12 @@ describe("retryRollback", () => {
 
         // The cancel's write is held, so its rollback is admitted but the original does not name it yet.
         const release = await node.act(a => a.get(TestTaskManager).holdPersistMutex());
-        const cancelling = node.act(a => a.get(TestTaskManager).cancel(original.runId));
+        const cancelling = node.act(a =>
+            a
+                .get(TestTaskManager)
+                .cancel(original.runId)
+                .then(c => c.rollback),
+        );
         await pumpUntil("rollback admitted", () =>
             node.act(a => a.get(TestTaskManager).tasks.some(t => t.status.revertOf === original.runId)),
         );

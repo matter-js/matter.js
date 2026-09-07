@@ -8,7 +8,7 @@ import { ImplementationError, InternalError } from "@matter/general";
 import { TaskIdentityExhaustedError } from "./errors.js";
 import { Execution } from "./Execution.js";
 import { RunRecord, TaskPersistence } from "./Task.js";
-import { RetireSeq, RunId, Teardown, TaskState } from "./types.js";
+import { isRunId, RetireSeq, RunId, Teardown, TaskState } from "./types.js";
 
 const TERMINAL_STATES: ReadonlySet<TaskState> = new Set<TaskState>(["completed", "failed", "cancelled", "abandoned"]);
 
@@ -124,7 +124,7 @@ export class RunStore {
             // `runs` is schema type `any`, so a corrupt table reaches here as arbitrary values. Refusing names
             // the cause; letting it through seeds the identity counter with `NaN`, after which every
             // allocation is `NaN` and no run is ever addressable again.
-            if (!Number.isSafeInteger(stored?.runId)) {
+            if (!isRunId(stored?.runId)) {
                 throw new InternalError(`Stored task record has no usable run identity: ${JSON.stringify(stored)}`);
             }
             highest = Math.max(highest, stored.runId);

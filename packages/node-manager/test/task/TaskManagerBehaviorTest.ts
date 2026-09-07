@@ -8,7 +8,7 @@ import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { TaskFailedError, TaskNotFoundError, TaskSlotOccupiedError } from "#task/errors.js";
 import { RotateGroupKey } from "#task/groups/RotateGroupKey.js";
 import { TaskDefinition, RunRecord } from "#task/Task.js";
-import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
+import { TaskCancelOutcome, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { TaskRegistry } from "#task/TaskRegistry.js";
 import { RetireSeq, RunId, TaskPhase } from "#task/types.js";
 import { Environment, ImplementationError } from "@matter/general";
@@ -435,8 +435,11 @@ describe("TaskManagerBehavior", () => {
         await node2.act(a => a.get(TaskManagerBehavior).register(SyntheticTask));
 
         expect(await node2.act(a => a.get(TaskManagerBehavior).get(RunId(7))?.status.state)).equals("cancelled");
-        // Its changeSet is empty, so there is nothing to roll back — a different answer from "never existed".
-        expect(await node2.act(a => a.get(TaskManagerBehavior).cancel(RunId(7)))).equals(undefined);
+        // It changed nothing, so there is nothing to roll back — a different answer from "never existed", and
+        // a different answer again from a run whose changes cannot be taken back.
+        expect(await node2.act(a => a.get(TaskManagerBehavior).cancel(RunId(7)))).deep.equals({
+            outcome: TaskCancelOutcome.NothingToUndo,
+        });
         await expect((async () => node2.act(a => a.get(TaskManagerBehavior).cancel(RunId(999))))()).rejectedWith(
             TaskNotFoundError,
         );

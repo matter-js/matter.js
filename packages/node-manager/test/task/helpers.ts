@@ -5,7 +5,7 @@
  */
 
 import { RunRecord, TaskDefinition, TaskPersistence } from "#task/Task.js";
-import { TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
+import { TaskCancellation, TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { PlannedChange, RunId, TaskPhase, TaskStatus } from "#task/types.js";
 import { Immutable, InternalError, Observable } from "@matter/general";
 import { ClientNode, DesiredStateBehavior, ItemKind, ItemMode, ItemState, ManagedItem, itemMapKey } from "@matter/node";
@@ -354,6 +354,11 @@ export function requireStatusOfSlot(manager: TaskManagerBehavior, slotKey: strin
 
 /** Cancel the newest run of a slot, or report that nothing answers to it. */
 export function cancelSlot(manager: TaskManagerBehavior, slotKey: string): Promise<TaskHandle | undefined> {
+    return cancelSlotOutcome(manager, slotKey).then(c => c.rollback);
+}
+
+/** As {@link cancelSlot}, for a test asserting what the cancel did rather than which rollback it produced. */
+export function cancelSlotOutcome(manager: TaskManagerBehavior, slotKey: string): Promise<TaskCancellation> {
     const runId = runIdOfSlot(manager, slotKey);
     if (runId === undefined) {
         // Mirrors cancel() of a run nothing answers to, so a test asserting that outcome still exercises it.
