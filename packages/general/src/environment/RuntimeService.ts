@@ -26,9 +26,25 @@ export class RuntimeService {
     #env: Environment;
     #lifetime: Lifetime;
     #workers = new Set<Worker>();
-    #cancelled = new Set<Worker>();
+
+    /**
+     * Workers whose closure has begun. A close may settle long after it starts, and the worker stays
+     * installed until it does, so this is what keeps a second cancellation from closing it again.
+     * Taking on work does not clear it: a worker that is closing is not one waiting to be closed.
+     */
+    #closing = new Set<Worker>();
     #workerDeleted = Observable<[]>();
     #canceled = false;
+
+    /** Set while {@link cancel} closes workers, so the disposals it adds do not read as new work. */
+    #cancelling = false;
+
+    /**
+     * Identifies the current run of cancellations. A closure scheduled for the moment construction
+     * succeeds cannot be withdrawn, so it carries the generation it was scheduled in and acts only
+     * while that is still current — one closure per worker however often the runtime cancels.
+     */
+    #cancelGeneration = 0;
     #started = Observable<[]>();
     #stopped = Observable<[]>();
     #crashed = Observable<[cause: any]>();
@@ -67,6 +83,15 @@ export class RuntimeService {
 
         if (this.#workers.has(worker)) {
             return;
+        }
+
+        // Work arriving means the runtime is no longer shutting down, so a cancellation waiting on a
+        // worker that had not finished starting must not still close it. Nothing disarms an
+        // already-scheduled onSuccess, so the schedule reads the generation when it fires. A worker
+        // whose closure is already under way is not disarmed by this: it is closing, not waiting.
+        if (this.#canceled && !this.#cancelling) {
+            this.#canceled = false;
+            this.#cancelGeneration++;
         }
 
         this.#workers.add(worker);
@@ -110,7 +135,7 @@ export class RuntimeService {
 
         // Remove the worker
         this.#workers.delete(worker);
-        this.#cancelled.delete(worker);
+        this.#closing.delete(worker);
         this.#workerDeleted.emit();
 
         // If there are still non-helper workers, remain in active state
@@ -162,11 +187,16 @@ export class RuntimeService {
         this.#canceled = true;
         logger.notice("Shutting down");
 
-        for (const worker of this.#workers) {
-            const disposal = this.#cancelWorker(worker);
-            if (disposal) {
-                this.add(disposal);
+        this.#cancelling = true;
+        try {
+            for (const worker of this.#workers) {
+                const disposal = this.#cancelWorker(worker);
+                if (disposal) {
+                    this.add(disposal);
+                }
             }
+        } finally {
+            this.#cancelling = false;
         }
     }
 
@@ -234,12 +264,12 @@ export class RuntimeService {
     }
 
     #cancelWorker(worker: Worker) {
-        if (this.#cancelled.has(worker)) {
+        if (this.#closing.has(worker)) {
             return;
         }
 
         const cancel = () => {
-            this.#cancelled.add(worker);
+            this.#closing.add(worker);
 
             try {
                 if (worker.close) {
@@ -268,7 +298,15 @@ export class RuntimeService {
         };
 
         if (worker.construction) {
-            worker.construction.onSuccess(cancel);
+            const generation = this.#cancelGeneration;
+
+            worker.construction.onSuccess(() => {
+                // Only still wanted if the runtime has not taken on work since, and only for a worker
+                // the runtime still owns — delete() drops it from #workers
+                if (generation === this.#cancelGeneration && this.#workers.has(worker)) {
+                    return cancel();
+                }
+            });
             return;
         }
 

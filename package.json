@@ -86,8 +86,8 @@
     },
     "devDependencies": {
         "c8": "^12.0.0",
-        "oxfmt": "^0.65.0",
-        "oxlint": "^1.79.0",
+        "oxfmt": "^0.66.0",
+        "oxlint": "^1.81.0",
         "oxlint-tsgolint": "^7.0.2001",
         "semver": "^7.8.5",
         "typescript": "~7.0.2"
@@ -101,7 +101,7 @@
     },
     "dependencies": {
         "@nacho-iot/js-tools": "^0.2.0",
-        "memlab": "^2.0.4"
+        "memlab": "^2.0.5"
     },
     "allowScripts": {
         "bufferutil@4.1.0": true,
