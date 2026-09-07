@@ -55,7 +55,7 @@
         "dockerode": "^5.0.1",
         "esbuild": "^0.28.1",
         "express": "^5.2.1",
-        "memlab": "^2.0.4",
+        "memlab": "^2.0.5",
         "mocha": "^11.8.0",
         "playwright": "^1.62.1",
         "trace-unhandled": "^2.0.1",
