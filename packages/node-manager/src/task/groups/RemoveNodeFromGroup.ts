@@ -7,6 +7,7 @@
 import { ClientNode, DesiredStateBehavior, itemMapKey } from "@matter/node";
 import { TaskDefinition } from "../Task.js";
 import { TaskContext } from "../types.js";
+import { Require } from "../validation.js";
 import { membershipKey } from "./keys.js";
 
 export const REMOVE_NODE_FROM_GROUP_TYPE = "removeNodeFromGroup";
@@ -24,6 +25,12 @@ export interface RemoveNodeFromGroupParams {
  */
 export const RemoveNodeFromGroup: TaskDefinition<RemoveNodeFromGroupParams> = {
     type: REMOVE_NODE_FROM_GROUP_TYPE,
+    validate(params) {
+        Require.params(REMOVE_NODE_FROM_GROUP_TYPE, params);
+        Require.text("peerId", params.peerId);
+        Require.uint("endpoint", params.endpoint, 0xffff);
+        Require.uint("groupId", params.groupId, 0xffff);
+    },
 
     slotKeyFor(p) {
         return `${REMOVE_NODE_FROM_GROUP_TYPE}:${p.peerId}:${p.groupId}:${p.endpoint}`;

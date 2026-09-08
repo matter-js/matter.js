@@ -11,6 +11,7 @@ import type { GroupKeyGrant } from "../../reconcile/GroupKeyItemKind.js";
 import { RotationPreconditionError } from "../errors.js";
 import { TaskDefinition } from "../Task.js";
 import { TaskContext } from "../types.js";
+import { Require } from "../validation.js";
 
 export const ROTATE_GROUP_KEY_TYPE = "rotateGroupKey";
 
@@ -43,6 +44,11 @@ const ACTIVATE_INDEX = 1;
  */
 export const RotateGroupKey: TaskDefinition<RotateGroupKeyParams> = {
     type: ROTATE_GROUP_KEY_TYPE,
+    validate(params) {
+        Require.params(ROTATE_GROUP_KEY_TYPE, params);
+        Require.uint("groupKeySetId", params.groupKeySetId, 0xffff);
+        Require.bytes("newEpochKey", params.newEpochKey, 16);
+    },
 
     // Keyed on the key set alone, so one-live-run-per-slot is what makes rotations of a key set mutually
     // exclusive: two concurrent rotations would race the single shared groupKey slot, each observing the

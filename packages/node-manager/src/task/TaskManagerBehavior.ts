@@ -21,6 +21,7 @@ import {
     TaskNotARollbackError,
     TaskNoLongerTrackedError,
     TaskNotFoundError,
+    TaskParamsRejectedError,
     TaskNotInFlightError,
     TaskNotRollbackableError,
     TaskRollbackPendingError,
@@ -550,7 +551,16 @@ export class TaskManagerBehavior extends Behavior {
                 `Cannot act on ${runLabel(record.runId)}: task type "${record.type}" is not registered`,
             );
         }
-        return this.internal.registry.interpret(record.type, record.params);
+        try {
+            return this.internal.registry.interpret(record.type, record.params);
+        } catch (e) {
+            // The record was written by an earlier build of the definition, or by one whose `validate` was
+            // laxer. Either way the caller passed nothing wrong and cannot fix what storage holds, so this is
+            // a refusal it can render rather than a programming error.
+            throw new TaskParamsRejectedError(
+                `Cannot act on ${runLabel(record.runId)}: its stored parameters are not valid for task type "${record.type}" (${e instanceof Error ? e.message : String(e)})`,
+            );
+        }
     }
 
     /**

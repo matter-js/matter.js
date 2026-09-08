@@ -8,6 +8,7 @@ import { GroupId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import { TaskDefinition } from "../Task.js";
 import { TaskContext } from "../types.js";
+import { Require } from "../validation.js";
 import { membershipKey } from "./keys.js";
 
 export const ADD_NODE_TO_GROUP_TYPE = "addNodeToGroup";
@@ -30,6 +31,15 @@ export interface AddNodeToGroupParams {
  */
 export const AddNodeToGroup: TaskDefinition<AddNodeToGroupParams> = {
     type: ADD_NODE_TO_GROUP_TYPE,
+    validate(params) {
+        Require.params(ADD_NODE_TO_GROUP_TYPE, params);
+        Require.text("peerId", params.peerId);
+        Require.uint("endpoint", params.endpoint, 0xffff);
+        Require.uint("groupId", params.groupId, 0xffff);
+        Require.uint("groupKeySetId", params.groupKeySetId, 0xffff);
+        Require.bytes("epochKey0", params.epochKey0, 16);
+        Require.epoch("epochStartTime0", params.epochStartTime0);
+    },
 
     slotKeyFor(params) {
         return `${ADD_NODE_TO_GROUP_TYPE}:${params.peerId}:${params.groupId}:${params.endpoint}`;
