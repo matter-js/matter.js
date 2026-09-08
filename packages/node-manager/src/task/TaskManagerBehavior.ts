@@ -19,6 +19,7 @@ import {
     TaskManagerClosingError,
     TaskNoRollbackError,
     TaskNotARollbackError,
+    TaskNoLongerTrackedError,
     TaskNotFoundError,
     TaskNotInFlightError,
     TaskNotRollbackableError,
@@ -150,6 +151,9 @@ export class TaskManagerBehavior extends Behavior {
             }),
             FieldElement({ name: "nextRunId", type: "uint32", quality: "N", default: 1 }),
             FieldElement({ name: "nextRetireSeq", type: "uint32", quality: "N", default: 1 }),
+            FieldElement({ name: "highestIssuedRunId", type: "uint32", quality: "N", default: 0 }),
+            // Not nonvolatile: a limit is policy a deployment sets, not state a run wrote.
+            FieldElement({ name: "historyLimit", type: "uint32", default: 100 }),
             // Default 1, not the current version: nonvolatile state records what a transaction *changed*, so a
             // member defaulted to the reading build's own version would never differ from it, never be written,
             // and never tell a later build what wrote the table.
@@ -165,6 +169,7 @@ export class TaskManagerBehavior extends Behavior {
             runs: this.state.runs,
             nextRunId: this.state.nextRunId,
             nextRetireSeq: this.state.nextRetireSeq,
+            highestIssuedRunId: this.state.highestIssuedRunId,
             runsVersion: this.state.runsVersion,
         });
         // Registered either way, so the surface a caller sees does not depend on the store: an unreadable
@@ -560,10 +565,7 @@ export class TaskManagerBehavior extends Behavior {
      */
     async retryRollback(runId: RunId): Promise<TaskHandle> {
         this.#refuseIfUnreadable(`Cannot retry the rollback of ${runLabel(runId)}`);
-        const record = this.internal.runs.get(runId);
-        if (record === undefined) {
-            throw new TaskNotFoundError(`Cannot retry the rollback of ${runLabel(runId)}: no run answers to it`);
-        }
+        const record = this.#actOn(runId, `Cannot retry the rollback of ${runLabel(runId)}`);
         const recorded = this.internal.runs.rollbackFor(runId);
         if (recorded === undefined) {
             // A state a caller cannot always know rather than a mistake it made: a run may never have produced
@@ -645,10 +647,7 @@ export class TaskManagerBehavior extends Behavior {
             pending = this.#pendingTransition(runId);
         }
         this.#refuseIfUnreadable(`Cannot cancel ${runLabel(runId)}`);
-        const record = this.internal.runs.get(runId);
-        if (record === undefined) {
-            throw new TaskNotFoundError(`Cannot cancel ${runLabel(runId)}: no run answers to it`);
-        }
+        const record = this.#actOn(runId, `Cannot cancel ${runLabel(runId)}`);
         // A rollback is ended with `abandon`, which records that the undo was given up on. Cancelling one would
         // leave it `cancelled` — the state a rollback nothing needed ends in — with nothing saying the device
         // was left part-changed.
@@ -735,7 +734,7 @@ export class TaskManagerBehavior extends Behavior {
         // One transaction carries the cancelled state, the retirement order and the rollback that undoes it;
         // the slot moves only once that write is durable.
         try {
-            await this.#commit(
+            await this.#commitRetiring(
                 {
                     record,
                     next: {
@@ -794,10 +793,7 @@ export class TaskManagerBehavior extends Behavior {
             pending = this.#pendingTransition(runId);
         }
         this.#refuseIfUnreadable(`Cannot abandon ${runLabel(runId)}`);
-        const record = this.internal.runs.get(runId);
-        if (record === undefined) {
-            throw new TaskNotFoundError(`Cannot abandon ${runLabel(runId)}: no run answers to it`);
-        }
+        const record = this.#actOn(runId, `Cannot abandon ${runLabel(runId)}`);
         if (!this.#needsAbandoning(record)) {
             return this.#handle(record);
         }
@@ -831,7 +827,7 @@ export class TaskManagerBehavior extends Behavior {
             }
 
             try {
-                await this.#commit(
+                await this.#commitRetiring(
                     {
                         record,
                         next: {
@@ -1164,7 +1160,7 @@ export class TaskManagerBehavior extends Behavior {
             }
             if (record.state === "running") {
                 // One write carries the outcome and its place in the retirement order.
-                await this.#commit(
+                await this.#commitRetiring(
                     {
                         record,
                         next: {
@@ -1211,7 +1207,7 @@ export class TaskManagerBehavior extends Behavior {
             // not at all: written separately, a crash between them leaves a run promising a rollback nothing
             // created.
             try {
-                await this.#commit(
+                await this.#commitRetiring(
                     {
                         record,
                         next: {
@@ -1292,6 +1288,25 @@ export class TaskManagerBehavior extends Behavior {
     }
 
     /**
+     * The record `runId` names, for a verb about to act on it.
+     *
+     * Distinguishes a run this manager deliberately forgot from one that never existed: answering
+     * {@link TaskNotFoundError} for an evicted run would tell a caller its work never happened.
+     */
+    #actOn(runId: RunId, subject: string): RunRecord {
+        const record = this.internal.runs.get(runId);
+        if (record !== undefined) {
+            return record;
+        }
+        if (this.internal.runs.wasEvicted(runId)) {
+            throw new TaskNoLongerTrackedError(
+                `${subject}: it retired and is no longer tracked (history limit ${this.state.historyLimit})`,
+            );
+        }
+        throw new TaskNotFoundError(`${subject}: no run answers to it`);
+    }
+
+    /**
      * Refuse while the stored table was written by a newer build.
      *
      * Every verb that would *write*, not only `run`: nothing was loaded, so `cancel` of a run that
@@ -1323,7 +1338,17 @@ export class TaskManagerBehavior extends Behavior {
         await this.#mutex.produce(() => this.#writeRecords(changes));
     }
 
-    async #writeRecords(changes: RunChange[]): Promise<void> {
+    /**
+     * Record these runs, and in the same transaction drop the retired records beyond the history limit.
+     *
+     * One transaction, because the two are one decision: this run retired, so history moved on. Written
+     * together, a refused write leaves both the outcome and the history exactly as they were.
+     */
+    async #commitRetiring(...changes: RunChange[]): Promise<void> {
+        await this.#mutex.produce(() => this.#writeRecords(changes, true));
+    }
+
+    async #writeRecords(changes: RunChange[], trimHistory = false): Promise<void> {
         // Serialized with the write, so a shutdown that began while this queued behind the mutex cannot slip past.
         this.#refuseIfClosing(`${runLabel(changes[0].record.runId)} state cannot be recorded`);
         // Only the named runs are written. Republishing the whole table from memory would erase records this
@@ -1335,11 +1360,25 @@ export class TaskManagerBehavior extends Behavior {
         const records = changes.map(
             change => [runKey(change.record.runId), change.record.toPersistence(change.next, change.drop)] as const,
         );
+        let evictable: readonly RunRecord[] = [];
         const nextRetireSeq = this.internal.runs.nextRetireSeq;
         const reservedRunId = this.internal.runs.reservedRunId;
+        const highestIssuedRunId = this.internal.runs.highestIssuedRunId;
         await this.endpoint.act(agent => {
             const self = agent.get(TaskManagerBehavior);
             const runs = { ...self.state.runs };
+            // Inside the activity, because `state` is readable only here — the caller may be a detached driver.
+            // Also derived here for the reason the snapshots are: a list taken earlier would name records a
+            // transition has since made un-evictable.
+            if (trimHistory) {
+                const retiringNow = changes.filter(
+                    change => change.next?.state !== undefined && isTerminal(change.next.state),
+                ).length;
+                evictable = this.internal.runs.evictableRetired(self.state.historyLimit, retiringNow);
+                for (const record of evictable) {
+                    delete runs[runKey(record.runId)];
+                }
+            }
             for (const [key, persisted] of records) {
                 runs[key] = persisted;
             }
@@ -1348,6 +1387,7 @@ export class TaskManagerBehavior extends Behavior {
             // counter below a durable identity and a crash re-issues it.
             self.state.nextRunId = Math.max(self.state.nextRunId, reservedRunId);
             self.state.nextRetireSeq = Math.max(self.state.nextRetireSeq, nextRetireSeq);
+            self.state.highestIssuedRunId = Math.max(self.state.highestIssuedRunId, highestIssuedRunId);
             // Stamped with every write rather than once at start: the table and the version that describes it
             // then land together, so no crash leaves records a later build reads under the wrong version.
             self.state.runsVersion = RUN_STORE_VERSION;
@@ -1356,6 +1396,10 @@ export class TaskManagerBehavior extends Behavior {
         // let the next identity be issued beyond what storage covers, and a run would carry state its record
         // does not have.
         this.internal.runs.noteReserved(reservedRunId);
+        this.internal.runs.forget(evictable);
+        if (evictable.length > 0) {
+            logger.debug(`Forgot ${evictable.length} retired task record(s) beyond the history limit`);
+        }
         for (const change of changes) {
             // Durable from this write on, whichever run of the transaction it belongs to: a rollback recorded
             // alongside the run it undoes is as durable as that run, and discarding it later would leave the
@@ -1387,6 +1431,9 @@ export namespace TaskManagerBehavior {
         runs: Record<string, TaskPersistence> = {};
         nextRunId = 1;
         nextRetireSeq = 1;
+        highestIssuedRunId = 0;
+        /** How many retired runs {@link TaskManagerBehavior.history} keeps. */
+        historyLimit = 100;
         runsVersion = 1;
     }
 

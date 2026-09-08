@@ -6,7 +6,7 @@
 
 import { RunStore } from "#task/RunStore.js";
 import { RunRecord, TaskPersistence } from "#task/Task.js";
-import { RetireSeq, RunId } from "#task/types.js";
+import { ChangeEntry, RetireSeq, RunId } from "#task/types.js";
 import { InternalError } from "@matter/general";
 
 /**
@@ -32,12 +32,19 @@ function retired(
     seq: number,
     state: "completed" | "failed" | "cancelled",
     wrote = false,
+    changeSet: ChangeEntry[] = [],
 ) {
     return new RunRecord(RunId(runId), slotKey, "synthetic", undefined, {
         state,
         retireSeq: RetireSeq(seq),
         wrote,
+        changeSet,
     });
+}
+
+/** A retired run still holding priors, so a rollback that can replay them pins it. */
+function pinned(runId: number, slotKey: string, seq: number) {
+    return retired(runId, slotKey, seq, "failed", true, [{ peerId: "p", kind: "groupKey", key: "42" }]);
 }
 
 describe("RunStore", () => {
@@ -126,6 +133,69 @@ describe("RunStore", () => {
 
         it("accepts the smallest identity a caller can hold", () => {
             expect(loadWith(1)).not.throws();
+        });
+    });
+    describe("bounded history", () => {
+        it("keeps everything while retired runs fit the limit", () => {
+            const store = storeWith(retired(1, "s:a", 1, "completed"), retired(2, "s:b", 2, "completed"));
+            expect(store.evictableRetired(2)).deep.equals([]);
+        });
+
+        it("forgets the oldest retirements first", () => {
+            const store = storeWith(
+                retired(1, "s:a", 1, "completed"),
+                retired(2, "s:b", 2, "completed"),
+                retired(3, "s:c", 3, "completed"),
+            );
+            expect(store.evictableRetired(1).map(r => r.runId)).deep.equals([RunId(1), RunId(2)]);
+        });
+
+        it("stops at a run whose priors a rollback can still replay, and keeps everything after it", () => {
+            const store = storeWith(
+                retired(1, "s:a", 1, "completed"),
+                pinned(2, "s:b", 2),
+                retired(3, "s:c", 3, "completed"),
+                retired(4, "s:d", 4, "completed"),
+            );
+            // Not a filter: run 3 and 4 are younger than the pin, so they stay even though they are evictable
+            // on their own. Skipping the pin would let `liveRollbackOfTarget` lose the record it walks from.
+            expect(store.evictableRetired(0).map(r => r.runId)).deep.equals([RunId(1)]);
+        });
+
+        it("forgets nothing until told to", () => {
+            const store = storeWith(retired(1, "s:a", 1, "completed"), retired(2, "s:b", 2, "completed"));
+            const evictable = store.evictableRetired(0);
+            expect(store.get(RunId(1))).not.equals(undefined);
+            store.forget(evictable);
+            expect(store.get(RunId(1))).equals(undefined);
+            expect(store.get(RunId(2))).equals(undefined);
+        });
+
+        it("keeps every superseder of a run it keeps", () => {
+            // A superseder always retired later, so a prefix eviction cannot remove one while its subject
+            // survives — the property `supersederOf` depends on.
+            const store = storeWith(
+                retired(1, "s:a", 1, "cancelled", true),
+                retired(2, "s:a", 2, "completed", true),
+                retired(3, "s:a", 3, "completed", true),
+            );
+            store.forget(store.evictableRetired(2));
+            expect(store.get(RunId(1))).equals(undefined);
+            expect(store.supersederOf(RunId(2))?.runId).equals(RunId(3));
+        });
+
+        it("tells an evicted run apart from one that never existed", () => {
+            const store = new RunStore();
+            store.noteReserved(100);
+            const issued = store.allocate();
+            const record = retired(issued, "s:a", 1, "completed");
+            store.admit(record);
+            store.commitRetirement(record);
+            store.forget(store.evictableRetired(0));
+
+            expect(store.get(issued)).equals(undefined);
+            expect(store.wasEvicted(issued)).equals(true);
+            expect(store.wasEvicted(RunId(99))).equals(false);
         });
     });
 });

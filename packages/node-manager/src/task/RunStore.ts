@@ -51,6 +51,15 @@ export interface RunStoreSnapshot {
     runs: Record<string, TaskPersistence>;
     nextRunId: number;
     nextRetireSeq: number;
+    /**
+     * Highest identity ever handed out.
+     *
+     * {@link RunStoreSnapshot.nextRunId} cannot answer this: it is a *reservation* boundary that runs
+     * {@link RUN_ID_RESERVATION} ahead of use, so an id below it may never have named a run. Without this an
+     * evicted run and one that never existed are indistinguishable, and a caller acting on a run this manager
+     * deliberately forgot would be told no run answers to it.
+     */
+    highestIssuedRunId: number;
     runsVersion: number;
 }
 
@@ -71,6 +80,7 @@ export class RunStore {
      */
     #reservedBelow = 1;
     #nextRetireSeq = 1;
+    #highestIssuedRunId = 0;
     #unreadable = false;
 
     /** Every run this process knows, in every phase. One table, so no verb can look in the wrong one. */
@@ -146,6 +156,8 @@ export class RunStore {
             snapshot?.nextRetireSeq ?? 1,
             ...[...this.#records.values()].map(r => (r.retireSeq ?? 0) + 1),
         );
+        // Records that survived eviction cannot lower it, so the stored mark is authoritative where present.
+        this.#highestIssuedRunId = Math.max(snapshot?.highestIssuedRunId ?? 0, highest);
     }
 
     /**
@@ -175,7 +187,19 @@ export class RunStore {
                 `No durable run identity available: ${this.#nextRunId} is beyond the reservation ${this.#reservedBelow}. Retry once a record has been written.`,
             );
         }
-        return RunId(this.#nextRunId++);
+        const runId = RunId(this.#nextRunId++);
+        this.#highestIssuedRunId = runId;
+        return runId;
+    }
+
+    /** Highest identity ever handed out, so an evicted run is not mistaken for one that never existed. */
+    get highestIssuedRunId(): number {
+        return this.#highestIssuedRunId;
+    }
+
+    /** Whether `runId` named a run this store has forgotten. */
+    wasEvicted(runId: RunId): boolean {
+        return !this.#records.has(runId) && runId <= this.#highestIssuedRunId;
     }
 
     /** Note that a reservation is now durable, so identities below it may be issued. */
@@ -380,6 +404,49 @@ export class RunStore {
             this.#slots.delete(record.slotKey);
         }
         this.#executions.delete(record.runId);
+    }
+
+    /**
+     * The oldest retired runs beyond `limit`, in eviction order. Pure — nothing is forgotten until
+     * {@link forget}.
+     *
+     * A **prefix** of the retirement order, stopping at the first record still needed rather than skipping
+     * over it. Two invariants depend on that shape, and both break under any other:
+     *
+     * - {@link supersederOf} only ever looks at a higher {@link RetireSeq}, so removing the lowest first means
+     *   anything that can supersede a surviving record survives with it.
+     * - a rollback retires after the run it undoes, so it is always newer. A record kept for its rollback's
+     *   sake therefore keeps that rollback too.
+     *
+     * A record is still needed while its priors survive: {@link RunRecord.changeSet} is non-empty exactly
+     * while a rollback that can replay them exists, which is also exactly when {@link liveRollbackOfTarget}
+     * must still be able to find it. Nothing else is consulted — no flag, no second table.
+     */
+    evictableRetired(limit: number, retiringNow = 0): RunRecord[] {
+        // Oldest first, so the prefix is the front of this list.
+        const retired = this.retired.reverse();
+        // `retiringNow` counts the runs the caller's own write is about to retire. They are neither terminal in
+        // memory nor released from their slot yet, so `retired` cannot see them — and without them the table
+        // settles one record above the limit for every write.
+        // Clamped to what is actually retired: a run this write is retiring is not in the list, so it can
+        // never be evicted by its own write. The newest retirement therefore always outlives it, whatever the
+        // limit — the table settles at the limit once another run retires.
+        const overflow = Math.min(retired.length, retired.length + retiringNow - limit);
+        const evictable = new Array<RunRecord>();
+        for (let i = 0; i < overflow; i++) {
+            if (retired[i].changeSet.length > 0) {
+                break;
+            }
+            evictable.push(retired[i]);
+        }
+        return evictable;
+    }
+
+    /** Forget records whose removal has been written. Never before it, or a refused write loses history. */
+    forget(records: readonly RunRecord[]): void {
+        for (const record of records) {
+            this.#records.delete(record.runId);
+        }
     }
 
     /** Forget a run that was never persisted, so a refused write leaves nothing for a later resume to find. */
