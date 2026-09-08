@@ -50,6 +50,7 @@ export enum TaskFindingCode {
     /** No run answers the given identity. */
     NotFound = "notFound",
     NoLongerTracked = "noLongerTracked",
+    ParamsRejected = "paramsRejected",
 
     /** The run has passed its point of no return. */
     NotRollbackable = "notRollbackable",
@@ -196,6 +197,16 @@ export class TaskManagerClosingError extends TaskRefusedError {
 /** `abandon()` names the rollback to give up on, not the run it undoes. */
 export class TaskNotARollbackError extends TaskRefusedError {
     override readonly code = TaskFindingCode.NotARollback;
+}
+
+/**
+ * The run's stored parameters are not ones its task type will accept, so this manager cannot act on it.
+ *
+ * Not the caller's mistake — {@link ImplementationError} covers parameters a caller passed to `run()`. This
+ * says the record in storage cannot be driven, which a caller could not have known and cannot fix.
+ */
+export class TaskParamsRejectedError extends TaskRefusedError {
+    override readonly code = TaskFindingCode.ParamsRejected;
 }
 
 /**

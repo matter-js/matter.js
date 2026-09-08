@@ -4,9 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ImplementationError } from "@matter/general";
 import { ClientNode } from "@matter/node";
 import { TaskDefinition } from "./Task.js";
-import { ChangeEntry, RunId, TaskContext } from "./types.js";
+import { ChangeEntry, isRunId, RunId, TaskContext } from "./types.js";
+import { Require } from "./validation.js";
 
 export const ROLLBACK_TYPE = "rollback";
 
@@ -23,6 +25,23 @@ export interface RollbackParams {
  */
 export const Rollback: TaskDefinition<RollbackParams> = {
     type: ROLLBACK_TYPE,
+    validate(params) {
+        Require.params(ROLLBACK_TYPE, params);
+        if (!isRunId(params.originalRunId)) {
+            throw new ImplementationError(`"originalRunId" is not a run identity`);
+        }
+        if (!Array.isArray(params.entries)) {
+            throw new ImplementationError(`"entries" must be an array of change entries`);
+        }
+        for (const entry of params.entries) {
+            Require.params(ROLLBACK_TYPE, entry);
+            Require.text("entries[].peerId", entry.peerId);
+            Require.text("entries[].kind", entry.kind);
+            if (typeof entry.key !== "string") {
+                throw new ImplementationError(`"entries[].key" must be a string`);
+            }
+        }
+    },
 
     callerCreatable: false,
 

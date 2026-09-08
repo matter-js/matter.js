@@ -9,6 +9,7 @@ import {
     TaskConflictError,
     TaskExternalIdInUseError,
     TaskIdentityExhaustedError,
+    TaskParamsRejectedError,
     TaskRollbackPendingError,
     TaskSlotAwaitingResumeError,
     TaskSlotOccupiedError,
@@ -693,8 +694,9 @@ describe("run identity", () => {
             );
         }
 
-        // Whether a run may be rolled back is the task's decision, and the task cannot be asked without its
-        // parameters. Surfacing its own refusal says which of the two failed.
+        // Whether a run may be rolled back is the task's decision, and the task declines the parameters it
+        // finds in storage. A coded refusal, not a programming error: the caller passed nothing wrong and
+        // cannot fix what the record holds.
         await using node = await makeNode(environment, "cancelunbuildable");
         UnbuildableTask.rejectConstruction = true;
         await node.act(a => a.get(TestTaskManager).register(UnbuildableTask));
@@ -710,7 +712,7 @@ describe("run identity", () => {
         } catch (e) {
             refusal = e;
         }
-        expect(refusal).instanceOf(ImplementationError);
+        expect(refusal).instanceOf(TaskParamsRejectedError);
         expect((refusal as Error).message).contains("malformed persisted parameters");
         expect(await node.act(a => a.get(TestTaskManager).get(parked)?.status.state)).equals("running");
     });
