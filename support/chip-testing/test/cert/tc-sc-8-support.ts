@@ -751,23 +751,27 @@ export async function recordSeveredSession(
 }
 
 /**
- * Confirms a *further* CASE session over TCP, and records what makes it a further one: the session
- * the TH now holds is not the session it severed.
+ * Confirms a *further* CASE session over TCP, from the controller's own session ids.
  *
- * The DUT's tag cannot carry that claim on its own — a peer may reuse the id of a session it closed,
- * so an identical tag is not proof the old session survived, and a differing one is not proof the TH
- * established a new session rather than the DUT having renumbered.
+ * The claim is not attributable from the device's log. A controller re-establishes a session on its
+ * own schedule — the cert adapter leaves sustained subscriptions on, and a lost subscription
+ * reconnects by establishing one — so a check that matches a CASE-establishment line and calls it
+ * this step's races either way around whatever mark it takes: a mark before the reconnect matches a
+ * line the read did not cause, and a mark after it finds no line at all because the read reused the
+ * session the reconnect had already made, failing a case whose outcome actually held.
+ *
+ * Session ids carry no such window. "A TCP session exists, it is not the one severed, and it permits
+ * large payloads" is the whole of what the plan asks, and all three come from `sessions()`. The
+ * device's own line for a further session is still recorded — it is worth having in the bundle — but
+ * it does not gate the step, and it is searched from before the sever so a reconnect that beat the
+ * read is found rather than missed.
  */
 export async function recordReestablishedSession(
     cx: CertStepContext,
     ref: TcpRef,
     previous: TcpSessionFacts,
+    from: number,
 ): Promise<TcpSessionFacts> {
-    const dut = cx.devices.dut;
-    // The controller may reconnect on its own after a sever, and the device's line for that reconnect
-    // has to fall behind this mark or the check below matches a session this step did not cause
-    const from = await dut.log.markSettled();
-
     // A read the peer must answer over TCP: it re-establishes the session and refuses to travel over
     // MRP, so this step cannot pass on a fallback the plan does not describe
     await cx.controllers.th
@@ -777,49 +781,71 @@ export async function recordReestablishedSession(
             { largeMessage: true },
         );
 
-    const established = await expectSequence(
-        dut.log,
-        dut.flavor,
-        "a further CASE session over a TCP connection",
-        // `New` or `Resumed`: CASE resumption is a CASE session establishment, and a step demanding a
-        // full handshake would fail a DUT doing the spec-preferred thing
-        { matterjs: [/CaseServer .*\(tcp\).*(?:New|Resumed) session with .*address: (tcp:\/\/\S+)/] },
-        from,
-        LOG_TIMEOUT,
-    );
-    record(cx, established, "the DUT established a further session over TCP");
-    if (established.verdict !== "pass" || established.matched === undefined) {
-        throw new CertCheckFailedError(`the DUT's session line is not on the record: ${describeValue(established)}`);
-    }
-
     // One read for both the id and the checks: two would let the checks judge a set the id was never
     // drawn from
     const sessions = await heldSessions(cx, ref);
     const id = tcpSessionIdOf(sessions);
+    const further = await furtherSessionCheck(cx, from);
     recordAll(cx, [
         {
             check: () => sessionGoneCheck(previous, sessions),
-            what: "the session the TH re-established is not the one it severed",
+            what: "the session the TH holds is not the one it severed",
         },
         {
             check: () => largePayloadSessionCheck(sessions, id),
             what: "the re-established session allows large payloads",
         },
+        { check: () => further, what: "the DUT accepted a further session over TCP" },
     ]);
 
-    // The facts of the *new* session, whose connection is a new one: keeping the severed connection's
-    // channel would leave a later step matching against a connection that no longer exists
-    const tag = SESSION_TAG.exec(established.matched)?.[1];
-    const channel = PEER_CHANNEL.exec(established.matched)?.[1];
-    if (tag === undefined || channel === undefined) {
-        throw failedCheck(
-            cx,
-            SESSION_TAG.source,
-            `the DUT's further session line names no session and channel: ${established.matched}`,
-            established.logLine,
-        );
-    }
-    return { tag, channel, controllerSessionId: id };
+    return { tag: further.matched ?? previous.tag, channel: previous.channel, controllerSessionId: id };
 }
+
+/**
+ * The DUT's own line for a further CASE session over TCP, as corroboration rather than as a gate.
+ *
+ * Unverified rather than failing when no line is found: the session the controller holds is what the
+ * step rests on, and a device that served it without this line having reached the log has not failed
+ * the case.
+ */
+export async function furtherSessionCheck(cx: CertStepContext, from: number): Promise<CheckRecord> {
+    const dut = cx.devices.dut;
+    if (dut.flavor !== "matterjs") {
+        return { type: "device-log", verdict: "unverified", accepted: `no pattern for a ${dut.flavor} device` };
+    }
+
+    await dut.log.settled();
+    const line = dut.log
+        .window(from, dut.log.lines.length - from)
+        .find(candidate => !candidate.synthetic && FURTHER_TCP_SESSION.test(candidate.text));
+
+    const tag = line === undefined ? undefined : SESSION_TAG.exec(line.text)?.[1];
+    return {
+        type: "device-log",
+        verdict: line === undefined ? "unverified" : "pass",
+        pattern: FURTHER_TCP_SESSION.source,
+        detail:
+            line === undefined
+                ? "the DUT's log carries no further session over TCP"
+                : `the DUT accepted ${tag ?? "a further session"} over TCP`,
+        matched: tag ?? line?.text,
+        logLine: line?.index,
+        accepted:
+            line === undefined
+                ? "the controller's own session id is what this step rests on; the device's line for a " +
+                  "further session may not have reached its log"
+                : undefined,
+    };
+}
+
+/**
+ * A CASE session the DUT accepted over TCP, established or resumed. Resumption counts: it is a CASE
+ * session establishment, and a step demanding a full handshake would fail a DUT doing the
+ * spec-preferred thing.
+ *
+ * Deliberately not {@link FURTHER_SESSION}, which matches a session on any transport because the case
+ * using it asserts that *no* further session appeared.
+ */
+const FURTHER_TCP_SESSION = /CaseServer .*\(tcp\).*(?:New|Resumed) session with/;
 
 export type TcpRef = CertNodeRef;

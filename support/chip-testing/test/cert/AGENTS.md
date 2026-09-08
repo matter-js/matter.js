@@ -2259,7 +2259,7 @@ session's absence passes on a UDP sibling that was never severed; a check that a
 payloads fails on a sibling that never claimed to; and a sever aimed at "the session" can close the
 wrong one. So `sessions()` returns a list, `severTransportConnection(sessionId)` takes the session to
 sever, and `sessionGoneCheck`/`largePayloadSessionCheck` take the id the case captured in step 1 via
-`requireTcpSessionId` — which also refuses a controller holding two TCP sessions, not a state this
+`tcpSessionIdOf` — which also refuses a controller holding two TCP sessions, not a state this
 framework produces, so meeting it means the case is no longer about what it was written for.
 
 The id is also what the block needs beyond the DUT's tag. A device may reuse the id of a session it has
@@ -2344,11 +2344,24 @@ Steps 1 and 2 are `TC-SC-8.3`'s. Step 3 drives a read carrying `largeMessage: tr
 re-establishes is one the peer must serve over TCP — a step that read without it could be answered
 over MRP and still find a session to report.
 
-Its session line accepts `New` **or** `Resumed`: CASE resumption is a CASE session establishment, and
-a step demanding a full handshake would fail a DUT doing the spec-preferred thing. Since a resumed
-session's tag says nothing about novelty on its own, the claim that this is a *further* session rests
-on the controller's session id differing from the severed one — the same `sessionGoneCheck` step 2
-uses, so one covered comparison carries both claims.
+**Its claim is not attributable from the device's log, and trying was a dead end worth recording.**
+The cert adapter leaves sustained subscriptions on, so a controller re-establishes a session on its
+own schedule — a lost subscription reconnects by establishing one. A check that matches a
+CASE-establishment line and calls it this step's therefore races either way around whatever mark it
+takes: a mark before the reconnect matches a line the step's read did not cause, and a mark after it
+finds no line at all, because the read reused the session the reconnect had already made — failing a
+case whose outcome actually held. Both were found in review, one per round, on the same construct.
+
+Session ids carry no such window, so the step gates on them: a TCP session exists, it is not the
+severed id, and it permits large payloads — which is the whole of what the plan asks, all from
+`sessions()`. `sessionGoneCheck` is the same comparison step 2 uses, so one covered comparison
+carries both claims.
+
+The device's own line is still recorded, by `furtherSessionCheck`, as corroboration that does **not**
+gate the step: `unverified` with a reason when absent, which leaves the step passing. It is searched
+from a mark taken *before* the sever, so a reconnect that beat the read is found rather than missed,
+and it accepts `New` or `Resumed` because resumption is a CASE session establishment and a step
+demanding a full handshake would fail a DUT doing the spec-preferred thing.
 
 ## An interaction over the TCP session, bound to that session (`TC-SC-8.5`)
 

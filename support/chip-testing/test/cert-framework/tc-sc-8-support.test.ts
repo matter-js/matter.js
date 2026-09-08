@@ -22,6 +22,7 @@ import {
     recordTcpSession,
     regularSizedRequestCheck,
     describeSessions,
+    furtherSessionCheck,
     recordSeveredSession,
     sessionEvictionUnreadableCheck,
     sessionGoneCheck,
@@ -648,6 +649,63 @@ describe("recordSeveredSession", () => {
         ).rejectedWith(CertCheckFailedError);
 
         expect(checks[0].verdict).equal("fail");
+    });
+});
+
+describe("furtherSessionCheck", () => {
+    const furtherSession = (session = OTHER_SESSION) =>
+        `${at(7)} INFO CaseServer ${session}(tcp) New session with @1:86c217a36142d632 2↔1 address: tcp://[fe80::1%en0]«60222`;
+    const furtherResumed = (session = OTHER_SESSION) =>
+        `${at(8)} INFO CaseServer ${session}(tcp) Resumed session with @1:86c217a36142d632 address: tcp://[fe80::1%en0]«60222`;
+
+    it("passes and names the session for a further session over TCP", async () => {
+        await withDut([furtherSession()], async cx => {
+            const check = await furtherSessionCheck(cx, 0);
+
+            expect(check.verdict).equal("pass");
+            expect(check.matched).equal(OTHER_SESSION);
+            expect(check.detail).match(/accepted @1:86c217a36142d632•9f2c over TCP/);
+        });
+    });
+
+    // Resumption is a CASE session establishment, and a DUT doing the spec-preferred thing must not
+    // fail the case
+    it("passes for a resumed session", async () => {
+        await withDut([furtherResumed()], async cx => {
+            expect((await furtherSessionCheck(cx, 0)).verdict).equal("pass");
+        });
+    });
+
+    // The controller's own session id is what the step rests on, so a missing line is an accepted gap
+    // rather than a failure — which is the whole reason this check does not gate the step
+    it("accepts a log with no further session rather than failing", async () => {
+        await withDut([], async cx => {
+            const check = await furtherSessionCheck(cx, 0);
+
+            expect(check.verdict).equal("unverified");
+            expect(check.accepted).match(/controller's own session id is what this step rests on/);
+        });
+    });
+
+    it("does not count a session over another transport", async () => {
+        const overUdp = `${at(7)} INFO CaseServer ${OTHER_SESSION} New session with @1:86c217a36142d632 2↔1 address: udp://[fe80::1%en0]:5540`;
+
+        await withDut([overUdp], async cx => {
+            expect((await furtherSessionCheck(cx, 0)).verdict).equal("unverified");
+        });
+    });
+
+    it("has no pattern for a device flavor this block does not host", async () => {
+        await withDut(
+            [furtherSession()],
+            async cx => {
+                const check = await furtherSessionCheck(cx, 0);
+
+                expect(check.verdict).equal("unverified");
+                expect(check.accepted).match(/no pattern for a chip-docker device/);
+            },
+            "chip-docker",
+        );
     });
 });
 

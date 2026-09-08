@@ -16,7 +16,7 @@ import {
     tcpSessionStep,
     tcpStep,
 } from "./tc-sc-8-support.js";
-import { CommissionedRefs } from "./tc-support.js";
+import { CertCheckFailedError, CommissionedRefs } from "./tc-support.js";
 
 const commissioned = new CommissionedRefs<"th">();
 const session = new TcpSessionRef();
@@ -24,8 +24,18 @@ const session = new TcpSessionRef();
 /** The session step 2 severed, which step 3 must not be answered by. */
 const severed = new TcpSessionRef();
 
+/**
+ * Where the DUT's log stood before the sever.
+ *
+ * Step 3's corroborating check searches from here rather than from its own start: a controller may
+ * re-establish the session on its own between the two steps, and a window opening after that would
+ * miss the very line it looks for.
+ */
+let beforeSever: number | undefined;
+
 async function severTheConnection(cx: CertStepContext) {
     severed.set(session.require());
+    beforeSever = await cx.devices.dut.log.markSettled();
     await recordSeveredSession(cx, commissioned.require("th"), session);
 }
 
@@ -36,7 +46,10 @@ async function severTheConnection(cx: CertStepContext) {
  * new session from the severed one — the DUT is free to reuse a session id it has closed.
  */
 async function reestablishTheSession(cx: CertStepContext) {
-    session.set(await recordReestablishedSession(cx, commissioned.require("th"), severed.require()));
+    if (beforeSever === undefined) {
+        throw new CertCheckFailedError("step 2 took no mark before severing");
+    }
+    session.set(await recordReestablishedSession(cx, commissioned.require("th"), severed.require(), beforeSever));
 }
 
 certTest("TC-SC-8.4", {
@@ -62,6 +75,7 @@ certTest("TC-SC-8.4", {
         expected: "Verify that a session is established over TCP with DUT that allows large payloads.",
     })
     .finalize(async cx => {
+        beforeSever = undefined;
         severed.clear();
         session.clear();
         await commissioned.decommissionAll(cx);
