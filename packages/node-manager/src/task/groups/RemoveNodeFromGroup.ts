@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ClientNode, DesiredStateBehavior, itemMapKey } from "@matter/node";
+import { ClientNode } from "@matter/node";
+import { GroupKey, GroupKeyMap, GroupMembership } from "../../reconcile/kinds.js";
 import { TaskDefinition } from "../Task.js";
 import { TaskContext } from "../types.js";
 import { Require } from "../validation.js";
@@ -48,25 +49,24 @@ async function remove(ctx: TaskContext, p: RemoveNodeFromGroupParams): Promise<v
     }
 
     // The keyset id is unreadable once the map intent is gone, so capture it before removal.
-    const keySetId = mappedKeySetId(peer, p.groupId);
+    const keySetId = mappedKeySetId(ctx, peer, p.groupId);
 
     const removed = new Array<{ kind: string; key: string }>();
-    if (await ctx.removeIntentIfUnreferenced(peer, "endpointGroupMembership", membershipKey(p.groupId, p.endpoint))) {
-        removed.push({ kind: "endpointGroupMembership", key: membershipKey(p.groupId, p.endpoint) });
+    if (await ctx.removeIntentIfUnreferenced(peer, GroupMembership, membershipKey(p.groupId, p.endpoint))) {
+        removed.push({ kind: GroupMembership.kind, key: membershipKey(p.groupId, p.endpoint) });
     }
-    if (await ctx.removeIntentIfUnreferenced(peer, "groupKeyMap", String(p.groupId))) {
-        removed.push({ kind: "groupKeyMap", key: String(p.groupId) });
+    if (await ctx.removeIntentIfUnreferenced(peer, GroupKeyMap, String(p.groupId))) {
+        removed.push({ kind: GroupKeyMap.kind, key: String(p.groupId) });
     }
-    if (keySetId !== undefined && (await ctx.removeIntentIfUnreferenced(peer, "groupKey", String(keySetId)))) {
-        removed.push({ kind: "groupKey", key: String(keySetId) });
+    if (keySetId !== undefined && (await ctx.removeIntentIfUnreferenced(peer, GroupKey, String(keySetId)))) {
+        removed.push({ kind: GroupKey.kind, key: String(keySetId) });
     }
 
     if (removed.length > 0) {
-        await ctx.awaitGate([peer], () => removed.every(r => ctx.itemAbsent(peer, r.kind, r.key)));
+        await ctx.awaitGate([peer], () => removed.every(r => ctx.itemAbsent(peer, ctx.kindNamed(r.kind), r.key)));
     }
 }
 
-function mappedKeySetId(peer: ClientNode, groupId: number): number | undefined {
-    const item = peer.stateOf(DesiredStateBehavior).items[itemMapKey("groupKeyMap", String(groupId))];
-    return (item?.intent as { groupKeySetId?: number } | undefined)?.groupKeySetId;
+function mappedKeySetId(ctx: TaskContext, peer: ClientNode, groupId: number): number | undefined {
+    return ctx.intentOf(peer, GroupKeyMap, String(groupId))?.groupKeySetId;
 }

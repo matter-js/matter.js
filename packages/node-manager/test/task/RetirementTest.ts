@@ -24,7 +24,7 @@ import { RunId, TaskPhase } from "#task/types.js";
 import { Environment, ImplementationError, InternalError, MaybePromise } from "@matter/general";
 import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
-import { FakePeer, SyntheticTask } from "./helpers.js";
+import { kindOf, FakePeer, SyntheticTask } from "./helpers.js";
 
 class TestTaskManager extends TaskManagerBehavior {
     static override readonly schema = TaskManagerBehavior.schema;
@@ -94,7 +94,7 @@ const ForwardOnlyTask: TaskDefinition<{ tag: string; peerId: string }> = {
             {
                 name: "write-then-fail",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer(params.peerId), "groupMembership", "X", { v: 2 });
+                    await ctx.setIntent(ctx.resolvePeer(params.peerId), kindOf("groupMembership"), "X", { v: 2 });
                     throw new TaskFailedError("forward only");
                 },
             },
@@ -113,7 +113,7 @@ const FailingRollbackableTask: TaskDefinition<{ tag: string; peerId: string }> =
             {
                 name: "write-then-fail",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer(params.peerId), "groupMembership", "X", { v: 2 });
+                    await ctx.setIntent(ctx.resolvePeer(params.peerId), kindOf("groupMembership"), "X", { v: 2 });
                     throw new TaskFailedError("failing but rollbackable");
                 },
             },
@@ -135,7 +135,7 @@ const UnaskableTask: TaskDefinition<{ tag: string; peerId: string }> = {
             {
                 name: "write-then-fail",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer(params.peerId), "groupMembership", "X", { v: 2 });
+                    await ctx.setIntent(ctx.resolvePeer(params.peerId), kindOf("groupMembership"), "X", { v: 2 });
                     throw new TaskFailedError("unaskable");
                 },
             },
@@ -148,7 +148,7 @@ function touchPhase(peerId: string): TaskPhase {
     return {
         name: "touch",
         run: async ctx => {
-            await ctx.setIntent(ctx.resolvePeer(peerId), "groupMembership", "X", { v: 2 });
+            await ctx.setIntent(ctx.resolvePeer(peerId), kindOf("groupMembership"), "X", { v: 2 });
         },
     };
 }
@@ -159,8 +159,8 @@ function gatingPhase(peerId: string): TaskPhase {
         name: "hold",
         run: async ctx => {
             const peer = ctx.resolvePeer(peerId);
-            await ctx.setIntent(peer, "groupMembership", "X", { v: 2 });
-            await ctx.awaitCommitted([{ peer, kind: "groupMembership", key: "X" }]);
+            await ctx.setIntent(peer, kindOf("groupMembership"), "X", { v: 2 });
+            await ctx.awaitCommitted([{ peer, kind: kindOf("groupMembership"), key: "X" }]);
         },
     };
 }

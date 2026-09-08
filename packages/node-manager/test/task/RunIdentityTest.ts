@@ -23,7 +23,7 @@ import { RunId, TaskPhase } from "#task/types.js";
 import { Environment, ImplementationError } from "@matter/general";
 import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
-import { FakePeer, onTerminalWrite, recordFor, SyntheticTask } from "./helpers.js";
+import { kindOf, FakePeer, onTerminalWrite, recordFor, SyntheticTask } from "./helpers.js";
 
 /** Resolves peers to fakes, so a phase records a real changeSet and its rollback has something to undo. */
 class TestTaskManager extends TaskManagerBehavior {
@@ -97,8 +97,8 @@ function gateForever(peerId: string): TaskPhase {
         name: "hold",
         run: async ctx => {
             const peer = ctx.resolvePeer(peerId);
-            await ctx.setIntent(peer, "groupMembership", "X", {});
-            await ctx.awaitCommitted([{ peer, kind: "groupMembership", key: "X" }]);
+            await ctx.setIntent(peer, kindOf("groupMembership"), "X", {});
+            await ctx.awaitCommitted([{ peer, kind: kindOf("groupMembership"), key: "X" }]);
         },
     };
 }
@@ -108,7 +108,7 @@ function touchPhase(peerId: string): TaskPhase {
     return {
         name: "touch",
         run: async ctx => {
-            await ctx.setIntent(ctx.resolvePeer(peerId), "groupMembership", "X", {});
+            await ctx.setIntent(ctx.resolvePeer(peerId), kindOf("groupMembership"), "X", {});
         },
     };
 }

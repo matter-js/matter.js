@@ -5,7 +5,7 @@
  */
 
 import { ImplementationError } from "@matter/general";
-import { ClientNode } from "@matter/node";
+import { ClientNode, ItemKind } from "@matter/node";
 import { TaskDefinition } from "./Task.js";
 import { ChangeEntry, isRunId, RunId, TaskContext } from "./types.js";
 import { Require } from "./validation.js";
@@ -64,8 +64,8 @@ export const Rollback: TaskDefinition<RollbackParams> = {
 };
 
 async function rollback(ctx: TaskContext, params: RollbackParams): Promise<void> {
-    const restored = new Array<{ peer: ClientNode; kind: string; key: string }>();
-    const removed = new Array<{ peer: ClientNode; kind: string; key: string }>();
+    const restored = new Array<{ peer: ClientNode; kind: ItemKind; key: string }>();
+    const removed = new Array<{ peer: ClientNode; kind: ItemKind; key: string }>();
 
     for (const entry of [...params.entries].reverse()) {
         const peer = ctx.tryResolvePeer(entry.peerId);
@@ -74,10 +74,10 @@ async function rollback(ctx: TaskContext, params: RollbackParams): Promise<void>
             continue;
         }
         if (entry.prior !== undefined) {
-            await ctx.setIntent(peer, entry.kind, entry.key, entry.prior.intent, entry.prior.mode);
-            restored.push({ peer, kind: entry.kind, key: entry.key });
-        } else if (await ctx.removeIntentIfUnreferenced(peer, entry.kind, entry.key)) {
-            removed.push({ peer, kind: entry.kind, key: entry.key });
+            await ctx.setIntent(peer, ctx.kindNamed(entry.kind), entry.key, entry.prior.intent, entry.prior.mode);
+            restored.push({ peer, kind: ctx.kindNamed(entry.kind), key: entry.key });
+        } else if (await ctx.removeIntentIfUnreferenced(peer, ctx.kindNamed(entry.kind), entry.key)) {
+            removed.push({ peer, kind: ctx.kindNamed(entry.kind), key: entry.key });
         }
     }
 

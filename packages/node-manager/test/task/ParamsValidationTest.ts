@@ -10,7 +10,10 @@ import { RotateGroupKey } from "#task/groups/RotateGroupKey.js";
 import { Rollback } from "#task/Rollback.js";
 import { TaskDefinition } from "#task/Task.js";
 import { RunId } from "#task/types.js";
+import { BUILT_IN_KINDS, GroupKey } from "#reconcile/kinds.js";
+import { GroupKeyGrant } from "#reconcile/GroupKeyItemKind.js";
 import { ImplementationError } from "@matter/general";
+import { ItemKind } from "@matter/node";
 
 const ADD = {
     peerId: "peer1",
@@ -32,6 +35,23 @@ function refuses<P>(definition: TaskDefinition<P>, good: P, bad: Record<string, 
         expect(() => definition.validate?.({ ...good, [field]: value } as P), `${field}`).throws(ImplementationError);
     }
 }
+
+describe("typed item kinds", () => {
+    it("gives each built-in kind one registered instance, so a reference is an identity", () => {
+        // A task names a kind by reference. Two instances of one name would let a task pass a kind the
+        // reconciler does not drive, which no type could catch.
+        expect(new Set(BUILT_IN_KINDS.map(k => k.kind)).size).equals(BUILT_IN_KINDS.length);
+        expect(BUILT_IN_KINDS).contains(GroupKey);
+    });
+
+    it("types the intent from the kind", () => {
+        // Compile-time, not runtime: `GroupKey` is an ItemKind<GroupKeyGrant>, so `setIntent` with it accepts
+        // only that shape and `intentOf` returns it. A misspelled kind is no longer expressible at all —
+        // there is no string to misspell.
+        const typed: ItemKind<GroupKeyGrant> = GroupKey;
+        expect(typed.kind).equals("groupKey");
+    });
+});
 
 describe("built-in task parameter validation", () => {
     // Every built-in declares `validate`, so a record read back from storage is checked before it is driven.

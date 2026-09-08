@@ -10,7 +10,7 @@ import { BoundDefinition, RunRecord } from "#task/Task.js";
 import { TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
 import { itemMapKey } from "@matter/node";
-import { FakePeer } from "./helpers.js";
+import { FakePeer, kindOf } from "./helpers.js";
 
 function runRollback(peer: FakePeer, params: RollbackParams, referenced = new Set<string>()) {
     const bound = new BoundDefinition(Rollback, params);
@@ -18,9 +18,8 @@ function runRollback(peer: FakePeer, params: RollbackParams, referenced = new Se
     const setState = (s: TaskState) => {
         record.state = s;
     };
-    (peer as unknown as { itemKind(kind: string): unknown }).itemKind = (kind: string) => ({
-        isReferenced: (_n: unknown, key: string) => referenced.has(`${kind}:${key}`),
-    });
+    (peer as unknown as { itemKind(kind: string): unknown }).itemKind = (kind: string) =>
+        kindOf(kind, { isReferenced: (_n: unknown, key: string) => referenced.has(`${kind}:${key}`) });
     const ctx = new RunningTaskContext(record, () => peer.asNode(), peer, setState);
     return bound.phases()[0].run(ctx);
 }

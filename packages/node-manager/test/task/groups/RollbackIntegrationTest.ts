@@ -19,8 +19,9 @@ import { SustainedSubscription } from "@matter/protocol";
 import { EndpointNumber, GroupId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import {
-    isTerminalState,
     cancelSlot,
+    isTerminalState,
+    kindOf,
     recordFor,
     requireRecordFor,
     requireStatusOfSlot,
@@ -73,7 +74,7 @@ async function provision(ctx: TaskContext, p: AddNodeToGroupParams): Promise<voi
 
     await ctx.setIntent(
         peer,
-        "groupKey",
+        kindOf("groupKey"),
         String(p.groupKeySetId),
         {
             groupKeySetId: p.groupKeySetId,
@@ -89,14 +90,14 @@ async function provision(ctx: TaskContext, p: AddNodeToGroupParams): Promise<voi
     );
     await ctx.setIntent(
         peer,
-        "groupKeyMap",
+        kindOf("groupKeyMap"),
         String(p.groupId),
         { groupId, groupKeySetId: p.groupKeySetId },
         "converge",
     );
     await ctx.setIntent(
         peer,
-        "endpointGroupMembership",
+        kindOf("endpointGroupMembership"),
         String(p.groupId),
         { localEndpoint: p.endpoint, groupId, groupName: p.groupName },
         "converge",

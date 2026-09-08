@@ -6,7 +6,15 @@
 
 import { ReconcilerSurface } from "#reconcile/ReconcilerSurface.js";
 import { asError, Logger, ObserverGroup } from "@matter/general";
-import { ClientNode, DesiredStateBehavior, itemMapKey, ItemMode, ManagedItem, NetworkClient } from "@matter/node";
+import {
+    ClientNode,
+    DesiredStateBehavior,
+    ItemKind,
+    itemMapKey,
+    ItemMode,
+    ManagedItem,
+    NetworkClient,
+} from "@matter/node";
 import { SustainedSubscription } from "@matter/protocol";
 import { TaskFailedError, TaskPeerUnavailableError } from "./errors.js";
 import { runLabel, RunRecord } from "./Task.js";
@@ -52,18 +60,33 @@ export class RunningTaskContext implements TaskContext {
         return this.peerResolver(peerId);
     }
 
-    async setIntent(peer: ClientNode, kind: string, key: string, intent: unknown, mode: ItemMode = "converge") {
-        this.#record(peer, kind, key);
+    async setIntent<I>(peer: ClientNode, kind: ItemKind<I>, key: string, intent: I, mode: ItemMode = "converge") {
+        this.#record(peer, kind.kind, key);
         await peer.act(agent => {
-            agent.get(DesiredStateBehavior).setIntent(kind, key, intent, mode);
+            agent.get(DesiredStateBehavior).setIntent(kind.kind, key, intent, mode);
         });
     }
 
-    async removeIntent(peer: ClientNode, kind: string, key: string) {
-        this.#record(peer, kind, key);
+    async removeIntent(peer: ClientNode, kind: ItemKind, key: string) {
+        this.#record(peer, kind.kind, key);
         await peer.act(agent => {
-            agent.get(DesiredStateBehavior).removeIntent(kind, key);
+            agent.get(DesiredStateBehavior).removeIntent(kind.kind, key);
         });
+    }
+
+    intentOf<I>(peer: ClientNode, kind: ItemKind<I>, key: string): I | undefined {
+        // The kind names the intent type, so no caller has to assert one.
+        return peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind.kind, key)]?.intent as I | undefined;
+    }
+
+    kindNamed(name: string): ItemKind {
+        const kind = this.reconciler.itemKind(name);
+        if (kind === undefined) {
+            throw new TaskFailedError(
+                `Task ${runLabel(this.record.runId)}: no item kind "${name}" is registered, so its recorded change cannot be applied`,
+            );
+        }
+        return kind;
     }
 
     // First touch wins: records the pre-task state so a rollback restores that, not an intermediate touch.
@@ -79,20 +102,24 @@ export class RunningTaskContext implements TaskContext {
         this.record.wrote = true;
     }
 
-    async removeIntentIfUnreferenced(peer: ClientNode, kind: string, key: string): Promise<boolean> {
-        if (this.reconciler.itemKind(kind)?.isReferenced?.(peer, key)) {
-            logger.debug(`Task ${runLabel(this.record.runId)}: keep ${kind}:${key} on ${peer.id} (still referenced)`);
+    async removeIntentIfUnreferenced(peer: ClientNode, kind: ItemKind, key: string): Promise<boolean> {
+        // The registered kind answers, not the reference the caller passed: a task names a kind for its type,
+        // but the reconciler owns what that kind does.
+        if (this.reconciler.itemKind(kind.kind)?.isReferenced?.(peer, key)) {
+            logger.debug(
+                `Task ${runLabel(this.record.runId)}: keep ${kind.kind}:${key} on ${peer.id} (still referenced)`,
+            );
             return false;
         }
         await this.removeIntent(peer, kind, key);
         return true;
     }
 
-    async awaitCommitted(items: Array<{ peer: ClientNode; kind: string; key: string }>): Promise<void> {
+    async awaitCommitted(items: Array<{ peer: ClientNode; kind: ItemKind; key: string }>): Promise<void> {
         const peers = [...new Set(items.map(i => i.peer))];
         await this.awaitGate(peers, () => {
             this.#requireAwaited(items);
-            return items.every(i => this.#itemState(i.peer, i.kind, i.key) === "committed");
+            return items.every(i => this.#itemState(i.peer, i.kind.kind, i.key) === "committed");
         });
     }
 
@@ -100,11 +127,11 @@ export class RunningTaskContext implements TaskContext {
      * A commit gate only ever observes success, so an intent the reconciler gave up on — dropped after an
      * unrecoverable device rejection — would park the task forever. Fail it into the driver's rollback path.
      */
-    #requireAwaited(items: Array<{ peer: ClientNode; kind: string; key: string }>): void {
-        const gone = items.find(i => this.#itemState(i.peer, i.kind, i.key) === undefined);
+    #requireAwaited(items: Array<{ peer: ClientNode; kind: ItemKind; key: string }>): void {
+        const gone = items.find(i => this.#itemState(i.peer, i.kind.kind, i.key) === undefined);
         if (gone !== undefined) {
             throw new TaskFailedError(
-                `Task ${runLabel(this.record.runId)}: awaited intent ${gone.kind}:${gone.key} on ${gone.peer.id} is gone — ` +
+                `Task ${runLabel(this.record.runId)}: awaited intent ${gone.kind.kind}:${gone.key} on ${gone.peer.id} is gone — ` +
                     `the reconciler dropped it, so it can no longer commit`,
             );
         }
@@ -224,12 +251,12 @@ export class RunningTaskContext implements TaskContext {
         this.setState(nodes.some(node => !this.#reachable(node)) ? "parked" : "running");
     }
 
-    itemAbsent(peer: ClientNode, kind: string, key: string): boolean {
-        return peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)] === undefined;
+    itemAbsent(peer: ClientNode, kind: ItemKind, key: string): boolean {
+        return peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind.kind, key)] === undefined;
     }
 
-    peersWithIntent(kind: string, key: string): ClientNode[] {
-        const id = itemMapKey(kind, key);
+    peersWithIntent(kind: ItemKind, key: string): ClientNode[] {
+        const id = itemMapKey(kind.kind, key);
         return this.peerLister().filter(peer => {
             const item = peer.stateOf(DesiredStateBehavior).items[id];
             return item !== undefined && item.status.state !== "deletePending";

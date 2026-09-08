@@ -52,6 +52,25 @@ export function isTerminalState(state: string): boolean {
     return ["completed", "failed", "cancelled", "abandoned"].includes(state);
 }
 
+const testKinds = new Map<string, ItemKind>();
+
+/**
+ * A stand-in item kind, memoized by name.
+ *
+ * Tests name kinds that no reconciler registers, and the task surface takes kind references rather than
+ * names. Memoized because the reference is the identity: two calls for one name must give the same kind.
+ */
+export function kindOf(name: string, extra: Partial<ItemKind> = {}): ItemKind {
+    let kind = testKinds.get(name);
+    if (kind === undefined) {
+        kind = { kind: name, priority: 0, apply: async () => {}, ...extra };
+        testKinds.set(name, kind);
+    } else if (Object.keys(extra).length > 0) {
+        Object.assign(kind, extra);
+    }
+    return kind;
+}
+
 export function liveRecord(manager: TaskManagerBehavior, runId: RunId): RunRecord {
     const execution = manager.internal.runs.executionOf(runId);
     if (execution === undefined) {
@@ -246,9 +265,9 @@ export class FakePeer {
         }
     }
 
-    /** Reconciler stand-in: no kind has dependents by default (tests override per case). */
-    itemKind(_kind: string): ItemKind | undefined {
-        return undefined;
+    /** Reconciler stand-in: resolves any name, and no kind has dependents unless a test supplies one. */
+    itemKind(kind: string): ItemKind | undefined {
+        return kindOf(kind);
     }
 
     eventsOf(type: unknown): unknown {

@@ -11,7 +11,7 @@ import { TaskPhase, TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
 import { Observable } from "@matter/general";
 import { ClientNode, itemMapKey } from "@matter/node";
-import { FakePeer } from "./helpers.js";
+import { kindOf, FakePeer } from "./helpers.js";
 
 const GateTask: TaskDefinition = {
     type: "gate-test",
@@ -60,7 +60,7 @@ describe("TaskContext gates", () => {
         peer.addItem("groupMembership", "1", "committed");
         const { ctx } = makeContext(peer);
 
-        await ctx.awaitCommitted([{ peer: peer.asNode(), kind: "groupMembership", key: "1" }]);
+        await ctx.awaitCommitted([{ peer: peer.asNode(), kind: kindOf("groupMembership"), key: "1" }]);
     });
 
     it("waits, then resolves when itemChanged fires after a reconcile commits", async () => {
@@ -68,7 +68,7 @@ describe("TaskContext gates", () => {
         peer.addItem("groupMembership", "1", "pending");
         const { ctx } = makeContext(peer);
 
-        const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: "groupMembership", key: "1" }]);
+        const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: kindOf("groupMembership"), key: "1" }]);
 
         // Let the initial evaluate settle so the gate has attached its observers.
         await MockTime.resolve(Promise.resolve());
@@ -107,7 +107,7 @@ describe("TaskContext gates", () => {
 
         let settled = false;
         const gate = ctx
-            .awaitCommitted([{ peer: peer.asNode(), kind: "groupMembership", key: "1" }])
+            .awaitCommitted([{ peer: peer.asNode(), kind: kindOf("groupMembership"), key: "1" }])
             .then(() => (settled = true));
 
         // Bounded so a gate that lost the announcement fails here rather than hanging.
@@ -127,7 +127,7 @@ describe("TaskContext gates", () => {
         peer.setReachable(false);
         const { ctx, record, states } = makeContext(peer);
 
-        const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: "groupMembership", key: "1" }]);
+        const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: kindOf("groupMembership"), key: "1" }]);
 
         await MockTime.resolve(Promise.resolve());
         expect(record.state).equals("parked");
@@ -146,7 +146,7 @@ describe("TaskContext gates", () => {
         peer.markRejects("groupMembership", "1");
         const { ctx, record } = makeContext(peer);
 
-        const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: "groupMembership", key: "1" }]);
+        const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: kindOf("groupMembership"), key: "1" }]);
 
         await expect(MockTime.resolve(gate)).rejectedWith(TaskFailedError);
         expect(peer.items[itemMapKey("groupMembership", "1")]).equals(undefined);
@@ -164,7 +164,7 @@ describe("TaskContext gates", () => {
 
         let settled = false;
         let failure: unknown;
-        const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: "groupMembership", key: "1" }]).then(
+        const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: kindOf("groupMembership"), key: "1" }]).then(
             () => (settled = true),
             e => (failure = e),
         );
@@ -206,7 +206,7 @@ describe("TaskContext gates", () => {
         const { ctx } = makeContext(peer, gateControl.control);
         peer.onFirstPass = () => gateControl.abort(new TaskCancelledSignal("cancelled"));
 
-        const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: "groupMembership", key: "1" }]);
+        const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: kindOf("groupMembership"), key: "1" }]);
         await expect(MockTime.resolve(gate)).rejectedWith(TaskCancelledSignal);
 
         // A reconcile started after the driver unwound races the rollback the cancel spawns next, and no longer
@@ -224,7 +224,7 @@ describe("TaskContext gates", () => {
             throw new Error("state write refused");
         });
 
-        const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: "groupMembership", key: "1" }]);
+        const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: kindOf("groupMembership"), key: "1" }]);
         await expect(MockTime.resolve(gate)).rejectedWith("state write refused");
 
         // Observers outliving the gate keep reconciling the peer for a task that is already gone.
@@ -238,7 +238,7 @@ describe("TaskContext gates", () => {
         peer.addItem("groupMembership", "1", "pending");
         const { ctx } = makeContext(peer);
 
-        const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: "groupMembership", key: "1" }]);
+        const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: kindOf("groupMembership"), key: "1" }]);
 
         // Let the initial evaluate settle so the gate is parked on the peer's observers.
         await MockTime.resolve(Promise.resolve());
@@ -259,7 +259,7 @@ describe("TaskContext gates", () => {
 
         let settled = false;
         const gate = ctx
-            .awaitGate([peer.asNode()], () => ctx.itemAbsent(peer.asNode(), "groupMembership", "1"))
+            .awaitGate([peer.asNode()], () => ctx.itemAbsent(peer.asNode(), kindOf("groupMembership"), "1"))
             .then(() => (settled = true));
 
         // Let the initial evaluate settle so the gate is parked on the peer's observers.
@@ -286,9 +286,11 @@ describe("TaskContext gates", () => {
         const { ctx, record } = makeContext(peer);
 
         let settled = false;
-        const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: "groupMembership", key: "1" }]).then(() => {
-            settled = true;
-        });
+        const gate = ctx
+            .awaitCommitted([{ peer: peer.asNode(), kind: kindOf("groupMembership"), key: "1" }])
+            .then(() => {
+                settled = true;
+            });
 
         await MockTime.resolve(Promise.resolve());
         expect(settled).equals(false);
