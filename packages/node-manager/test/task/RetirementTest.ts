@@ -10,6 +10,8 @@ import {
     TaskFailedError,
     TaskAbandonedError,
     TaskAlreadyUndoneError,
+    TaskNoLongerTrackedError,
+    TaskNotFoundError,
     TaskNoRollbackError,
     TaskNotInFlightError,
     TaskStoreVersionError,
@@ -588,6 +590,67 @@ describe("run records after a retirement", () => {
         );
 
         expect((await stored(node, rollback.runId))?.changeSet).deep.equals([]);
+    });
+
+    it("forgets retired runs beyond the history limit, in storage as well as in memory", async () => {
+        await using node = await makeNode();
+        testPeer("history");
+        await node.act(a => (a.get(TestTaskManager).state.historyLimit = 2));
+
+        const ids = new Array<RunId>();
+        for (let i = 0; i < 4; i++) {
+            const handle = await run(node, `history-${i}`, [{ name: "noop", run: async () => {} }]);
+            await awaitRetired(node, handle.runId);
+            ids.push(handle.runId);
+        }
+
+        const stored = await node.act(a => Object.keys(a.get(TestTaskManager).state.runs));
+        // Bounded in storage, not merely in what `history()` reports — a memory-only eviction would leave the
+        // table growing for the life of the node.
+        expect(stored.length).equals(2);
+        expect(await node.act(a => a.get(TestTaskManager).get(ids[0]))).equals(undefined);
+        expect(await node.act(a => a.get(TestTaskManager).get(ids[3]))).not.equals(undefined);
+    });
+
+    it("says an evicted run was forgotten rather than never known", async () => {
+        await using node = await makeNode();
+        testPeer("evicted");
+        await node.act(a => (a.get(TestTaskManager).state.historyLimit = 0));
+
+        const first = await run(node, "evicted-0", [{ name: "noop", run: async () => {} }]);
+        await awaitRetired(node, first.runId);
+        // Eviction happens in a retirement write, and a run is never in its own. So the second run's
+        // retirement is what forgets the first.
+        const second = await run(node, "evicted-1", [{ name: "noop", run: async () => {} }]);
+        await awaitRetired(node, second.runId);
+
+        expect(await node.act(a => a.get(TestTaskManager).get(first.runId))).equals(undefined);
+        expect(await attempt(node, m => m.cancel(first.runId))).instanceOf(TaskNoLongerTrackedError);
+        // An identity never issued is still a different answer.
+        expect(await attempt(node, m => m.cancel(RunId(9_999)))).instanceOf(TaskNotFoundError);
+    });
+
+    it("survives a restart with the forgotten runs still forgotten", async () => {
+        const environment = new Environment("history-restart");
+        let evicted: RunId;
+        let kept: RunId;
+        {
+            await using seed = await makeNode(environment, "historyrestart");
+            testPeer("restart");
+            await seed.act(a => (a.get(TestTaskManager).state.historyLimit = 1));
+            const first = await run(seed, "restart-0", [{ name: "noop", run: async () => {} }]);
+            await awaitRetired(seed, first.runId);
+            const second = await run(seed, "restart-1", [{ name: "noop", run: async () => {} }]);
+            await awaitRetired(seed, second.runId);
+            evicted = first.runId;
+            kept = second.runId;
+        }
+
+        await using node = await makeNode(environment, "historyrestart");
+        expect(await node.act(a => a.get(TestTaskManager).get(evicted))).equals(undefined);
+        expect(await node.act(a => a.get(TestTaskManager).get(kept))).not.equals(undefined);
+        // The high-water mark outlived the records, so the answer is still "forgotten", not "never existed".
+        expect(await attempt(node, m => m.cancel(evicted))).instanceOf(TaskNoLongerTrackedError);
     });
 
     it("is superseded by a later run that reached the device and cannot be undone", async () => {

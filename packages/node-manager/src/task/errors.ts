@@ -49,6 +49,7 @@ export enum TaskFindingCode {
 
     /** No run answers the given identity. */
     NotFound = "notFound",
+    NoLongerTracked = "noLongerTracked",
 
     /** The run has passed its point of no return. */
     NotRollbackable = "notRollbackable",
@@ -195,6 +196,16 @@ export class TaskManagerClosingError extends TaskRefusedError {
 /** `abandon()` names the rollback to give up on, not the run it undoes. */
 export class TaskNotARollbackError extends TaskRefusedError {
     override readonly code = TaskFindingCode.NotARollback;
+}
+
+/**
+ * The run retired and its record has since been evicted, so this manager can no longer act on it.
+ *
+ * Distinct from {@link TaskNotFoundError}: the work happened, and the identity was real. Only the record is
+ * gone, because history is bounded.
+ */
+export class TaskNoLongerTrackedError extends TaskRefusedError {
+    override readonly code = TaskFindingCode.NoLongerTracked;
 }
 
 /**
