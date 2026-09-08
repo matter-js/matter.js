@@ -7,7 +7,7 @@
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { TaskFailedError, TaskIdentityExhaustedError, TaskRollbackPendingError } from "#task/errors.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
-import { TaskPhase } from "#task/types.js";
+import { TaskContext, TaskPhase } from "#task/types.js";
 import { RunId } from "#task/types.js";
 import { Environment } from "@matter/general";
 import { ClientNode, ItemKind, itemMapKey, ServerNode } from "@matter/node";
@@ -108,6 +108,95 @@ function gatePhase(peerId: string, kind: ItemKind, key: string): TaskPhase {
         },
     };
 }
+
+describe("phase preconditions", () => {
+    before(() => MockTime.init());
+
+    /** Counts asks and refuses on the nth, so a test can choose which edge refuses. */
+    function countingPhase(refuseOnAsk: number, onRun?: (ctx: TaskContext) => Promise<void>) {
+        const asks = new Array<number>();
+        const phase: TaskPhase = {
+            name: "guarded",
+            requires: () => {
+                asks.push(asks.length + 1);
+                if (asks.length === refuseOnAsk) {
+                    throw new TaskFailedError(`refused on ask ${refuseOnAsk}`);
+                }
+            },
+            run: async ctx => {
+                await onRun?.(ctx);
+            },
+        };
+        return { phase, asks };
+    }
+
+    it("asks a phase's precondition before it writes and again after", async () => {
+        const environment = new Environment("requires-both");
+        const peer = new FakePeer("pre");
+        TestTaskManager.peers.set("pre", peer);
+        TestTaskManager.reconcilerPeer = peer;
+
+        const { phase, asks } = countingPhase(0);
+        SyntheticTask.phasesByTag["requires"] = [phase];
+
+        await using node = await makeNode(environment);
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+        const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "requires" }));
+        await awaitState(node, "synthetic:requires", "completed");
+
+        // Twice for the one phase: state a phase checked on entry can change while it writes, and the layer
+        // holds nothing that would stop that.
+        expect(asks.length).equals(2);
+        expect(handle.status.state).equals("completed");
+    });
+
+    it("refuses before the phase writes anything", async () => {
+        const environment = new Environment("requires-entry");
+        const peer = new FakePeer("pre2");
+        TestTaskManager.peers.set("pre2", peer);
+        TestTaskManager.reconcilerPeer = peer;
+
+        let wrote = false;
+        const { phase } = countingPhase(1, async () => {
+            wrote = true;
+        });
+        SyntheticTask.phasesByTag["entry"] = [phase];
+
+        await using node = await makeNode(environment);
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "entry" }));
+        await awaitState(node, "synthetic:entry", "failed");
+
+        expect(wrote).equals(false);
+        const status = await node.act(a => statusOfSlot(a.get(TestTaskManager), "synthetic:entry"));
+        expect(status?.error).contains("refused on ask 1");
+    });
+
+    it("refuses after the phase's writes, and rolls them back", async () => {
+        const environment = new Environment("requires-after");
+        const peer = new FakePeer("pre3");
+        peer.markHas("groupMembership", "P");
+        TestTaskManager.peers.set("pre3", peer);
+        TestTaskManager.reconcilerPeer = peer;
+
+        const { phase } = countingPhase(2, async ctx => {
+            await ctx.setIntent(ctx.resolvePeer("pre3"), kindOf("groupMembership"), "P", { v: 2 });
+        });
+        SyntheticTask.phasesByTag["after"] = [phase];
+
+        await using node = await makeNode(environment);
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+        const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "after" }));
+        await awaitState(node, "synthetic:after", "failed");
+
+        // The second ask is what a task would forget, and what a shared item makes necessary.
+        const status = await node.act(a => statusOfSlot(a.get(TestTaskManager), "synthetic:after"));
+        expect(status?.error).contains("refused on ask 2");
+        // What it wrote before the refusal is undone.
+        expect(status?.rollbackRunId).not.equals(undefined);
+        void handle;
+    });
+});
 
 describe("Task lifecycle", () => {
     before(() => MockTime.init());

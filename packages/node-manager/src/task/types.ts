@@ -91,6 +91,18 @@ export interface PlannedChange {
 export interface TaskPhase {
     name: string;
     run(ctx: TaskContext): Promise<void>;
+
+    /**
+     * Refuse the phase while the device state it depends on does not hold. Throw to refuse; the run then fails
+     * and rolls back what it had written.
+     *
+     * Asked **twice**: before the phase writes anything, and again once its writes have committed. The second
+     * ask is the one a task will not think of — a phase yields at every write and at its commit gate, so state
+     * it checked on entry can change underneath it, and the layer takes no lock on anything a task touches.
+     * Tasks that share items with other tasks need it; that is how a group-key rotation notices a member that
+     * joined while it was running.
+     */
+    requires?(ctx: TaskContext): void;
 }
 
 export interface TaskContext {

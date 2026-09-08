@@ -319,7 +319,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         await awaitState(controller, ROTATE_SLOT, "failed");
 
         const status = await controller.act(a => statusOfSlot(a.get(TaskManagerBehavior), ROTATE_SLOT));
-        expect(status?.error).contains("joined the key set after the distribute phase");
+        expect(status?.error).contains("joined the key set while the rotation was running");
 
         // A saw distribute only (2 starts, the new key future-dated and dormant); neither member was activated.
         expect(writesA.map(s => s.length)).deep.equals([2]);
@@ -354,7 +354,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         await awaitState(controller, ROTATE_SLOT, "failed");
 
         const status = await controller.act(a => statusOfSlot(a.get(TaskManagerBehavior), ROTATE_SLOT));
-        expect(status?.error).contains("during the activate phase");
+        expect(status?.error).contains("joined the key set while the rotation was running");
 
         // Cleanup never ran, so no member lost the old key: A holds the 3-key activate struct, B only its own
         // provisioning write, and the late member still holds the old key material.
