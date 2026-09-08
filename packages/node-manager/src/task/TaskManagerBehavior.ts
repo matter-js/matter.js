@@ -1180,7 +1180,11 @@ export class TaskManagerBehavior extends Behavior {
                 // A phase mutates the peer before it reaches its gate, so this is the last point at which an
                 // abort accepted meanwhile can still prevent the write.
                 this.#throwIfAborted(execution);
+                phase.requires?.(ctx);
                 await phase.run(ctx);
+                // Again, because the phase yielded: anything it checked on entry may have changed while it
+                // wrote, and nothing the layer holds prevents that.
+                phase.requires?.(ctx);
                 // A cancel accepted while the phase ran must leave phaseIndex on that phase: the rollback decision is
                 // phase-based, so advancing it can cross a task's point of no return and suppress the rollback.
                 const teardown = this.internal.runs.transitionOf(execution.runId)?.teardown;

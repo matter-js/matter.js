@@ -66,12 +66,52 @@ export const RotateGroupKey: TaskDefinition<RotateGroupKeyParams> = {
 
     phases(params) {
         return [
-            { name: "distribute", run: ctx => runPhase(ctx, params, "distribute") },
-            { name: "activate", run: ctx => runPhase(ctx, params, "activate") },
+            {
+                name: "distribute",
+                requires: ctx => requireSingleKeySteadyState(ctx, params),
+                run: ctx => runPhase(ctx, params, "distribute"),
+            },
+            {
+                name: "activate",
+                requires: ctx => requireEveryMemberHoldsNewKey(ctx, params),
+                run: ctx => runPhase(ctx, params, "activate"),
+            },
             { name: "cleanup", run: ctx => runPhase(ctx, params, "cleanup") },
         ];
     },
 };
+
+/** Rotation starts from a single-key steady state; a multi-epoch key set is unsupported. */
+function requireSingleKeySteadyState(ctx: TaskContext, p: RotateGroupKeyParams): void {
+    const key = String(p.groupKeySetId);
+    for (const peer of ctx.peersWithIntent(GroupKey, key)) {
+        const current = currentIntent(ctx, peer, p);
+        if (current !== undefined && !isRotatable(current, p)) {
+            throw new RotationPreconditionError(
+                `Cannot rotate group key set ${p.groupKeySetId} on peer ${peer.id}: ` +
+                    `member holds a multi-epoch keyset (slot 1/2 populated). Rotation requires a ` +
+                    `single-key steady state; multi-epoch keysets are unsupported.`,
+            );
+        }
+    }
+}
+
+/**
+ * Every current member must hold this rotation's new key before any member starts transmitting with it.
+ *
+ * Asked before activate writes and again after, because provisioning a group takes no lock on its key set: a
+ * member that joins in between would not be able to decrypt traffic from members that already flipped.
+ */
+function requireEveryMemberHoldsNewKey(ctx: TaskContext, p: RotateGroupKeyParams): void {
+    const late = memberWithoutNewKey(ctx, p, String(p.groupKeySetId));
+    if (late !== undefined) {
+        throw new RotationPreconditionError(
+            `Cannot activate group key set ${p.groupKeySetId}: peer ${late.id} does not hold this ` +
+                `rotation's new key, so it joined the key set while the rotation was running. The distributed ` +
+                `keys remain dormant; rotate again with this same new key, which covers every current member.`,
+        );
+    }
+}
 
 async function runPhase(ctx: TaskContext, p: RotateGroupKeyParams, phase: RotationPhase): Promise<void> {
     const key = String(p.groupKeySetId);
@@ -79,50 +119,10 @@ async function runPhase(ctx: TaskContext, p: RotateGroupKeyParams, phase: Rotati
     if (members.length === 0) {
         return;
     }
-    // distribute is the first phase, so validating here refuses the whole rotation before any intent is mutated.
-    if (phase === "distribute") {
-        for (const peer of members) {
-            const current = currentIntent(ctx, peer, p);
-            if (current !== undefined && !isRotatable(current, p)) {
-                throw new RotationPreconditionError(
-                    `Cannot rotate group key set ${p.groupKeySetId} on peer ${peer.id}: ` +
-                        `member holds a multi-epoch keyset (slot 1/2 populated). Rotation requires a ` +
-                        `single-key steady state; multi-epoch keysets are unsupported.`,
-                );
-            }
-        }
-    }
-    // A member is re-derived per phase, so one whose intent appeared after distribute would activate without
-    // holding the new key and could not decrypt traffic from members that already flipped to it.
-    if (phase === "activate") {
-        const late = memberWithoutNewKey(ctx, p, key);
-        if (late !== undefined) {
-            throw new RotationPreconditionError(
-                `Cannot activate group key set ${p.groupKeySetId}: peer ${late.id} does not hold ` +
-                    `this rotation's new key, so it joined the key set after the distribute phase. The ` +
-                    `distributed keys remain dormant; rotate again with this same new key so every member ` +
-                    `receives it before activation.`,
-            );
-        }
-    }
     for (const peer of members) {
         await ctx.setIntent(peer, GroupKey, key, struct(ctx, peer, p, phase), "converge");
     }
     await ctx.awaitCommitted(members.map(peer => ({ peer, kind: GroupKey, key })));
-    // The writes and the barrier above both yield, and provisioning a group takes no lock on its key set, so
-    // the member set can grow after the check at phase entry.
-    if (phase === "activate") {
-        const late = memberWithoutNewKey(ctx, p, key);
-        if (late !== undefined) {
-            throw new RotationPreconditionError(
-                `Cannot complete activation of group key set ${p.groupKeySetId}: peer ${late.id} ` +
-                    `joined the key set during the activate phase and does not hold this rotation's new key, ` +
-                    `so it cannot decrypt traffic from the members that already transmit with it. The old key ` +
-                    `is still present on those members; rotate again with this same new key, which covers ` +
-                    `every current member.`,
-            );
-        }
-    }
 }
 
 /** A member holding an intent for this key set that does not carry this rotation's new key, if there is one. */
