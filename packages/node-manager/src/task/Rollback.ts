@@ -8,9 +8,9 @@ import { ClientNode } from "@matter/node";
 import { TaskDefinition } from "./Task.js";
 import { ChangeEntry, RunId, TaskContext } from "./types.js";
 
-export const REVERT_TYPE = "revert";
+export const ROLLBACK_TYPE = "rollback";
 
-export interface RevertParams {
+export interface RollbackParams {
     originalRunId: RunId;
     entries: ChangeEntry[];
 }
@@ -21,8 +21,8 @@ export interface RevertParams {
  * referenced by another group). Runs as an ordinary task, so it parks on offline peers and resumes after
  * restart. Spawned by the manager on a hard forward failure or on cancel.
  */
-export const Revert: TaskDefinition<RevertParams> = {
-    type: REVERT_TYPE,
+export const Rollback: TaskDefinition<RollbackParams> = {
+    type: ROLLBACK_TYPE,
 
     callerCreatable: false,
 
@@ -36,21 +36,21 @@ export const Revert: TaskDefinition<RevertParams> = {
     },
 
     slotKeyFor(params) {
-        return `revert:${params.originalRunId}`;
+        return `rollback:${params.originalRunId}`;
     },
 
     phases(params) {
-        return [{ name: "revert", run: ctx => revert(ctx, params) }];
+        return [{ name: "rollback", run: ctx => rollback(ctx, params) }];
     },
 };
 
-async function revert(ctx: TaskContext, params: RevertParams): Promise<void> {
+async function rollback(ctx: TaskContext, params: RollbackParams): Promise<void> {
     const restored = new Array<{ peer: ClientNode; kind: string; key: string }>();
     const removed = new Array<{ peer: ClientNode; kind: string; key: string }>();
 
     for (const entry of [...params.entries].reverse()) {
         const peer = ctx.tryResolvePeer(entry.peerId);
-        // A decommissioned peer's intent is GC'd with the node, so its revert is moot.
+        // A decommissioned peer's intent is GC'd with the node, so its rollback is moot.
         if (peer === undefined) {
             continue;
         }

@@ -57,8 +57,8 @@ export async function executeActions(
                         throw new UnknownItemKindError(`No item kind registered for "${item.kind}"`);
                     }
                     await kind.apply(target.node, item);
-                    // A revert that flipped the intent to delete during this apply must win: a status
-                    // write here would resurrect the item the revert is trying to remove.
+                    // A rollback that flipped the intent to delete during this apply must win: a status
+                    // write here would resurrect the item the rollback is trying to remove.
                     if (target.currentState(item.kind, item.key) === "deletePending") {
                         break;
                     }

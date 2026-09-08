@@ -14,7 +14,7 @@ import {
     TaskSlotOccupiedError,
     TaskTypeNotRegisteredError,
 } from "#task/errors.js";
-import { Revert } from "#task/Revert.js";
+import { Rollback } from "#task/Rollback.js";
 import { RUN_ID_RESERVATION } from "#task/RunStore.js";
 import { TaskDefinition, TaskPersistence } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
@@ -186,17 +186,17 @@ describe("run identity", () => {
             for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
                 await MockTime.advance(1);
             }
-            const revert = await node.act(a =>
+            const rollback = await node.act(a =>
                 a
                     .get(TestTaskManager)
                     .cancel(handle.runId)
                     .then(c => c.rollback),
             );
-            expect(revert).not.equals(undefined);
-            runIds.push(revert!.runId);
+            expect(rollback).not.equals(undefined);
+            runIds.push(rollback!.runId);
 
             // Let the rollback finish and release the slot, so the next round is a genuine re-run of it.
-            await settle(node, `revert:${handle.runId}`);
+            await settle(node, `rollback:${handle.runId}`);
             peer.dropItem("groupMembership", "X");
         }
 
@@ -211,8 +211,8 @@ describe("run identity", () => {
         const cancelled = Object.values(persisted).filter(r => r.state === "cancelled");
         expect(cancelled).length(2);
         // Each rollback is linked to the forward run it undoes, so the audit trail of both cancels survives.
-        const rollbacks = Object.values(persisted).filter(r => r.revertOf !== undefined);
-        expect(rollbacks.map(r => r.revertOf).sort()).deep.equals(cancelled.map(r => r.runId).sort());
+        const rollbacks = Object.values(persisted).filter(r => r.rollbackOf !== undefined);
+        expect(rollbacks.map(r => r.rollbackOf).sort()).deep.equals(cancelled.map(r => r.runId).sort());
     });
 
     it("lists only non-terminal runs in tasks", async () => {
@@ -325,7 +325,7 @@ describe("run identity", () => {
                 .cancel(runId)
                 .then(c => c.rollback),
         );
-        expect(rollback?.status.revertOf).equals(runId);
+        expect(rollback?.status.rollbackOf).equals(runId);
     });
 
     it("refuses to roll back a run awaiting resume whose type nothing has registered", async () => {
@@ -342,7 +342,7 @@ describe("run identity", () => {
             await pumpUntil("intent written", async () => peer.items[itemMapKey("groupMembership", "X")] !== undefined);
         }
 
-        // Observing an unfinished run needs no task; rolling one back does, because revertibility is the task's
+        // Observing an unfinished run needs no task; rolling one back does, because the rollback decision is the task's
         // decision and a record cannot answer it.
         await using node = await makeNode(environment, "unregistered");
         expect(await node.act(a => a.get(TestTaskManager).get(runId)?.status.state)).equals("running");
@@ -396,7 +396,7 @@ describe("run identity", () => {
                 .cancel(first.runId)
                 .then(c => c.rollback),
         );
-        expect(rollback?.status.revertOf).equals(first.runId);
+        expect(rollback?.status.rollbackOf).equals(first.runId);
 
         // A rollback rewrites exactly the intents a re-run would re-apply.
         let refusal: unknown;
@@ -429,7 +429,7 @@ describe("run identity", () => {
         expect(rollback).not.equals(undefined);
 
         // Let the rollback finish and retire, so it no longer answers as live work.
-        await settle(node, `revert:${handle.runId}`);
+        await settle(node, `rollback:${handle.runId}`);
 
         // Cancelling again is idempotent and must keep naming the same rollback. Resolving only live runs here
         // would make the answer depend on whether the rollback happens to have finished yet.
@@ -440,7 +440,7 @@ describe("run identity", () => {
                 .then(c => c.rollback),
         );
         expect(again?.runId).equals(rollback?.runId);
-        expect(again?.status.revertOf).equals(handle.runId);
+        expect(again?.status.rollbackOf).equals(handle.runId);
     });
 
     it("refuses to start a rollback through run(), which only cancel may create", async () => {
@@ -455,7 +455,7 @@ describe("run identity", () => {
         // one against work still writing to a peer, which no admission check can tell from a prepared one.
         let refusal: unknown;
         try {
-            await node.act(a => a.get(TestTaskManager).run(Revert, { originalRunId: forward.runId, entries: [] }));
+            await node.act(a => a.get(TestTaskManager).run(Rollback, { originalRunId: forward.runId, entries: [] }));
         } catch (e) {
             refusal = e;
         }
@@ -482,11 +482,11 @@ describe("run identity", () => {
                     .then(c => c.rollback),
             );
             rollbackId = rollback!.runId;
-            await settle(node, `revert:${runId}`);
+            await settle(node, `rollback:${runId}`);
         }
 
         // Nothing registers the type on this start. Deciding on a NEW rollback would need the task, because
-        // revertibility is the task's decision — but a run that already recorded one is answered by its record.
+        // the rollback decision is the task's decision — but a run that already recorded one is answered by its record.
         await using node = await makeNode(environment, "norereg");
         const again = await node.act(a =>
             a

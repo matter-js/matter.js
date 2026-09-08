@@ -15,7 +15,7 @@ import { OnOffLightSwitchDevice } from "@matter/node/devices/on-off-light-switch
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import { EndpointNumber, GroupId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
-import { recordFor } from "../helpers.js";
+import { isTerminalState, recordFor } from "../helpers.js";
 
 const { TrustFirst } = GroupKeyManagement.GroupKeySecurityPolicy;
 
@@ -63,7 +63,7 @@ async function awaitState(node: ServerNode, id: string, ...states: string[]): Pr
             // A run turns terminal one step before it retires, so a caller that acts here would find the
             // slot still held.
             const settled =
-                !(["completed", "failed", "cancelled"] as string[]).includes(state) ||
+                !isTerminalState(state) ||
                 (await node.act(a => !a.get(TaskManagerBehavior).tasks.some(t => t.status.slotKey === id)));
             if (settled) {
                 return;

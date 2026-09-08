@@ -51,7 +51,7 @@ export enum TaskFindingCode {
     NotFound = "notFound",
 
     /** The run has passed its point of no return. */
-    NotRevertible = "notRevertible",
+    NotRollbackable = "notRollbackable",
 
     /** More runs were started than the durable identity reservation covers. */
     IdentityExhausted = "identityExhausted",
@@ -103,8 +103,8 @@ export class TaskCapacityExceededError extends TaskError {}
 export class RotationPreconditionError extends TaskError {}
 
 /** cancel() was refused: the task passed its point of no return (e.g. a realized group-key rotation). */
-export class TaskNotRevertibleError extends TaskRefusedError {
-    override readonly code = TaskFindingCode.NotRevertible;
+export class TaskNotRollbackableError extends TaskRefusedError {
+    override readonly code = TaskFindingCode.NotRollbackable;
 }
 
 /**

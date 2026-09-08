@@ -17,7 +17,7 @@ import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import { SustainedSubscription } from "@matter/protocol";
 import { EndpointNumber, GroupId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
-import { cancelSlot, recordFor, revertRecordOf, statusOfSlot } from "../helpers.js";
+import { cancelSlot, isTerminalState, recordFor, rollbackRecordOf, statusOfSlot } from "../helpers.js";
 
 const { TrustFirst } = GroupKeyManagement.GroupKeySecurityPolicy;
 
@@ -62,7 +62,7 @@ async function awaitState(node: ServerNode, id: string, ...states: string[]): Pr
             // A run turns terminal one step before it retires, so a caller that acts here would find the
             // slot still held.
             const settled =
-                !(["completed", "failed", "cancelled"] as string[]).includes(state) ||
+                !isTerminalState(state) ||
                 (await node.act(a => !a.get(TaskManagerBehavior).tasks.some(t => t.status.slotKey === id)));
             if (settled) {
                 return;
@@ -154,8 +154,8 @@ describe("AddNodeToGroup task integration (single peer)", () => {
         const status = await controller.act(agent => statusOfSlot(agent.get(TaskManagerBehavior), TASK_ID));
         expect(status?.state).equals("completed");
         // Nothing was spawned, so the run names no rollback.
-        expect(status?.revertRunId).equals(undefined);
-        expect(revertRecordOf(controller.stateOf(TaskManagerBehavior).runs, TASK_ID)).equals(undefined);
+        expect(status?.rollbackRunId).equals(undefined);
+        expect(rollbackRecordOf(controller.stateOf(TaskManagerBehavior).runs, TASK_ID)).equals(undefined);
     });
 
     it("resumes a parked task across a controller restart", async () => {

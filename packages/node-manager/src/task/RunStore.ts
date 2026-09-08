@@ -397,19 +397,19 @@ export class RunStore {
      * **The only way to ask.** The relation has two representations — a rollback links to its original by
      * identity from the moment it is admitted, while the original's own link is durable but only lands with a
      * write — so a caller that picks one of them gets a different answer inside every persistence window. Every
-     * decision about a run's rollback comes through here; `revertRunId` is read directly only to report
+     * decision about a run's rollback comes through here; `rollbackRunId` is read directly only to report
      * history.
      *
      * Unambiguous despite two rollbacks being able to exist for one run: a rollback's target is
-     * `revert:<originalRunId>`, and a target has one owner, so only one of them is ever live.
+     * `rollback:<originalRunId>`, and a target has one owner, so only one of them is ever live.
      */
     rollbackFor(runId: RunId): RunRecord | undefined {
         for (const record of this.live) {
-            if (record.revertOf === runId) {
+            if (record.rollbackOf === runId) {
                 return record;
             }
         }
-        const recorded = this.#records.get(runId)?.revertRunId;
+        const recorded = this.#records.get(runId)?.rollbackRunId;
         return recorded === undefined ? undefined : this.#records.get(recorded);
     }
 
@@ -426,7 +426,7 @@ export class RunStore {
             }
         }
         for (const record of this.live) {
-            if (record.revertOf !== undefined && undone.has(record.revertOf)) {
+            if (record.rollbackOf !== undefined && undone.has(record.rollbackOf)) {
                 return record;
             }
         }

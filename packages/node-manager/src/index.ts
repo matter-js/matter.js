@@ -9,7 +9,7 @@ export * from "./task/errors.js";
 export * from "./task/groups/AddNodeToGroup.js";
 export * from "./task/groups/RemoveNodeFromGroup.js";
 export * from "./task/groups/RotateGroupKey.js";
-export * from "./task/Revert.js";
+export * from "./task/Rollback.js";
 export * from "./task/Task.js";
 export * from "./task/TaskManagerBehavior.js";
 export * from "./task/TaskRegistry.js";

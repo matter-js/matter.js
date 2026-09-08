@@ -17,14 +17,6 @@ export const ROTATE_GROUP_KEY_TYPE = "rotateGroupKey";
 export interface RotateGroupKeyParams {
     groupKeySetId: number;
     newEpochKey: Uint8Array;
-    /**
-     * Operator-facing label for this rotation, carried into its record and its log lines.
-     *
-     * It takes no part in identity: a key set has one slot, so any rotation of it conflicts with a live one
-     * whatever this says, and once that run retires the next rotation may reuse this label or change it. To
-     * correlate a rotation with a request, pass `externalId` to `run`.
-     */
-    rotationId: string;
     groupKeySecurityPolicy?: GroupKeyManagement.GroupKeySecurityPolicy;
 }
 
@@ -47,7 +39,7 @@ const ACTIVATE_INDEX = 1;
  * some members to old-key-only while others already TX the new key, opening an RX gap. A rotation may still be
  * cancelled/rolled-back during distribute — there the new key is dormant/future-dated and nobody TXes it, so
  * dropping it is clean. Recover a bad realized rotation by rotating to a NEW key, not by reverting;
- * {@link revertible} declines cancel and auto-rollback past that point.
+ * {@link rollbackable} declines cancel and auto-rollback past that point.
  */
 export const RotateGroupKey: TaskDefinition<RotateGroupKeyParams> = {
     type: ROTATE_GROUP_KEY_TYPE,
@@ -59,11 +51,11 @@ export const RotateGroupKey: TaskDefinition<RotateGroupKeyParams> = {
         return `${ROTATE_GROUP_KEY_TYPE}:${params.groupKeySetId}`;
     },
 
-    revertible(run) {
+    rollbackable(run) {
         return run.phaseIndex < ACTIVATE_INDEX;
     },
 
-    notRevertibleReason: "a realized group-key rotation is forward-only — rotate to a new key instead of reverting",
+    notRollbackableReason: "a realized group-key rotation is forward-only — rotate to a new key instead of reverting",
 
     phases(params) {
         return [

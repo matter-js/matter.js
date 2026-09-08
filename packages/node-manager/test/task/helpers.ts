@@ -42,6 +42,16 @@ export const SyntheticTask: TaskDefinition<{ tag: string }> & {
  * The record backing the run this process is driving for `runId`. Valid in the synchronous continuation right
  * after `run()` returns, before any phase has had a chance to advance the driver past this tick.
  */
+/**
+ * Whether a state is one no driver will advance.
+ *
+ * Mirrors `TERMINAL_STATES` in `RunStore`. One place, because a waiter that misses a state polls for a run
+ * that has already finished — and every copy of this list except this one omitted `abandoned`.
+ */
+export function isTerminalState(state: string): boolean {
+    return ["completed", "failed", "cancelled", "abandoned"].includes(state);
+}
+
 export function liveRecord(manager: TaskManagerBehavior, runId: RunId): RunRecord {
     const execution = manager.internal.runs.executionOf(runId);
     if (execution === undefined) {
@@ -295,21 +305,21 @@ export function requireRecordFor(runs: RunRecords, slotKey: string): PersistedRe
 
 /**
  * The persisted rollback the newest run of `slotKey` *recorded*, resolved through that run's own
- * `revertRunId`.
+ * `rollbackRunId`.
  *
- * Deliberately not `find(r => r.revertOf === original.runId)`: an assertion on the result's `revertOf` would
+ * Deliberately not `find(r => r.rollbackOf === original.runId)`: an assertion on the result's `rollbackOf` would
  * then be checking the predicate that selected it, which is how a migration ends up with a test that cannot
  * fail. Resolving through the forward link keeps the two sides independent.
  */
-export function revertRecordOf(runs: RunRecords, slotKey: string): PersistedRecord | undefined {
-    const revertRunId = recordFor(runs, slotKey)?.revertRunId;
-    return revertRunId === undefined ? undefined : runs[String(revertRunId)];
+export function rollbackRecordOf(runs: RunRecords, slotKey: string): PersistedRecord | undefined {
+    const rollbackRunId = recordFor(runs, slotKey)?.rollbackRunId;
+    return rollbackRunId === undefined ? undefined : runs[String(rollbackRunId)];
 }
 
 /** Every persisted rollback of any run of `slotKey`, for asserting that none exists. */
 export function revertRecordsOf(runs: RunRecords, slotKey: string): readonly PersistedRecord[] {
     const undone = new Set(recordsFor(runs, slotKey).map(r => r.runId));
-    return Object.values(runs).filter(r => r.revertOf !== undefined && undone.has(r.revertOf));
+    return Object.values(runs).filter(r => r.rollbackOf !== undefined && undone.has(r.rollbackOf));
 }
 
 /**
@@ -369,7 +379,7 @@ export function cancelSlotOutcome(manager: TaskManagerBehavior, slotKey: string)
 
 /** The slot key of the rollback of the newest run of `slotKey`, or undefined if none was recorded. */
 export function revertSlotOf(runs: RunRecords, slotKey: string): string | undefined {
-    return revertRecordOf(runs, slotKey)?.slotKey;
+    return rollbackRecordOf(runs, slotKey)?.slotKey;
 }
 
 /**
@@ -390,10 +400,7 @@ export async function awaitRun(
                 return false;
             }
             // A run turns terminal one step before it retires; a caller acting here would find the slot held.
-            return (
-                !(["completed", "failed", "cancelled", "abandoned"] as string[]).includes(state) ||
-                !m.tasks.some(t => t.runId === runId)
-            );
+            return !isTerminalState(state) || !m.tasks.some(t => t.runId === runId);
         });
         if (settled) {
             return;

@@ -83,10 +83,10 @@ const ForwardOnlyTask: TaskDefinition<{ tag: string; peerId: string }> = {
     slotKeyFor(params) {
         return `synthetic:${params.tag}`;
     },
-    revertible() {
+    rollbackable() {
         return false;
     },
-    notRevertibleReason: "the test says so",
+    notRollbackableReason: "the test says so",
     phases(params) {
         return [
             {
@@ -100,9 +100,9 @@ const ForwardOnlyTask: TaskDefinition<{ tag: string; peerId: string }> = {
     },
 };
 
-/** Writes one intent, then fails, while remaining revertible: the failure path creates a rollback. */
-const FailingRevertibleTask: TaskDefinition<{ tag: string; peerId: string }> = {
-    type: "failing-revertible",
+/** Writes one intent, then fails, while remaining rollbackable: the failure path creates a rollback. */
+const FailingRollbackableTask: TaskDefinition<{ tag: string; peerId: string }> = {
+    type: "failing-rollbackable",
     slotKeyFor(params) {
         return `synthetic:${params.tag}`;
     },
@@ -112,20 +112,20 @@ const FailingRevertibleTask: TaskDefinition<{ tag: string; peerId: string }> = {
                 name: "write-then-fail",
                 run: async ctx => {
                     await ctx.setIntent(ctx.resolvePeer(params.peerId), "groupMembership", "X", { v: 2 });
-                    throw new TaskFailedError("failing but revertible");
+                    throw new TaskFailedError("failing but rollbackable");
                 },
             },
         ];
     },
 };
 
-/** Writes one intent, then fails, and cannot answer whether it is revertible. */
+/** Writes one intent, then fails, and cannot answer whether it is rollbackable. */
 const UnaskableTask: TaskDefinition<{ tag: string; peerId: string }> = {
     type: "unaskable",
     slotKeyFor(params) {
         return `synthetic:${params.tag}`;
     },
-    revertible(): boolean {
+    rollbackable(): boolean {
         throw new ImplementationError("the test cannot say");
     },
     phases(params) {
@@ -285,8 +285,8 @@ describe("run records after a retirement", () => {
         // The proof that retry does not go through the definition: the params it would need are gone, and the
         // changeSet alone is enough to build the replacement.
         const retry = await node.act(a => a.get(TestTaskManager).retryRollback(original.runId));
-        expect(retry.status.revertOf).equals(original.runId);
-        expect((await stored(node, original.runId))?.revertRunId).equals(retry.runId);
+        expect(retry.status.rollbackOf).equals(original.runId);
+        expect((await stored(node, original.runId))?.rollbackRunId).equals(retry.runId);
     });
 
     it("refuses to cancel a run that already finished", async () => {
@@ -304,7 +304,7 @@ describe("run records after a retirement", () => {
                     .then(c => c.rollback),
             ),
         ).rejectedWith(TaskNotInFlightError);
-        expect((await stored(node, handle.runId))?.revertRunId).equals(undefined);
+        expect((await stored(node, handle.runId))?.rollbackRunId).equals(undefined);
     });
 
     it("records the schema version it wrote the table under", async () => {
@@ -415,7 +415,7 @@ describe("run records after a retirement", () => {
 
         const retry = await attempt(node, m => m.retryRollback(original.runId));
         expect(retry).not.instanceOf(Error);
-        expect((retry as TaskHandle).status.revertOf).equals(original.runId);
+        expect((retry as TaskHandle).status.rollbackOf).equals(original.runId);
     });
 
     it("is not superseded by a later run that reached no phase", async () => {
@@ -436,7 +436,7 @@ describe("run records after a retirement", () => {
 
         const retry = await attempt(node, m => m.retryRollback(original.runId));
         expect(retry).not.instanceOf(Error);
-        expect((retry as TaskHandle).status.revertOf).equals(original.runId);
+        expect((retry as TaskHandle).status.rollbackOf).equals(original.runId);
     });
 
     it("drops the priors of a run that completed", async () => {
@@ -540,9 +540,9 @@ describe("run records after a retirement", () => {
         peer.setIntent("groupMembership", "X", { v: 1 });
         peer.setReachable(false);
 
-        await node.act(a => a.get(TestTaskManager).register(FailingRevertibleTask));
+        await node.act(a => a.get(TestTaskManager).register(FailingRollbackableTask));
         const failed = await node.act(a =>
-            a.get(TestTaskManager).run(FailingRevertibleTask, {
+            a.get(TestTaskManager).run(FailingRollbackableTask, {
                 tag: "failed-with-undo",
                 peerId: "failed-with-undo",
             }),
@@ -551,12 +551,12 @@ describe("run records after a retirement", () => {
 
         const record = await stored(node, failed.runId);
         expect(record?.state).equals("failed");
-        expect(record?.revertRunId).not.equals(undefined);
+        expect(record?.rollbackRunId).not.equals(undefined);
         // The rollback exists and is parked, so it can still replay these.
         expect(record?.changeSet).not.deep.equals([]);
     });
 
-    it("drops the priors of a run whose type cannot say whether it is revertible", async () => {
+    it("drops the priors of a run whose type cannot say whether it is rollbackable", async () => {
         await using node = await makeNode();
         const peer = testPeer("unaskable");
         peer.setIntent("groupMembership", "X", { v: 1 });
@@ -570,7 +570,7 @@ describe("run records after a retirement", () => {
         const record = await stored(node, failed.runId);
         expect(record?.state).equals("failed");
         // No rollback could be prepared, so nothing will ever replay the priors.
-        expect(record?.revertRunId).equals(undefined);
+        expect(record?.rollbackRunId).equals(undefined);
         expect(record?.changeSet).deep.equals([]);
         expect(record?.wrote).equals(true);
         expect(await attempt(node, m => m.retryRollback(failed.runId))).instanceOf(TaskNoRollbackError);
