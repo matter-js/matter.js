@@ -22,6 +22,7 @@ import {
     TaskNoLongerTrackedError,
     TaskNotFoundError,
     TaskParamsRejectedError,
+    TaskRefusedError,
     TaskNotInFlightError,
     TaskNotRollbackableError,
     TaskRollbackPendingError,
@@ -578,6 +579,13 @@ export class TaskManagerBehavior extends Behavior {
         const record = this.#actOn(runId, `Cannot retry the rollback of ${runLabel(runId)}`);
         const recorded = this.internal.runs.rollbackFor(runId);
         if (recorded === undefined) {
+            // Priors outlive a retirement only while something can still replay them, so a run that kept them
+            // and has no rollback is one whose rollback was refused when it retired. Building the first one
+            // here is the same act as retrying a failed one: the run is rollbackable — `#prepareRollback`
+            // decided that before the refusal — and its priors say what to restore.
+            if (record.changeSet.length > 0) {
+                return this.#startRollback(record, `Cannot retry the rollback of ${runLabel(runId)}`);
+            }
             // A state a caller cannot always know rather than a mistake it made: a run may never have produced
             // an undo, and one whose write was refused is discarded, leaving the original naming nothing.
             throw new TaskNoRollbackError(`Cannot retry the rollback of ${runLabel(runId)}: it has none`);
@@ -609,14 +617,23 @@ export class TaskManagerBehavior extends Behavior {
             );
         }
 
-        // Deliberately not through #boundFor: rollbackability was decided when the first rollback was created,
-        // and asking again would need the original's params, which a retirement drops. A replacement is built
-        // from the changeSet alone.
+        return this.#startRollback(record, `Cannot retry the rollback of ${runLabel(runId)}`);
+    }
+
+    /**
+     * Build a rollback from a retired run's priors, record the link, and start it.
+     *
+     * Deliberately not through `#boundFor`: rollbackability was decided when the first rollback was prepared,
+     * and asking again would need the original's params, which a retirement drops. A rollback built here comes
+     * from the changeSet alone.
+     */
+    async #startRollback(record: RunRecord, subject: string): Promise<TaskHandle> {
         const rollback = this.#spawnRollback(record);
         if (rollback.record === undefined) {
-            // Cannot happen: priors are kept exactly while a rollback that can replay them exists, and the
-            // guards above have already refused every rollback that concluded.
-            throw new InternalError(`${runLabel(runId)} has a rollback but nothing to roll back`);
+            // Cannot happen: priors are kept exactly while something can still replay them — a rollback that
+            // exists, or one that was refused and may yet be built — and the callers have refused every
+            // rollback that concluded.
+            throw new InternalError(`${subject}: it has priors but nothing to roll back`);
         }
         try {
             await this.#commit({ record, next: { rollbackRunId: rollback.record.runId } }, { record: rollback.record });
@@ -1042,8 +1059,12 @@ export class TaskManagerBehavior extends Behavior {
      * Asks the store rather than the rollback this call prepared, because `#prepareRollback` also declines when
      * a rollback already exists.
      */
-    #retiringPriors(record: RunRecord): Partial<TaskPersistence> {
-        return this.internal.runs.rollbackFor(record.runId) === undefined ? { changeSet: [] } : {};
+    #retiringPriors(record: RunRecord, rollbackRefused = false): Partial<TaskPersistence> {
+        // A refused rollback is a transient state, not a decision: the run is rollbackable and its priors are
+        // the only record of what to restore, so they stay for a later `retryRollback` to build one from.
+        // Declining to roll back is the opposite — nothing will ever replay them, so they go.
+        const replayable = rollbackRefused || this.internal.runs.rollbackFor(record.runId) !== undefined;
+        return replayable ? {} : { changeSet: [] };
     }
 
     /**
@@ -1208,9 +1229,13 @@ export class TaskManagerBehavior extends Behavior {
             // Neither a rollback this manager refuses nor a failing persist may re-reject the (otherwise handled)
             // drive promise: that turns into an unhandled rejection and a cancel awaiting this task throws.
             let rollback = NO_ROLLBACK;
+            let rollbackRefused = false;
             try {
                 rollback = this.#prepareRollback(record, execution.bound);
             } catch (rollbackError) {
+                // Only a refusal is transient. A definition that cannot say whether it is rollbackable throws
+                // something else, and that is a decline: nothing will ever replay these priors.
+                rollbackRefused = rollbackError instanceof TaskRefusedError;
                 logger.error(`${runLabel(record.runId)}: cannot roll back`, rollbackError);
             }
             // The failure, its place in the retirement order and the rollback that undoes it land together, or
@@ -1225,7 +1250,7 @@ export class TaskManagerBehavior extends Behavior {
                             error,
                             retireSeq: this.internal.runs.nextRetirement(record),
                             rollbackRunId: rollback.record?.runId,
-                            ...this.#retiringPriors(record),
+                            ...this.#retiringPriors(record, rollbackRefused),
                         },
                         drop: RETIRE,
                     },

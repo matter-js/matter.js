@@ -653,6 +653,39 @@ describe("run records after a retirement", () => {
         expect(await attempt(node, m => m.cancel(evicted))).instanceOf(TaskNoLongerTrackedError);
     });
 
+    it("builds a first rollback from the priors of a run whose rollback was refused", async () => {
+        const environment = new Environment("refused-rollback");
+        let originalId: RunId;
+        {
+            await using seed = await makeNode(environment, "refusedrollback");
+            const peer = testPeer("refused");
+            const { original, rollback } = await failedRollback(seed, "refused", peer);
+            originalId = original.runId;
+
+            // The state a refused rollback leaves: the run retired `failed` having changed the device, its
+            // priors kept because one could still be built, and no rollback recorded. `#prepareRollback`
+            // decided the run was rollbackable before the refusal, so building one now is the same act as
+            // retrying a failed one.
+            await seed.act(a => {
+                const runs = { ...a.get(TestTaskManager).state.runs };
+                delete runs[String(rollback.runId)];
+                const { rollbackRunId: _dropped, ...withoutLink } = runs[String(originalId)];
+                runs[String(originalId)] = withoutLink;
+                a.get(TestTaskManager).state.runs = runs;
+            });
+        }
+
+        await using node = await makeNode(environment, "refusedrollback");
+        testPeer("refused");
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+
+        expect(await node.act(a => a.get(TestTaskManager).priorsOf(originalId))).not.deep.equals([]);
+        const handle = await node.act(a => a.get(TestTaskManager).retryRollback(originalId));
+
+        expect(handle.status.rollbackOf).equals(originalId);
+        expect(await stored(node, originalId).then(r => r?.rollbackRunId)).equals(handle.runId);
+    });
+
     it("is superseded by a later run that reached the device and cannot be undone", async () => {
         await using node = await makeNode();
         const peer = testPeer("forward-only-superseder");
