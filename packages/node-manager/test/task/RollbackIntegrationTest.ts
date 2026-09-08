@@ -11,6 +11,7 @@ import { Environment } from "@matter/general";
 import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
 import {
+    kindOf,
     isTerminalState,
     FakePeer,
     recordFor,
@@ -63,7 +64,7 @@ describe("auto-rollback", () => {
                 name: "set-then-fail",
                 run: async ctx => {
                     const p = ctx.resolvePeer("rp");
-                    await ctx.setIntent(p, "groupKey", "42", { a: 1 });
+                    await ctx.setIntent(p, kindOf("groupKey"), "42", { a: 1 });
                     throw new TaskFailedError("boom");
                 },
             },
@@ -98,7 +99,7 @@ describe("auto-rollback", () => {
                 name: "set-then-fail",
                 run: async ctx => {
                     const p = ctx.resolvePeer("rp");
-                    await ctx.setIntent(p, "groupKey", "99", { a: 1 });
+                    await ctx.setIntent(p, kindOf("groupKey"), "99", { a: 1 });
                     throw new TaskFailedError("boom2");
                 },
             },

@@ -9,7 +9,7 @@ import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { TaskContext } from "#task/types.js";
 import { ClientNode, DesiredStateBehavior, itemMapKey } from "@matter/node";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
-import { awaitRun } from "./helpers.js";
+import { kindOf, awaitRun } from "./helpers.js";
 
 const TYPO_TYPE = "typoIntent";
 const PEER_ID = "peer1";
@@ -29,8 +29,8 @@ const TypoIntentTask: TaskDefinition<{ peerId: string }> = {
 
 async function run(ctx: TaskContext, params: { peerId: string }): Promise<void> {
     const peer = ctx.resolvePeer(params.peerId);
-    await ctx.setIntent(peer, "groupKy", "1", {});
-    await ctx.awaitCommitted([{ peer, kind: "groupKy", key: "1" }]);
+    await ctx.setIntent(peer, kindOf("groupKy"), "1", {});
+    await ctx.awaitCommitted([{ peer, kind: kindOf("groupKy"), key: "1" }]);
 }
 
 const ControllerRoot = MockServerNode.RootEndpoint.with(TaskManagerBehavior);

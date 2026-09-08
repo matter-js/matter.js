@@ -10,9 +10,10 @@ import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { TaskPhase } from "#task/types.js";
 import { RunId } from "#task/types.js";
 import { Environment } from "@matter/general";
-import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
+import { ClientNode, ItemKind, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
 import {
+    kindOf,
     isTerminalState,
     cancelSlot,
     FakePeer,
@@ -97,7 +98,7 @@ async function awaitPhase(node: ServerNode, id: string, phaseIndex: number): Pro
 }
 
 /** A phase that sets an intent then gates on it committing, using the manager-provided context. */
-function gatePhase(peerId: string, kind: string, key: string): TaskPhase {
+function gatePhase(peerId: string, kind: ItemKind, key: string): TaskPhase {
     return {
         name: "gate",
         run: async ctx => {
@@ -119,7 +120,7 @@ describe("Task lifecycle", () => {
             TestTaskManager.reconcilerPeer = peer;
             SyntheticTask.phasesByTag["resume"] = [
                 { name: "noop", run: async () => {} },
-                gatePhase("rp", "groupMembership", "1"),
+                gatePhase("rp", kindOf("groupMembership"), "1"),
             ];
 
             const node1 = await makeNode(environment);
@@ -158,7 +159,7 @@ describe("Task lifecycle", () => {
             peer.setReachable(false);
             TestTaskManager.peers.set("pp", peer);
             TestTaskManager.reconcilerPeer = peer;
-            SyntheticTask.phasesByTag["parked"] = [gatePhase("pp", "groupMembership", "1")];
+            SyntheticTask.phasesByTag["parked"] = [gatePhase("pp", kindOf("groupMembership"), "1")];
 
             const node1 = await makeNode(environment);
             await node1.act(a => a.get(TestTaskManager).register(SyntheticTask));
@@ -184,7 +185,7 @@ describe("Task lifecycle", () => {
             peer.setReachable(false);
             TestTaskManager.peers.set("xp", peer);
             TestTaskManager.reconcilerPeer = peer;
-            SyntheticTask.phasesByTag["alias"] = [gatePhase("xp", "groupMembership", "1")];
+            SyntheticTask.phasesByTag["alias"] = [gatePhase("xp", kindOf("groupMembership"), "1")];
 
             const node1 = await makeNode(environment);
             await node1.act(a => a.get(TestTaskManager).register(SyntheticTask));
@@ -215,11 +216,11 @@ describe("Task lifecycle", () => {
                     name: "create",
                     run: async ctx => {
                         const node = ctx.resolvePeer("rj");
-                        await ctx.setIntent(node, "groupMembership", "OK", {});
-                        await ctx.setIntent(node, "groupMembership", "R", {});
+                        await ctx.setIntent(node, kindOf("groupMembership"), "OK", {});
+                        await ctx.setIntent(node, kindOf("groupMembership"), "R", {});
                         await ctx.awaitCommitted([
-                            { peer: node, kind: "groupMembership", key: "OK" },
-                            { peer: node, kind: "groupMembership", key: "R" },
+                            { peer: node, kind: kindOf("groupMembership"), key: "OK" },
+                            { peer: node, kind: kindOf("groupMembership"), key: "R" },
                         ]);
                     },
                 },
@@ -271,15 +272,15 @@ describe("Task lifecycle", () => {
                     name: "create",
                     run: async ctx => {
                         const node = ctx.resolvePeer("cp");
-                        await ctx.setIntent(node, "groupMembership", "A", {});
-                        await ctx.setIntent(node, "groupMembership", "B", {});
+                        await ctx.setIntent(node, kindOf("groupMembership"), "A", {});
+                        await ctx.setIntent(node, kindOf("groupMembership"), "B", {});
                     },
                 },
                 // Cancel applies to work in flight, so the run has to still be in it — with both intents
                 // already written, which is what the rollback undoes. The hold gates on the peer rather than
                 // on a bare promise: `#unwind` awaits the running phase, and a phase that cannot observe its
                 // abort would hang the cancel instead of being stopped by it.
-                gatePhase("cp", "groupMembership", "A"),
+                gatePhase("cp", kindOf("groupMembership"), "A"),
             ];
 
             const node = await makeNode(environment);
@@ -316,7 +317,7 @@ describe("Task lifecycle", () => {
             const peer = new FakePeer("rr");
             TestTaskManager.peers.set("rr", peer);
             TestTaskManager.reconcilerPeer = peer;
-            SyntheticTask.phasesByTag["rerun"] = [gatePhase("rr", "groupMembership", "1")];
+            SyntheticTask.phasesByTag["rerun"] = [gatePhase("rr", kindOf("groupMembership"), "1")];
 
             const node = await makeNode(environment);
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
@@ -357,7 +358,7 @@ describe("Task lifecycle", () => {
             TestTaskManager.reconcilerPeer = peer;
             // The device never "has" the item, so the gate is still in flight when the cancel arrives.
 
-            SyntheticTask.phasesByTag["aliascancel"] = [gatePhase("ac", "groupMembership", "X")];
+            SyntheticTask.phasesByTag["aliascancel"] = [gatePhase("ac", kindOf("groupMembership"), "X")];
 
             const node = await makeNode(environment);
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
@@ -396,7 +397,7 @@ describe("Task lifecycle", () => {
             TestTaskManager.reconcilerPeer = peer;
             // Device never "has" the item, so the forward gate would park forever absent a cancel.
 
-            SyntheticTask.phasesByTag["inflight"] = [gatePhase("ip", "groupMembership", "X")];
+            SyntheticTask.phasesByTag["inflight"] = [gatePhase("ip", kindOf("groupMembership"), "X")];
 
             const node = await makeNode(environment);
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
@@ -439,7 +440,7 @@ describe("Task lifecycle", () => {
                 {
                     name: "touch",
                     run: async ctx => {
-                        await ctx.setIntent(ctx.resolvePeer("rb"), "groupMembership", "B", {});
+                        await ctx.setIntent(ctx.resolvePeer("rb"), kindOf("groupMembership"), "B", {});
                         await held;
                         throw new TaskFailedError("forced failure");
                     },
@@ -470,7 +471,7 @@ describe("Task lifecycle", () => {
             TestTaskManager.peers.set("cr2", peer);
             TestTaskManager.reconcilerPeer = peer;
 
-            SyntheticTask.phasesByTag["blockedcancel"] = [gatePhase("cr2", "groupMembership", "K")];
+            SyntheticTask.phasesByTag["blockedcancel"] = [gatePhase("cr2", kindOf("groupMembership"), "K")];
 
             const node = await makeNode(environment);
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));

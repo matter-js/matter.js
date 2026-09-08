@@ -27,7 +27,7 @@ import { RunId, TaskPhase } from "#task/types.js";
 import { Environment, ImplementationError, InternalError, Lifecycle, MaybePromise } from "@matter/general";
 import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
-import { FakePeer, liveRecord, onPersisted, SyntheticTask } from "./helpers.js";
+import { kindOf, FakePeer, liveRecord, onPersisted, SyntheticTask } from "./helpers.js";
 
 class TestTaskManager extends TaskManagerBehavior {
     static override readonly schema = TaskManagerBehavior.schema;
@@ -161,8 +161,8 @@ function gatingPhase(peerId: string): TaskPhase {
         name: "hold",
         run: async ctx => {
             const peer = ctx.resolvePeer(peerId);
-            await ctx.setIntent(peer, "groupMembership", "X", { v: 2 });
-            await ctx.awaitCommitted([{ peer, kind: "groupMembership", key: "X" }]);
+            await ctx.setIntent(peer, kindOf("groupMembership"), "X", { v: 2 });
+            await ctx.awaitCommitted([{ peer, kind: kindOf("groupMembership"), key: "X" }]);
         },
     };
 }
@@ -276,7 +276,7 @@ const PointOfNoReturnTask: TaskDefinition<{ tag: string; peerId: string }> = {
             {
                 name: "write",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer(params.peerId), "groupMembership", "X", { v: 2 });
+                    await ctx.setIntent(ctx.resolvePeer(params.peerId), kindOf("groupMembership"), "X", { v: 2 });
                 },
             },
             { name: "hold", run: () => new Promise<void>(() => {}) },

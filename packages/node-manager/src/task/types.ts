@@ -5,7 +5,7 @@
  */
 
 import { Branded, ImplementationError } from "@matter/general";
-import type { ClientNode, ItemMode, ManagedItem } from "@matter/node";
+import type { ClientNode, ItemKind, ItemMode, ManagedItem } from "@matter/node";
 
 /**
  * Identity of one run of a task. A re-run of the same target is a different run with a different id, so no
@@ -96,11 +96,22 @@ export interface TaskPhase {
 export interface TaskContext {
     resolvePeer(peerId: string): ClientNode;
     tryResolvePeer(peerId: string): ClientNode | undefined;
-    setIntent(peer: ClientNode, kind: string, key: string, intent: unknown, mode?: ItemMode): Promise<void>;
-    removeIntent(peer: ClientNode, kind: string, key: string): Promise<void>;
-    removeIntentIfUnreferenced(peer: ClientNode, kind: string, key: string): Promise<boolean>;
+    setIntent<I>(peer: ClientNode, kind: ItemKind<I>, key: string, intent: I, mode?: ItemMode): Promise<void>;
+    removeIntent(peer: ClientNode, kind: ItemKind, key: string): Promise<void>;
+    removeIntentIfUnreferenced(peer: ClientNode, kind: ItemKind, key: string): Promise<boolean>;
     awaitGate(nodes: ClientNode[], until: (items: ManagedItem[]) => boolean): Promise<void>;
-    awaitCommitted(items: Array<{ peer: ClientNode; kind: string; key: string }>): Promise<void>;
-    itemAbsent(peer: ClientNode, kind: string, key: string): boolean;
-    peersWithIntent(kind: string, key: string): ClientNode[];
+    awaitCommitted(items: Array<{ peer: ClientNode; kind: ItemKind; key: string }>): Promise<void>;
+    itemAbsent(peer: ClientNode, kind: ItemKind, key: string): boolean;
+    peersWithIntent(kind: ItemKind, key: string): ClientNode[];
+
+    /** The intent this peer currently holds for `(kind, key)`, typed by the kind. */
+    intentOf<I>(peer: ClientNode, kind: ItemKind<I>, key: string): I | undefined;
+
+    /**
+     * The registered kind a persisted name refers to.
+     *
+     * Only a rollback needs this: it replays {@link ChangeEntry} values whose kind is a string read back from
+     * storage, so it cannot name a kind at compile time the way a forward task does.
+     */
+    kindNamed(name: string): ItemKind;
 }

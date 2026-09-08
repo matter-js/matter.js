@@ -5,9 +5,10 @@
  */
 
 import { Bytes, Crypto, Time } from "@matter/general";
-import { ClientNode, DesiredStateBehavior, itemMapKey } from "@matter/node";
+import { ClientNode } from "@matter/node";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import type { GroupKeyGrant } from "../../reconcile/GroupKeyItemKind.js";
+import { GroupKey } from "../../reconcile/kinds.js";
 import { RotationPreconditionError } from "../errors.js";
 import { TaskDefinition } from "../Task.js";
 import { TaskContext } from "../types.js";
@@ -74,14 +75,14 @@ export const RotateGroupKey: TaskDefinition<RotateGroupKeyParams> = {
 
 async function runPhase(ctx: TaskContext, p: RotateGroupKeyParams, phase: RotationPhase): Promise<void> {
     const key = String(p.groupKeySetId);
-    const members = ctx.peersWithIntent("groupKey", key);
+    const members = ctx.peersWithIntent(GroupKey, key);
     if (members.length === 0) {
         return;
     }
     // distribute is the first phase, so validating here refuses the whole rotation before any intent is mutated.
     if (phase === "distribute") {
         for (const peer of members) {
-            const current = currentIntent(peer, p);
+            const current = currentIntent(ctx, peer, p);
             if (current !== undefined && !isRotatable(current, p)) {
                 throw new RotationPreconditionError(
                     `Cannot rotate group key set ${p.groupKeySetId} on peer ${peer.id}: ` +
@@ -105,9 +106,9 @@ async function runPhase(ctx: TaskContext, p: RotateGroupKeyParams, phase: Rotati
         }
     }
     for (const peer of members) {
-        await ctx.setIntent(peer, "groupKey", key, struct(peer, p, phase), "converge");
+        await ctx.setIntent(peer, GroupKey, key, struct(ctx, peer, p, phase), "converge");
     }
-    await ctx.awaitCommitted(members.map(peer => ({ peer, kind: "groupKey", key })));
+    await ctx.awaitCommitted(members.map(peer => ({ peer, kind: GroupKey, key })));
     // The writes and the barrier above both yield, and provisioning a group takes no lock on its key set, so
     // the member set can grow after the check at phase entry.
     if (phase === "activate") {
@@ -126,8 +127,8 @@ async function runPhase(ctx: TaskContext, p: RotateGroupKeyParams, phase: Rotati
 
 /** A member holding an intent for this key set that does not carry this rotation's new key, if there is one. */
 function memberWithoutNewKey(ctx: TaskContext, p: RotateGroupKeyParams, key: string): ClientNode | undefined {
-    for (const peer of ctx.peersWithIntent("groupKey", key)) {
-        const current = currentIntent(peer, p);
+    for (const peer of ctx.peersWithIntent(GroupKey, key)) {
+        const current = currentIntent(ctx, peer, p);
         if (current === undefined || !holdsNewKey(current, p)) {
             return peer;
         }
@@ -135,9 +136,8 @@ function memberWithoutNewKey(ctx: TaskContext, p: RotateGroupKeyParams, key: str
     return undefined;
 }
 
-function currentIntent(peer: ClientNode, p: RotateGroupKeyParams): GroupKeyGrant | undefined {
-    const key = itemMapKey("groupKey", String(p.groupKeySetId));
-    return peer.stateOf(DesiredStateBehavior).items[key]?.intent as GroupKeyGrant | undefined;
+function currentIntent(ctx: TaskContext, peer: ClientNode, p: RotateGroupKeyParams): GroupKeyGrant | undefined {
+    return ctx.intentOf(peer, GroupKey, String(p.groupKeySetId));
 }
 
 // A single-key steady state is the required starting point; a member already carrying THIS rotation's new key in
@@ -152,9 +152,9 @@ function holdsNewKey(current: GroupKeyGrant, p: RotateGroupKeyParams): boolean {
     return slot1 !== null && slot1 !== undefined && Bytes.areEqual(slot1, p.newEpochKey);
 }
 
-function struct(peer: ClientNode, p: RotateGroupKeyParams, phase: RotationPhase): GroupKeyGrant {
+function struct(ctx: TaskContext, peer: ClientNode, p: RotateGroupKeyParams, phase: RotationPhase): GroupKeyGrant {
     const id = p.groupKeySetId;
-    const current = currentIntent(peer, p);
+    const current = currentIntent(ctx, peer, p);
     const policy =
         p.groupKeySecurityPolicy ??
         current?.groupKeySecurityPolicy ??

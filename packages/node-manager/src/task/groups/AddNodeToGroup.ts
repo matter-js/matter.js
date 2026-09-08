@@ -6,6 +6,7 @@
 
 import { GroupId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
+import { GroupKey, GroupKeyMap, GroupMembership } from "../../reconcile/kinds.js";
 import { TaskDefinition } from "../Task.js";
 import { TaskContext } from "../types.js";
 import { Require } from "../validation.js";
@@ -51,16 +52,16 @@ export const AddNodeToGroup: TaskDefinition<AddNodeToGroupParams> = {
 
     plannedChanges(p) {
         return [
-            { peerId: p.peerId, kind: "groupKey", key: String(p.groupKeySetId), intent: keySet(p) },
+            { peerId: p.peerId, kind: GroupKey.kind, key: String(p.groupKeySetId), intent: keySet(p) },
             {
                 peerId: p.peerId,
-                kind: "groupKeyMap",
+                kind: GroupKeyMap.kind,
                 key: String(p.groupId),
                 intent: { groupId: GroupId(p.groupId), groupKeySetId: p.groupKeySetId },
             },
             {
                 peerId: p.peerId,
-                kind: "endpointGroupMembership",
+                kind: GroupMembership.kind,
                 key: membershipKey(p.groupId, p.endpoint),
                 intent: { localEndpoint: p.endpoint, groupId: GroupId(p.groupId), groupName: p.groupName },
             },
@@ -85,25 +86,19 @@ async function provision(ctx: TaskContext, p: AddNodeToGroupParams): Promise<voi
     const peer = ctx.resolvePeer(p.peerId);
     const groupId = GroupId(p.groupId);
 
-    await ctx.setIntent(peer, "groupKey", String(p.groupKeySetId), keySet(p), "converge");
+    await ctx.setIntent(peer, GroupKey, String(p.groupKeySetId), keySet(p), "converge");
+    await ctx.setIntent(peer, GroupKeyMap, String(p.groupId), { groupId, groupKeySetId: p.groupKeySetId }, "converge");
     await ctx.setIntent(
         peer,
-        "groupKeyMap",
-        String(p.groupId),
-        { groupId, groupKeySetId: p.groupKeySetId },
-        "converge",
-    );
-    await ctx.setIntent(
-        peer,
-        "endpointGroupMembership",
+        GroupMembership,
         membershipKey(p.groupId, p.endpoint),
         { localEndpoint: p.endpoint, groupId, groupName: p.groupName },
         "converge",
     );
 
     await ctx.awaitCommitted([
-        { peer, kind: "groupKey", key: String(p.groupKeySetId) },
-        { peer, kind: "groupKeyMap", key: String(p.groupId) },
-        { peer, kind: "endpointGroupMembership", key: membershipKey(p.groupId, p.endpoint) },
+        { peer, kind: GroupKey, key: String(p.groupKeySetId) },
+        { peer, kind: GroupKeyMap, key: String(p.groupId) },
+        { peer, kind: GroupMembership, key: membershipKey(p.groupId, p.endpoint) },
     ]);
 }
