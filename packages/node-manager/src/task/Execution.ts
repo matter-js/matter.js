@@ -44,7 +44,7 @@ export class Execution {
         this.bound = bound;
         // The link to the run this undoes comes from params; a rollback rebuilt on resume or redrive must
         // keep the one already recorded rather than let a fresh read of its own params override it.
-        record.revertOf ??= bound.undoes;
+        record.rollbackOf ??= bound.undoes;
     }
 
     get runId(): RunId {

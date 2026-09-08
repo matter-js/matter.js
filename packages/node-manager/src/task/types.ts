@@ -63,14 +63,14 @@ export interface TaskStatus {
     slotKey: string;
     type: string;
     state: TaskState;
-    phaseIndex?: number;
+    phaseIndex: number;
     /** Id the caller of `run` asked for this task under, if it supplied one. */
     externalId?: string;
     error?: string;
     /** Set once the run retired. */
     retireSeq?: RetireSeq;
-    revertRunId?: RunId;
-    revertOf?: RunId;
+    rollbackRunId?: RunId;
+    rollbackOf?: RunId;
 }
 
 export interface ChangeEntry {

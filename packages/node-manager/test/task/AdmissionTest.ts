@@ -9,7 +9,7 @@ import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { Environment } from "@matter/general";
 import { CapacityInfo, ClientNode, ItemKind, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
-import { FakePeer, recordFor, requireRecordFor, SyntheticTask } from "./helpers.js";
+import { FakePeer, isTerminalState, recordFor, requireRecordFor, SyntheticTask } from "./helpers.js";
 
 class TestTaskManager extends TaskManagerBehavior {
     static override readonly schema = TaskManagerBehavior.schema;
@@ -30,7 +30,7 @@ async function awaitState(node: ServerNode, id: string, ...states: string[]): Pr
         const state = await node.act(a => recordFor(a.get(TestTaskManager).state.runs, id)?.state);
         if (state !== undefined && states.includes(state)) {
             const settled =
-                !(["completed", "failed", "cancelled"] as string[]).includes(state) ||
+                !isTerminalState(state) ||
                 (await node.act(a => !a.get(TestTaskManager).tasks.some(t => t.status.slotKey === id)));
             if (settled) return;
         }
@@ -77,7 +77,7 @@ describe("capacity admission", () => {
         const rec = requireRecordFor(node.stateOf(TestTaskManager).runs, "synthetic:over");
         expect(rec.error).contains("capacity");
         expect(rec.changeSet).deep.equals([]);
-        expect(rec.revertRunId).equals(undefined);
+        expect(rec.rollbackRunId).equals(undefined);
         expect(ran).equals(false);
         await node.close();
     });

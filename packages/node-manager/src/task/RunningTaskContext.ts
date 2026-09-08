@@ -25,7 +25,7 @@ export interface GateControl {
 }
 
 /**
- * TaskContext bound to a running task. Records pre-mutation state into the task's changeSet so cancel can revert.
+ * TaskContext bound to a running task. Records pre-mutation state into the task's changeSet so cancel can rollback.
  * Peers are resolved through an injected resolver so the manager controls peer lookup.
  */
 export class RunningTaskContext implements TaskContext {
@@ -66,7 +66,7 @@ export class RunningTaskContext implements TaskContext {
         });
     }
 
-    // First touch wins: records the pre-task state so a revert restores that, not an intermediate touch.
+    // First touch wins: records the pre-task state so a rollback restores that, not an intermediate touch.
     #record(peer: ClientNode, kind: string, key: string) {
         if (this.record.changeSet.some(e => e.peerId === peer.id && e.kind === kind && e.key === key)) {
             return;

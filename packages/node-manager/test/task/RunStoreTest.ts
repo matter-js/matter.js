@@ -47,7 +47,7 @@ describe("RunStore", () => {
             // attached to it yet. `isAttached` is false here and the rollback is nonetheless live — a re-run
             // of the target would rewrite exactly the intents it is going to restore.
             const undone = retired(1, "synthetic:t", 1, "cancelled", true);
-            const rollback = new RunRecord(RunId(2), "revert:1", "revert", undefined, { revertOf: RunId(1) });
+            const rollback = new RunRecord(RunId(2), "rollback:1", "rollback", undefined, { rollbackOf: RunId(1) });
             const store = storeWith(undone, rollback);
 
             expect(store.isAttached(RunId(2))).equals(false);

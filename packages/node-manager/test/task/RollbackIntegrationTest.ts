@@ -11,10 +11,11 @@ import { Environment } from "@matter/general";
 import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
 import {
+    isTerminalState,
     FakePeer,
     recordFor,
     requireRecordFor,
-    revertRecordOf,
+    rollbackRecordOf,
     revertRecordsOf,
     revertSlotOf,
     SyntheticTask,
@@ -39,7 +40,7 @@ async function awaitState(node: ServerNode, id: string, ...states: string[]): Pr
         const state = await node.act(a => recordFor(a.get(TestTaskManager).state.runs, id)?.state);
         if (state !== undefined && states.includes(state)) {
             const settled =
-                !(["completed", "failed", "cancelled"] as string[]).includes(state) ||
+                !isTerminalState(state) ||
                 (await node.act(a => !a.get(TestTaskManager).tasks.some(t => t.status.slotKey === id)));
             if (settled) return;
         }
@@ -74,8 +75,8 @@ describe("auto-rollback", () => {
 
         await awaitState(node, "synthetic:boom", "failed");
         const original = requireRecordFor(node.stateOf(TestTaskManager).runs, "synthetic:boom");
-        expect(original.revertRunId).equals(
-            revertRecordOf(node.stateOf(TestTaskManager).runs, "synthetic:boom")?.runId,
+        expect(original.rollbackRunId).equals(
+            rollbackRecordOf(node.stateOf(TestTaskManager).runs, "synthetic:boom")?.runId,
         );
 
         await awaitState(
@@ -119,8 +120,8 @@ describe("auto-rollback", () => {
 
         await awaitState(node, "synthetic:boom2", "failed");
         const original = requireRecordFor(node.stateOf(TestTaskManager).runs, "synthetic:boom2");
-        expect(original.revertRunId).equals(
-            revertRecordOf(node.stateOf(TestTaskManager).runs, "synthetic:boom2")?.runId,
+        expect(original.rollbackRunId).equals(
+            rollbackRecordOf(node.stateOf(TestTaskManager).runs, "synthetic:boom2")?.runId,
         );
 
         await awaitState(
@@ -130,7 +131,7 @@ describe("auto-rollback", () => {
         );
         // No rollback of the rollback: asserted against the failed rollback's own run, since a key built from
         // the original's slot is unreachable under per-run identity and would make this check dead.
-        const failedRevert = requireRecordFor(node.stateOf(TestTaskManager).runs, `revert:${original.runId}`);
+        const failedRevert = requireRecordFor(node.stateOf(TestTaskManager).runs, `rollback:${original.runId}`);
         expect(revertRecordsOf(node.stateOf(TestTaskManager).runs, failedRevert.slotKey)).length(0);
         await node.close();
     });

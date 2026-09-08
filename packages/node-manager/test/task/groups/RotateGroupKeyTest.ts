@@ -14,7 +14,7 @@ import { GroupsServer } from "@matter/node/behaviors/groups";
 import { OnOffLightSwitchDevice } from "@matter/node/devices/on-off-light-switch";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
-import { recordFor, statusOfSlot } from "../helpers.js";
+import { isTerminalState, recordFor, statusOfSlot } from "../helpers.js";
 
 const { TrustFirst } = GroupKeyManagement.GroupKeySecurityPolicy;
 
@@ -36,12 +36,9 @@ const ADD_PARAMS: AddNodeToGroupParams = {
     epochStartTime0: OP_START,
 };
 
-const ROTATION_ID = "r1";
-
 const ROTATE_PARAMS: RotateGroupKeyParams = {
     groupKeySetId: GROUP_KEY_SET_ID,
     newEpochKey: NEW_KEY,
-    rotationId: ROTATION_ID,
 };
 
 const ADD_ID = `${ADD_NODE_TO_GROUP_TYPE}:peer1:${0x101}:1`;
@@ -70,7 +67,7 @@ async function awaitState(node: ServerNode, id: string, ...states: string[]): Pr
             // A run turns terminal one step before it retires, so a caller that acts here would find the
             // slot still held.
             const settled =
-                !(["completed", "failed", "cancelled"] as string[]).includes(state) ||
+                !isTerminalState(state) ||
                 (await node.act(a => !a.get(TaskManagerBehavior).tasks.some(t => t.status.slotKey === id)));
             if (settled) {
                 return;

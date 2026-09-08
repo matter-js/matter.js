@@ -46,12 +46,12 @@ describe("run record snapshots", () => {
         dropped.adoptDrop(["params"]);
         // Otherwise the key returns holding `undefined` on the next write and "storage omits it" holds for
         // exactly one write.
-        expect("params" in dropped.toPersistence({ revertRunId: RunId(2) })).equals(false);
+        expect("params" in dropped.toPersistence({ rollbackRunId: RunId(2) })).equals(false);
     });
 
     it("omits every field the run does not have, and none that it must", () => {
         const snapshot = record().toPersistence();
-        for (const absent of ["externalId", "error", "retireSeq", "revertRunId", "revertOf"]) {
+        for (const absent of ["externalId", "error", "retireSeq", "rollbackRunId", "rollbackOf"]) {
             expect(absent in snapshot).equals(false);
         }
         // The strip is enumerated rather than derived from the values present, so it cannot reach these.

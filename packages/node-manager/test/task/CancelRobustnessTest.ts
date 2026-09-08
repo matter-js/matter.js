@@ -29,7 +29,7 @@ import {
     requireRecordFor,
     requireRunIdOfSlot,
     requireStatusOfSlot,
-    revertRecordOf,
+    rollbackRecordOf,
     runIdOfSlot,
     statusOfSlot,
     SyntheticTask,
@@ -304,13 +304,13 @@ describe("cancel robustness", () => {
         await pumpUntil("intent written", () => peer.items[itemMapKey("groupMembership", "D")] !== undefined);
 
         const handle = await MockTime.resolve(node.act(a => cancelSlot(a.get(TestTaskManager), "synthetic:durable")));
-        expect(handle?.status.revertOf).equals(
+        expect(handle?.status.rollbackOf).equals(
             requireRecordFor(node.stateOf(TestTaskManager).runs, "synthetic:durable").runId,
         );
 
         // A promised revert that is not yet durable is lost to a crash while the forward record already names it.
         const persisted = node.stateOf(TestTaskManager).runs;
-        expect(requireRecordFor(persisted, "synthetic:durable").revertRunId).equals(handle?.runId);
+        expect(requireRecordFor(persisted, "synthetic:durable").rollbackRunId).equals(handle?.runId);
         expect(persisted[String(handle!.runId)]).not.equals(undefined);
 
         await node.close();
@@ -346,7 +346,7 @@ describe("cancel robustness", () => {
         const handle = await MockTime.resolve(
             node.act(a => cancelSlot(a.get(TestTaskManager), "synthetic:cancelrerun")),
         );
-        expect(handle?.status.revertOf).equals(
+        expect(handle?.status.rollbackOf).equals(
             requireRecordFor(node.stateOf(TestTaskManager).runs, "synthetic:cancelrerun").runId,
         );
         expect(rerun).instanceOf(TaskSlotDrainingError);
@@ -394,14 +394,14 @@ describe("cancel robustness", () => {
         // The task keeps a resumable state: nothing claims the cancel took effect.
         const { record } = tracedRun("synthetic:shutrace");
         expect(record.state).equals("running");
-        expect(record.revertRunId).equals(undefined);
+        expect(record.rollbackRunId).equals(undefined);
 
-        // Storage must agree: non-terminal, no dangling revert.
+        // Storage must agree: non-terminal, no dangling rollback.
         const node2 = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-shutrace" });
         const persisted = node2.stateOf(TestTaskManager).runs;
         expect(requireRecordFor(persisted, "synthetic:shutrace").state).equals("running");
-        expect(requireRecordFor(persisted, "synthetic:shutrace").revertRunId).equals(undefined);
-        expect(revertRecordOf(persisted, "synthetic:shutrace")).equals(undefined);
+        expect(requireRecordFor(persisted, "synthetic:shutrace").rollbackRunId).equals(undefined);
+        expect(rollbackRecordOf(persisted, "synthetic:shutrace")).equals(undefined);
         await node2.close();
     });
 
@@ -443,15 +443,15 @@ describe("cancel robustness", () => {
         // The refused write leaves no trace: state as it was, no rollback linked, none live, nothing rolled back.
         const { record } = tracedRun("synthetic:queued");
         expect(record.state).equals("running");
-        expect(record.revertRunId).equals(undefined);
+        expect(record.rollbackRunId).equals(undefined);
         expect(manager.tasks.map(t => t.status.slotKey)).deep.equals(["synthetic:queued"]);
         expect(peer.removeOrder).deep.equals([]);
 
         const node2 = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-queued" });
         const persisted = node2.stateOf(TestTaskManager).runs;
         expect(requireRecordFor(persisted, "synthetic:queued").state).equals("running");
-        expect(requireRecordFor(persisted, "synthetic:queued").revertRunId).equals(undefined);
-        expect(revertRecordOf(persisted, "synthetic:queued")).equals(undefined);
+        expect(requireRecordFor(persisted, "synthetic:queued").rollbackRunId).equals(undefined);
+        expect(rollbackRecordOf(persisted, "synthetic:queued")).equals(undefined);
         await node2.close();
     });
 
@@ -520,12 +520,12 @@ describe("cancel robustness", () => {
 
         const { record } = tracedRun("synthetic:shutfail");
         expect(record.state).equals("running");
-        expect(record.revertRunId).equals(undefined);
+        expect(record.rollbackRunId).equals(undefined);
 
         const node2 = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-shutfail" });
         const persisted = node2.stateOf(TestTaskManager).runs;
         expect(requireRecordFor(persisted, "synthetic:shutfail").state).equals("running");
-        expect(revertRecordOf(persisted, "synthetic:shutfail")).equals(undefined);
+        expect(rollbackRecordOf(persisted, "synthetic:shutfail")).equals(undefined);
         await node2.close();
     });
 
@@ -568,7 +568,7 @@ describe("cancel robustness", () => {
 
         // A rollback the record does not name must not exist: it would block every future run of the id, and
         // nothing would ever drive it.
-        expect(requireStatusOfSlot(manager, "synthetic:failwrite").revertRunId).equals(undefined);
+        expect(requireStatusOfSlot(manager, "synthetic:failwrite").rollbackRunId).equals(undefined);
         expect(manager.tasks.map(t => t.status.slotKey)).deep.equals(["synthetic:failwrite"]);
         expect(peer.removeOrder).deep.equals([]);
 
@@ -787,7 +787,7 @@ describe("cancel robustness", () => {
         // abort stopped the driver and dropped the gate, so without giving both back the task would sit
         // non-terminal with nothing left to advance it, and never reach any outcome at all.
         expect(manager.get(handle.runId)?.status.state).does.not.equal("cancelled");
-        expect(manager.get(handle.runId)?.status.revertRunId).equals(undefined);
+        expect(manager.get(handle.runId)?.status.rollbackRunId).equals(undefined);
 
         // Its driver is back. It cannot reach an outcome while storage refuses, because an outcome is only
         // adopted once it is recorded — which is the point: memory never claims one, so what it is given back
@@ -890,8 +890,8 @@ describe("cancel robustness", () => {
         // priors are not replayed onto the device.
         expect(await cancelling).instanceOf(TaskNotInFlightError);
         expect(manager.get(handle.runId)?.status.state).equals("completed");
-        expect(manager.get(handle.runId)?.status.revertRunId).equals(undefined);
-        expect(revertRecordOf(node.stateOf(TestTaskManager).runs, "synthetic:inwindow")).equals(undefined);
+        expect(manager.get(handle.runId)?.status.rollbackRunId).equals(undefined);
+        expect(rollbackRecordOf(node.stateOf(TestTaskManager).runs, "synthetic:inwindow")).equals(undefined);
 
         // `#retire` declined to release the target because the transition owned the run, so the refusal has to
         // release it. Otherwise the finished run holds its target for the life of the process.
@@ -934,7 +934,7 @@ describe("cancel robustness", () => {
 
         // The rollback was staged and then discarded, so the run must not go on naming it: a record pointing
         // at a rollback nothing created could never be rolled back again.
-        expect(manager.get(handle.runId)?.status.revertRunId).equals(undefined);
+        expect(manager.get(handle.runId)?.status.rollbackRunId).equals(undefined);
         expect(manager.get(handle.runId)?.status.state).equals("completed");
 
         await node.close();
