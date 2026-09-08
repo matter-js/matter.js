@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { GroupKeyGrant } from "#reconcile/GroupKeyItemKind.js";
+import { BUILT_IN_KINDS, GroupKey } from "#reconcile/kinds.js";
 import { AddNodeToGroup } from "#task/groups/AddNodeToGroup.js";
 import { RemoveNodeFromGroup } from "#task/groups/RemoveNodeFromGroup.js";
 import { RotateGroupKey } from "#task/groups/RotateGroupKey.js";
 import { Rollback } from "#task/Rollback.js";
 import { TaskDefinition } from "#task/Task.js";
 import { RunId } from "#task/types.js";
-import { BUILT_IN_KINDS, GroupKey } from "#reconcile/kinds.js";
-import { GroupKeyGrant } from "#reconcile/GroupKeyItemKind.js";
 import { ImplementationError } from "@matter/general";
 import { ItemKind } from "@matter/node";
 
