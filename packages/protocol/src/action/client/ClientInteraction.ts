@@ -85,7 +85,7 @@ export const SUBSCRIPTION_PROCESSING_TIME = Seconds(10);
  * Probe commands in a {@link ClientInvoke} for the Matter "Large Message Quality" ("L") flag.
  *
  * Legacy command requests carry no model reference, so callers using {@link Invoke.LegacyCommandRequest}
- * must continue to set {@link ClientInvoke.largeMessage} explicitly.
+ * must continue to set the request's `largeMessage` explicitly.
  *
  * @internal — exported for unit testing.
  */
@@ -1148,8 +1148,7 @@ export class ClientInteraction<
         // that would dispose prematurely when #begin returns, creating a zombie in the spans Set
         const lifetime = this.#lifetime.join(what);
 
-        // Large Message Quality commands require TCP transport
-        const requiredTransport = "largeMessage" in request && request.largeMessage ? ChannelType.TCP : undefined;
+        const requiredTransport = request.largeMessage ? ChannelType.TCP : undefined;
 
         let abort: Abort;
         let messenger: InteractionClientMessenger;

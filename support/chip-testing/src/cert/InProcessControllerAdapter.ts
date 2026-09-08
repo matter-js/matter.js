@@ -17,6 +17,7 @@ import {
     LogDestination,
     LogFormat,
     Logger,
+    ChannelType,
     MatterError,
     Millis,
     MockStorageService,
@@ -36,10 +37,12 @@ import {
     FabricAuthority,
     getOperationalDeviceQname,
     Invoke,
+    NodeSession,
     Peer as ProtocolPeer,
     PeerSet,
     Read,
     ReadResult,
+    SessionClosedError,
     Subscribe,
     Write,
     WriteResult,
@@ -82,6 +85,7 @@ import type {
     OnboardingPayloadFields,
     ReadAttributeOptions,
     ReadEventOptions,
+    CertSessionInfo,
     SubscribeEventOptions,
     PicsValues,
     SubscribeOptions,
@@ -484,6 +488,43 @@ function resolveCommissioningTarget(target: CommissioningTarget): ResolvedCommis
  */
 export class NoCommissionedPeerError extends MatterError {}
 
+/**
+ * Thrown when a session operation names a session the controller does not hold, or one whose
+ * transport has nothing to sever.
+ *
+ * A state error rather than a refusal: a step that reached it has already established something
+ * untrue about the session it captured, so it must fail rather than be recorded as skipped.
+ */
+export class SessionStateError extends MatterError {}
+
+/**
+ * A session's {@link MessageChannel}, or undefined for one that can no longer describe itself.
+ *
+ * `Session.channel` throws once the channel is detached, and `Peer.sessions` holds such a session
+ * until it is removed, so every reader has to tolerate it — reporting a session half-known would be
+ * worse than omitting it.
+ */
+function channelOf(session: NodeSession) {
+    try {
+        return session.channel;
+    } catch (error) {
+        SessionClosedError.accept(error);
+        return undefined;
+    }
+}
+
+/** {@link ChannelType} as {@link CertSessionInfo} names it; a new transport fails to compile here. */
+function transportNameOf(type: ChannelType): CertSessionInfo["transport"] {
+    switch (type) {
+        case ChannelType.TCP:
+            return "tcp";
+        case ChannelType.UDP:
+            return "udp";
+        case ChannelType.BLE:
+            return "ble";
+    }
+}
+
 class InProcessCertNodeApi implements CertNodeApi {
     readonly #adapterId: string;
     readonly #controller: ServerNode;
@@ -608,6 +649,7 @@ class InProcessCertNodeApi implements CertNodeApi {
                     fabricFilter: options?.fabricFiltered,
                 }),
                 includeKnownVersions: true,
+                largeMessage: options?.largeMessage,
             };
             for await (const chunk of this.#peer.interaction.read(request)) {
                 for await (const report of chunk) {
@@ -644,6 +686,7 @@ class InProcessCertNodeApi implements CertNodeApi {
             const request: ClientRead = {
                 ...Read({ attributes: paths.map(toIds), fabricFilter: options?.fabricFiltered }),
                 includeKnownVersions: true,
+                largeMessage: options?.largeMessage,
             };
             for await (const chunk of this.#peer.interaction.read(request)) {
                 for await (const report of chunk) {
@@ -777,6 +820,76 @@ class InProcessCertNodeApi implements CertNodeApi {
             }
 
             return heldValue(endpoint, ClusterId(path.cluster), path.attribute);
+        });
+    }
+
+    sessions(): Promise<CertSessionInfo[]> {
+        return runTagged(this.#adapterId, async () => {
+            const entries = new Array<CertSessionInfo>();
+            for (const session of this.#usableSessions) {
+                const channel = channelOf(session);
+                if (channel === undefined) {
+                    continue;
+                }
+                entries.push({
+                    id: session.id,
+                    transport: transportNameOf(channel.type),
+                    largePayload: session.supportsLargeMessages,
+                    maxPayloadSize: channel.maxPayloadSize,
+                });
+            }
+            return entries;
+        });
+    }
+
+    /**
+     * The peer's sessions the controller would actually use, which is a narrower set than the peer
+     * holds.
+     *
+     * `Peer.sessions` keeps a session until its `closing` fires, so it still contains one the
+     * controller has already written off — `handlePeerClose` sets `isPeerLost` and then awaits an
+     * emit before closing. Every other consumer in the protocol layer applies this same predicate
+     * (`Peer.newestSession`, `Peer.hasSession`, `SessionManager`), and a cert step reads these as
+     * sessions the controller *holds*, so reporting one it will not use would answer a different
+     * question than the step asks.
+     */
+    get #usableSessions() {
+        const peer = this.#protocolPeer;
+        if (peer === undefined) {
+            throw new NoCommissionedPeerError(
+                `Controller "${this.#adapterId}" has no peer with node id ${this.#nodeId}, so it holds no sessions`,
+            );
+        }
+        return [...peer.sessions].filter(session => !session.isClosing && !session.isPeerLost);
+    }
+
+    severTransportConnection(sessionId: number): Promise<void> {
+        return runTagged(this.#adapterId, async () => {
+            const session = this.#usableSessions.find(candidate => candidate.id === sessionId);
+            if (session === undefined) {
+                throw new SessionStateError(
+                    `Controller "${this.#adapterId}" holds no session ${sessionId} with node id ${this.#nodeId}`,
+                );
+            }
+
+            const channel = channelOf(session);
+            if (channel === undefined) {
+                throw new SessionStateError(
+                    `Session ${sessionId} with node id ${this.#nodeId} has no channel to sever`,
+                );
+            }
+
+            const { transportChannel } = channel;
+            if (transportChannel.type !== ChannelType.TCP) {
+                throw new SessionStateError(
+                    `Session ${sessionId} with node id ${this.#nodeId} runs over ` +
+                        `${transportNameOf(transportChannel.type)}, which holds no connection to sever`,
+                );
+            }
+
+            // The stimulus must not tell the peer anything: the peer forgetting the session is the
+            // outcome a case asserts, so it cannot also be what this does
+            await transportChannel.close();
         });
     }
 

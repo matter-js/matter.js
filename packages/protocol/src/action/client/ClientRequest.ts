@@ -60,4 +60,19 @@ export interface ClientRequest {
      * already in flight may still be acted on by the peer.
      */
     abort?: AbortSignal;
+
+    /**
+     * Require a session that permits payloads larger than the IPv6 MTU.
+     *
+     * Such a session runs over TCP, so this is a hard transport requirement rather than a preference:
+     * the interaction establishes a TCP-backed session or fails, and never falls back to MRP the way
+     * a peer's transport preference does. A peer that negotiates TCP and then denies supporting it
+     * fails with `TcpUnsupportedError`; one that simply cannot be reached over TCP fails however that
+     * connection attempt fails. Use it when the interaction's
+     * request or its response may exceed what MRP can carry — a command with Large Message Quality,
+     * or a read broad enough that the peer's report would otherwise be chunked.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 4.15.1
+     */
+    largeMessage?: boolean;
 }

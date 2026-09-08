@@ -46,6 +46,7 @@ import {
     runCleanups,
     WRITE_REQUEST_MESSAGE,
 } from "../cert/tc-support.js";
+import { fakeCertNode } from "./fake-cert-node.js";
 
 const EXCHANGE = 26481;
 const CHUNK = "[DMG] ReportDataMessage =";
@@ -1438,23 +1439,7 @@ describe("requireId", () => {
 
 describe("readOwnFabricIndex", () => {
     function nodeReporting(value: unknown): CertNodeApi {
-        const unused = () => Promise.reject(new InternalError("not used by these tests"));
-        return {
-            invoke: unused,
-            invokeBatch: unused,
-            readAttributes: unused,
-            writeAttribute: unused,
-            writeAttributes: unused,
-            subscribe: unused,
-            readEvents: unused,
-            subscribeEvents: unused,
-            clientEndpoints: unused,
-            clientAttribute: unused,
-            openCommissioningWindow: unused,
-            operationalMdnsInstanceName: unused,
-            decommission: unused,
-            readAttribute: async () => value,
-        };
+        return fakeCertNode({ readAttribute: async () => value });
     }
 
     it("returns the index the device reported", async () => {
@@ -1694,23 +1679,7 @@ describe("runCleanups", () => {
 describe("CommissionedRefs", () => {
     function contextWith(decommission: (role: string) => Promise<void>): CertStepContext {
         function nodeFor(role: string): CertNodeApi {
-            const unused = () => Promise.reject(new Error("not used by these tests"));
-            return {
-                invoke: unused,
-                invokeBatch: unused,
-                readAttribute: unused,
-                readAttributes: unused,
-                writeAttribute: unused,
-                writeAttributes: unused,
-                subscribe: unused,
-                readEvents: unused,
-                subscribeEvents: unused,
-                clientEndpoints: unused,
-                clientAttribute: unused,
-                openCommissioningWindow: unused,
-                operationalMdnsInstanceName: unused,
-                decommission: () => decommission(role),
-            };
+            return fakeCertNode({ decommission: () => decommission(role) });
         }
 
         // An ended source lets the follower close itself; this file's OpenSource would leave one
