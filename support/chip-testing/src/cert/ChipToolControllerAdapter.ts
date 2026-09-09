@@ -1155,6 +1155,24 @@ class ChipToolCertNodeApi implements CertNodeApi {
         );
     }
 
+    async sessions(): Promise<never> {
+        throw new UnsupportedByControllerError(
+            "the sessions the controller holds with a node",
+            "chip-tool",
+            "chip-tool exposes no session state of its own — a session lives inside the process it " +
+                "spawns per command, and nothing it prints names the transport beneath one",
+        );
+    }
+
+    async severTransportConnection(_sessionId: number): Promise<never> {
+        throw new UnsupportedByControllerError(
+            "severing the connection beneath a session",
+            "chip-tool",
+            "chip-tool owns no session a test can reach into, and it establishes a TCP-backed one for " +
+                "no interaction, so there is no connection to sever",
+        );
+    }
+
     async openCommissioningWindow(opts: {
         timeout: number;
         enhanced: boolean;
@@ -1196,6 +1214,16 @@ class ChipToolCertNodeApi implements CertNodeApi {
     }
 
     #read(paths: AttributePathSpec[], options?: ReadAttributeOptions) {
+        if (options?.largeMessage) {
+            throw new UnsupportedByControllerError(
+                "a read that requires a session permitting large payloads",
+                "chip-tool",
+                "chip-tool decides a session's transport when it establishes one and reuses the session " +
+                    "pairing already made, so it cannot be made to answer a single read over a " +
+                    "TCP-backed session",
+            );
+        }
+
         // chip-tool zips the three id lists into paths when their lengths match
         // (`InteractionModelConfig::GetAttributePaths`), so equal-length lists express any path set.
         let command =

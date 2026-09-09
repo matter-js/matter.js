@@ -4,17 +4,35 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { CertDevice, CertStepContext, CheckRecord, DeviceFlavor, Subject } from "@matter/testing";
+import { InternalError, Millis } from "@matter/general";
+import type {
+    CertDevice,
+    CertSessionInfo,
+    CertStepContext,
+    CheckRecord,
+    ControllerAdapter,
+    DeviceFlavor,
+    Subject,
+} from "@matter/testing";
 import { LineQueue, LogFollower, PicsFile } from "@matter/testing";
 import {
+    largePayloadSessionCheck,
     noFurtherSessionCheck,
     recordTcpInvoke,
     recordTcpSession,
     regularSizedRequestCheck,
+    describeSessions,
+    furtherSessionCheck,
+    recordSeveredSession,
+    sessionEvictionUnreadableCheck,
+    sessionGoneCheck,
+    sessionWithId,
+    tcpSessionIdOf,
     wildcardReadInOneReportCheck,
     TcpSessionRef,
 } from "../cert/tc-sc-8-support.js";
 import { CertCheckFailedError } from "../cert/tc-support.js";
+import { fakeCertNode } from "./fake-cert-node.js";
 
 /** GeneralDiagnostics, and its TimeSnapshot command, which TC-SC-8.5 invokes. */
 const CLUSTER = 0x33;
@@ -22,6 +40,8 @@ const COMMAND = 0x1;
 const ENDPOINT = 0;
 
 const SESSION = "@1:86c217a36142d632•c8b8";
+const CHANNEL = "tcp://[fe80::1%en0]«60111";
+const SESSION_FACTS = { tag: SESSION, channel: CHANNEL, controllerSessionId: 0xc8b8 };
 const OTHER_SESSION = "@1:86c217a36142d632•9f2c";
 
 function at(millis: number) {
@@ -33,6 +53,22 @@ const pairingRequest = (session = SESSION) =>
     `${at(0)} INFO CaseServer •unsecured#${session}(tcp)⇵2c56 Pairing request « tcp://[fe80::1%en0]«60111`;
 const newSession = (session = SESSION) =>
     `${at(1)} INFO CaseServer ${session}(tcp) New session with @1:86c217a36142d632 2↔1 address: tcp://[fe80::1%en0]«60111`;
+
+/** What the TH holds for a TCP-backed session it established, as `CertSessionInfo` reports it. */
+const TCP_HELD: CertSessionInfo = {
+    id: 0xc8b8,
+    transport: "tcp",
+    largePayload: true,
+    maxPayloadSize: 65523,
+};
+
+/** A session over the other transport a controller may hold with the same peer at the same time. */
+const UDP_HELD: CertSessionInfo = {
+    id: 0x9f2c,
+    transport: "udp",
+    largePayload: false,
+    maxPayloadSize: 1280,
+};
 
 const INVOKE_EXCHANGE = "2c57";
 
@@ -108,7 +144,10 @@ async function withDut<T>(
 describe("recordTcpSession", () => {
     it("returns the session tag the DUT's own line names", async () => {
         await withDut([pairingRequest(), newSession()], async (cx, checks) => {
-            expect(await recordTcpSession(cx, 0, "runs over TCP")).equal(SESSION);
+            expect(await recordTcpSession(cx, 0, "runs over TCP")).deep.equal({
+                tag: SESSION,
+                channel: CHANNEL,
+            });
             expect(checks.map(check => check.verdict)).deep.equal(["pass", "pass"]);
         });
     });
@@ -404,10 +443,305 @@ describe("TcpSessionRef", () => {
 
     it("forgets the session a finalizer cleared", () => {
         const session = new TcpSessionRef();
-        session.set(SESSION);
-        expect(session.require()).equal(SESSION);
+        session.set(SESSION_FACTS);
+        expect(session.require()).deep.equal(SESSION_FACTS);
 
         session.clear();
         expect(() => session.require()).throw(CertCheckFailedError);
+    });
+});
+
+describe("largePayloadSessionCheck", () => {
+    it("passes for the named TCP session permitting large payloads", () => {
+        const check = largePayloadSessionCheck([TCP_HELD], TCP_HELD.id);
+
+        expect(check.verdict).equal("pass");
+        expect(check.detail).match(/tcp session 51384, which permits large payloads/);
+    });
+
+    it("fails when the controller holds no sessions at all", () => {
+        const check = largePayloadSessionCheck([], TCP_HELD.id);
+
+        expect(check.verdict).equal("fail");
+        expect(check.detail).match(/no sessions/);
+    });
+
+    // The hole the identified API closes: a sibling session over another transport must neither
+    // satisfy this check nor fail it
+    it("fails when the named session is absent, whatever else is held", () => {
+        const check = largePayloadSessionCheck([UDP_HELD], TCP_HELD.id);
+
+        expect(check.verdict).equal("fail");
+        expect(check.detail).match(/no session 51384 with the DUT, and holds udp session 40748/);
+    });
+
+    it("judges the named session, not the one that comes first", () => {
+        expect(largePayloadSessionCheck([UDP_HELD, TCP_HELD], TCP_HELD.id).verdict).equal("pass");
+    });
+
+    // Only TCP carries a large payload, so a UDP session claiming to permit one is reporting
+    // something the peer could not receive
+    it("fails for a session over another transport", () => {
+        const udpClaimingLargePayload = { ...UDP_HELD, largePayload: true, maxPayloadSize: 65523 };
+
+        expect(largePayloadSessionCheck([udpClaimingLargePayload], UDP_HELD.id).verdict).equal("fail");
+    });
+
+    it("fails for a session that denies large payloads", () => {
+        expect(largePayloadSessionCheck([{ ...TCP_HELD, largePayload: false }], TCP_HELD.id).verdict).equal("fail");
+    });
+
+    // The claim is about payloads MRP cannot carry, so a ceiling at the MTU leaves "permits"
+    // describing nothing
+    it("fails for a payload ceiling no larger than the IPv6 MTU", () => {
+        expect(largePayloadSessionCheck([{ ...TCP_HELD, maxPayloadSize: 1280 }], TCP_HELD.id).verdict).equal("fail");
+    });
+});
+
+describe("sessionGoneCheck", () => {
+    it("passes when the controller holds no sessions at all", () => {
+        expect(sessionGoneCheck(SESSION_FACTS, []).verdict).equal("pass");
+    });
+
+    it("passes when the controller holds only other sessions", () => {
+        const check = sessionGoneCheck(SESSION_FACTS, [UDP_HELD]);
+
+        expect(check.verdict).equal("pass");
+        expect(check.detail).match(/no longer holds session 51384, and holds udp session 40748/);
+    });
+
+    // The failure the check exists for, and the reason it is identified rather than counted: a
+    // check that asked whether any session exists — or whether the newest one differs — would pass
+    // on the very session it was supposed to have destroyed
+    it("fails when the severed session is still held alongside another", () => {
+        const check = sessionGoneCheck(SESSION_FACTS, [UDP_HELD, TCP_HELD]);
+
+        expect(check.verdict).equal("fail");
+        expect(check.detail).match(/still holds session 51384/);
+    });
+
+    it("fails when the controller still holds the severed session alone", () => {
+        expect(sessionGoneCheck(SESSION_FACTS, [TCP_HELD]).verdict).equal("fail");
+    });
+});
+
+describe("tcpSessionIdOf", () => {
+    it("answers the id of the one TCP session held", () => {
+        expect(tcpSessionIdOf([UDP_HELD, TCP_HELD])).equal(TCP_HELD.id);
+    });
+
+    it("refuses when no TCP session is held", () => {
+        expect(() => tcpSessionIdOf([UDP_HELD])).throw(CertCheckFailedError, /holds 0 TCP sessions/);
+    });
+
+    // Two is reachable — a peer-lost session lingers, an inbound session joins the same peer — so it
+    // must refuse rather than pick one, or the case reasons about whichever came back first
+    it("refuses when two TCP sessions are held", () => {
+        expect(() => tcpSessionIdOf([TCP_HELD, { ...TCP_HELD, id: 0x1234 }])).throw(
+            CertCheckFailedError,
+            /holds 2 TCP sessions/,
+        );
+    });
+
+    it("names what is held, so a refusal says which sessions it saw", () => {
+        expect(() => tcpSessionIdOf([UDP_HELD])).throw(/holds udp session 40748/);
+    });
+});
+
+describe("recordSeveredSession", () => {
+    /** A TH whose `sessions()` answers each element of `reads` in turn, and the last one thereafter. */
+    function thReading(reads: CertSessionInfo[][]) {
+        const severed = new Array<number>();
+        let call = 0;
+        const th = {
+            id: "th",
+            log: new LogFollower(new LineQueue().follow(), "th"),
+            async start() {},
+            async close() {},
+            async commission() {
+                return "ref";
+            },
+            parseQrPayload: () => Promise.reject(new InternalError("not used by these tests")),
+            parseManualPairingCode: () => Promise.reject(new InternalError("not used by these tests")),
+            node: () =>
+                fakeCertNode({
+                    sessions: async () => reads[Math.min(call++, reads.length - 1)],
+                    severTransportConnection: async id => void severed.push(id),
+                }),
+            group: (): never => {
+                throw new InternalError("not used by these tests");
+            },
+        } satisfies ControllerAdapter;
+
+        const checks = new Array<CheckRecord>();
+        const cx: CertStepContext = {
+            controllers: { th },
+            devices: {},
+            recorder: {
+                beginStep() {},
+                check(record) {
+                    checks.push(record);
+                },
+                endStep() {
+                    return [];
+                },
+                async flush() {
+                    return "";
+                },
+            },
+        };
+        return { cx, checks, severed, reads: () => call };
+    }
+
+    /** Long enough for a few poll turns, short enough for a hermetic test's own timeout. */
+    const POLL_BOUND = Millis(300);
+
+    function refHolding(facts = SESSION_FACTS) {
+        const ref = new TcpSessionRef();
+        ref.set(facts);
+        return ref;
+    }
+
+    it("severs the session the case captured, by id", async () => {
+        const { cx, severed } = thReading([[]]);
+
+        await recordSeveredSession(cx, "ref", refHolding());
+
+        expect(severed).deep.equal([SESSION_FACTS.controllerSessionId]);
+    });
+
+    it("passes on the first read when the session is already gone", async () => {
+        const { cx, checks, reads } = thReading([[]]);
+
+        await recordSeveredSession(cx, "ref", refHolding());
+
+        expect(checks.map(check => check.verdict)).deep.equal(["pass", "unverified"]);
+        expect(reads()).equal(1);
+    });
+
+    // The race the poll exists for: eviction runs on a worker no step can await, so the severed
+    // session is still held on the first read
+    it("waits for an eviction that has not happened yet", async () => {
+        const { cx, checks, reads } = thReading([[TCP_HELD], [TCP_HELD], [UDP_HELD]]);
+
+        await recordSeveredSession(
+            cx,
+            "ref",
+            refHolding({ ...SESSION_FACTS, controllerSessionId: TCP_HELD.id }),
+            POLL_BOUND,
+        );
+
+        expect(checks[0].verdict).equal("pass");
+        expect(reads()).equal(3);
+    });
+
+    // A timeout must not read as success — the severed session still being held is the failure
+    it("fails when the session is never evicted", async () => {
+        const { cx, checks } = thReading([[TCP_HELD]]);
+
+        await expect(
+            recordSeveredSession(
+                cx,
+                "ref",
+                refHolding({ ...SESSION_FACTS, controllerSessionId: TCP_HELD.id }),
+                POLL_BOUND,
+            ),
+        ).rejectedWith(CertCheckFailedError);
+
+        expect(checks[0].verdict).equal("fail");
+    });
+});
+
+describe("furtherSessionCheck", () => {
+    const furtherSession = (session = OTHER_SESSION) =>
+        `${at(7)} INFO CaseServer ${session}(tcp) New session with @1:86c217a36142d632 2↔1 address: tcp://[fe80::1%en0]«60222`;
+    const furtherResumed = (session = OTHER_SESSION) =>
+        `${at(8)} INFO CaseServer ${session}(tcp) Resumed session with @1:86c217a36142d632 address: tcp://[fe80::1%en0]«60222`;
+
+    it("passes and names the session for a further session over TCP", async () => {
+        await withDut([furtherSession()], async cx => {
+            const check = await furtherSessionCheck(cx, 0);
+
+            expect(check.verdict).equal("pass");
+            expect(check.matched).equal(OTHER_SESSION);
+            expect(check.detail).match(/accepted @1:86c217a36142d632•9f2c over TCP/);
+        });
+    });
+
+    // Resumption is a CASE session establishment, and a DUT doing the spec-preferred thing must not
+    // fail the case
+    it("passes for a resumed session", async () => {
+        await withDut([furtherResumed()], async cx => {
+            expect((await furtherSessionCheck(cx, 0)).verdict).equal("pass");
+        });
+    });
+
+    // The controller's own session id is what the step rests on, so a missing line is an accepted gap
+    // rather than a failure — which is the whole reason this check does not gate the step
+    it("accepts a log with no further session rather than failing", async () => {
+        await withDut([], async cx => {
+            const check = await furtherSessionCheck(cx, 0);
+
+            expect(check.verdict).equal("unverified");
+            expect(check.accepted).match(/controller's own session id is what this step rests on/);
+        });
+    });
+
+    it("does not count a session over another transport", async () => {
+        const overUdp = `${at(7)} INFO CaseServer ${OTHER_SESSION} New session with @1:86c217a36142d632 2↔1 address: udp://[fe80::1%en0]:5540`;
+
+        await withDut([overUdp], async cx => {
+            expect((await furtherSessionCheck(cx, 0)).verdict).equal("unverified");
+        });
+    });
+
+    it("has no pattern for a device flavor this block does not host", async () => {
+        await withDut(
+            [furtherSession()],
+            async cx => {
+                const check = await furtherSessionCheck(cx, 0);
+
+                expect(check.verdict).equal("unverified");
+                expect(check.accepted).match(/no pattern for a chip-docker device/);
+            },
+            "chip-docker",
+        );
+    });
+});
+
+describe("sessionWithId", () => {
+    it("finds the session the id names", () => {
+        expect(sessionWithId([UDP_HELD, TCP_HELD], TCP_HELD.id)).deep.equal(TCP_HELD);
+    });
+
+    it("answers undefined for an id nothing holds", () => {
+        expect(sessionWithId([UDP_HELD], TCP_HELD.id)).equal(undefined);
+    });
+});
+
+describe("describeSessions", () => {
+    it("names every session held", () => {
+        expect(describeSessions([UDP_HELD, TCP_HELD])).equal("udp session 40748, tcp session 51384");
+    });
+
+    it("says so when none are held, rather than reading as an empty list", () => {
+        expect(describeSessions([])).equal("no sessions");
+    });
+});
+
+describe("sessionEvictionUnreadableCheck", () => {
+    // The device does evict, and says so; the harness cannot attribute the line, so the record has to
+    // state that rather than let an unmatched pattern read as a device that failed to evict
+    it("records the device half as an accepted gap", () => {
+        const check = sessionEvictionUnreadableCheck(SESSION_FACTS);
+
+        expect(check.type).equal("device-log");
+        expect(check.verdict).equal("unverified");
+        expect(check.accepted).match(/carries no device attribution/);
+        expect(check.detail).match(/@1:86c217a36142d632•c8b8/);
+    });
+
+    it("names the connection the session ran on", () => {
+        expect(sessionEvictionUnreadableCheck(SESSION_FACTS).detail).contain(CHANNEL);
     });
 });

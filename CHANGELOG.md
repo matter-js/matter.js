@@ -13,6 +13,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/testing
     - Breaking: `BackchannelCommand.SimulateLongPress` carries the switch's `featureMap`, which a chip test app requires to decide which events a press produces
+    - Breaking: A certification step can ask which sessions a controller holds with a node, and can drop the connection beneath a named one, via `CertNodeApi.sessions()` and `CertNodeApi.severTransportConnection()`
+    - Enhancement: A certification step's read may require a session that permits large payloads via `ReadAttributeOptions.largeMessage`
     - Enhancement: Chip certification test devices take simulation commands through the named pipe their app opens, so a step that operates the device runs against a chip app rather than skipping
     - Enhancement: Chip certification test devices also take simulation commands through their app's standard input, one character per poll interval, which is how chip's bridge app is operated
     - Enhancement: The matter.js bridge test device exposes the devices chip's bridge app does, on the same endpoints, and takes the same simulation commands
@@ -23,6 +25,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Per-step certification PICS is evaluated on chip device flavors too, and `result.json` reports how many steps their PICS excluded
     - Fix: A certification run's `result.json` no longer reports a passing verdict for a run that failed
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
+
+- @matter/protocol
+    - Enhancement: `ClientRequest.largeMessage` requires a session that permits large payloads for any interaction, not only a command invocation; such an interaction establishes a TCP-backed session or fails rather than falling back to MRP
 
 - @matter/model
     - Enhancement: `DeviceTypeModel.effectiveComposition` states whether a device type composes its endpoint's `PartsList` of every descendant or of its own children

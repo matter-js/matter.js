@@ -57,6 +57,7 @@ export type {
     GroupKeySetSpec,
     CertNodeApi,
     CertNodeRef,
+    CertSessionInfo,
     ClientAttributePath,
     ClientEndpointEntry,
     CommissioningTarget,

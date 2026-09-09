@@ -22,7 +22,12 @@ import { expect } from "chai";
 import { env } from "node:process";
 import { AllClustersTestInstance } from "../../src/AllClustersTestInstance.js";
 import { CHIP_TOOL_CONTROLLER_PICS, ChipToolControllerAdapter } from "../../src/cert/ChipToolControllerAdapter.js";
-import { InProcessControllerAdapter, MATTERJS_CONTROLLER_PICS } from "../../src/cert/InProcessControllerAdapter.js";
+import {
+    InProcessControllerAdapter,
+    MATTERJS_CONTROLLER_PICS,
+    NoCommissionedPeerError,
+    SessionStateError,
+} from "../../src/cert/InProcessControllerAdapter.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
 import { manualPairingCode } from "../cert/tc-dd-support.js";
 
@@ -174,6 +179,84 @@ describe("InProcessControllerAdapter", () => {
         } finally {
             await adapter.node(ref).decommission();
         }
+    });
+
+    // The certification cases read these through `fakeCertNode` in the hermetic suite, which cannot
+    // catch the projection itself being wrong — the session's transport, what it reports about large
+    // payloads, or which sessions it omits
+    it("reports the session it holds with a commissioned peer, and what that session permits", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+
+        try {
+            const sessions = await adapter.node(ref).sessions();
+
+            expect(sessions, "the controller holds a session with the peer it commissioned").length.greaterThan(0);
+            for (const session of sessions) {
+                expect(session.id, "a session reports the controller's own id for it").a("number");
+                expect(["tcp", "udp", "ble"], "a session names its transport").contains(session.transport);
+                expect(session.maxPayloadSize, "a session reports its payload ceiling").greaterThan(0);
+                // This adapter asked for no transport, so its session is an MRP one, and MRP does not
+                // carry a large payload
+                expect(session.largePayload, `${session.transport} session permits a large payload`).equal(
+                    session.transport === "tcp",
+                );
+            }
+        } finally {
+            await adapter.node(ref).decommission();
+        }
+    });
+
+    // Naming a session the controller does not hold is a statement about runtime state, so it fails
+    // the step rather than being recorded as a controller that cannot do this at all
+    it("refuses to sever a session it does not hold", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+
+        try {
+            const held = await adapter.node(ref).sessions();
+            const unknown = Math.max(0, ...held.map(session => session.id)) + 1;
+
+            await expect(adapter.node(ref).severTransportConnection(unknown)).rejectedWith(
+                SessionStateError,
+                /holds no session/,
+            );
+        } finally {
+            await adapter.node(ref).decommission();
+        }
+    });
+
+    it("refuses to sever a session whose transport holds no connection", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+
+        try {
+            const sessions = await adapter.node(ref).sessions();
+            const mrp = sessions.find(session => session.transport !== "tcp");
+            expect(mrp, "this adapter asked for no transport, so its session is an MRP one").not.undefined;
+
+            await expect(adapter.node(ref).severTransportConnection(mrp!.id)).rejectedWith(
+                SessionStateError,
+                /holds no connection to sever/,
+            );
+        } finally {
+            await adapter.node(ref).decommission();
+        }
+    });
+
+    it("refuses to report sessions once the peer is gone", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        const node = adapter.node(ref);
+        await node.decommission();
+
+        // A vanished peer is not an empty session set: a check reading "no sessions held" as "the
+        // session went away" would otherwise pass on the peer having been removed instead
+        await expect(node.sessions()).rejectedWith(NoCommissionedPeerError);
     });
 
     it("commissions from the device's own QR onboarding payload", async function () {
