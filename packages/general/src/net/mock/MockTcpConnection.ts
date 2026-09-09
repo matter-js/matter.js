@@ -6,6 +6,7 @@
 
 import { Time } from "#time/Time.js";
 import { Bytes } from "#util/Bytes.js";
+import { TransportClosedError } from "../Network.js";
 import type { TcpConnection } from "../tcp/TcpConnection.js";
 import type { Transport } from "../Transport.js";
 
@@ -52,11 +53,11 @@ export class MockTcpConnection implements TcpConnection {
 
     async send(data: Bytes): Promise<void> {
         if (this.#closed) {
-            throw new Error("Connection is closed");
+            throw new TransportClosedError("Connection is closed");
         }
         const peer = this.#peer;
         if (!peer || peer.#closed) {
-            throw new Error("Peer connection is closed");
+            throw new TransportClosedError("Peer connection is closed");
         }
 
         // Deliver asynchronously

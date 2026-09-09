@@ -33,6 +33,7 @@ import {
     ObserverGroup,
     Time,
     Transport,
+    TransportClosedError,
     TransportSet,
     UdpTransport,
     UnexpectedDataError,
@@ -629,10 +630,10 @@ export class ExchangeManager implements Transport.Provider {
             logger.debug("Evicting session due to TCP disconnect:", session.via);
 
             for (const exchange of [...session.exchanges]) {
-                await exchange.close(new Error("TCP connection dropped"));
+                await exchange.close(new TransportClosedError("TCP connection dropped"));
             }
 
-            await session.initiateForceClose({ cause: new Error("TCP connection dropped") });
+            await session.initiateForceClose({ cause: new TransportClosedError("TCP connection dropped") });
         }
     }
 
