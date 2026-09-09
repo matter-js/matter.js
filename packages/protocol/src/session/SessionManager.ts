@@ -67,6 +67,19 @@ function assertActiveThreshold(activeThreshold: Duration) {
     }
 }
 
+/**
+ * Reject a locally-configured MaxPathsPerInvoke that is not a whole count of at least one. The setter installs the
+ * value we advertise without normalizing it, and a fractional count encodes truncated while our own limit keeps the
+ * remainder.
+ */
+function assertMaxPathsPerInvoke(maxPathsPerInvoke: number) {
+    if (!Number.isInteger(maxPathsPerInvoke) || maxPathsPerInvoke < 1) {
+        throw new ImplementationError(
+            `Max Paths Per Invoke of ${maxPathsPerInvoke} is not a whole number of at least 1`,
+        );
+    }
+}
+
 /** Resumption record without a fabric reference but relevant lookup data used internally in SessionManager */
 interface InternalResumptionRecord {
     sharedSecret: Bytes;
@@ -228,6 +241,9 @@ export class SessionManager {
         const {
             fabrics: { crypto },
         } = context;
+        if (context.parameters?.maxPathsPerInvoke !== undefined) {
+            assertMaxPathsPerInvoke(context.parameters.maxPathsPerInvoke);
+        }
         this.#sessionParameters = SessionParameters({ ...SessionParameters.defaults, ...context.parameters });
         assertActiveThreshold(this.#sessionParameters.activeThreshold);
         this.#nextSessionId = crypto.randomUint16;
@@ -336,6 +352,9 @@ export class SessionManager {
     set sessionParameters(parameters: Partial<SessionParameters>) {
         if (parameters.activeThreshold !== undefined) {
             assertActiveThreshold(parameters.activeThreshold);
+        }
+        if (parameters.maxPathsPerInvoke !== undefined) {
+            assertMaxPathsPerInvoke(parameters.maxPathsPerInvoke);
         }
         for (const [key, value] of Object.entries(parameters)) {
             if (value !== undefined) {
@@ -1018,11 +1037,5 @@ export class SessionManager {
         this.#idUpperBound = upperBound;
         this.#nextSessionId = this.#context.fabrics.crypto.randomUint32 % upperBound;
         if (this.#nextSessionId === 0) this.#nextSessionId++;
-    }
-}
-
-namespace SessionManager {
-    export interface Options {
-        maxPathsPerInvoke?: number;
     }
 }
