@@ -26,6 +26,12 @@ describe("SessionParameters", () => {
         it("assumes one when the peer reports no limit", () => {
             expect(SessionParameters({ maxPathsPerInvoke: undefined }).maxPathsPerInvoke).equal(1);
         });
+
+        it("assumes one for a persisted limit that is not a usable number", () => {
+            for (const maxPathsPerInvoke of [Number.NaN, -1, "10", null]) {
+                expect(SessionParameters({ maxPathsPerInvoke } as SessionParameters.Config).maxPathsPerInvoke).equal(1);
+            }
+        });
     });
 
     describe("TCP spec-version gate", () => {

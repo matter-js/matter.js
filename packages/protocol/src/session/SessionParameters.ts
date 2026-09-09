@@ -70,8 +70,9 @@ export function SessionParameters(config?: SessionParameters.Config): SessionPar
     }
 
     // The MaxPathsPerInvoke attribute defines zero as "assume one", and the MAX_PATHS_PER_INVOKE session parameter
-    // carries that same attribute
-    if (typeof sanitizedConfig.maxPathsPerInvoke === "number" && sanitizedConfig.maxPathsPerInvoke < 1) {
+    // carries that same attribute. Persisted parameters reach us untyped, so anything but a number of at least one
+    // takes the fallback.
+    if (!(typeof sanitizedConfig.maxPathsPerInvoke === "number" && sanitizedConfig.maxPathsPerInvoke >= 1)) {
         delete sanitizedConfig.maxPathsPerInvoke;
     }
 
